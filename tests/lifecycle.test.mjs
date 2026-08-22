@@ -1,0 +1,461 @@
+import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
+import { mkdtemp, readdir, writeFile } from 'node:fs/promises'
+import os from 'node:os'
+import path from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import {
+  analyzeTranscript,
+  bashDeletionMutationPaths,
+  bashMarkdownMutationPaths,
+  branchViolation,
+  isPotentialMutationCommand,
+  isValidationCommand,
+} from '../scripts/lifecycle.mjs'
+
+const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const testTmp = process.platform === 'darwin' ? '/private/tmp' : os.tmpdir()
+
+function transcript(entries) {
+  return entries.map(entry => JSON.stringify(entry)).join('\n')
+}
+
+function toolUse(id, name, input) {
+  return { type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } }
+}
+
+function toolResult(id, isError = false, content = 'ok') {
+  return { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: isError, content }] } }
+}
+
+test('recognizes project verification commands without treating arbitrary shell as evidence', () => {
+  assert.equal(isValidationCommand('pnpm test'), true)
+  assert.equal(isValidationCommand('cargo check --workspace'), true)
+  assert.equal(isValidationCommand('node /plugin/scripts/verify.mjs --cwd /repo -- custom gate'), true)
+  assert.equal(isValidationCommand('node --test tests/unit.test.mjs'), true)
+  assert.equal(isValidationCommand('pnpm test && pnpm lint'), true)
+  assert.equal(isValidationCommand('pnpm test || true'), false)
+  assert.equal(isValidationCommand('pnpm test && python3 rewrite.py'), false)
+  assert.equal(isValidationCommand('pnpm test | tail -20'), false)
+  assert.equal(isValidationCommand('git status --short'), false)
+  assert.equal(isValidationCommand('rg test src'), false)
+  assert.equal(isValidationCommand('test -n x'), false)
+})
+
+test('tracks mutation-capable Bash commands without treating read-only probes as edits', () => {
+  assert.equal(isPotentialMutationCommand('python3 rewrite.py'), true)
+  assert.equal(isPotentialMutationCommand('printf x > src/generated.txt'), true)
+  assert.equal(isPotentialMutationCommand('cp source.txt destination.txt'), true)
+  assert.equal(isPotentialMutationCommand('touch generated.txt'), true)
+  assert.equal(isPotentialMutationCommand('git restore tracked.txt'), true)
+  assert.equal(isPotentialMutationCommand("sed -i '' docs/spec.md"), true)
+  assert.equal(isPotentialMutationCommand("sed -i.bak 's/x/y/' docs/spec.md"), true)
+  assert.equal(isPotentialMutationCommand("sed --in-place=.bak 's/x/y/' docs/spec.md"), true)
+  assert.equal(isPotentialMutationCommand('git reset --hard HEAD~1'), true)
+  assert.equal(isPotentialMutationCommand('git pull --ff-only'), true)
+  assert.equal(isPotentialMutationCommand('rsync -a src/ dst/'), true)
+  assert.equal(isPotentialMutationCommand('chmod +x script.sh'), true)
+  assert.equal(isPotentialMutationCommand('ln -sf a b'), true)
+  assert.equal(isPotentialMutationCommand('git status --short'), false)
+  assert.deepEqual(
+    bashMarkdownMutationPaths("printf x > docs/spec.md", '/repo'),
+    ['/repo/docs/spec.md'],
+  )
+  assert.match(bashMarkdownMutationPaths('python rewrite.py $DOC/spec.md', '/repo')[0], /Unresolved/)
+  assert.match(bashMarkdownMutationPaths("sed -i '' docs/specs/*.md", '/repo')[0], /Unresolved/)
+  assert.deepEqual(
+    bashDeletionMutationPaths('rm -rf /repo/adr-archive', '/elsewhere'),
+    ['/repo/adr-archive'],
+  )
+  assert.deepEqual(
+    bashDeletionMutationPaths('rm -rf docs/adr-archive', '/repo'),
+    ['/repo/docs/adr-archive'],
+  )
+  assert.match(bashDeletionMutationPaths('rm -rf "$ARCHIVE"', '/repo')[0], /Unresolved/)
+})
+
+test('branch policy follows the target repository for native edits and git -C', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-branch-'))
+  const { spawnSync } = await import('node:child_process')
+  const initialized = spawnSync('git', ['init', '-b', 'main', dir], { encoding: 'utf8' })
+  assert.equal(initialized.status, 0, initialized.stderr)
+
+  assert.match(branchViolation({
+    tool_name: 'Edit', cwd: testTmp, tool_input: { file_path: path.join(dir, 'new.txt') },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: { command: `git -C "${dir}" commit -m test` },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: dir,
+    tool_input: { command: "sed -i.bak 's/x/y/' file.txt" },
+  }), /protected 'main'/)
+
+  const switched = spawnSync('git', ['-C', dir, 'switch', '-c', 'task/test'], { encoding: 'utf8' })
+  assert.equal(switched.status, 0, switched.stderr)
+  assert.equal(branchViolation({
+    tool_name: 'Write', cwd: testTmp, tool_input: { file_path: path.join(dir, 'new.txt') },
+  }), null)
+
+  const protectedDir = await mkdtemp(path.join(testTmp, 'quality-branch-main-'))
+  const protectedInit = spawnSync('git', ['init', '-b', 'main', protectedDir], { encoding: 'utf8' })
+  assert.equal(protectedInit.status, 0, protectedInit.stderr)
+
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: {
+      command: `git -C "${dir}" status --short && git -C "${protectedDir}" commit -m test`,
+    },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: protectedDir,
+    tool_input: { command: 'cp source.txt destination.txt' },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: protectedDir,
+    tool_input: { command: 'touch generated.txt' },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: { command: `git -C "${protectedDir}" restore tracked.txt` },
+  }), /protected 'main'/)
+  const nestedMutation = `git -C "${dir}" status --short $(git -C "${protectedDir}" restore --worktree -- .)`
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp, tool_input: { command: nestedMutation },
+  }), /protected 'main'/)
+
+  const packaged = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    input: JSON.stringify({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: testTmp,
+      tool_input: { command: nestedMutation },
+    }),
+    encoding: 'utf8',
+  })
+  assert.equal(packaged.status, 2, packaged.stderr)
+  assert.match(packaged.stderr, /protected 'main'/)
+
+  assert.equal(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: { command: `git -C "${protectedDir}" switch -c task/new` },
+  }), null)
+  assert.equal(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: { command: `git -C "${protectedDir}" checkout -b task/newer` },
+  }), null)
+  assert.equal(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: { command: `git -C "${protectedDir}" merge --ff-only task/test` },
+  }), null)
+})
+
+test('requires successful verification after the final edit', () => {
+  const before = analyzeTranscript(transcript([
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1'),
+    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
+    toolResult('e1'),
+  ]))
+  assert.equal(before.verifiedAfterLastMutation, false)
+
+  const after = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
+    toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1'),
+  ]))
+  assert.equal(after.verifiedAfterLastMutation, true)
+})
+
+test('failed verification does not satisfy the gate', () => {
+  const state = analyzeTranscript(transcript([
+    toolUse('e1', 'Write', { file_path: '/repo/a.py' }),
+    toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pytest -q' }),
+    toolResult('t1', true, '1 failed'),
+  ]))
+  assert.equal(state.verifiedAfterLastMutation, false)
+})
+
+test('the latest validation result determines whether post-edit evidence is verified', () => {
+  const failedAfterPass = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.py' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pytest -q' }), toolResult('t1', false, '3 passed'),
+    toolUse('t2', 'Bash', { command: 'pytest -q' }), toolResult('t2', true, '1 failed'),
+  ]))
+  assert.equal(failedAfterPass.verifiedAfterLastMutation, false)
+
+  const successfulRerun = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.py' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pytest -q' }), toolResult('t1', false, '3 passed'),
+    toolUse('t2', 'Bash', { command: 'pytest -q' }), toolResult('t2', true, '1 failed'),
+    toolUse('t3', 'Bash', { command: 'pytest -q' }), toolResult('t3', false, '3 passed'),
+  ]))
+  assert.equal(successfulRerun.verifiedAfterLastMutation, true)
+})
+
+test('explicit non-zero process metadata cannot satisfy the gate', () => {
+  const state = analyzeTranscript(transcript([
+    toolUse('e1', 'Write', { file_path: '/repo/a.py' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pytest -q' }),
+    toolResult('t1', false, 'Process exited with code 1'),
+  ]))
+  assert.equal(state.verifiedAfterLastMutation, false)
+})
+
+test('aggregate Cargo output must include at least one executed test', () => {
+  const zero = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/lib.rs' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'cargo test' }),
+    toolResult('t1', false, 'running 0 tests\ntest result: ok. 0 passed; 0 failed'),
+  ]))
+  assert.equal(zero.verifiedAfterLastMutation, false)
+
+  const mixed = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/lib.rs' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'cargo test' }),
+    toolResult('t1', false, 'running 0 tests\ntest result: ok. 0 passed\nrunning 3 tests\ntest result: ok. 3 passed'),
+  ]))
+  assert.equal(mixed.verifiedAfterLastMutation, true)
+})
+
+test('Node test output must include executed work', () => {
+  const zero = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/a.mjs' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'node --test' }),
+    toolResult('t1', false, 'tests 0\npass 0\nfail 0'),
+  ]))
+  assert.equal(zero.verifiedAfterLastMutation, false)
+
+  const one = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/a.mjs' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'node --test' }),
+    toolResult('t1', false, 'tests 1\npass 1\nfail 0'),
+  ]))
+  assert.equal(one.verifiedAfterLastMutation, true)
+})
+
+test('documented custom-validator wrapper executes through Node', () => {
+  const run = spawnSync(process.execPath, [
+    path.join(pluginDir, 'scripts/verify.mjs'),
+    '--cwd', pluginDir,
+    '--', process.execPath, '--check', path.join(pluginDir, 'scripts/lifecycle.mjs'),
+  ], { encoding: 'utf8' })
+  assert.equal(run.status, 0, run.stderr)
+})
+
+test('masked, zero-work, and stale validation cannot satisfy the gate', () => {
+  const masked = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test || true' }), toolResult('t1', false, '1 failed'),
+  ]))
+  assert.equal(masked.verifiedAfterLastMutation, false)
+
+  const zeroWork = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test --filter missing' }), toolResult('t1', false, 'No tests found'),
+  ]))
+  assert.equal(zeroWork.verifiedAfterLastMutation, false)
+
+  const stale = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: 'python3 rewrite.py' }), toolResult('b1'),
+  ]))
+  assert.equal(stale.verifiedAfterLastMutation, false)
+
+  const sedAfterTest = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: "sed -i '' docs/spec.md" }), toolResult('b1'),
+  ]), '/repo')
+  assert.equal(sedAfterTest.verifiedAfterLastMutation, false)
+
+  for (const command of [
+    'git reset --hard HEAD~1', 'git pull --ff-only', 'rsync -a src/ dst/',
+    'chmod +x script.sh', 'ln -sf a b',
+  ]) {
+    const staleAfterCommonMutator = analyzeTranscript(transcript([
+      toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
+      toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+      toolUse('b1', 'Bash', { command }), toolResult('b1'),
+    ]))
+    assert.equal(staleAfterCommonMutator.verifiedAfterLastMutation, false, command)
+  }
+})
+
+test('unfinished background validation cannot satisfy the gate', () => {
+  const state = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test', run_in_background: true }),
+    toolResult('t1', false, 'Command running in background with ID 42'),
+  ]))
+  assert.equal(state.verifiedAfterLastMutation, false)
+})
+
+test('advisory Python syntax check creates no project bytecode', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-python-check-'))
+  const source = path.join(dir, 'probe.py')
+  await writeFile(source, 'VALUE = 1\n')
+  const { spawnSync } = await import('node:child_process')
+  const run = spawnSync('bash', [path.join(pluginDir, 'scripts', 'post-edit-check.sh')], {
+    input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: source } }),
+    encoding: 'utf8',
+  })
+  assert.equal(run.status, 0, run.stderr)
+  assert.deepEqual(await readdir(dir), ['probe.py'])
+})
+
+test('successful negative-control suites are not rejected by their output text', () => {
+  const state = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: './selftest.sh' }),
+    toolResult('t1', false, 'negative fixture expected exit 1\nPASS — 47 checks'),
+  ]))
+  assert.equal(state.verifiedAfterLastMutation, true)
+})
+
+test('command hook blocks subagent completion without later evidence', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }),
+    toolResult('e1'),
+  ]))
+
+  const { spawnSync } = await import('node:child_process')
+  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
+  const run = spawnSync(process.execPath, [script], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file }),
+    encoding: 'utf8',
+  })
+  assert.equal(run.status, 0)
+  assert.match(run.stdout, /"decision":"block"/)
+})
+
+test('commit gate uses exit 2 when this session has unverified edits', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
+  const file = path.join(dir, 'main.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }),
+    toolResult('e1'),
+  ]))
+
+  const { spawnSync } = await import('node:child_process')
+  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
+  const run = spawnSync(process.execPath, [script], {
+    cwd: pluginDir,
+    input: JSON.stringify({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: testTmp,
+    }),
+    encoding: 'utf8',
+  })
+  assert.equal(run.status, 2)
+  assert.match(run.stderr, /blocked git commit\/push/i)
+})
+
+test('commit and completion gates fail closed when the transcript is unreadable', async () => {
+  const { spawnSync } = await import('node:child_process')
+  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
+  const missing = path.join(testTmp, 'quality-hook-transcript-does-not-exist.jsonl')
+
+  const commit = spawnSync(process.execPath, [script], {
+    cwd: pluginDir,
+    input: JSON.stringify({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: missing,
+    }),
+    encoding: 'utf8',
+  })
+  assert.equal(commit.status, 2)
+
+  const task = spawnSync(process.execPath, [script], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'TaskCompleted', transcript_path: missing }),
+    encoding: 'utf8',
+  })
+  assert.equal(task.status, 2)
+
+  const stop = spawnSync(process.execPath, [script], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'Stop', transcript_path: missing }),
+    encoding: 'utf8',
+  })
+  assert.equal(stop.status, 0)
+  assert.match(stop.stdout, /"decision":"block"/)
+})
+
+test('subagent evidence gate remains active while the parent has background work', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }), toolResult('e1'),
+  ]))
+  const { spawnSync } = await import('node:child_process')
+  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    cwd: pluginDir,
+    input: JSON.stringify({
+      hook_event_name: 'SubagentStop', agent_transcript_path: file,
+      background_tasks: [{ id: 'parent-task' }],
+    }),
+    encoding: 'utf8',
+  })
+  assert.match(run.stdout, /"decision":"block"/)
+})
+
+test('an invalid facts-first artifact blocks completion even after an unrelated green test', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
+  const artifact = path.join(dir, 'invalid-spec.md')
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: artifact }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  const { spawnSync } = await import('node:child_process')
+  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file }),
+    encoding: 'utf8',
+  })
+  assert.match(run.stdout, /Artifact validation failed/)
+})
+
+test('an invalid Markdown artifact written through Bash is still gated', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-bash-md-'))
+  const artifact = path.join(dir, 'invalid-spec.md')
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: `printf content > "${artifact}"` }), toolResult('b1'),
+    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  const { spawnSync } = await import('node:child_process')
+  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir }),
+    encoding: 'utf8',
+  })
+  assert.match(run.stdout, /Artifact validation failed/)
+})
+
+test('globbed Markdown Bash mutations fail closed instead of validating a literal glob', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-bash-glob-'))
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: "sed -i '' docs/specs/*.md" }), toolResult('b1'),
+  ]))
+  const { spawnSync } = await import('node:child_process')
+  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir }),
+    encoding: 'utf8',
+  })
+  assert.match(run.stdout, /unresolved path/)
+})

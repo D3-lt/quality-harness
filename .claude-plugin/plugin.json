@@ -1,0 +1,8 @@
+{
+  "name": "quality-harness",
+  "version": "1.0.0",
+  "description": "Universal scope, simplicity, verification, and risk-routed review gates for Claude Code.",
+  "author": {
+    "name": "zy"
+  }
+}

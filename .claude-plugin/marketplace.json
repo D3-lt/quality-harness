@@ -1,0 +1,16 @@
+{
+  "name": "quality-harness",
+  "owner": {
+    "name": "zy"
+  },
+  "description": "Project-neutral quality, ADR, verification, and review workflows.",
+  "plugins": [
+    {
+      "name": "quality-harness",
+      "source": ".",
+      "description": "Development lifecycle, ADR, executable evidence, retirement, and review gates.",
+      "category": "development",
+      "tags": ["adr", "architecture", "review", "verification"]
+    }
+  ]
+}

@@ -1,0 +1,387 @@
+#!/usr/bin/env python3
+"""Verify an opt-in ADR archive catalog and its active discovery/obligation receipts.
+
+Usage:
+  adr-retire-check <archive-readme>
+  adr-retire-check --adopt <active-root> <archive-root>
+
+The archive README supplies **Active corpus:** as a path relative to the archive.
+Exit 0 means the hybrid active/archive contract is internally consistent.
+"""
+
+import hashlib
+import re
+import sys
+from collections import Counter
+from pathlib import Path
+
+
+ADR_ID_RE = re.compile(r"(?<!\w)ADR-?(\d+)(?!\w)", re.I)
+PLACEHOLDERS = {"", "none", "none.", "_none._", "(empty at authoring)"}
+
+
+def normalize_id(value):
+    match = ADR_ID_RE.search(value)
+    return f"ADR-{int(match.group(1)):03d}" if match else None
+
+
+def sections_of(text):
+    sections, current, fence = {}, None, False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        heading = None if fence else re.match(r"^## (.+?)\s*$", line)
+        if heading:
+            current = heading.group(1)
+            sections[current] = []
+        elif current is not None:
+            sections[current].append(line)
+    return sections
+
+
+def status_of(path):
+    text = path.read_text(errors="replace")
+    match = re.search(r"^(?:\*\*)?Status:(?:\*\*)?\s*(.+?)\s*$", text, re.M | re.I)
+    return match.group(1).strip() if match else ""
+
+
+def is_accepted_status(status):
+    """Only the canonical Accepted state grants current decision authority."""
+    return status.strip().casefold() == "accepted"
+
+
+def adr_files(root):
+    records = {}
+    for path in sorted(root.rglob("ADR-*.md")):
+        if "tasks" in {part.lower() for part in path.parts}:
+            continue
+        adr_id = normalize_id(path.name)
+        if adr_id:
+            records.setdefault(adr_id, []).append(path)
+    return records
+
+
+def adr_id_for_file(path):
+    first = path.read_text(errors="replace").splitlines()[:2]
+    found = normalize_id(" ".join(first))
+    if found:
+        return found
+    for part in reversed(path.parts):
+        found = normalize_id(part)
+        if found:
+            return found
+    return None
+
+
+def meaningful_obligations(root):
+    counts = Counter()
+    for path in sorted(root.rglob("*.md")):
+        if path.resolve() == (root / "README.md").resolve():
+            continue
+        adr_id = adr_id_for_file(path)
+        if not adr_id:
+            continue
+        sections = sections_of(path.read_text(errors="replace"))
+        for line in sections.get("Out of Scope", []):
+            if re.search(r"\(deferred:\s*[^)]+\)", line):
+                counts[adr_id] += 1
+        for line in sections.get("Follow-ups", []):
+            match = re.match(r"^\s*- \[ \]\s*(.*?)\s*$", line)
+            if match and match.group(1).strip().lower() not in PLACEHOLDERS:
+                counts[adr_id] += 1
+    return counts
+
+
+def adr_ids_in(text):
+    return {
+        normalize_id(match.group(0))
+        for match in re.finditer(r"(?<![A-Za-z0-9_])ADR-\d+(?![A-Za-z0-9_])", text, re.I)
+    }
+
+
+def receipt_count(lines, adr_id):
+    return sum(
+        1 for line in lines
+        if re.match(r"^\s*- \[ \]", line) and adr_id in adr_ids_in(line)
+    )
+
+
+def links_in(readme):
+    out = []
+    text = readme.read_text(errors="replace")
+    for match in re.finditer(r"\[[^]]+\]\(([^)]+)\)", text):
+        target = match.group(1).split("#", 1)[0].strip()
+        if target and not re.match(r"^[a-z]+://", target, re.I):
+            out.append((target, (readme.parent / target).resolve()))
+    return out
+
+
+def catalog_rows(readme, errors):
+    rows = {}
+    for line in sections_of(readme.read_text(errors="replace")).get("Retired Records", []):
+        if not line.strip().startswith("|"):
+            continue
+        cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
+        if not cells or cells[0] in ("ADR", "-----") or set(cells[0]) == {"-"}:
+            continue
+        if len(cells) != 7:
+            errors.append(f"archive catalog row needs 7 cells: {line[:100]}")
+            continue
+        adr_id = normalize_id(cells[0])
+        if not adr_id:
+            errors.append(f"archive catalog row has no ADR id: {line[:100]}")
+            continue
+        if adr_id in rows:
+            errors.append(f"archive catalog lists {adr_id} more than once")
+            continue
+        link = re.search(r"\[[^]]+\]\(([^)]+)\)", cells[0])
+        rows[adr_id] = {
+            "link": link.group(1).split("#", 1)[0] if link else "",
+            "title": cells[1],
+            "effect": cells[2],
+            "retired": cells[3],
+            "reason": cells[4],
+            "obligations": cells[5],
+            "digest": cells[6].lower(),
+        }
+    return rows
+
+
+def path_pointer(cell):
+    match = re.search(r"`([^`]+)`", cell)
+    if match:
+        return match.group(1)
+    match = re.search(r"\[[^]]+\]\(([^)]+)\)", cell)
+    return match.group(1).split("#", 1)[0] if match else None
+
+
+def contained(child, parent):
+    return child == parent or parent in child.parents
+
+
+def decision_unit_files(archive_root, adr_id, source):
+    if source.parent != archive_root:
+        return sorted(path for path in source.parent.rglob("*") if path.is_file())
+    files = {source}
+    for path in archive_root.rglob("*"):
+        if path.is_file() and path.name != "README.md" and adr_id_for_file(path) == adr_id:
+            files.add(path)
+    return sorted(files)
+
+
+def decision_unit_digest(archive_root, adr_id, source):
+    digest = hashlib.sha256()
+    for path in decision_unit_files(archive_root, adr_id, source):
+        digest.update(path.relative_to(archive_root).as_posix().encode())
+        digest.update(b"\0")
+        digest.update(path.read_bytes())
+        digest.update(b"\0")
+    return digest.hexdigest()
+
+
+def adoption_report(active_root, archive_root):
+    active_root, archive_root = active_root.resolve(), archive_root.resolve()
+    errors = []
+    if not active_root.is_dir() or not archive_root.is_dir():
+        print("[FAIL] --adopt needs existing active and archive directories")
+        raise SystemExit(1)
+    if contained(active_root, archive_root) or contained(archive_root, active_root):
+        errors.append("active and archive roots overlap; recursive gates will still scan history")
+    elif active_root.parent != archive_root.parent:
+        errors.append("active and archive roots must be sibling directories")
+
+    active_records, archive_records = adr_files(active_root), adr_files(archive_root)
+    for adr_id in sorted(set(active_records) | set(archive_records)):
+        total = len(active_records.get(adr_id, [])) + len(archive_records.get(adr_id, []))
+        if total != 1:
+            errors.append(f"{adr_id} exists {total} times across active/archive roots")
+
+    active_readme = active_root / "README.md"
+    linked, broken = set(), []
+    if not active_readme.is_file():
+        errors.append("active corpus needs README.md as the governing decision catalog")
+    else:
+        for raw, target in links_in(active_readme):
+            if not target.is_file():
+                broken.append(raw)
+                continue
+            linked.add(target.resolve())
+    for raw in broken:
+        errors.append(f"active catalog has a broken link: {raw}")
+
+    provisional_governing = set()
+    for adr_id, paths in archive_records.items():
+        if len(paths) != 1:
+            continue
+        status = status_of(paths[0])
+        if not re.match(r"^(accepted|proposed|superseded|deprecated|rejected|withdrawn)\b",
+                        status, re.I):
+            errors.append(f"{adr_id}: cannot classify legacy status '{status or 'missing'}'")
+        elif is_accepted_status(status):
+            provisional_governing.add(adr_id)
+            if paths[0].resolve() not in linked:
+                errors.append(f"accepted archived {adr_id} has no exact active-catalog link")
+
+    obligations = meaningful_obligations(archive_root)
+    backlog = active_root / "BACKLOG.md"
+    backlog_text = backlog.read_text(errors="replace") if backlog.is_file() else ""
+    backlog_lines = sections_of(backlog_text).get("Follow-ups", [])
+    for adr_id, count in sorted(obligations.items()):
+        receipts = receipt_count(backlog_lines, adr_id)
+        if receipts < count:
+            errors.append(
+                f"{adr_id}: {count} archived obligation(s), {receipts} active BACKLOG receipt(s)")
+
+    label = "PASS" if not errors else "MIGRATION-REQUIRED"
+    print(f"[{label}] {active_root} + {archive_root} · {len(active_records)} active · "
+          f"{len(archive_records)} archived · {len(provisional_governing)} accepted archived · "
+          f"{sum(obligations.values())} obligation(s)")
+    for error in errors[:100]:
+        print(f"  {error}")
+    if len(errors) > 100:
+        print(f"  ... {len(errors) - 100} more migration issue(s) omitted")
+    raise SystemExit(0 if not errors else 1)
+
+
+def main():
+    if len(sys.argv) == 4 and sys.argv[1] == "--adopt":
+        adoption_report(Path(sys.argv[2]), Path(sys.argv[3]))
+    if len(sys.argv) != 2:
+        print(__doc__)
+        raise SystemExit(1)
+
+    archive_readme = Path(sys.argv[1]).resolve()
+    errors = []
+    if not archive_readme.is_file():
+        print(f"[FAIL] archive README not found: {archive_readme}")
+        raise SystemExit(1)
+    archive_text = archive_readme.read_text(errors="replace")
+    if not re.search(r"^\*\*Lifecycle:\*\* Frozen historical ADR records$", archive_text, re.M):
+        errors.append("archive README lacks the opt-in lifecycle marker")
+    active_match = re.search(r"^\*\*Active corpus:\*\*\s*(.+?)\s*$", archive_text, re.M)
+    active_root = ((archive_readme.parent / active_match.group(1).strip("` ")).resolve()
+                   if active_match else None)
+    archive_root = archive_readme.parent.resolve()
+    if active_root is None or not active_root.is_dir():
+        errors.append("**Active corpus:** must resolve to an existing directory")
+    elif contained(active_root, archive_root) or contained(archive_root, active_root):
+        errors.append("active and archive roots must be disjoint sibling trees")
+    elif active_root.parent != archive_root.parent:
+        errors.append("active and archive roots must be sibling directories")
+
+    # Do not inspect a repository-controlled path until it has passed the complete
+    # sibling/disjoint boundary check. A malformed archive catalog must fail cheaply;
+    # it must never turn the automatic edit hook into a recursive scan of / or another
+    # unrelated readable tree.
+    if errors:
+        print(f"[FAIL] {archive_readme} · active corpus rejected before traversal")
+        for error in errors:
+            print(f"  {error}")
+        raise SystemExit(1)
+
+    active_readme = active_root / "README.md" if active_root else None
+    if active_readme is None or not active_readme.is_file():
+        errors.append("active corpus needs README.md as its governing decision catalog")
+    resolved_active_links = set()
+    if active_readme and active_readme.is_file():
+        for raw, target in links_in(active_readme):
+            if not target.is_file():
+                errors.append(f"active catalog has a broken link: {raw}")
+            else:
+                resolved_active_links.add(target.resolve())
+
+    archive_records = adr_files(archive_root)
+    active_records = adr_files(active_root) if active_root and active_root.is_dir() else {}
+    for adr_id in sorted(set(active_records) | set(archive_records)):
+        all_paths = active_records.get(adr_id, []) + archive_records.get(adr_id, [])
+        if len(all_paths) != 1:
+            errors.append(f"{adr_id} exists {len(all_paths)} times across active/archive roots")
+
+    rows = catalog_rows(archive_readme, errors)
+    for adr_id in sorted(set(archive_records) - set(rows)):
+        errors.append(f"archive catalog is missing {adr_id}")
+    for adr_id in sorted(set(rows) - set(archive_records)):
+        errors.append(f"archive catalog lists {adr_id}, but no archived ADR file exists")
+
+    obligations = meaningful_obligations(archive_root)
+    governing = set()
+    replacements = {}
+    for adr_id, row in sorted(rows.items()):
+        if adr_id not in archive_records or len(archive_records[adr_id]) != 1:
+            continue
+        source = archive_records[adr_id][0]
+        target = (archive_root / row["link"]).resolve() if row["link"] else None
+        if target != source.resolve():
+            errors.append(f"{adr_id}: catalog link does not resolve to {source.name}")
+        effect = row["effect"].strip().lower()
+        if effect == "governing":
+            if is_accepted_status(status_of(source)):
+                governing.add(adr_id)
+            else:
+                errors.append(
+                    f"{adr_id}: archived governing decision is not Accepted")
+        elif re.fullmatch(r"superseded by ADR-\d+", row["effect"], re.I):
+            replacements[adr_id] = normalize_id(row["effect"])
+        elif effect != "withdrawn":
+            errors.append(f"{adr_id}: bad Decision effect '{row['effect']}'")
+        if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", row["retired"]):
+            errors.append(f"{adr_id}: Retired must be YYYY-MM-DD")
+        if not row["reason"] or row["reason"].startswith("<"):
+            errors.append(f"{adr_id}: retirement Reason is empty or a placeholder")
+        digest = decision_unit_digest(archive_root, adr_id, source)
+        if row["digest"] != digest:
+            errors.append(f"{adr_id}: SHA-256 does not match the frozen decision unit")
+
+        count = obligations.get(adr_id, 0)
+        receipt = row["obligations"].strip()
+        if count == 0:
+            if receipt.lower() != "none":
+                errors.append(f"{adr_id}: no detected obligations, catalog must say 'none'")
+            continue
+        if receipt.lower().startswith("disposed:") and receipt.split(":", 1)[1].strip():
+            continue
+        pointer = path_pointer(receipt)
+        destination = (archive_root / pointer).resolve() if pointer else None
+        backlog = (active_root / "BACKLOG.md").resolve() if active_root else None
+        if destination is None or backlog is None or destination != backlog or not backlog.is_file():
+            errors.append(f"{adr_id}: {count} obligation(s) need an active backlog receipt or disposition")
+            continue
+        destination_text = destination.read_text(errors="replace")
+        receipts = receipt_count(sections_of(destination_text).get("Follow-ups", []), adr_id)
+        if receipts < count:
+            errors.append(
+                f"{adr_id}: archive has {count} obligation(s), active receipt has {receipts}")
+
+    for adr_id, paths in active_records.items():
+        if len(paths) == 1 and is_accepted_status(status_of(paths[0])):
+            governing.add(adr_id)
+
+    all_records = {}
+    for adr_id in set(active_records) | set(archive_records):
+        paths = active_records.get(adr_id, []) + archive_records.get(adr_id, [])
+        if len(paths) == 1:
+            all_records[adr_id] = paths[0]
+    for adr_id in sorted(governing):
+        source = all_records.get(adr_id)
+        if source is not None and source.resolve() not in resolved_active_links:
+            errors.append(f"active catalog does not link the exact governing record {adr_id}")
+
+    for adr_id, replacement in sorted(replacements.items()):
+        source = all_records.get(replacement)
+        if source is None:
+            errors.append(f"{adr_id}: replacement {replacement} does not exist exactly once")
+        elif replacement not in governing:
+            errors.append(f"{adr_id}: replacement {replacement} is not an accepted governing decision")
+        elif source.resolve() not in resolved_active_links:
+            errors.append(f"{adr_id}: replacement {replacement} is not discoverable in the active catalog")
+
+    label = "PASS" if not errors else "FAIL"
+    print(f"[{label}] {archive_readme} · {len(active_records)} active · "
+          f"{len(archive_records)} archived · {len(governing)} governing")
+    for error in errors:
+        print(f"  {error}")
+    raise SystemExit(1 if errors else 0)
+
+
+if __name__ == "__main__":
+    main()

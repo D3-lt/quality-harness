@@ -69,6 +69,12 @@
           {
             "type": "command",
             "command": "bash",
+            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/facts-gate-dispatch.sh"],
+            "timeout": 120
+          },
+          {
+            "type": "command",
+            "command": "bash",
             "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/post-edit-check.sh"],
             "timeout": 120
           }

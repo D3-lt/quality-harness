@@ -1,0 +1,77 @@
+#!/usr/bin/env python3
+"""postmortem-verify — validate a postmortem against the /postmortem schema.
+
+Usage: postmortem-verify FILE.md [FILE.md ...]
+Exit: 0 all valid · 1 violations (a malformed doc silently poisons the fine-tuning corpus)
+"""
+import re
+import sys
+from pathlib import Path
+
+CATEGORIES = {"null-safety", "data-integrity", "inconsistency", "silent-failure",
+              "race-condition", "type-error", "missing-validation", "logic-error",
+              "performance", "security"}
+SEVERITIES = {"critical", "medium", "low"}
+SECTIONS = ["Symptom", "Context", "Root Cause", "Investigation", "Fix", "Lesson"]
+
+
+def check(path):
+    errs = []
+    text = Path(path).read_text(errors="replace")
+    fm = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
+    if not fm:
+        return [f"no YAML frontmatter block"]
+    front = fm.group(1)
+    if not re.search(r"^date:\s*\d{4}-\d{2}-\d{2}\s*$", front, re.M):
+        errs.append("frontmatter: date missing or not YYYY-MM-DD")
+    m = re.search(r"^category:\s*(\S+)\s*$", front, re.M)
+    if not m or m.group(1).strip("'\"") not in CATEGORIES:
+        errs.append(f"frontmatter: category missing or not one of {sorted(CATEGORIES)}")
+    m = re.search(r"^severity:\s*(\S+)\s*$", front, re.M)
+    if not m or m.group(1).strip("'\"") not in SEVERITIES:
+        errs.append(f"frontmatter: severity missing or not one of {sorted(SEVERITIES)}")
+    if not re.search(r"^files_changed:\s*\n(\s+-\s+\S+\n?)+", front, re.M):
+        errs.append("frontmatter: files_changed missing or empty list")
+    if not re.search(r"^tags:\s*\[.+\]\s*$", front, re.M):
+        errs.append("frontmatter: tags missing or not [a, b] list form")
+
+    body = text[fm.end():]
+    secs, cur, fence = {}, None, False
+    for line in body.splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        h = None if fence else re.match(r"^## (.+?)\s*$", line)
+        if h:
+            cur = h.group(1)
+            secs[cur] = []
+        elif cur:
+            secs[cur].append(line)
+    for s in SECTIONS:
+        if s not in secs:
+            errs.append(f"missing section ## {s}")
+        elif not any(ln.strip() for ln in secs[s]):
+            errs.append(f"section ## {s} is empty")
+    fix = "\n".join(secs.get("Fix", []))
+    if "### Before" not in fix or "### After" not in fix or fix.count("```") < 4:
+        errs.append("## Fix must contain ### Before and ### After fenced code blocks")
+    if "Root Cause" in secs and "```" not in "\n".join(secs["Root Cause"]):
+        errs.append("## Root Cause must include the offending code in a fenced block")
+    return errs
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    bad = 0
+    for path in sys.argv[1:]:
+        errs = check(path)
+        print(f"[{'PASS' if not errs else 'FAIL'}] {path}")
+        for e in errs:
+            print(f"  {e}")
+        bad += bool(errs)
+    sys.exit(1 if bad else 0)
+
+
+if __name__ == "__main__":
+    main()

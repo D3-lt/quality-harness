@@ -6,7 +6,7 @@ user-invocable: false
 
 # Quality Policy
 
-Apply this policy in the main coordinating session. `/work` owns lifecycle classification; this
+Apply this policy in the main coordinating session. `/quality-harness:work` owns lifecycle classification; this
 skill supplies the invariant and selects the least expensive quality depth that fits the risk.
 
 ## Quality kernel
@@ -25,8 +25,8 @@ skill supplies the invariant and selects the least expensive quality depth that 
 |---|---|---|
 | Small | Local, reversible, no contract or trust-boundary effect | One writer; targeted check; inline scope/simplicity pass. |
 | Moderate | Several coupled behaviors or meaningful regression surface | One writer; caller-observed checks; one fresh-context reviewer. |
-| High | Auth, untrusted input, money/data integrity, concurrency, migration, public contract, production infrastructure, or cross-module ownership | Caller-observed checks; `quality-harness:quality-cycle` or `codex-review`; fix only confirmed blockers. |
-| Open decision | At least two credible designs remain and a wrong choice is costly to reverse | `consensus`; otherwise decide directly. |
+| High | Auth, untrusted input, money/data integrity, concurrency, migration, public contract, production infrastructure, or cross-module ownership | Caller-observed checks; `/quality-harness:quality-cycle` or `/quality-harness:codex-review`; fix only confirmed blockers. |
+| Open decision | At least two credible designs remain and a wrong choice is costly to reverse | `/quality-harness:consensus`; otherwise decide directly. |
 
 Large mechanical work does not automatically need a panel or ADR. Parallelize only independent
 research or file ownership that can be isolated without coordination collisions.
@@ -66,5 +66,5 @@ fix and one re-review; repeated or disputed findings return to the coordinator.
 ## Delegation boundary
 
 Spawned agents are leaf roles unless explicitly assigned as coordinators. Give each child its role,
-owned scope, non-goals, repository context, and expected evidence. Do not inject or invoke `/work`
+owned scope, non-goals, repository context, and expected evidence. Do not inject or invoke `/quality-harness:work`
 inside a child; the plugin's `SubagentStart` hook supplies the compact leaf contract.

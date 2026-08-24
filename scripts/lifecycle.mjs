@@ -5,7 +5,10 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
+
+const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
+  || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const DOC_EXTENSIONS = new Set(['.md', '.mdx', '.rst', '.txt'])
@@ -481,8 +484,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
 }
 
 export function runArtifactGates(paths) {
-  const claudeHome = process.env.CLAUDE_HOME || path.join(os.homedir(), '.claude')
-  const hook = path.join(claudeHome, 'hooks', 'facts-gate-dispatch.sh')
+  const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
 
   const failures = []
@@ -554,7 +556,7 @@ function subagentContract(input) {
     : 'If edits are authorized, make the smallest coherent diff within the owned scope.'
   return [
     'QUALITY CONTRACT — you are a leaf role, not the lifecycle coordinator.',
-    'Do not invoke /work, consensus, review-ring, quality-cycle, or spawn another agent unless your delegation explicitly assigns coordination.',
+    'Do not invoke /quality-harness:work, /quality-harness:consensus, /quality-harness:review-ring, /quality-harness:quality-cycle, or spawn another agent unless your delegation explicitly assigns coordination.',
     'Preserve the supplied scope and non-goals; invent no features, configuration, fallbacks, dependencies, or speculative abstractions.',
     'DRY duplicated knowledge, not similar syntax; use SOLID only where a demonstrated boundary needs it.',
     roleLine,

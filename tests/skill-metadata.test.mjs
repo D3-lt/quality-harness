@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
-const skillsRoot = resolve(testDir, "../..");
+const skillsRoot = resolve(testDir, "../skills");
 
 function frontmatterOf(path) {
   const text = readFileSync(path, "utf8");
@@ -40,17 +40,12 @@ function skillPaths() {
       if (statSync(direct).isFile()) paths.push(direct);
     } catch {}
   }
-  const pluginSkills = resolve(testDir, "../skills");
-  for (const entry of readdirSync(pluginSkills)) {
-    const path = join(pluginSkills, entry, "SKILL.md");
-    if (statSync(path).isFile()) paths.push(path);
-  }
   return paths.sort();
 }
 
-test("every installed first-party skill has discoverable routing metadata", () => {
+test("every bundled skill has discoverable routing metadata", () => {
   const paths = skillPaths();
-  assert.ok(paths.length >= 10, `unexpectedly audited only ${paths.length} skills`);
+  assert.equal(paths.length, 12, `unexpected bundled skill count: ${paths.length}`);
   for (const path of paths) {
     const frontmatter = frontmatterOf(path);
     const name = scalar(frontmatter, "name");

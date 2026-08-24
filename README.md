@@ -118,6 +118,11 @@ Git Bash from `CLAUDE_CODE_GIT_BASH_PATH`, then PATH (excluding the System32 WSL
 stub), then per-user and system Git for Windows installs. It also normalizes
 drive-letter and UNC paths before invoking the gates.
 
+Normal `Stop` handling stays inside Node and checks only whether successful
+repository evidence followed the final mutation. Full artifact gates remain strict
+at `git commit`/`git push`, `TaskCompleted`, and `SubagentStop`, avoiding repeated
+Git Bash launches when a main session merely stops on macOS or Windows.
+
 ## Distribute
 
 This directory can be published as a standalone Git repository. It includes a

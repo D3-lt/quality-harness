@@ -1029,11 +1029,13 @@ export async function handleHook(input) {
     return
   }
   const state = analyzeTranscript(raw, input.cwd)
-  const artifactFailure = runArtifactGates(state.mutationPaths)
-  if (artifactFailure) {
-    if (event === 'TaskCompleted') blockWithExit(artifactFailure)
-    else emitJson({ decision: 'block', reason: artifactFailure })
-    return
+  if (event !== 'Stop') {
+    const artifactFailure = runArtifactGates(state.mutationPaths)
+    if (artifactFailure) {
+      if (event === 'TaskCompleted') blockWithExit(artifactFailure)
+      else emitJson({ decision: 'block', reason: artifactFailure })
+      return
+    }
   }
   if (!state.hasMutations || state.verifiedAfterLastMutation) return
   if (docsOnly(state.mutationPaths) && evidenceLimited(input.last_assistant_message)) return

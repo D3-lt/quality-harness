@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const testDir = path.dirname(fileURLToPath(import.meta.url))
-const workflowDir = path.resolve(testDir, '../../../workflows')
-const qualityCycle = path.resolve(testDir, '../workflows/quality-cycle.js')
-const installedSkills = path.resolve(testDir, '../..')
+const workflowDir = path.resolve(testDir, '../workflows')
+const qualityCycle = path.join(workflowDir, 'quality-cycle.js')
+const bundledSkills = path.resolve(testDir, '../skills')
 
 async function runWorkflow(file, args, agent) {
   const source = (await readFile(file, 'utf8')).replace('export const meta =', 'const meta =')
@@ -156,8 +156,8 @@ test('quality-cycle cannot synthesize a required evidence-limited review into cl
 })
 
 test('Codex review and advice skills mark spawned sessions as non-recursive leaves', async () => {
-  const review = await readFile(path.join(installedSkills, 'codex-review/SKILL.md'), 'utf8')
-  const advise = await readFile(path.join(installedSkills, 'codex-advise/SKILL.md'), 'utf8')
+  const review = await readFile(path.join(bundledSkills, 'codex-review/SKILL.md'), 'utf8')
+  const advise = await readFile(path.join(bundledSkills, 'codex-advise/SKILL.md'), 'utf8')
 
   assert.ok((review.match(/CODEX-REVIEW-LEAF:/g) || []).length >= 3)
   assert.match(review, /Do not invoke `codex-review`, launch another `codex exec`/)

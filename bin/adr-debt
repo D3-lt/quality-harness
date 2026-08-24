@@ -1,0 +1,237 @@
+#!/usr/bin/env python3
+"""adr-debt — surface deferred scope + open follow-ups across an ADR corpus.
+
+Usage: adr-debt <adr-dir> [<adr-dir> ...]
+
+Scans every *.md under each dir (ADRs and task files) for:
+  - Out of Scope bullets tagged `(deferred: <pointer>)`
+  - unchecked Follow-ups items (`- [ ]`)
+Files named architecture.md are scanned line-by-line instead: any `(deferred: <pointer>)`
+counts (rule rows whose check doesn't exist yet). Pass the arch doc's dir too when it lives
+outside the ADR dir: `adr-debt docs/adr docs`.
+
+`(permanent...)` entries are deliberate boundaries — never reported.
+Pointers that look like a file path or an ADR id must resolve (relative to the
+file, the scanned dir, or the git root); prose/URL/F-n pointers are listed as-is.
+
+Exit: 0 = report printed, every path/ADR pointer resolves
+      1 = malformed pointer (deferred with nothing after the colon) or
+          a path/ADR pointer that resolves to nothing
+
+The loop: run this at /adr-write time. Every reported item is either pulled
+into the new ADR's Context, re-deferred with a fresh pointer, or promoted to
+`(permanent: <why>)`. Debt that is never surfaced is debt that was silently
+dropped — this report is the surfacing mechanism.
+"""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+
+def sections_of(text):
+    out, cur, fence = {}, None, False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        m = None if fence else re.match(r"^## (.+?)\s*$", line)
+        if m:
+            cur = m.group(1)
+            out[cur] = []
+        elif cur is not None:
+            out[cur].append(line)
+    return out
+
+
+def git_root(d):
+    try:
+        r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            return Path(r.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+
+def resolve(pointer, md_file, scan_dir):
+    """Return (kind, ok). Path-like and ADR-id pointers must resolve; rest pass."""
+    p = pointer.strip().strip("`")
+    if not p:
+        return "empty", False
+    if p.startswith(("http://", "https://")):
+        return "url", True
+    ptoks = [t.strip("`,.;:") for t in p.split()
+             if "/" in t or t.endswith(".md")]
+    if ptoks:
+        roots = [md_file.parent, scan_dir]
+        root = git_root(md_file.parent)
+        if root:
+            roots.append(root)
+        return "path", any((r / t).exists() for t in ptoks for r in roots)
+    m = re.search(r"(?<!\w)(ADR-?\d+)(?!\w)", p, re.I)
+    if m:
+        pat = re.sub(r"[-_]", "", m.group(1)).lower()
+        hits = [f for f in scan_dir.rglob("*.md")
+                if pat in re.sub(r"[-_]", "", f.stem).lower()] + \
+               [d for d in scan_dir.rglob("*") if d.is_dir()
+                and pat == re.sub(r"[-_]", "", d.name).lower()]
+        return "adr", bool(hits)
+    return "ref", True  # F-n, issue key, prose — listed, not resolved here
+
+
+def adr_id_of(md_file, scan_dir):
+    """The ADR this file belongs to: its own name, or the nearest ancestor's."""
+    for part in [md_file.name] + [d.name for d in md_file.parents]:
+        m = re.search(r"(?<!\w)ADR-?(\d+)(?!\w)", part, re.I)
+        if m:
+            return "ADR-" + m.group(1)
+    return None
+
+
+def unswept(pointer, md_file, scan_dir):
+    """(is_unswept, dest) — the pointer resolves, but into a place NOTHING sweeps.
+
+    A deferral into an archive is undeliverable by construction, and it is strictly worse than an
+    unreceipted one: there, writing the entry at the destination fixes it. Here it cannot, because
+    an archive is deliberately outside active debt sweeps.
+
+    Measured 2026-08-21: three of five unreceipted deferrals in one corpus pointed at archived ADRs
+    — each pointer resolved, each read as filed, and none could ever resurface. An archived ADR is a
+    decision record; future work belongs somewhere a sweep will find it.
+    """
+    kind, ok = resolve(pointer, md_file, scan_dir)
+    if kind != "path" or not ok:
+        return False, None
+    t = pointer.strip().strip("`").split()[0].rstrip(",.;")
+    for part in Path(t).parts:
+        if "archive" in part.lower():
+            return True, t
+    return False, None
+
+
+def receipted(pointer, md_file, scan_dir, src_id):
+    """Does the destination this deferral points at actually MENTION the source?
+
+    A pointer that resolves is not a pointer that was honoured. Measured
+    2026-08-20 on a nine-ADR corpus: 19 of 33 deferrals named a real file that
+    had never heard of them, so the sweep followed every one and reported clean.
+    That is the same shape as a capability that is finished and unreachable —
+    the link exists, the receiving end does not know it.
+
+    Returns (checked, ok, dest). checked=False means this is not a path pointer,
+    or it points back into the ADR's own tree, where naming itself proves nothing.
+    """
+    if not src_id:
+        return False, True, None
+    p = pointer.strip().strip("`")
+    toks = [t.strip("`,.;:") for t in p.split() if "/" in t or t.endswith(".md")]
+    roots = [md_file.parent, scan_dir]
+    root = git_root(md_file.parent)
+    if root:
+        roots.append(root)
+    for t in toks:
+        for r in roots:
+            dest = r / t
+            if not dest.is_file():
+                continue
+            if adr_id_of(dest, scan_dir) == src_id:
+                return False, True, None  # same ADR's own tree
+            pat = re.sub(r"[-_]", "", src_id).lower()
+            body = re.sub(r"[-_]", "", dest.read_text(errors="replace")).lower()
+            return True, pat in body, dest
+    return False, True, None
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    dirs = [Path(d) for d in sys.argv[1:]]
+    for d in dirs:
+        if not d.is_dir():
+            print(f"not a directory: {d}")
+            sys.exit(1)
+
+    deferred, followups, broken, unreceipted = [], [], [], []
+    unswept_items = []
+    for scan_dir in dirs:
+        for md in sorted(scan_dir.rglob("*.md")):
+            text = md.read_text(errors="replace")
+            secs = sections_of(text)
+            rel = md.relative_to(scan_dir)
+            if md.name == "architecture.md":
+                for ln in text.splitlines():
+                    m = re.search(r"\(deferred:\s*([^)]*)\)", ln)
+                    if m:
+                        kind, ok = resolve(m.group(1), md, scan_dir)
+                        item = (scan_dir, rel, m.group(1).strip(), ln.strip()[:70])
+                        deferred.append(item)
+                        if not ok:
+                            broken.append(item + (kind,))
+                        chk, got, dest = receipted(m.group(1), md, scan_dir,
+                                                   adr_id_of(md, scan_dir))
+                        if chk and not got:
+                            unreceipted.append(item + (dest,))
+                        dead, where = unswept(m.group(1), md, scan_dir)
+                        if dead:
+                            unswept_items.append(item + (where,))
+                continue
+            for ln in secs.get("Out of Scope", []):
+                s = ln.strip()
+                if not s.startswith("- "):
+                    continue
+                m = re.search(r"\(deferred:\s*([^)]*)\)\s*$", s)
+                if m:
+                    kind, ok = resolve(m.group(1), md, scan_dir)
+                    item = (scan_dir, rel, m.group(1).strip(), s[2:m.start()].strip())
+                    deferred.append(item)
+                    if not ok:
+                        broken.append(item + (kind,))
+                    chk, got, dest = receipted(m.group(1), md, scan_dir,
+                                               adr_id_of(md, scan_dir))
+                    if chk and not got:
+                        unreceipted.append(item + (dest,))
+                    dead, where = unswept(m.group(1), md, scan_dir)
+                    if dead:
+                        unswept_items.append(item + (where,))
+                elif re.search(r"\(deferred\b", s):
+                    broken.append((scan_dir, rel, "", s[2:72], "malformed"))
+            for ln in secs.get("Follow-ups", []):
+                s = ln.strip()
+                if s.startswith("- [ ]"):
+                    followups.append((scan_dir, rel, s[5:].strip()))
+
+    print(f"[DEBT] {len(deferred)} deferred · {len(followups)} open follow-ups · "
+          f"{len(broken)} broken pointers · {len(unreceipted)} unreceipted · "
+          f"{len(unswept_items)} into an archive")
+    cur = None
+    for scan_dir, rel, ptr, txt in deferred:
+        if rel != cur:
+            print(f"  {scan_dir / rel}:")
+            cur = rel
+        print(f"    deferred → {ptr}: {txt}")
+    cur = None
+    for scan_dir, rel, txt in followups:
+        if rel != cur:
+            print(f"  {scan_dir / rel}:")
+            cur = rel
+        print(f"    open follow-up: {txt}")
+    for scan_dir, rel, ptr, txt, dest in unreceipted:
+        print(f"  UNRECEIPTED {scan_dir / rel} → {dest}: {txt}")
+    if unreceipted:
+        print("  (the destination file exists and never names the source ADR — the punt "
+              "was pointed somewhere, not filed there)")
+    for scan_dir, rel, ptr, txt, where in unswept_items:
+        print(f"  UNSWEPT {scan_dir / rel} → {where}: {txt}")
+    if unswept_items:
+        print("  (the destination is inside an archive, which every sweep deliberately skips — the "
+              "item can never resurface, and writing it there would not help. Point it at a backlog "
+              "the sweep covers; the archived ADR stays the decision record.)")
+    for scan_dir, rel, ptr, txt, kind in broken:
+        print(f"  BROKEN [{kind}] {scan_dir / rel}: ({ptr!r}) {txt}")
+    sys.exit(1 if broken else 0)
+
+
+if __name__ == "__main__":
+    main()

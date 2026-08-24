@@ -1,0 +1,560 @@
+#!/usr/bin/env python3
+"""spec-verify — executable gate for facts-first specs (bundled spec template).
+
+Usage: spec-verify [--draft|--spec|--implemented] [--repo PATH] [--collect] SPEC.md [SPEC.md ...]
+
+Modes (cumulative):
+  --draft        structure only: sections, scenario grammar, UC failure coverage,
+                 Facts/Grill Log row validity. Open Questions and @draft allowed.
+  --spec         (default) + Open Questions empty, no @draft tags anywhere,
+                 every bound test exists as a language-level test definition;
+                 --collect asks the detected stack's collector instead.
+  --implemented  + run every @implemented test; any failure fails the gate.
+
+Exit codes: 0 pass · 1 structural failure · 2 bound test missing · 3 @implemented test failing
+"""
+import argparse
+import ast
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+SECTIONS = ["Problem", "Goal", "Actors", "Use Cases", "Scenarios", "Facts", "Domain",
+            "Contracts Touched", "Non-Goals", "Risks", "Open Questions", "Verify",
+            "Grill Log (appendix)"]
+UC_RE = re.compile(r"^### UC-(\d+):")
+SCEN_RE = re.compile(r"^### UC(\d+)-S(\d+) \[(happy|failure)\] (.+?) \[@(draft|spec|implemented)\]"
+                     r" (?:→|->) `([^`]+)`\s*$")
+SCEN_HEAD_RE = re.compile(r"^### UC\d+-S\d+")
+FACT_RE = re.compile(r"^\|\s*(F-\d+)\s*\|(.+)$")
+GRILL_RE = re.compile(r"^\|\s*\d+\s*\|(.+)$")
+UNBOUND_RE = re.compile(r"[—–-]\s*to bind")
+
+
+def cells(row):
+    parts = re.split(r"(?<!\\)\|", row.strip())
+    if parts and not parts[0].strip():
+        parts = parts[1:]
+    if parts and not parts[-1].strip():
+        parts = parts[:-1]
+    return [c.strip().replace("\\|", "|") for c in parts]
+
+
+def sections_of(text):
+    out, cur, fence = {}, None, False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        m = None if fence else re.match(r"^## (.+?)\s*$", line)
+        if m:
+            cur = m.group(1)
+            out[cur] = []
+        elif cur is not None:
+            out[cur].append(line)
+    return out
+
+
+def is_unbound(test):
+    return bool(UNBOUND_RE.fullmatch(test.strip()))
+
+
+def repo_root(spec_path, override):
+    if override:
+        return Path(override).resolve()
+    d = spec_path.resolve().parent
+    try:
+        top = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
+                             capture_output=True, text=True, timeout=10)
+        if top.returncode == 0:
+            return Path(top.stdout.strip())
+    except Exception:
+        pass
+    return d
+
+
+def detect_stack(root):
+    if (root / "composer.json").exists():
+        return "pest" if (root / "vendor/bin/pest").exists() else "phpunit"
+    if any((root / f).exists() for f in ("pyproject.toml", "pytest.ini", "setup.cfg")):
+        return "pytest"
+    if (root / "Cargo.toml").exists():
+        return "cargo"
+    if (root / "package.json").exists():
+        return "vitest"
+    if (root / "molecule").is_dir():
+        return "molecule"
+    return None
+
+
+def split_binding(test):
+    # "path::name" (pytest/pest/vitest style). cargo/molecule: name only.
+    if "::" in test:
+        path, name = test.split("::", 1)
+        return path.strip(), name.strip()
+    return None, test.strip()
+
+
+def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False):
+    """Mask comments and string contents while preserving positions and quotes.
+
+    Definition regexes run on this view, so words inside comments or strings
+    cannot masquerade as code. Quote delimiters remain visible so registration
+    calls such as JavaScript `test("name", ...)` can read their first literal
+    from the original source at the same offset.
+    """
+    out = list(text)
+    i, n = 0, len(text)
+
+    def blank(start, end, keep_quotes=False):
+        for j in range(start, end):
+            if out[j] != "\n" and not (keep_quotes and j in (start, end - 1)):
+                out[j] = " "
+
+    while i < n:
+        if heredocs and text.startswith("<<<", i):
+            start = re.match(r"<<<[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n", text[i:])
+            if not start:
+                i += 1
+                continue
+            marker = start.group(2)
+            tail = i + start.end()
+            close = re.search(rf"(?m)^[ \t]*{re.escape(marker)};?[ \t]*(?:\n|$)", text[tail:])
+            end = n if close is None else tail + close.end()
+            blank(i, end)
+            i = end
+        elif ruby_blocks and (i == 0 or text[i - 1] == "\n") \
+                and re.match(r"=begin\b", text[i:]):
+            close = re.search(r"(?m)^=end\b[^\n]*(?:\n|$)", text[i:])
+            end = n if close is None else i + close.end()
+            blank(i, end)
+            i = end
+        elif text.startswith("//", i):
+            end = text.find("\n", i + 2)
+            end = n if end < 0 else end
+            blank(i, end)
+            i = end
+        elif text.startswith("/*", i):
+            end = text.find("*/", i + 2)
+            end = n if end < 0 else end + 2
+            blank(i, end)
+            i = end
+        elif hash_comments and text[i] == "#" and not text.startswith("#[", i):
+            end = text.find("\n", i + 1)
+            end = n if end < 0 else end
+            blank(i, end)
+            i = end
+        elif text[i] in ("'", '"', "`"):
+            quote, end = text[i], i + 1
+            while end < n:
+                if text[end] == "\\":
+                    end += 2
+                    continue
+                if text[end] == quote:
+                    end += 1
+                    break
+                end += 1
+            closed = end > i + 1 and end <= n and text[end - 1] == quote
+            blank(i, min(end, n), keep_quotes=closed)
+            i = max(end, i + 1)
+        else:
+            i += 1
+    return "".join(out)
+
+
+def quoted_literal(text, offset):
+    """Return the simple quoted literal beginning at offset, or None."""
+    while offset < len(text) and text[offset].isspace():
+        offset += 1
+    if offset >= len(text) or text[offset] not in ("'", '"', "`"):
+        return None
+    quote, i, value = text[offset], offset + 1, []
+    while i < len(text):
+        if text[i] == "\\" and i + 1 < len(text):
+            value.append(text[i + 1])
+            i += 2
+        elif text[i] == quote:
+            return "".join(value)
+        else:
+            value.append(text[i])
+            i += 1
+    return None
+
+
+def registered_test_names(text, masked, callees):
+    """Literal names passed to test-registration calls in executable code."""
+    names = set()
+    # Registration DSLs are bare calls. Receiver calls (`helper.test`,
+    # `$helper->test`, `Suite::test`) invoke arbitrary helpers and are not
+    # language-level test definitions.
+    call = re.compile(rf"(?<![\w$.:>])(?:{'|'.join(callees)})(?:\.\w+)*\s*\(\s*")
+    for match in call.finditer(masked):
+        name = quoted_literal(text, match.end())
+        if name is not None:
+            names.add(name)
+    return names
+
+
+def python_test_defined(text, name):
+    """Whether pytest/unittest can collect the named top-level function or method."""
+    try:
+        tree = ast.parse(text)
+    except SyntaxError as exc:
+        return False, f"Python source does not parse: {exc.msg}"
+    definitions = set()
+    for node in tree.body:
+        if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                and node.name.startswith("test"):
+            definitions.add(node.name)
+        elif isinstance(node, ast.ClassDef):
+            bases = {getattr(base, "id", None) or getattr(base, "attr", None)
+                     for base in node.bases}
+            collectable_class = node.name.startswith("Test") or "TestCase" in bases
+            if not collectable_class:
+                continue
+            for child in node.body:
+                if isinstance(child, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                        and child.name.startswith("test"):
+                    definitions.add(f"{node.name}::{child.name}")
+    target = "::".join(part.split("[", 1)[0] for part in name.split("::"))
+    return target in definitions, f"no Python test definition for '{name}'"
+
+
+def test_definition_exists(path, name, stack):
+    """Prove a binding names an actual language-level test definition."""
+    text = path.read_text(errors="replace")
+    suffix = path.suffix.lower()
+    leaf = name.rsplit("::", 1)[-1].split("[", 1)[0]
+
+    if suffix == ".py":
+        return python_test_defined(text, name)
+
+    masked = mask_noncode(
+        text,
+        hash_comments=suffix in (".php", ".rb", ".sh", ".bash"),
+        heredocs=suffix == ".php",
+        ruby_blocks=suffix == ".rb",
+    )
+    if suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"):
+        names = registered_test_names(text, masked, ("test", "it"))
+        return name in names or leaf in names, f"no JavaScript test()/it() definition for '{name}'"
+    if suffix == ".php":
+        conventional = leaf.lower().startswith("test")
+        class_methods = []
+        for class_match in re.finditer(r"\bclass\s+\w+[^;{]*\{", masked):
+            start = class_match.end() - 1
+            depth, end = 0, len(masked)
+            for index in range(start, len(masked)):
+                if masked[index] == "{":
+                    depth += 1
+                elif masked[index] == "}":
+                    depth -= 1
+                    if depth == 0:
+                        end = index + 1
+                        break
+            class_methods.append(masked[start:end])
+        attributed = any(re.search(
+            rf"#\s*\[\s*(?:\\?PHPUnit\\Framework\\Attributes\\)?Test\s*\]"
+            rf"[^{{;}}]{{0,300}}\bfunction\s+&?\s*{re.escape(leaf)}\s*\(",
+            body, re.S) for body in class_methods)
+        method = conventional and any(re.search(
+            rf"\bfunction\s+&?\s*{re.escape(leaf)}\s*\(", body)
+            for body in class_methods)
+        names = registered_test_names(text, masked, ("test", "it"))
+        return bool(method) or bool(attributed) or name in names or leaf in names, \
+            f"no PHPUnit method or Pest test()/it() definition for '{name}'"
+    if suffix == ".rs":
+        rust_test = re.search(
+            rf"#\s*\[\s*(?:\w+::)*test(?:\s*\([^]]*\))?\s*\]"
+            rf"(?:\s*#\s*\[[^]]+\])*\s*(?:pub(?:\([^)]*\))?\s+)?"
+            rf"(?:async\s+)?fn\s+{re.escape(leaf)}\s*\(", masked)
+        return bool(rust_test), f"no #[test] Rust function for '{name}'"
+    if suffix == ".go":
+        go_test = re.search(
+            rf"\bfunc\s+{re.escape(leaf)}\s*\(\s*\w+\s+\*testing\.(?:T|B|F)\s*\)", masked)
+        return bool(go_test), f"no Go testing function for '{name}'"
+    if suffix == ".rb":
+        method = leaf.startswith("test") and re.search(
+            rf"(?m)^\s*def\s+{re.escape(leaf)}\b", masked)
+        names = set()
+        for match in re.finditer(r"(?<![\w.:])(?:it|specify)\s+", masked):
+            literal = quoted_literal(text, match.end())
+            if literal is not None:
+                names.add(literal)
+        return bool(method) or name in names or leaf in names, \
+            f"no Ruby test definition for '{name}'"
+    if suffix in (".java", ".kt", ".kts", ".cs"):
+        annotated = re.search(
+            rf"@\s*(?:[\w.]+\.)?(?:Test|ParameterizedTest|TestCase)\b"
+            rf"[^{{;}}]{{0,600}}\b{re.escape(leaf)}\s*\(", masked, re.S)
+        return bool(annotated), f"no annotated test method for '{name}'"
+    if suffix in (".sh", ".bash"):
+        shell_fn = leaf.startswith("test") and re.search(
+            rf"(?m)^\s*(?:function\s+{re.escape(leaf)}(?:\s*\(\s*\))?|"
+            rf"{re.escape(leaf)}\s*\(\s*\))\s*\{{", masked)
+        return bool(shell_fn), f"no shell test function for '{name}'"
+    return False, (f"cannot prove a test definition in {path.name} ({suffix or 'no suffix'}); "
+                   f"use --collect with a detected stack")
+
+
+def test_exists(test, root, stack, collect):
+    path, name = split_binding(test)
+    if not collect or stack is None:
+        # Dependency-free default: inspect a real language-level definition. A
+        # comment, docstring, fixture string, or Tests-table echo is not a test.
+        if path:
+            f = root / path
+            if not f.is_file():
+                return False, f"file not found: {path}"
+            ok, why = test_definition_exists(f, name, stack)
+            return ok, "" if ok else f"{why} in {path}"
+        if stack == "cargo":
+            for candidate in root.rglob("*.rs"):
+                if any(part in (".git", "target", "vendor", "node_modules")
+                       for part in candidate.parts):
+                    continue
+                ok, _ = test_definition_exists(candidate, name, stack)
+                if ok:
+                    return True, ""
+            return False, f"no #[test] Rust function found for '{name}'"
+        if stack == "molecule":
+            scenario = root / "molecule" / name
+            ok = scenario.is_dir() and any((scenario / f).is_file()
+                                             for f in ("molecule.yml", "molecule.yaml"))
+            return ok, "" if ok else f"no Molecule scenario definition for '{name}'"
+        return False, f"malformed binding (expected path::name for this stack): '{test}'"
+    cmds = {
+        "pytest": ["pytest", "--collect-only", "-q", test],
+        "pest": ["vendor/bin/pest", "--filter", name, "--list-tests"],
+        "phpunit": ["vendor/bin/phpunit", "--filter", name, "--list-tests"],
+        "vitest": ["npx", "vitest", "list", path or "", "-t", name],
+        "cargo": ["cargo", "test", name, "--", "--list"],
+        "molecule": ["molecule", "list", "-s", name],
+    }
+    try:
+        r = subprocess.run(cmds[stack], cwd=root, capture_output=True, text=True, timeout=300)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        return False, f"collect command failed to run: {e}"
+    ok = r.returncode == 0 and (name in r.stdout or stack == "pytest")
+    return ok, (r.stdout + r.stderr)[-300:] if not ok else ""
+
+
+def test_runs(test, root, stack, override_cmd):
+    if override_cmd:
+        try:
+            r = subprocess.run(override_cmd, shell=True, cwd=root, capture_output=True,
+                              text=True, timeout=1800)
+        except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
+            return False, f"cmd failed to run: {e}"
+        return r.returncode == 0, (r.stdout + r.stderr)[-300:]
+    path, name = split_binding(test)
+
+    # A monorepo has more than one runner, and the repo-root stack detection can only report one.
+    # Measured 2026-08-23: a spec whose facts bind to PHPUnit tests under apps/api and Vitest tests
+    # under apps/web reported every one of its 23 bindings RED, because the root looked like a
+    # Node project and every PHPUnit path was handed to vitest, which answered "No test files
+    # found". The tests were all passing. A gate that reports RED for a passing corpus teaches
+    # people to stop reading it.
+    #
+    # The Cmd column can override this per FACT, but scenarios have no Cmd column at all, so no
+    # amount of authoring could have fixed it. The test's own path is the honest signal: it says
+    # which project it lives in, and therefore which runner owns it.
+    cwd = root
+    local = path_stack(root, path)
+    if local is not None:
+        stack, cwd = local
+        # The binding is repo-relative; the runner now runs inside the project, so re-root it or
+        # vitest is handed a path that does not exist from where it stands.
+        if path:
+            try:
+                path = str((Path(root) / path).relative_to(Path(cwd)))
+            except ValueError:
+                pass
+
+    cmds = {
+        "pytest": ["pytest", "-q", test],
+        "pest": ["vendor/bin/pest", "--filter", name],
+        "phpunit": ["vendor/bin/phpunit", "--filter", name],
+        "vitest": ["npx", "vitest", "run", path or "", "-t", name],
+        "cargo": ["cargo", "test", name],
+        "molecule": ["molecule", "test", "-s", name],
+    }
+    if stack is None:
+        return False, "no stack detected and no Cmd override"
+    try:
+        r = subprocess.run(cmds[stack], cwd=cwd, capture_output=True, text=True, timeout=1800)
+    except (FileNotFoundError, subprocess.TimeoutExpired) as e:
+        return False, f"test command failed to run: {e}"
+    return r.returncode == 0, (r.stdout + r.stderr)[-300:]
+
+
+def path_stack(root, path):
+    """The runner that owns a test, from the nearest project marker above it.
+
+    Returns (stack, cwd) or None when the path names no project of its own — in which case the
+    caller keeps the repo-root stack, which is correct for a single-project repository.
+    """
+    if not path:
+        return None
+
+    here = (Path(root) / path).parent
+
+    while True:
+        try:
+            here.relative_to(Path(root))
+        except ValueError:
+            return None
+        if (here / "vendor" / "bin" / "phpunit").exists():
+            return "phpunit", here
+        if (here / "vendor" / "bin" / "pest").exists():
+            return "pest", here
+        if (here / "package.json").exists() and (here / "node_modules").exists():
+            return "vitest", here
+        if here == Path(root):
+            return None
+        here = here.parent
+
+
+def check_spec(path, mode, root_override, collect):
+    errors, missing, failing = [], [], []
+    text = Path(path).read_text(errors="replace")
+    secs = sections_of(text)
+
+    for s in SECTIONS:
+        if s not in secs:
+            errors.append(f"missing section: ## {s}")
+
+    ucs = set()
+    for line in secs.get("Use Cases", []):
+        m = UC_RE.match(line)
+        if m:
+            ucs.add(m.group(1))
+    if not ucs:
+        errors.append("no use cases found (### UC-<n>: headings)")
+
+    scenarios = []
+    for line in secs.get("Scenarios", []):
+        if SCEN_HEAD_RE.match(line):
+            m = SCEN_RE.match(line)
+            if not m:
+                errors.append(f"scenario heading does not match grammar "
+                              f"'### UCn-Sm [happy|failure] <title> [@tag] → `test`': {line.strip()}")
+                continue
+            uc, s, kind, title, tag, test = m.groups()
+            scenarios.append(dict(uc=uc, id=f"UC{uc}-S{s}", kind=kind, tag=tag, test=test))
+            if uc not in ucs:
+                errors.append(f"scenario UC{uc}-S{s} references unknown UC-{uc}")
+            if is_unbound(test) and tag != "draft":
+                errors.append(f"UC{uc}-S{s}: test '— to bind' only allowed with [@draft], has [@{tag}]")
+    for uc in sorted(ucs):
+        kinds = {sc["kind"] for sc in scenarios if sc["uc"] == uc}
+        if "failure" not in kinds:
+            errors.append(f"UC-{uc} has no [failure] scenario")
+        if "happy" not in kinds:
+            errors.append(f"UC-{uc} has no [happy] scenario")
+
+    facts = []
+    for line in secs.get("Facts", []):
+        m = FACT_RE.match(line)
+        if m:
+            row = cells(line)
+            if len(row) < 4:
+                errors.append(f"fact row too short (need ID|Assertion|Test|Tag): {line.strip()}")
+                continue
+            fid, assertion, test, tag = row[0], row[1], row[2].strip("`"), row[3]
+            cmd = row[4] if len(row) > 4 and row[4] else None
+            if tag not in ("@draft", "@spec", "@implemented"):
+                errors.append(f"{fid}: bad tag '{tag}'")
+                continue
+            if is_unbound(test) and tag != "@draft":
+                errors.append(f"{fid}: test '— to bind' only allowed with @draft, has {tag}")
+            facts.append(dict(id=fid, test=test, tag=tag.lstrip("@"), cmd=cmd))
+    if not facts:
+        errors.append("Facts table has no F-n rows")
+
+    fact_ids = {f["id"] for f in facts}
+    for line in secs.get("Grill Log (appendix)", secs.get("Grill Log", [])):
+        m = GRILL_RE.match(line)
+        if m:
+            row = cells(line)
+            if len(row) < 3:
+                continue
+            fcell = row[2]
+            refs = [r.strip() for r in re.split(r"[,\s]+", fcell) if r.strip()]
+            if not refs:
+                errors.append(f"Grill Log row {row[0]}: Fact cell empty — cite a Fact ID "
+                              f"or 'non-behavioral'")
+            elif fcell.strip() != "non-behavioral" and not all(
+                    r in fact_ids or r == "non-behavioral" for r in refs):
+                errors.append(f"Grill Log row {row[0]}: Fact cell '{fcell}' cites no known "
+                              f"Fact ID and is not 'non-behavioral'")
+
+    if mode in ("spec", "implemented"):
+        oq = [ln for ln in secs.get("Open Questions", [])
+              if ln.strip() and not ln.strip().startswith("<!--")]
+        if oq:
+            errors.append(f"Open Questions not empty ({len(oq)} line(s)) — required for Ready-for-ADR")
+        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=None)
+                             for sc in scenarios]:
+            if item["tag"] == "draft":
+                errors.append(f"{item['id']}: still @draft — bind a test (TDD red is fine) "
+                              f"before Ready-for-ADR")
+
+        root = repo_root(Path(path), root_override)
+        stack = detect_stack(root)
+        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=None)
+                             for sc in scenarios]:
+            if item["tag"] in ("spec", "implemented") and not is_unbound(item["test"]):
+                ok, why = test_exists(item["test"], root, stack, collect)
+                if not ok:
+                    missing.append(f"{item['id']}: bound test not found — {why}")
+
+    if mode == "implemented":
+        root = repo_root(Path(path), root_override)
+        stack = detect_stack(root)
+        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=None)
+                             for sc in scenarios]:
+            if item["tag"] == "implemented" and not is_unbound(item["test"]):
+                ok, why = test_runs(item["test"], root, stack, item["cmd"])
+                if not ok:
+                    failing.append(f"{item['id']}: test failing — {why}")
+
+    return errors, missing, failing
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__,
+                                 formatter_class=argparse.RawDescriptionHelpFormatter)
+    g = ap.add_mutually_exclusive_group()
+    g.add_argument("--draft", action="store_const", const="draft", dest="mode")
+    g.add_argument("--spec", action="store_const", const="spec", dest="mode")
+    g.add_argument("--implemented", action="store_const", const="implemented", dest="mode")
+    ap.add_argument("--repo", help="repo root (default: git toplevel of the spec's directory)")
+    ap.add_argument("--collect", action="store_true",
+                    help="prove test existence via the detected stack's collector instead of source definitions")
+    ap.add_argument("specs", nargs="+")
+    args = ap.parse_args()
+    mode = args.mode or "spec"
+
+    worst = 0
+    for spec in args.specs:
+        errors, missing, failing = check_spec(spec, mode, args.repo, args.collect)
+        status = "PASS" if not (errors or missing or failing) else "FAIL"
+        print(f"[{status}] {spec} (mode: {mode})")
+        for e in errors:
+            print(f"  STRUCT  {e}")
+        for m in missing:
+            print(f"  NOTEST  {m}")
+        for f in failing:
+            print(f"  RED     {f}")
+        if failing:
+            worst = max(worst, 3)
+        elif missing:
+            worst = max(worst, 2)
+        elif errors:
+            worst = max(worst, 1)
+    sys.exit(worst)
+
+
+if __name__ == "__main__":
+    main()

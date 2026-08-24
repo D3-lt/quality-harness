@@ -1,0 +1,346 @@
+#!/usr/bin/env python3
+"""arch-lint — executable gate for per-repo architecture docs (bundled architecture template).
+
+Usage: arch-lint <architecture.md>
+
+Checks:
+  Header   : **Status:** line · **Gate command:** line with a backticked command
+  Sections : Module Map, Dependency Contracts, Concept Ownership (DRY), Composition Root,
+             Test Doubles, Trust & Data Boundaries, Superseded — all present;
+             all but Module Map may be `None — <reason>`
+  Module   : Module Map has ≥1 data row (backticked path)
+  Checks   : every rule-table data row's last cell is an executable check —
+             backticked command/test path or `(deferred: <pointer>)` ·
+             sync-prose ("keep in sync", "manually", "by review", …) rejected ·
+             unfilled template placeholders (<…>) rejected
+  Symbols  : a backticked symbol in a check cell must EXIST — in the file the same cell
+             names, or somewhere in the repo. A row citing a check that is not there is
+             the same defect as a missing path, one level in. If the symbol reads as a
+             test, a failure call must be reachable in its body: a test that cannot go
+             red is evidence of nothing. Rows tagged (deferred: …) are skipped.
+  Vacuous  : gates that cannot fail — markdown-escaped \\| inside a command matches
+             nothing · path-like tokens in check cells and the Gate command must exist
+             in the repo ('! grep PAT missing-path' inverts exit 2 into a permanent
+             pass). A check whose path doesn't exist yet is tagged (deferred: <pointer>).
+
+Exit: 0 pass · 1 failures found
+"""
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
+                 "Test Doubles", "Trust & Data Boundaries"]
+ALL_SECTIONS = ["Module Map"] + RULE_SECTIONS + ["Superseded"]
+SYNC_PROSE = re.compile(r"keep.{0,12}sync|manually|by review|remember|be careful|discipline",
+                        re.I)
+
+
+def sections_of(text):
+    out, cur, fence = {}, None, False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        m = None if fence else re.match(r"^## (.+?)\s*$", line)
+        if m:
+            cur = m.group(1)
+            out[cur] = []
+        elif cur is not None:
+            out[cur].append(line)
+    return out
+
+
+def data_rows(lines):
+    """Table data rows: skip the header row and |---| separators."""
+    rows = [ln for ln in lines if ln.strip().startswith("|")]
+    return [r for r in rows[1:] if not re.match(r"^\|[\s\-|:]+\|?$", r.strip())]
+
+
+def is_none_section(lines):
+    return any(re.match(r"^\s*`?None( yet)?\b", ln) for ln in lines)
+
+
+def repo_roots(doc):
+    roots = [doc.parent, doc.parent.parent]
+    try:
+        r = subprocess.run(["git", "-C", str(doc.parent), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            roots.append(Path(r.stdout.strip()))
+    except Exception:
+        pass
+    return roots
+
+
+def vacuous_gate_errors(label, cell, roots):
+    """Static vacuous-pass detection for one check cell / gate command."""
+    errs = []
+    if r"\|" in cell:
+        errs.append(f"{label}: markdown-escaped \\| inside the command — copied from a table "
+                    f"cell, matches nothing in a shell: {cell[:60]}")
+    for cmd in re.findall(r"`([^`]+)`", cell):
+        for tok in cmd.split():
+            tok = tok.strip("'\";,").split("::")[0]
+            if tok.startswith("-") or "/" not in tok or "*" in tok or tok.startswith("$"):
+                continue
+            if not any((r / tok).exists() for r in roots):
+                errs.append(f"{label}: path '{tok}' does not exist in the repo — a gate on a "
+                            f"missing path cannot fail ('! grep' turns exit 2 into a permanent "
+                            f"pass); tag the row '(deferred: <pointer>)' until the check exists: "
+                            f"{cmd[:60]}")
+    return errs
+
+# A check cell names two kinds of thing: a PATH and, usually, a SYMBOL — the test
+# or function that does the checking. arch-lint already required the path to
+# exist. These two require the same of the symbol, and of its ability to fail.
+#
+# Both are deliberately language-agnostic: they work on tokens and file text, not
+# on a parser, so the same flaw is caught in a Go repo, a PHP one and a Rust one.
+# The flaw class is one this pipeline has now hit three times in three different
+# artefacts — a name written down as evidence, which nothing behind it supports.
+
+# Words that appear in backticks but are not symbols to resolve.
+NOT_A_SYMBOL = re.compile(
+    r"^(none|n/?a|tbd|todo|yes|no|true|false|all|any|each|every|deferred|permanent|"
+    r"make|go|npm|yarn|cargo|pytest|phpunit|composer|docker|bash|sh|test|tests|"
+    r"lint|build|check|ci|main|master|head)$", re.I)
+
+# A failure must be REACHABLE from a test's body or it can never go red. Covers
+# the common runners rather than one language.
+FAIL_CALLS = re.compile(
+    r"\bt\.(Error|Errorf|Fatal|Fatalf|FailNow|Fail)\b"        # go
+    r"|\b(assert|require|expect)\s*[.(]"                       # testify / js / rust / jest
+    r"|\bself\.assert|\bassert\s"                            # python
+    r"|\$this->assert|\bassertThat\b"                         # php / java
+    r"|\bpanic!|\bunreachable!",                               # rust
+    re.I)
+
+SKIP_DIRS = {".git", "node_modules", "vendor", "dist", "target", "build", ".claude",
+             "__pycache__", ".venv", "venv"}
+
+
+def code_only(text):
+    """Remove comments and string bodies before resolving definitions/assertions."""
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    text = re.sub(r"(?m)(^|[^:])//.*$", r"\1 ", text)
+    text = re.sub(r"(?m)#(?!\s*\[).*?$", " ", text)
+    text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
+    text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
+    text = re.sub(r"`(?:[^`])*`", "``", text)
+    return text
+
+
+def symbol_body(text, symbol):
+    """Return only the claimed function body; never borrow from a later test."""
+    match = re.search(r"\b" + re.escape(symbol) + r"\b\s*\([^)]*\)[^{;]*?\{", text, re.S)
+    if match:
+        start, depth = match.end() - 1, 0
+        for index in range(start, len(text)):
+            if text[index] == "{":
+                depth += 1
+            elif text[index] == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[start:index + 1]
+        return text[start:]
+    match = re.search(r"(?m)^([ \t]*)(?:async\s+)?def\s+" + re.escape(symbol)
+                      + r"\b[^\n]*:\s*$", text)
+    if not match:
+        return None
+    indent = len(match.group(1).replace("\t", "    "))
+    start = match.end()
+    for next_line in re.finditer(r"(?m)^([ \t]*)(?:async\s+def|def|class)\s+", text[start:]):
+        next_indent = len(next_line.group(1).replace("\t", "    "))
+        if next_indent <= indent:
+            return text[start:start + next_line.start()]
+    return text[start:]
+
+
+def repo_files(root, limit=6000):
+    """Text files under root, cheaply — enough to resolve a symbol name."""
+    out = []
+    for q in root.rglob("*"):
+        if len(out) >= limit:
+            break
+        if not q.is_file():
+            continue
+        if any(part in SKIP_DIRS for part in q.parts):
+            continue
+        if q.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".gz",
+                                ".ico", ".woff", ".woff2", ".ttf", ".mp4", ".bin", ".so",
+                                ".dylib", ".exe", ".wasm"}:
+            continue
+        out.append(q)
+    return out
+
+
+def symbol_tokens(cell):
+    """Backticked tokens in a check cell that name a symbol rather than a path."""
+    out = []
+    for tok in re.findall(r"`([^`]+)`", cell):
+        tok = tok.strip()
+        if " " in tok or "/" in tok or tok.startswith("-") or tok.startswith("$"):
+            continue  # a command or a path, handled elsewhere
+        if "." in tok and not tok.replace("_", "").replace(".", "").isalnum():
+            continue
+        if len(tok) < 3 or NOT_A_SYMBOL.match(tok):
+            continue
+        if not re.match(r"^[A-Za-z_][A-Za-z0-9_:.\-]*$", tok):
+            continue
+        if "." in tok and re.search(r"\.[a-z]{1,4}$", tok):
+            continue  # looks like a bare filename; the path check owns it
+        out.append(tok)
+    return out
+
+
+def path_tokens(cell, roots):
+    """Existing files a check cell names, so a symbol can be looked for in them."""
+    found = []
+    for tok in re.findall(r"`([^`]+)`", cell):
+        for t in tok.split():
+            t = t.strip("'\";,")
+            if "/" not in t or "*" in t:
+                continue
+            for r in roots:
+                if (r / t).is_file():
+                    found.append(r / t)
+    return found
+
+
+def symbol_errors(label, cell, roots, index):
+    """A symbol a check cell names must exist, and if it is a test, must be able to fail."""
+    errs = []
+    if re.search(r"\(deferred:", cell):
+        return errs  # explicitly not built yet
+    syms = symbol_tokens(cell)
+    if not syms:
+        return errs
+    named = path_tokens(cell, roots)
+    for sym in syms:
+        defn = re.compile(r"(?m)^\s*(func|def|fn|class|const|var|let|function|public|private|"
+                          r"protected|static|it|test|describe)?\s*[\w\[\]\*\(\)\s]{0,60}?\b"
+                          + re.escape(sym) + r"\b")
+        hits = [f for f in named if defn.search(code_only(f.read_text(errors="replace")))]
+        if not hits and named:
+            errs.append(f"{label}: names `{sym}` alongside "
+                        f"{', '.join(f.name for f in named)}, but that file does not contain it — "
+                        f"the row cites a check that is not in the file it points at")
+            continue
+        if not hits:
+            # A DEFINITION, not a mention: the doc that cites a symbol contains it too,
+            # and resolving to the citation is how a check confirms itself.
+            hits = [f for f in index
+                    if f.suffix.lower() not in {".md", ".markdown", ".rst", ".txt"}
+                    and defn.search(code_only(f.read_text(errors="replace")))]
+            if not hits:
+                errs.append(f"{label}: names `{sym}`, which appears nowhere in the repo — "
+                            f"the row cites a check that does not exist")
+                continue
+        # If it reads as a test, a failure must be reachable from its body.
+        if not re.match(r"^(Test|test_|it_|should_|spec_)", sym):
+            continue
+        body = None
+        for f in hits:
+            text = code_only(f.read_text(errors="replace"))
+            body = symbol_body(text, sym)
+            if body is None:
+                continue
+            break
+        if body is not None and not FAIL_CALLS.search(body):
+            errs.append(f"{label}: names the test `{sym}`, but no failure call is reachable in "
+                        f"its body — a test that cannot go red is evidence of nothing")
+    return errs
+
+
+def main():
+    if len(sys.argv) != 2:
+        print(__doc__)
+        sys.exit(1)
+    path = Path(sys.argv[1])
+    if not path.exists():
+        print(f"file not found: {path}")
+        sys.exit(1)
+    text = path.read_text(errors="replace")
+    errors = []
+
+    if not re.search(r"^\*\*Status:\*\*", text, re.M):
+        errors.append("no **Status:** line")
+    roots = repo_roots(path)
+    gm = re.search(r"^\*\*Gate command:\*\*\s*(`[^`]+`)", text, re.M)
+    if not gm:
+        errors.append("no **Gate command:** line with a backticked command")
+    else:
+        errors.extend(vacuous_gate_errors("Gate command", gm.group(1), roots))
+
+    # One cheap file listing, reused for every symbol lookup below. It must be built
+    # from the REPO root, not the first candidate: the doc's own directory is first
+    # in `roots`, and indexing that made the architecture document the only file
+    # containing its own test names — every symbol "resolved" to the doc that cited
+    # it, and every test then read as unable to fail. A lookup whose corpus is the
+    # claim being checked confirms itself.
+    index = []
+    widest = None
+    for r in roots:
+        if not r.is_dir():
+            continue
+        if (r / ".git").exists() or (r / "go.mod").exists() or (r / "package.json").exists():
+            widest = r
+            break
+    if widest is None:
+        widest = roots[-1] if roots else None
+    if widest is not None and widest.is_dir():
+        index = repo_files(widest)
+
+    secs = sections_of(text)
+    for s in ALL_SECTIONS:
+        if s not in secs:
+            errors.append(f"missing section ## {s}")
+
+    mm = data_rows(secs.get("Module Map", []))
+    mm = [r for r in mm if "`" in r]
+    if "Module Map" in secs and not mm:
+        errors.append("Module Map has no data rows (a row with a backticked module path)")
+
+    for s in RULE_SECTIONS:
+        lines = secs.get(s, [])
+        if not lines:
+            continue
+        if is_none_section(lines):
+            continue
+        rows = data_rows(lines)
+        if not rows:
+            errors.append(f"{s}: no data rows and no 'None — <reason>' escape")
+            continue
+        for r in rows:
+            # \| is an escaped pipe INSIDE a cell (e.g. a grep alternation) — not a delimiter
+            cells = [c.strip() for c in re.split(r"(?<!\\)\|", r.strip().strip("|"))]
+            check = cells[-1] if cells else ""
+            if not check:
+                errors.append(f"{s}: row has empty check cell: {r.strip()[:70]}")
+                continue
+            if re.search(r"<[^>]+>", check) and "deferred" not in check:
+                errors.append(f"{s}: check cell is an unfilled template placeholder: {check[:60]}")
+                continue
+            if SYNC_PROSE.search(check):
+                errors.append(f"{s}: check cell is sync-prose, not an executable check: "
+                              f"{check[:60]}")
+                continue
+            if re.search(r"\(deferred:\s*[^)\s][^)]*\)", check):
+                continue
+            if "`" not in check:
+                errors.append(f"{s}: check cell has no backticked command/test path and no "
+                              f"'(deferred: <pointer>)': {check[:60]}")
+                continue
+            errors.extend(vacuous_gate_errors(s, check, roots))
+            errors.extend(symbol_errors(s, check, roots, index))
+
+    status = "PASS" if not errors else "FAIL"
+    print(f"[{status}] {path}")
+    for e in errors:
+        print(f"  {e}")
+    sys.exit(1 if errors else 0)
+
+
+if __name__ == "__main__":
+    main()

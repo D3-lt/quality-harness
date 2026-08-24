@@ -13,6 +13,12 @@ import {
   isPotentialMutationCommand,
   isValidationCommand,
 } from '../scripts/lifecycle.mjs'
+import {
+  normalizeHookPayload,
+  resolveBashExecutable,
+  runWithTimeout,
+  shellHookTimeoutMs,
+} from '../scripts/run-shell-hook.mjs'
 
 const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const testTmp = process.platform === 'darwin' ? '/private/tmp' : os.tmpdir()
@@ -245,6 +251,75 @@ test('documented custom-validator wrapper executes through Node', () => {
   assert.equal(run.status, 0, run.stderr)
 })
 
+test('shell-hook runner normalizes Windows hook paths without changing prose', () => {
+  const payload = JSON.stringify({
+    cwd: 'C:\\Users\\dev\\project',
+    tool_input: {
+      file_path: 'C:\\Users\\dev\\project\\docs\\ADR-001.md',
+      note: 'keep \\ these \\ characters',
+    },
+    tool_response: { filePath: '\\\\server\\share\\result.md' },
+  })
+  assert.deepEqual(JSON.parse(normalizeHookPayload(payload, 'win32')), {
+    cwd: 'C:/Users/dev/project',
+    tool_input: {
+      file_path: 'C:/Users/dev/project/docs/ADR-001.md',
+      note: 'keep \\ these \\ characters',
+    },
+    tool_response: { filePath: '//server/share/result.md' },
+  })
+  assert.equal(normalizeHookPayload(payload, 'linux'), payload)
+})
+
+test('shell-hook runner rejects scripts outside its fixed hook set', () => {
+  const run = spawnSync(process.execPath, [
+    path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'),
+    '../untrusted.sh',
+  ], { input: '{}', encoding: 'utf8' })
+  assert.equal(run.status, 2)
+  assert.match(run.stderr, /unsupported shell hook/)
+})
+
+test('shell-hook runner honors Claude Code Git Bash configuration on Windows', () => {
+  const configured = 'C:\\Program Files\\Git\\bin\\bash.exe'
+  assert.equal(
+    resolveBashExecutable('win32', { CLAUDE_CODE_GIT_BASH_PATH: configured }),
+    configured,
+  )
+  assert.equal(resolveBashExecutable('win32', {}), 'bash')
+  assert.equal(resolveBashExecutable('linux', { CLAUDE_CODE_GIT_BASH_PATH: configured }), 'bash')
+})
+
+test('shell-hook timeout stays below its host deadline and kills the process tree', async () => {
+  assert.equal(shellHookTimeoutMs({}), 110_000)
+  assert.equal(shellHookTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '250' }), 250)
+  assert.equal(shellHookTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '119999' }), 110_000)
+  const started = Date.now()
+  const childScript = [
+    "const { spawn } = require('node:child_process')",
+    "const descendant = spawn(process.execPath, ['-e', 'setTimeout(() => {}, 5000)'], { stdio: 'ignore' })",
+    'process.stdout.write(String(descendant.pid))',
+    'setTimeout(() => {}, 5000)',
+  ].join('; ')
+  const run = await runWithTimeout(process.execPath, [
+    '-e',
+    childScript,
+  ], { timeoutMs: 100 })
+  assert.equal(run.timedOut, true)
+  assert.ok(Date.now() - started < 3_000)
+  const descendantPid = Number(run.stdout)
+  assert.equal(Number.isInteger(descendantPid), true)
+  let descendantAlive = false
+  try {
+    process.kill(descendantPid, 0)
+    descendantAlive = true
+  } catch {}
+  if (descendantAlive) {
+    try { process.kill(descendantPid, 'SIGKILL') } catch {}
+  }
+  assert.equal(descendantAlive, false, `descendant process ${descendantPid} survived timeout`)
+})
+
 test('masked, zero-work, and stale validation cannot satisfy the gate', () => {
   const masked = analyzeTranscript(transcript([
     toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
@@ -299,7 +374,10 @@ test('advisory Python syntax check creates no project bytecode', async () => {
   const source = path.join(dir, 'probe.py')
   await writeFile(source, 'VALUE = 1\n')
   const { spawnSync } = await import('node:child_process')
-  const run = spawnSync('bash', [path.join(pluginDir, 'scripts', 'post-edit-check.sh')], {
+  const run = spawnSync(process.execPath, [
+    path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'),
+    'post-edit-check.sh',
+  ], {
     input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: source } }),
     encoding: 'utf8',
   })

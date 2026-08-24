@@ -17,6 +17,7 @@ for file in "$ROOT"/scripts/*.sh; do
 done
 
 node --check "$ROOT/scripts/lifecycle.mjs"
+node --check "$ROOT/scripts/run-shell-hook.mjs"
 node --check "$ROOT/scripts/verify.mjs"
 node --check "$ROOT/workflows/consensus.js"
 node --check "$ROOT/workflows/quality-cycle.js"

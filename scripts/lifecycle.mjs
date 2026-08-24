@@ -486,6 +486,8 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
 export function runArtifactGates(paths) {
   const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
+  const runner = path.join(PLUGIN_ROOT, 'scripts', 'run-shell-hook.mjs')
+  if (!existsSync(runner)) return 'Artifact validation failed:\nThe cross-platform shell-hook runner is missing.'
 
   const failures = []
   for (const filePath of [...new Set(paths)]) {
@@ -498,9 +500,10 @@ export function runArtifactGates(paths) {
       continue
     }
     if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) continue
-    const run = spawnSync(hook, [], {
+    const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
       input: JSON.stringify({ tool_input: { file_path: filePath } }),
       encoding: 'utf8',
+      env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: '10000' },
       timeout: 15_000,
     })
     if (run.status !== 0) {

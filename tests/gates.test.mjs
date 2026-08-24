@@ -1,5 +1,12 @@
 import assert from 'node:assert/strict'
-import { cpSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import {
+  cpSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import { spawnSync } from 'node:child_process'
@@ -62,15 +69,42 @@ test('adr-verify executes acceptance and writes digest-bound evidence', () => {
 })
 
 test('the plugin-local facts hook accepts valid facts and blocks invalid facts', () => {
-  const hook = join(root, 'scripts', 'facts-gate-dispatch.sh')
+  const hook = join(root, 'scripts', 'run-shell-hook.mjs')
   const valid = JSON.stringify({ tool_input: { file_path: join(fixture, 'spec-selftest.md') } })
-  expectExit(run(hook, [], fixture, valid), 0, 'valid hook input')
+  expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], fixture, valid), 0, 'valid hook input')
 
   const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-hook-'))
   const invalid = join(temp, 'broken.md')
   writeFileSync(invalid, '# Broken spec\n\n## Facts\n\n## Grill Log\n')
   const payload = JSON.stringify({ tool_input: { file_path: invalid } })
-  expectExit(run(hook, [], temp, payload), 2, 'invalid hook input')
+  expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], temp, payload), 2, 'invalid hook input')
+})
+
+test('the facts hook fails closed for deleted archive catalogs and directories', () => {
+  const hook = join(root, 'scripts', 'run-shell-hook.mjs')
+  for (const deletion of ['catalog', 'directory']) {
+    const repo = mkdtempSync(join(os.tmpdir(), `quality-harness-archive-${deletion}-`))
+    const archive = join(repo, 'docs', 'adr-archive')
+    const catalog = join(archive, 'README.md')
+    mkdirSync(archive, { recursive: true })
+    writeFileSync(catalog, '# ADR Archive\n\n**Lifecycle:** Frozen historical ADR records\n')
+    expectExit(run('git', ['init', '-b', 'task/test'], repo), 0, `${deletion} git init`)
+    expectExit(run('git', ['add', 'docs/adr-archive/README.md'], repo), 0, `${deletion} git add`)
+    expectExit(run('git', [
+      '-c', 'user.name=Quality Harness',
+      '-c', 'user.email=quality-harness@example.invalid',
+      'commit', '-m', 'archive fixture',
+    ], repo), 0, `${deletion} git commit`)
+
+    const target = deletion === 'catalog' ? catalog : archive
+    rmSync(target, { force: true, recursive: deletion === 'directory' })
+    const payload = JSON.stringify({ tool_input: { file_path: target } })
+    expectExit(
+      run(process.execPath, [hook, 'facts-gate-dispatch.sh'], repo, payload),
+      2,
+      `deleted archive ${deletion}`,
+    )
+  }
 })
 
 test('focused false-green regressions remain closed', () => {

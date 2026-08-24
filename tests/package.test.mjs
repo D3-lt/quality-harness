@@ -67,13 +67,19 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.0.0')
+  assert.equal(manifest.version, '2.0.1')
   assert.equal(manifest.license, 'MIT')
 
   const hooks = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8'))
   const post = hooks.hooks.PostToolUse.flatMap(group => group.hooks)
-  assert.ok(post.some(hook => hook.args?.includes('${CLAUDE_PLUGIN_ROOT}/scripts/facts-gate-dispatch.sh')))
-  assert.ok(post.some(hook => hook.args?.includes('${CLAUDE_PLUGIN_ROOT}/scripts/post-edit-check.sh')))
+  assert.ok(post.every(hook => hook.command === 'node'))
+  assert.ok(post.every(hook => hook.args?.[0] === '${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs'))
+  assert.ok(post.some(hook => hook.args?.includes('facts-gate-dispatch.sh')))
+  assert.ok(post.some(hook => hook.args?.includes('post-edit-check.sh')))
+
+  const attributes = readFileSync(join(root, '.gitattributes'), 'utf8')
+  assert.match(attributes, /^\*\.sh text eol=lf$/m)
+  assert.match(attributes, /^bin\/\* text eol=lf$/m)
 
   const codexReview = readFileSync(join(root, 'skills', 'codex-review', 'SKILL.md'), 'utf8')
   assert.match(codexReview, /advertise `review \[OPTIONS\] \[PROMPT\]`[\s\S]*reject an actual selector-plus-prompt/)

@@ -636,7 +636,7 @@ test('subagent evidence gate remains active while the parent has background work
   assert.match(run.stdout, /"decision":"block"/)
 })
 
-test('an invalid facts-first artifact blocks completion even after an unrelated green test', async () => {
+test('Stop stays Node-only while strict completion boundaries run artifact gates', async () => {
   const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
   const artifact = path.join(dir, 'invalid-spec.md')
   const file = path.join(dir, 'agent.jsonl')
@@ -647,12 +647,30 @@ test('an invalid facts-first artifact blocks completion even after an unrelated 
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
   const { spawnSync } = await import('node:child_process')
-  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
+
+  const stop = spawnSync(process.execPath, [script], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'Stop', transcript_path: file }),
+    encoding: 'utf8',
+  })
+  assert.equal(stop.status, 0, stop.stderr)
+  assert.equal(stop.stdout, '')
+
+  const subagent = spawnSync(process.execPath, [script], {
     cwd: pluginDir,
     input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file }),
     encoding: 'utf8',
   })
-  assert.match(run.stdout, /Artifact validation failed/)
+  assert.match(subagent.stdout, /Artifact validation failed/)
+
+  const task = spawnSync(process.execPath, [script], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'TaskCompleted', transcript_path: file }),
+    encoding: 'utf8',
+  })
+  assert.equal(task.status, 2)
+  assert.match(task.stderr, /Artifact validation failed/)
 })
 
 test('an invalid Markdown artifact written through Bash is still gated', async () => {

@@ -80,6 +80,13 @@ test('the plugin-local facts hook accepts valid facts and blocks invalid facts',
   expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], temp, payload), 2, 'invalid hook input')
 })
 
+test('the facts hook parses payloads in Node without jq or Python', () => {
+  const hook = join(root, 'scripts', 'run-shell-hook.mjs')
+  const dispatcher = readFileSync(join(root, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
+  assert.doesNotMatch(dispatcher, /\b(?:jq|python3?|python)\b/i)
+  expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], fixture, '{not json'), 0, 'unreadable hook input')
+})
+
 test('the facts hook fails closed for deleted archive catalogs and directories', () => {
   const hook = join(root, 'scripts', 'run-shell-hook.mjs')
   for (const deletion of ['catalog', 'directory']) {

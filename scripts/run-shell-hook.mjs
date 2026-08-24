@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process'
+import { existsSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -39,11 +40,67 @@ export function normalizeHookPayload(raw, platform = process.platform) {
   }
 }
 
-export function resolveBashExecutable(platform = process.platform, env = process.env) {
-  if (platform === 'win32' && env.CLAUDE_CODE_GIT_BASH_PATH) {
-    return env.CLAUDE_CODE_GIT_BASH_PATH
+function parsedHookPayload(raw, platform) {
+  try {
+    return normalizePathValues(JSON.parse(raw), platform)
+  } catch {
+    return null
   }
-  return 'bash'
+}
+
+export function hookFilePathFromPayload(raw, platform = process.platform) {
+  const payload = parsedHookPayload(raw, platform)
+  const candidate = payload?.tool_input?.file_path
+    ?? payload?.tool_input?.notebook_path
+    ?? payload?.tool_response?.filePath
+  return typeof candidate === 'string' && candidate.length > 0 ? candidate : null
+}
+
+function hookArguments(scriptName, raw, platform) {
+  const payload = parsedHookPayload(raw, platform)
+  const filePath = hookFilePathFromPayload(raw, platform) ?? ''
+  if (scriptName === 'facts-gate-dispatch.sh') return [filePath]
+  if (scriptName === 'post-edit-check.sh') {
+    const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : ''
+    return [toolName, filePath]
+  }
+  return []
+}
+
+export function resolveBashExecutable(
+  platform = process.platform,
+  env = process.env,
+  fileExists = existsSync,
+) {
+  if (platform !== 'win32') return 'bash'
+  if (env.CLAUDE_CODE_GIT_BASH_PATH) return env.CLAUDE_CODE_GIT_BASH_PATH
+
+  const candidateExists = candidate => {
+    try {
+      return fileExists(candidate)
+    } catch {
+      return false
+    }
+  }
+  const searchPath = env.PATH ?? env.Path ?? ''
+  for (const rawDirectory of searchPath.split(path.win32.delimiter)) {
+    const directory = rawDirectory.trim().replace(/^"|"$/g, '')
+    if (!directory || /[\\/]system32[\\/]?$/i.test(directory)) continue
+    const candidate = path.win32.join(directory, 'bash.exe')
+    if (candidateExists(candidate)) return candidate
+  }
+
+  const drive = env.SystemDrive || 'C:'
+  const roots = [
+    env.LOCALAPPDATA && path.win32.join(env.LOCALAPPDATA, 'Programs', 'Git'),
+    path.win32.join(env.ProgramFiles || `${drive}\\Program Files`, 'Git'),
+    path.win32.join(env['ProgramFiles(x86)'] || `${drive}\\Program Files (x86)`, 'Git'),
+  ].filter(Boolean)
+  for (const root of roots) {
+    const candidate = path.win32.join(root, 'bin', 'bash.exe')
+    if (candidateExists(candidate)) return candidate
+  }
+  return null
 }
 
 export function shellHookTimeoutMs(env = process.env) {
@@ -125,8 +182,18 @@ export async function runShellHook(scriptName) {
     ? windowsPathForBash(path.join(SCRIPT_DIR, scriptName))
     : path.join(SCRIPT_DIR, scriptName)
   const timeoutMs = shellHookTimeoutMs()
-  const run = await runWithTimeout(resolveBashExecutable(), [scriptPath], {
-    input: normalizeHookPayload(await readStdin()),
+  const executable = resolveBashExecutable()
+  if (!executable) {
+    process.stderr.write('quality-harness: Git Bash was not found. Set CLAUDE_CODE_GIT_BASH_PATH to Git for Windows bin/bash.exe.\n')
+    return 2
+  }
+  const raw = await readStdin()
+  const run = await runWithTimeout(executable, [scriptPath, ...hookArguments(
+    scriptName,
+    raw,
+    process.platform,
+  )], {
+    input: normalizeHookPayload(raw),
     timeoutMs,
   })
   if (run.stdout) process.stdout.write(run.stdout)

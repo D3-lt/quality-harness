@@ -63,9 +63,15 @@ agents and token cost; routine changes stay in the main session or one bounded s
 - Python 3.9 or newer.
 - Node.js.
 - Bash. On Windows, use Git for Windows (Git Bash).
-- `jq`.
 - Git.
 - Codex CLI only for `codex-review`, `codex-advise`, or Codex workflow nodes.
+
+On Windows, `jq` is recommended for advisory JSON syntax checks and general
+command-line use, but hook dispatch does not depend on it:
+
+```powershell
+winget install jqlang.jq
+```
 
 The plugin ships no project-specific ADR locations, test commands, repository
 allowlists, or business policy. It discovers and follows the active repository.
@@ -106,9 +112,11 @@ The test suite validates the manifest, every skill's routing metadata, executabl
 permissions and syntax, lifecycle behavior, positive gate fixtures, and negative
 controls proving the gates can reject invalid artifacts.
 
-Windows paths are normalized by a Node hook runner before the bundled Bash gates
-execute. This avoids direct `.sh` process launches and supports drive-letter and
-UNC paths under Git Bash.
+The Node hook runner parses Claude Code payloads before the bundled Bash gates
+execute, so hook dispatch has no `jq` or Python dependency. On Windows it resolves
+Git Bash from `CLAUDE_CODE_GIT_BASH_PATH`, then PATH (excluding the System32 WSL
+stub), then per-user and system Git for Windows installs. It also normalizes
+drive-letter and UNC paths before invoking the gates.
 
 ## Distribute
 

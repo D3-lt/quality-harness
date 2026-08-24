@@ -3,17 +3,13 @@
 # completion checks remain authoritative and run once after the final edit.
 set -euo pipefail
 
-input=$(cat)
-tool_name=$(printf '%s' "$input" | jq -r '.tool_name // ""')
+tool_name=${1-}
 case "$tool_name" in
   Edit|Write|MultiEdit|NotebookEdit) ;;
   *) exit 0 ;;
 esac
 
-file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')
-case "$file_path" in
-  [A-Za-z]:\\*|\\\\*) file_path=$(printf '%s' "$file_path" | tr '\\' '/') ;;
-esac
+file_path=${2-}
 [ -n "$file_path" ] && [ -f "$file_path" ] || exit 0
 
 find_up() {

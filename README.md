@@ -62,6 +62,7 @@ agents and token cost; routine changes stay in the main session or one bounded s
 - Claude Code 2.1.154 or newer. Dynamic workflows must be enabled; on Pro, enable them in `/config`.
 - Python 3.9 or newer.
 - Node.js.
+- Bash. On Windows, use Git for Windows (Git Bash).
 - `jq`.
 - Git.
 - Codex CLI only for `codex-review`, `codex-advise`, or Codex workflow nodes.
@@ -104,6 +105,10 @@ Run the complete package verification:
 The test suite validates the manifest, every skill's routing metadata, executable
 permissions and syntax, lifecycle behavior, positive gate fixtures, and negative
 controls proving the gates can reject invalid artifacts.
+
+Windows paths are normalized by a Node hook runner before the bundled Bash gates
+execute. This avoids direct `.sh` process launches and supports drive-letter and
+UNC paths under Git Bash.
 
 ## Distribute
 

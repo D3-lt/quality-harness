@@ -28,7 +28,7 @@ if (evidence.status === 'executed' && evidence.exitCode !== 0) {
   return { status: 'gate-failed', evidence }
 }
 
-const LEAF = `You are an assigned read-only leaf reviewer. Do not invoke /work, consensus, review-ring, quality-cycle, or spawn another agent. Stay inside the supplied diff and requirements. Do not propose new features, broad cleanup, speculative abstractions, configuration, fallbacks, or compatibility layers.`
+const LEAF = `You are an assigned read-only leaf reviewer. Do not invoke /quality-harness:work, /quality-harness:consensus, /quality-harness:review-ring, /quality-harness:quality-cycle, or spawn another agent. Stay inside the supplied diff and requirements. Do not propose new features, broad cleanup, speculative abstractions, configuration, fallbacks, or compatibility layers.`
 const TARGET = `Repository: ${JSON.stringify(repo)}. Scope: ${JSON.stringify(scope)}. Requirements: ${JSON.stringify(requirements || 'use repository-owned acceptance criteria')}. Non-goals: ${JSON.stringify(nonGoals || 'no new scope')}. Caller-observed evidence (immutable): ${JSON.stringify(evidence)}.`
 
 const REVIEW = {
@@ -58,7 +58,7 @@ const reviewerTasks = [
 ]
 
 if (codex) {
-  reviewerTasks.push(() => agent(`${LEAF}\n${TARGET}\nInvoke the universal codex-review skill on this exact target. Let it route high, xhigh, or ultra from actual risk and breadth. Translate only its evidence-backed material findings into the schema. If Codex is unavailable or empty, return status unavailable; never substitute a Claude-only clean verdict.`, { label: 'codex-external', phase: 'Review', schema: REVIEW }))
+  reviewerTasks.push(() => agent(`${LEAF}\n${TARGET}\nInvoke /quality-harness:codex-review on this exact target. Let it route high, xhigh, or ultra from actual risk and breadth. Translate only its evidence-backed material findings into the schema. If Codex is unavailable or empty, return status unavailable; never substitute a Claude-only clean verdict.`, { label: 'codex-external', phase: 'Review', schema: REVIEW }))
 }
 
 phase('Review')

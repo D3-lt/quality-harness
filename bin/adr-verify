@@ -1,0 +1,438 @@
+#!/usr/bin/env python3
+"""adr-verify — run a task's Acceptance command and append tool-written evidence.
+
+Usage: adr-verify <task.md> [--cwd DIR]
+       adr-verify <task.md> --human "<who observed what>"
+       adr-verify <task.md> --mutant <file> --from <text> --to <text> --why <text>
+
+Extracts the ```bash fence under ## Acceptance and runs it with bash
+(cwd: --cwd, else git root of the task file, else the task file's directory).
+Appends one entry to ## Verification Log:
+
+  - YYYY-MM-DD · <git-short-sha[*]|no-git> · exit <N> · `<first command line[ …]>` · acceptance-sha256:<digest>
+
+`*` marks a dirty working tree at run time; ` …` marks a multi-line command
+(the full command is the Acceptance fence — the entry shows line 1). The digest
+covers the entire normalized fence: CRLF/CR become LF and fence-adjacent blank
+lines are removed; command content is otherwise preserved.
+Non-zero exits also append an indented fence with the last 10 output lines.
+--human appends `- YYYY-MM-DD · human-observed · <text>` for tasks whose
+Acceptance is declared human-observed.
+
+The log is append-only and tool-written: run this instead of hand-pasting.
+adr-lint enforces the entry grammar and rejects a README `done` status without
+an exit-0 entry whose digest matches the task's current Acceptance fence. Legacy
+pre-digest evidence remains valid only for a single-line Acceptance whose shown
+command still matches; a first-line-only entry can never prove a multi-line fence.
+
+A zero exit whose run scored NO tests is recorded and returned as exit 1: a
+filter matching nothing is not a passing gate.
+
+--mutant is the other half of the gate, and the half that was missing.
+
+Every other check in this pipeline proves a command exited 0. NOTHING proved a
+command can exit non-zero — so a test that binds to nothing passes exactly like a
+test that binds to the mechanism. The task template asked for a Mutants table and
+it was hand-filled, which is the same fabrication hole the Verification Log was
+built to close, one section further down. Measured 2026-08-21: a mutation harness
+whose edit silently no-opped (Python `str.replace` on an absent pattern) printed
+"mutant applied" for a file that never changed, and an assertion that matched a
+config file's COMMENTS rather than its keys survived deletion of the real key.
+Both were declared mutation-checked. Neither had been.
+
+So the tool, not the author: it asserts the old text is present exactly ONCE
+(which kills the silent-no-op class outright), refuses a mutant that only changes
+comments, syntax-checks the mutated file where the language makes that cheap,
+runs the Acceptance fence, restores the file whatever happens, and records:
+
+  - YYYY-MM-DD · <sha[*]|no-git> · mutant <killed|survived|inconclusive> · exit <N> · `<file>` · <why> · acceptance-sha256:<digest>
+
+`killed` (non-zero exit, tests actually scored) is the only verdict that counts as
+evidence. `survived` means the fence passed with the mechanism broken — the test
+is decoration. `inconclusive` means the fence failed for a reason that was not a
+failing assertion (nothing ran, or the run did not build), which is a skipped
+mutant wearing a kill's exit code.
+
+What this does NOT prove: that the mutant was WELL CHOSEN. Uniqueness makes a
+trivial irrelevant line an available escape hatch, and only --why guards that,
+which is prose. The gate closes "the mutant proved nothing mechanically".
+
+Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
+--mutant) · 2 = usage/parse problem.
+"""
+import datetime
+import hashlib
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+# A run in which NOTHING was scored is not a pass, whatever the exit code says.
+#
+# This closes a hole that made the whole gate decoration. `go test -run
+# TestThatDoesNotExist` prints "ok <pkg> [no tests to run]" and exits 0, and
+# since every task in this pipeline is TDD and names its tests before they
+# exist, that is the state of EVERY task the moment it is authored. adr-verify
+# would then write a genuine, tool-written success into the Verification Log for
+# work nobody had started — worse than a hand-pasted entry, because it carries
+# the authority of having actually run. Measured across seven projects: 143 task
+# files use a test-name filter, so 143 acceptance commands could pass empty.
+#
+# Runners differ. Go, PHPUnit and cargo exit 0 on a filter that matches nothing;
+# pytest, jest and vitest exit non-zero and were never exposed. The check is by
+# output signature so it covers all of them from one place.
+NOTHING_RAN = [
+    r"\[no tests to run\]",       # go test -run <no match>
+    r"\[no test files\]",         # go package with no test file at all
+    r"^no tests ran",              # pytest
+    r"collected 0 items",          # pytest
+    r"No tests executed!",         # phpunit --filter <no match>
+    r"^No tests found",            # jest
+    r"No test files found",        # vitest
+    r"^0 examples",                # rspec
+]
+
+# Evidence that something really was scored. If ANY of these appear the run is
+# taken at its word — a multi-package run where one package is empty and another
+# is not did exercise something, and failing it would be a false positive. The
+# check is deliberately biased that way: a gate with false alarms gets ignored,
+# and then it protects nothing.
+SOMETHING_RAN = [
+    r"^--- (PASS|FAIL)",                  # go -v
+    r"^ok\s+\S+\s+[\d.]+s\s*$",         # go: a package whose tests actually ran
+    r"^(PASS|FAIL)\s+\S+\s+[\d.]+s\s*$",
+    r"\b[1-9]\d* (passed|passing|failed|failing)\b",   # jest/vitest/pytest/mocha
+    r"test result: (ok|FAILED)\. [1-9]",  # cargo
+    r"OK \([1-9]",                        # phpunit
+    r"Tests: [1-9]",                      # phpunit / jest summary
+    r"^[1-9]\d* (examples?|tests?),",     # rspec / minitest
+]
+
+
+def scored_nothing(output):
+    """True when the run reported an empty result set and no evidence of a real one."""
+    if not any(re.search(p, output, re.M) for p in NOTHING_RAN):
+        return False
+    return not any(re.search(p, output, re.M) for p in SOMETHING_RAN)
+
+
+def normalize_acceptance(raw):
+    """Canonical Acceptance text used both for execution and evidence hashing.
+
+    Keep shell-significant indentation and internal blank lines. Only line-ending
+    representation and blank lines introduced next to the Markdown fence are
+    normalized. adr-lint carries the same small function deliberately: the writer
+    and verifier must hash exactly the same bytes without a shared dependency.
+    """
+    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    start, end = 0, len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[start:end])
+
+
+def acceptance_digest(command):
+    """SHA-256 of the complete normalized Acceptance fence."""
+    return hashlib.sha256(command.encode("utf-8")).hexdigest()
+
+
+# A non-zero exit is only evidence when it came from a FAILING ASSERTION. A run
+# that did not build, or that scored nothing, exits non-zero too and is
+# indistinguishable from a kill by exit code alone — which is precisely how a
+# skipped mutant gets recorded as a caught one. Kept tight on purpose: a false
+# "inconclusive" is an annoyance, a false "killed" is the defect this exists to
+# stop, but a list that cries wolf is a list people route around.
+BUILD_BROKE = [
+    r"\[build failed\]",                  # go
+    r"^PHP Parse error",                   # php
+    r"^Parse error: syntax error",         # php
+    r"^SyntaxError:",                       # python / node
+    r"^IndentationError:",
+    r"error: could not compile",            # cargo
+    r"^error\[E\d+\]",                     # rustc
+    r"Cannot find module",                  # node
+    r"^\s*Fatal error: Uncaught Error",     # php
+]
+
+# Comment syntax per file type, for the comment-only mutant refusal. A mutation
+# that changes only prose changes nothing the program does — and it is exactly
+# the mutant an author reaches for by accident when a test matches a file's
+# comments instead of its keys (measured 2026-08-21, twice in one hour).
+LINE_COMMENT = {
+    ".yml": "#", ".yaml": "#", ".toml": "#", ".sh": "#", ".bash": "#",
+    ".py": "#", ".rb": "#", ".conf": "#", ".ini": ";", ".env": "#",
+    ".go": "//", ".php": "//", ".js": "//", ".ts": "//", ".tsx": "//",
+    ".jsx": "//", ".rs": "//", ".java": "//", ".c": "//", ".h": "//",
+}
+
+# Cheap, universally-available parsers. A language absent here is simply not
+# syntax-checked — saying so beats inventing a check that needs a toolchain the
+# runner may not have.
+SYNTAX_CHECK = {
+    ".sh": ["bash", "-n"], ".bash": ["bash", "-n"],
+    ".php": ["php", "-l"],
+    ".go": ["gofmt", "-e"],
+}
+
+
+def strip_comments(text, marker):
+    """The text with whole-line comments and blank lines removed."""
+    if not marker:
+        return text
+    keep = []
+    for ln in text.splitlines():
+        st = ln.strip()
+        if not st or st.startswith(marker):
+            continue
+        keep.append(ln)
+    return "\n".join(keep)
+
+
+def syntax_ok(path):
+    """(ok, detail). False only when a parser we actually ran rejected the file."""
+    suf = path.suffix.lower()
+    if suf in (".yml", ".yaml"):
+        try:
+            import yaml
+        except ImportError:
+            return True, "no yaml module — not checked"
+        try:
+            yaml.safe_load(path.read_text(errors="replace"))
+            return True, "yaml parses"
+        except Exception as e:
+            return False, f"yaml: {e}"
+    if suf == ".json":
+        import json
+        try:
+            json.loads(path.read_text(errors="replace"))
+            return True, "json parses"
+        except Exception as e:
+            return False, f"json: {e}"
+    if suf == ".py":
+        import ast
+        try:
+            ast.parse(path.read_text(errors="replace"))
+            return True, "python parses"
+        except Exception as e:
+            return False, f"python: {e}"
+    cmd = SYNTAX_CHECK.get(suf)
+    if not cmd:
+        return True, f"no cheap parser for {suf or 'this file'} — not checked"
+    try:
+        r = subprocess.run(cmd + [str(path)], capture_output=True, text=True)
+    except FileNotFoundError:
+        return True, f"{cmd[0]} not installed — not checked"
+    if r.returncode != 0:
+        return False, (r.stdout + r.stderr).strip().splitlines()[:3]
+    return True, f"{cmd[0]} accepts it"
+
+
+def fail(msg):
+    print(msg)
+    sys.exit(2)
+
+
+def append_entry(task, text, block, section="Verification Log"):
+    m = re.search(rf"(^## {re.escape(section)}\s*\n)(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if not m:
+        fail(f"{task.name}: no ## {section} section")
+    sec = re.sub(r"^<Filled during execution:[^\n]*>\s*$", "", m.group(2), flags=re.M)
+    # multi-line template placeholder: from '<Tool-written by' to the line ending in '>'
+    sec = re.sub(r"^<Tool-written by.*?>\s*$", "", sec, flags=re.M | re.S)
+    body = sec.strip("\n")
+    new = m.group(1) + (body + "\n" if body else "") + block + "\n"
+    tail = text[m.end():]
+    task.write_text(text[:m.start()] + new + ("\n" + tail if tail else ""))
+
+
+def git_sha(cwd):
+    """Short HEAD sha, `*`-suffixed when the tree is dirty; `no-git` outside a repo."""
+    g = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--short", "HEAD"],
+                       capture_output=True, text=True)
+    if g.returncode != 0:
+        return "no-git"
+    sha = g.stdout.strip()
+    d = subprocess.run(["git", "-C", str(cwd), "status", "--porcelain"],
+                       capture_output=True, text=True)
+    return sha + ("*" if d.stdout.strip() else "")
+
+
+def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
+    """Break one mechanism, run the task's own fence, and record whether it noticed.
+
+    Never returns — every path exits. The file is restored in `finally`, so a
+    crash or a Ctrl-C cannot leave a mutated working tree behind; that mattered
+    more than it sounds, because the whole point is to run this on a clean tree
+    and the failure mode would be silently committing a deliberate defect.
+    """
+    if frm is None or to is None:
+        fail("--mutant needs --from <text> and --to <text> "
+             "(use --to '' to delete). --why <text> is required too.")
+    if not why or not why.strip():
+        fail("--mutant needs --why '<what this mutant kills>' — a recorded mutant "
+             "with no stated target is a row, not evidence.")
+
+    # Check the destination BEFORE mutating anything. Discovered the hard way while
+    # building this: a missing section surfaced only at append time, i.e. after the
+    # file had been mutated and the whole fence had run. Nothing was lost (the
+    # restore is in a `finally`), but doing minutes of work to report a one-line
+    # authoring error is the wrong order.
+    if not re.search(r"^## Mutation Log\s*$", text, re.M):
+        fail(f"{task.name}: no ## Mutation Log section — add one (see "
+             f"the bundled task-template.md) before recording mutants.")
+
+    target = (cwd / rel) if not Path(rel).is_absolute() else Path(rel)
+    if not target.exists():
+        fail(f"--mutant file not found: {target}")
+
+    original = target.read_text(errors="replace")
+
+    # THE check this tool exists for. An edit that does not apply is the silent
+    # no-op that reports a clean pass; an edit that applies in several places is
+    # a different mutant than the one described.
+    n = original.count(frm)
+    if n == 0:
+        fail(f"MUTANT DID NOT APPLY: --from text is not present in {rel}. "
+             f"Nothing was run — a mutation that does not land proves nothing, "
+             f"and reporting it as applied is how a decoration test survives.")
+    if n != 1:
+        fail(f"MUTANT NOT UNIQUE: --from text appears {n} times in {rel}. "
+             f"Extend it until it selects exactly the one site you mean.")
+
+    marker = LINE_COMMENT.get(target.suffix.lower())
+    if marker and strip_comments(frm, marker) == strip_comments(to, marker):
+        fail(f"COMMENT-ONLY MUTANT: in {rel} this edit changes only comments or "
+             f"blank lines, so it changes nothing the program does. A test cannot "
+             f"be expected to notice it, and a 'survived' verdict here would be "
+             f"about the mutant, not the test.")
+
+    verdict, code, detail = "inconclusive", 2, ""
+    try:
+        target.write_text(original.replace(frm, to, 1))
+
+        ok, why_not = syntax_ok(target)
+        if not ok:
+            print(f"[adr-verify] the mutant does not parse: {why_not}")
+            print("[adr-verify] a mutant that does not build has NOT been tested — it has "
+                  "been skipped. Rewrite it so it still parses.")
+            sys.exit(2)
+
+        r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True)
+        out, code = r.stdout + r.stderr, r.returncode
+
+        if code == 0:
+            verdict, detail = "survived", "the fence passed with the mechanism broken"
+        elif scored_nothing(out):
+            verdict, detail = "inconclusive", "the fence failed but scored no tests"
+        elif any(re.search(pat, out, re.M) for pat in BUILD_BROKE):
+            verdict, detail = "inconclusive", "the fence failed on a build/parse error, not an assertion"
+        else:
+            verdict, detail = "killed", "a test went red"
+    finally:
+        target.write_text(original)
+
+    digest = acceptance_digest(cmd)
+    entry = (f"- {today} · {git_sha(cwd)} · mutant {verdict} · exit {code} · "
+             f"`{rel}` · {why.strip()} · acceptance-sha256:{digest}")
+    block = entry
+    if verdict != "killed":
+        block += f"\n  ```\n  {detail}\n  ```"
+    append_entry(task, task.read_text(errors="replace"), block, section="Mutation Log")
+    print(block)
+    if verdict != "killed":
+        print(f"[adr-verify] NOT evidence: {detail}. Only `killed` counts.")
+    sys.exit(0 if verdict == "killed" else 1)
+
+
+def main():
+    args, task, cwd, human = sys.argv[1:], None, None, None
+    mutant = frm = to = why = None
+    i = 0
+    while i < len(args):
+        if args[i] == "--cwd":
+            i += 1
+            cwd = Path(args[i])
+        elif args[i] == "--human":
+            i += 1
+            human = args[i]
+        elif args[i] == "--mutant":
+            i += 1
+            mutant = args[i]
+        elif args[i] == "--from":
+            i += 1
+            frm = args[i]
+        elif args[i] == "--to":
+            i += 1
+            to = args[i]
+        elif args[i] == "--why":
+            i += 1
+            why = args[i]
+        else:
+            task = Path(args[i])
+        i += 1
+    if task is None:
+        fail(__doc__)
+    if not task.exists():
+        fail(f"task file not found: {task}")
+    text = task.read_text(errors="replace")
+    today = datetime.date.today().isoformat()
+
+    if human is not None:
+        entry = f"- {today} · human-observed · {human.strip()}"
+        append_entry(task, text, entry)
+        print(entry)
+        sys.exit(0)
+
+    m = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if not m:
+        fail(f"{task.name}: no ## Acceptance section")
+    fm = re.search(r"```bash\s*\n(.*?)```", m.group(1), re.S)
+    if not fm:
+        fail(f"{task.name}: no non-empty ```bash fence under ## Acceptance "
+             f'(human-observed task? use --human "<sign-off>")')
+    cmd = normalize_acceptance(fm.group(1))
+    if not cmd:
+        fail(f"{task.name}: no non-empty ```bash fence under ## Acceptance "
+             f'(human-observed task? use --human "<sign-off>")')
+
+    if cwd is None:
+        r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True)
+        cwd = Path(r.stdout.strip()) if r.returncode == 0 else task.parent
+
+    if mutant is not None:
+        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why)
+
+    r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True)
+
+    sha = git_sha(cwd)
+
+    output = r.stdout + r.stderr
+    code = r.returncode
+    empty = code == 0 and scored_nothing(output)
+    if empty:
+        # Recorded as a failure, because that is what it is. The task's tests do
+        # not exist yet, or the filter no longer matches their names.
+        code = 1
+        output += ("\n[adr-verify] the acceptance command exited 0 but scored NO tests. "
+                   "A filter that matches nothing is not a passing gate — write the tests "
+                   "the Tests table names, or fix the filter so it selects them.")
+
+    lines = cmd.splitlines()
+    first = lines[0].strip().replace("`", "'") + (" …" if len(lines) > 1 else "")
+    digest = acceptance_digest(cmd)
+    entry = (f"- {today} · {sha} · exit {code} · `{first}` · "
+             f"acceptance-sha256:{digest}")
+    block = entry
+    if code != 0:
+        out = output.strip().splitlines()[-10:]
+        block += "\n" + "\n".join(["  ```"] + ["  " + ln for ln in out] + ["  ```"])
+    append_entry(task, text, block)
+    print(block)
+    sys.exit(code)
+
+
+if __name__ == "__main__":
+    main()

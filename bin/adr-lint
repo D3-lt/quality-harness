@@ -1,0 +1,986 @@
+#!/usr/bin/env python3
+"""adr-lint — executable gate for ADRs + task files (quality-harness templates).
+
+Usage: adr-lint ADR.md [TASKS_DIR]
+
+TASKS_DIR defaults to a `tasks/` directory next to the ADR (or `<adr-stem>/tasks/`).
+Without a tasks dir, only ADR-level checks run (inline-task ADRs).
+
+Checks:
+  ADR    : Status line · Alternatives Considered ≥1 · Wiring section non-empty ·
+           Spec: header present; if it names a file, the file must exist ·
+           Out of Scope entries carry a disposition: (permanent[: why]) or (deferred: <pointer>)
+  Tasks  : bash fence under ## Acceptance (or explicit human-observed sentence) ·
+           required sections · Affected Files ≥1 row · Ordered Steps step 1 mentions a test ·
+           Depends-on/Covers/Produces/Consumes headers present · Depends-on targets exist
+  README : listed task IDs ↔ task files match (task files are the source of truth) ·
+           wave table required only for >5 tasks
+  DAG    : edges from Depends-on + Consumes (T-id refs and backticked contract tokens
+           matching a sibling's Produces) · no cycles · wave/order table is a valid
+           topological leveling: every producer lands in a strictly earlier wave/order
+  Cross  : no file is `add`ed by two tasks (one task owns creation; others edit) ·
+           every T-id in the ADR's Inter-task Contracts table matches a task file ·
+           each contract row names a producing T-id (orphaned-contract guard)
+  V-Log  : entries match the adr-verify grammar
+           ('- YYYY-MM-DD · <sha[*]|no-git> · exit N · `cmd` · acceptance-sha256:<digest>'
+           or '· human-observed · …'; legacy no-digest rows remain parseable) ·
+           README `done` status requires an exit-0 entry whose digest matches the complete
+           current Acceptance fence. Legacy evidence counts only for a single-line fence
+           whose displayed command matches (human-observed tasks: a human-observed entry)
+  Covers : union of task Covers ⊇ spec's @spec/@implemented fact + scenario IDs
+
+Exit: 0 pass · 1 failures found
+"""
+import hashlib
+import re
+import subprocess
+import sys
+from pathlib import Path
+
+TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
+                 "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
+TASK_HEADERS = ["Depends-on", "Covers", "Produces", "Consumes"]
+# Tool-written mutation evidence. Same shape and same purpose as VLOG_RE: an entry
+# off this grammar was typed by a person, and a typed mutant is the thing the log
+# replaced. `killed` is the only verdict that is evidence — see adr-verify --mutant.
+MLOG_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · "
+    r"mutant (?:(?:killed · exit [1-9]\d*)|(?:survived · exit 0)|"
+    r"(?:inconclusive · exit \d+)) · `[^`]+` · .+?"
+    r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
+MLOG_DIGEST_RE = re.compile(
+    r"^- (?P<date>\d{4}-\d{2}-\d{2}) · (?:[0-9a-f]{7,40}\*?|no-git) · "
+    r"mutant (?P<verdict>killed|survived|inconclusive) · exit (?P<exit>\d+) · "
+    r"`[^`]+` · .+? · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+
+# Tasks whose acceptance was first recorded on or after this date must carry mutation
+# evidence. A cutover rather than a flag day: every task file predating it was written
+# when nothing could record a mutant, and turning four corpora red would produce a gate
+# people switch off rather than a gate that catches anything.
+MUTATION_REQUIRED_FROM = "2026-08-22"
+
+VLOG_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:(?:[0-9a-f]{7,40}\*?|no-git) · exit \d+ · `[^`]+`|"
+    r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?$")
+VLOG_DIGEST_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+VLOG_LEGACY_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"`(?P<command>[^`]+)`$")
+
+
+def sections_of(text):
+    out, cur, fence = {}, None, False
+    for line in text.splitlines():
+        if line.lstrip().startswith("```"):
+            fence = not fence
+        m = None if fence else re.match(r"^## (.+?)\s*$", line)
+        if m:
+            cur = m.group(1)
+            out[cur] = []
+        elif cur is not None:
+            out[cur].append(line)
+    return out
+
+
+def id_matches(tid, stem):
+    """Anchored task-ID match: 'T1' matches 'T1-db-index' but never 'T10-foo'."""
+    return re.search(rf"(?<!\w){re.escape(tid)}(?!\w)", stem, re.I) is not None
+
+
+def git_root(d):
+    try:
+        r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True, timeout=10)
+        if r.returncode == 0:
+            return Path(r.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+
+def header_val(text, name):
+    m = re.search(rf"^\*\*{re.escape(name)}:\*\*\s*(.+)$", text, re.M)
+    return m.group(1).strip() if m else None
+
+
+def normalize_acceptance(raw):
+    """Canonical Acceptance text shared with adr-verify's evidence writer.
+
+    Normalize line endings and remove only blank lines adjacent to the Markdown
+    fence. Shell-significant indentation and internal blank lines stay intact.
+    """
+    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    start, end = 0, len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[start:end])
+
+
+def acceptance_digest(command):
+    """SHA-256 of the complete normalized Acceptance fence."""
+    return hashlib.sha256(command.encode("utf-8")).hexdigest()
+
+
+def spec_ids(spec_path):
+    """Fact + scenario IDs tagged @spec/@implemented in the spec."""
+    text = Path(spec_path).read_text(errors="replace")
+    ids = set()
+    for m in re.finditer(r"^\|\s*(F-\d+)\s*\|.*\|\s*(@spec|@implemented)\s*(?:\|.*)?$",
+                         text, re.M):
+        ids.add(m.group(1))
+    for m in re.finditer(r"^### (UC\d+-S\d+) \[(?:happy|failure)\] .+ \[@(spec|implemented)\]",
+                         text, re.M):
+        ids.add(m.group(1))
+    return ids
+
+
+def check_adr(adr_path, errors):
+    text = Path(adr_path).read_text(errors="replace")
+    if not re.search(r"^\*\*Status:\*\*", text, re.M):
+        errors.append(f"{adr_path.name}: no **Status:** line")
+    secs = sections_of(text)
+    alts = [ln for ln in secs.get("Alternatives Considered", []) if ln.strip().startswith("-")]
+    if not alts:
+        errors.append(f"{adr_path.name}: Alternatives Considered has no entries")
+    wiring = [ln for ln in secs.get("Wiring & Contract Changes", []) if ln.strip()]
+    if not wiring:
+        errors.append(f"{adr_path.name}: Wiring & Contract Changes empty "
+                      f"(write 'None — implementation-internal only' if true)")
+    for ln in secs.get("Out of Scope", []):
+        s = ln.strip()
+        if s.startswith("- ") and not re.search(
+                r"\((?:permanent(?::[^)]*)?|deferred:\s*[^)\s][^)]*)\)\s*$", s):
+            errors.append(f"{adr_path.name}: Out of Scope entry needs a disposition — "
+                          f"'(permanent[: why])' or '(deferred: <pointer>)': {s[:70]}")
+    spec = header_val(text, "Spec")
+    if spec is None:
+        errors.append(f"{adr_path.name}: no **Spec:** header (use 'None — no spec stage')")
+    served = header_val(text, "Served-path change")
+    if not served:
+        errors.append(f"{adr_path.name}: no **Served-path change:** header — say in one sentence "
+                      f"what a user or agent experiences differently once this ships, or write "
+                      f"'None — this ADR changes only measurement or tooling'. An ADR that improves "
+                      f"the measurement reads identically to one that improves the thing.")
+    elif re.match(r"^<.*>$", served.strip()):
+        errors.append(f"{adr_path.name}: **Served-path change:** is still the template placeholder")
+        return None
+    # The missing-Spec error above was recorded and then fell straight into `spec.strip()`, so every
+    # ADR without the header crashed the linter with an AttributeError instead of being reported.
+    # A crash is worse than a false alarm: it exits non-zero, so it READS like a finding while
+    # having checked nothing at all — measured 2026-08-21 across 46 ADRs.
+    if spec is None:
+        return None
+    spec = spec.strip("`<> ")
+    if spec.lower().startswith("none"):
+        return None
+    spec_file = Path(spec)
+    if not spec_file.is_absolute():
+        candidates = [adr_path.parent / spec_file]
+        root = git_root(adr_path.parent)
+        if root:
+            candidates.append(root / spec_file)
+        spec_file = next((c for c in candidates if c.exists()), None)
+        if spec_file is None:
+            errors.append(f"{adr_path.name}: Spec: names '{spec}' but the file does not exist "
+                          f"(tried ADR-relative and repo-root-relative)")
+            return None
+        return spec_file
+    if not spec_file.exists():
+        errors.append(f"{adr_path.name}: Spec: names '{spec}' but the file does not exist")
+        return None
+    return spec_file
+
+
+def check_reachability_consistency(task_files, errors):
+    """Either every task file in an ADR declares ## Reachability, or none does.
+
+    A hard global requirement would fail 980 existing task files across seven
+    corpora on the day it landed — the textbook shape of a gate people learn to
+    skip. Consistency within one ADR gets the same enforcement where it matters:
+    a task set written from the current template is held to it, an older one is
+    left alone, and the half-migrated state that hides drift is what fails.
+
+    The section exists because "is it wired?" has four rungs and tests usually
+    cover only the second. Rung 3 — can the intended caller DISCOVER it — is
+    invisible to behavioural tests by construction: an argument a handler honours
+    but a schema never advertises works for anyone who sends it, and is
+    unreachable for the reader who consults the schema first.
+    """
+    have = [p for p in task_files if "## Reachability" in p.read_text(errors="replace")]
+    if have and len(have) != len(task_files):
+        missing = sorted(p.name for p in task_files if p not in have)
+        errors.append(
+            f"{len(have)} of {len(task_files)} task files declare ## Reachability; "
+            f"these do not: {', '.join(missing)}. Either the whole task set uses the "
+            f"current template or none of it does — a half-migrated set is where a "
+            f"missing rung hides")
+
+
+def check_task(path, all_stems, errors):
+    text = path.read_text(errors="replace")
+    secs = sections_of(text)
+    for s in TASK_SECTIONS:
+        if s not in secs:
+            errors.append(f"{path.name}: missing section ## {s}")
+    for h in TASK_HEADERS:
+        if header_val(text, h) is None:
+            errors.append(f"{path.name}: missing **{h}:** header")
+    acc = "\n".join(secs.get("Acceptance", []))
+    if "```bash" not in acc and "Acceptance is human-observed:" not in acc:
+        errors.append(f"{path.name}: ## Acceptance has no ```bash fence and no explicit "
+                      f"'Acceptance is human-observed:' sentence — prose acceptance is rejected")
+    aff = [ln for ln in secs.get("Affected Files", [])
+           if ln.strip().startswith("|") and "`" in ln]
+    if not aff:
+        errors.append(f"{path.name}: Affected Files table has no data rows "
+                      f"(a row with a backticked path)")
+    adds = set()
+    for ln in aff:
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", ln.strip().strip("|"))]
+        if len(cells) >= 2 and re.search(r"\badd\b", cells[1], re.I):
+            pm = re.search(r"`([^`]+)`", cells[0])
+            if pm:
+                adds.add(pm.group(1))
+    steps = [ln for ln in secs.get("Ordered Steps", []) if re.match(r"^\s*1\.", ln)]
+    if not steps:
+        errors.append(f"{path.name}: Ordered Steps has no '1.' numbered step — step 1 must "
+                      f"establish the failing test (TDD red)")
+    elif "test" not in steps[0].lower():
+        errors.append(f"{path.name}: Ordered Steps step 1 must establish the failing test "
+                      f"(TDD red) — currently: {steps[0].strip()[:80]}")
+    dep = header_val(text, "Depends-on") or ""
+    if dep and dep.lower() not in ("none", '"none"'):
+        for d in [d.strip() for d in dep.split(",") if d.strip()]:
+            if not any(id_matches(d, s) for s in all_stems):
+                errors.append(f"{path.name}: Depends-on '{d}' matches no sibling task file")
+    vlog = [ln.strip() for ln in secs.get("Verification Log", [])
+            if ln.strip().startswith("- ")]
+    for b in vlog:
+        if not VLOG_RE.match(b):
+            errors.append(f"{path.name}: Verification Log entry doesn't match the adr-verify "
+                          f"grammar '- YYYY-MM-DD · <sha[*]|no-git> · exit N · `cmd` · "
+                          f"acceptance-sha256:<64 hex>' (legacy no-digest rows remain parseable) "
+                          f"(or '· human-observed · …'): {b[:70]}")
+    mlog = [ln.strip() for ln in secs.get("Mutation Log", [])
+            if ln.strip().startswith("- ")]
+    for b in mlog:
+        if not MLOG_RE.match(b):
+            errors.append(f"{path.name}: Mutation Log entry doesn't match the adr-verify "
+                          f"grammar: killed requires nonzero exit, survived requires exit 0, "
+                          f"and inconclusive may use either · `file` · why: {b[:70]}")
+    has_mlog_section = "Mutation Log" in secs
+
+    acc_match = re.search(r"```bash\s*\n(.*?)```", acc, re.S)
+    acc_all = normalize_acceptance(acc_match.group(1)) if acc_match else ""
+    acc_first = acc_all.splitlines()[0].strip() if acc_all else None
+    # acc_first is display/legacy compatibility only. acc_all is the WHOLE
+    # normalized fence and is the sole input to current evidence digests: a
+    # filter or second command often sits below line one.
+    # Tests table rows: (test name, file it should live in). The names are what
+    # the acceptance command filters on, so a name that exists only here is a
+    # test nothing runs.
+    tests = []
+    for ln in secs.get("Tests", []):
+        s2 = ln.strip()
+        if not s2.startswith("|") or s2.startswith("|--") or "---" in s2.split("|")[1:2]:
+            continue
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", s2.strip("|"))]
+        if len(cells) < 2 or cells[0].lower().startswith("test name"):
+            continue
+        nm = re.search(r"`([^`]+)`", cells[0])
+        fl = re.search(r"`([^`]+)`", cells[1])
+        if nm and fl:
+            tests.append((nm.group(1).strip(), fl.group(1).strip()))
+
+    covers = header_val(text, "Covers") or ""
+    info = {"dep": header_val(text, "Depends-on") or "", "tests": tests, "path": path,
+            "produces": header_val(text, "Produces") or "",
+            "consumes": header_val(text, "Consumes") or "",
+            "vlog": vlog, "mlog": mlog, "has_mlog": has_mlog_section,
+            "acc_first": acc_first, "acc_all": acc_all,
+            "human": "Acceptance is human-observed:" in acc, "adds": adds}
+    return set(re.findall(r"(F-\d+|UC\d+-S\d+)", covers)), info
+
+
+def dag_edges(infos):
+    """Ordering edges (before, after, reason) from Depends-on + Produces/Consumes.
+
+    Consumes contributes an edge for every T-id it references and for every
+    backticked token that also appears backticked in a sibling's Produces.
+    """
+    tid_re = re.compile(r"(?<!\w)T\d+(?!\w)")
+    edges, seen = [], set()
+
+    def add(a, b, reason):
+        if a in infos and a != b and (a, b) not in seen:
+            seen.add((a, b))
+            edges.append((a, b, reason))
+
+    for tid, inf in infos.items():
+        if inf["dep"] and not inf["dep"].lower().startswith("none"):
+            for d in tid_re.findall(inf["dep"].upper()):
+                add(d, tid, f"{tid} Depends-on {d}")
+        cons = inf["consumes"]
+        if cons and not cons.lower().startswith("none"):
+            for d in tid_re.findall(cons.upper()):
+                add(d, tid, f"{tid} Consumes {d}'s output")
+            ctoks = {t.lower() for t in re.findall(r"`([^`]+)`", cons)} - {"none"}
+            for other, oinf in infos.items():
+                hit = ctoks & {t.lower() for t in re.findall(r"`([^`]+)`", oinf["produces"])}
+                if hit:
+                    add(other, tid, f"{tid} Consumes `{sorted(hit)[0]}` produced by {other}")
+    return edges
+
+
+def find_cycle(edges, nodes):
+    adj = {}
+    for a, b, _ in edges:
+        adj.setdefault(a, []).append(b)
+    state, path = {}, []
+
+    def dfs(n):
+        state[n] = 1
+        path.append(n)
+        for m in adj.get(n, ()):
+            if state.get(m) == 1:
+                return path[path.index(m):] + [m]
+            if not state.get(m):
+                c = dfs(m)
+                if c:
+                    return c
+        state[n] = 2
+        path.pop()
+        return None
+
+    for n in sorted(nodes):
+        if not state.get(n):
+            c = dfs(n)
+            if c:
+                return c
+    return None
+
+
+def parse_positions(text):
+    """Map task-id → wave/order number from the README's Wave or Order table."""
+    lines = text.splitlines()
+    for i, ln in enumerate(lines):
+        m = re.match(r"^\|\s*(Wave|Order)\s*\|", ln, re.I)
+        if not m:
+            continue
+        mode, pos = m.group(1).lower(), {}
+        for row in lines[i + 1:]:
+            if not row.strip().startswith("|"):
+                break
+            rm = re.match(r"^\|\s*(\d+)\s*\|([^|]*)\|", row)
+            if rm:
+                for tid in re.findall(r"(?<!\w)T\d+(?!\w)", rm.group(2).upper()):
+                    pos[tid] = int(rm.group(1))
+        return mode, pos
+    return None, {}
+
+
+def check_dag(infos, readme_text, errors):
+    """Cycle check on the task DAG; wave/order table must be a topological leveling."""
+    edges = dag_edges(infos)
+    cyc = find_cycle(edges, infos.keys())
+    if cyc:
+        errors.append(f"tasks: dependency cycle: {' → '.join(cyc)}")
+        return
+    if not readme_text:
+        return
+    mode, pos = parse_positions(readme_text)
+    for a, b, reason in edges:
+        pa, pb = pos.get(a), pos.get(b)
+        if pa is None or pb is None:
+            continue  # unlisted tasks already flagged by check_readme
+        if pa >= pb:
+            errors.append(f"README.md: {reason}, but {mode}({b})={pb} ≤ {mode}({a})={pa} "
+                          f"— {a} must land in a strictly earlier {mode}")
+
+
+def check_file_collisions(infos, errors):
+    """A file `add`ed by two tasks is a collision — one task owns creation."""
+    owners = {}
+    for tid, inf in infos.items():
+        for p in inf["adds"]:
+            owners.setdefault(p, []).append(tid)
+    for p, tids in sorted(owners.items()):
+        if len(tids) > 1:
+            errors.append(f"tasks: `{p}` is added by {', '.join(sorted(tids))} — one task must "
+                          f"own creation (change: add); the others edit")
+
+
+def check_contract_table(adr_path, stems, errors):
+    """Every Inter-task Contracts row names a producing T-id that has a task file."""
+    secs = sections_of(adr_path.read_text(errors="replace"))
+    rows = [ln for ln in secs.get("Inter-task Contracts", []) if ln.strip().startswith("|")]
+    for r in rows[1:]:
+        if re.match(r"^\|[\s\-|:]+\|?$", r.strip()) or "<" in r:
+            continue
+        cells = [c.strip() for c in re.split(r"(?<!\\)\|", r.strip().strip("|"))]
+        if len(cells) < 3 or cells[0].lower() in ("", "none"):
+            continue
+        prod_ids = re.findall(r"(?<!\w)T\d+(?!\w)", cells[1])
+        if not prod_ids:
+            errors.append(f"{adr_path.name}: Inter-task Contracts row '{cells[0][:40]}' names "
+                          f"no producing T-id — orphaned contract, no task owns it")
+        for role, cell in (("producing", cells[1]), ("consuming", cells[2])):
+            for tid in re.findall(r"(?<!\w)T\d+(?!\w)", cell):
+                if not any(id_matches(tid, s) for s in stems):
+                    errors.append(f"{adr_path.name}: Inter-task Contracts row "
+                                  f"'{cells[0][:40]}' names {role} task {tid} but no task "
+                                  f"file matches it")
+
+
+def done_task_ids(readme_text):
+    """Task ids a README marks `done`, whatever column the status sits in.
+
+    The first version anchored on `| T4 | <one cell> | done |` — the status in the
+    THIRD column and the id as a bare `T4`. Two README shapes are in use: some
+    index tables put Status fifth and write the id as a `[T4](T4-....md)` link, and
+    on those the pattern matched NOTHING. Three ADRs and eleven tasks sat outside
+    this check entirely, and one of them was marked done with an empty Verification
+    Log — the exact state the check exists to reject, passing green.
+
+    So: find any row whose FIRST cell names a task, and ask whether any later cell
+    is exactly `done`. Position-independent, link or bare id.
+    """
+    out = []
+    for line in readme_text.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if len(cells) < 2:
+            continue
+        m = re.match(r"^\[?(T\d+)\b", cells[0], re.I)
+        if not m:
+            continue
+        if any(c.lower() == "done" for c in cells[1:]):
+            out.append(m.group(1).upper())
+    return out
+
+
+def check_verification(infos, readme_text, errors):
+    """README `done` status requires tool-written passing evidence in the task's log."""
+    if not readme_text:
+        return
+    for tid in done_task_ids(readme_text):
+        inf = infos.get(tid)
+        if inf is None:
+            continue
+        if inf["human"]:
+            if not any("· human-observed ·" in b for b in inf["vlog"]):
+                errors.append(f"README.md: {tid} marked done but its Verification Log has no "
+                              f"'· human-observed ·' sign-off entry (adr-verify --human)")
+            continue
+        passing = [b for b in inf["vlog"] if VLOG_RE.match(b) and "· exit 0 ·" in b]
+        if not passing:
+            errors.append(f"README.md: {tid} marked done but its Verification Log has no "
+                          f"exit-0 entry — run adr-verify, don't hand-declare")
+            continue
+        if inf["acc_all"]:
+            want_digest = acceptance_digest(inf["acc_all"])
+            digest_matches = [m for b in passing
+                              if (m := VLOG_DIGEST_RE.match(b))
+                              and m.group("digest") == want_digest]
+            legacy_matches = []
+            if "\n" not in inf["acc_all"]:
+                want = inf["acc_first"].replace("`", "'")
+                legacy_matches = [m for b in passing
+                                  if (m := VLOG_LEGACY_RE.match(b))
+                                  and not m.group("command").rstrip().endswith(" …")
+                                  and m.group("command").strip() == want]
+            if not digest_matches and not legacy_matches:
+                legacy_note = (" Legacy no-digest evidence cannot prove a multi-line fence."
+                               if "\n" in inf["acc_all"] else "")
+                errors.append(f"README.md: {tid} marked done but no exit-0 entry has the "
+                              f"current Acceptance digest acceptance-sha256:{want_digest}."
+                              f"{legacy_note} Acceptance changed after verification; re-run "
+                              f"adr-verify")
+
+
+def check_status_allows_execution(adr_path, readme_text, errors):
+    """A task cannot be `done` while its own ADR still says `Proposed`.
+
+    /adr-execute's stated precondition is Status `Accepted`, and every other gate
+    in the chain reads the TASK files — nothing ever read the parent's Status. So
+    an ADR can be authored Proposed, executed, verified, committed and shipped to
+    production with every gate green and its own record still saying the decision
+    was never taken. Measured 2026-08-21: ADR-088 ran both tasks to `done`, both
+    with exit-0 adr-verify entries, and reached prod while the file said Proposed.
+
+    Statuses other than Proposed/Draft/Rejected are allowed, because an ADR that
+    was accepted and later superseded or deprecated was legitimately executed.
+    """
+    if not readme_text:
+        return
+    done = done_task_ids(readme_text)
+    if not done:
+        return
+    text = Path(adr_path).read_text(errors="replace")
+    m = re.search(r"^\*\*Status:\*\*\s*(.+?)\s*$", text, re.M)
+    if not m:
+        return  # the missing-Status line is already reported by check_adr
+    status = m.group(1).strip().strip("`*")
+    if re.match(r"^(proposed|draft|rejected)\b", status, re.I):
+        errors.append(f"{adr_path.name}: Status is '{status}' but "
+                      f"{', '.join(sorted(done))} {'is' if len(done) == 1 else 'are'} marked done "
+                      f"— execution requires Accepted; either the decision was never taken or the "
+                      f"record was never updated, and both are wrong to leave standing")
+
+
+def resolve_test_file(root, rel):
+    """Find the file a Tests-table row names, or None.
+
+    Rows are written for humans and often give a bare filename rather than a
+    repo-relative path, so an exact join is not enough — insisting on one would
+    flag dozens of rows whose test exists perfectly well a few directories down,
+    and a gate that cries wolf is one people learn to skip. The fallback searches
+    by basename and only accepts an unambiguous single match: two files with the
+    same name mean the row does not say which, and guessing would be worse than
+    saying nothing.
+    """
+    direct = root / rel
+    if direct.exists():
+        return direct
+    base = Path(rel).name
+    if not base or base in (".", "/"):
+        return None
+    hits = [q for q in root.rglob(base)
+            if q.is_file() and ".git/" not in str(q) and "/node_modules/" not in str(q)
+            and "/target/" not in str(q) and "/vendor/" not in str(q)]
+    return hits[0] if len(hits) == 1 else None
+
+
+def check_mutation_evidence(infos, readme_text, errors):
+    """A task with passing acceptance must show that its fence CAN fail.
+
+    The asymmetry this closes, stated plainly: every other check in the pipeline
+    proves a command exited 0. Nothing proved a command can exit non-zero, so a
+    test bound to nothing passes exactly like a test bound to the mechanism. The
+    task template used to ask for a hand-filled Mutants table — the same
+    fabrication hole the Verification Log closed, one section further down.
+
+    Migration-safe by the passing-evidence date. A task whose latest passing
+    evidence predates MUTATION_REQUIRED_FROM remains grandfathered. Once the
+    Acceptance fence is verified on or after the cutover, however, its killed
+    mutant must carry the same digest; an older unbound kill cannot prove a
+    changed current fence.
+    """
+    for tid in evidenced_task_ids(infos, readme_text):
+        inf = infos.get(tid)
+        if inf is None or inf.get("human"):
+            continue
+        dates = [b[2:12] for b in inf.get("vlog", []) if VLOG_RE.match(b)]
+        if not dates or max(dates) < MUTATION_REQUIRED_FROM:
+            continue  # predates the tool; see the docstring
+        want_digest = acceptance_digest(inf.get("acc_all", ""))
+        killed = []
+        for entry in inf.get("mlog", []):
+            if not MLOG_RE.match(entry) or "· mutant killed ·" not in entry:
+                continue
+            current = MLOG_DIGEST_RE.match(entry)
+            if current and current.group("digest") == want_digest:
+                killed.append(entry)
+        if killed:
+            continue
+        if not inf.get("has_mlog"):
+            errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence recorded on "
+                          f"or after {MUTATION_REQUIRED_FROM} but has no ## Mutation Log section — "
+                          f"a fence that passes is not a fence that can fail. Add the section and "
+                          f"record a mutant with `adr-verify <task.md> --mutant …`")
+        else:
+            other = [b for b in inf.get("mlog", []) if MLOG_RE.match(b)]
+            detail = (f"its log has {len(other)} entry/entries, none of them is a `killed` "
+                      f"mutant for acceptance-sha256:{want_digest}"
+                      if other else "its Mutation Log is empty")
+            errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence but no "
+                          f"`mutant killed` entry — {detail}. A survived mutant means the fence "
+                          f"passed with the mechanism broken; inconclusive means it failed without "
+                          f"a failing assertion. Neither is evidence the test binds to anything.")
+
+
+def evidenced_task_ids(infos, readme_text):
+    """Task ids whose Tests table is a claim someone has already acted on.
+
+    `done` is not the only such state. A task marked `blocked` on something OUTSIDE the repo (a
+    root-owned allow-list, a vendor account, a box needing sudo) still has a GREEN acceptance
+    fence, and a green fence means the tests it names ran. Measured 2026-08-21: a task renamed a
+    test, left the old name in its Tests table, and every table check skipped it purely because its
+    README status was `blocked` — the stale row survived a full adr-lint pass, which is exactly the
+    "list kept beside the truth" failure these checks exist to catch.
+
+    So the question is asked of any task that is `done` OR carries an exit-0 adr-verify entry.
+    """
+    ids = set(done_task_ids(readme_text)) if readme_text else set()
+    for tid, inf in infos.items():
+        if inf.get("human"):
+            continue
+        if any(VLOG_RE.match(b) and "· exit 0 ·" in b for b in inf.get("vlog", [])):
+            ids.add(tid)
+    return sorted(ids)
+
+
+def check_tests_exist(infos, readme_text, errors, root):
+    """A `done` task's Tests table must name tests that exist in the files it names.
+
+    This is the static half of the vacuous-acceptance hole. A filter that matches
+    nothing exits 0 on go, phpunit and cargo, so an acceptance command can pass
+    with none of the task's tests written. adr-verify now catches an entirely
+    empty run; this catches the subtler case where the command DID run something
+    — an existing test whose name shares the filter's prefix — while the tests
+    this task promised were never written.
+
+    It reads the real files rather than trusting the table, for the same reason
+    the table exists: a list kept beside the truth is a thing somebody has to
+    remember, which is precisely what fails.
+    """
+    if not readme_text or root is None:
+        return
+    for tid in evidenced_task_ids(infos, readme_text):
+        inf = infos.get(tid)
+        if inf is None or inf.get("human"):
+            continue
+        for name, rel in inf.get("tests", []):
+            if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
+                continue  # placeholder like "—" or a prose description
+            f = resolve_test_file(root, rel)
+            # A Tests-table cell naming a DIRECTORY (a suite path like `tests/Feature/`) resolved to
+            # a real path and then crashed read_text with "Is a directory" — the linter died instead
+            # of reporting, which exits non-zero and so reads as a finding while having checked
+            # nothing after it (measured 2026-08-21, same failure mode as the missing-Spec crash).
+            if f is not None and f.is_dir():
+                errors.append(f"{inf['path'].name}: {tid} names `{rel}` for `{name}`, but that is a "
+                              f"DIRECTORY — a Tests row must name the file the test lives in")
+                continue
+            if f is None:
+                errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
+                              f"Tests table names `{rel}` for `{name}`, but no such file exists "
+                              f"in the repo — the row describes a test nothing can run")
+                continue
+            source = code_only(f.read_text(errors="replace"))
+            if test_body(source, name) is None:
+                errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
+                              f"Tests table names `{name}` in `{rel}`, but that file contains no "
+                              f"executable definition with that name — the acceptance filter passed "
+                              f"without it")
+
+
+# Test bodies that cannot fail, and tests the Acceptance never runs.
+#
+# check_tests_exist proves a named test EXISTS. Existence is a weak property:
+# a function with no failure path satisfies it and can never go red, and so does
+# a real test the Acceptance command never selects. Both leave a `done` task whose
+# evidence chain has a hole in the middle, and both are mechanical to catch.
+FAIL_CALLS = re.compile(
+    r"\bt\.(Error|Errorf|Fatal|Fatalf|FailNow|Fail)\b"      # go
+    r"|\b(assert|require|expect)\b"                          # go testify / js / rust-ish
+    r"|\bself\.assert|\bassert\s"                          # python
+    r"|\$this->assert|\bassertThat\b"                       # php / java
+    # FLUENT chains. Measured 2026-08-21: three Livewire tests that a mutation run had just
+    # PROVEN could go red were reported as unable to fail, because `\b(assert|require|expect)\b`
+    # needs a word boundary AFTER the word and `assertTableActionExists` has none, while
+    # `\$this->assert` needs the `$this->` receiver a fluent chain does not have. Livewire,
+    # Laravel's TestResponse, Playwright and jest/supertest all assert this way, so the check was
+    # blind to an entire testing idiom and reported a correct artifact as broken — the kind of
+    # false alarm that teaches people to skip the gate.
+    r"|->assert\w*\s*\("                                     # ->assertX(...) on any receiver
+    r"|\bassert\w*\s*\(",                                   # bare assertX(...) call
+    re.I)
+
+
+def test_body(text, name):
+    """The source of the named test function, best-effort across languages.
+
+    The opening brace may sit on the declaration line (Go, JS) or on the NEXT one
+    (PSR-12 PHP, C#). Measured 2026-08-21: the earlier version required it on the
+    declaration line, so for every PHP test in a PSR-12 codebase it fell through to
+    the `def |func |fn |class ` heuristic, matched none of those keywords, and
+    returned THE ENTIRE REST OF THE FILE as the body. `check_tests_can_fail` then
+    meant "does an assertion appear anywhere below this test", which is true of all
+    but the last test in any file — a check that could not fail, inside the check
+    for tests that cannot fail.
+
+    So the declaration is matched as `name(...)` + optional return type + `{`, with
+    newlines allowed before the brace, and the body is brace-matched from there. A
+    `;` before the brace rules out an abstract/interface declaration. Languages with
+    no brace at all keep the old keyword fallback.
+    """
+    m = re.search(r"\b" + re.escape(name) + r"\b\s*\([^)]*\)[^{;]*?\{", text, re.S)
+    if m:
+        i = m.end() - 1
+        depth = 0
+        for j in range(i, len(text)):
+            if text[j] == "{":
+                depth += 1
+            elif text[j] == "}":
+                depth -= 1
+                if depth == 0:
+                    return text[i:j + 1]
+        return text[i:]
+    m = re.search(r"(?m)^[^\n]*\b" + re.escape(name) + r"\b", text)
+    if not m:
+        return None
+    start = m.end()
+    nxt = re.search(r"(?m)^(def |func |fn |class |    def )", text[start:])
+    return text[start:start + nxt.start()] if nxt else text[start:]
+
+
+def code_only(text):
+    """Drop line comments, block comments and string literals.
+
+    A reviewer pointed out that the failure-call search matched the word `expect`
+    inside a comment, so a test whose body is one sentence of prose passed as
+    though it asserted something. Stripping first is cheap and removes the whole
+    class — a failure call must be CODE.
+    """
+    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
+    text = re.sub(r"(?m)(^|[^:])//.*$", r"\1 ", text)
+    text = re.sub(r"(?m)#.*$", " ", text)
+    text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
+    text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
+    text = re.sub(r"`(?:[^`])*`", "``", text)
+    return text
+
+
+def check_tests_can_fail(infos, readme_text, errors, root):
+    """A test named by a `done` task must contain a failure path.
+
+    Measured 2026-08-21: the existence check passes on a function that asserts
+    nothing, which is the same green as a test that proves the task. A test with
+    no t.Error/t.Fatal/assert in its body cannot go red for any input, so it is
+    evidence of nothing and it looks identical to evidence of everything.
+
+    Deliberately shallow, and the claim is scoped to match: it asks whether a
+    failure call is REACHABLE from the body — not whether the assertion is right,
+    and not whether the test fails when its subject breaks. Only a compiling
+    mutant proves the latter, which is why the task template asks for one
+    separately. `if false { t.Fatal(...) }` passes this check and should: judging
+    reachability under a constant condition is a different tool.
+    """
+    if not readme_text or root is None:
+        return
+    for tid in evidenced_task_ids(infos, readme_text):
+        inf = infos.get(tid)
+        if inf is None or inf.get("human"):
+            continue
+        for name, rel in inf.get("tests", []):
+            if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
+                continue
+            f = resolve_test_file(root, rel)
+            if f is None or f.is_dir():
+                continue  # check_tests_exist already reported both cases
+            text = code_only(f.read_text(errors="replace"))
+            body = test_body(text, name)
+            if body is None:
+                continue
+            body = code_only(body)
+            # A test that delegates its assertions to a helper still fails when the
+            # helper does. Follow one level: any same-file function the body calls
+            # that takes the testing handle counts as part of it.
+            if not FAIL_CALLS.search(body):
+                for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
+                    h = test_body(text, callee)
+                    if h and FAIL_CALLS.search(h):
+                        body += h
+                        break
+            if not FAIL_CALLS.search(body):
+                errors.append(f"{inf['path'].name}: {tid} is marked done and names `{name}`, but "
+                              f"no failure call is reachable in its body or in a same-file helper "
+                              f"it hands the test handle to — nothing in it can go red")
+
+
+def selected_by_filter(acc, name, rel=None):
+    """Would the Acceptance command's filter run this test?
+
+    The filter is matched the way the RUNNER matches it, not literally: `go test
+    -run "TestLexNorm|TestRankRRF"` takes an unanchored regex, so a prefix selects
+    every test beginning with it. A literal comparison flags all of them and the
+    gate becomes noise — and a gate with false alarms is one people learn to skip,
+    which costs more than the hole it closed.
+
+    The same reason forces the CLASS into the comparison. PHPUnit and JUnit match
+    `--filter` against the qualified name `Class::method`, so the overwhelmingly
+    common `--filter='SomeTest'` selects every method in that class. Matching the
+    pattern against the bare method name reported all of them as unrun — measured
+    2026-08-21 on a 13-task ADR where every task uses a class filter and every row
+    was flagged, which is precisely the false-alarm mode this function exists to
+    avoid. The class comes from the Tests table's own file column.
+
+    Unknown runners fall back to "selected", because guessing another tool's
+    matching rules and being wrong is worse than not asking.
+    """
+    def unwrap(pat):
+        """PHPUnit and PHPStan take a DELIMITED regex — `--filter='/(a|b)$/'`.
+
+        Compiled as-is, the leading slash is a literal and the pattern matches
+        nothing, so every test named by such a fence was reported as unrun
+        (measured 2026-08-21). Strip a matched delimiter pair plus trailing flags;
+        leave anything else alone.
+        """
+        m = re.match(r"^([/#~%])(.*)\1([imsxuUAD]*)$", pat, re.S)
+        return m.group(2) if m else pat
+
+    candidates = [name]
+    if rel:
+        stem = re.sub(r"\.[A-Za-z0-9]+$", "", str(rel).replace("\\", "/").rsplit("/", 1)[-1])
+        if stem and stem != name:
+            candidates.append(f"{stem}::{name}")
+    # \Q…\E is valid in Go's regexp and invalid in Python's; translate rather
+    # than fall through to "selected", which would pass every row.
+    acc = re.sub(r"\\Q(.*?)\\E", lambda m: re.escape(m.group(1)), acc)
+    for m in re.finditer(r"(-run|--filter|-k|--test|--name)[= ]+([\"\'])(.+?)\2", acc):
+        pat = unwrap(m.group(3))
+        try:
+            if any(re.search(pat, c) for c in candidates):
+                return True
+        except re.error:
+            return True  # an unparseable pattern is not evidence of exclusion
+        # pytest's -k is a boolean expression over substrings, not a regex.
+        if m.group(1) == "-k" and any(tok and any(tok in c for c in candidates)
+                                      for tok in re.split(r"\s+(?:and|or|not)\s+|[()]", pat)):
+            return True
+    for m in re.finditer(r"(-run|--filter|-k|--test|--name)[= ]+([^\s\'\"]+)", acc):
+        try:
+            if any(re.search(unwrap(m.group(2)), c) for c in candidates):
+                return True
+        except re.error:
+            return True
+    return False
+
+
+def check_named_tests_are_run(infos, readme_text, errors):
+    """A test the Tests table names must be SELECTED by the Acceptance command.
+
+    Measured 2026-08-21: a task listed six tests and its Acceptance filter named
+    three, two of which did not exist. Four real tests sat outside the fence. The
+    phantoms kept it red by accident — had the fence named only the two real ones,
+    it would have gone green with four of the task's six promises never run. A
+    table row nothing executes is a claim, not a test.
+
+    A fence with no narrowing flag runs everything and satisfies this trivially,
+    which is correct rather than a loophole.
+    """
+    if not readme_text:
+        return
+    # Only flags selected_by_filter can actually PARSE count as narrowing. `-k`
+    # was in this list and not in the parser, so every pytest fence reported every
+    # named test as unrun — a false alarm on a runner this repo does not even use,
+    # which is exactly how a shared gate gets disabled in someone else's project.
+    narrowing = re.compile(r"(-run|--filter|-k|--test|--name)\b")
+    for tid in done_task_ids(readme_text):
+        inf = infos.get(tid)
+        if inf is None or inf.get("human"):
+            continue
+        acc = inf.get("acc_all") or inf.get("acc_first") or ""
+        if not acc or not narrowing.search(acc):
+            continue
+        for name, rel in inf.get("tests", []):
+            if not re.match(r"^[A-Za-z_][\w:.\-]*$", name):
+                continue
+            if not selected_by_filter(acc, name, rel):
+                errors.append(f"{inf['path'].name}: {tid} names `{name}` in its Tests table, but "
+                              f"the Acceptance command's filter does not select it — the row "
+                              f"promises a test the gate never runs")
+
+
+def check_readme(readme, task_stems, errors):
+    text = readme.read_text(errors="replace")
+    listed = set()
+    for ln in text.splitlines():
+        if ln.strip().startswith("|"):
+            listed |= set(re.findall(r"(?<!\w)T\d+(?!\w)", ln))
+    for tid in listed:
+        if not any(id_matches(tid, s) for s in task_stems):
+            errors.append(f"README.md: lists '{tid}' but no task file matches it "
+                          f"(task files are the source of truth)")
+    for stem in task_stems:
+        if not any(id_matches(tid, stem) for tid in listed) and \
+           stem.lower() not in text.lower():
+            errors.append(f"README.md: task file '{stem}.md' not listed in the index")
+    if len(task_stems) > 5 and "| Wave |" not in text:
+        errors.append(f"README.md: {len(task_stems)} tasks (>5) requires a wave table")
+
+
+def main():
+    if len(sys.argv) < 2:
+        print(__doc__)
+        sys.exit(1)
+    adr = Path(sys.argv[1])
+    if not adr.exists():
+        print(f"ADR not found: {adr}")
+        sys.exit(1)
+    errors = []
+    spec_file = check_adr(adr, errors)
+
+    if len(sys.argv) > 2:
+        tasks_dir = Path(sys.argv[2])
+        if not tasks_dir.is_dir():
+            print(f"tasks dir not found: {tasks_dir}")
+            sys.exit(1)
+    else:
+        tasks_dir = None
+        candidates = [adr.parent / "tasks", adr.with_suffix("") / "tasks"]
+        m = re.match(r"(ADR-\d+)", adr.stem)
+        if m:
+            candidates.append(adr.parent / m.group(1) / "tasks")
+        for cand in candidates:
+            if cand.is_dir():
+                tasks_dir = cand
+                break
+
+    all_covers = set()
+    if tasks_dir:
+        task_files = sorted(p for p in tasks_dir.glob("*.md") if p.name != "README.md")
+        stems = [p.stem for p in task_files]
+        if not task_files:
+            errors.append(f"{tasks_dir}: no task files")
+        check_reachability_consistency(task_files, errors)
+        infos = {}
+        for p in task_files:
+            covers, info = check_task(p, stems, errors)
+            all_covers |= covers
+            m = re.match(r"(T\d+)(?!\d)", p.stem, re.I)
+            if m:
+                infos[m.group(1).upper()] = info
+        readme = tasks_dir / "README.md"
+        readme_text = None
+        if readme.exists():
+            readme_text = readme.read_text(errors="replace")
+            check_readme(readme, stems, errors)
+        else:
+            errors.append(f"{tasks_dir}: no README.md index")
+        check_dag(infos, readme_text, errors)
+        check_verification(infos, readme_text, errors)
+        check_status_allows_execution(adr, readme_text, errors)
+        check_tests_exist(infos, readme_text, errors, git_root(tasks_dir))
+        check_tests_can_fail(infos, readme_text, errors, git_root(tasks_dir))
+        check_mutation_evidence(infos, readme_text, errors)
+        check_named_tests_are_run(infos, readme_text, errors)
+        check_file_collisions(infos, errors)
+        check_contract_table(adr, stems, errors)
+
+    if spec_file is not None:
+        # inline-task ADRs carry **Covers:** lines in the ADR body itself
+        adr_text = adr.read_text(errors="replace")
+        inline = " ".join(re.findall(r"^\*\*Covers:\*\*\s*(.+)$", adr_text, re.M))
+        all_covers |= set(re.findall(r"(F-\d+|UC\d+-S\d+)", inline))
+        uncovered = spec_ids(spec_file) - all_covers
+        if uncovered:
+            errors.append(f"spec coverage: no task Covers these @spec/@implemented IDs: "
+                          f"{', '.join(sorted(uncovered))} — uncovered facts block Accepted")
+
+    status = "PASS" if not errors else "FAIL"
+    print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only)"))
+    for e in errors:
+        print(f"  {e}")
+    sys.exit(1 if errors else 0)
+
+
+if __name__ == "__main__":
+    main()

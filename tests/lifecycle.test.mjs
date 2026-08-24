@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtemp, readdir, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -10,10 +10,12 @@ import {
   bashDeletionMutationPaths,
   bashMarkdownMutationPaths,
   branchViolation,
+  isGitPublishCommand,
   isPotentialMutationCommand,
   isValidationCommand,
 } from '../scripts/lifecycle.mjs'
 import {
+  hookFilePathFromPayload,
   normalizeHookPayload,
   resolveBashExecutable,
   runWithTimeout,
@@ -59,6 +61,8 @@ test('tracks mutation-capable Bash commands without treating read-only probes as
   assert.equal(isPotentialMutationCommand("sed -i.bak 's/x/y/' docs/spec.md"), true)
   assert.equal(isPotentialMutationCommand("sed --in-place=.bak 's/x/y/' docs/spec.md"), true)
   assert.equal(isPotentialMutationCommand('git reset --hard HEAD~1'), true)
+  assert.equal(isPotentialMutationCommand('git -c user.name=Bot commit -m test'), true)
+  assert.equal(isPotentialMutationCommand('command git -C /repo -c user.name=Bot restore file'), true)
   assert.equal(isPotentialMutationCommand('git pull --ff-only'), true)
   assert.equal(isPotentialMutationCommand('rsync -a src/ dst/'), true)
   assert.equal(isPotentialMutationCommand('chmod +x script.sh'), true)
@@ -68,8 +72,8 @@ test('tracks mutation-capable Bash commands without treating read-only probes as
     bashMarkdownMutationPaths("printf x > docs/spec.md", '/repo'),
     ['/repo/docs/spec.md'],
   )
-  assert.match(bashMarkdownMutationPaths('python rewrite.py $DOC/spec.md', '/repo')[0], /Unresolved/)
-  assert.match(bashMarkdownMutationPaths("sed -i '' docs/specs/*.md", '/repo')[0], /Unresolved/)
+  assert.deepEqual(bashMarkdownMutationPaths('python rewrite.py $DOC/spec.md', '/repo'), [])
+  assert.deepEqual(bashMarkdownMutationPaths("sed -i '' docs/specs/*.md", '/repo'), [])
   assert.deepEqual(
     bashDeletionMutationPaths('rm -rf /repo/adr-archive', '/elsewhere'),
     ['/repo/adr-archive'],
@@ -79,6 +83,62 @@ test('tracks mutation-capable Bash commands without treating read-only probes as
     ['/repo/docs/adr-archive'],
   )
   assert.match(bashDeletionMutationPaths('rm -rf "$ARCHIVE"', '/repo')[0], /Unresolved/)
+})
+
+test('quoted Markdown and git text are mentions, not permanent lifecycle failures', async () => {
+  assert.equal(isGitPublishCommand("printf '%s\\n' 'diagnostic: git commit failed'"), false)
+  assert.equal(isGitPublishCommand("cat <<'EOF'\ngit push origin main\nEOF"), false)
+  assert.equal(isGitPublishCommand('command -v git commit'), false)
+  for (const command of [
+    'cd /repo && git commit -m test',
+    'git -c user.name=Bot -c user.email=bot@example.invalid commit -m test',
+    'git --no-pager push origin main',
+    'command git commit -m test',
+    'env GIT_AUTHOR_NAME=Bot git commit -m test',
+    'GIT_AUTHOR_NAME="Bot User" git commit -m test',
+    'env -S "git commit -m test"',
+    'env -a custom0 git commit -m test',
+    'sudo -u root git commit -m test',
+    'sudo -D /tmp git commit -m test',
+    'exec git commit -m test',
+    'time -p git commit -m test',
+    'time -o /tmp/timing git commit -m test',
+    '(git commit -m test)',
+    '{ git commit -m test; }',
+    'bash -c "git commit -m test"',
+    'bash -o pipefail -c "git commit -m test"',
+    'echo $((1 << 2))\ngit commit -m test',
+    '((1 << 2))\ngit commit -m test',
+    '"C:\\Tools\\Git\\cmd\\git.exe" -C "C:\\repo" push origin main',
+  ]) {
+    assert.equal(isGitPublishCommand(command), true, command)
+  }
+  const quotedHeredocText = [
+    'EOF(){ :; }',
+    "printf %s 'literal <<EOF'",
+    'git commit -m test',
+    'EOF',
+  ].join('\n')
+  assert.equal(isGitPublishCommand(quotedHeredocText), true)
+  assert.equal(isGitPublishCommand("cat <<\\EOF\ngit push origin main\nEOF"), false)
+
+  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-quoted-md-'))
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', {
+      command: 'python3 signer.py --human "A1 PROVEN; see $DOC/T9-verdict.md Cleanup"',
+    }),
+    toolResult('b1'),
+    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    cwd: pluginDir,
+    input: JSON.stringify({ hook_event_name: 'Stop', transcript_path: file, cwd: dir }),
+    encoding: 'utf8',
+  })
+  assert.equal(run.status, 0, run.stderr)
+  assert.equal(run.stdout, '')
 })
 
 test('branch policy follows the target repository for native edits and git -C', async () => {
@@ -127,6 +187,44 @@ test('branch policy follows the target repository for native edits and git -C', 
     tool_name: 'Bash', cwd: testTmp,
     tool_input: { command: `git -C "${protectedDir}" restore tracked.txt` },
   }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: {
+      command: `GIT_AUTHOR_NAME="Bot User" command git -C "${protectedDir}" -c user.name=Bot commit -m test`,
+    },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: { command: `git -C "${dir}" -C "${protectedDir}" reset --hard` },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: {
+      command: `git --git-dir="${protectedDir}/.git" --work-tree="${protectedDir}" reset --hard`,
+    },
+  }), /protected 'main'/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: {
+      command: `git -C "${protectedDir}" merge topic -m "consider --ff-only later"`,
+    },
+  }), /merge without --ff-only/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: {
+      command: `git -C "${protectedDir}" merge topic -- --ff-only`,
+    },
+  }), /merge without --ff-only/)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: testTmp,
+    tool_input: {
+      command: `git -C "${protectedDir}" -c foo.bar="x --branch y" checkout tracked.txt`,
+    },
+  }), /protected 'main'/)
+  assert.equal(branchViolation({
+    tool_name: 'Bash', cwd: protectedDir,
+    tool_input: { command: "cat <<'EOF'\ngit commit -m prose\nEOF" },
+  }), null)
   const nestedMutation = `git -C "${dir}" status --short $(git -C "${protectedDir}" restore --worktree -- .)`
   assert.match(branchViolation({
     tool_name: 'Bash', cwd: testTmp, tool_input: { command: nestedMutation },
@@ -269,6 +367,12 @@ test('shell-hook runner normalizes Windows hook paths without changing prose', (
     tool_response: { filePath: '//server/share/result.md' },
   })
   assert.equal(normalizeHookPayload(payload, 'linux'), payload)
+  assert.equal(
+    hookFilePathFromPayload(payload, 'win32'),
+    'C:/Users/dev/project/docs/ADR-001.md',
+  )
+  assert.equal(hookFilePathFromPayload('{not json', 'win32'), null)
+  assert.equal(hookFilePathFromPayload('{}', 'win32'), null)
 })
 
 test('shell-hook runner rejects scripts outside its fixed hook set', () => {
@@ -286,7 +390,22 @@ test('shell-hook runner honors Claude Code Git Bash configuration on Windows', (
     resolveBashExecutable('win32', { CLAUDE_CODE_GIT_BASH_PATH: configured }),
     configured,
   )
-  assert.equal(resolveBashExecutable('win32', {}), 'bash')
+  const localRoot = 'C:\\Users\\dev\\AppData\\Local'
+  const localBash = path.win32.join(localRoot, 'Programs', 'Git', 'bin', 'bash.exe')
+  const pathBash = 'D:\\Tools\\Git\\bin\\bash.exe'
+  const exists = candidate => candidate === localBash || candidate === pathBash
+  assert.equal(resolveBashExecutable('win32', {
+    PATH: `C:\\Windows\\System32;${path.win32.dirname(pathBash)}`,
+    LOCALAPPDATA: localRoot,
+  }, exists), pathBash)
+  assert.equal(resolveBashExecutable('win32', {
+    PATH: 'C:\\Windows\\System32',
+    LOCALAPPDATA: localRoot,
+  }, exists), localBash)
+  assert.equal(resolveBashExecutable('win32', {
+    PATH: 'C:\\Windows\\System32',
+    LOCALAPPDATA: 'C:\\Users\\missing\\AppData\\Local',
+  }, () => false), null)
   assert.equal(resolveBashExecutable('linux', { CLAUDE_CODE_GIT_BASH_PATH: configured }), 'bash')
 })
 
@@ -435,6 +554,39 @@ test('commit gate uses exit 2 when this session has unverified edits', async () 
   assert.match(run.stderr, /blocked git commit\/push/i)
 })
 
+test('commit gate recognizes Git global options and executable wrappers', () => {
+  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
+  const missing = path.join(testTmp, 'quality-hook-transcript-does-not-exist.jsonl')
+  for (const command of [
+    'git -c user.name=Bot commit -m test',
+    'git --no-pager push origin main',
+    'command git commit -m test',
+    'env GIT_AUTHOR_NAME=Bot git commit -m test',
+    'GIT_AUTHOR_NAME="Bot User" git commit -m test',
+    'env -S "git commit -m test"',
+    'exec git commit -m test',
+    'time -p git commit -m test',
+    '(git commit -m test)',
+    '{ git commit -m test; }',
+    'bash -c "git commit -m test"',
+    'bash -o pipefail -c "git commit -m test"',
+    'echo $((1 << 2))\ngit commit -m test',
+    '((1 << 2))\ngit commit -m test',
+    ['EOF(){ :; }', "printf %s 'literal <<EOF'", 'git commit -m test', 'EOF'].join('\n'),
+  ]) {
+    const run = spawnSync(process.execPath, [script], {
+      cwd: pluginDir,
+      input: JSON.stringify({
+        hook_event_name: 'PreToolUse', tool_name: 'Bash',
+        tool_input: { command }, transcript_path: missing,
+      }),
+      encoding: 'utf8',
+    })
+    assert.equal(run.status, 2, command)
+    assert.match(run.stderr, /refusing git commit\/push/i, command)
+  }
+})
+
 test('commit and completion gates fail closed when the transcript is unreadable', async () => {
   const { spawnSync } = await import('node:child_process')
   const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
@@ -522,12 +674,17 @@ test('an invalid Markdown artifact written through Bash is still gated', async (
   assert.match(run.stdout, /Artifact validation failed/)
 })
 
-test('globbed Markdown Bash mutations fail closed instead of validating a literal glob', async () => {
+test('globbed Markdown Bash mutations gate the files that actually exist without poisoning prose', async () => {
   const dir = await mkdtemp(path.join(testTmp, 'quality-hook-bash-glob-'))
   const file = path.join(dir, 'agent.jsonl')
+  const specs = path.join(dir, 'docs', 'specs')
+  const artifact = path.join(specs, 'invalid.md')
+  await mkdir(specs, { recursive: true })
+  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
   await writeFile(file, transcript([
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: "sed -i '' docs/specs/*.md" }), toolResult('b1'),
+    toolUse('b1', 'Bash', { command: `sed -i '' "${specs}/*.md"` }), toolResult('b1'),
+    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
   ]))
   const { spawnSync } = await import('node:child_process')
   const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
@@ -535,5 +692,6 @@ test('globbed Markdown Bash mutations fail closed instead of validating a litera
     input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir }),
     encoding: 'utf8',
   })
-  assert.match(run.stdout, /unresolved path/)
+  assert.match(run.stdout, /Artifact validation failed/)
+  assert.doesNotMatch(run.stdout, /unresolved path/i)
 })

@@ -6,16 +6,8 @@
 # postmortem-verify.
 set -u
 
-payload=$(cat)
-JQ=$(command -v jq 2>/dev/null) || {
-  printf 'facts-first gate FAILED: jq is required to inspect hook input.\n' >&2
-  exit 2
-}
-f=$(printf '%s' "$payload" | "$JQ" -r '.tool_input.file_path // .tool_response.filePath // empty' 2>/dev/null)
+f=${1-}
 [ -z "$f" ] && exit 0
-case "$f" in
-  [A-Za-z]:\\*|\\\\*) f=$(printf '%s' "$f" | tr '\\' '/') ;;
-esac
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BIN=$(dirname "$SCRIPT_DIR")/bin

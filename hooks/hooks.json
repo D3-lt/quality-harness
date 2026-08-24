@@ -68,14 +68,20 @@
         "hooks": [
           {
             "type": "command",
-            "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/facts-gate-dispatch.sh"],
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs",
+              "facts-gate-dispatch.sh"
+            ],
             "timeout": 120
           },
           {
             "type": "command",
-            "command": "bash",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/post-edit-check.sh"],
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs",
+              "post-edit-check.sh"
+            ],
             "timeout": 120
           }
         ]

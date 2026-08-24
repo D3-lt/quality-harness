@@ -11,24 +11,33 @@ case "$tool_name" in
 esac
 
 file_path=$(printf '%s' "$input" | jq -r '.tool_input.file_path // .tool_input.notebook_path // ""')
+case "$file_path" in
+  [A-Za-z]:\\*|\\\\*) file_path=$(printf '%s' "$file_path" | tr '\\' '/') ;;
+esac
 [ -n "$file_path" ] && [ -f "$file_path" ] || exit 0
 
 find_up() {
-  local markers="$1" current="$2" marker
-  while [ "$current" != "/" ] && [ -n "$current" ]; do
+  local markers="$1" current="$2" marker parent
+  while [ -n "$current" ]; do
     for marker in $markers; do
       [ -e "$current/$marker" ] && { printf '%s' "$current"; return 0; }
     done
-    current=$(dirname "$current")
+    parent=$(dirname "$current")
+    [ "$parent" != "$current" ] || break
+    current="$parent"
   done
   return 1
 }
 
 debounce() {
-  local key="$1" marker now last
-  marker="${TMPDIR:-/tmp}/claude-quality-$(printf '%s' "$key" | shasum | awk '{print $1}').last"
+  local key="$1" marker now last tmp_root
+  tmp_root=${TMPDIR:-/tmp}
+  case "$tmp_root" in
+    [A-Za-z]:\\*|\\\\*) tmp_root=$(printf '%s' "$tmp_root" | tr '\\' '/') ;;
+  esac
+  marker="$tmp_root/claude-quality-$(printf '%s' "$key" | cksum | awk '{print $1}').last"
   now=$(date +%s)
-  last=$(stat -f %m "$marker" 2>/dev/null || echo 0)
+  last=$(stat -c %Y "$marker" 2>/dev/null || stat -f %m "$marker" 2>/dev/null || echo 0)
   [ $((now - last)) -ge 5 ] || return 1
   touch "$marker"
 }

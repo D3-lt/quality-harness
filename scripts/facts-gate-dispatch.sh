@@ -13,6 +13,9 @@ JQ=$(command -v jq 2>/dev/null) || {
 }
 f=$(printf '%s' "$payload" | "$JQ" -r '.tool_input.file_path // .tool_response.filePath // empty' 2>/dev/null)
 [ -z "$f" ] && exit 0
+case "$f" in
+  [A-Za-z]:\\*|\\\\*) f=$(printf '%s' "$f" | tr '\\' '/') ;;
+esac
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BIN=$(dirname "$SCRIPT_DIR")/bin
@@ -49,7 +52,7 @@ git_archive_catalog_for() {
   # so deletion is checked against the catalog that governed before the edit.
   local target="$1" dir repo rel_target rel_dir candidate leaf suffix=""
   case "$target" in
-    /*) ;;
+    /*|[A-Za-z]:/*) ;;
     *) target="$PWD/$target" ;;
   esac
   leaf=$(basename "$target")
@@ -61,6 +64,7 @@ git_archive_catalog_for() {
   dir=$(cd "$dir" 2>/dev/null && pwd -P) || return 1
   target="$dir$suffix/$leaf"
   repo=$(git -C "$dir" rev-parse --show-toplevel 2>/dev/null) || return 1
+  repo=$(cd "$repo" 2>/dev/null && pwd -P) || return 1
   case "$target" in "$repo"/*) ;; *) return 1 ;; esac
   rel_target="${target#"$repo"/}"
   # The target itself may be a deleted archive directory. Try its historical

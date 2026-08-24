@@ -2,7 +2,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { existsSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -12,7 +12,6 @@ const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
 
 const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const DOC_EXTENSIONS = new Set(['.md', '.mdx', '.rst', '.txt'])
-const UNRESOLVED_MARKDOWN_MUTATION = '<Unresolved Markdown Bash mutation>'
 const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 const VALIDATION_PATTERNS = [
   /^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
@@ -103,10 +102,28 @@ function resolveToolPath(value, cwd) {
 }
 
 function gitCommandDirectory(command, cwd) {
-  const match = command.match(/\bgit\b(?:(?![;&|\n]).)*?\s-C\s+(?:"([^"]+)"|'([^']+)'|([^\s;&|]+))/)
-  const raw = match?.[1] ?? match?.[2] ?? match?.[3]
-  if (!raw) return cwd
-  return resolveToolPath(raw.replace(/^\$HOME\//, `${os.homedir()}/`), cwd) ?? cwd
+  const invocation = gitInvocation(command)
+  if (!invocation) return cwd
+
+  let directory = cwd
+  let gitDirectory = null
+  let workTree = null
+  for (const option of invocation.globalOptions) {
+    const value = option.value?.replace(/^\$HOME\//, `${os.homedir()}/`)
+    if (!value) continue
+    if (option.name === '-C') {
+      directory = resolveToolPath(value, directory) ?? directory
+    } else if (option.name === '--git-dir') {
+      gitDirectory = resolveToolPath(value, directory)
+    } else if (option.name === '--work-tree') {
+      workTree = resolveToolPath(value, directory)
+    }
+  }
+  if (workTree) return workTree
+  if (gitDirectory) {
+    return path.basename(gitDirectory) === '.git' ? path.dirname(gitDirectory) : gitDirectory
+  }
+  return directory
 }
 
 function shellSegments(command) {
@@ -150,6 +167,109 @@ function shellSegments(command) {
 
   if (segment.trim()) segments.push(segment.trim())
   return segments
+}
+
+function heredocDeclarations(line, initialQuote = null) {
+  const declarations = []
+  let quote = initialQuote
+  let escaped = false
+  let arithmeticDepth = 0
+
+  for (let index = 0; index < line.length; index += 1) {
+    const character = line[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (character === '\\' && quote !== "'") {
+      escaped = true
+      continue
+    }
+    if (quote) {
+      if (character === quote) quote = null
+      continue
+    }
+    if (arithmeticDepth > 0) {
+      if (character === '(') arithmeticDepth += 1
+      else if (character === ')') arithmeticDepth -= 1
+      continue
+    }
+    if (line.startsWith('$((', index)) {
+      arithmeticDepth = 2
+      index += 2
+      continue
+    }
+    if (line.startsWith('((', index)) {
+      arithmeticDepth = 2
+      index += 1
+      continue
+    }
+    if (character === "'" || character === '"') {
+      quote = character
+      continue
+    }
+    if (character !== '<' || line[index + 1] !== '<' || line[index + 2] === '<') continue
+
+    index += 2
+    const stripTabs = line[index] === '-'
+    if (stripTabs) index += 1
+    while (/\s/.test(line[index] ?? '')) index += 1
+    const start = index
+    let delimiterQuote = null
+    let delimiterEscaped = false
+    while (index < line.length) {
+      const delimiterCharacter = line[index]
+      if (delimiterEscaped) {
+        delimiterEscaped = false
+        index += 1
+        continue
+      }
+      if (delimiterCharacter === '\\' && delimiterQuote !== "'") {
+        delimiterEscaped = true
+        index += 1
+        continue
+      }
+      if (delimiterQuote) {
+        if (delimiterCharacter === delimiterQuote) delimiterQuote = null
+        index += 1
+        continue
+      }
+      if (delimiterCharacter === "'" || delimiterCharacter === '"') {
+        delimiterQuote = delimiterCharacter
+        index += 1
+        continue
+      }
+      if (/[\s;&|<>]/.test(delimiterCharacter)) break
+      index += 1
+    }
+    const delimiter = shellWords(line.slice(start, index))[0] ?? ''
+    index -= 1
+    if (delimiter) declarations.push({ delimiter, stripTabs })
+  }
+  return { declarations, quote }
+}
+
+function withoutHeredocBodies(command) {
+  const executableLines = []
+  const pending = []
+  let active = null
+  let quote = null
+
+  for (const line of command.split('\n')) {
+    if (active) {
+      const candidate = active.stripTabs ? line.replace(/^\t+/, '') : line
+      if (candidate === active.delimiter) active = pending.shift() ?? null
+      continue
+    }
+
+    executableLines.push(line)
+    const scanned = heredocDeclarations(line, quote)
+    pending.push(...scanned.declarations)
+    quote = scanned.quote
+    if (pending.length > 0) active = pending.shift()
+  }
+
+  return executableLines.join('\n')
 }
 
 function commandSubstitutionEnd(source, openIndex) {
@@ -249,6 +369,12 @@ function shellCommandRegions(command) {
   }
 
   scan(command)
+  for (let index = 0; index < regions.length; index += 1) {
+    for (const segment of shellSegments(regions[index])) {
+      const nested = nestedShellScript(segment)
+      if (nested) add(nested)
+    }
+  }
   return regions
 }
 
@@ -257,23 +383,250 @@ function inPlaceEditorCommand(command) {
     || /\bperl\b[^\n]*\s-[A-Za-z]*i\S*(?:\s|$)/.test(command)
 }
 
+function shellWords(command) {
+  const words = []
+  let word = ''
+  let wordStarted = false
+  let quote = null
+
+  const finishWord = () => {
+    if (!wordStarted) return
+    words.push(word)
+    word = ''
+    wordStarted = false
+  }
+
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]
+    if (quote === "'") {
+      if (character === "'") quote = null
+      else word += character
+      continue
+    }
+    if (quote === '"') {
+      if (character === '"') {
+        quote = null
+      } else if (character === '\\') {
+        const next = command[index + 1]
+        if (next && '$`"\\\n'.includes(next)) word += command[++index]
+        else word += character
+      } else {
+        word += character
+      }
+      continue
+    }
+    if (/\s/.test(character)) {
+      finishWord()
+      continue
+    }
+    wordStarted = true
+    if (character === "'" || character === '"') {
+      quote = character
+    } else if (character === '\\' && index + 1 < command.length) {
+      word += command[++index]
+    } else {
+      word += character
+    }
+  }
+  finishWord()
+  return words
+}
+
+function executableName(token) {
+  return token?.replaceAll('\\', '/').split('/').pop()?.replace(/\.exe$/i, '') ?? ''
+}
+
+function optionConsumesNext(token, options) {
+  return options.has(token) && !token.includes('=')
+}
+
+function commandInvocation(command, depth = 0) {
+  if (depth > 4) return null
+  const words = shellWords(command.trim())
+  let index = 0
+
+  while (index < words.length) {
+    words[index] = words[index].replace(/^[({]+/, '')
+    if (!words[index] || words[index] === '!' || words[index] === '{') {
+      index += 1
+      continue
+    }
+    while (/^[A-Za-z_][A-Za-z0-9_]*=/.test(words[index] ?? '')) index += 1
+    const wrapper = executableName(words[index])
+    if (wrapper === 'command') {
+      index += 1
+      while (words[index]?.startsWith('-')) {
+        if (['-v', '-V'].includes(words[index])) return null
+        if (words[index] === '--') { index += 1; break }
+        index += 1
+      }
+      continue
+    }
+    if (wrapper === 'env') {
+      index += 1
+      const envValueOptions = new Set(['-a', '--argv0', '-u', '--unset', '-C', '--chdir'])
+      while (words[index]?.startsWith('-')) {
+        const option = words[index]
+        if (option === '--') { index += 1; break }
+        let splitString = null
+        if (option === '-S' || option === '--split-string') {
+          splitString = words[index + 1] ?? ''
+          index += 2
+        } else if (option.startsWith('--split-string=')) {
+          splitString = option.slice('--split-string='.length)
+          index += 1
+        } else if (option.startsWith('-S') && option.length > 2) {
+          splitString = option.slice(2)
+          index += 1
+        }
+        if (splitString !== null) {
+          return commandInvocation([splitString, ...words.slice(index)].join(' '), depth + 1)
+        }
+        index += optionConsumesNext(option, envValueOptions) ? 2 : 1
+      }
+      continue
+    }
+    if (wrapper === 'sudo') {
+      index += 1
+      const sudoValueOptions = new Set([
+        '-C', '--close-from', '-D', '--chdir', '-g', '--group', '-h', '--host',
+        '-p', '--prompt', '-R', '--chroot', '-r', '--role', '-T', '--command-timeout',
+        '-t', '--type', '-U', '--other-user', '-u', '--user',
+      ])
+      while (words[index]?.startsWith('-')) {
+        const option = words[index]
+        if (option === '--') { index += 1; break }
+        index += optionConsumesNext(option, sudoValueOptions) ? 2 : 1
+      }
+      continue
+    }
+    if (wrapper === 'exec') {
+      index += 1
+      while (words[index]?.startsWith('-')) {
+        const option = words[index]
+        if (option === '--') { index += 1; break }
+        index += option === '-a' ? 2 : 1
+      }
+      continue
+    }
+    if (wrapper === 'time') {
+      index += 1
+      const timeValueOptions = new Set(['-f', '--format', '-o', '--output'])
+      while (words[index]?.startsWith('-')) {
+        if (words[index] === '--') { index += 1; break }
+        index += optionConsumesNext(words[index], timeValueOptions) ? 2 : 1
+      }
+      continue
+    }
+    break
+  }
+  return { index, words }
+}
+
+function nestedShellScript(command) {
+  const invocation = commandInvocation(command)
+  if (!invocation) return null
+  const { index, words } = invocation
+  if (!new Set(['bash', 'dash', 'ksh', 'sh', 'zsh']).has(executableName(words[index]))) return null
+  const shellValueOptions = new Set(['-o', '-O', '--init-file', '--rcfile'])
+  for (let optionIndex = index + 1; optionIndex < words.length; optionIndex += 1) {
+    const option = words[optionIndex]
+    if (option === '--') return null
+    if (!option.startsWith('-')) return null
+    if (option.slice(1).includes('c')) return words[optionIndex + 1] ?? null
+    if (optionConsumesNext(option, shellValueOptions)) optionIndex += 1
+  }
+  return null
+}
+
+function gitInvocation(command) {
+  const invocation = commandInvocation(command)
+  if (!invocation) return null
+  const { words } = invocation
+  let { index } = invocation
+
+  if (executableName(words[index]) !== 'git') return null
+  index += 1
+  const gitValueOptions = new Set([
+    '-C', '-c', '--attr-source', '--config-env', '--exec-path', '--git-dir',
+    '--namespace', '--super-prefix', '--work-tree',
+  ])
+  const globalOptions = []
+  while (index < words.length) {
+    const option = words[index]
+    if (option === '--') {
+      index += 1
+      break
+    }
+    if (!option.startsWith('-')) break
+    const attached = option.match(/^(--(?:git-dir|work-tree))=(.*)$/)
+    if (attached) {
+      globalOptions.push({ name: attached[1], value: attached[2] })
+      index += 1
+      continue
+    }
+    if (optionConsumesNext(option, gitValueOptions)) {
+      globalOptions.push({ name: option, value: words[index + 1] })
+      index += 2
+      continue
+    }
+    index += 1
+  }
+  return {
+    globalOptions,
+    subcommand: words[index] ?? null,
+    subcommandIndex: index,
+    words,
+  }
+}
+
 function gitSubcommand(command) {
-  const match = command.trim().match(
-    /^git(?:\s+-C\s+(?:"[^"]*"|'[^']*'|\S+))?\s+(\S+)(?:\s|$)/,
-  )
-  return match?.[1] ?? null
+  return gitInvocation(command)?.subcommand ?? null
+}
+
+export function isGitPublishCommand(command) {
+  if (typeof command !== 'string') return false
+  const executable = withoutHeredocBodies(command)
+  for (const region of shellCommandRegions(executable)) {
+    for (const segment of shellSegments(region)) {
+      if (['commit', 'push'].includes(gitSubcommand(segment))) return true
+    }
+  }
+  return false
+}
+
+function isGitMutationCommand(command) {
+  if (typeof command !== 'string') return false
+  const mutating = new Set([
+    'add', 'apply', 'checkout', 'cherry-pick', 'clean', 'commit', 'merge', 'pull',
+    'rebase', 'reset', 'restore', 'stash', 'switch',
+  ])
+  const executable = withoutHeredocBodies(command)
+  for (const region of shellCommandRegions(executable)) {
+    for (const segment of shellSegments(region)) {
+      if (mutating.has(gitSubcommand(segment))) return true
+    }
+  }
+  return false
 }
 
 function protectedBranchException(command) {
   const trimmed = command.trim()
-  const subcommand = gitSubcommand(trimmed)
-  if (!subcommand
+  const invocation = gitInvocation(trimmed)
+  if (!invocation
       || /`|\$\(|(?:^|\s)\d*>>?\s*(?!&\d|\/dev\/null)/.test(trimmed)) return false
+  const { subcommand, subcommandIndex, words } = invocation
   if (subcommand === 'switch') return true
-  if (subcommand === 'checkout') {
-    return /(?:^|\s)(?:-b|-B|--branch|--orphan)(?:[=\s]|$)/.test(trimmed)
+  const args = []
+  for (const argument of words.slice(subcommandIndex + 1)) {
+    if (argument === '--') break
+    args.push(argument)
   }
-  return subcommand === 'merge' && /(?:^|\s)--ff-only(?:\s|$)/.test(trimmed)
+  if (subcommand === 'checkout') {
+    return args.some(argument => ['-b', '-B', '--branch', '--orphan'].includes(argument)
+      || argument.startsWith('--branch='))
+  }
+  return subcommand === 'merge' && args.includes('--ff-only')
 }
 
 export function branchViolation(input) {
@@ -289,7 +642,7 @@ export function branchViolation(input) {
   if (tool !== 'Bash' || typeof input.tool_input?.command !== 'string') return null
 
   const command = input.tool_input.command
-  for (const region of shellCommandRegions(command)) {
+  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
     for (const segment of shellSegments(region)) {
       const addressedBranch = gitBranch(gitCommandDirectory(segment, cwd))
       if (!protectedBranch(addressedBranch)
@@ -346,46 +699,99 @@ export function isValidationCommand(command) {
 
 export function isPotentialMutationCommand(command) {
   if (typeof command !== 'string' || isValidationCommand(command)) return false
-  if (/(?:^|\s)\d*>>?\s*(?!&\d|\/dev\/null)/.test(command)) return true
-  return /\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\b/.test(command)
-    || inPlaceEditorCommand(command)
-    || /\b(?:python3?|node|ruby|perl|php)\b/.test(command)
-    || /\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b/.test(command)
-    || /\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b/.test(command)
-    || /\bprettier\b[^\n]*\s--write\b/.test(command)
-    || /\bfind\b[^\n]*\s-delete\b/.test(command)
-    || /\bgit(?:\s+-C\s+(?:"[^"]*"|'[^']*'|\S+))?\s+(?:add|commit|merge|rebase|checkout|switch|restore|reset|pull|clean|stash|apply|cherry-pick)\b/.test(command)
+  const executable = withoutHeredocBodies(command)
+  if (/(?:^|\s)\d*>>?\s*(?!&\d|\/dev\/null)/.test(executable)) return true
+  return /\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\b/.test(executable)
+    || inPlaceEditorCommand(executable)
+    || /\b(?:python3?|node|ruby|perl|php)\b/.test(executable)
+    || /\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b/.test(executable)
+    || /\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b/.test(executable)
+    || /\bprettier\b[^\n]*\s--write\b/.test(executable)
+    || /\bfind\b[^\n]*\s-delete\b/.test(executable)
+    || isGitMutationCommand(executable)
+}
+
+function globComponentPattern(component) {
+  let pattern = '^'
+  for (let index = 0; index < component.length; index += 1) {
+    const character = component[index]
+    if (character === '*') {
+      pattern += '.*'
+    } else if (character === '?') {
+      pattern += '.'
+    } else if (character === '[') {
+      const end = component.indexOf(']', index + 1)
+      if (end < 0) return null
+      let contents = component.slice(index + 1, end)
+      if (contents.startsWith('!')) contents = `^${contents.slice(1)}`
+      pattern += `[${contents.replaceAll('\\', '\\\\')}]`
+      index = end
+    } else {
+      pattern += character.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+    }
+  }
+  try {
+    return new RegExp(`${pattern}$`)
+  } catch {
+    return null
+  }
+}
+
+function expandExistingGlob(candidate, cwd) {
+  const expanded = candidate.replace(/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g,
+    (match, braced, plain) => process.env[braced ?? plain] ?? match)
+  if (/[`$]/.test(expanded) || expanded.includes('://') || /[{}\\]/.test(expanded)) return []
+  if (!/[*?[\]]/.test(expanded)) {
+    const resolved = resolveToolPath(expanded, cwd)
+    return resolved ? [resolved] : []
+  }
+
+  const absolute = path.resolve(cwd, expanded)
+  const root = path.parse(absolute).root
+  const components = absolute.slice(root.length).split(path.sep).filter(Boolean)
+  let candidates = [root]
+  for (const component of components) {
+    if (!/[*?[\]]/.test(component)) {
+      candidates = candidates.map(base => path.join(base, component))
+      continue
+    }
+    const pattern = globComponentPattern(component)
+    if (!pattern) return []
+    const matches = []
+    for (const base of candidates) {
+      try {
+        for (const entry of readdirSync(base)) {
+          if (pattern.test(entry)) matches.push(path.join(base, entry))
+        }
+      } catch {}
+    }
+    candidates = matches
+  }
+  return candidates.filter(candidatePath => existsSync(candidatePath))
 }
 
 export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
-  if (typeof command !== 'string' || !/\.md\b/i.test(command)) return []
+  if (typeof command !== 'string') return []
+  const executable = withoutHeredocBodies(command)
+  if (!/\.md\b/i.test(executable)) return []
   const paths = []
-  let unresolved = false
-  for (const match of command.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
+  for (const match of executable.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
     let candidate = match[1] ?? match[2] ?? match[3]
     if (!/\.md(?:$|[),\]])/i.test(candidate)) continue
     candidate = candidate.replace(/[),\]]+$/g, '')
     if (candidate.includes('=') && candidate.startsWith('-')) {
       candidate = candidate.slice(candidate.lastIndexOf('=') + 1)
     }
-    if (/[`$]/.test(candidate) || candidate.includes('://')
-        || [...candidate].some(character => '*?[]{}\\'.includes(character))) {
-      unresolved = true
-      continue
-    }
-    const resolved = resolveToolPath(candidate, cwd)
-    if (resolved) paths.push(resolved)
-    else unresolved = true
+    paths.push(...expandExistingGlob(candidate, cwd))
   }
-  if (paths.length === 0) unresolved = true
-  return [...new Set([...paths, ...(unresolved ? [UNRESOLVED_MARKDOWN_MUTATION] : [])])]
+  return [...new Set(paths)]
 }
 
 export function bashDeletionMutationPaths(command, cwd = process.cwd()) {
   if (typeof command !== 'string' || !/\brm\b/.test(command)) return []
   const paths = []
   let unresolved = false
-  for (const region of shellCommandRegions(command)) {
+  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
     for (const segment of shellSegments(region)) {
       const match = segment.match(/^(?:(?:sudo|command)\s+)*(?:\/\S+\/)?rm\b(.*)$/)
       if (!match) continue
@@ -491,10 +897,6 @@ export function runArtifactGates(paths) {
 
   const failures = []
   for (const filePath of [...new Set(paths)]) {
-    if (filePath === UNRESOLVED_MARKDOWN_MUTATION) {
-      failures.push('A Bash mutation referenced Markdown through an unresolved path; the facts-first gate cannot verify the changed artifact. Use an explicit path or a native Edit/Write tool.')
-      continue
-    }
     if (filePath === UNRESOLVED_DELETION_MUTATION) {
       failures.push('A Bash deletion used an unresolved path; the facts-first gate cannot determine whether an ADR archive was removed. Use an explicit path.')
       continue
@@ -598,8 +1000,7 @@ export async function handleHook(input) {
     }
     if (input.tool_name !== 'Bash') return
     const command = input.tool_input?.command
-    if (typeof command !== 'string'
-        || !/\bgit\b(?:(?![;&|\n]).)*?\b(?:commit|push)\b/.test(command)) return
+    if (!isGitPublishCommand(command)) return
     const raw = await readTranscript(input)
     if (!raw) {
       blockWithExit('Quality gate could not read the session transcript; refusing git commit/push without verifiable evidence.')

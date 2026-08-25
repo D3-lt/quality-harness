@@ -7,6 +7,11 @@ so none was a release blocker; they are the next work.
 
 Ordering is by user pain, worst first.
 
+**Coverage.** A path audit of the whole harness classified 112 uncovered regions: 88
+untested-but-reachable, 15 defensive, 7 Windows-only, and one genuinely dead line (closed
+in `48211bd`). The plan that closes them is `docs/TEST-PLAN.md`; item 14 records defects,
+that document records unproven behaviour.
+
 **Status 2026-08-25.** Items 2, 3, 5, 7 and 8 landed on `task/post-2.0.4-fixes`; each
 diagnosis is kept below with the commit that closed it. Items 7 and 8 came from a live
 2.0.4 report against a different repository, not from the release verification.

@@ -174,3 +174,204 @@ print(','.join(module.done_task_ids(sys.argv[2])))`
   // T3's Depends-on cell.
   assert.equal(result.stdout.trim(), 'T1,T3')
 })
+
+// A committed git repository, so the entry's sha field is a real sha rather than
+// `no-git` — and so adr-verify has a toplevel to resolve when --cwd is omitted.
+function gitCorpus() {
+  const copy = corpus()
+  for (const args of [
+    ['init', '-q', '-b', 'main', '.'],
+    ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', 'add', '.'],
+    ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', 'commit', '-qm', 'fixture'],
+  ]) {
+    const result = spawnSync('git', args, { cwd: copy, env, encoding: 'utf8' })
+    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`)
+  }
+  return copy
+}
+
+test('the entry names the commit it was produced at, and says when the tree was dirty', () => {
+  const copy = gitCorpus()
+  // Clean tree: a bare short sha, no marker.
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify on a clean tree')
+  const clean = readTask(copy).split('## Verification Log')[1].trim().split('\n')[0]
+  const sha = /· ([0-9a-f]{7,40})(\*?) ·/.exec(clean)
+  assert.ok(sha, `no sha field in: ${clean}`)
+  assert.equal(sha[2], '', 'a clean tree must not carry the dirty marker')
+
+  // The run above wrote the task file, so the tree is dirty now — and evidence
+  // produced against uncommitted code has to say so, or it points at a commit
+  // that never contained what was tested.
+  //
+  // The fence lints this very corpus, and passing evidence now obliges a killed
+  // mutant, so satisfy that before asking for a second verdict.
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'mutant')
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify on a dirty tree')
+  const dirty = readTask(copy).split('## Verification Log')[1].trim().split('\n').at(-1)
+  assert.match(dirty, /· [0-9a-f]{7,40}\* ·/)
+  assert.equal(sha[1], /· ([0-9a-f]{7,40})\*? ·/.exec(dirty)[1], 'same commit either way')
+})
+
+test('without --cwd the acceptance runs at the repository root, not beside the task', () => {
+  const copy = gitCorpus()
+  // The fence is `adr-lint ADR-001-selftest.md tasks`, which only resolves from
+  // the toplevel. Invoked from inside tasks/ with no --cwd, exit 0 is the proof
+  // that adr-verify resolved the root rather than defaulting to task.parent.
+  const fromSubdir = run('adr-verify', ['T1-fixture.md'], join(copy, 'tasks'))
+  expectExit(fromSubdir, 0, 'the toplevel must be resolved from a subdirectory')
+  assert.match(readTask(copy), /· exit 0 · `set -e …`/)
+})
+
+test('an acceptance that exits 0 having scored nothing is recorded as a failure', () => {
+  const copy = corpus()
+  // The filter matches no test. pytest says so and exits 0, and a gate that takes
+  // that at face value certifies a task whose tests do not exist.
+  writeTask(copy, readTask(copy).replace(
+    "python3 -c 'print(\"acceptance fence complete\")'",
+    "python3 -c 'print(\"no tests ran in 0.01s\")'"))
+
+  const empty = verify(copy, ['--cwd', '.'])
+  expectExit(empty, 1, 'exit 0 with nothing scored is not a pass')
+  const log = readTask(copy).split('## Verification Log')[1]
+  assert.match(log, /· exit 1 ·/)
+  assert.match(log, /scored NO tests/)
+
+  markDone(copy)
+  expectExit(lint(copy), 1, 'and the reader must not accept it as done')
+})
+
+test('an acceptance that scored something is taken at its word, empty package or not', () => {
+  const copy = corpus()
+  // A multi-package run where one package is empty and another is not really did
+  // exercise something. Failing it would be a false alarm, and a gate with false
+  // alarms gets ignored — after which it protects nothing.
+  writeTask(copy, readTask(copy).replace(
+    "python3 -c 'print(\"acceptance fence complete\")'",
+    "python3 -c 'print(\"no tests ran in 0.01s\"); print(\"7 passed in 0.42s\")'"))
+
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'evidence of a real result outranks an empty one')
+  const log = readTask(copy).split('## Verification Log')[1]
+  assert.match(log, /· exit 0 ·/)
+  assert.doesNotMatch(log, /scored NO tests/)
+})
+
+test('the template placeholders are removed rather than left above the evidence', () => {
+  const copy = corpus()
+  writeTask(copy, `${readTask(copy).trimEnd()}
+<Filled during execution: one line per run>
+<Tool-written by adr-verify: date, sha,
+ exit code and acceptance digest>
+`)
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
+
+  const log = readTask(copy).split('## Verification Log')[1]
+  assert.doesNotMatch(log, /<Filled during execution/)
+  assert.doesNotMatch(log, /<Tool-written by/)
+  assert.match(log.trim(), /^- \d{4}-\d{2}-\d{2} · /)
+
+  // And the reader accepts what is left: a placeholder surviving here would sit
+  // in the log as an unparseable line forever.
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'mutant')
+  markDone(copy)
+  expectExit(lint(copy), 0, 'adr-lint')
+})
+
+test('a human-observed task is signed off, and only a sign-off satisfies its reader', () => {
+  const copy = corpus()
+  writeTask(copy, readTask(copy).replace(
+    /## Acceptance\n\n```bash\n[\s\S]*?```/,
+    '## Acceptance\n\nAcceptance is human-observed: a person confirms the fixture reads correctly.'))
+
+  markDone(copy)
+  const unsigned = lint(copy)
+  expectExit(unsigned, 1, 'a human-observed task marked done needs a sign-off')
+  assert.match(unsigned.stdout + unsigned.stderr, /human-observed/)
+
+  expectExit(verify(copy, ['--human', 'Zy read the fixture end to end']), 0, 'adr-verify --human')
+  assert.match(readTask(copy), /· human-observed · .*Zy read the fixture end to end/)
+  expectExit(lint(copy), 0, 'a signed-off human-observed task is done')
+})
+
+// A file the acceptance fence never reads, so a mutation to it cannot be noticed.
+function addBlindSpot(copy) {
+  const path = join(copy, 'unused.py')
+  writeFileSync(path, '# a helper nothing under test imports\nTHRESHOLD = 1\nSECOND = 1\n')
+  return path
+}
+
+test('a mutant the fence cannot notice is recorded as survived, and does not count', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  addBlindSpot(copy)
+
+  const survived = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99',
+    '--why', 'nothing reads this, so nothing can go red',
+  ])
+  // Non-zero: a survived mutant is a finding about the tests, not a pass.
+  expectExit(survived, 1, 'survived must not exit 0')
+  assert.match(survived.stdout, /NOT evidence/)
+
+  const log = readTask(copy).split('## Mutation Log')[1]
+  assert.match(log, /· mutant survived · exit 0 ·/)
+  // The explanation is fenced under the entry so a reader sees why it did not count.
+  assert.match(log, /\n {2}```\n {2}the fence passed with the mechanism broken\n {2}```/)
+})
+
+test('a mutant that did not land, or landed twice, is refused instead of scored', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  const target = addBlindSpot(copy)
+  const before = readFileSync(target, 'utf8')
+
+  const missing = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'NOT_IN_THE_FILE', '--to', 'x', '--why', 'probe',
+  ])
+  expectExit(missing, 2, 'a mutation that does not land proves nothing')
+  assert.match(missing.stdout, /MUTANT DID NOT APPLY/)
+
+  const ambiguous = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', '= 1', '--to', '= 2', '--why', 'probe',
+  ])
+  expectExit(ambiguous, 2, 'an edit that selects two sites is a different mutant')
+  assert.match(ambiguous.stdout, /MUTANT NOT UNIQUE/)
+
+  const cosmetic = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', '# a helper nothing under test imports',
+    '--to', '# a helper that nothing under test imports',
+    '--why', 'probe',
+  ])
+  expectExit(cosmetic, 2, 'a comment edit changes nothing the program does')
+  assert.match(cosmetic.stdout, /COMMENT-ONLY MUTANT/)
+
+  // A refusal is not a verdict: nothing may be written to the log, and the file
+  // must be untouched.
+  assert.equal(readFileSync(target, 'utf8'), before, 'the target must be untouched')
+  assert.equal(readTask(copy).split('## Mutation Log')[1].trim(), '')
+})
+
+test('a mutant that does not parse is skipped, and the file is put back', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  const target = addBlindSpot(copy)
+  const before = readFileSync(target, 'utf8')
+
+  const broken = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = = ',
+    '--why', 'probe',
+  ])
+  expectExit(broken, 2, 'a mutant that does not build has been skipped, not tested')
+  assert.match(broken.stdout, /does not parse/)
+
+  // The restore lives in a `finally`, and this is the path that proves it: the
+  // exit happens with the file already mutated.
+  assert.equal(readFileSync(target, 'utf8'), before, 'the target must be restored')
+  assert.equal(readTask(copy).split('## Mutation Log')[1].trim(), '')
+})

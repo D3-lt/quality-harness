@@ -673,6 +673,37 @@ acceptance — is exercised for the first time.
 Order-first shape has never had its `done` rows checked. Re-run `adr-lint` over every ADR
 and expect rows that were green to go red — that is the check working, not a regression.
 
+## 19. adr-verify rewrote the line endings of every file it touched, on Windows
+
+Found by Wave 1 on windows-latest (run `32887527528`), by the one assertion in the mutant
+tests that had no other purpose: after a REFUSED mutant, is the target byte-identical? It
+was not.
+
+`Path.write_text` opens with `newline=None`, which translates every `"\n"` to `os.linesep`.
+All three of adr-verify's writes did it:
+
+- the evidence append converted the task file it edited, so a Windows session's first
+  `adr-verify` run rewrote the whole file it was only supposed to add a line to;
+- the mutant write converted the target the fence then ran against;
+- worst, the `finally` **restore** did not restore. It re-encoded. A mutant that adr-verify
+  itself refused — did not apply, not unique, comment-only, does not parse — still left the
+  target changed, which is the one thing that path exists to prevent.
+
+`write_source` writes bytes and preserves whatever the file already used; the restore keeps
+the original bytes and puts exactly those back. All three are negative-controlled on macOS
+by giving the gate CRLF input, which is what a Windows checkout hands it:
+
+- reverting the append turns the CRLF-preservation test red;
+- reverting the restore turns the byte-identical assertion red;
+- reverting the mutant write needed a test that could SEE it, since the restore hides the
+  result either way. The fence itself reports on the target's bytes while the mutant is in
+  place, so a translating write turns a `survived` verdict into `killed` — a verdict about
+  the writer rather than about the test.
+
+That third one is the useful lesson: two of the three fixes were provable by looking at the
+file afterwards, and the third was invisible that way. A fix whose only evidence is "the
+other platform stopped complaining" is not covered, it is unobserved.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

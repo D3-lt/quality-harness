@@ -619,12 +619,24 @@ exported function precisely because the outer arm is unreachable on a host fast 
 the runner to win the race — asserting it directly is the only way it is covered anywhere
 but Windows. Negative-controlled: dropping the `ETIMEDOUT` clause turns the test red.
 
-**Where this stands.** Windows went 13 → 4 → 1 across `b144d22`, `c89d395` and `3949b1b`.
-All three harness failures above are fixed and confirmed on windows-latest. The one
-remaining failure in `32884859881` was the new test itself: it compared the win32 and POSIX
-branches of `spawnGate` unconditionally, and the POSIX branch execs the `#!` script, which
-is the exact thing Windows cannot do. The comparison is POSIX-only now. Drop
-`continue-on-error` from the job once it is green on its own.
+**Closed — Windows is green and the job blocks.** 13 → 4 → 1 → 0 across `b144d22`,
+`c89d395`, `3949b1b`, `2b1d9bc` and `9493e90`; first green run `32885379301`. Most causes
+were defects in the suite, but three were the harness: the retirement seal calling
+line-ending translation tampering, session orientation silently saying nothing, and the
+budget wall naming no way over it. An informational job would have found all three and
+gated none of them, which is why `continue-on-error` is gone and `package.test.mjs` now
+asserts that no job carries it.
+
+One honest caveat: this rests on a single green run, so the job's flakiness on
+windows-latest is unmeasured. Blocking is still the right default — an informational gate
+is decoration, and a flake announces itself where a silent fail-open does not.
+
+**Also fixed — `coverage.sh --report` could not run on macOS.** Under `set -u`, bash 3.2
+(still the system bash there) aborts on an empty array's `"${a[@]}"` expansion, and
+`--report` deliberately leaves `js_flags` empty. The one mode whose purpose is reading the
+numbers was the one mode that could not run on the machine this project is developed on;
+CI never caught it because CI runs bash 5 and never passes `--report`. Uses
+`${a[@]+"${a[@]}"}` now.
 
 ## Verification claims worth re-running after any of the above
 

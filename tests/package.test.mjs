@@ -81,7 +81,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.1.2')
+  assert.equal(manifest.version, '2.1.3')
   assert.equal(manifest.license, 'MIT')
   assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
 
@@ -122,7 +122,11 @@ test('continuous integration runs the checks this repository owns', () => {
   // still be informational — windows — and a second `continue-on-error` would
   // mean a check quietly stopped gating.
   assert.match(workflow, /QUALITY_HARNESS_REQUIRE_CLI: '1'/)
-  assert.equal((workflow.match(/^\s*continue-on-error: true$/gm) ?? []).length, 1)
+  // Every job gates now. A `continue-on-error` reappearing means a check went
+  // back to reporting instead of blocking, which is the state this project spent
+  // the whole Windows exercise leaving.
+  assert.equal((workflow.match(/^\s*continue-on-error: true$/gm) ?? []).length, 0)
+  assert.match(workflow, /^ {2}windows:$/m)
   // Requiring the CLI in a job that never installs it is how both selftest jobs
   // went red on b144d22: the flag is a promise the job has to keep. Checked per
   // job, because the install living in a *different* job is exactly the mistake.

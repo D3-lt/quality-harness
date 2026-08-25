@@ -58,8 +58,15 @@ hand-pasted entries are the fabrication hole and `adr-lint` rejects any entry of
 completed task with an empty Verification Log violates the global anti-pattern list; this is the
 one on-disk write the no-artifacts rule does not cover.
 
-1. Read `tasks/README.md` to get the waves.
+1. Run `adr-next <ADR.md> --all` for the authoritative state. It computes readiness from the task
+   files themselves — `Depends-on` plus the `Consumes`/`Produces` contract edges, the same edges
+   `adr-lint` builds its DAG from — and counts a task done only when its Verification Log holds an
+   exit-0 entry whose `acceptance-sha256` matches its current Acceptance fence. `tasks/README.md` is
+   a derived index: read it for the wave grouping, but where it disagrees with `adr-next`, the task
+   files win and the README must be regenerated.
 2. Create a Todo list where each task is an item. Prefix items with their wave (e.g., `[Wave 1] T1: <Goal>`).
+   Take the next item from `adr-next <ADR.md>`, which also prints that task's Acceptance command and
+   the exact `adr-verify` invocation that records it.
 
 ## Execution Pipeline
 

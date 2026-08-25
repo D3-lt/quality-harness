@@ -1,0 +1,242 @@
+#!/usr/bin/env python3
+"""adr-next — say which task is ready to execute, and what proves it done.
+
+Usage: adr-next <ADR.md | tasks-dir> [--all] [--json]
+
+Answers one question the corpus can already answer but nothing surfaces: given
+the task files as written, which task may be started RIGHT NOW, and what is its
+Acceptance command? Readiness is computed from the task files themselves —
+`Depends-on` plus the `Consumes`/`Produces` contract edges, the same edges
+adr-lint builds its DAG from — never from `tasks/README.md`, which is a derived
+index that can disagree with the files it indexes.
+
+A task is DONE when its Verification Log holds an exit-0 tool-written entry
+whose acceptance-sha256 matches its current Acceptance fence — the same
+evidence rule adr-lint enforces for a README `done` status, so a hand-typed
+"done" cannot make a task disappear from this list. A task is READY when every
+task it depends on is DONE.
+
+  --all   list every task with its state (done / ready / blocked-by)
+  --json  machine-readable, for a hook or a skill rather than a person
+
+Exit: 0 = a ready task was printed (or --all rendered)
+      3 = nothing ready: everything is done, or the remainder is blocked
+      1 = the ADR or tasks directory could not be read
+"""
+import hashlib
+import json
+import re
+import sys
+from pathlib import Path
+
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
+TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
+VLOG_DIGEST_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+VLOG_HUMAN_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · human-observed · .+$")
+
+
+def header_val(text, name):
+    m = re.search(rf"^\*\*{re.escape(name)}:\*\*\s*(.+)$", text, re.M)
+    return m.group(1).strip() if m else None
+
+
+def sections(text):
+    out, current = {}, None
+    for line in text.split("\n"):
+        m = re.match(r"^##\s+(.+?)\s*$", line)
+        if m:
+            current = m.group(1)
+            out.setdefault(current, [])
+            continue
+        if current is not None:
+            out[current].append(line)
+    return out
+
+
+def normalize_acceptance(raw):
+    """Canonical Acceptance text — must stay identical to adr-lint/adr-verify.
+
+    A digest computed differently here would silently disagree with the evidence
+    those tools write, and this list would call verified tasks unverified.
+    """
+    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    start, end = 0, len(lines)
+    while start < end and not lines[start].strip():
+        start += 1
+    while end > start and not lines[end - 1].strip():
+        end -= 1
+    return "\n".join(lines[start:end])
+
+
+def acceptance(text):
+    """The task's Acceptance fence body, its first command line, and its digest."""
+    body = "\n".join(sections(text).get("Acceptance", []))
+    m = re.search(r"```bash\n(.*?)```", body, re.S)
+    if not m:
+        human = "Acceptance is human-observed:" in body
+        return None, ("human-observed" if human else None), None
+    fence = normalize_acceptance(m.group(1))
+    # adr-verify's evidence entry shows line 1 by design; a human wants the line
+    # that actually runs something, so skip shell preamble when choosing a hint.
+    preamble = re.compile(r"^(?:set\s+[-+][A-Za-z]+|cd\s+\S+|export\s+\S+=|#)")
+    body = [ln.strip() for ln in fence.split("\n") if ln.strip()]
+    first = next((ln for ln in body if not preamble.match(ln)), body[0] if body else "")
+    digest = hashlib.sha256(fence.encode("utf-8")).hexdigest()
+    return fence, first, digest
+
+
+def is_done(text, digest, human):
+    """Tool-written evidence only: a typed 'done' is not evidence."""
+    log = "\n".join(sections(text).get("Verification Log", []))
+    for line in log.split("\n"):
+        line = line.strip()
+        if human and VLOG_HUMAN_RE.match(line):
+            return True
+        m = VLOG_DIGEST_RE.match(line)
+        if m and m.group("exit") == "0" and digest and m.group("digest") == digest:
+            return True
+    return False
+
+
+def load(tasks_dir):
+    infos = {}
+    for path in sorted(tasks_dir.glob("*.md")):
+        if path.name.lower() == "readme.md":
+            continue
+        text = path.read_text(encoding="utf-8", errors="replace")
+        m = re.match(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b", text) or TID_RE.search(path.name)
+        if not m:
+            continue
+        tid = m.group(1).upper()
+        fence, first, digest = acceptance(text)
+        human = first == "human-observed"
+        infos[tid] = {
+            "id": tid,
+            "path": str(path),
+            "goal": (re.sub(r"^#\s+", "", text.split("\n", 1)[0]).strip() if text else tid),
+            "depends_on": header_val(text, "Depends-on") or "",
+            "consumes": header_val(text, "Consumes") or "",
+            "produces": header_val(text, "Produces") or "",
+            "acceptance": None if human else first,
+            "human_observed": human,
+            "done": is_done(text, digest, human),
+        }
+    return infos
+
+
+def blockers(infos):
+    """Ordering edges from Depends-on plus Consumes/Produces contract tokens.
+
+    Same edge set as adr-lint's DAG, so readiness here cannot disagree with the
+    ordering the split gate already enforced.
+    """
+    out = {tid: set() for tid in infos}
+    for tid, inf in infos.items():
+        dep = inf["depends_on"]
+        if dep and not dep.lower().startswith("none"):
+            for d in TID_RE.findall(dep.upper()):
+                if d in infos and d != tid:
+                    out[tid].add(d)
+        cons = inf["consumes"]
+        if cons and not cons.lower().startswith("none"):
+            for d in TID_RE.findall(cons.upper()):
+                if d in infos and d != tid:
+                    out[tid].add(d)
+            tokens = {t.lower() for t in re.findall(r"`([^`]+)`", cons)} - {"none"}
+            for other, oinf in infos.items():
+                if other == tid:
+                    continue
+                produced = {t.lower() for t in re.findall(r"`([^`]+)`", oinf["produces"])}
+                if tokens & produced:
+                    out[tid].add(other)
+    return out
+
+
+def resolve_tasks_dir(target):
+    if target.is_dir():
+        return target
+    if not target.is_file():
+        return None
+    for candidate in (target.parent / "tasks", target.parent / target.stem / "tasks"):
+        if candidate.is_dir():
+            return candidate
+    return None
+
+
+def main():
+    args = [a for a in sys.argv[1:] if not a.startswith("--")]
+    flags = {a for a in sys.argv[1:] if a.startswith("--")}
+    if len(args) != 1:
+        print(__doc__.strip().split("\n\n")[1], file=sys.stderr)
+        return 1
+
+    tasks_dir = resolve_tasks_dir(Path(args[0]))
+    if tasks_dir is None:
+        print(f"adr-next: no tasks directory for {args[0]}", file=sys.stderr)
+        return 1
+
+    infos = load(tasks_dir)
+    if not infos:
+        print(f"adr-next: no task files in {tasks_dir}", file=sys.stderr)
+        return 1
+
+    blocked_by = blockers(infos)
+    ready, done, blocked = [], [], []
+    for tid in sorted(infos, key=lambda t: int(t[1:])):
+        inf = infos[tid]
+        if inf["done"]:
+            done.append(inf)
+            continue
+        open_deps = sorted(d for d in blocked_by[tid] if not infos[d]["done"])
+        if open_deps:
+            blocked.append({**inf, "blocked_by": open_deps})
+        else:
+            ready.append(inf)
+
+    if "--json" in flags:
+        print(json.dumps({"tasks_dir": str(tasks_dir), "ready": ready,
+                          "done": done, "blocked": blocked}, indent=2))
+        return 0 if ready else 3
+
+    if "--all" in flags:
+        for inf in done:
+            print(f"done     {inf['id']}  {inf['goal']}")
+        for inf in ready:
+            print(f"READY    {inf['id']}  {inf['goal']}")
+        for inf in blocked:
+            print(f"blocked  {inf['id']}  {inf['goal']}  (waiting on {', '.join(inf['blocked_by'])})")
+        return 0 if ready else 3
+
+    if not ready:
+        if not blocked:
+            print(f"All {len(done)} task(s) carry exit-0 evidence for their current Acceptance.")
+            return 3
+        print("Nothing is ready: every remaining task is blocked.", file=sys.stderr)
+        for inf in blocked:
+            print(f"  {inf['id']} waits on {', '.join(inf['blocked_by'])}", file=sys.stderr)
+        return 3
+
+    inf = ready[0]
+    print(f"Next: {inf['id']} — {inf['goal']}")
+    print(f"  file: {inf['path']}")
+    if inf["human_observed"]:
+        print("  acceptance: human-observed — sign off with "
+              f"`adr-verify {inf['path']} --human \"<who observed what>\"`")
+    elif inf["acceptance"]:
+        print(f"  acceptance: {inf['acceptance']}")
+        print(f"  prove it:   adr-verify {inf['path']}")
+    if len(ready) > 1:
+        print(f"  also ready: {', '.join(i['id'] for i in ready[1:])}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

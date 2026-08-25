@@ -842,6 +842,8 @@ def check_tests_can_fail(infos, readme_text, errors, root):
             body = test_body(text, name, python=f.suffix == ".py")
             if body is None:
                 continue
+            # A no-op on the text above, which was already stripped; kept because
+            # test_body slices out of it and a future extractor might not.
             body = code_only(body, python=f.suffix == ".py")
             # A test that delegates its assertions to a helper still fails when the
             # helper does. Follow one level: any same-file function the body calls

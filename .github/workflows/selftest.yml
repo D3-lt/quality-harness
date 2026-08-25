@@ -74,13 +74,14 @@ jobs:
   windows:
     name: windows (informational — BACKLOG item 6)
     runs-on: windows-latest
-    # Still non-blocking, but it now measures the right thing. Its first run
-    # (2026-08-25) was red for reasons that said nothing about the gates: the
-    # suite spawned them by bare name via PATH, compared skill names against
-    # `D:\…` paths, and read POSIX permission bits a Git for Windows checkout
-    # does not have. Those were test defects and are fixed; what stays red from
-    # here is the harness itself. Remove continue-on-error the moment it passes.
-    continue-on-error: true
+    # Blocking since 2026-08-25 (run 32885379301), the first green Windows run
+    # this project has ever had. It went 13 -> 4 -> 1 -> 0 failures: most were
+    # defects in the SUITE (bare-name gate spawns, `D:\…` paths split on "/",
+    # POSIX permission bits a Git for Windows checkout does not have), but three
+    # were the harness — a seal that called line-ending translation tampering, a
+    # session orientation that silently said nothing, and a budget wall that
+    # named no way over it. An informational job would have found all of that and
+    # gated none of it.
     defaults:
       run:
         shell: bash

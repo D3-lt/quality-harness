@@ -713,15 +713,31 @@ function resultSucceeded(result, command) {
   return true
 }
 
+const CD_ONLY = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/
+const ASSIGNMENT_ONLY = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*)+$/
+
 export function isValidationCommand(command) {
   if (typeof command !== 'string'
-      || /[\r\n;`>]|\|\||\$\(/.test(command)
+      || /[;`>]|\|\||\$\(/.test(command)
       || /(^|[^|])\|([^|]|$)/.test(command)
       || /(^|[^&])&([^&]|$)/.test(command)) return false
-  const segments = command.split(/\s*&&\s*/)
-    .filter(segment => !/^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/.test(segment.trim()))
-  return segments.length > 0
-    && segments.every(segment => VALIDATION_PATTERNS.some(pattern => pattern.test(segment)))
+  // Rejecting every multi-line command meant the project's own gate did not
+  // count as evidence: setting a tool path on one line and running the gate on
+  // the next is the ordinary shape, and the run went unseen while the hook kept
+  // asking for a validation the user had already produced. Judge each line
+  // instead. Assignment-only and `cd` lines carry no verdict; every remaining
+  // line must be a validation, so a mutation cannot ride along above a passing
+  // test. The character guard above still applies to the whole command, so no
+  // line can hide a redirect, a pipe, a background job or a substitution.
+  const lines = command.split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !CD_ONLY.test(line))
+  return lines.length > 0 && lines.every(line => {
+    const segments = line.split(/\s*&&\s*/)
+      .filter(segment => !CD_ONLY.test(segment.trim()))
+    return segments.length > 0
+      && segments.every(segment => VALIDATION_PATTERNS.some(pattern => pattern.test(segment)))
+  })
 }
 
 const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/

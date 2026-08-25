@@ -25,6 +25,14 @@ const VALIDATION_PATTERNS = [
   /^(?:python(?:3)?|node|ruby|perl|php)\s+(?!\S*(?:create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))\S*(?:check|lint|verify|test|validate)\S*\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|lint|test|validate|audit|census|status|spine|evals)\b/i,
   /^(?:python(?:3)?|node|ruby|perl|php)\s+\S*derive_shapes\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|audit|census|status)\b/i,
   /^(?:python(?:3)?\s+)?\S*(?:adr-lint|adr-debt|spec-verify|arch-lint|postmortem-verify|adr-retire-check)\b/i,
+  // `bash scripts/selftest.sh` is the same run as `./scripts/selftest.sh`, and
+  // only the second was evidence: the pattern above needs the validator's own
+  // name as the first word. Running a repository's own gate the obvious way left
+  // the hook asking for a validation that had just passed. Hit live repeatedly on
+  // 2026-08-25. The shell name is a wrapper, so look past it at the script — with
+  // the same authoring-verb exclusions, and `(?!-)` so `bash -n` keeps its own
+  // rule above and `bash -c "…"` stays outside this one.
+  /^(?:bash|sh|zsh|ksh)\s+(?!-)(?!\S*(?:adr-verify|create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))\S*(?:test|lint|check|verify|validate|selftest)\S*(?:\s|$)/i,
 ]
 
 // A redirect that writes somewhere: `> f`, `2>> f`, `&> f`. `>&1` and `>&2`

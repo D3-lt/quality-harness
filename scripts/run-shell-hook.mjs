@@ -6,7 +6,7 @@ import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
-const HOOK_SCRIPTS = new Set(['facts-gate-dispatch.sh', 'post-edit-check.sh'])
+export const HOOK_SCRIPTS = new Set(['facts-gate-dispatch.sh', 'post-edit-check.sh'])
 const PATH_KEYS = new Set(['cwd', 'file_path', 'notebook_path', 'filePath'])
 const DEFAULT_TIMEOUT_MS = 110_000
 
@@ -56,7 +56,7 @@ export function hookFilePathFromPayload(raw, platform = process.platform) {
   return typeof candidate === 'string' && candidate.length > 0 ? candidate : null
 }
 
-function hookArguments(scriptName, raw, platform) {
+export function hookArguments(scriptName, raw, platform) {
   const payload = parsedHookPayload(raw, platform)
   const filePath = hookFilePathFromPayload(raw, platform) ?? ''
   if (scriptName === 'facts-gate-dispatch.sh') {
@@ -69,7 +69,12 @@ function hookArguments(scriptName, raw, platform) {
     const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : ''
     return [toolName, filePath]
   }
-  return []
+  // Unreachable today — runShellHook rejects anything outside HOOK_SCRIPTS before
+  // calling this. It is a guard against the NEXT hook script, not this one:
+  // returning [] there would run a gate with no arguments, and a gate handed no
+  // file exits 0. A gate that cannot fail is the failure mode this project keeps
+  // fixing, so an unwired script has to say so instead of passing quietly.
+  throw new Error(`quality-harness: ${scriptName} is in HOOK_SCRIPTS but hookArguments does not build its arguments`)
 }
 
 export function resolveBashExecutable(

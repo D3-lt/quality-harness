@@ -725,6 +725,24 @@ export function isValidationCommand(command) {
 }
 
 const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/
+
+// True when an interpreter is the COMMAND of some region or segment, not merely
+// a word inside one. Measured 2026-08-25: a repository whose record was named
+// `docs/adr/0015-rq-for-queued-work-in-both-python-stacks.md` had every `cat`,
+// `grep` and `head` of that file classified as a python run, so reading a record
+// advanced the mutation cursor and put the record itself into the artifact gate
+// while `git diff` showed it unchanged. Regions are walked so `bash -c "python
+// rewrite.py"` and `$(python rewrite.py)` still count.
+function hasInterpreterCommand(text) {
+  for (const region of shellCommandRegions(text)) {
+    for (const segment of shellSegments(region)) {
+      const invocation = commandInvocation(segment)
+      if (!invocation) continue
+      if (INTERPRETER_WORD.test(executableName(invocation.words[invocation.index]))) return true
+    }
+  }
+  return false
+}
 const VISIBLE_CODE_MUTATION_TOKENS = new RegExp([
   'write_text', 'write_bytes', 'writeFile', 'appendFile', 'createWriteStream',
   'unlink', 'remove', 'rmtree', 'rmdir', 'rmSync', 'mkdir', 'makedirs',
@@ -787,7 +805,7 @@ export function interpreterCommandLooksMutating(command, executable) {
       return `stdin_script${redirect}`
     })
   if (sawStdin) visible.push(heredocBodies(command))
-  if (INTERPRETER_WORD.test(stripped)) return true
+  if (hasInterpreterCommand(stripped)) return true
   return visible.some(visibleCodeLooksMutating)
 }
 

@@ -53,6 +53,17 @@ const cases = [
   ['node -e "fs.rmSync(\'x\')"', 'mutation'],
   ['ruby -e "File.write(\'x\', \'y\')"', 'mutation'],
   ['python3 -c "from pathlib import Path; print(Path(\'x\').read_text())"', 'neither'],
+  // An interpreter named in an ARGUMENT is not an interpreter run. Reproduced
+  // 2026-08-25 against a repository whose record was named
+  // `0015-rq-for-queued-work-in-both-python-stacks.md`: reading it counted as a
+  // mutation and pulled the record into the artifact gate.
+  ['cat docs/adr/0015-rq-for-queued-work-in-both-python-stacks.md', 'neither'],
+  ['grep -q pending docs/adr/0010-the-node-stack-renders-screens.md', 'neither'],
+  ['head -20 docs/ruby-migration.md', 'neither'],
+  // ...but it still counts wherever it really is the command.
+  ['/usr/bin/python3 rewrite.py', 'mutation'],
+  ['env FOO=bar python rewrite.py', 'mutation'],
+  ['bash -c "python rewrite.py"', 'mutation'],
 ]
 
 let bad = 0

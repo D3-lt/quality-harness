@@ -62,6 +62,8 @@ Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
 """
 import datetime
 import hashlib
+import ntpath
+import os
 import re
 import subprocess
 import sys
@@ -183,9 +185,70 @@ LINE_COMMENT = {
     ".jsx": "//", ".rs": "//", ".java": "//", ".c": "//", ".h": "//",
 }
 
+def resolve_bash(platform=sys.platform, env=None, exists=None):
+    """Absolute Git Bash on Windows; plain `bash` everywhere else. None if absent.
+
+    Windows ships `C:\\Windows\\System32\\bash.exe`, a launcher that drops into the
+    default WSL distro, and the Store adds another stub under WindowsApps. A bare
+    `subprocess.run(["bash", ...])` picks the System32 one, so an Acceptance fence
+    calling `docker` ran inside a distro where Docker Desktop integration may be
+    off and failed for a reason that has nothing to do with the code under test.
+    Measured 2026-08-25 on Windows 11: three bash.exe on PATH, and the interactive
+    shell resolved a different one than Python did.
+
+    Same precedence as resolveBashExecutable in scripts/run-shell-hook.mjs — the
+    Node hook layer already avoided this stub and the Python gates never got the
+    port, so one machine answered "where is bash" two different ways. Parameters
+    are injectable for the same reason that resolver's are: the logic has to be
+    testable off Windows.
+    """
+    if platform != "win32":
+        return "bash"
+    env = os.environ if env is None else env
+    exists = os.path.isfile if exists is None else exists
+
+    configured = env.get("CLAUDE_CODE_GIT_BASH_PATH")
+    if configured:
+        return configured
+
+    for raw in (env.get("PATH") or env.get("Path") or "").split(";"):
+        directory = raw.strip().strip('"')
+        # Skip System32: its bash.exe is the WSL launcher, not a shell.
+        if not directory or re.search(r"[\\/]system32[\\/]?$", directory, re.I):
+            continue
+        candidate = ntpath.join(directory, "bash.exe")
+        if exists(candidate):
+            return candidate
+
+    drive = env.get("SystemDrive") or "C:"
+    roots = [
+        ntpath.join(env["LOCALAPPDATA"], "Programs", "Git") if env.get("LOCALAPPDATA") else None,
+        ntpath.join(env.get("ProgramFiles") or drive + "\\Program Files", "Git"),
+        ntpath.join(env.get("ProgramFiles(x86)") or drive + "\\Program Files (x86)", "Git"),
+    ]
+    for root in roots:
+        if not root:
+            continue
+        candidate = ntpath.join(root, "bin", "bash.exe")
+        if exists(candidate):
+            return candidate
+    return None
+
+
+def bash_or_exit():
+    """`resolve_bash` or a usable failure. Never silently falls back to the stub."""
+    shell = resolve_bash()
+    if shell is None:
+        print("[adr-verify] Git Bash was not found. Set CLAUDE_CODE_GIT_BASH_PATH to "
+              "Git for Windows bin/bash.exe.", file=sys.stderr)
+        sys.exit(2)
+    return shell
+
+
 # Cheap, universally-available parsers. A language absent here is simply not
 # syntax-checked — saying so beats inventing a check that needs a toolchain the
-# runner may not have.
+# runner may not have. `.sh` resolves its shell at call time, not import time,
+# so the Windows lookup happens once a check is actually requested.
 SYNTAX_CHECK = {
     ".sh": ["bash", "-n"], ".bash": ["bash", "-n"],
     ".php": ["php", "-l"],
@@ -234,6 +297,8 @@ def syntax_ok(path):
         except Exception as e:
             return False, f"python: {e}"
     cmd = SYNTAX_CHECK.get(suf)
+    if cmd and cmd[0] == "bash":
+        cmd = [bash_or_exit()] + cmd[1:]
     if not cmd:
         return True, f"no cheap parser for {suf or 'this file'} — not checked"
     try:
@@ -336,7 +401,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                   "been skipped. Rewrite it so it still parses.")
             sys.exit(2)
 
-        r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True,
+        r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace")
         out, code = r.stdout + r.stderr, r.returncode
 
@@ -423,7 +488,7 @@ def main():
     if mutant is not None:
         run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why)
 
-    r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True,
+    r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
                        encoding="utf-8", errors="replace")
 
     sha = git_sha(cwd)

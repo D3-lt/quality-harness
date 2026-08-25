@@ -8,6 +8,10 @@ set -u
 
 f=${1-}
 [ -z "$f" ] && exit 0
+# The hook event this run was dispatched from, empty when the completion and
+# commit boundaries rerun the dispatcher themselves. Only an explicit PostToolUse
+# relaxes anything below, so an unknown boundary still blocks.
+boundary=${2-}
 
 SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 BIN=$(dirname "$SCRIPT_DIR")/bin
@@ -178,6 +182,23 @@ fi
 
 [ -z "$gate" ] && exit 0
 [ "$rc" -eq 0 ] && exit 0
+
+# adr-lint and adr-retire-check judge a SET: an ADR together with its task files
+# and index, or an archive catalog together with its records. Mid-sequence that
+# set is legitimately incomplete — a contract row names T3 before T3 is written,
+# an index cannot list files nobody has written yet — so blocking each write makes
+# an inherently multi-file edit unperformable. Measured 2026-08-25: three
+# consecutive writes of one ADR-028 task set, each blocked on the absence of the
+# next file. The findings were right and the moment was wrong. These gates run
+# where the set is whole: the commit and completion boundaries, which rerun this
+# same dispatcher with no boundary argument and still exit 2.
+case "$boundary:$gate" in
+  PostToolUse:adr-lint|PostToolUse:adr-retire-check)
+    printf 'facts-first gate (%s) not satisfied yet for %s; it blocks at commit and completion, where the record set is whole:\n%s\n' \
+      "$gate" "$f" "$out"
+    exit 0
+    ;;
+esac
 
 printf 'facts-first gate FAILED (%s, exit %s) for %s:\n%s\n\nFix the artifact, not the gate.\n' \
   "$gate" "$rc" "$f" "$out" >&2

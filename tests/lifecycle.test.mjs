@@ -803,3 +803,46 @@ test('leaving a protected branch is allowed; overwriting its files is not', asyn
   // Only the repository can tell a branch from a path, and it says this is neither.
   assert.match(check('git checkout task/absent'), /protected 'main'/)
 })
+
+test('a set-level record gate reports at the edit and blocks at the boundary', async () => {
+  const repo = await mkdtemp(path.join(testTmp, 'quality-adr-set-'))
+  const fixtures = path.join(pluginDir, 'tests', 'fixtures', 'ok')
+  const docs = path.join(repo, 'docs')
+  await mkdir(docs, { recursive: true })
+  await cp(path.join(fixtures, 'ADR-001-selftest.md'), path.join(docs, 'ADR-001-selftest.md'))
+  await cp(path.join(fixtures, 'tasks'), path.join(docs, 'tasks'), { recursive: true })
+  const task = path.join(docs, 'tasks', 'T1-fixture.md')
+  const dispatch = (event, filePath) => spawnSync(
+    process.execPath,
+    [path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'), 'facts-gate-dispatch.sh'],
+    {
+      input: JSON.stringify({
+        hook_event_name: event, tool_name: 'Write', tool_input: { file_path: filePath },
+      }),
+      encoding: 'utf8',
+    },
+  )
+
+  assert.equal(dispatch('PostToolUse', task).status, 0)
+
+  // Mid-sequence the set is legitimately incomplete: the index cannot list files
+  // nobody has written yet. That must not make the next write unperformable.
+  await rm(path.join(docs, 'tasks', 'README.md'))
+  const edit = dispatch('PostToolUse', task)
+  assert.equal(edit.status, 0, edit.stderr)
+  assert.match(edit.stdout, /not satisfied yet/)
+  assert.match(edit.stdout, /no README\.md index/)
+
+  // The commit and completion boundaries rerun the same dispatcher with no
+  // boundary argument, where the same finding still blocks.
+  assert.equal(dispatch('', task).status, 2)
+  assert.match(runArtifactGates([task], repo), /no README\.md index/)
+
+  // A gate that judges one file on its own keeps blocking at the edit.
+  const spec = path.join(docs, 'specs', 'invalid.md')
+  await mkdir(path.join(docs, 'specs'), { recursive: true })
+  await writeFile(spec, '# Invalid\n\n## Facts\n\n## Grill Log\n')
+  const specEdit = dispatch('PostToolUse', spec)
+  assert.equal(specEdit.status, 2)
+  assert.match(specEdit.stderr, /facts-first gate FAILED \(spec-verify/)
+})

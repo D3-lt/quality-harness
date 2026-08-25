@@ -59,7 +59,12 @@ export function hookFilePathFromPayload(raw, platform = process.platform) {
 function hookArguments(scriptName, raw, platform) {
   const payload = parsedHookPayload(raw, platform)
   const filePath = hookFilePathFromPayload(raw, platform) ?? ''
-  if (scriptName === 'facts-gate-dispatch.sh') return [filePath]
+  if (scriptName === 'facts-gate-dispatch.sh') {
+    // The dispatcher relaxes set-level gates at the per-edit boundary only, so it
+    // has to be told which boundary asked. Absence means a completion boundary.
+    const event = typeof payload?.hook_event_name === 'string' ? payload.hook_event_name : ''
+    return [filePath, event]
+  }
   if (scriptName === 'post-edit-check.sh') {
     const toolName = typeof payload?.tool_name === 'string' ? payload.tool_name : ''
     return [toolName, filePath]

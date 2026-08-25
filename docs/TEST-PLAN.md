@@ -121,6 +121,23 @@ Every row below must read the file `adr-verify` wrote. Never reconstruct the str
 
 ---
 
+# Wave 2 — the escapes, and the hook nothing has ever fired — **DONE**
+
+**6 tests. Every killing mutation applied and confirmed red:** the emitted event name, a
+role dropped from the read-only pattern, the `{15,}` reason length, the `docsOnly` guard,
+and the Stop-only placement of `interimResponse`. `lifecycle.mjs` functions 94.59 → 97.30;
+all-files lines 92.93 → 94.54.
+
+No harness defect this time — the escapes behave as designed. What they lacked was anything
+proving it, which for a gate's two exits is the same risk as being wrong. The `docsOnly`
+guard and the Stop-only placement are the two assertions worth having: without them
+`EVIDENCE-LIMITED:` releases code changes and "I am blocked" finishes a task.
+
+Also added: `package.test.mjs` now walks every event `lifecycle.mjs` handles and asserts
+`hooks.json` declares it. `SubagentStart` was handled, declared, and never once fired by a
+test; the next handler added without a declaration fails the suite instead of being dead in
+production while its tests stay green.
+
 # Wave 2 — the escapes, and the hook nothing has ever fired (5 rows)
 
 Two of these are the **exits** from the completion gate. An untested escape in a gate

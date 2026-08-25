@@ -92,6 +92,16 @@ test('manifest and hook configuration expose the bundled components', () => {
   assert.ok(post.some(hook => hook.args?.includes('facts-gate-dispatch.sh')))
   assert.ok(post.some(hook => hook.args?.includes('post-edit-check.sh')))
 
+  // Every event lifecycle.mjs handles must actually be declared, or the handler
+  // is dead in production while its tests stay green. SubagentStart was the one
+  // nothing had ever fired.
+  for (const event of ['SessionStart', 'SubagentStart', 'SubagentStop', 'Stop', 'TaskCompleted', 'PreToolUse']) {
+    const declared = (hooks.hooks[event] ?? []).flatMap(group => group.hooks)
+    assert.ok(declared.length > 0, `${event} is handled but not declared`)
+    assert.ok(declared.some(hook => hook.args?.some(arg => arg.endsWith('lifecycle.mjs'))),
+      `${event} must be routed to lifecycle.mjs`)
+  }
+
   const attributes = readFileSync(join(root, '.gitattributes'), 'utf8')
   assert.match(attributes, /^\*\.sh text eol=lf$/m)
   assert.match(attributes, /^\*\.mjs text eol=lf$/m)

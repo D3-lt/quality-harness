@@ -1,13 +1,29 @@
 {
   "description": "Universal quality lifecycle hooks",
   "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "node",
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
+            "timeout": 30
+          }
+        ]
+      }
+    ],
     "SubagentStart": [
       {
         "hooks": [
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
             "timeout": 10
           }
         ]
@@ -19,7 +35,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
             "timeout": 120
           }
         ]
@@ -31,7 +49,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
             "timeout": 120
           }
         ]
@@ -43,7 +63,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
             "timeout": 120
           }
         ]
@@ -56,7 +78,9 @@
           {
             "type": "command",
             "command": "node",
-            "args": ["${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"],
+            "args": [
+              "${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs"
+            ],
             "timeout": 60
           }
         ]

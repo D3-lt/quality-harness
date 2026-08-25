@@ -476,11 +476,41 @@ re-verified with live reproductions) confirmed 23 findings. **Fixed in `2.0.18`:
   additionalContext notice is the mitigation — the model now SEES the set-level
   failure at edit time even though only commit/completion enforce it.
 
+## 15. The harness only ever said no
+
+**Done — `2.1.0`.** Counted after the 2.0.18 release: one additive surface (the SubagentStart
+contract) against fourteen refusals. Worse, every refusal already knew the answer and withheld it —
+`missingEvidenceReason` said "run the smallest repository-owned test" while the harness had
+`VALIDATION_PATTERNS` to recognise one and no way to *discover* one. That sentence was hit eight
+times in the 2.0.12-2.0.18 session alone. Five additive changes, none of which can block anything:
+
+- **`projectCheckCommand`** discovers the project's own check — `scripts/selftest.sh`, a
+  `package.json` script in lock-file order, a Make/just target, cargo/go/pytest — and every
+  evidence message now names it. Only commands `isValidationCommand` already accepts are ever
+  offered, so the gate cannot recommend something it would then refuse; a project that names no
+  check gets the old general phrasing rather than a guess.
+- **A `SessionStart` hook**, the first the plugin has had: the check command, the branch with the
+  exact escape line when it is protected, and the ADR record sets with a ready task. Scoped hard —
+  no git repository means no record reading at all, after a probe in a shared temp directory
+  surfaced *another project's* tasks, and test/fixture directories are skipped.
+- **`bin/adr-next`** answers which task is ready and what proves it, computed from the task files
+  (`Depends-on` + `Consumes`/`Produces`, the same edges adr-lint's DAG uses) rather than
+  `tasks/README.md`, which is a derived index. Done means an exit-0 Verification Log entry whose
+  `acceptance-sha256` matches the current Acceptance fence, so a README typed to `done` cannot make
+  a task disappear. `adr-execute` now reads it first.
+- **Every refusal carries its remedy**: the protected-branch blocks emit the literal
+  `git switch -c task/<sha>`, and a test asserts the guard actually permits what it advertises —
+  a block whose escape is itself blocked is what this session hit live. The unreadable-transcript
+  refusals now say plainly that they are environment problems, not findings about the work.
+- **An evidence nudge**: when a check passes with a task file edited, the completion boundary names
+  `adr-verify <task>` as a non-blocking `systemMessage`. adr-verify is the anti-fabrication
+  mechanism; the friction was only ever remembering to call it.
+
 ---
 
 ## Verification claims worth re-running after any of the above
 
-- `bash scripts/selftest.sh` → 67/67, on any branch (item 4) and as evidence (item 6).
+- `bash scripts/selftest.sh` → 71/71, on any branch (item 4) and as evidence (item 6).
 - The 8 gates under `PYTHONIOENCODING=cp1252` against `tests/fixtures/ok` → 8/8, and the
   `adr-verify`-written evidence row shows `c2 b7` under `cat -A` / `od` (macOS `cat` has
   no `-A`; use `od -c`).

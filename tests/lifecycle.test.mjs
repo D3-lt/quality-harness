@@ -7,6 +7,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
   analyzeTranscript,
+  artifactGateTimeoutMs,
   bashDeletionMutationPaths,
   bashMarkdownMutationPaths,
   branchViolation,
@@ -857,4 +858,44 @@ test('a set-level record gate reports at the edit and blocks at the boundary', a
   const specEdit = dispatch('PostToolUse', spec)
   assert.equal(specEdit.status, 2)
   assert.match(specEdit.stderr, /facts-first gate FAILED \(spec-verify/)
+})
+
+test('the artifact gate budget is raisable, and running out of it names the budget', async () => {
+  assert.equal(artifactGateTimeoutMs({}), 30_000)
+  assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '45000' }), 45_000)
+  // Out of the runner's own range, or not a number: fall back rather than adopt.
+  assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '10' }), 30_000)
+  assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '999999' }), 30_000)
+  assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: 'soon' }), 30_000)
+
+  // A record large enough that the gate cannot read it inside the smallest legal
+  // budget. The gate's cost grows with what it reads, which is the whole point:
+  // a corpus can outgrow a fixed budget without anything being wrong with it.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-gate-budget-'))
+  const adr = path.join(repo, 'ADR-999-big.md')
+  const filler = Array.from({ length: 400_000 }, (_, index) => `- line ${index} with words to parse`)
+  await writeFile(adr, ['# ADR-999: Big', '', '## Existing Primitives Audit', '',
+    '## Decision', '', '## Alternatives Considered', '', '## Consequences', '',
+    ...filler, ''].join('\n'))
+
+  const previous = process.env.QUALITY_HARNESS_SHELL_TIMEOUT_MS
+  process.env.QUALITY_HARNESS_SHELL_TIMEOUT_MS = '100'
+  try {
+    // The child is given the operator's budget, not a value written over it —
+    // the message quotes the number that was set here.
+    const starved = runArtifactGates([adr], repo)
+    assert.match(starved, /timed out after 100ms/)
+    assert.match(starved, /budget, not a finding/)
+    assert.match(starved, /ADR-999-big\.md/)
+    // Still blocking: a gate that did not finish has not cleared the record.
+    assert.match(starved, /Artifact validation failed/)
+  } finally {
+    if (previous === undefined) delete process.env.QUALITY_HARNESS_SHELL_TIMEOUT_MS
+    else process.env.QUALITY_HARNESS_SHELL_TIMEOUT_MS = previous
+  }
+
+  // With a budget that fits, the same record gets a real verdict about itself.
+  const judged = runArtifactGates([adr], repo)
+  assert.match(judged, /adr-lint/)
+  assert.doesNotMatch(judged, /timed out/)
 })

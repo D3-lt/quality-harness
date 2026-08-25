@@ -2,7 +2,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -691,7 +691,9 @@ function protectedBranchException(command, directory) {
     const operands = args.filter(argument => !argument.startsWith('-'))
     return operands.length === 1 && localBranchExists(directory, operands[0])
   }
-  return subcommand === 'merge' && args.includes('--ff-only')
+  // Fast-forward integration is the sanctioned way to bring a protected branch
+  // up to date, whichever spelling fetches first.
+  return (subcommand === 'merge' || subcommand === 'pull') && args.includes('--ff-only')
 }
 
 export function branchViolation(input) {
@@ -713,7 +715,8 @@ export function branchViolation(input) {
       const addressedBranch = gitBranch(directory)
       if (!protectedBranch(addressedBranch)
           || !isPotentialMutationCommand(segment)
-          || protectedBranchException(segment, directory)) continue
+          || protectedBranchException(segment, directory)
+          || mutatesOnlyTempPaths(segment, directory)) continue
       const subcommand = gitSubcommand(segment)
       if (subcommand === 'commit') {
         return `git commit would write directly to protected '${addressedBranch}'. Create a task branch first.`
@@ -1000,6 +1003,176 @@ export function bashDeletionMutationPaths(command, cwd = process.cwd()) {
   ])]
 }
 
+// The OS temp roots, symlink-resolved once per call. `/tmp` is a symlink to
+// `/private/tmp` on macOS and os.tmpdir() points into /var/folders, so the
+// judgement below realpaths both sides before comparing.
+function tempRoots() {
+  const roots = new Set(['/tmp', '/private/tmp', '/var/folders', '/private/var/folders', os.tmpdir()])
+  try { roots.add(realpathSync(os.tmpdir())) } catch {}
+  return [...roots]
+}
+
+function underTempRoot(candidate) {
+  let resolved = path.resolve(candidate)
+  // Judge the real location, not the spelling: a symlink under /tmp pointing
+  // into a repository must be treated as the repository.
+  try {
+    const anchor = nearestExistingDirectory(resolved)
+    if (anchor) resolved = path.join(realpathSync(anchor), path.relative(anchor, resolved))
+  } catch {}
+  return tempRoots().some(root => resolved === root || resolved.startsWith(root + path.sep))
+}
+
+// Words whose written targets are their operands, so a temp-only claim about
+// them can actually be checked. Everything else mutating stays a mutation.
+const TEMP_ACCOUNTABLE_WORDS = new Set(['rm', 'mv', 'cp', 'mkdir', 'rmdir', 'touch', 'truncate', 'tee'])
+// Mutators whose targets this function cannot enumerate; their presence
+// disqualifies the whole command from the exemption.
+const TEMP_UNACCOUNTABLE = /\b(?:install|dd|patch|apply_patch|rsync|chmod|chown|ln)\b|\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b|\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b|\bprettier\b[^\n]*\s--write\b|\bfind\b[^\n]*\s-delete\b|(?:^|\s)(?:\S*[\\/])?adr-verify(?:\s|$)/i
+
+const REDIRECT_TARGET = /(?:^|\s)(?:\d*|&)>>?\s*("[^"]*"|'[^']*'|[^\s;|&]+)/g
+
+function expandShellToken(token, assignments) {
+  let value = token
+  if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
+    value = value.slice(1, -1)
+  }
+  const expanded = value.replace(/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g,
+    (match, braced, plain) => assignments.get(braced ?? plain) ?? process.env[braced ?? plain] ?? match)
+  return /[`$]/.test(expanded) ? null : expanded
+}
+
+// True only when every write this command performs provably lands under the OS
+// temp directories. A scratch note, a probe script, a heredoc-built commit
+// message — none of them is the repository's work, so none of them should
+// demand repository evidence or a task branch. Measured 2026-08-25: a session
+// spent on writing THIS harness was nagged at every Stop for scratchpad writes
+// under /private/tmp. Anything unprovable keeps today's answer: a mutation.
+export function mutatesOnlyTempPaths(command, cwd) {
+  if (typeof command !== 'string' || typeof cwd !== 'string') return false
+  const base = nearestExistingDirectory(path.resolve(cwd))
+  // A project that itself lives under a temp root gets no exemption — there the
+  // "scratch" writes ARE the repository's files. This also keeps the test
+  // suite's own temp fixtures under full strictness.
+  if (!base || underTempRoot(base)) return false
+
+  const executable = withoutHeredocBodies(command)
+  if (TEMP_UNACCOUNTABLE.test(executable)
+      || inPlaceEditorCommand(executable)
+      || interpreterCommandLooksMutating(command, executable)
+      || isGitMutationCommand(executable)) return false
+
+  // Assignments made inside the command are the only variable values this
+  // function trusts; anything else unresolved disqualifies below.
+  const assignments = new Map()
+  const segments = []
+  for (const region of shellCommandRegions(executable)) {
+    for (const segment of shellSegments(region)) {
+      const assignment = segment.match(/^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S*)$/)
+      if (assignment) {
+        const value = expandShellToken(assignment[2], assignments)
+        if (value !== null) assignments.set(assignment[1], value)
+        continue
+      }
+      segments.push(segment)
+    }
+  }
+
+  let accounted = 0
+  for (const segment of segments) {
+    if (!isPotentialMutationCommand(segment)) continue
+    const targets = []
+    for (const match of segment.matchAll(REDIRECT_TARGET)) {
+      const raw = match[1]
+      if (raw.startsWith('&') || raw === '-' || raw === '/dev/null') continue
+      targets.push(raw)
+    }
+    const invocation = commandInvocation(segment)
+    const word = invocation ? executableName(invocation.words[invocation.index]) : ''
+    if (TEMP_ACCOUNTABLE_WORDS.has(word)) {
+      let optionsEnded = false
+      for (const argument of invocation.words.slice(invocation.index + 1)) {
+        if (!optionsEnded && argument === '--') { optionsEnded = true; continue }
+        if (!optionsEnded && argument.startsWith('-')) continue
+        targets.push(argument)
+      }
+    } else if (targets.length === 0) {
+      // Mutating for a reason this function did not identify: keep it a mutation.
+      return false
+    }
+    if (targets.length === 0) return false
+    for (const target of targets) {
+      const expanded = expandShellToken(target, assignments)
+      if (expanded === null || expanded.length === 0
+          || [...expanded].some(character => '*?[]{}'.includes(character))) return false
+      const resolved = resolveToolPath(expanded, cwd)
+      if (!resolved || !underTempRoot(resolved)) return false
+    }
+    accounted += 1
+  }
+  return accounted > 0
+}
+
+// Classifies one git segment for the evidence gate. 'refresh' changes which
+// tree the session is on without authoring anything (a branch switch, a
+// fast-forward integration); 'inert' changes neither (creating a branch where
+// you stand); null is everything else.
+function gitTreeRefreshKind(segment, cwd) {
+  const trimmed = segment.trim()
+  const invocation = gitInvocation(trimmed)
+  if (!invocation || /`|\$\(/.test(trimmed) || WRITE_REDIRECT.test(trimmed)) return null
+  const { subcommand, subcommandIndex, words } = invocation
+  const args = []
+  let separated = false
+  for (const argument of words.slice(subcommandIndex + 1)) {
+    if (argument === '--') { separated = true; break }
+    args.push(argument)
+  }
+  if (subcommand === 'pull') return 'refresh'
+  if (subcommand === 'merge') return args.includes('--ff-only') ? 'refresh' : null
+  if (subcommand === 'switch') {
+    if (!args.some(argument => ['-c', '-C', '--orphan'].includes(argument))) return 'refresh'
+    // Creating a branch with an explicit start point lands on that tree.
+    return args.filter(argument => !argument.startsWith('-')).length > 1 ? 'refresh' : 'inert'
+  }
+  if (subcommand === 'checkout') {
+    const operands = args.filter(argument => !argument.startsWith('-'))
+    if (args.some(argument => ['-b', '-B', '--orphan'].includes(argument))) {
+      return operands.length > 1 ? 'refresh' : 'inert'
+    }
+    if (separated) return null
+    if (operands.length === 1 && localBranchExists(gitCommandDirectory(trimmed, cwd), operands[0])) {
+      return 'refresh'
+    }
+    return null
+  }
+  return null
+}
+
+// Whole-command navigation verdict: 'refresh' when the command only navigates
+// and at least one segment changes which tree the session stands on; 'inert'
+// when it only creates a branch in place; null when any segment does real work.
+// The evidence gate treats a refresh as STALENESS, not authorship — it
+// invalidates prior evidence because the tested tree is no longer the current
+// tree, but a session that only navigated authored nothing and owes nothing.
+// That is the second reading of the gate's question, decided 2026-08-25
+// ("working, not blocking") while keeping the stale-evidence pins
+// (tests/lifecycle.test.mjs: edit, test, pull is still unverified).
+export function bashNavigationImpact(command, cwd) {
+  if (typeof command !== 'string') return null
+  let refreshSeen = false
+  let inertSeen = false
+  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
+    for (const segment of shellSegments(region)) {
+      const kind = gitTreeRefreshKind(segment, cwd)
+      if (kind === 'refresh') { refreshSeen = true; continue }
+      if (kind === 'inert') { inertSeen = true; continue }
+      if (isPotentialMutationCommand(segment)) return null
+    }
+  }
+  return refreshSeen ? 'refresh' : inertSeen ? 'inert' : null
+}
+
 export function analyzeTranscript(raw, cwd = process.cwd()) {
   const uses = []
   const results = new Map()
@@ -1029,6 +1202,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   }
 
   let lastMutation = -1
+  let lastTreeRefresh = -1
   let lastValidation = -1
   let lastSuccessfulValidation = -1
   const mutationPaths = []
@@ -1047,12 +1221,21 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       const filePath = use.input.file_path ?? use.input.notebook_path
       if (typeof filePath === 'string') mutationPaths.push(filePath)
     }
-    if (use.name === 'Bash' && executed(use)
-        && isPotentialMutationCommand(use.input.command)) {
-      lastMutation = Math.max(lastMutation, use.position)
-      mutationPaths.push(...bashMarkdownMutationPaths(use.input.command, cwd))
-      mutationPaths.push(...bashDeletionMutationPaths(use.input.command, cwd))
-      mutationPaths.push(`<Bash mutation: ${String(use.input.command).slice(0, 120)}>`)
+    if (use.name === 'Bash' && executed(use)) {
+      const navigation = bashNavigationImpact(use.input.command, cwd)
+      if (navigation === 'refresh') {
+        // Navigation is not authorship, but it does change which tree the
+        // session stands on, so it stales prior evidence without demanding new
+        // evidence of its own. 'inert' (creating a branch in place) does
+        // neither.
+        lastTreeRefresh = Math.max(lastTreeRefresh, use.position)
+      } else if (navigation !== 'inert' && isPotentialMutationCommand(use.input.command)
+          && !mutatesOnlyTempPaths(use.input.command, cwd)) {
+        lastMutation = Math.max(lastMutation, use.position)
+        mutationPaths.push(...bashMarkdownMutationPaths(use.input.command, cwd))
+        mutationPaths.push(...bashDeletionMutationPaths(use.input.command, cwd))
+        mutationPaths.push(`<Bash mutation: ${String(use.input.command).slice(0, 120)}>`)
+      }
     }
     if (use.name === 'Bash' && isValidationCommand(use.input.command)
         && use.input.run_in_background !== true) {
@@ -1066,7 +1249,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   return {
     hasMutations: lastMutation >= 0,
     verifiedAfterLastMutation: lastMutation >= 0
-      && lastSuccessfulValidation > lastMutation
+      && lastSuccessfulValidation > Math.max(lastMutation, lastTreeRefresh)
       && lastSuccessfulValidation === lastValidation,
     lastMutation,
     lastSuccessfulValidation,

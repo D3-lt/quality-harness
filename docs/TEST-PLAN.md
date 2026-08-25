@@ -217,7 +217,7 @@ After **each** wave:
 Current floors: JS 92 line / 83 branch / 92 funcs; Python 62.
 Current measured: JS 92.77 / 84.34 / 92.54; Python 63.
 
-**Note:** `tests/package.test.mjs:70` pins `manifest.version === '2.1.1'`. Any per-wave
+**Note:** `tests/package.test.mjs:70` pins `manifest.version === '2.1.2'`. Any per-wave
 version bump breaks that assertion by design — update it in the same commit; it is not a
 regression.
 

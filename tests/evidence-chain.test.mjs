@@ -11,7 +11,7 @@
 // So every test here reads the file adr-verify wrote. None reconstructs it.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -28,9 +28,12 @@ const env = {
 }
 
 // Windows cannot exec a `#!` script; the gates reach it through Git Bash in real
-// use. Same reasoning as tests/gates.test.mjs.
+// use. Same reasoning as tests/gates.test.mjs — and the GATE_NAMES guard matters:
+// without it `run('python3', …)` rewrites itself into `python3 bin/python3 …`.
+const GATE_NAMES = new Set(readdirSync(bin))
+
 function run(command, args, cwd, input = undefined) {
-  const [file, argv] = process.platform === 'win32'
+  const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)
     ? ['python3', [join(bin, command), ...args]]
     : [command, args]
   return spawnSync(file, argv, { cwd, env, input, encoding: 'utf8', timeout: 60_000 })
@@ -134,7 +137,7 @@ test('a failing acceptance is recorded as failing, with the output that failed',
   assert.match(log, /· exit 3 ·/)
   // The last ten output lines are fenced and indented so the reader sees WHY
   // without opening the terminal that ran it.
-  assert.match(log, /\n {2}```\n(?: {2}.*\n)*? {2}boom-marker-line\n/)
+  assert.match(log, /\r?\n {2}```\r?\n(?: {2}.*\r?\n)*? {2}boom-marker-line\r?\n/)
 
   markDone(copy)
   const rejected = lint(copy)
@@ -318,7 +321,7 @@ test('a mutant the fence cannot notice is recorded as survived, and does not cou
   const log = readTask(copy).split('## Mutation Log')[1]
   assert.match(log, /· mutant survived · exit 0 ·/)
   // The explanation is fenced under the entry so a reader sees why it did not count.
-  assert.match(log, /\n {2}```\n {2}the fence passed with the mechanism broken\n {2}```/)
+  assert.match(log, /\r?\n {2}```\r?\n {2}the fence passed with the mechanism broken\r?\n {2}```/)
 })
 
 test('a mutant that did not land, or landed twice, is refused instead of scored', () => {
@@ -374,4 +377,68 @@ test('a mutant that does not parse is skipped, and the file is put back', () => 
   // exit happens with the file already mutated.
   assert.equal(readFileSync(target, 'utf8'), before, 'the target must be restored')
   assert.equal(readTask(copy).split('## Mutation Log')[1].trim(), '')
+})
+
+test('writing evidence keeps the line endings the file already had', () => {
+  // Path.write_text translates "\n" to os.linesep, so on Windows every append
+  // silently converted the task file and the mutant `finally` restore rewrote the
+  // file it was meant to put back — a refused mutant left the target changed.
+  // Reproduced here by giving the gate CRLF input, which is what a Windows
+  // checkout hands it.
+  const copy = corpus()
+  const crlf = text => text.replace(/\r\n/g, '\n').replace(/\n/g, '\r\n')
+  writeTask(copy, crlf(readTask(copy)))
+  addMutationLog(copy)
+
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
+  const written = readFileSync(taskPath(copy), 'utf8')
+  assert.ok(written.includes('\r\n'), 'a CRLF file must stay CRLF')
+  assert.doesNotMatch(written, /[^\r]\n/, 'and must not acquire bare LF lines')
+  assert.match(written, /· exit 0 · .*\r\n/, 'the appended entry uses the file\'s own ending')
+
+  // A refused mutant must leave the target byte-identical — the restore is the
+  // only thing standing between a rejected mutation and a corrupted working tree.
+  const target = addBlindSpot(copy)
+  writeFileSync(target, crlf(readFileSync(target, 'utf8')))
+  const before = readFileSync(target)
+  expectExit(verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = = ', '--why', 'probe',
+  ]), 2, 'the mutant does not parse')
+  assert.deepEqual(readFileSync(target), before, 'byte-identical restore')
+
+  // An LF file must not be converted the other way either.
+  const lf = corpus()
+  expectExit(verify(lf, ['--cwd', '.']), 0, 'adr-verify on an LF file')
+  assert.doesNotMatch(readFileSync(taskPath(lf), 'utf8'), /\r/, 'an LF file must stay LF')
+})
+
+test('the mutated file the fence sees keeps its line endings too', () => {
+  // The mutant write is the one rewrite whose result is invisible afterwards —
+  // the restore puts the file back either way, so nothing downstream can tell it
+  // converted. What CAN tell is the acceptance command, which runs while the
+  // mutant is in place. So the fence here reports on the target's own bytes.
+  const copy = corpus()
+  addMutationLog(copy)
+  const target = addBlindSpot(copy)
+  writeFileSync(target, readFileSync(target, 'utf8').replace(/\n/g, '\r\n'))
+
+  // A checker rather than a one-liner in the fence: the assertion is about bytes,
+  // and burying it in three layers of quoting is how it stops asserting.
+  writeFileSync(join(copy, 'check_crlf.py'),
+    "import sys\nsys.exit(0 if b'\\r\\n' in open('unused.py','rb').read() else 1)\n")
+  writeTask(copy, readTask(copy).replace(
+    /## Acceptance\n\n```bash\n[\s\S]*?```/,
+    '## Acceptance\n\n```bash\npython3 check_crlf.py\n```'))
+
+  const mutated = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99',
+    '--why', 'the fence must still see CRLF while the mutant is in place',
+  ])
+  // survived, not killed: the fence passes because the endings were preserved.
+  // A translating write would blank the CRLF and the fence would go red, which
+  // adr-verify would score as `killed` — a verdict about the writer, not the test.
+  expectExit(mutated, 1, 'the fence must not go red merely because the file was rewritten')
+  assert.match(readTask(copy), /· mutant survived ·/)
 })

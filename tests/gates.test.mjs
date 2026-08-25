@@ -116,6 +116,54 @@ test('adr-lint recognizes async Python test bodies', () => {
   expectExit(run('python3', ['-c', probe, join(bin, 'adr-lint')]), 0, 'async Python test body')
 })
 
+test('code_only keeps Python code between docstrings that mention backticks', () => {
+  // This failure mode was silent. Python has no backtick literal, so applying
+  // the JavaScript template-literal rule to a .py file paired backticks across
+  // docstring boundaries and deleted everything between them, `def` lines
+  // included; the existence and can-fail checks then reported correct tests as
+  // missing. Nothing went red, which is why the class needs its own probe.
+  const probe = [
+    'import runpy, sys',
+    'module = runpy.run_path(sys.argv[1])',
+    'code_only = module["code_only"]',
+    'stripped = code_only(sys.stdin.read(), python=True)',
+    'missing = [kept for kept in ("assert alpha() == 1", "def test_beta", "assert beta() == 2")',
+    '           if kept not in stripped]',
+    'javascript = "assert(`literal` === 1)"',
+    'stripped_js = code_only(javascript)',
+    'if "literal" in stripped_js or "assert(" not in stripped_js:',
+    '    missing.append("JavaScript template literal survived: " + stripped_js)',
+    'print("missing:", missing)',
+    'raise SystemExit(1 if missing else 0)',
+  ].join('\n')
+  // One backtick in each docstring, and both docstrings span lines: the
+  // single-line string rules cannot reach across a newline, so the backticks
+  // survive to the template-literal rule, which pairs them and swallows the
+  // assertion, the blank lines and the second `def`.
+  const source = [
+    'def test_alpha():',
+    '    """Rejects a bare ` backtick.',
+    '',
+    '    Second paragraph.',
+    '    """',
+    '    assert alpha() == 1',
+    '',
+    '',
+    'def test_beta():',
+    '    """Also mentions ` here.',
+    '',
+    '    Second paragraph.',
+    '    """',
+    '    assert beta() == 2',
+    '',
+  ].join('\n')
+  expectExit(
+    run('python3', ['-c', probe, join(bin, 'adr-lint')], fixture, source),
+    0,
+    'Python docstring backticks',
+  )
+})
+
 test('the plugin-local facts hook accepts valid facts and blocks invalid facts', () => {
   const hook = join(root, 'scripts', 'run-shell-hook.mjs')
   const valid = JSON.stringify({ tool_input: { file_path: join(fixture, 'spec-selftest.md') } })

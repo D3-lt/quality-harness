@@ -226,6 +226,15 @@ language path, but that was not verified — if the loop survives 2.0.5, start t
 
 ## 9. Piping a validation command turns it into a mutation
 
+**Half done — `2.0.10`.** The mutation half is closed: a segment matching a validation pattern is
+no longer treated as an interpreter run, so `python -m unittest … | tail` and
+`node --test … | grep` classify as `neither` rather than as edits. The evidence half stands
+unchanged and deliberately — a pipe still disqualifies a command as evidence, because it hides the
+exit code, and `pnpm test | tail -20` must stay out of the evidence set. So a piped run is now
+inert instead of harmful: it no longer raises the bar, but it still does not clear it. Run the
+check bare when you need it to count.
+
+
 Observed live on 2026-08-25, repeatedly, in this repository:
 
 ```

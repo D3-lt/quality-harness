@@ -41,6 +41,19 @@ File count alone does not create an ADR, panel, or workflow. A large mechanical 
 class E; a one-line public-contract change may be class D. Ask one question only when a material
 choice cannot be discovered from the project.
 
+**Classification is the decision, not a proposal.** Having classified, invoke the routed skill in
+the same turn. Do not present the classification for approval, and do not wait to be told the next
+stage by name — being asked to name it means this skill failed. A route containing arrows is one
+chain this coordinator drives end to end: C runs `spec-write` and then continues into D's route;
+D runs `adr-write`, and once the user marks the record Accepted, continues into `adr-execute` and
+its verification; A and E go straight to `execution` and then to §3 evidence. The only pauses are
+the three gates in §5.
+
+Requirements discovery inside this lifecycle belongs to `spec-write`, whose grill mints falsifiable
+facts bound to tests. Never route a goal given to this skill into a general brainstorming or
+ideation skill instead — that substitutes an open question loop for a verifiable artifact and
+strands the run before any stage produces evidence.
+
 ## 2. Route quality by risk
 
 Use the least expensive path that honestly covers the failure modes:
@@ -101,6 +114,10 @@ Only these decisions inherently require the user:
 Stop earlier for a missing business choice, authorization boundary, critical invariant, or the same
 failed stage after three evidence-backed attempts. Do not manufacture a spec/ADR gate for a bounded
 change.
+
+A gate is a pause, not a handoff. The moment the user answers one — requirements accepted, ADR
+marked Accepted, push authorized — resume the routed chain in the same turn and carry it to the
+next gate or to completion. Nothing else in this lifecycle waits for a further instruction.
 
 ## 6. Completion proof
 

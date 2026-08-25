@@ -342,7 +342,17 @@ broken, but it is the first thing to know before debugging why a fix "did not ta
 it means no fix in this repository is ever verified live by the session that wrote it —
 `selftest.sh` plus a negative control against `git show HEAD:` is the available evidence.
 
-**Navigation and fast-forward integration count as edits.** `git checkout main && git
+**Navigation and fast-forward integration count as edits.** **Done — `2.0.17`.** The
+fork below was decided by the user on 2026-08-25 ("working, not blocking"): the gate asks
+*"did this session author something it has not verified?"*, while keeping the staleness
+half of the second reading. A navigation-only session owes nothing; a refresh (branch
+switch, `pull`, `merge --ff-only`) after a green run still stales that evidence, so the
+pinned contracts at `tests/lifecycle.test.mjs` (edit → test → pull is unverified) hold
+unchanged. `git checkout -b`/`switch -c` in place are inert — they change no tree and
+stale nothing. `git pull --ff-only` also joined the protected-branch exceptions beside
+`merge --ff-only`: fast-forward integration is the sanctioned way to update `main`.
+
+`git checkout main && git
 pull --ff-only` at session start, with nothing authored afterwards, leaves `Stop` asking
 for a validation run. Both are in `isGitMutationCommand`'s mutating set.
 
@@ -362,7 +372,17 @@ decision, not a carve-out. The discriminator now exists either way — item 11 b
 reading is settled. Cost of the current behaviour is one extra validation run per session
 start.
 
-**Scratchpad writes score as repository mutations.** `cat > /private/tmp/.../scratchpad/commit-msg.txt`
+**Scratchpad writes score as repository mutations.** **Done — `2.0.17`.**
+`mutatesOnlyTempPaths` proves, fail-closed, that every write of a Bash command lands
+under the OS temp roots — redirect targets and the operands of
+rm/mv/cp/mkdir/rmdir/touch/truncate/tee, with in-command `VAR=` assignments expanded,
+symlinks realpath-resolved, and every other mutator class (interpreters, in-place
+editors, git, package managers) disqualifying outright. A project living under the temp
+root gets no exemption, which also keeps the test suite's own fixtures strict. Applied in
+both the evidence gate and the branch guard, so a scratch note on `main` no longer
+demands a task branch.
+
+`cat > /private/tmp/.../scratchpad/commit-msg.txt`
 raises `lastMutation`, so `Stop` demands a repository validation for a file outside any
 repository. Hit repeatedly on 2026-08-25 while writing commit messages for the items
 above. The fix is not small: for a Bash write redirect `mutationPaths` records an opaque
@@ -412,7 +432,7 @@ template-placeholder case is already closed in `facts-gate-dispatch.sh`.
 
 ## Verification claims worth re-running after any of the above
 
-- `bash scripts/selftest.sh` → 64/64, on any branch (item 4) and as evidence (item 6).
+- `bash scripts/selftest.sh` → 66/66, on any branch (item 4) and as evidence (item 6).
 - The 8 gates under `PYTHONIOENCODING=cp1252` against `tests/fixtures/ok` → 8/8, and the
   `adr-verify`-written evidence row shows `c2 b7` under `cat -A` / `od` (macOS `cat` has
   no `-A`; use `od -c`).

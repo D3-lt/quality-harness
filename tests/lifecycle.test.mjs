@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -9,6 +9,8 @@ import {
   analyzeTranscript,
   artifactGateTimeoutMs,
   bashDeletionMutationPaths,
+  bashNavigationImpact,
+  mutatesOnlyTempPaths,
   bashMarkdownMutationPaths,
   branchViolation,
   isGitPublishCommand,
@@ -908,4 +910,89 @@ test('the artifact gate budget is raisable, and running out of it names the budg
   const judged = runArtifactGates([adr], repo)
   assert.match(judged, /adr-lint/)
   assert.doesNotMatch(judged, /timed out/)
+})
+
+test('scratch writes under the temp root are not the repository\'s edits', async () => {
+  // pluginDir stands in for a real (non-temp) project checkout.
+  assert.equal(mutatesOnlyTempPaths('printf x > /private/tmp/qh-note.txt', pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths('S=/private/tmp/qh-s\ncat > "$S/commit.txt"', pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths('mkdir -p /private/tmp/qh-s/old', pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths('rm -rf /private/tmp/qh-s', pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths('git show HEAD:scripts/lifecycle.mjs > /private/tmp/qh-s/old.mjs', pluginDir), true)
+
+  // Anything unprovable, repo-touching, or executed keeps today's answer.
+  assert.equal(mutatesOnlyTempPaths('printf x > docs/spec.md', pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths("sed -i '' /private/tmp/x.md", pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths('python3 /private/tmp/rewrite.py', pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths('cp scripts/lifecycle.mjs /private/tmp/qh-s/', pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths('cat > "$UNSET_VAR_QH/f"', pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths('rm -rf /private/tmp/a && printf x > README.md', pluginDir), false)
+  // A project living under the temp root gets no exemption at all.
+  assert.equal(mutatesOnlyTempPaths('printf x > /private/tmp/qh-note.txt', testTmp), false)
+  // A symlink under /tmp pointing into a repository is judged by where it lands.
+  const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-link-'))
+  const link = path.join(linkDir, 'repo-link')
+  await symlink(pluginDir, link)
+  assert.equal(mutatesOnlyTempPaths(`printf x > ${link}/smuggled.txt`, pluginDir), false)
+
+  // A scratch write is invisible to the evidence gate; a repo write is not.
+  const scratchOnly = analyzeTranscript(transcript([
+    toolUse('b1', 'Bash', { command: 'cat > /private/tmp/qh-s/notes.txt' }), toolResult('b1'),
+  ]), pluginDir)
+  assert.equal(scratchOnly.hasMutations, false)
+  const verifiedThenScratch = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(pluginDir, 'a.ts') }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: 'cat > /private/tmp/qh-s/notes.txt' }), toolResult('b1'),
+  ]), pluginDir)
+  assert.equal(verifiedThenScratch.verifiedAfterLastMutation, true)
+})
+
+test('navigation refreshes the tree without counting as authored work', async () => {
+  const repo = await mkdtemp(path.join(testTmp, 'quality-navigation-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
+  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  git('add', '-A')
+  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
+  git('branch', 'task/work')
+
+  assert.equal(bashNavigationImpact('git checkout task/work && git pull --ff-only', repo), 'refresh')
+  assert.equal(bashNavigationImpact('git switch task/work', repo), 'refresh')
+  assert.equal(bashNavigationImpact('git checkout -b task/next', repo), 'inert')
+  assert.equal(bashNavigationImpact('git checkout -b task/next origin/main', repo), 'refresh')
+  assert.equal(bashNavigationImpact('git pull --ff-only && rm -rf src', repo), null)
+  assert.equal(bashNavigationImpact('git checkout tracked.txt', repo), null)
+  assert.equal(bashNavigationImpact('git status', repo), null)
+
+  // A session that only navigated authored nothing and owes nothing.
+  const navigationOnly = analyzeTranscript(transcript([
+    toolUse('b1', 'Bash', { command: 'git checkout task/work && git pull --ff-only' }), toolResult('b1'),
+  ]), repo)
+  assert.equal(navigationOnly.hasMutations, false)
+
+  // But navigating after a green run stales that evidence: the tested tree is
+  // no longer the current tree.
+  const staleAfterSwitch = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: 'git checkout task/work' }), toolResult('b1'),
+  ]), repo)
+  assert.equal(staleAfterSwitch.verifiedAfterLastMutation, false)
+
+  // Creating a branch where you stand changes no tree and stales nothing.
+  const branchAfterGreen = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: 'git checkout -b task/next' }), toolResult('b1'),
+  ]), repo)
+  assert.equal(branchAfterGreen.verifiedAfterLastMutation, true)
+
+  // Fast-forward integration is the sanctioned way to update a protected
+  // branch, whichever spelling fetches first; anything else stays blocked.
+  const check = command => branchViolation({ tool_name: 'Bash', cwd: repo, tool_input: { command } })
+  assert.equal(check('git pull --ff-only'), null)
+  assert.equal(check('git pull --ff-only origin main'), null)
+  assert.match(check('git pull'), /protected 'main'/)
+  assert.match(check('git pull --rebase'), /protected 'main'/)
 })

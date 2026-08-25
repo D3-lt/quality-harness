@@ -638,6 +638,41 @@ numbers was the one mode that could not run on the machine this project is devel
 CI never caught it because CI runs bash 5 and never passes `--report`. Uses
 `${a[@]+"${a[@]}"}` now.
 
+## 18. A task could be marked done with failing evidence, and adr-lint said PASS
+
+Found on the first row of `docs/TEST-PLAN.md` Wave 1 — the round-trip that feeds an
+adr-verify-written Verification Log entry back to adr-lint. The premise this project exists
+for is that a model cannot claim a task is done without evidence. It could.
+
+`check_verification` is correct: it requires a `· exit 0 ·` entry whose digest matches the
+current Acceptance. It just never ran. `done_task_ids`, which decides WHICH tasks to check,
+read only cell 0 of each README row. This project's own task index is
+`| Order | Task | Scope | Depends-on | Status |` — a number in cell 0 — so every row was
+skipped, `done_task_ids` returned nothing, and `check_verification` iterated an empty list.
+Reproduced end to end: a task marked `done` whose only evidence was `exit 3` linted green.
+
+This is the **second** recurrence. The docstring records the first: the check originally
+anchored on `| T4 | … | done |` and missed link-style ids, leaving "three ADRs and eleven
+tasks outside this check entirely, one of them marked done with an empty Verification Log".
+The fix then anchored on cell 0, which a third table shape defeated the same way.
+
+The id is now the LEFTMOST cell naming a task, and `done` is looked for after it. Leftmost
+is the whole point: scanning every cell would fix the shape problem and introduce a worse
+one, because a `Depends-on` cell names OTHER tasks and a done dependent would silently mark
+its dependencies done. Both failure modes are negative-controlled — reverting to cell-0
+turns two tests red, and the scan-everything version turns the attribution test red.
+
+**Fixing it immediately exposed a second unreachable rule.** With `done_task_ids` working,
+adr-lint reached "a fence that passes is not a fence that can fail" and demanded a
+`## Mutation Log`. That rule had never fired either, for the same reason. The fixture had no
+such section; the round-trip tests now run `adr-verify --mutant` and assert the killed-mutant
+entry's shape, so the complete chain — acceptance evidence, mutant evidence, reader
+acceptance — is exercised for the first time.
+
+**Worth noting about the corpus this repository keeps.** Any `tasks/README.md` in the
+Order-first shape has never had its `done` rows checked. Re-run `adr-lint` over every ADR
+and expect rows that were green to go red — that is the check working, not a regression.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

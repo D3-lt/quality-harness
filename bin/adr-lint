@@ -461,8 +461,17 @@ def done_task_ids(readme_text):
     this check entirely, and one of them was marked done with an empty Verification
     Log — the exact state the check exists to reject, passing green.
 
-    So: find any row whose FIRST cell names a task, and ask whether any later cell
-    is exactly `done`. Position-independent, link or bare id.
+    The second version anchored on the FIRST cell. A third shape defeated that
+    one: `| Order | Task | Scope | Depends-on | Status |` puts a number in cell 0
+    and the id in cell 1, so the row matched nothing again — and this project's
+    OWN fixture is that shape, which is why check_verification had never once run
+    under test. Found 2026-08-25 by feeding adr-lint an entry adr-verify wrote:
+    a task marked `done` whose only evidence was `exit 3` passed green.
+
+    So: find the LEFTMOST cell that names a task — that is the row's own id — and
+    ask whether any cell after it is exactly `done`. Leftmost matters: a
+    `Depends-on` cell names OTHER tasks, and scanning every cell would mark a
+    dependency done because its dependent is.
     """
     out = []
     for line in readme_text.splitlines():
@@ -472,10 +481,12 @@ def done_task_ids(readme_text):
         cells = [c.strip() for c in line.strip("|").split("|")]
         if len(cells) < 2:
             continue
-        m = re.match(r"^\[?(T\d+)\b", cells[0], re.I)
-        if not m:
+        found = next(((i, m) for i, c in enumerate(cells)
+                      if (m := re.match(r"^\[?(T\d+)\b", c, re.I))), None)
+        if found is None:
             continue
-        if any(c.lower() == "done" for c in cells[1:]):
+        index, m = found
+        if any(c.lower() == "done" for c in cells[index + 1:]):
             out.append(m.group(1).upper())
     return out
 

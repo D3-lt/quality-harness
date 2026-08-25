@@ -64,6 +64,18 @@ test('recognizes project verification commands without treating arbitrary shell 
   assert.equal(isValidationCommand('git status --short'), false)
   assert.equal(isValidationCommand('rg test src'), false)
   assert.equal(isValidationCommand('test -n x'), false)
+
+  // A shell name in front of the validator does not change what ran.
+  assert.equal(isValidationCommand('bash scripts/selftest.sh'), true)
+  assert.equal(isValidationCommand('sh ./run-checks.sh'), true)
+  assert.equal(isValidationCommand('bash -n scripts/lifecycle.sh'), true)
+  assert.equal(isValidationCommand('bash scripts/deploy.sh'), false)
+  assert.equal(isValidationCommand('bash scripts/rewrite-tests.sh'), false)
+  assert.equal(isValidationCommand('bash -c "rm -rf build"'), false)
+
+  // Running the gate the obvious way must also clear the evidence bar, and must
+  // not be recorded as an edit on the way through.
+  assert.equal(isPotentialMutationCommand('bash scripts/selftest.sh'), false)
 })
 
 test('tracks mutation-capable Bash commands without treating read-only probes as edits', () => {

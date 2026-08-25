@@ -39,9 +39,13 @@ jobs:
           node --version
           python3 --version
           bash --version | head -1
-      # The plugin-validate job proved on 2026-08-25 that `claude plugin validate`
-      # passes unauthenticated, so a missing CLI here is a broken job, not an
-      # environment nobody can help. PARTIAL is for a laptop, not for CI.
+      # selftest.sh runs `claude plugin validate` when the CLI is present and
+      # downgrades to PARTIAL when it is not. REQUIRE_CLI=1 below turns that
+      # absence into a failure, so this job has to actually install it — setting
+      # the flag without this step is what made both selftest jobs red on
+      # b144d22. PARTIAL is for a laptop, not for CI.
+      - name: Install the Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
       - name: Run the project's own check
         env:
           QUALITY_HARNESS_REQUIRE_CLI: '1'

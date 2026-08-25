@@ -573,6 +573,43 @@ directory. That is the largest untested surface in the product and it is not a C
 
 ---
 
+## 17. What Windows said once the suite stopped answering for it
+
+Run `32883938308`, windows-latest, after the suite fixes in item 6. **13 failures became
+4**, and the remaining four are about the harness, which is what the job was built to find.
+
+**Fixed here — the retirement seal accused an untouched archive of tampering.**
+`adr-retire-check` hashed `path.read_bytes()`, so an archive sealed on macOS reported
+`ADR-001: SHA-256 does not match the frozen decision unit` on Windows, where git had
+translated the `.txt` attachment's line endings on checkout. A false tamper alarm is worse
+than an ordinary false block: it says someone altered a frozen decision. `canonical_bytes`
+now normalizes CRLF/CR to LF before hashing, and detects binary the way git does (a NUL
+byte) so an image is hashed raw. Reproduced on macOS and negative-controlled — the test
+goes red without the fix, and a one-line content edit still breaks the seal. Existing
+LF-committed corpora keep their digests; an archive whose files are committed *with* CRLF
+will need re-sealing once.
+
+**Open — three gates produced NOTHING on Windows where they produce a finding here.**
+`tests/lifecycle.test.mjs:771`, `:785` and `:1159` each assert a gate's own text
+(`/Artifact validation failed/` twice, `/ADR tasks in flight/` once) and each received
+`''`. Empty output with no failure is a **fail-open**: on Windows the artifact gate and the
+session orientation appear to say nothing rather than to say no.
+
+This is not diagnosed. Candidates, in the order worth testing:
+
+- `runArtifactGates` returns `null` — no finding, no block — when `facts-gate-dispatch.sh`
+  is missing at `PLUGIN_ROOT` (`scripts/lifecycle.mjs:1351`). A `PLUGIN_ROOT` that resolves
+  differently on Windows would silently disarm the whole gate.
+- The path handed to the dispatcher is `D:\…`; `facts-gate-dispatch.sh` classifies
+  artifacts by path shape, and a drive-letter path may match none of its patterns, so every
+  artifact is judged "not mine".
+- `spawnSync` of `run-shell-hook.mjs` succeeding with status 0 and empty stdout, which the
+  caller reads as clean.
+
+Do not guess at a fix: the first two are distinguishable by making the Windows job print
+`PLUGIN_ROOT` and the dispatcher's classification for one known-bad artifact. That
+diagnostic is the next step, not a patch.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

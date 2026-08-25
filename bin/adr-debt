@@ -28,6 +28,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+# --- win32 utf-8 io (D1 fix) -------------------------------------------------
+# Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
+# print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
+# which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+# ---------------------------------------------------------------------------
+
 
 def sections_of(text):
     out, cur, fence = {}, None, False
@@ -138,7 +150,7 @@ def receipted(pointer, md_file, scan_dir, src_id):
             if adr_id_of(dest, scan_dir) == src_id:
                 return False, True, None  # same ADR's own tree
             pat = re.sub(r"[-_]", "", src_id).lower()
-            body = re.sub(r"[-_]", "", dest.read_text(errors="replace")).lower()
+            body = re.sub(r"[-_]", "", dest.read_text(errors="replace", encoding="utf-8")).lower()
             return True, pat in body, dest
     return False, True, None
 
@@ -157,7 +169,7 @@ def main():
     unswept_items = []
     for scan_dir in dirs:
         for md in sorted(scan_dir.rglob("*.md")):
-            text = md.read_text(errors="replace")
+            text = md.read_text(errors="replace", encoding="utf-8")
             secs = sections_of(text)
             rel = md.relative_to(scan_dir)
             if md.name == "architecture.md":

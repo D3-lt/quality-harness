@@ -272,6 +272,28 @@ test('requires successful verification after the final edit', () => {
   assert.equal(after.verifiedAfterLastMutation, true)
 })
 
+test('only executed tool calls count as mutations', () => {
+  const pending = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
+  ]))
+  assert.equal(pending.hasMutations, false)
+  assert.deepEqual(pending.mutationPaths, [])
+
+  const blocked = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
+    toolResult('e1', true, 'PreToolUse:Edit hook error: Quality gate blocked'),
+  ]))
+  assert.equal(blocked.hasMutations, false)
+  assert.deepEqual(blocked.mutationPaths, [])
+
+  const failedAfterStarting = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
+    toolResult('e1', true, 'write failed after replacing one section'),
+  ]))
+  assert.equal(failedAfterStarting.hasMutations, true)
+  assert.deepEqual(failedAfterStarting.mutationPaths, ['/repo/src/a.ts'])
+})
+
 test('failed verification does not satisfy the gate', () => {
   const state = analyzeTranscript(transcript([
     toolUse('e1', 'Write', { file_path: '/repo/a.py' }),

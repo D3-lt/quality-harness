@@ -123,6 +123,11 @@ repository evidence followed the final mutation. Full artifact gates remain stri
 at `git commit`/`git push`, `TaskCompleted`, and `SubagentStop`, avoiding repeated
 Git Bash launches when a main session merely stops on macOS or Windows.
 
+The bundled Python gates explicitly read, write, and print UTF-8 so ADR evidence
+remains valid on Windows code pages. Lifecycle classification treats visible,
+read-only interpreter snippets as diagnostics while unknown scripts and unrecognized
+calls remain mutation-capable; a repository validation must still follow them.
+
 ## Distribute
 
 This directory can be published as a standalone Git repository. It includes a

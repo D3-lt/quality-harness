@@ -116,6 +116,42 @@ test('adr-lint recognizes async Python test bodies', () => {
   expectExit(run('python3', ['-c', probe, join(bin, 'adr-lint')]), 0, 'async Python test body')
 })
 
+test('adr-verify resolves Git Bash on Windows, never the System32 WSL stub', () => {
+  // Windows has up to three bash.exe on PATH, and a bare subprocess.run(["bash"])
+  // picks C:\Windows\System32\bash.exe — a launcher into the default WSL distro.
+  // Reported 2026-08-25: an Acceptance fence calling `docker` ran inside that
+  // distro and failed for a reason unrelated to the code under test. The Node
+  // hook layer already avoided this stub; the Python gate did not.
+  const probe = [
+    'import runpy, sys',
+    'resolve = runpy.run_path(sys.argv[1])["resolve_bash"]',
+    'GIT = "C:\\\\Users\\\\d\\\\AppData\\\\Local\\\\Programs\\\\Git\\\\bin\\\\bash.exe"',
+    'STUB = "C:\\\\Windows\\\\System32\\\\bash.exe"',
+    'present = {GIT, STUB}',
+    'exists = lambda p: p in present',
+    'path_env = {"PATH": "C:\\\\Windows\\\\System32;C:\\\\Users\\\\d\\\\AppData\\\\Local\\\\Programs\\\\Git\\\\bin"}',
+    'bad = []',
+    // System32 comes first on PATH and must still lose.
+    'got = resolve("win32", path_env, exists)',
+    'bad += [] if got == GIT else [f"PATH scan picked {got}"]',
+    // An explicit configuration wins outright, without any search.
+    'got = resolve("win32", {"CLAUDE_CODE_GIT_BASH_PATH": "D:\\\\g\\\\bash.exe", "PATH": "C:\\\\Windows\\\\System32"}, exists)',
+    'bad += [] if got == "D:\\\\g\\\\bash.exe" else [f"configured path ignored: {got}"]',
+    // Nothing on PATH but a Git install present: fall back to it, not the stub.
+    'got = resolve("win32", {"PATH": "C:\\\\Windows\\\\System32", "LOCALAPPDATA": "C:\\\\Users\\\\d\\\\AppData\\\\Local"}, exists)',
+    'bad += [] if got == GIT else [f"install-root fallback picked {got}"]',
+    // Only the stub exists: report absence instead of running WSL.
+    'got = resolve("win32", {"PATH": "C:\\\\Windows\\\\System32"}, lambda p: p == STUB)',
+    'bad += [] if got is None else [f"fell back to {got}"]',
+    // POSIX is untouched.
+    'got = resolve("darwin", {}, exists)',
+    'bad += [] if got == "bash" else [f"posix returned {got}"]',
+    'print("failures:", bad)',
+    'raise SystemExit(1 if bad else 0)',
+  ].join('\n')
+  expectExit(run('python3', ['-c', probe, join(bin, 'adr-verify')]), 0, 'Windows bash resolution')
+})
+
 test('code_only keeps Python code between docstrings that mention backticks', () => {
   // This failure mode was silent. Python has no backtick literal, so applying
   // the JavaScript template-literal rule to a .py file paired backticks across

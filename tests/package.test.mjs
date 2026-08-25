@@ -67,7 +67,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.0.6')
+  assert.equal(manifest.version, '2.0.7')
   assert.equal(manifest.license, 'MIT')
   assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
 

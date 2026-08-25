@@ -71,6 +71,23 @@ UNREACHABLE-HERE regions being "the Windows job's job" only becomes true now.
 
 ---
 
+# Wave 1 — the evidence chain — **DONE**, and it found the premise broken
+
+**Landed `fef9d3d` + follow-up. 13 tests in `tests/evidence-chain.test.mjs`; every killing
+mutation below applied and confirmed red.** `bin/adr-verify` went 47% → 83%; Python total
+63% → 68%.
+
+The first row found what the project exists to prevent: **a task marked `done` with `exit 3`
+evidence linted green.** `check_verification` was correct and had never run, because
+`done_task_ids` read only cell 0 of a README row and this project's index puts a number
+there. Fixing it exposed a second rule that had never fired — "a fence that passes is not a
+fence that can fail" — so the round-trip now runs `adr-verify --mutant` too. See
+`docs/BACKLOG.md` item 18.
+
+Deviation from the plan as written: these live in their own file rather than in
+`tests/gates.test.mjs`. Thirteen tests sharing a corpus helper is a surface, not an
+addendum.
+
 # Wave 1 — the evidence chain (highest value, ~12 rows)
 
 `bin/adr-verify` writes the Verification Log; `bin/adr-lint` and `bin/adr-next` read it.

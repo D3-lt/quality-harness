@@ -17,12 +17,12 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 MODE=${1-}
 
-# Floors. Measured 2026-08-25 (later): js 92.93 line / 84.56 branch / 92.65 funcs,
-# python 63%. Raised as the Windows-portability tests landed.
+# Floors. Measured 2026-08-25 (Wave 1): js 92.93 line / 84.56 branch / 92.65 funcs,
+# python 68% — adr-verify went 47% -> 83% when the evidence chain got tested.
 JS_LINES=${QUALITY_HARNESS_JS_LINES:-92}
 JS_BRANCHES=${QUALITY_HARNESS_JS_BRANCHES:-84}
 JS_FUNCTIONS=${QUALITY_HARNESS_JS_FUNCTIONS:-92}
-PY_TOTAL=${QUALITY_HARNESS_PY_TOTAL:-62}
+PY_TOTAL=${QUALITY_HARNESS_PY_TOTAL:-67}
 
 # A measurement that cannot run is not a pass. Locally a missing coverage.py is
 # reported and skipped; CI sets this so the same absence fails the build.

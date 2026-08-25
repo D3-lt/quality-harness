@@ -1,0 +1,109 @@
+name: selftest
+
+# The project's own gate, run where forgetting is not an option. Until now
+# `bash scripts/selftest.sh` on someone's laptop was the only thing between a
+# regression and main.
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: selftest-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  selftest:
+    name: selftest (${{ matrix.os }})
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      # The gates are `#!/usr/bin/env python3` scripts invoked by name through
+      # PATH, so the interpreter has to answer to that exact name.
+      - name: Confirm the toolchain the gates assume
+        run: |
+          node --version
+          python3 --version
+          bash --version | head -1
+      - name: Run the project's own check
+        run: bash scripts/selftest.sh
+
+  coverage:
+    name: coverage floor
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install coverage.py
+        run: python3 -m pip install --upgrade coverage
+      # STRICT=1 turns "the gates could not be measured" into a failure. A
+      # coverage job that silently measures nothing is worse than no job.
+      - name: Hold the coverage floor
+        env:
+          QUALITY_HARNESS_COVERAGE_STRICT: '1'
+        run: bash scripts/coverage.sh
+
+  windows:
+    name: windows (informational — BACKLOG item 6)
+    runs-on: windows-latest
+    # Deliberately non-blocking, and deliberately present. The gates reach
+    # Windows through Git Bash in real use, but the SUITE spawns them by bare
+    # name via PATH, which cannot execute a `#!` script natively — so this job
+    # is expected to be red until that is fixed. It exists to produce the
+    # evidence nobody has ever collected, not to gate the branch. Remove
+    # continue-on-error the moment it passes.
+    continue-on-error: true
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Run the project's own check under Git Bash
+        run: bash scripts/selftest.sh
+
+  plugin-validate:
+    name: plugin validate (informational — unauthenticated CLI unverified)
+    runs-on: ubuntu-latest
+    # `claude plugin validate` is part of selftest.sh, which skips it loudly
+    # when the CLI is absent. Whether the CLI can validate a manifest without
+    # credentials has never been established, so this job establishes it rather
+    # than assuming either way. When it goes green, drop continue-on-error here
+    # and set QUALITY_HARNESS_REQUIRE_CLI=1 on the selftest job.
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: Install the Claude Code CLI
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Validate the manifest and skills
+        run: |
+          claude plugin validate --strict .
+          claude plugin validate --strict .claude-plugin/plugin.json
+          claude plugin validate --strict skills

@@ -506,11 +506,51 @@ times in the 2.0.12-2.0.18 session alone. Five additive changes, none of which c
   `adr-verify <task>` as a non-blocking `systemMessage`. adr-verify is the anti-fabrication
   mechanism; the friction was only ever remembering to call it.
 
+## 16. Nothing ran the checks except a person who remembered to
+
+**Done — `2.1.1`.** There was no `.github` at all: `bash scripts/selftest.sh`, run on a laptop by
+whoever thought of it, was the only thing between a regression and `main`. Coverage had never been
+measured at all.
+
+`.github/workflows/selftest.yml` runs on every push to `main`, every pull request, and on demand:
+
+- **selftest** (ubuntu + macos, blocking) — the project's own check, unchanged.
+- **coverage floor** (ubuntu, blocking) — `scripts/coverage.sh`, a new repository-owned check that
+  measures both surfaces and holds a ratchet. Measured 2026-08-25: JavaScript 92.77% line /
+  84.24% branch / 92.54% functions, Python gates 63%. Floors sit just under (92/83/92 and 62), so a
+  regression fails and an improvement is free. Every failure path was proved: an impossible JS
+  floor exits 1, an impossible Python floor exits 1, and `QUALITY_HARNESS_COVERAGE_STRICT=1` turns
+  an unmeasurable Python surface into a failure rather than a silent pass.
+- **windows** (non-blocking, on purpose) — this is item 6's last bullet finally getting evidence.
+  The gates reach Windows through Git Bash in real use, but the SUITE spawns them by bare name
+  through PATH, which cannot execute a `#!` script natively, so the job is expected red until that
+  is fixed. It is here to produce the observation nobody has ever made, not to gate the branch.
+- **plugin validate** (non-blocking) — establishes whether the Claude Code CLI can validate a
+  manifest without credentials, which had never been checked either way.
+
+Measuring the Python gates needed `COVERAGE_PROCESS_START` plus a `sitecustomize.py` on
+`PYTHONPATH`, because the suite drives every gate as a SUBPROCESS — wrapping one command would have
+measured nothing and reported a number.
+
+`scripts/selftest.sh` no longer assumes the Claude Code CLI is present. Where it is absent the run
+prints `SKIPPED —` and the final line becomes `PARTIAL —` instead of `PASS`; a check that silently
+vanishes is precisely the failure mode this project exists to prevent. `QUALITY_HARNESS_REQUIRE_CLI=1`
+turns the absence into an error for environments that install it on purpose.
+
+A packaging test binds the workflow to the scripts a human runs, so CI cannot drift into decoration:
+renaming or deleting either script, dropping the strict coverage env, or removing the `pull_request`
+trigger fails the suite.
+
+**What this does not cover.** The 16,801 words of skill instructions — the part the model actually
+follows — remain untested by anything. `claude plugin eval` exists and there is no `evals/`
+directory. That is the largest untested surface in the product and it is not a CI problem.
+
 ---
 
 ## Verification claims worth re-running after any of the above
 
-- `bash scripts/selftest.sh` → 71/71, on any branch (item 4) and as evidence (item 6).
+- `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).
+- `bash scripts/coverage.sh` → JS 92.77/84.24/92.54, Python gates 63%, both above their floor.
 - The 8 gates under `PYTHONIOENCODING=cp1252` against `tests/fixtures/ok` → 8/8, and the
   `adr-verify`-written evidence row shows `c2 b7` under `cat -A` / `od` (macOS `cat` has
   no `-A`; use `od -c`).

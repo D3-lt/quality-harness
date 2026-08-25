@@ -152,6 +152,31 @@ test('adr-verify resolves Git Bash on Windows, never the System32 WSL stub', () 
   expectExit(run('python3', ['-c', probe, join(bin, 'adr-verify')]), 0, 'Windows bash resolution')
 })
 
+test('adr-verify names an environment failure without excusing it', () => {
+  // A fence that cannot reach its tools exits non-zero exactly like a fence whose
+  // code is wrong. Reported 2026-08-25: four tasks read as failing implementations
+  // when Docker Desktop's WSL integration was off. The label must appear AND the
+  // failure must survive — an excuse that turned red into green would ship bugs.
+  const probe = [
+    'import runpy, sys',
+    'diagnose = runpy.run_path(sys.argv[1])["environment_failure"]',
+    'bad = []',
+    'wsl = "The command \'docker\' could not be found in this WSL 2 distro."',
+    'bad += [] if diagnose(wsl, "docker compose up") else ["WSL stub unlabelled"]',
+    'daemon = "Cannot connect to the Docker daemon at unix:///var/run/docker.sock"',
+    'bad += [] if diagnose(daemon, "docker ps") else ["dead daemon unlabelled"]',
+    // The missing tool must be the fence's own first word.
+    'bad += [] if diagnose("pytest: command not found", "pytest -q") else ["missing tool unlabelled"]',
+    'bad += [] if diagnose("helper.sh: line 3: jq: command not found", "pytest -q") is None else ["labelled a failure deep inside the script"]',
+    // A real test failure must never be excused.
+    'bad += [] if diagnose("FAILED tests/test_queue.py::test_enqueue - assert 0 == 1", "pytest -q") is None else ["excused a real failure"]',
+    'bad += [] if diagnose("AssertionError: expected 3, got 4", "pytest -q") is None else ["excused an assertion"]',
+    'print("failures:", bad)',
+    'raise SystemExit(1 if bad else 0)',
+  ].join('\n')
+  expectExit(run('python3', ['-c', probe, join(bin, 'adr-verify')]), 0, 'environment diagnosis')
+})
+
 test('code_only keeps Python code between docstrings that mention backticks', () => {
   // This failure mode was silent. Python has no backtick literal, so applying
   // the JavaScript template-literal rule to a .py file paired backticks across

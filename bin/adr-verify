@@ -245,6 +245,44 @@ def bash_or_exit():
     return shell
 
 
+ENVIRONMENT_SIGNATURES = [
+    (r"could not be found in this WSL 2 distro|WSL integration",
+     "the acceptance command ran inside a WSL distro that cannot see the tool. "
+     "Docker Desktop's WSL integration is likely off for that distro "
+     "(Settings -> Resources -> WSL Integration)."),
+    (r"Cannot connect to the Docker daemon|Is the docker daemon running|error during connect",
+     "the Docker daemon was unreachable. Start Docker Desktop, or the engine, and re-run."),
+]
+
+
+def environment_failure(output, cmd):
+    """A machine problem this output is evidence OF, or None. Never a verdict.
+
+    A fence that cannot reach its tools exits non-zero exactly like a fence whose
+    code is wrong, and the Verification Log records both the same way. Measured
+    2026-08-25 on Windows 11: four tasks read as failing implementations when the
+    real cause was Docker Desktop's WSL integration being off. Naming the class
+    costs nothing and removes an hour of looking in the wrong place.
+
+    This only ever ADDS a line. It does not change the exit code, downgrade a
+    failure, or suppress the entry — an environment excuse that could turn red
+    into green would be far worse than the confusion it set out to fix, because
+    it would let genuinely broken code through.
+    """
+    for pattern, explanation in ENVIRONMENT_SIGNATURES:
+        if re.search(pattern, output, re.I):
+            return explanation
+    # `foo: command not found` counts only when `foo` is the fence's own first
+    # word. A tool missing deep inside a script is the task's problem to state.
+    head = (cmd.strip().split() or [""])[0]
+    if head and re.search(
+            r"(?:^|[:\s])%s: (?:command not found|not found)|'%s' is not recognized"
+            % (re.escape(head), re.escape(head)), output, re.I):
+        return (f"`{head}` was not found on PATH for the shell that ran the fence. "
+                f"It may exist in an interactive shell and not in this one.")
+    return None
+
+
 # Cheap, universally-available parsers. A language absent here is simply not
 # syntax-checked — saying so beats inventing a check that needs a toolchain the
 # runner may not have. `.sh` resolves its shell at call time, not import time,
@@ -503,6 +541,13 @@ def main():
         output += ("\n[adr-verify] the acceptance command exited 0 but scored NO tests. "
                    "A filter that matches nothing is not a passing gate — write the tests "
                    "the Tests table names, or fix the filter so it selects them.")
+
+    if code != 0:
+        diagnosis = environment_failure(output, cmd)
+        if diagnosis:
+            output += (f"\n[adr-verify] ENVIRONMENT: {diagnosis}\n"
+                       "             This is a machine problem, not a verdict about the code. "
+                       "The run still counts as failed.")
 
     lines = cmd.splitlines()
     first = lines[0].strip().replace("`", "'") + (" …" if len(lines) > 1 else "")

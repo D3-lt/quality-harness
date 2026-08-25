@@ -752,6 +752,13 @@ const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/
 function hasInterpreterCommand(text) {
   for (const region of shellCommandRegions(text)) {
     for (const segment of shellSegments(region)) {
+      // `python -m unittest discover` is a test run whichever way it is piped.
+      // Reported 2026-08-25: piping one to `tail` disqualified the whole command
+      // as evidence — correct, a pipe hides the exit code — and then the
+      // interpreter rule below recorded it as a MUTATION, so running the project's
+      // own tests raised the evidence bar instead of clearing it. A segment that
+      // matches a validation pattern is not an interpreter mutation.
+      if (VALIDATION_PATTERNS.some(pattern => pattern.test(segment.trim()))) continue
       const invocation = commandInvocation(segment)
       if (!invocation) continue
       if (INTERPRETER_WORD.test(executableName(invocation.words[invocation.index]))) return true

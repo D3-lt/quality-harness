@@ -1179,8 +1179,14 @@ test('a bin/ gate is spawned in a way Windows can actually run', async () => {
   assert.equal(windows.status, 0, windows.stderr)
   assert.ok(JSON.parse(windows.stdout).ready?.length, 'the win32 branch must reach the gate')
 
-  const posix = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], options, 'linux')
-  assert.equal(posix.stdout, windows.stdout, 'both branches must read the same corpus')
+  // The POSIX branch execs the `#!` script itself, which is the thing Windows
+  // cannot do — so comparing the two branches is only meaningful where BOTH can
+  // run. Asserting it unconditionally made this test fail on the one platform it
+  // was written for, which is how it failed on windows-latest in 32884859881.
+  if (process.platform !== 'win32') {
+    const posix = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], options, 'linux')
+    assert.equal(posix.stdout, windows.stdout, 'both branches must read the same corpus')
+  }
 
   // Narrow guard against the exact regression. Exactly one `spawnSync(tool` may
   // exist — spawnGate's own POSIX branch — so a second one means a caller went

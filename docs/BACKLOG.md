@@ -608,10 +608,12 @@ gated. Confirmed locally: `bashMarkdownMutationPaths` returns `[]` for a backsla
 and a path for the same operand with forward slashes. The parser is right — the fixture was
 wrong, and Git Bash takes forward slashes anyway. The fixtures now build bash-shaped paths.
 
-**Where this stands.** Windows went 13 → 4 across `b144d22` and `c89d395`. Both remaining
-causes are addressed above, but *this* change has not been through the Windows job yet —
-that run is the evidence, and this line will say what it found. Drop `continue-on-error`
-from the job only once it is green on its own.
+**Where this stands.** Windows went 13 → 4 → 1 across `b144d22`, `c89d395` and `3949b1b`.
+All three harness failures above are fixed and confirmed on windows-latest. The one
+remaining failure in `32884859881` was the new test itself: it compared the win32 and POSIX
+branches of `spawnGate` unconditionally, and the POSIX branch execs the `#!` script, which
+is the exact thing Windows cannot do. The comparison is POSIX-only now. Drop
+`continue-on-error` from the job once it is green on its own.
 
 ## Verification claims worth re-running after any of the above
 

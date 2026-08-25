@@ -8,13 +8,30 @@ so none was a release blocker; they are the next work.
 Ordering is by user pain, worst first.
 
 **Status 2026-08-25.** Items 2, 3, 5, 7 and 8 landed on `task/post-2.0.4-fixes`; each
-diagnosis is kept below with the commit that closed it. Items 1 and 4 are open, and
-item 6 collects what fixing the others turned up. Items 7 and 8 came from a live 2.0.4
-report against a different repository, not from the release verification.
+diagnosis is kept below with the commit that closed it. Items 7 and 8 came from a live
+2.0.4 report against a different repository, not from the release verification.
+
+**Status 2026-08-25, later.** Items 1 and 4 are now closed, along with item 6's first
+bullet, on `task/branch-independent-lifecycle-tests` (2.0.12-2.0.15). Items 10 and 11 are
+new and closed; item 12 collects what this round turned up and is open. Item 13 came
+from a live report against a 25-ADR corpus, mid-session, and is closed. Item 9's evidence
+half remains deliberately unchanged.
 
 ---
 
 ## 1. Commit gate: one unresolved Bash path bricks committing for the whole session
+
+**Done — `a48c608`.** Neither of the two directions below: the sentinel is now resolved
+against the repository instead of being scoped or aged. An unresolved deletion records
+that something was removed, not what, and Git already knows what — so `runArtifactGates`
+answers it with `git diff --name-only --diff-filter=D HEAD` and gates the paths Git
+reports as missing. A scratch `rm -rf "$d"` leaves the corpus whole and clears; a record
+that really is gone still fails, and now names the file rather than the shell syntax that
+removed it; no repository or no HEAD still fails closed. The required new case is in the
+test, together with the still-blocks case, both against a real Git repository built from
+`tests/fixtures/ok`. Narrowing worth stating: a deletion of an ADR file that was never
+committed no longer raises the sentinel, because archive catalogs govern committed
+records.
 
 **Symptom.** After any Bash mutation whose path the gate cannot resolve (a `$VAR` path, a
 glob, a heredoc-built script under a variable), *every later `git commit` in the session*
@@ -111,6 +128,18 @@ tests cannot see this bug.
 
 ## 4. Self-test is branch-sensitive: fresh clone on `main` fails 1/51
 
+**Done — `0479057`.** The first fix option, generalized: the suite no longer reads the
+host checkout at all. Every lifecycle spawn goes through one `runLifecycleHook()` helper
+that supplies a scratch directory as both the process cwd and the payload cwd — which is
+also the more faithful input, since a production hook payload always carries one. The
+suite was verified twice with identical results, once with the working tree on `main` and
+once on a task branch.
+
+A second bug surfaced while fixing it, and it is the one worth remembering: `commit and
+completion gates fail closed when the transcript is unreadable` **passed** on `main`, from
+the wrong gate. `assert.equal(status, 2)` with no message assertion cannot say which gate
+produced the 2. Those assertions now name their reason.
+
 `scripts/selftest.sh` on a fresh clone (branch `main`) → 50/51: `commit gate recognizes
 Git global options and executable wrappers` gets
 `"git commit would write directly to protected 'main'."` where it expects
@@ -149,11 +178,15 @@ literals.
 None of these blocked the work above, and each is its own decision.
 
 **`bash scripts/selftest.sh` is not accepted as evidence; `./scripts/selftest.sh` is.**
+**Done — `2913b57`.** The first option: a pattern that looks past the shell name at the
+script it runs, with the same authoring-verb exclusions the generic rule already uses, so
+`bash scripts/deploy.sh` and `bash scripts/rewrite-tests.sh` are still not evidence.
+`(?!-)` keeps `bash -n` on its own rule and leaves `bash -c "..."` outside this one.
+
 `VALIDATION_PATTERNS` matches the first word, and the `selftest` pattern needs the
 script's own name there. Running the project's own gate the obvious way therefore leaves
 the commit gate saying "Run the smallest repository-owned test" after a green 54/54 run.
-Hit live twice on 2026-08-25. Either teach the patterns the `bash <validator>` form or say
-in the message which invocations count.
+Hit live twice on 2026-08-25.
 
 **`git fsck 2>&-` classifies as a mutation.** The write-redirect lookahead excludes `&\d`
 and `/dev/null` but not `&-`, so closing a descriptor reads as a write. Same family as
@@ -260,15 +293,131 @@ validation either, which is exactly the `neither` the selftest line already land
 Related to item 6: same family as `bash scripts/selftest.sh` not counting while
 `./scripts/selftest.sh` does. Both make the harness harder to satisfy than its own rules require.
 
+## 10. Set-level record gates blocked at the per-write boundary
+
+**Done — `3b9c44e`.** `adr-lint` and `adr-retire-check` judge a SET — an ADR with its task
+files and index, or an archive catalog with its records — and the PostToolUse dispatcher
+ran them after every single `Write`. Mid-sequence that set is legitimately incomplete, so
+an inherently multi-file edit became unperformable:
+
+```
+Write T1  -> FAIL  Inter-task Contracts row names consuming task T3 but no task file matches it
+Write T2  -> FAIL  tasks: no README.md index
+Write README -> FAIL  ... names consuming task T3 ...
+```
+
+Measured 2026-08-25 against an ADR-028 task set: three consecutive writes, three blocks,
+every finding correct and every moment wrong. The per-file gates are unchanged —
+`spec-verify`, `postmortem-verify` and `arch-lint` judge one artifact on its own and keep
+blocking at the edit. Only the set-level pair moves: at PostToolUse it reports on stdout
+and exits 0; at the commit and completion boundaries, which rerun the same dispatcher, it
+still exits 2. `run-shell-hook.mjs` passes the hook event as the dispatcher's second
+argument, and the polarity is deliberate — only an explicit `PostToolUse` relaxes
+anything, so a caller arriving without an event still blocks.
+
+## 11. The branch guard blocked the escape it demands
+
+**Done — `aaaaf31`.** `git checkout task/work` on a protected branch was refused with
+"Create a task branch first", which is the thing that command does. `protectedBranchException`
+excepted `git switch`, `git checkout -b/-B/--branch/--orphan` and `git merge --ff-only`,
+but not a plain `git checkout <branch>` — the same move as the `switch` already on the
+list. Hit live 2026-08-25 in this repository; only `git switch` got out.
+
+`git checkout <name>` is navigation or a working-tree overwrite depending on what `<name>`
+is, and only the repository knows which, so the guard now asks it
+(`rev-parse --verify refs/heads/<name>`). A pathspec still blocks in all three spellings:
+after `--`, as a second operand, or as a bare name that is not a branch. Tags, remote refs
+and detached commits are unchanged.
+
+## 12. Found while fixing 1, 4, 6, 10 and 11 — not fixed
+
+**A session cannot exercise its own fix to this harness.** The live hooks run
+`${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs`, which resolves to
+`~/.claude/plugins/marketplaces/quality-harness` — a separate clone, on whatever version
+it last pulled. Editing this working tree changes nothing about the gates acting on the
+session doing the editing. On 2026-08-25 that clone sat at 2.0.11 while 2.0.12-2.0.15 were
+being written, so item 1's bug kept blocking every commit in the very session that fixed
+it, and each commit had to be run by the user through the `!` prefix. Nothing here is
+broken, but it is the first thing to know before debugging why a fix "did not take", and
+it means no fix in this repository is ever verified live by the session that wrote it —
+`selftest.sh` plus a negative control against `git show HEAD:` is the available evidence.
+
+**Navigation and fast-forward integration count as edits.** `git checkout main && git
+pull --ff-only` at session start, with nothing authored afterwards, leaves `Stop` asking
+for a validation run. Both are in `isGitMutationCommand`'s mutating set.
+
+This one is a genuine fork, not an oversight, and it should be decided rather than
+patched. Two readings of what the evidence gate asks:
+
+- *"Did this session author something it has not verified?"* Then navigation is not an
+  edit, and a session that only moved between branches owes no evidence.
+- *"Is the green run still about this tree?"* Then both are edits, because after either
+  one the tested tree is not the current tree.
+
+The repository has already chosen the second reading, twice and deliberately:
+`isPotentialMutationCommand('git pull --ff-only') === true` (`tests/lifecycle.test.mjs:93`)
+and the stale-evidence loop at `:576`. Changing it flips a pinned contract, so it wants a
+decision, not a carve-out. The discriminator now exists either way — item 11 built
+`localBranchExists` and the operand/separator split — so the work is small once the
+reading is settled. Cost of the current behaviour is one extra validation run per session
+start.
+
+**Scratchpad writes score as repository mutations.** `cat > /private/tmp/.../scratchpad/commit-msg.txt`
+raises `lastMutation`, so `Stop` demands a repository validation for a file outside any
+repository. Hit repeatedly on 2026-08-25 while writing commit messages for the items
+above. The fix is not small: for a Bash write redirect `mutationPaths` records an opaque
+`<Bash mutation: cmd>` marker rather than a path, so exempting by location needs redirect
+target resolution generalized beyond `bashMarkdownMutationPaths`, plus a rule for what
+counts as scratch (`os.tmpdir()` is the obvious candidate and would misjudge a project
+that lives there). `runArtifactGates` already skips these markers — they are not absolute
+paths — so the damage is confined to the completion nag. Least costly finding here, most
+invasive fix; weigh it against item 12's first bullet before starting.
+
+## 13. The artifact gate's budget was fixed at 10s and no setting could raise it
+
+**Done — `2.0.16`.** Reported 2026-08-25: on a clean 25-ADR corpus every commit was
+refused with
+
+```
+facts-first gate FAILED ... facts-gate-dispatch.sh timed out after 10000ms
+```
+
+and `QUALITY_HARNESS_SHELL_TIMEOUT_MS` changed nothing. It could not:
+`runArtifactGates` built the child's environment as
+`{ ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: '10000' }`, so the hardcoded value
+was written over whatever the operator had set. The outer `spawnSync` kill was a separate
+fixed 15s, so even a raised inner budget would have been cut short at 15s with
+`artifact gate exited null`.
+
+The per-edit boundary was never affected — `hooks.json` gives that path the runner's own
+110s. Only the commit and completion boundaries carried the 10s, which is where a corpus
+large enough to outgrow it does its damage.
+
+The budget now reads the operator's value (same clamp as the runner: 100ms to 110000ms),
+defaults to 30s rather than 10s, and the outer kill is derived from the inner rather than
+fixed. A gate's cost grows with the corpus it reads, so the ceiling has to belong to
+whoever owns the corpus.
+
+A timeout also stopped being reported as a finding about the record. It still blocks — a
+gate that did not finish has not cleared anything — but the message now says the gate
+never read the artifact and names the setting to raise, instead of sending the reader to
+look for a defect in an ADR that is fine. Same rule as item 8's environment labelling:
+name the class, never downgrade the exit code.
+
+Related to item 6's open redirect bullets (`git fsck 2>&-`, `echo x > /dev/null`): three
+false blocks of the same family — the gate refusing work that is not wrong. The
+template-placeholder case is already closed in `facts-gate-dispatch.sh`.
+
 ---
 
 ## Verification claims worth re-running after any of the above
 
-- `./scripts/selftest.sh` → 54/54 (on a task branch until item 4 lands; `bash
-  scripts/selftest.sh` runs the same checks but does not satisfy the commit gate — item 6).
+- `bash scripts/selftest.sh` → 64/64, on any branch (item 4) and as evidence (item 6).
 - The 8 gates under `PYTHONIOENCODING=cp1252` against `tests/fixtures/ok` → 8/8, and the
   `adr-verify`-written evidence row shows `c2 b7` under `cat -A` / `od` (macOS `cat` has
   no `-A`; use `od -c`).
 - Items 1 and 3 both need per-segment / transcript-level tests — their live repros came
   from a session transcript, not from unit inputs, and whole-command tests stay green
   while the bug bites.
+- Nothing in 2.0.12-2.0.15 was verified live, for the reason in item 12: the hooks acting
+  on a session run from a different clone than the one being edited.

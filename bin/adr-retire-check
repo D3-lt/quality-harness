@@ -181,12 +181,31 @@ def decision_unit_files(archive_root, adr_id, source):
     return sorted(files)
 
 
+def canonical_bytes(raw):
+    """Line-ending-independent bytes for hashing.
+
+    Git translates line endings on checkout, so the same committed archive has
+    different bytes on Windows than on macOS. Hashing raw bytes made the seal
+    accuse an untouched decision unit of tampering on the other platform —
+    measured 2026-08-25 on windows-latest, where the fixture's `.txt` attachment
+    came back CRLF and adr-retire-check reported "SHA-256 does not match".
+
+    A line ending is not a decision, so it is normalized away. Everything else
+    still changes the digest, which is the whole point of the seal. Binary
+    content is detected the way git detects it — a NUL byte — and hashed raw, so
+    an image is never silently rewritten before hashing.
+    """
+    if b"\0" in raw:
+        return raw
+    return raw.replace(b"\r\n", b"\n").replace(b"\r", b"\n")
+
+
 def decision_unit_digest(archive_root, adr_id, source):
     digest = hashlib.sha256()
     for path in decision_unit_files(archive_root, adr_id, source):
         digest.update(path.relative_to(archive_root).as_posix().encode())
         digest.update(b"\0")
-        digest.update(path.read_bytes())
+        digest.update(canonical_bytes(path.read_bytes()))
         digest.update(b"\0")
     return digest.hexdigest()
 

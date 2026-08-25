@@ -97,6 +97,39 @@ test('adr-verify executes acceptance and writes digest-bound evidence', () => {
   assert.match(task, /exit 0 .* acceptance-sha256:[0-9a-f]{64}/)
 })
 
+test('the retirement seal survives a checkout that rewrote line endings', () => {
+  // Reproduces, on this platform, what windows-latest reported on 2026-08-25:
+  // git translates line endings on checkout, so an archive sealed here came back
+  // with CRLF there and adr-retire-check accused an untouched decision unit of
+  // tampering. A line ending is not a decision; anything else still is.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-seal-'))
+  const copy = join(temp, 'ok')
+  cpSync(fixture, copy, { recursive: true })
+  const archive = join(copy, 'adr-archive')
+
+  const asCrlf = text => text.replaceAll('\r\n', '\n').replaceAll('\n', '\r\n')
+  for (const name of readdirSync(archive)) {
+    const path = join(archive, name)
+    writeFileSync(path, asCrlf(readFileSync(path, 'utf8')))
+  }
+  expectExit(
+    run('adr-retire-check', ['adr-archive/README.md'], copy),
+    0,
+    'a CRLF checkout is not tampering',
+  )
+
+  // Negative control: the seal must still catch a change that is not a line
+  // ending, or the fix above would have bought portability with blindness.
+  const history = join(archive, 'ADR-001-history.md')
+  writeFileSync(history, `${readFileSync(history, 'utf8')}\r\ntampered\r\n`)
+  expectExit(
+    run('adr-retire-check', ['adr-archive/README.md'], copy),
+    1,
+    'edited content must still break the seal',
+  )
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('every gate names an encoding for child process output', () => {
   // The strict env above only catches sites the fixture run actually reaches;
   // this reaches the rest statically, so a text-mode call added on a path no

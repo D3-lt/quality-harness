@@ -12,6 +12,7 @@ import {
   bashNavigationImpact,
   mutatesOnlyTempPaths,
   projectCheckCommand,
+  budgetExhausted,
   sessionOrientation,
   spawnGate,
   taskBranchSuggestion,
@@ -907,6 +908,19 @@ test('a set-level record gate reports at the edit and blocks at the boundary', a
   assert.match(specEdit.stderr, /facts-first gate FAILED \(spec-verify/)
 })
 
+test('both ways the artifact gate can run out of budget reach the same guidance', () => {
+  // The outer arm is unreachable on a host fast enough for run-shell-hook.mjs to
+  // win the race, which is every POSIX host this suite runs on — so it is asserted
+  // directly. windows-latest reached it in 32885035659 and got a bare
+  // `spawnSync … ETIMEDOUT`: blocking, but naming no way forward.
+  assert.equal(budgetExhausted('quality-harness: facts-gate-dispatch.sh timed out after 100ms'), true)
+  assert.equal(budgetExhausted('spawnSync C:\\…\\node.exe ETIMEDOUT', { code: 'ETIMEDOUT' }), true)
+  // A gate that reached a verdict is not a budget problem, whatever it says.
+  assert.equal(budgetExhausted('ADR-001: Decision section is empty'), false)
+  assert.equal(budgetExhausted('spawnSync node ENOENT', { code: 'ENOENT' }), false)
+  assert.equal(budgetExhausted('the gate timed out', {}), false)
+})
+
 test('the artifact gate budget is raisable, and running out of it names the budget', async () => {
   assert.equal(artifactGateTimeoutMs({}), 30_000)
   assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '45000' }), 45_000)
@@ -932,8 +946,14 @@ test('the artifact gate budget is raisable, and running out of it names the budg
     // The child is given the operator's budget, not a value written over it —
     // the message quotes the number that was set here.
     const starved = runArtifactGates([adr], repo)
-    assert.match(starved, /timed out after 100ms/)
+    // Which layer noticed depends on the host: the runner reports its own timeout
+    // when it outlives the child, and the outer kill margin reports ETIMEDOUT when
+    // it does not. Both are the same budget running out, so both must reach the
+    // guidance below — asserting only the runner's wording passed here and failed
+    // on windows-latest in 32885035659, where the message named no way forward.
+    assert.match(starved, /timed out after 100ms|ETIMEDOUT/)
     assert.match(starved, /budget, not a finding/)
+    assert.match(starved, /QUALITY_HARNESS_SHELL_TIMEOUT_MS/)
     assert.match(starved, /ADR-999-big\.md/)
     // Still blocking: a gate that did not finish has not cleared the record.
     assert.match(starved, /Artifact validation failed/)

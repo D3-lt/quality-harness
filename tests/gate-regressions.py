@@ -48,6 +48,31 @@ def main():
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
     assert digest == lint.acceptance_digest(lint.normalize_acceptance(acceptance))
+    # Three-way, not two: adr-next decides what is DONE from the same digest, so a
+    # third implementation drifting would make it call verified tasks unverified
+    # and hand a session work that is already finished.
+    nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
+    import hashlib as _h
+    assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
+    # And the normalizers themselves must agree, not merely their digests here.
+    for raw in ("  \n printf a\n\n", "printf a\r\nprintf b\r\n", "\n\nprintf a\n\n\n"):
+        assert (verify.normalize_acceptance(raw)
+                == lint.normalize_acceptance(raw)
+                == nxt.normalize_acceptance(raw)), raw
+
+    # is_done's two true arms — the reason a hand-typed `done` cannot make a task
+    # disappear from the ready list.
+    done_digest = _h.sha256(nxt.normalize_acceptance("printf a").encode("utf-8")).hexdigest()
+    entry = f"## Verification Log\n- 2026-08-22 · no-git · exit 0 · `printf a` · acceptance-sha256:{done_digest}\n"
+    assert nxt.is_done(entry, done_digest, False)
+    # A failing run is not done, and neither is evidence for a different fence.
+    failed = entry.replace("exit 0", "exit 1")
+    assert not nxt.is_done(failed, done_digest, False)
+    assert not nxt.is_done(entry, "0" * 64, False)
+    # A human-observed task needs its sign-off, and only that.
+    human = "## Verification Log\n- 2026-08-22 · human-observed · Zy read it end to end\n"
+    assert nxt.is_done(human, None, True)
+    assert not nxt.is_done("## Verification Log\n", None, True)
     current = (
         "- 2026-08-22 · no-git · exit 0 · `printf first …` · "
         f"acceptance-sha256:{digest}"

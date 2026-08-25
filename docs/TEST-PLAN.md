@@ -163,6 +163,30 @@ passing one, so a mistake in fixture construction cannot make the whole row vacu
 
 ---
 
+# Wave 3 — the gates whose engines have never run — **DONE**
+
+**Landed across `ac76631` and follow-up. Every rule asserted with a case that makes it
+fire, against a positive control asserted first, and every rule then disabled in turn and
+confirmed red — 31 controls, all RED.**
+
+Python gate coverage 68% → **78%**, and no gate is below 69% any more:
+`adr-debt` 57→80, `arch-lint` 67→81, `adr-lint` 69→83, `postmortem-verify` 78→94,
+`spec-verify` 65→69, `adr-next` 66→69, `adr-retire-check` 67→70.
+
+Three things worth carrying forward rather than smoothing over:
+
+- **`selected_by_filter` treats pytest's `-k 'a and b'` as `or`.** It over-selects, so the
+  gate misses a named test the fence would not actually run. The function's stated policy is
+  that a false alarm costs more than a hole, because people skip a noisy gate. Asserted
+  as-is so it is a decision rather than a surprise.
+- **A catalog row whose label is not an ADR id does NOT drop that record's seal** — the id
+  is recovered from the link target. Asserted as a property, because the opposite is exactly
+  how the `done` check came to apply to nothing (item 18).
+- **Two of these tests initially asserted nothing**, and only the negative control said so:
+  an `arch-lint` table under a heading that is not one of `RULE_SECTIONS` is never read, and
+  a check cell written as `probe.py::test_x` parses as neither a path nor a symbol. Both
+  passed happily while testing nothing at all.
+
 # Wave 3 — the gates whose engines have never run (~18 rows)
 
 Grouped by gate, ordered by what a silent regression costs.

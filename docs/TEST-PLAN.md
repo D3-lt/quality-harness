@@ -58,8 +58,16 @@ premises this plan would otherwise assume are claims, not results:
   or for some other reason?
 - **Does `claude plugin validate` work unauthenticated?** This one gates Wave 4.
 
-Action: `git push origin main`, read all four job results, record them in `docs/BACKLOG.md`
-item 16. Do not start Wave 4 before the `plugin-validate` job has reported.
+**Done — run `32882955305`, 2026-08-25.** ubuntu and macOS green at 73/73; the coverage
+floor holds under `STRICT=1`; and `claude plugin validate --strict` **passes with no
+credentials**, so Wave 4 is CI-buildable and that job is blocking now.
+
+The Windows prediction was **wrong**, and usefully so. The job was red for 13 tests, and
+the causes were defects in the SUITE — bare-name gate spawns, `split("/")` against a `D:\…`
+path, POSIX permission bits a Git for Windows checkout does not have, a POSIX path literal,
+and a CRLF checkout breaking a multi-line `SKILL.md` regex. All are fixed. Until that fix
+had landed the job was measuring itself, which is why the note below about the 7
+UNREACHABLE-HERE regions being "the Windows job's job" only becomes true now.
 
 ---
 
@@ -168,12 +176,9 @@ Grouped by gate, ordered by what a silent regression costs.
 coverage — `tests/skill-metadata.test.mjs` checks frontmatter, not conduct. `claude plugin
 eval` exists for exactly this.
 
-Do not start until the `plugin-validate` CI job has reported. Its outcome decides the shape:
-
-- **Green (CLI works unauthenticated)** → an `evals/` suite runs in CI; drop
-  `continue-on-error` from that job and set `QUALITY_HARNESS_REQUIRE_CLI=1` on `selftest`.
-- **Red (credentials required)** → `evals/` is a local-only target invoked by a documented
-  `npm run eval`, and `selftest.sh` keeps reporting `PARTIAL —` in CI rather than pretending.
+**Answered: green.** `claude plugin validate --strict` passes unauthenticated, so an
+`evals/` suite can run in CI. `continue-on-error` is already dropped from that job and
+`QUALITY_HARNESS_REQUIRE_CLI=1` is set on `selftest`.
 
 First three evals, in priority order, because they encode the premise the user built this
 for — *the model does not get to say it is done*:

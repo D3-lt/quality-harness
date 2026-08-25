@@ -1,3 +1,4 @@
 *.sh text eol=lf
+*.md text eol=lf
 *.mjs text eol=lf
 bin/* text eol=lf

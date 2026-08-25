@@ -7,9 +7,10 @@ so none was a release blocker; they are the next work.
 
 Ordering is by user pain, worst first.
 
-**Status 2026-08-25.** Items 2, 3 and 5 landed on `task/post-2.0.4-fixes`; each
+**Status 2026-08-25.** Items 2, 3, 5, 7 and 8 landed on `task/post-2.0.4-fixes`; each
 diagnosis is kept below with the commit that closed it. Items 1 and 4 are open, and
-item 6 collects what fixing the others turned up.
+item 6 collects what fixing the others turned up. Items 7 and 8 came from a live 2.0.4
+report against a different repository, not from the release verification.
 
 ---
 
@@ -173,6 +174,55 @@ the strict flags run with no exception at all, which is the only reason to bothe
 native Windows, and every Python probe hardcodes `python3`. The gates themselves reach
 Windows through Git Bash, so this may only affect the test suite — but nothing here has
 been executed on Windows, and no fix above changed that either way.
+
+## 7. A `python`/`node`/`ruby` in a *filename* made reads look like interpreter runs
+
+**Done — `82f4758`.** Reported live from `C:\Projects\blueprints` on 2.0.4, Windows.
+`interpreterCommandLooksMutating` tested `INTERPRETER_WORD` against the whole command, so
+with a record named `docs/adr/0015-rq-for-queued-work-in-both-python-stacks.md`, every
+`cat`, `grep` and `head` of that file classified as a python run:
+
+```
+mutation=Y  cat docs/adr/0015-rq-for-queued-work-in-both-python-stacks.md
+mutation=Y  cat docs/adr/0015-rq-for-queued-work-in-both-ruby-stacks.md
+mutation=n  cat docs/adr/0015-rq-for-queued-work-in-both-go-stacks.md
+```
+
+Each read advanced the mutation cursor and pushed the record's path into
+`mutationPaths`, so reading a record gated it and reported it as changed while `git diff`
+showed it untouched. Repo-name-dependent, therefore invisible until someone names a file
+after a language. The command word is now resolved per region and per segment through the
+existing `commandInvocation`, so wrappers and leading assignments are still followed and
+`bash -c "python rewrite.py"` and `$(python rewrite.py)` still count.
+
+## 8. A newline made the project's own gate stop counting as evidence
+
+**Done — `6962cc7`.** Same report. `isValidationCommand` rejected any command containing a
+newline, so the ordinary shape — tool path on line 1, gate on line 2 — produced no
+evidence:
+
+```
+validation=n  P=~/.claude/…/bin ⏎ "$P/adr-lint" docs/adr/0015-….md
+validation=Y  "$P/adr-lint" docs/adr/0015-….md
+```
+
+The user ran the bundled `adr-lint`, it passed, and `Stop` kept answering "Run the
+smallest repository-owned test". Lines are now judged individually: assignment-only and
+`cd` lines carry no verdict, every other line must be a validation, and the character
+guard still applies to the whole command — so a mutation above a test cannot launder
+itself and a heredoc body cannot pass.
+
+Together items 7 and 8 account for most of the reported loop: reads of the language-named
+record kept re-arming `lastMutation` while the only validation run was invisible.
+Reproduced end to end from a synthetic transcript of that session shape —
+`verifiedAfterLastMutation` false before, true after, with the phantom
+`<Bash mutation: …>` markers gone.
+
+**Not attributed.** One marker in the report was a `grep` naming only
+`0010-the-flask-stack-renders-screens.md`, and that command classifies as read-only both
+before and after item 7. Marker text is cut at 120 characters, so whatever made it a
+mutation sits in the tail nobody can see. Probably the same class if the tail named a
+language path, but that was not verified — if the loop survives 2.0.5, start there.
 
 ---
 

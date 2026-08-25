@@ -21,6 +21,7 @@ import {
   resolveBashExecutable,
   runWithTimeout,
   shellHookTimeoutMs,
+  shellRuntimeCrashed,
 } from '../scripts/run-shell-hook.mjs'
 
 const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -473,6 +474,27 @@ test('shell-hook runner honors Claude Code Git Bash configuration on Windows', (
     LOCALAPPDATA: 'C:\\Users\\missing\\AppData\\Local',
   }, () => false), null)
   assert.equal(resolveBashExecutable('linux', { CLAUDE_CODE_GIT_BASH_PATH: configured }), 'bash')
+})
+
+test('a shell that aborts cannot report a clean gate', async () => {
+  // Reported 2026-08-25 on Windows 11: the MSYS runtime died in add_item, bash
+  // exited 0 anyway, and four PostToolUse:Edit gates were recorded as passing
+  // without ever running. The exit code alone cannot be trusted here.
+  const banner = '      2 [main] bash (46688) C:\\…\\usr\\bin\\bash.exe: '
+    + '*** fatal error - add_item ("\\??\\C:\\Users\\x", "/", ...) failed'
+  assert.equal(shellRuntimeCrashed(banner), true)
+
+  // A real shell producing that banner on stderr while exiting 0 is the case
+  // that matters, so drive it through the actual runner rather than a string.
+  const crash = await runWithTimeout('bash', ['-c', `printf '%s\\n' ${JSON.stringify(banner)} >&2; exit 0`])
+  assert.equal(crash.status, 0)
+  assert.equal(shellRuntimeCrashed(crash.stderr), true)
+
+  // Gate findings must stay clean: a gate is allowed to say "fatal error".
+  assert.equal(shellRuntimeCrashed('facts-first gate FAILED: fatal error in the spec'), false)
+  assert.equal(shellRuntimeCrashed('*** fatal error - quoted inside a report'), false)
+  assert.equal(shellRuntimeCrashed(''), false)
+  assert.equal(shellRuntimeCrashed(undefined), false)
 })
 
 test('shell-hook timeout stays below its host deadline and kills the process tree', async () => {

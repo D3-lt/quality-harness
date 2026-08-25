@@ -72,7 +72,7 @@ jobs:
         run: bash scripts/coverage.sh
 
   windows:
-    name: windows (informational — BACKLOG item 6)
+    name: windows
     runs-on: windows-latest
     # Blocking since 2026-08-25 (run 32885379301), the first green Windows run
     # this project has ever had. It went 13 -> 4 -> 1 -> 0 failures: most were

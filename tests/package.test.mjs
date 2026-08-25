@@ -67,7 +67,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.1.0')
+  assert.equal(manifest.version, '2.1.1')
   assert.equal(manifest.license, 'MIT')
   assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
 
@@ -87,4 +87,29 @@ test('manifest and hook configuration expose the bundled components', () => {
   assert.match(codexReview, /advertise `review \[OPTIONS\] \[PROMPT\]`[\s\S]*reject an actual selector-plus-prompt/)
   assert.match(codexReview, /exec <optional-ignore-user-config>[\s\S]*-o "<absolute-unique-output>" \\\n\s+"CODEX-REVIEW-LEAF:/)
   assert.doesNotMatch(codexReview, /\n\s+review <--uncommitted\|--commit SHA\|--base REF>/)
+})
+
+test('continuous integration runs the checks this repository owns', () => {
+  // A CI file that drifts away from the project's own gate is decoration. These
+  // assertions bind the workflow to the scripts a human runs, so deleting or
+  // renaming either breaks the suite rather than quietly un-gating the branch.
+  const workflow = readFileSync(join(root, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  assert.match(workflow, /bash scripts\/selftest\.sh/)
+  assert.match(workflow, /bash scripts\/coverage\.sh/)
+  assert.match(workflow, /QUALITY_HARNESS_COVERAGE_STRICT: '1'/)
+  // Pull requests must be covered; a workflow that only runs on push to main
+  // reports regressions after they land.
+  assert.match(workflow, /^\s{2}pull_request:/m)
+
+  for (const script of ['selftest.sh', 'coverage.sh']) {
+    const path = join(root, 'scripts', script)
+    assert.ok(statSync(path).isFile(), script)
+    assert.notEqual(statSync(path).mode & 0o111, 0, `${script} must be executable`)
+  }
+
+  // The self-test must not report a clean run when a check it names was
+  // skipped — the verdict line carries the distinction.
+  const selftest = readFileSync(join(root, 'scripts', 'selftest.sh'), 'utf8')
+  assert.match(selftest, /SKIPPED —/)
+  assert.match(selftest, /PARTIAL —/)
 })

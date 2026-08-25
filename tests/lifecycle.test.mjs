@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cp, mkdir, mkdtemp, readdir, rm, symlink, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -13,6 +13,7 @@ import {
   mutatesOnlyTempPaths,
   projectCheckCommand,
   sessionOrientation,
+  spawnGate,
   taskBranchSuggestion,
   bashMarkdownMutationPaths,
   branchViolation,
@@ -58,6 +59,12 @@ function toolResult(id, isError = false, content = 'ok') {
 // their interpreter — so naming python3 here is what lets this suite measure the
 // GATE on Windows rather than measuring the shebang. On POSIX the shebang is
 // real and stays under test.
+// A Bash command is a shell string: `\` is an escape there, so interpolating a
+// native Windows path into one produces a command whose operand the gate cannot
+// see, and the artifact is never gated. Git Bash takes forward slashes, and so
+// does every real Bash tool invocation on Windows.
+const bashPath = value => value.replaceAll('\\', '/')
+
 function runGate(gatePath, args, options = {}) {
   const [file, argv] = process.platform === 'win32'
     ? ['python3', [gatePath, ...args]]
@@ -774,7 +781,7 @@ test('an invalid Markdown artifact written through Bash is still gated', async (
   const file = path.join(dir, 'agent.jsonl')
   await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
   await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `printf content > "${artifact}"` }), toolResult('b1'),
+    toolUse('b1', 'Bash', { command: `printf content > "${bashPath(artifact)}"` }), toolResult('b1'),
     toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
@@ -790,7 +797,7 @@ test('globbed Markdown Bash mutations gate the files that actually exist without
   await mkdir(specs, { recursive: true })
   await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
   await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `sed -i '' "${specs}/*.md"` }), toolResult('b1'),
+    toolUse('b1', 'Bash', { command: `sed -i '' "${bashPath(specs)}/*.md"` }), toolResult('b1'),
     toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
@@ -1154,6 +1161,33 @@ test('a refusal carries the command that resolves it', async () => {
   assert.match(branchViolation({
     tool_name: 'Bash', cwd: repo, tool_input: { command: 'git merge topic' },
   }), /--ff-only/)
+})
+
+test('a bin/ gate is spawned in a way Windows can actually run', async () => {
+  // The gates are `#!` scripts, which Windows cannot exec: a direct spawn returns
+  // status null, and readyTaskLines' `continue` turned that into a silently empty
+  // session orientation on every Windows session. Exercise the win32 branch HERE
+  // by asking for it explicitly — the interpreter it names works on this platform
+  // too, so the branch is testable without a Windows box.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-spawn-gate-'))
+  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks'),
+    path.join(repo, 'tasks'), { recursive: true })
+  const tool = path.join(pluginDir, 'bin', 'adr-next')
+  const options = { encoding: 'utf8', timeout: 10_000 }
+
+  const windows = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], options, 'win32')
+  assert.equal(windows.status, 0, windows.stderr)
+  assert.ok(JSON.parse(windows.stdout).ready?.length, 'the win32 branch must reach the gate')
+
+  const posix = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], options, 'linux')
+  assert.equal(posix.stdout, windows.stdout, 'both branches must read the same corpus')
+
+  // Narrow guard against the exact regression. Exactly one `spawnSync(tool` may
+  // exist — spawnGate's own POSIX branch — so a second one means a caller went
+  // back to spawning a `#!` gate directly.
+  const source = await readFile(path.join(pluginDir, 'scripts', 'lifecycle.mjs'), 'utf8')
+  assert.equal((source.match(/spawnSync\(tool\b/g) ?? []).length, 1,
+    'a bin/ gate must be spawned through spawnGate, which names the interpreter on Windows')
 })
 
 test('session orientation states this project, and only this project', async () => {

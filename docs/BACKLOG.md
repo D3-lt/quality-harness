@@ -1,0 +1,130 @@
+# Backlog — after v2.0.4
+
+Findings from the independent verification of the v2.0.4 release (macOS, 2026-08-25).
+All release claims reproduced (self-test 51/51; forced-cp1252 gates 8/8; D5 rejection
+red-proved at 48/51). Every item below is **pre-existing** — each reproduces on 2.0.0 —
+so none was a release blocker; they are the next work.
+
+Ordering is by user pain, worst first.
+
+---
+
+## 1. Commit gate: one unresolved Bash path bricks committing for the whole session
+
+**Symptom.** After any Bash mutation whose path the gate cannot resolve (a `$VAR` path, a
+glob, a heredoc-built script under a variable), *every later `git commit` in the session*
+is refused with:
+
+```
+Artifact validation failed:
+A Bash deletion used an unresolved path; the facts-first gate cannot determine whether an ADR archive was removed. Use an explicit path.
+```
+
+No later action clears it — the markers live in transcript history and
+`analyzeTranscript` accumulates `mutationPaths` over the **entire** transcript. A passing
+bare validation immediately before the commit does not help, because `runArtifactGates`
+runs on the unresolved markers before the evidence check. Hit live twice on 2026-08-25:
+scratch commands `rm -rf "$SC/qh-d5"` and `bash "$SC/cp1252-gates.sh"` (in a session-temp
+dir, nowhere near any ADR) made an unrelated `git commit` in `~/.claude/skills`
+un-committable for the rest of the session.
+
+**Why it exists.** v2.0.3 made `Stop` lightweight, but the PreToolUse commit gate and
+`TaskCompleted`/`SubagentStop` still feed the full-transcript `mutationPaths` into
+`runArtifactGates`. The general fix (narrow to paths mutated after the last green
+validation) was proposed as D5 and correctly rejected — it breaks the three strict-gate
+regressions (`Stop stays Node-only…`, `an invalid Markdown artifact written through Bash
+is still gated`, `globbed Markdown Bash mutations…`), because narrowing lets a validation
+that never looked at the artifact launder a bad Markdown write.
+
+**Direction.** Keep strictness for *resolved* paths (they must pass their artifact gate —
+that is the point). For *unresolved markers only*, scope by staleness or by reachability:
+e.g. an unresolved marker older than the last successful validation AND not repeated
+since could downgrade to a warning, or unresolved markers could carry the originating
+command's cwd so markers rooted outside the repo being committed to are ignored. Any fix
+must keep the three regression tests above green and add a new one: *a session-temp
+unresolved deletion must not block a later commit in an unrelated repo*.
+
+## 2. Encoding: 13 `subprocess(text=True)` sites still decode with the locale codepage
+
+"All Python gates use explicit UTF-8 I/O" is true for file and stdio I/O only. Child
+process output is still decoded with the platform default (ANSI codepage on Windows):
+
+```
+bin/adr-verify:236,264,269,334,420
+bin/spec-verify:79,347,357,397
+bin/adr-lint:106   bin/adr-debt:60   bin/arch-lint:79
+```
+
+Worst sites are `adr-verify:334,420` (the acceptance command — its output feeds the
+evidence log) and `spec-verify:347,357,397` (test-suite runs). Under cp1252, `·`/`—` in
+child output become `Â·`/`â€”` (mojibake into evidence), and bytes 0x81/0x8D/0x8F/0x90/0x9D
+raise `UnicodeDecodeError` — the gate crashes instead of judging. Same D1 class the
+release closed elsewhere.
+
+**Fix.** Mechanical: add `encoding="utf-8", errors="replace"` to each call. Also
+`scripts/selftest.sh:12` (`read_text()` without `encoding=`, currently harmless).
+
+**Red proof / detector.** Run the gates with
+`PYTHONWARNDEFAULTENCODING=1 PYTHONWARNINGS=error::EncodingWarning` — today `adr-verify`
+crashes at line 420 and the rest pass only because their subprocess calls are git
+plumbing; after the fix all 8 pass under those flags. Add that env combination to the
+self-test so the class cannot regress.
+
+## 3. Branch guard false positives: `shellSegments` splits `2>&1` on the bare `&`
+
+`shellSegments` treats a single `&` as a separator, so `… 2>&1 | head` becomes segments
+`… 2>` + `1` + `head`. The truncated first segment ends in a redirect, matches the
+redirect rule in `isPotentialMutationCommand`, and `branchViolation` then blocks
+**read-only** commands whenever the session cwd (or `git -C` target) sits on
+`main`/`master`:
+
+```
+CMD  git ls-remote --heads --tags https://…/repo.git 2>&1 | head -20
+ seg "git ls-remote … .git 2>"  → mutation: true      ← parse artifact
+```
+
+Reproduced live for `git ls-remote`, `curl … 2>&1 | head`, and `gh release list`.
+`analyzeTranscript` is unaffected (it classifies whole commands); only the per-segment
+branch guard mis-fires.
+
+**Fix.** Treat `>&N` / `N>&M` as part of the redirect token, not a segment boundary
+(`&` splitting is not `&&` splitting). Test the guard **per-segment** — whole-command
+tests cannot see this bug.
+
+## 4. Self-test is branch-sensitive: fresh clone on `main` fails 1/51
+
+`scripts/selftest.sh` on a fresh clone (branch `main`) → 50/51: `commit gate recognizes
+Git global options and executable wrappers` gets
+`"git commit would write directly to protected 'main'."` where it expects
+`/refusing git commit\/push/`. On any task branch → 51/51. So the released "51/51" holds,
+but the first thing a new contributor runs is red.
+
+**Fix options.** Have the test fixture commit inside its own temp repo on a task branch
+(so the host repo's branch is irrelevant), or make the expectation accept the
+branch-guard message when the *host* worktree is protected. Either way, add
+"self-test passes on a fresh clone of `main`" as an explicit case.
+
+## 5. D2 part 1 (`code_only` docstring/backtick fix) has no test
+
+`grep -rn code_only tests/` → nothing; `tests/gates.test.mjs` pins only
+`test_body(python=True)` (async). The docstring fix's failure mode was **silent** — the
+JS template-literal rule paired backticks across Python docstring boundaries, deleted
+~75% of a real file, and reported correct tests as missing. Exactly the class the
+project's own vacuous-gate doctrine requires a can-go-red check for.
+
+**Fix.** A `runpy`-probe test like the existing async one: feed `code_only(python=True)` a
+source whose docstrings contain unbalanced backticks and assert the assertions *after*
+the docstrings survive; and a negative twin asserting the JS path still strips template
+literals.
+
+---
+
+## Verification claims worth re-running after any of the above
+
+- `scripts/selftest.sh` → 51/51 (on a task branch until item 4 lands).
+- The 8 gates under `PYTHONIOENCODING=cp1252` against `tests/fixtures/ok` → 8/8, and the
+  `adr-verify`-written evidence row shows `c2 b7` under `cat -A` / `od` (macOS `cat` has
+  no `-A`; use `od -c`).
+- Items 1 and 3 both need per-segment / transcript-level tests — their live repros came
+  from a session transcript, not from unit inputs, and whole-command tests stay green
+  while the bug bites.

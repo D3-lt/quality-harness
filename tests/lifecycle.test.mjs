@@ -11,6 +11,9 @@ import {
   bashDeletionMutationPaths,
   bashNavigationImpact,
   mutatesOnlyTempPaths,
+  projectCheckCommand,
+  sessionOrientation,
+  taskBranchSuggestion,
   bashMarkdownMutationPaths,
   branchViolation,
   isGitPublishCommand,
@@ -1059,4 +1062,152 @@ test('a commit cannot launder an unresolved deletion, and the gate window fails 
   const exhausted = runArtifactGates([adr], repo, 500)
   assert.match(exhausted, /window was exhausted before/)
   assert.match(exhausted, /Artifact validation failed/)
+})
+
+test('the gate names the check this project owns instead of asking for one', async () => {
+  // The harness's own repository names its check in a script.
+  assert.equal(projectCheckCommand(pluginDir), 'bash scripts/selftest.sh')
+
+  // A package manifest is read for a real script, in lock-file order.
+  const node = await mkdtemp(path.join(testTmp, 'quality-check-node-'))
+  await writeFile(path.join(node, 'package.json'),
+    JSON.stringify({ scripts: { build: 'tsc', test: 'vitest run' } }))
+  assert.equal(projectCheckCommand(node), 'npm run test')
+  await writeFile(path.join(node, 'pnpm-lock.yaml'), '')
+  assert.equal(projectCheckCommand(node), 'pnpm test')
+
+  // An empty or absent scripts block names nothing rather than guessing.
+  const bare = await mkdtemp(path.join(testTmp, 'quality-check-bare-'))
+  await writeFile(path.join(bare, 'package.json'), JSON.stringify({ name: 'x' }))
+  assert.equal(projectCheckCommand(bare), null)
+
+  const make = await mkdtemp(path.join(testTmp, 'quality-check-make-'))
+  await writeFile(path.join(make, 'Makefile'), 'all:\n\techo hi\ncheck:\n\techo ok\n')
+  assert.equal(projectCheckCommand(make), 'make check')
+
+  // Whatever is offered must be something the evidence rule actually accepts —
+  // naming a command the gate would then refuse is worse than naming none.
+  for (const command of ['bash scripts/selftest.sh', 'npm run test', 'pnpm test', 'make check',
+    'cargo test', 'go test ./...', 'pytest']) {
+    assert.equal(isValidationCommand(command), true, command)
+  }
+
+  // And the blocking message carries it. The fixture repo sits on a task branch
+  // with its own manifest, so this reads the project under test rather than the
+  // host checkout — the trap that made this suite branch-sensitive before.
+  spawnSync('git', ['init', '-q', '-b', 'task/work', node], { encoding: 'utf8' })
+  const file = path.join(node, 'main.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(node, 'a.ts') }), toolResult('e1'),
+  ]))
+  const run = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: node,
+  })
+  assert.equal(run.status, 2)
+  assert.match(run.stderr, /Run `pnpm test` \(this project's own check\)/)
+})
+
+test('a refusal carries the command that resolves it', async () => {
+  const repo = await mkdtemp(path.join(testTmp, 'quality-remedy-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
+  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  git('add', '-A')
+  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
+
+  // The escape has to be a command the guard itself permits, or the block is a
+  // dead end: `git checkout <new>` is not, `git switch -c` is.
+  const suggestion = taskBranchSuggestion(repo)
+  assert.match(suggestion, /^git switch -c task\//)
+  assert.equal(branchViolation({
+    tool_name: 'Bash', cwd: repo, tool_input: { command: suggestion },
+  }), null)
+
+  assert.match(branchViolation({
+    tool_name: 'Write', cwd: repo, tool_input: { file_path: path.join(repo, 'new.txt') },
+  }), /git switch -c task\//)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: repo, tool_input: { command: 'git commit -m test' },
+  }), /git switch -c task\//)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: repo, tool_input: { command: 'git merge topic' },
+  }), /--ff-only/)
+})
+
+test('session orientation states this project, and only this project', async () => {
+  // Everything it says is established from the repository in front of it.
+  const here = sessionOrientation(pluginDir)
+  assert.match(here, /bash scripts\/selftest\.sh/)
+
+  const repo = await mkdtemp(path.join(testTmp, 'quality-orientation-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  await writeFile(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'vitest' } }))
+  const onMain = sessionOrientation(repo)
+  assert.match(onMain, /npm run test/)
+  assert.match(onMain, /protected 'main'/)
+  assert.match(onMain, /git switch -c task\//)
+  // The escape it advertises must actually be allowed.
+  const advertised = /`(git switch -c task\/[^`]+)`/.exec(onMain)[1]
+  assert.equal(branchViolation({ tool_name: 'Bash', cwd: repo, tool_input: { command: advertised } }), null)
+
+  spawnSync('git', ['-C', repo, 'switch', '-q', '-c', 'task/work'], { encoding: 'utf8' })
+  assert.doesNotMatch(sessionOrientation(repo), /protected/)
+
+  // A directory that is not a repository gets no ADR reading at all: a shared
+  // temp directory once yielded another project's tasks, and work from another
+  // codebase must never be offered to a session that was not opened on it.
+  const loose = await mkdtemp(path.join(testTmp, 'quality-orientation-loose-'))
+  await mkdir(path.join(loose, 'docs', 'tasks'), { recursive: true })
+  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+    path.join(loose, 'docs', 'tasks', 'T1-fixture.md'))
+  assert.doesNotMatch(sessionOrientation(loose), /ADR tasks in flight/)
+
+  // Inside a repository the same records are read.
+  spawnSync('git', ['init', '-q', '-b', 'task/work', loose], { encoding: 'utf8' })
+  assert.match(sessionOrientation(loose), /ADR tasks in flight/)
+
+  // The hook itself is additive: it never blocks and never exits non-zero.
+  const run = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: pluginDir })
+  assert.equal(run.status, 0, run.stderr)
+  const emitted = JSON.parse(run.stdout)
+  assert.equal(emitted.hookSpecificOutput.hookEventName, 'SessionStart')
+  assert.doesNotMatch(run.stdout, /"decision"/)
+})
+
+test('adr-next reads the task files, not the index that describes them', async () => {
+  const repo = await mkdtemp(path.join(testTmp, 'quality-adr-next-'))
+  const tasks = path.join(repo, 'tasks')
+  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks'), tasks, { recursive: true })
+  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md'),
+    path.join(repo, 'ADR-001-selftest.md'))
+
+  const next = (...args) => spawnSync(path.join(pluginDir, 'bin', 'adr-next'), args, { encoding: 'utf8' })
+  const first = next(path.join(repo, 'ADR-001-selftest.md'))
+  assert.equal(first.status, 0, first.stderr)
+  assert.match(first.stdout, /Next: T1/)
+  // The hint skips shell preamble: `set -e` is not what proves the task.
+  assert.match(first.stdout, /acceptance: adr-lint/)
+  assert.match(first.stdout, /prove it:\s+adr-verify/)
+
+  // A second task that depends on the first is blocked until T1 has evidence.
+  const t1 = await readdir(tasks)
+  assert.ok(t1.includes('T1-fixture.md'))
+  const t2 = (await import('node:fs/promises')).readFile
+  const body = await t2(path.join(tasks, 'T1-fixture.md'), 'utf8')
+  await writeFile(path.join(tasks, 'T2-second.md'),
+    body.replace(/^# .*$/m, '# Task ADR-001-T2: Second').replace(/^\*\*Depends-on:\*\* .*$/m, '**Depends-on:** T1'))
+  const blocked = next(tasks, '--json')
+  const report = JSON.parse(blocked.stdout)
+  assert.deepEqual(report.ready.map(task => task.id), ['T1'])
+  assert.deepEqual(report.blocked.map(task => task.id), ['T2'])
+  assert.deepEqual(report.blocked[0].blocked_by, ['T1'])
+
+  // A README claiming everything is done cannot make a task disappear: only a
+  // tool-written exit-0 entry whose digest matches the Acceptance counts.
+  await writeFile(path.join(tasks, 'README.md'),
+    '# Tasks\n\n| Order | Task | Depends-on |\n|---|---|---|\n| 1 | T1 done | none |\n| 2 | T2 done | T1 |\n')
+  const stillReady = JSON.parse(next(tasks, '--json').stdout)
+  assert.deepEqual(stillReady.ready.map(task => task.id), ['T1'])
+  assert.deepEqual(stillReady.done, [])
 })

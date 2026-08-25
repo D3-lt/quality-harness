@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 
 import { readFile } from 'node:fs/promises'
+import { readFileSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs'
 import os from 'node:os'
@@ -696,6 +697,17 @@ function protectedBranchException(command, directory) {
   return (subcommand === 'merge' || subcommand === 'pull') && args.includes('--ff-only')
 }
 
+// The one command that resolves a protected-branch block. Naming it is the
+// difference between a rule and an instruction: this session spent four turns
+// discovering that `git switch` was allowed where `git checkout` was not.
+export function taskBranchSuggestion(directory) {
+  const run = spawnSync('git', ['-C', directory ?? '.', 'rev-parse', '--short', 'HEAD'], {
+    encoding: 'utf8', timeout: 5_000,
+  })
+  const slug = run.status === 0 && run.stdout.trim() ? run.stdout.trim() : 'work'
+  return `git switch -c task/${slug}`
+}
+
 export function branchViolation(input) {
   const tool = input.tool_name
   const cwd = typeof input.cwd === 'string' && path.isAbsolute(input.cwd) ? input.cwd : process.cwd()
@@ -703,7 +715,8 @@ export function branchViolation(input) {
     const target = resolveToolPath(input.tool_input?.file_path ?? input.tool_input?.notebook_path, cwd)
     const branch = target && gitBranch(target)
     return protectedBranch(branch)
-      ? `${tool} would mutate a file in a protected '${branch}' worktree. Create a task branch first.`
+      ? `${tool} would mutate a file in a protected '${branch}' worktree. `
+        + `Create a task branch first: ${taskBranchSuggestion(nearestExistingDirectory(target))}`
       : null
   }
   if (tool !== 'Bash' || typeof input.tool_input?.command !== 'string') return null
@@ -718,13 +731,17 @@ export function branchViolation(input) {
           || protectedBranchException(segment, directory)
           || mutatesOnlyTempPaths(segment, directory)) continue
       const subcommand = gitSubcommand(segment)
+      const escape = taskBranchSuggestion(nearestExistingDirectory(directory))
       if (subcommand === 'commit') {
-        return `git commit would write directly to protected '${addressedBranch}'. Create a task branch first.`
+        return `git commit would write directly to protected '${addressedBranch}'. `
+          + `Create a task branch first: ${escape}`
       }
       if (subcommand === 'merge') {
-        return `git merge without --ff-only is blocked on protected '${addressedBranch}'.`
+        return `git merge without --ff-only is blocked on protected '${addressedBranch}'. `
+          + 'Use `git merge --ff-only <branch>`, or merge from a task branch.'
       }
-      return `Bash would mutate files in protected '${addressedBranch}'. Create a task branch first.`
+      return `Bash would mutate files in protected '${addressedBranch}'. `
+        + `Create a task branch first: ${escape}`
     }
   }
   return null
@@ -1412,11 +1429,107 @@ async function readTranscript(input) {
   }
 }
 
-function missingEvidenceReason(state) {
+// Discovery, in the order a person would try: the repository's own script, then
+// its package manifest, then its build file, then the language's default. Only
+// commands VALIDATION_PATTERNS already accepts as evidence are offered — telling
+// someone to run something the gate would then refuse is worse than saying
+// nothing. Returns null when the project names no check; the gate must not
+// invent one.
+const PROJECT_CHECKS = [
+  { file: 'scripts/selftest.sh', command: 'bash scripts/selftest.sh' },
+  { file: 'selftest.sh', command: 'bash selftest.sh' },
+  { file: 'Cargo.toml', command: 'cargo test' },
+  { file: 'go.mod', command: 'go test ./...' },
+  { file: 'pytest.ini', command: 'pytest' },
+  { file: 'tox.ini', command: 'pytest' },
+]
+
+function packageManagerCommand(directory) {
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(path.join(directory, 'package.json'), 'utf8'))
+  } catch { return null }
+  const scripts = manifest?.scripts
+  if (!scripts || typeof scripts !== 'object') return null
+  const runner = existsSync(path.join(directory, 'pnpm-lock.yaml')) ? 'pnpm'
+    : existsSync(path.join(directory, 'yarn.lock')) ? 'yarn'
+    : existsSync(path.join(directory, 'bun.lockb')) ? 'bun'
+    : 'npm'
+  for (const name of ['test', 'check', 'lint', 'typecheck', 'build']) {
+    if (typeof scripts[name] === 'string' && scripts[name].trim()) {
+      return runner === 'npm' ? `npm run ${name}` : `${runner} ${name}`
+    }
+  }
+  return null
+}
+
+function makeTargetCommand(directory) {
+  for (const file of ['Makefile', 'makefile', 'justfile', 'Justfile']) {
+    let source
+    try { source = readFileSync(path.join(directory, file), 'utf8') } catch { continue }
+    const runner = /justfile/i.test(file) ? 'just' : 'make'
+    for (const target of ['test', 'check', 'lint', 'verify', 'validate', 'build']) {
+      if (new RegExp(`^${target}\\s*:`, 'm').test(source)) return `${runner} ${target}`
+    }
+  }
+  return null
+}
+
+// The check this project owns, named so a session can run it instead of guessing.
+export function projectCheckCommand(cwd = process.cwd()) {
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  if (!directory) return null
+  const root = gitRepositoryRoot(directory) ?? directory
+  for (const candidate of PROJECT_CHECKS) {
+    if (existsSync(path.join(root, candidate.file))) return candidate.command
+  }
+  const packaged = packageManagerCommand(root)
+  if (packaged) return packaged
+  const made = makeTargetCommand(root)
+  if (made) return made
+  return null
+}
+
+function gitRepositoryRoot(directory) {
+  const run = spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], {
+    encoding: 'utf8', timeout: 5_000,
+  })
+  return run.status === 0 ? run.stdout.trim() : null
+}
+
+// Names the project's own check when there is one, so the gate asks for
+// something specific instead of leaving the reader to guess which invocation
+// counts. Falls back to the general phrasing when the project names none.
+export function runTheCheckSentence(cwd) {
+  const command = projectCheckCommand(cwd)
+  return command
+    ? `Run \`${command}\` (this project's own check) after the final edit and report the exact command and result.`
+    : 'Run the smallest repository-owned test, lint, build, or validation command after the final edit and report the exact command and result.'
+}
+
+function missingEvidenceReason(state, cwd) {
   const changed = state.mutationPaths.length
     ? `Changed paths include: ${state.mutationPaths.slice(-5).join(', ')}.`
     : 'The transcript contains file mutations.'
-  return `${changed} Run the smallest repository-owned test, lint, build, or validation command after the final edit and report the exact command and result. Do not add cleanup or new scope.`
+  return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
+}
+
+// A task file was edited and the session's check went green: the corpus wants
+// that recorded, not asserted. Returns null unless a touched path is a task file
+// under a tasks/ directory, so this never fires for ordinary work.
+function evidenceNudge(cwd, mutationPaths) {
+  const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
+  if (!directory) return null
+  const tasks = mutationPaths.filter(candidate => typeof candidate === 'string'
+    && path.isAbsolute(candidate)
+    && /(^|[\\/])tasks[\\/][^\\/]+\.md$/.test(candidate)
+    && !/readme\.md$/i.test(candidate)
+    && existsSync(candidate))
+  if (!tasks.length) return null
+  return `Your check passed with ${tasks.length === 1 ? 'a task file' : 'task files'} edited. `
+    + `Record it where the corpus can verify it: \`adr-verify ${tasks[0]}\` appends a `
+    + 'tool-written Verification Log entry (exit code plus an acceptance digest). '
+    + 'adr-lint will not accept a `done` status without one.'
 }
 
 function subagentContract(input) {
@@ -1431,7 +1544,7 @@ function subagentContract(input) {
     'Preserve the supplied scope and non-goals; invent no features, configuration, fallbacks, dependencies, or speculative abstractions.',
     'DRY duplicated knowledge, not similar syntax; use SOLID only where a demonstrated boundary needs it.',
     roleLine,
-    'Before returning after edits, run a relevant repository-owned check after the final edit.',
+    `Before returning after edits, ${runTheCheckSentence(input.cwd).replace(/^Run /, 'run ')}`,
     'Return touched files, exact executed evidence, and remaining risk or uncertainty.',
   ].join(' ')
 }
@@ -1445,8 +1558,110 @@ function blockWithExit(reason) {
   process.exitCode = 2
 }
 
+const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|tests?|spec|fixtures?|testdata|examples?)$/i
+
+// ADR task directories belonging to THIS repository. Deliberately narrow:
+// walking a directory that is not a repository once surfaced another project's
+// tasks from a shared temp directory, and a session must never be handed work
+// that belongs to a codebase it was not opened on.
+function taskDirectories(root) {
+  const found = []
+  const walk = (directory, depth, allowUninteresting) => {
+    if (depth > 4 || found.length >= 6) return
+    let entries
+    try { entries = readdirSync(directory, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
+      if (!allowUninteresting && UNINTERESTING_DIRECTORY.test(entry.name)) continue
+      const child = path.join(directory, entry.name)
+      if (entry.name === 'tasks') found.push(child)
+      else walk(child, depth + 1, allowUninteresting)
+    }
+  }
+  // `docs/` is where records live by convention; only fall back to the tree at
+  // large when it holds none, and never into test fixtures either way.
+  const docs = path.join(root, 'docs')
+  if (existsSync(docs)) walk(docs, 0, false)
+  if (!found.length) walk(root, 0, false)
+  return found
+}
+
+function readyTaskLines(root, insideRepository) {
+  // Without a repository there is no "this project", and the walk below would
+  // be scanning whatever else shares the directory.
+  if (!insideRepository) return []
+  const tool = path.join(PLUGIN_ROOT, 'bin', 'adr-next')
+  if (!existsSync(tool)) return []
+  const lines = []
+  for (const directory of taskDirectories(root)) {
+    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
+    if (run.status !== 0 && run.status !== 3) continue
+    let report
+    try { report = JSON.parse(run.stdout) } catch { continue }
+    const relative = path.relative(root, directory) || directory
+    if (report.ready?.length) {
+      const next = report.ready[0]
+      lines.push(`  ${relative}: ${next.id} is ready — ${next.goal}`
+        + (next.acceptance ? `; acceptance \`${next.acceptance}\`` : '')
+        + `. Prove it with \`adr-verify ${path.relative(root, next.path) || next.path}\`.`)
+    } else if (report.blocked?.length) {
+      lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)
+    } else if (report.done?.length) {
+      lines.push(`  ${relative}: all ${report.done.length} task(s) carry exit-0 evidence.`)
+    }
+  }
+  return lines
+}
+
+// What a session would otherwise learn by hitting a wall. Additive only: this
+// hook can never block, and says nothing it cannot establish from the project
+// itself — an empty orientation is correct for a project with no conventions.
+export function sessionOrientation(cwd) {
+  const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
+  if (!directory) return ''
+  const repositoryRoot = gitRepositoryRoot(directory)
+  const root = repositoryRoot ?? directory
+  const lines = []
+
+  const check = projectCheckCommand(root)
+  if (check) {
+    lines.push(`Verification: this project's own check is \`${check}\`. `
+      + 'The completion and commit gates accept it as evidence when it runs after your last edit; '
+      + 'a piped or `|| true` run does not count, because it hides the exit code.')
+  }
+
+  const branch = gitBranch(root)
+  if (protectedBranch(branch)) {
+    lines.push(`Branch: you are on protected '${branch}'. Edits and commits here are blocked — `
+      + `start with \`${taskBranchSuggestion(root)}\`. Navigation off it, `
+      + '`git pull --ff-only`, and scratch writes under the temp directory are all allowed.')
+  }
+
+  const ready = readyTaskLines(root, repositoryRoot !== null)
+  if (ready.length) {
+    const shown = ready.slice(0, 3)
+    if (ready.length > shown.length) shown.push(`  (+${ready.length - shown.length} more record set(s))`)
+    lines.push(['ADR tasks in flight:', ...shown].join('\n'))
+  }
+
+  return lines.join('\n\n')
+}
+
 export async function handleHook(input) {
   const event = input.hook_event_name
+
+  if (event === 'SessionStart') {
+    const orientation = sessionOrientation(input.cwd)
+    if (orientation) {
+      emitJson({
+        hookSpecificOutput: {
+          hookEventName: 'SessionStart',
+          additionalContext: orientation,
+        },
+      })
+    }
+    return
+  }
 
   if (event === 'SubagentStart') {
     emitJson({
@@ -1469,7 +1684,10 @@ export async function handleHook(input) {
     if (!isGitPublishCommand(command)) return
     const raw = await readTranscript(input)
     if (!raw) {
-      blockWithExit('Quality gate could not read the session transcript; refusing git commit/push without verifiable evidence.')
+      blockWithExit('Quality gate could not read the session transcript; refusing git commit/push '
+        + 'without verifiable evidence. Nothing is wrong with your change — the gate cannot see this '
+        + `session's history. ${runTheCheckSentence(input.cwd)} then retry; if it repeats, the `
+        + 'transcript path the hook was given does not exist.')
       return
     }
     const state = analyzeTranscript(raw, input.cwd)
@@ -1488,7 +1706,7 @@ export async function handleHook(input) {
       return
     }
     if (state.hasMutations && !state.verifiedAfterLastMutation) {
-      blockWithExit(`Quality gate blocked git commit/push. ${missingEvidenceReason(state)}`)
+      blockWithExit(`Quality gate blocked git commit/push. ${missingEvidenceReason(state, input.cwd)}`)
     }
     return
   }
@@ -1498,7 +1716,9 @@ export async function handleHook(input) {
 
   const raw = await readTranscript(input)
   if (!raw) {
-    const reason = 'Quality gate could not read the session transcript; completion evidence is unavailable.'
+    const reason = 'Quality gate could not read the session transcript; completion evidence is '
+      + 'unavailable. This is an environment problem, not a finding about your work: the hook was '
+      + 'given a transcript path it cannot read.'
     if (event === 'TaskCompleted') blockWithExit(reason)
     else emitJson({ decision: 'block', reason })
     return
@@ -1520,11 +1740,20 @@ export async function handleHook(input) {
       return
     }
   }
-  if (!state.hasMutations || state.verifiedAfterLastMutation) return
+  if (!state.hasMutations || state.verifiedAfterLastMutation) {
+    // The check passed, so nothing is blocked. If an ADR task is waiting on
+    // exactly this kind of evidence, say so — a V-Log entry written by
+    // adr-verify is the difference between a claim and a record.
+    if (state.verifiedAfterLastMutation && event !== 'TaskCompleted') {
+      const nudge = evidenceNudge(input.cwd, state.mutationPaths)
+      if (nudge) emitJson({ systemMessage: nudge })
+    }
+    return
+  }
   if (docsOnly(state.mutationPaths) && evidenceLimited(input.last_assistant_message)) return
   if (event === 'Stop' && interimResponse(input.last_assistant_message)) return
 
-  const reason = missingEvidenceReason(state)
+  const reason = missingEvidenceReason(state, input.cwd)
   if (event === 'TaskCompleted') {
     blockWithExit(reason)
     return

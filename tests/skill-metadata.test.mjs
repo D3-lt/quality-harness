@@ -87,3 +87,22 @@ test("overlapping lifecycle skills state a negative routing boundary", () => {
     );
   }
 });
+
+// The coordinator named every stage but never told anyone to enter one: the routing
+// table is a mapping, and the only imperative verbs about invocation were prohibitions.
+// A run therefore stopped after classifying and waited to be told the next stage by
+// name, which is the one thing a coordinator must not need.
+test("the coordinator drives its routed chain instead of naming stages", () => {
+  // Collapse wrapping first: these are prose assertions, and a sentence that happens
+  // to break across two lines is the same sentence.
+  const body = readFileSync(join(skillsRoot, "work", "SKILL.md"), "utf8").replace(/\s+/g, " ");
+  const required = [
+    [/classification is the decision/i, "classification must be stated as a decision, not a proposal"],
+    [/invoke the routed skill in the same turn/i, "routing must carry an imperative to enter the stage"],
+    [/resume the routed chain/i, "a satisfied gate must resume the chain, not hand off"],
+    [/brainstorm/i, "requirements discovery must be bounded to spec-write against ideation skills"],
+  ];
+  for (const [pattern, why] of required) {
+    assert.match(body, pattern, `skills/work/SKILL.md: ${why}`);
+  }
+});

@@ -17,9 +17,10 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 MODE=${1-}
 
-# Floors. Measured 2026-08-25: js 92.77 line / 84.24 branch / 92.54 funcs, python 63%.
+# Floors. Measured 2026-08-25 (later): js 92.93 line / 84.56 branch / 92.65 funcs,
+# python 63%. Raised as the Windows-portability tests landed.
 JS_LINES=${QUALITY_HARNESS_JS_LINES:-92}
-JS_BRANCHES=${QUALITY_HARNESS_JS_BRANCHES:-83}
+JS_BRANCHES=${QUALITY_HARNESS_JS_BRANCHES:-84}
 JS_FUNCTIONS=${QUALITY_HARNESS_JS_FUNCTIONS:-92}
 PY_TOTAL=${QUALITY_HARNESS_PY_TOTAL:-62}
 
@@ -40,7 +41,11 @@ if [ "$MODE" != "--report" ]; then
 fi
 
 printf '== JavaScript hooks ==\n'
-node --test --experimental-test-coverage "${js_flags[@]}" "$ROOT"/tests/*.test.mjs \
+# ${a[@]+"${a[@]}"} — not "${a[@]}". Under `set -u`, bash 3.2 (still the system
+# bash on macOS) treats an EMPTY array's expansion as an unbound variable and
+# aborts. `--report` deliberately leaves js_flags empty, so the one mode that
+# exists to read the numbers was the one mode that could not run there.
+node --test --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$ROOT"/tests/*.test.mjs \
   > "$WORK/js.log" 2>&1 || js_status=$?
 js_status=${js_status:-0}
 sed -n '/start of coverage report/,/end of coverage report/p' "$WORK/js.log" \

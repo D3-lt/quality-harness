@@ -535,11 +535,21 @@ test('shell-hook timeout stays below its host deadline and kills the process tre
   assert.ok(Date.now() - started < 3_000)
   const descendantPid = Number(run.stdout)
   assert.equal(Number.isInteger(descendantPid), true)
-  let descendantAlive = false
-  try {
-    process.kill(descendantPid, 0)
-    descendantAlive = true
-  } catch {}
+  // Signal delivery and reaping are asynchronous, and `kill(pid, 0)` still
+  // succeeds for a killed-but-unreaped process, so a single probe races the
+  // kernel — it failed under load the moment an unrelated CPU-heavy test landed
+  // beside it. Poll against a deadline: a genuinely surviving descendant still
+  // fails, a dying one gets the instant it needs to be reaped.
+  const deadline = Date.now() + 2_000
+  let descendantAlive = true
+  while (descendantAlive && Date.now() < deadline) {
+    try {
+      process.kill(descendantPid, 0)
+      await new Promise(resolve => setTimeout(resolve, 25))
+    } catch {
+      descendantAlive = false
+    }
+  }
   if (descendantAlive) {
     try { process.kill(descendantPid, 'SIGKILL') } catch {}
   }

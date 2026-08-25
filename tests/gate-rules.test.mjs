@@ -9,7 +9,7 @@
 // reason cannot be mistaken for the rule under test.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -271,4 +271,188 @@ test('every adr-retire-check row rule has a case that makes it fire', () => {
   const duplicated = check(`${good}\n${row}\n`)
   assert.equal(duplicated.status, 1, duplicated.stdout)
   assert.match(duplicated.stdout, /lists ADR-001 more than once/)
+})
+
+// --- adr-debt: the pointer classifier and every failure report --------------
+
+test('adr-debt resolves the pointers it can, and reports the ones it cannot', () => {
+  const dir = scratch('debt')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  writeFileSync(join(adrDir, 'ADR-002-target.md'), '# ADR-002: Target\n')
+  writeFileSync(join(adrDir, 'notes.md'), '# Notes\n')
+
+  const scan = () => run('adr-debt', [adrDir], dir)
+  const adr = body => writeFileSync(join(adrDir, 'ADR-001-probe.md'), `# ADR-001: Probe\n\n${body}`)
+
+  // Each pointer kind the classifier distinguishes, all resolvable. A URL and a
+  // prose reference are listed rather than resolved; a path and an ADR id must
+  // actually exist, and here they do.
+  adr(['## Out of Scope', '',
+    '- Rate limiting (deferred: notes.md)',
+    '- Retry policy (deferred: ADR-002)',
+    '- Metrics (deferred: https://example.invalid/issue/7)',
+    '- Caching (deferred: F-9 once the contract lands)',
+    '- Sharding (permanent: single-tenant by design)', ''].join('\n'))
+  const clean = scan()
+  assert.equal(clean.status, 0, clean.stdout)
+  // A permanent boundary is a decision, not debt, and must not be reported.
+  assert.doesNotMatch(clean.stdout, /Sharding/)
+  assert.match(clean.stdout, /Rate limiting/)
+
+  // A path pointer that resolves to nothing: the debt names a destination that
+  // does not exist, so nobody can act on it.
+  adr('## Out of Scope\n\n- Rate limiting (deferred: docs/nowhere.md)\n')
+  const brokenPath = scan()
+  assert.equal(brokenPath.status, 1, brokenPath.stdout)
+  assert.match(brokenPath.stdout, /BROKEN \[path\]/)
+
+  // An ADR id nothing in the corpus matches.
+  adr('## Out of Scope\n\n- Rate limiting (deferred: ADR-404)\n')
+  const brokenAdr = scan()
+  assert.equal(brokenAdr.status, 1, brokenAdr.stdout)
+  assert.match(brokenAdr.stdout, /BROKEN \[adr\]/)
+
+  // `deferred:` with nothing after it — the shape of debt recorded by someone
+  // who had not decided where it goes.
+  adr('## Out of Scope\n\n- Rate limiting (deferred: )\n')
+  const empty = scan()
+  assert.equal(empty.status, 1, empty.stdout)
+  assert.match(empty.stdout, /BROKEN \[empty\]/)
+
+  // An unchecked follow-up is open work the corpus is still carrying.
+  adr('## Follow-ups\n\n- [ ] Add the rate limiter\n- [x] Ship the parser\n')
+  const followups = scan()
+  assert.match(followups.stdout, /Add the rate limiter/)
+  assert.doesNotMatch(followups.stdout, /Ship the parser/)
+})
+
+// --- spec-verify: the mode that actually runs the tests a spec binds --------
+
+test('spec-verify --implemented runs the bound tests and separates RED from broken', () => {
+  const dir = scratch('spec')
+  const source = join(root, 'tests', 'fixtures', 'ok')
+  cpSync(source, dir, { recursive: true })
+  const spec = join(dir, 'spec-selftest.md')
+  const good = readFileSync(spec, 'utf8')
+
+  // --spec passes: the bindings exist as test definitions. That is the baseline
+  // --implemented builds on, and asserting it first keeps the rows below honest.
+  assert.equal(run('spec-verify', ['--spec', '--repo', dir, spec], dir).status, 0)
+
+  // A Cmd override makes the run deterministic: the point here is the gate's
+  // handling of a green and a red command, not which runner a repo happens to
+  // have installed.
+  const bind = (tag, cmd) => good
+    .replace('| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | `test_selftest_fixture.py::test_gates_run` | @spec | |',
+      `| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | \`test_selftest_fixture.py::test_gates_run\` | ${tag} | ${cmd} |`)
+
+  writeFileSync(spec, bind('@implemented', '`python3 -c "raise SystemExit(0)"`'))
+  const green = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.equal(green.status, 0, green.stdout)
+
+  // A bound test that fails is exit 3 — a distinct code from a structural
+  // failure (1) or a missing binding (2), because "the spec is wrong" and "the
+  // code does not do what the spec says" are different problems.
+  writeFileSync(spec, bind('@implemented', '`python3 -c "raise SystemExit(1)"`'))
+  const red = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.equal(red.status, 3, red.stdout)
+  assert.match(red.stdout, /F-1/)
+
+  // And an @spec-tagged row is not run at all: the tag is the claim that it has
+  // been implemented, so a spec still being drafted is not failed for it.
+  writeFileSync(spec, bind('@spec', '`python3 -c "raise SystemExit(1)"`'))
+  const untagged = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.equal(untagged.status, 0, untagged.stdout)
+})
+
+// --- arch-lint: the two detections that stop a rule row citing nothing -------
+
+test('arch-lint rejects a gate that cannot fail and a symbol that is not there', () => {
+  const dir = scratch('arch')
+  // Under src/, because a check cell's path token needs a `/` before arch-lint
+  // treats it as a file to look the symbol up in — and the symbol is a SEPARATE
+  // backticked token. A single `probe.py::test_x` token is read as neither, which
+  // is how the first draft of this test asserted nothing at all.
+  mkdirSync(join(dir, 'src'), { recursive: true })
+  const probe = join(dir, 'src', 'probe.py')
+  writeFileSync(probe, [
+    'def test_boundary_holds():',
+    '    assert 1 == 1',
+    '',
+    'def test_asserts_nothing():',
+    '    value = 1',
+    ''].join('\n'))
+
+  const doc = join(dir, 'architecture.md')
+  const write = rules => {
+    writeFileSync(doc, ['# Architecture: probe', '',
+      '**Status:** Living — updated with every structural change.',
+      '**Repo:** probe',
+      '**Tier:** library',
+      '**Gate command:** `python3 -m pytest src/probe.py`',
+      '**Last full audit:** 2026-08-25 via /quality-harness:arch-write', '',
+      'A minimal conforming document, so each row below fails for its own reason.', '',
+      '## Module Map', '',
+      '| Module | Layer | One reason to change | Owner |',
+      '|--------|-------|----------------------|-------|',
+      '| `src/probe.py` | domain | the probe drifts | ADR-001 |', '',
+      // Dependency Contracts is one of arch-lint's RULE_SECTIONS — the check
+      // cell is the LAST cell of each data row, and only these sections are
+      // scanned. A table under an invented heading is never read, which is how
+      // the first draft of this test asserted nothing.
+      '## Dependency Contracts', '',
+      '| Rule | Check |',
+      '|------|-------|',
+      ...rules, '',
+      '## Concept Ownership (DRY)', '', 'None.', '',
+      '## Composition Root', '', 'None.', '',
+      '## Test Doubles', '', 'None.', '',
+      '## Trust & Data Boundaries', '', 'None.', '',
+      '## Superseded', '', 'None.', ''].join('\n'))
+    return run('arch-lint', [doc], dir)
+  }
+
+  const good = write(['| the boundary holds | `src/probe.py` `test_boundary_holds` |'])
+  assert.equal(good.status, 0, good.stdout)
+
+  // A command copied out of a table cell keeps markdown's escaped pipe, which
+  // matches nothing in a shell — so the gate passes for a reason unrelated to
+  // the code.
+  const escaped = write(['| the boundary holds | `grep -q foo src/probe.py \\| head` |'])
+  assert.equal(escaped.status, 1, escaped.stdout)
+  assert.match(escaped.stdout, /markdown-escaped/)
+
+  // A gate on a path that does not exist cannot fail: `! grep missing.py` turns
+  // grep's exit 2 into a permanent pass.
+  const missingPath = write(['| the boundary holds | `grep -q foo src/missing.py` |'])
+  assert.equal(missingPath.status, 1, missingPath.stdout)
+  assert.match(missingPath.stdout, /does not exist in the repo/)
+
+  // A symbol named alongside a file that does not contain it.
+  const wrongFile = write(['| the boundary holds | `src/probe.py` `test_not_in_there` |'])
+  assert.equal(wrongFile.status, 1, wrongFile.stdout)
+  assert.match(wrongFile.stdout, /does not contain it/)
+
+  // A test cited as the check must itself be able to go red, or the row is a
+  // name with nothing behind it — the same flaw as a task naming a test that
+  // asserts nothing.
+  const cannotFail = write(['| the boundary holds | `src/probe.py` `test_asserts_nothing` |'])
+  assert.equal(cannotFail.status, 1, cannotFail.stdout)
+  assert.match(cannotFail.stdout, /fail|red/i)
+
+  // Two more shapes the gate must refuse: a row whose check cell is empty, and
+  // one that says a human will keep things in sync rather than naming a command.
+  const empty = write(['| the boundary holds |  |'])
+  assert.equal(empty.status, 1, empty.stdout)
+  assert.match(empty.stdout, /empty check cell/)
+
+  const prose = write(['| the boundary holds | keep in sync with the handler by review |'])
+  assert.equal(prose.status, 1, prose.stdout)
+  assert.match(prose.stdout, /sync-prose/)
+
+  // And the escape: a row explicitly marked as not built yet is a decision, not
+  // a defect, so it must pass.
+  const deferred = write(['| the boundary holds | `src/missing.py` (deferred: ADR-002) |'])
+  assert.equal(deferred.status, 0, deferred.stdout)
 })

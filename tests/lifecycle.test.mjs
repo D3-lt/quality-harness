@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdir, mkdtemp, readdir, writeFile } from 'node:fs/promises'
+import { cp, mkdir, mkdtemp, readdir, rm, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -13,6 +13,7 @@ import {
   isGitPublishCommand,
   isPotentialMutationCommand,
   isValidationCommand,
+  runArtifactGates,
   shellSegments,
 } from '../scripts/lifecycle.mjs'
 import {
@@ -747,4 +748,30 @@ test('globbed Markdown Bash mutations gate the files that actually exist without
   const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir })
   assert.match(run.stdout, /Artifact validation failed/)
   assert.doesNotMatch(run.stdout, /unresolved path/i)
+})
+
+test('an unresolved Bash deletion is answered by the repository, not held against the session', async () => {
+  // The sentinel comes from the public classifier so the test cannot drift from it.
+  const [sentinel] = bashDeletionMutationPaths('rm -rf "$ARCHIVE"', testTmp)
+  const repo = await mkdtemp(path.join(testTmp, 'quality-unresolved-rm-'))
+  const fixtures = path.join(pluginDir, 'tests', 'fixtures', 'ok')
+  await cp(path.join(fixtures, 'adr-archive'), path.join(repo, 'docs', 'adr-archive'), { recursive: true })
+  await cp(path.join(fixtures, 'adr'), path.join(repo, 'docs', 'adr'), { recursive: true })
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  git('add', '-A')
+  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'archive')
+
+  // A scratch deletion leaves the corpus whole, so the session is not held to a
+  // question the repository has already answered.
+  assert.equal(runArtifactGates([sentinel], repo), null)
+
+  // When a record really is gone the gate still fails, and now it names the file.
+  await rm(path.join(repo, 'docs', 'adr-archive', 'ADR-001-history.md'))
+  const removed = runArtifactGates([sentinel], repo)
+  assert.match(removed, /ADR-001-history\.md/)
+  assert.match(removed, /archive catalog lists ADR-001/)
+
+  // Outside a repository Git cannot answer, so the gate stays closed.
+  assert.match(runArtifactGates([sentinel], testTmp), /Git cannot say what is missing/)
 })

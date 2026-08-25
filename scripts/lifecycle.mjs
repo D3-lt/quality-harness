@@ -1034,19 +1034,45 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   }
 }
 
-export function runArtifactGates(paths) {
+// An unresolved deletion records that something was removed, not what. The
+// repository already knows: ask Git which tracked paths are now missing instead
+// of holding an unanswerable question against every later commit in the session.
+// Returns null when Git cannot answer, which keeps the gate closed.
+function deletedTrackedPaths(cwd) {
+  const options = { encoding: 'utf8', timeout: 10_000 }
+  const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], options)
+  if (root.status !== 0) return null
+  const deleted = spawnSync('git', ['-C', cwd, 'diff', '--name-only', '--diff-filter=D', 'HEAD'], options)
+  if (deleted.status !== 0) return null
+  const top = root.stdout.trim()
+  return deleted.stdout.split('\n')
+    .map(line => line.trim())
+    .filter(Boolean)
+    .map(relative => path.join(top, relative))
+}
+
+export function runArtifactGates(paths, cwd = process.cwd()) {
   const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
   const runner = path.join(PLUGIN_ROOT, 'scripts', 'run-shell-hook.mjs')
   if (!existsSync(runner)) return 'Artifact validation failed:\nThe cross-platform shell-hook runner is missing.'
 
   const failures = []
+  const targets = []
   for (const filePath of [...new Set(paths)]) {
     if (filePath === UNRESOLVED_DELETION_MUTATION) {
-      failures.push('A Bash deletion used an unresolved path; the facts-first gate cannot determine whether an ADR archive was removed. Use an explicit path.')
+      const deleted = deletedTrackedPaths(cwd)
+      if (deleted === null) {
+        failures.push('A Bash deletion used an unresolved path and Git cannot say what is missing here; the facts-first gate cannot determine whether an ADR archive was removed. Use an explicit path.')
+        continue
+      }
+      targets.push(...deleted)
       continue
     }
     if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) continue
+    targets.push(filePath)
+  }
+  for (const filePath of [...new Set(targets)]) {
     const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
       input: JSON.stringify({ tool_input: { file_path: filePath } }),
       encoding: 'utf8',
@@ -1152,7 +1178,7 @@ export async function handleHook(input) {
       return
     }
     const state = analyzeTranscript(raw, input.cwd)
-    const artifactFailure = runArtifactGates(state.mutationPaths)
+    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd)
     if (artifactFailure) {
       blockWithExit(artifactFailure)
       return
@@ -1175,7 +1201,7 @@ export async function handleHook(input) {
   }
   const state = analyzeTranscript(raw, input.cwd)
   if (event !== 'Stop') {
-    const artifactFailure = runArtifactGates(state.mutationPaths)
+    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd)
     if (artifactFailure) {
       if (event === 'TaskCompleted') blockWithExit(artifactFailure)
       else emitJson({ decision: 'block', reason: artifactFailure })

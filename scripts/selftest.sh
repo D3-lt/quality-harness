@@ -3,9 +3,24 @@ set -euo pipefail
 
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 
-claude plugin validate --strict "$ROOT"
-claude plugin validate --strict "$ROOT/.claude-plugin/plugin.json"
-claude plugin validate --strict "$ROOT/skills"
+# The manifest/skill validation needs the Claude Code CLI. Where it is absent
+# the run says so and the final line downgrades to PARTIAL — a check that
+# silently vanishes is the failure mode this project exists to prevent. CI sets
+# QUALITY_HARNESS_REQUIRE_CLI=1 so the absence is an error there, where the CLI
+# is installed on purpose.
+verdict="PASS — quality-harness is self-contained and verified."
+if command -v claude >/dev/null 2>&1; then
+  claude plugin validate --strict "$ROOT"
+  claude plugin validate --strict "$ROOT/.claude-plugin/plugin.json"
+  claude plugin validate --strict "$ROOT/skills"
+elif [ "${QUALITY_HARNESS_REQUIRE_CLI:-0}" = "1" ]; then
+  printf 'FAIL — the Claude Code CLI is required here and was not found on PATH.\n' >&2
+  exit 1
+else
+  printf 'SKIPPED — claude plugin validate (CLI not on PATH); manifest and skill metadata unvalidated.\n'
+  verdict="PARTIAL — tests and syntax checks passed; plugin validation was skipped."
+fi
+
 node --test "$ROOT"/tests/*.test.mjs
 
 for file in "$ROOT"/bin/*; do
@@ -23,4 +38,4 @@ node --check "$ROOT/workflows/consensus.js"
 node --check "$ROOT/workflows/quality-cycle.js"
 node --check "$ROOT/workflows/review-ring.js"
 
-printf 'PASS — quality-harness is self-contained and verified.\n'
+printf '%s\n' "$verdict"

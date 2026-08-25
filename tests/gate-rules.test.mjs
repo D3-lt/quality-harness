@@ -144,22 +144,13 @@ function runner(scriptName, payload, extraEnv = {}) {
 test('the shell-hook runner fails closed on every way a gate can not report', () => {
   const payload = { hook_event_name: 'PreToolUse', tool_input: { file_path: join(root, 'README.md') } }
 
-  // A gate that ran out of time said nothing about the artifact. Exit 2 keeps it
-  // blocking; anything else would let an ungated file through as clean.
-  //
-  // The record has to be big enough that 100ms — the lowest budget the runner
-  // accepts — cannot read it. A small file finishes inside the floor and the
-  // assertion becomes a race, which is how this test flaked on its first run.
-  const slow = scratch('slow-gate')
-  const bigAdr = join(slow, 'ADR-999-big.md')
-  writeFileSync(bigAdr, ['# ADR-999: Big', '', '## Existing Primitives Audit', '',
-    '## Decision', '', '## Alternatives Considered', '', '## Consequences', '',
-    ...Array.from({ length: 400_000 }, (_, i) => `- line ${i} with words to parse`), ''].join('\n'))
-  const timedOut = runner('facts-gate-dispatch.sh',
-    { hook_event_name: 'PreToolUse', tool_input: { file_path: bigAdr } },
-    { QUALITY_HARNESS_SHELL_TIMEOUT_MS: '100' })
-  assert.equal(timedOut.status, 2, timedOut.stderr)
-  assert.match(timedOut.stderr, /timed out after 100ms/)
+  // NOT re-tested here: a gate exceeding its budget. Driving that end to end
+  // needs a record slower to read than the 100ms floor, which is a race on a
+  // slow host — a 14MB one took windows-latest past this test's own spawn
+  // timeout in 32891897252. The mechanism is asserted directly above, and
+  // tests/lifecycle.test.mjs already drives budget exhaustion end to end through
+  // runArtifactGates on every platform. One flaky duplicate of a covered path is
+  // worse than none.
 
   // A script outside the allow-list is refused rather than run.
   const unsupported = runner('definitely-not-a-hook.sh', payload)
@@ -172,6 +163,26 @@ test('the shell-hook runner fails closed on every way a gate can not report', ()
   })
   assert.equal(missing.status, 2)
   assert.match(missing.stderr, /<missing>/)
+})
+
+test('the timeout mechanism itself kills the child and says it timed out', async () => {
+  // The end-to-end row above depends on a gate being slower than its budget,
+  // which is a race on a slow host. This asserts the mechanism directly: a
+  // command that would outlive its budget is killed and REPORTED as timed out,
+  // because a hook that silently returns whatever a half-run gate printed is the
+  // fail-open this whole file exists to prevent.
+  const { runWithTimeout } = await import('../scripts/run-shell-hook.mjs')
+
+  const start = Date.now()
+  const killed = await runWithTimeout(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'],
+    { timeoutMs: 300 })
+  assert.equal(killed.timedOut, true)
+  assert.ok(Date.now() - start < 20_000, 'the child must actually be killed, not waited out')
+
+  const finished = await runWithTimeout(process.execPath, ['-e', 'process.exit(4)'],
+    { timeoutMs: 30_000 })
+  assert.equal(finished.timedOut, false)
+  assert.equal(finished.status, 4, 'a command that finished keeps its own exit code')
 })
 
 test('a shell that aborted before judging is a failure, not a clean pass', async () => {

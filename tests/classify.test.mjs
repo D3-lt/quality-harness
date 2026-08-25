@@ -73,6 +73,17 @@ const cases = [
   // ...but a mutation on the line above a test still cannot launder itself.
   ['rm -rf build\npnpm test', 'mutation'],
   ['P=/p/bin\n$P/adr-verify docs/adr/T7.md', 'mutation'],
+  // A piped test run is not evidence — a pipe hides the exit code — but it is
+  // not an edit either. Reported 2026-08-25: filtering a test run through tail
+  // recorded it as a mutation, so checking your work raised the bar it was meant
+  // to clear. 'neither' is the honest verdict for all of these.
+  ["python -m unittest discover -s kit -p 'test_x.py' 2>&1 | tail -4", 'neither'],
+  ['cd /repo && git status --short && python -m unittest discover -s kit | tail -4', 'neither'],
+  ['pytest -q 2>&1 | tail -20', 'neither'],
+  ['node --test tests/unit.test.mjs 2>/dev/null | grep pass', 'neither'],
+  // ...and a real edit in the same chain is still a mutation.
+  ['python -m unittest discover -s kit | tail -4 ; rm -rf build', 'mutation'],
+  ['python -m unittest discover -s kit && python rewrite.py', 'mutation'],
 ]
 
 let bad = 0

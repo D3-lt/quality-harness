@@ -1311,3 +1311,111 @@ test('every hook script the runner accepts has its arguments wired', () => {
   assert.throws(() => hookArguments('not-wired.sh', payload, 'linux'),
     /hookArguments does not build its arguments/)
 })
+
+// --- Wave 2 of docs/TEST-PLAN.md: the escapes, and the hook nothing ever fired.
+
+test('SubagentStart states the leaf-role contract, and never blocks', async () => {
+  // hooks.json declares this event and the installed plugin registers it, so
+  // subagentContract runs on every subagent launch in production. Nothing had
+  // ever fired it in a test.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-subagent-'))
+  const run = runLifecycleHook({ hook_event_name: 'SubagentStart', agent_type: 'explore', cwd: dir })
+
+  assert.equal(run.status, 0, run.stderr)
+  const emitted = JSON.parse(run.stdout)
+  assert.equal(emitted.hookSpecificOutput.hookEventName, 'SubagentStart')
+  assert.match(emitted.hookSpecificOutput.additionalContext, /QUALITY CONTRACT/)
+  // A start hook that can block would stop a subagent before it began. There is
+  // no decision to make here, so there must be no decision key.
+  assert.equal('decision' in emitted, false)
+  assert.doesNotMatch(run.stdout, /"decision"/)
+})
+
+test('a read-only role is told it is read-only, and an editing role is not', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-subagent-roles-'))
+  const contract = agentType =>
+    JSON.parse(runLifecycleHook({ hook_event_name: 'SubagentStart', agent_type: agentType, cwd: dir })
+      .stdout).hookSpecificOutput.additionalContext
+
+  // Every member of the read-only set, so dropping one from the pattern fails
+  // here rather than silently telling an investigator it may edit.
+  for (const role of ['explore', 'plan', 'research', 'review', 'audit', 'scout', 'memory']) {
+    assert.match(contract(role), /read-only/, role)
+    assert.doesNotMatch(contract(role), /smallest coherent diff/, role)
+  }
+  // And the reverse: an implementation role must not be told to hold back.
+  for (const role of ['execution', 'implement', 'fix', undefined]) {
+    assert.match(contract(role), /smallest coherent diff/, String(role))
+    assert.doesNotMatch(contract(role), /Treat this role as read-only/, String(role))
+  }
+  // Substring, not equality: `code-reviewer` is a reviewing role.
+  assert.match(contract('code-reviewer'), /read-only/)
+})
+
+// A docs-only change with no verification after it — the state both escapes exist
+// to release, and the state they must not release without their condition.
+async function unverifiedDocsChange(name) {
+  const dir = await mkdtemp(path.join(testTmp, `quality-escape-${name}-`))
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(dir, 'notes.md') }), toolResult('e1'),
+  ]))
+  return { dir, file }
+}
+
+test('EVIDENCE-LIMITED opens the completion gate only with a stated reason', async () => {
+  const { dir, file } = await unverifiedDocsChange('evidence')
+  const stop = message => runLifecycleHook({
+    hook_event_name: 'Stop', transcript_path: file, cwd: dir, last_assistant_message: message,
+  })
+
+  // Negative control first: without the escape this state must block, or every
+  // assertion below is about a gate that was open anyway.
+  const blocked = stop('Done.')
+  assert.match(blocked.stdout, /"decision":"block"/)
+
+  assert.equal(stop('EVIDENCE-LIMITED: no runtime is installed here').stdout, '')
+
+  // A reason short enough to be a shrug is not a reason. `EVIDENCE-LIMITED: x`
+  // would otherwise be a two-character bypass of the whole gate.
+  assert.match(stop('EVIDENCE-LIMITED: x').stdout, /"decision":"block"/)
+  assert.match(stop('EVIDENCE-LIMITED:').stdout, /"decision":"block"/)
+})
+
+test('EVIDENCE-LIMITED does not release a code change, however well explained', async () => {
+  // The escape exists because prose cannot always be executed. Code can, so
+  // docsOnly guards it — and that guard is the difference between an escape and
+  // a bypass.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-escape-code-'))
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(dir, 'service.py') }), toolResult('e1'),
+  ]))
+  const run = runLifecycleHook({
+    hook_event_name: 'Stop', transcript_path: file, cwd: dir,
+    last_assistant_message: 'EVIDENCE-LIMITED: the integration environment is unreachable',
+  })
+  assert.match(run.stdout, /"decision":"block"/)
+})
+
+test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {
+  const { dir, file } = await unverifiedDocsChange('interim')
+  const at = (event, message) => runLifecycleHook({
+    hook_event_name: event, transcript_path: file, cwd: dir, last_assistant_message: message,
+  })
+
+  // Stop fires whenever the assistant yields the turn, including to ask a
+  // question. Blocking there would trap a session that is mid-conversation.
+  assert.equal(at('Stop', 'I am blocked on which schema you want.').stdout, '')
+  assert.equal(at('Stop', 'Waiting for your decision before continuing.').stdout, '')
+
+  // TaskCompleted is a claim that the work is finished. "I am blocked" cannot
+  // both be true and finish the task, so the escape must not reach here.
+  const claimed = at('TaskCompleted', 'I am blocked on which schema you want.')
+  assert.equal(claimed.status, 2)
+  assert.match(claimed.stderr, /Changed paths include:.*notes\.md/)
+
+  // And a plain sign-off is not an interim answer at either boundary.
+  assert.match(at('Stop', 'All done, shipped it.').stdout, /"decision":"block"/)
+})

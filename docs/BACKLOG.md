@@ -704,6 +704,37 @@ That third one is the useful lesson: two of the three fixes were provable by loo
 file afterwards, and the third was invisible that way. A fix whose only evidence is "the
 other platform stopped complaining" is not covered, it is unobserved.
 
+## 20. A backticked Cmd override ran the OUTPUT of the command, not the command
+
+Found by Wave 3 on windows-latest (run `32891556604`), which reported
+`'`python3' is not recognized as an internal or external command`.
+
+`spec-verify` reads the Facts table's Test cell with `.strip("`")` and its Cmd cell without.
+The template writes every command in backticks, so the natural authoring — and the form
+matching the cell right beside it — reached `subprocess.run(..., shell=True)` with the
+backticks intact. On Windows `cmd.exe` rejects it outright. On POSIX something worse
+happens quietly: backticks are **command substitution**, so the shell runs the command and
+then executes its OUTPUT. A command that succeeds while printing a word runs that word, and
+the fact goes RED for a reason unrelated to the test.
+
+Both cells are stripped now.
+
+**The lesson is the same one item 19 taught, and it took two rounds to apply.** The obvious
+control — revert the strip, run the suite — came back GREEN on macOS, because for a command
+that prints nothing the substitution's exit code matches the direct one. Exit codes alone
+cannot distinguish the two behaviours. The row that can is a command which **succeeds while
+printing**: correct behaviour exits 0, substitution executes the printed word and fails.
+With that row present, reverting the strip turns the suite red.
+
+Twice now a cross-platform fix has been unobservable by the assertion that seemed natural
+for it. The check to apply: *does this test distinguish the fix from the bug, or only
+distinguish "the other platform stopped complaining"?*
+
+Also recorded — a known gap, not a defect: `adr-lint`'s `selected_by_filter` treats pytest's
+`-k 'a and b'` as `or`, so it over-selects and misses a named test the fence would not run.
+The function's stated policy is that a false alarm costs more than a hole, because people
+skip a noisy gate. Asserted as-is in `tests/gate-regressions.py` so it stays a decision.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

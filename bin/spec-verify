@@ -481,7 +481,14 @@ def check_spec(path, mode, root_override, collect):
                 errors.append(f"fact row too short (need ID|Assertion|Test|Tag): {line.strip()}")
                 continue
             fid, assertion, test, tag = row[0], row[1], row[2].strip("`"), row[3]
-            cmd = row[4] if len(row) > 4 and row[4] else None
+            # Backticks stripped, exactly as the Test cell above is stripped. The
+            # template writes every command in backticks, and this cell goes
+            # straight to a shell: on POSIX the backticks made it a command
+            # SUBSTITUTION, so what ran was the output of the command rather than
+            # the command, and on Windows cmd.exe rejected it outright — measured
+            # 2026-08-25 on windows-latest as "'`python3' is not recognized".
+            cmd = row[4].strip("`").strip() if len(row) > 4 and row[4] else None
+            cmd = cmd or None
             if tag not in ("@draft", "@spec", "@implemented"):
                 errors.append(f"{fid}: bad tag '{tag}'")
                 continue

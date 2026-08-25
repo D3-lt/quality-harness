@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { readFileSync, readdirSync, statSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -22,6 +23,19 @@ const templates = [
 ]
 const workflows = ['consensus.js', 'quality-cycle.js', 'review-ring.js']
 
+// A Git for Windows checkout has no POSIX permission bits: statSync reports 0644
+// for every file, so the mode check failed there while the shipped plugin was
+// perfectly fine. What actually ships is the mode recorded in git's index, so on
+// Windows ask git instead of the filesystem. The assertion is unchanged in
+// substance — a gate that is not executable where it matters still fails.
+function isExecutable(path) {
+  if (process.platform !== 'win32') return (statSync(path).mode & 0o111) !== 0
+  const entry = spawnSync('git', ['-C', root, 'ls-files', '-s', '--', relative(root, path)], {
+    encoding: 'utf8',
+  })
+  return /^100755 /.test(entry.stdout)
+}
+
 function filesBelow(directory) {
   const files = []
   for (const entry of readdirSync(directory, { withFileTypes: true })) {
@@ -39,7 +53,7 @@ test('the plugin contains the complete reusable decision lifecycle', () => {
   for (const gate of gates) {
     const path = join(root, 'bin', gate)
     assert.ok(statSync(path).isFile(), gate)
-    assert.notEqual(statSync(path).mode & 0o111, 0, `${gate} must be executable`)
+    assert.ok(isExecutable(path), `${gate} must be executable`)
   }
   for (const template of templates) {
     assert.ok(statSync(join(root, 'templates', template)).isFile(), template)
@@ -82,6 +96,9 @@ test('manifest and hook configuration expose the bundled components', () => {
   assert.match(attributes, /^\*\.sh text eol=lf$/m)
   assert.match(attributes, /^\*\.mjs text eol=lf$/m)
   assert.match(attributes, /^bin\/\* text eol=lf$/m)
+  // The skills and templates are parsed by the gates and asserted on by this
+  // suite; a CRLF checkout on Windows broke a multi-line regex in a SKILL.md.
+  assert.match(attributes, /^\*\.md text eol=lf$/m)
 
   const codexReview = readFileSync(join(root, 'skills', 'codex-review', 'SKILL.md'), 'utf8')
   assert.match(codexReview, /advertise `review \[OPTIONS\] \[PROMPT\]`[\s\S]*reject an actual selector-plus-prompt/)
@@ -100,11 +117,17 @@ test('continuous integration runs the checks this repository owns', () => {
   // Pull requests must be covered; a workflow that only runs on push to main
   // reports regressions after they land.
   assert.match(workflow, /^\s{2}pull_request:/m)
+  // CI answered on 2026-08-25 that `claude plugin validate` needs no credentials,
+  // so the self-test must not be allowed to skip it there. Exactly one job may
+  // still be informational — windows — and a second `continue-on-error` would
+  // mean a check quietly stopped gating.
+  assert.match(workflow, /QUALITY_HARNESS_REQUIRE_CLI: '1'/)
+  assert.equal((workflow.match(/^\s*continue-on-error: true$/gm) ?? []).length, 1)
 
   for (const script of ['selftest.sh', 'coverage.sh']) {
     const path = join(root, 'scripts', script)
     assert.ok(statSync(path).isFile(), script)
-    assert.notEqual(statSync(path).mode & 0o111, 0, `${script} must be executable`)
+    assert.ok(isExecutable(path), `${script} must be executable`)
   }
 
   // The self-test must not report a clean run when a check it names was

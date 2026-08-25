@@ -51,6 +51,20 @@ function toolResult(id, isError = false, content = 'ok') {
 // A real hook payload always names the session directory, so the suite supplies one too.
 // Without it the gate falls back to process.cwd() and answers about *this* checkout: on a
 // protected branch the branch gate fires first and hides the gate the test is exercising.
+// Windows cannot exec a `#!` script: spawning `bin/adr-next` directly there dies
+// with status null before the gate can judge anything, and the failure says
+// nothing about the gate. Production never reaches the gates by bare exec — the
+// hooks go through Git Bash (run-shell-hook.mjs) and a person runs them through
+// their interpreter — so naming python3 here is what lets this suite measure the
+// GATE on Windows rather than measuring the shebang. On POSIX the shebang is
+// real and stays under test.
+function runGate(gatePath, args, options = {}) {
+  const [file, argv] = process.platform === 'win32'
+    ? ['python3', [gatePath, ...args]]
+    : [gatePath, args]
+  return spawnSync(file, argv, { encoding: 'utf8', ...options })
+}
+
 function runLifecycleHook(payload, options = {}) {
   return spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
     cwd: testTmp,
@@ -103,19 +117,24 @@ test('tracks mutation-capable Bash commands without treating read-only probes as
   assert.equal(isPotentialMutationCommand('chmod +x script.sh'), true)
   assert.equal(isPotentialMutationCommand('ln -sf a b'), true)
   assert.equal(isPotentialMutationCommand('git status --short'), false)
+  // The gate resolves a relative operand against the session cwd, so what it
+  // returns is an ABSOLUTE path in the host platform's shape: `/repo/docs/spec.md`
+  // on POSIX, `D:\\repo\\docs\\spec.md` on Windows. Spelling the expectation as a
+  // POSIX literal asserted the platform, not the behaviour.
+  const under = (...parts) => path.resolve('/repo', ...parts)
   assert.deepEqual(
     bashMarkdownMutationPaths("printf x > docs/spec.md", '/repo'),
-    ['/repo/docs/spec.md'],
+    [under('docs/spec.md')],
   )
   assert.deepEqual(bashMarkdownMutationPaths('python rewrite.py $DOC/spec.md', '/repo'), [])
   assert.deepEqual(bashMarkdownMutationPaths("sed -i '' docs/specs/*.md", '/repo'), [])
   assert.deepEqual(
     bashDeletionMutationPaths('rm -rf /repo/adr-archive', '/elsewhere'),
-    ['/repo/adr-archive'],
+    [path.resolve('/repo/adr-archive')],
   )
   assert.deepEqual(
     bashDeletionMutationPaths('rm -rf docs/adr-archive', '/repo'),
-    ['/repo/docs/adr-archive'],
+    [under('docs/adr-archive')],
   )
   assert.match(bashDeletionMutationPaths('rm -rf "$ARCHIVE"', '/repo')[0], /Unresolved/)
 })
@@ -1184,7 +1203,7 @@ test('adr-next reads the task files, not the index that describes them', async (
   await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md'),
     path.join(repo, 'ADR-001-selftest.md'))
 
-  const next = (...args) => spawnSync(path.join(pluginDir, 'bin', 'adr-next'), args, { encoding: 'utf8' })
+  const next = (...args) => runGate(path.join(pluginDir, 'bin', 'adr-next'), args)
   const first = next(path.join(repo, 'ADR-001-selftest.md'))
   assert.equal(first.status, 0, first.stderr)
   assert.match(first.stdout, /Next: T1/)

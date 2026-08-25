@@ -349,10 +349,190 @@ def main():
             retire.adr_files = original_adr_files
             sys.argv = original_argv
 
+    # --- Wave 3a: adr-lint's engines, none of which had ever run -------------
+
+    def task(tid, dep="none", consumes="none", produces="none"):
+        return {"dep": dep, "consumes": consumes, "produces": produces}
+
+    # A cycle is the one thing a task DAG must never contain: it means no order
+    # exists, so every wave table built from it is a fiction.
+    infos = {"T1": task("T1", dep="T2"), "T2": task("T2", dep="T1")}
+    errors = []
+    lint.check_dag(infos, "", errors)
+    assert errors and "cycle" in errors[0], errors
+    # A three-hop cycle must be caught too — the DFS has to walk, not peek.
+    infos = {"T1": task("T1", dep="T3"), "T2": task("T2", dep="T1"), "T3": task("T3", dep="T2")}
+    errors = []
+    lint.check_dag(infos, "", errors)
+    assert errors and "cycle" in errors[0], errors
+
+    # An ordering edge with no Depends-on anywhere: T2 consumes a token T1
+    # produces. This is the edge a hand-written README cannot be expected to know
+    # about, which is exactly why the gate derives it.
+    infos = {"T1": task("T1", produces="`schema.sql`"),
+             "T2": task("T2", consumes="`schema.sql`")}
+    edges = lint.dag_edges(infos)
+    assert [(a, b) for a, b, _ in edges] == [("T1", "T2")], edges
+    # And it must be directional: producing a token you also consume is not an
+    # edge to yourself, and an unrelated token is not an edge at all.
+    infos = {"T1": task("T1", produces="`schema.sql`"),
+             "T2": task("T2", consumes="`other.sql`")}
+    assert lint.dag_edges(infos) == []
+
+    # The README's wave/order table has to be a valid topological leveling of
+    # those edges, or it tells a reader to start work that cannot start.
+    infos = {"T1": task("T1", produces="`schema.sql`"),
+             "T2": task("T2", consumes="`schema.sql`")}
+    good = "| Order | Task | Depends-on |\n| 1 | T1 | none |\n| 2 | T2 | T1 |\n"
+    errors = []
+    lint.check_dag(infos, good, errors)
+    assert errors == [], errors
+    inverted = "| Order | Task | Depends-on |\n| 1 | T2 | none |\n| 2 | T1 | none |\n"
+    errors = []
+    lint.check_dag(infos, inverted, errors)
+    assert errors and "strictly earlier" in errors[0], errors
+    # Same wave is not earlier: parallel-safe means no edge between them.
+    same = "| Order | Task | Depends-on |\n| 1 | T1 | none |\n| 1 | T2 | none |\n"
+    errors = []
+    lint.check_dag(infos, same, errors)
+    assert errors, "an edge inside one wave must be reported"
+
+    # check_verification's two rejections. The first is why --human exists; the
+    # second is the whole anti-fabrication premise.
+    human_infos = {"T1": {"human": True, "vlog": [], "acc_all": "", "acc_first": ""}}
+    errors = []
+    lint.check_verification(human_infos, "| T1 | probe | done |", errors)
+    assert errors and "human-observed" in errors[0], errors
+    human_infos["T1"]["vlog"] = ["- 2026-08-22 · human-observed · Zy read it end to end"]
+    errors = []
+    lint.check_verification(human_infos, "| T1 | probe | done |", errors)
+    assert errors == [], errors
+
+    failing = {"T1": {"human": False, "vlog": ["- 2026-08-22 · no-git · exit 1 · `pytest`"],
+                      "acc_all": "", "acc_first": "pytest"}}
+    errors = []
+    lint.check_verification(failing, "| T1 | probe | done |", errors)
+    assert errors and "no exit-0 entry" in errors[0], errors
+
+    # A contract row naming no producing task is an orphan: the contract exists
+    # in prose and nothing in the plan builds it.
+    with tempfile.TemporaryDirectory() as tmp:
+        adr = Path(tmp) / "ADR-001-probe.md"
+        adr.write_text(
+            "# ADR-001\n\n## Inter-task Contracts\n\n"
+            "| Contract | Producer | Consumer |\n"
+            "|---|---|---|\n"
+            "| `schema.sql` | the database work | T2 |\n", encoding="utf-8")
+        errors = []
+        lint.check_contract_table(adr, ["T1-a", "T2-b"], errors)
+        assert any("orphaned contract" in e for e in errors), errors
+
+        adr.write_text(
+            "# ADR-001\n\n## Inter-task Contracts\n\n"
+            "| Contract | Producer | Consumer |\n"
+            "|---|---|---|\n"
+            "| `schema.sql` | T1 | T9 |\n", encoding="utf-8")
+        errors = []
+        lint.check_contract_table(adr, ["T1-a", "T2-b"], errors)
+        assert any("consuming task T9" in e for e in errors), errors
+
+        adr.write_text(
+            "# ADR-001\n\n## Inter-task Contracts\n\n"
+            "| Contract | Producer | Consumer |\n"
+            "|---|---|---|\n"
+            "| `schema.sql` | T1 | T2 |\n", encoding="utf-8")
+        errors = []
+        lint.check_contract_table(adr, ["T1-a", "T2-b"], errors)
+        assert errors == [], errors
+
+    # The detector for a test that cannot go red — itself untested until now,
+    # which is the joke this project keeps having to notice about its own gates.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "tests").mkdir()
+
+        def can_fail(source, name="test_probe", filename="probe.py"):
+            (root / "tests" / filename).write_text(source, encoding="utf-8")
+            infos = {"T1": {"human": False, "tests": [(name, f"tests/{filename}")],
+                            "path": Path("T1-probe.md")}}
+            errors = []
+            lint.check_tests_can_fail(infos, "| T1 | probe | done |", errors, root)
+            return errors
+
+        # A body with no failure call at all: green for every input, forever.
+        assert can_fail("def test_probe():\n    value = 1 + 1\n"), "no assertion must be caught"
+        # The ordinary case.
+        assert can_fail("def test_probe():\n    assert 1 + 1 == 2\n") == []
+        # An `assert` that is only MENTIONED — in a docstring or a backtick — is
+        # not a failure path. code_only exists for exactly this, and a test whose
+        # prose says `assert` while its code says nothing is the most convincing
+        # possible decoration.
+        assert can_fail('def test_probe():\n    """We assert the value is right."""\n    x = 2\n'), \
+            "an assert inside a docstring must not count"
+        # Delegating to a same-file helper is real: the test goes red when the
+        # helper does, so following one level is correct rather than lenient.
+        assert can_fail(
+            "def check_value(v):\n    assert v == 2\n\n"
+            "def test_probe():\n    check_value(1 + 1)\n") == []
+        # But only one level, and only within the file: a helper that asserts
+        # nothing does not launder the test.
+        assert can_fail(
+            "def check_value(v):\n    return v\n\n"
+            "def test_probe():\n    check_value(1 + 1)\n"), \
+            "a helper with no assertion must not satisfy the check"
+
+    # Would the Acceptance filter actually run the test the task names? A filter
+    # that selects nothing is the failure adr-verify's scored_nothing also guards.
+    assert lint.selected_by_filter("pytest -k test_alpha", "test_alpha")
+    assert not lint.selected_by_filter("pytest -k test_alpha", "test_beta")
+    # -k takes a boolean expression, not a literal.
+    assert lint.selected_by_filter("pytest -k 'alpha or beta'", "test_beta")
+    # KNOWN GAP, asserted so it is a decision rather than a surprise: `and` is
+    # treated as `or`, because the split is over any token. pytest would NOT run
+    # test_alpha under `-k 'alpha and beta'`, so this over-selects and the gate
+    # misses that case. The function's stated policy is that a false alarm costs
+    # more than a hole — people skip a noisy gate — so the bias is deliberate.
+    # Recorded in docs/BACKLOG.md item 20.
+    assert lint.selected_by_filter("pytest -k 'alpha and beta'", "test_alpha")
+    # go -run takes an unanchored regex, so a prefix selects.
+    assert lint.selected_by_filter('go test -run "TestLexNorm|TestRankRRF"', "TestLexNormAscii")
+    assert not lint.selected_by_filter('go test -run "TestLexNorm"', "TestRankRRF")
+    # selected_by_filter is only ever asked about a NARROWING command — a fence
+    # with no filter runs everything and satisfies the check trivially. Asserted
+    # at the caller, because that is where the guard lives: asking
+    # selected_by_filter directly about `pytest -q` returns False, which would be
+    # a false alarm on every unfiltered fence if the guard were removed.
+    def named(acc, tests):
+        return {"T1": {"human": False, "acc_all": acc, "acc_first": acc,
+                       "tests": tests, "path": Path("T1-probe.md")}}
+
+    errors = []
+    lint.check_named_tests_are_run(named("pytest -q", [("test_alpha", "t.py")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors == [], errors
+
+    errors = []
+    lint.check_named_tests_are_run(named("pytest -k test_alpha", [("test_beta", "t.py")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors and "does not select it" in errors[0], errors
+
+    errors = []
+    lint.check_named_tests_are_run(named("pytest -k test_alpha", [("test_alpha", "t.py")]),
+                                   "| T1 | probe | done |", errors)
+    assert errors == [], errors
+
+    # A table row is only a promise for a task claimed done; a pending task is
+    # still being written and its fence is allowed to be narrower.
+    errors = []
+    lint.check_named_tests_are_run(named("pytest -k test_alpha", [("test_beta", "t.py")]),
+                                   "| T1 | probe | pending |", errors)
+    assert errors == [], errors
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))
-    print("PASS — acceptance digests, mutation consistency, test definitions, postmortem scope")
+    print("PASS — acceptance digests, mutation consistency, test definitions, "
+          "adr-lint DAG/contract/verification/filter engines, postmortem scope")
 
 
 if __name__ == "__main__":

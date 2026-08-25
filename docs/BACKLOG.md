@@ -224,6 +224,33 @@ before and after item 7. Marker text is cut at 120 characters, so whatever made 
 mutation sits in the tail nobody can see. Probably the same class if the tail named a
 language path, but that was not verified — if the loop survives 2.0.5, start there.
 
+## 9. Piping a validation command turns it into a mutation
+
+Observed live on 2026-08-25, repeatedly, in this repository:
+
+```
+VALIDATION  node --test tests/skill-metadata.test.mjs
+mutation    node --test tests/skill-metadata.test.mjs 2>/dev/null | grep -E "pass|fail"
+VALIDATION  ./scripts/selftest.sh
+neither     ./scripts/selftest.sh 2>&1 | tail -12
+```
+
+`isValidationCommand` refuses any command containing `|` or `>`, which is correct and deliberate —
+a pipe masks the exit code, and `isValidationCommand('pnpm test | tail -20') === false` is pinned.
+But refusal drops the command into `isPotentialMutationCommand`, where `node` in command position
+makes it an interpreter run. So a read-only test invocation, piped to `grep`, is recorded as a
+mutation and *raises* the evidence bar it was meant to clear. The `selftest.sh` line shows the
+quieter half: piped, it is neither — no verdict, silently not evidence.
+
+**Direction.** The `|`/`>` refusal stays. What is wrong is the fallthrough: a command whose first
+segment matches a validation pattern is not a mutation merely because its output was filtered.
+Classify the pipeline's *first* segment, and let a downstream `grep`/`tail`/`head` be read-only.
+Any fix must keep `pnpm test | tail -20` out of the evidence set — not a mutation, but not a
+validation either, which is exactly the `neither` the selftest line already lands on.
+
+Related to item 6: same family as `bash scripts/selftest.sh` not counting while
+`./scripts/selftest.sh` does. Both make the harness harder to satisfy than its own rules require.
+
 ---
 
 ## Verification claims worth re-running after any of the above

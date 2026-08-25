@@ -163,6 +163,14 @@ elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' "$f
   fi
   shopt -u nullglob
   if [ "${#candidates[@]}" -ne 1 ]; then
+    # Ownership is a SET property too: mid-sequence the owning ADR may simply
+    # not be written yet, which is the same legitimate incompleteness the
+    # boundary rule below exists for.
+    if [ "$boundary" = "PostToolUse" ]; then
+      printf 'facts-first gate (ADR ownership) not satisfied yet for %s: expected exactly one owning ADR%s, found %s. It blocks at commit and completion.\n' \
+        "$f" "${adr_ref:+ ($adr_ref)}" "${#candidates[@]}"
+      exit 0
+    fi
     printf 'facts-first gate FAILED (ADR ownership) for %s: expected exactly one owning ADR%s, found %s.\n' \
       "$f" "${adr_ref:+ ($adr_ref)}" "${#candidates[@]}" >&2
     exit 2

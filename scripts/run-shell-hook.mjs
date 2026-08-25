@@ -217,7 +217,24 @@ export async function runShellHook(scriptName) {
     input: normalizeHookPayload(raw),
     timeoutMs,
   })
-  if (run.stdout) process.stdout.write(run.stdout)
+  // A deferral notice printed on exit-0 stdout reaches nobody at PostToolUse —
+  // Claude Code surfaces exit-0 stdout in transcript view only. Wrapping it as
+  // additionalContext is what actually puts the finding in front of the model
+  // at the moment of the edit, which is the 'report' half of "reports at the
+  // edit and blocks at the boundary".
+  const payload = parsedHookPayload(raw, process.platform)
+  if (scriptName === 'facts-gate-dispatch.sh'
+      && payload?.hook_event_name === 'PostToolUse'
+      && run.status === 0 && !run.timedOut && !run.error && run.stdout.trim()) {
+    process.stdout.write(JSON.stringify({
+      hookSpecificOutput: {
+        hookEventName: 'PostToolUse',
+        additionalContext: run.stdout.trim(),
+      },
+    }))
+  } else if (run.stdout) {
+    process.stdout.write(run.stdout)
+  }
   if (run.stderr) process.stderr.write(run.stderr)
   if (run.timedOut) {
     process.stderr.write(`quality-harness: ${scriptName} timed out after ${timeoutMs}ms\n`)

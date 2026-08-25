@@ -855,8 +855,12 @@ test('a set-level record gate reports at the edit and blocks at the boundary', a
   await rm(path.join(docs, 'tasks', 'README.md'))
   const edit = dispatch('PostToolUse', task)
   assert.equal(edit.status, 0, edit.stderr)
-  assert.match(edit.stdout, /not satisfied yet/)
-  assert.match(edit.stdout, /no README\.md index/)
+  // Exit-0 stdout reaches the model only as additionalContext, so the deferral
+  // notice must arrive wrapped — a bare print would inform nobody.
+  const context = JSON.parse(edit.stdout)
+  assert.equal(context.hookSpecificOutput.hookEventName, 'PostToolUse')
+  assert.match(context.hookSpecificOutput.additionalContext, /not satisfied yet/)
+  assert.match(context.hookSpecificOutput.additionalContext, /no README\.md index/)
 
   // The commit and completion boundaries rerun the same dispatcher with no
   // boundary argument, where the same finding still blocks.
@@ -877,7 +881,8 @@ test('the artifact gate budget is raisable, and running out of it names the budg
   assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '45000' }), 45_000)
   // Out of the runner's own range, or not a number: fall back rather than adopt.
   assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '10' }), 30_000)
-  assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '999999' }), 30_000)
+  // Above the ceiling the operator wanted MORE, so clamp — not the default back.
+  assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: '999999' }), 110_000)
   assert.equal(artifactGateTimeoutMs({ QUALITY_HARNESS_SHELL_TIMEOUT_MS: 'soon' }), 30_000)
 
   // A record large enough that the gate cannot read it inside the smallest legal
@@ -913,37 +918,56 @@ test('the artifact gate budget is raisable, and running out of it names the budg
 })
 
 test('scratch writes under the temp root are not the repository\'s edits', async () => {
-  // pluginDir stands in for a real (non-temp) project checkout.
-  assert.equal(mutatesOnlyTempPaths('printf x > /private/tmp/qh-note.txt', pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths('S=/private/tmp/qh-s\ncat > "$S/commit.txt"', pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths('mkdir -p /private/tmp/qh-s/old', pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths('rm -rf /private/tmp/qh-s', pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths('git show HEAD:scripts/lifecycle.mjs > /private/tmp/qh-s/old.mjs', pluginDir), true)
+  // pluginDir stands in for a real (non-temp) project checkout; the scratch
+  // base comes from the platform so the truths hold off-macOS too.
+  const scratch = path.join(os.tmpdir(), 'qh-scratch')
+  assert.equal(mutatesOnlyTempPaths(`printf x > "${scratch}/note.txt"`, pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths(`S="${scratch}"\ncat > "$S/commit.txt"`, pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths(`mkdir -p "${scratch}/old"`, pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths(`rm -rf "${scratch}"`, pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths(`git show HEAD:scripts/lifecycle.mjs > "${scratch}/old.mjs"`, pluginDir), true)
 
   // Anything unprovable, repo-touching, or executed keeps today's answer.
   assert.equal(mutatesOnlyTempPaths('printf x > docs/spec.md', pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths("sed -i '' /private/tmp/x.md", pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths('python3 /private/tmp/rewrite.py', pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths('cp scripts/lifecycle.mjs /private/tmp/qh-s/', pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths(`sed -i '' "${scratch}/x.md"`, pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths(`python3 "${scratch}/rewrite.py"`, pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths(`cp scripts/lifecycle.mjs "${scratch}/"`, pluginDir), false)
   assert.equal(mutatesOnlyTempPaths('cat > "$UNSET_VAR_QH/f"', pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths('rm -rf /private/tmp/a && printf x > README.md', pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths(`rm -rf "${scratch}/a" && printf x > README.md`, pluginDir), false)
   // A project living under the temp root gets no exemption at all.
-  assert.equal(mutatesOnlyTempPaths('printf x > /private/tmp/qh-note.txt', testTmp), false)
-  // A symlink under /tmp pointing into a repository is judged by where it lands.
+  assert.equal(mutatesOnlyTempPaths(`printf x > "${scratch}/note.txt"`, testTmp), false)
+
+  // The bypasses the 2.0.17 review demonstrated stay dead:
+  // an option can smuggle the destination...
+  assert.equal(mutatesOnlyTempPaths(`mv --target-directory=scripts "${scratch}/evil.js"`, pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths(`cp -tscripts "${scratch}/evil.js"`, pluginDir), false)
+  assert.equal(mutatesOnlyTempPaths(`cp -t scripts "${scratch}/evil.js"`, pluginDir), false)
+  // ...a later reassignment must not rewrite an earlier use...
+  assert.equal(mutatesOnlyTempPaths(`S=docs\nprintf x > $S/f.md\nS="${scratch}"\nprintf y > $S/g`, pluginDir), false)
+  // ...a glued redirect writes even where the mutation classifier is blind...
+  assert.equal(mutatesOnlyTempPaths(`echo y > "${scratch}/ok"; echo x>scripts/f`, pluginDir), false)
+  // ...and a symlink under the temp root is judged by where it lands, whether
+  // it points at a directory, a file, or nothing yet.
   const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-link-'))
-  const link = path.join(linkDir, 'repo-link')
-  await symlink(pluginDir, link)
-  assert.equal(mutatesOnlyTempPaths(`printf x > ${link}/smuggled.txt`, pluginDir), false)
+  const directoryLink = path.join(linkDir, 'repo-link')
+  await symlink(pluginDir, directoryLink)
+  assert.equal(mutatesOnlyTempPaths(`printf x > "${directoryLink}/smuggled.txt"`, pluginDir), false)
+  const fileLink = path.join(linkDir, 'file-link')
+  await symlink(path.join(pluginDir, 'README.md'), fileLink)
+  assert.equal(mutatesOnlyTempPaths(`printf x > "${fileLink}"`, pluginDir), false)
+  const danglingLink = path.join(linkDir, 'dangling-link')
+  await symlink(path.join(pluginDir, 'does-not-exist-yet.md'), danglingLink)
+  assert.equal(mutatesOnlyTempPaths(`printf x > "${danglingLink}"`, pluginDir), false)
 
   // A scratch write is invisible to the evidence gate; a repo write is not.
   const scratchOnly = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: 'cat > /private/tmp/qh-s/notes.txt' }), toolResult('b1'),
+    toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
   ]), pluginDir)
   assert.equal(scratchOnly.hasMutations, false)
   const verifiedThenScratch = analyzeTranscript(transcript([
     toolUse('e1', 'Edit', { file_path: path.join(pluginDir, 'a.ts') }), toolResult('e1'),
     toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'cat > /private/tmp/qh-s/notes.txt' }), toolResult('b1'),
+    toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
   ]), pluginDir)
   assert.equal(verifiedThenScratch.verifiedAfterLastMutation, true)
 })
@@ -959,6 +983,9 @@ test('navigation refreshes the tree without counting as authored work', async ()
 
   assert.equal(bashNavigationImpact('git checkout task/work && git pull --ff-only', repo), 'refresh')
   assert.equal(bashNavigationImpact('git switch task/work', repo), 'refresh')
+  // A non-fast-forward pull can create a merge commit: authorship, not navigation.
+  assert.equal(bashNavigationImpact('git pull', repo), null)
+  assert.equal(bashNavigationImpact('git pull --rebase', repo), null)
   assert.equal(bashNavigationImpact('git checkout -b task/next', repo), 'inert')
   assert.equal(bashNavigationImpact('git checkout -b task/next origin/main', repo), 'refresh')
   assert.equal(bashNavigationImpact('git pull --ff-only && rm -rf src', repo), null)
@@ -995,4 +1022,41 @@ test('navigation refreshes the tree without counting as authored work', async ()
   assert.equal(check('git pull --ff-only origin main'), null)
   assert.match(check('git pull'), /protected 'main'/)
   assert.match(check('git pull --rebase'), /protected 'main'/)
+})
+
+test('a commit cannot launder an unresolved deletion, and the gate window fails closed', async () => {
+  // Landing a commit after an unresolved deletion rewrites the HEAD the
+  // sentinel would be resolved against, so the resolution must refuse.
+  const laundered = analyzeTranscript(transcript([
+    toolUse('b1', 'Bash', { command: 'rm -rf "$ARCHIVE_DIR"' }), toolResult('b1'),
+    toolUse('b2', 'Bash', { command: 'git add -A && git commit -m cover' }), toolResult('b2'),
+  ]), '/repo')
+  assert.equal(laundered.publishAfterUnresolvedDeletion, true)
+  const honest = analyzeTranscript(transcript([
+    toolUse('b1', 'Bash', { command: 'git commit -m early' }), toolResult('b1'),
+    toolUse('b2', 'Bash', { command: 'rm -rf "$ARCHIVE_DIR"' }), toolResult('b2'),
+  ]), '/repo')
+  assert.equal(honest.publishAfterUnresolvedDeletion, false)
+
+  const dir = await mkdtemp(path.join(testTmp, 'quality-launder-'))
+  const file = path.join(dir, 'main.jsonl')
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: 'rm -rf "$ARCHIVE_DIR"' }), toolResult('b1'),
+    toolUse('b2', 'Bash', { command: 'git add -A && git commit -m cover' }), toolResult('b2'),
+    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file })
+  assert.equal(task.status, 2)
+  assert.match(task.stderr, /commit has already landed since/)
+
+  // The artifact pass must never outlive the hook it runs inside: an exhausted
+  // window is a blocking failure, not a silent skip.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-window-'))
+  const adr = path.join(repo, 'ADR-001-window.md')
+  await writeFile(adr, ['# ADR-001: Window', '', '## Existing Primitives Audit', '',
+    '## Decision', '', '## Alternatives Considered', '', '## Consequences', ''].join('\n'))
+  const exhausted = runArtifactGates([adr], repo, 500)
+  assert.match(exhausted, /window was exhausted before/)
+  assert.match(exhausted, /Artifact validation failed/)
 })

@@ -428,11 +428,59 @@ Related to item 6's open redirect bullets (`git fsck 2>&-`, `echo x > /dev/null`
 false blocks of the same family — the gate refusing work that is not wrong. The
 template-placeholder case is already closed in `facts-gate-dispatch.sh`.
 
+## 14. What the adversarial review of 2.0.12-2.0.17 found, and what was accepted
+
+A 27-agent adversarial review of the branch (four lenses, every finding independently
+re-verified with live reproductions) confirmed 23 findings. **Fixed in `2.0.18`:**
+
+- `cp/mv --target-directory=DIR` and `-tDIR` smuggled a repository write past BOTH the
+  temp exemption and the protected-branch guard — the operand loop skipped every
+  dash-argument as a flag. '='-attached option values are now checked as targets and the
+  `-t` forms disqualify outright.
+- A symlink at the final path component (to a file, or dangling) leaked a repo write
+  while classifying temp-only; the leaf is now lstat'd and followed, depth-capped.
+- A later `VAR=` reassignment rewrote earlier uses (last-assignment-wins); assignments
+  now apply in order.
+- A glued redirect (`echo x>f`) in a mixed command lost the incidental coverage the
+  blunt classifier used to give it; every `>` in every segment is now accounted.
+- Non-fast-forward `git pull` (a merge is authorship) is a mutation again; only
+  `pull --ff-only` is navigation.
+- The raised artifact-gate budget could outlive the hook's own deadline (hooks.json:
+  60s at PreToolUse), and a hook killed on its deadline blocks nothing — the pass now
+  runs under a per-boundary window (45s commit, 100s completion) and an exhausted
+  window is a blocking failure.
+- `rm -rf "$VAR" && git commit` laundered the unresolved-deletion sentinel by rewriting
+  the HEAD it resolves against; a publish after an unresolved deletion now fails closed.
+- The PostToolUse deferral notice was printed to exit-0 stdout, which reaches nobody;
+  it now arrives as `additionalContext`, restoring the "report" half of
+  "reports at the edit and blocks at the boundary". ADR-ownership ambiguity also
+  respects the boundary rule now.
+- `artifactGateTimeoutMs` above the ceiling clamps to the ceiling instead of snapping
+  back to the default; `deletedTrackedPaths` handles quoted names and disables rename
+  detection; the new tests derive their temp base from the platform instead of
+  `/private/tmp` literals.
+
+**Confirmed but accepted, with reasons:**
+
+- `cp` SOURCE operands are treated as written targets (over-strict, fail-closed).
+- A session can still write `/tmp/check.sh` invisibly and run `bash /tmp/check.sh` as
+  "evidence" — partially pre-existing (any `./check.sh` matched); wants a
+  temp-path-aware `isValidationCommand`, which needs a cwd it does not take today.
+- Branch existence for the checkout/navigation discriminators is consulted at
+  boundary time, not command time — replay can reclassify; narrow both ways.
+- The unresolved-deletion sentinel resolves against the session repo only; a deletion
+  in a DIFFERENT repository, or of a file inside a submodule, is out of its sight.
+- The branch guard's temp exemption judges one segment and cannot see a sibling
+  segment's `VAR=` assignment — those scratch writes stay blocked on main (fail-closed).
+- Interactive `Stop` still runs no artifact gates (pre-2.0.3 pinned design); the
+  additionalContext notice is the mitigation — the model now SEES the set-level
+  failure at edit time even though only commit/completion enforce it.
+
 ---
 
 ## Verification claims worth re-running after any of the above
 
-- `bash scripts/selftest.sh` → 66/66, on any branch (item 4) and as evidence (item 6).
+- `bash scripts/selftest.sh` → 67/67, on any branch (item 4) and as evidence (item 6).
 - The 8 gates under `PYTHONIOENCODING=cp1252` against `tests/fixtures/ok` → 8/8, and the
   `adr-verify`-written evidence row shows `c2 b7` under `cat -A` / `od` (macOS `cat` has
   no `-A`; use `od -c`).

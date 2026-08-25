@@ -9,7 +9,7 @@ claude plugin validate --strict "$ROOT/skills"
 node --test "$ROOT"/tests/*.test.mjs
 
 for file in "$ROOT"/bin/*; do
-  python3 -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(), filename=sys.argv[1])' "$file"
+  python3 -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])' "$file"
 done
 
 for file in "$ROOT"/scripts/*.sh; do

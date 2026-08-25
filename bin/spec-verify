@@ -24,6 +24,10 @@ from pathlib import Path
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
 # print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
 # which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+# Child process output decodes with that same default, so every subprocess call
+# below names its encoding: under cp1252 a test suite's `—` reaches the verdict as
+# `â€"`, and a stray 0x81/0x8D/0x90/0x9D raises UnicodeDecodeError, killing the
+# gate instead of letting it judge the run.
 import sys as _sys
 for _s in (_sys.stdout, _sys.stderr):
     try:
@@ -77,7 +81,8 @@ def repo_root(spec_path, override):
     d = spec_path.resolve().parent
     try:
         top = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
-                             capture_output=True, text=True, timeout=10)
+                             capture_output=True, text=True, timeout=10,
+                             encoding="utf-8", errors="replace")
         if top.returncode == 0:
             return Path(top.stdout.strip())
     except Exception:
@@ -344,7 +349,8 @@ def test_exists(test, root, stack, collect):
         "molecule": ["molecule", "list", "-s", name],
     }
     try:
-        r = subprocess.run(cmds[stack], cwd=root, capture_output=True, text=True, timeout=300)
+        r = subprocess.run(cmds[stack], cwd=root, capture_output=True, text=True, timeout=300,
+                           encoding="utf-8", errors="replace")
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return False, f"collect command failed to run: {e}"
     ok = r.returncode == 0 and (name in r.stdout or stack == "pytest")
@@ -355,7 +361,7 @@ def test_runs(test, root, stack, override_cmd):
     if override_cmd:
         try:
             r = subprocess.run(override_cmd, shell=True, cwd=root, capture_output=True,
-                              text=True, timeout=1800)
+                              text=True, timeout=1800, encoding="utf-8", errors="replace")
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
             return False, f"cmd failed to run: {e}"
         return r.returncode == 0, (r.stdout + r.stderr)[-300:]
@@ -394,7 +400,8 @@ def test_runs(test, root, stack, override_cmd):
     if stack is None:
         return False, "no stack detected and no Cmd override"
     try:
-        r = subprocess.run(cmds[stack], cwd=cwd, capture_output=True, text=True, timeout=1800)
+        r = subprocess.run(cmds[stack], cwd=cwd, capture_output=True, text=True, timeout=1800,
+                           encoding="utf-8", errors="replace")
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return False, f"test command failed to run: {e}"
     return r.returncode == 0, (r.stdout + r.stderr)[-300:]

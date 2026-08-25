@@ -71,6 +71,10 @@ from pathlib import Path
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
 # print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
 # which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+# Child process output decodes with that same default, so every subprocess call
+# below names its encoding: under cp1252 the acceptance command's `·` would reach
+# the evidence log as `Â·`, and a stray 0x81/0x8D/0x90/0x9D would raise
+# UnicodeDecodeError, killing the gate instead of letting it judge.
 import sys as _sys
 for _s in (_sys.stdout, _sys.stderr):
     try:
@@ -233,7 +237,8 @@ def syntax_ok(path):
     if not cmd:
         return True, f"no cheap parser for {suf or 'this file'} — not checked"
     try:
-        r = subprocess.run(cmd + [str(path)], capture_output=True, text=True)
+        r = subprocess.run(cmd + [str(path)], capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
     except FileNotFoundError:
         return True, f"{cmd[0]} not installed — not checked"
     if r.returncode != 0:
@@ -262,12 +267,12 @@ def append_entry(task, text, block, section="Verification Log"):
 def git_sha(cwd):
     """Short HEAD sha, `*`-suffixed when the tree is dirty; `no-git` outside a repo."""
     g = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--short", "HEAD"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     if g.returncode != 0:
         return "no-git"
     sha = g.stdout.strip()
     d = subprocess.run(["git", "-C", str(cwd), "status", "--porcelain"],
-                       capture_output=True, text=True)
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
     return sha + ("*" if d.stdout.strip() else "")
 
 
@@ -331,7 +336,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                   "been skipped. Rewrite it so it still parses.")
             sys.exit(2)
 
-        r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True)
+        r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace")
         out, code = r.stdout + r.stderr, r.returncode
 
         if code == 0:
@@ -411,13 +417,14 @@ def main():
 
     if cwd is None:
         r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],
-                           capture_output=True, text=True)
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
         cwd = Path(r.stdout.strip()) if r.returncode == 0 else task.parent
 
     if mutant is not None:
         run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why)
 
-    r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True)
+    r = subprocess.run(["bash", "-c", cmd], cwd=cwd, capture_output=True, text=True,
+                       encoding="utf-8", errors="replace")
 
     sha = git_sha(cwd)
 

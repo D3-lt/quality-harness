@@ -64,6 +64,15 @@ const cases = [
   ['/usr/bin/python3 rewrite.py', 'mutation'],
   ['env FOO=bar python rewrite.py', 'mutation'],
   ['bash -c "python rewrite.py"', 'mutation'],
+  // Setting a tool path on its own line is the ordinary way these gates get
+  // run, and the whole command used to be discarded for containing a newline,
+  // so the run never counted as evidence. Same repository, same session.
+  ['P=/p/bin\n"$P/adr-lint" docs/adr/0015-rq-for-queued-work-in-both-python-stacks.md', 'validation'],
+  ['cd /repo\npnpm test', 'validation'],
+  ['pnpm test\npnpm lint', 'validation'],
+  // ...but a mutation on the line above a test still cannot launder itself.
+  ['rm -rf build\npnpm test', 'mutation'],
+  ['P=/p/bin\n$P/adr-verify docs/adr/T7.md', 'mutation'],
 ]
 
 let bad = 0

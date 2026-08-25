@@ -166,6 +166,22 @@ export function runWithTimeout(executable, args, options = {}) {
   })
 }
 
+// The MSYS/Cygwin runtime aborts with `[main] bash (1234) …: *** fatal error - …`
+// and still exits 0. Measured 2026-08-25 on Windows 11: four PostToolUse:Edit
+// hooks died in `add_item` and every one was recorded as a clean pass, so ADR
+// files were edited with the facts gate never having run. A gate that cannot
+// fail is evidence of nothing — the crash has to outrank the exit code.
+//
+// Deliberately narrow: this matches the C runtime's own abort banner, not gate
+// output. A gate is free to print the words "fatal error" in a finding.
+// The banner is prefixed by a serial number and elapsed time before `[main]`,
+// e.g. `      2 [main] bash (46688) …`, so the line does not start at `[`.
+const SHELL_ABORT = /^[^\n]{0,80}\[[a-z]+\][^\n]*\*\*\* fatal error[ -]/mi
+
+export function shellRuntimeCrashed(stderr) {
+  return typeof stderr === 'string' && SHELL_ABORT.test(stderr)
+}
+
 async function readStdin() {
   let raw = ''
   for await (const chunk of process.stdin) raw += chunk
@@ -204,6 +220,11 @@ export async function runShellHook(scriptName) {
   }
   if (run.error) {
     process.stderr.write(`quality-harness: could not run ${scriptName}: ${run.error.message}\n`)
+    return 2
+  }
+  if (shellRuntimeCrashed(run.stderr)) {
+    process.stderr.write(`quality-harness: the shell running ${scriptName} aborted before the gate `
+      + 'could report; treating the run as failed rather than clean.\n')
     return 2
   }
   return Number.isInteger(run.status) ? run.status : 2

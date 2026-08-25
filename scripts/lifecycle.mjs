@@ -27,6 +27,12 @@ const VALIDATION_PATTERNS = [
   /^(?:python(?:3)?\s+)?\S*(?:adr-lint|adr-debt|spec-verify|arch-lint|postmortem-verify|adr-retire-check)\b/i,
 ]
 
+// A redirect that writes somewhere: `> f`, `2>> f`, `&> f`. `>&1` and `>&2`
+// duplicate a descriptor and `/dev/null` discards, so neither is a write. One
+// definition because two copies of this policy drift: the branch guard and the
+// exception list must agree on what counts as writing.
+const WRITE_REDIRECT = /(?:^|\s)(?:\d*|&)>>?\s*(?!&\d|\/dev\/null)/
+
 function walk(value, visit) {
   if (!value || typeof value !== 'object') return
   visit(value)
@@ -129,43 +135,61 @@ function gitCommandDirectory(command, cwd) {
   return directory
 }
 
-function shellSegments(command) {
+export function shellSegments(command) {
   const segments = []
   let segment = ''
   let quote = null
   let escaped = false
+  // Last unquoted, unescaped, non-blank character of the segment being built.
+  // `&` splitting is not `&&` splitting: an `&` glued to a redirect belongs to
+  // the operator. Splitting `2>&1` there left a first segment ending in `2>`,
+  // which every write-redirect rule reads as a write, so the branch guard
+  // blocked read-only commands whenever the addressed repository was protected.
+  let previous = null
 
   for (let index = 0; index < command.length; index += 1) {
     const character = command[index]
     if (escaped) {
       segment += character
       escaped = false
+      previous = null
       continue
     }
     if (character === '\\' && quote !== "'") {
       segment += character
       escaped = true
+      previous = null
       continue
     }
     if (quote) {
       segment += character
       if (character === quote) quote = null
+      previous = null
       continue
     }
     if (character === "'" || character === '"') {
       quote = character
       segment += character
+      previous = null
       continue
     }
-    if (character === ';' || character === '\n' || character === '|' || character === '&') {
+    // `2>&1`, `>&2` and `>&-` close over the preceding redirect; `&>f` and
+    // `&>>f` open one. Everything else keeps `&` as a separator, so a genuine
+    // background job still ends its segment.
+    const redirectAmpersand = character === '&'
+      && (previous === '>' || previous === '<' || command[index + 1] === '>')
+    if (!redirectAmpersand
+        && (character === ';' || character === '\n' || character === '|' || character === '&')) {
       if (segment.trim()) segments.push(segment.trim())
       segment = ''
+      previous = null
       if ((character === '|' || character === '&') && command[index + 1] === character) {
         index += 1
       }
       continue
     }
     segment += character
+    if (!/\s/.test(character)) previous = character
   }
 
   if (segment.trim()) segments.push(segment.trim())
@@ -616,8 +640,7 @@ function isGitMutationCommand(command) {
 function protectedBranchException(command) {
   const trimmed = command.trim()
   const invocation = gitInvocation(trimmed)
-  if (!invocation
-      || /`|\$\(|(?:^|\s)\d*>>?\s*(?!&\d|\/dev\/null)/.test(trimmed)) return false
+  if (!invocation || /`|\$\(/.test(trimmed) || WRITE_REDIRECT.test(trimmed)) return false
   const { subcommand, subcommandIndex, words } = invocation
   if (subcommand === 'switch') return true
   const args = []
@@ -771,7 +794,7 @@ export function interpreterCommandLooksMutating(command, executable) {
 export function isPotentialMutationCommand(command) {
   if (typeof command !== 'string' || isValidationCommand(command)) return false
   const executable = withoutHeredocBodies(command)
-  if (/(?:^|\s)\d*>>?\s*(?!&\d|\/dev\/null)/.test(executable)) return true
+  if (WRITE_REDIRECT.test(executable)) return true
   return /\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\b/.test(executable)
     || inPlaceEditorCommand(executable)
     || interpreterCommandLooksMutating(command, executable)

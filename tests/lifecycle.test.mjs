@@ -13,6 +13,7 @@ import {
   isGitPublishCommand,
   isPotentialMutationCommand,
   isValidationCommand,
+  shellSegments,
 } from '../scripts/lifecycle.mjs'
 import {
   hookFilePathFromPayload,
@@ -83,6 +84,34 @@ test('tracks mutation-capable Bash commands without treating read-only probes as
     ['/repo/docs/adr-archive'],
   )
   assert.match(bashDeletionMutationPaths('rm -rf "$ARCHIVE"', '/repo')[0], /Unresolved/)
+})
+
+test('a redirect ampersand stays inside its segment', () => {
+  // The branch guard classifies per segment, so it has to be tested per segment:
+  // `2>&1` split at the bare `&` leaves `… 2>` behind, and a whole-command test
+  // stays green while that truncated segment reads as a write.
+  const readOnly = 'git ls-remote --heads https://example.invalid/repo.git 2>&1 | head -20'
+  assert.deepEqual(shellSegments(readOnly), [
+    'git ls-remote --heads https://example.invalid/repo.git 2>&1',
+    'head -20',
+  ])
+  for (const segment of shellSegments(readOnly)) {
+    assert.equal(isPotentialMutationCommand(segment), false, segment)
+  }
+  assert.deepEqual(shellSegments('gh release list >&2'), ['gh release list >&2'])
+  assert.equal(isPotentialMutationCommand('gh release list >&2'), false)
+  assert.deepEqual(shellSegments('git fsck 2>&-'), ['git fsck 2>&-'])
+  assert.deepEqual(shellSegments('echo x &> out.txt'), ['echo x &> out.txt'])
+
+  // `&` still separates a background job, and `&&` still separates two commands.
+  assert.deepEqual(shellSegments('sleep 1 & git status --short'), ['sleep 1', 'git status --short'])
+  assert.deepEqual(shellSegments('git status --short && git diff'), ['git status --short', 'git diff'])
+  // A quoted `>` never turns the next `&` into part of a redirect.
+  assert.deepEqual(shellSegments('echo "a>" & git diff'), ['echo "a>"', 'git diff'])
+
+  // `&>f` and `&>>f` write, so keeping them in one segment must not lose them.
+  assert.equal(isPotentialMutationCommand('echo x &> out.txt'), true)
+  assert.equal(isPotentialMutationCommand('echo x &>> out.txt'), true)
 })
 
 test('quoted Markdown and git text are mentions, not permanent lifecycle failures', async () => {
@@ -252,6 +281,21 @@ test('branch policy follows the target repository for native edits and git -C', 
     tool_name: 'Bash', cwd: testTmp,
     tool_input: { command: `git -C "${protectedDir}" merge --ff-only task/test` },
   }), null)
+
+  // Read-only probes stay runnable on a protected branch. These were blocked
+  // while `2>&1` split at the bare `&` and left a segment ending in `2>`.
+  assert.equal(branchViolation({
+    tool_name: 'Bash', cwd: protectedDir,
+    tool_input: { command: 'git ls-remote --heads https://example.invalid/repo.git 2>&1 | head -20' },
+  }), null)
+  assert.equal(branchViolation({
+    tool_name: 'Bash', cwd: protectedDir,
+    tool_input: { command: 'curl -s https://example.invalid/release 2>&1 | head -5' },
+  }), null)
+  assert.match(branchViolation({
+    tool_name: 'Bash', cwd: protectedDir,
+    tool_input: { command: 'git log --oneline &> notes.txt' },
+  }), /protected 'main'/)
 })
 
 test('requires successful verification after the final edit', () => {

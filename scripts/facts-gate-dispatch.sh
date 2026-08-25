@@ -15,6 +15,19 @@ base=$(basename "$f")
 base_lc=$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')
 gate="" out="" rc=0
 
+# A template ships placeholders on purpose, so gating one as a project artifact
+# fails by design — and that failure blocked the edit, then every later commit in
+# the session, in every repository, because the path stayed in mutationPaths.
+# Measured 2026-08-25 against a user-global adr-template.md. Selection is
+# the bug: the gates are right to reject a placeholder ADR when asked directly,
+# which is what the "placeholder and invalid artifacts are rejected" test pins.
+case "$base_lc" in
+  *-template.md) exit 0 ;;
+esac
+case "$(dirname "$f")" in
+  */templates|*/templates/) exit 0 ;;
+esac
+
 is_postmortem() {
   grep -q '^## Symptom' "$1" && grep -q '^## Root Cause' "$1" \
     && grep -q '^## Investigation' "$1" && grep -q '^## Lesson' "$1"
@@ -80,6 +93,19 @@ git_archive_catalog_for() {
   return 1
 }
 
+collect_owning_adrs() {
+  local search_dir="$1" candidate candidate_id
+  for candidate in "$search_dir"/*.md; do
+    candidate_id=$(sed -nE '1s/^# (ADR-[^: ]+).*/\1/p' "$candidate")
+    if [[ -n "$adr_ref" && -n "$candidate_id" \
+          && "$adr_ref" != "$candidate_id" \
+          && "$adr_ref" != "$candidate_id"-* ]]; then
+      continue
+    fi
+    is_adr "$candidate" && candidates+=("$candidate")
+  done
+}
+
 is_adr() {
   grep -q '^## Existing Primitives Audit' "$1" && grep -q '^## Decision' "$1" \
     && grep -q '^## Alternatives Considered' "$1" && grep -q '^## Consequences' "$1"
@@ -121,17 +147,16 @@ elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' "$f
   adr_ref=$(sed -nE '1s/^# (Task )?(ADR-[^: ]+).*/\2/p' "$f")
   candidates=()
   shopt -s nullglob
-  for search_dir in "$parent" "$(dirname "$parent")"; do
-    for candidate in "$search_dir"/*.md; do
-      candidate_id=$(sed -nE '1s/^# (ADR-[^: ]+).*/\1/p' "$candidate")
-      if [[ -n "$adr_ref" && -n "$candidate_id" \
-            && "$adr_ref" != "$candidate_id" \
-            && "$adr_ref" != "$candidate_id"-* ]]; then
-        continue
-      fi
-      is_adr "$candidate" && candidates+=("$candidate")
-    done
-  done
+  collect_owning_adrs "$parent"
+  # A record that owns its own directory is unambiguous inside it. Widening to
+  # the directory above pulls in every unrelated record, and the id filter can
+  # only rescue that when every one is titled `# ADR-<id>`: measured 2026-08-25,
+  # a repository using date-named records reported "found 22" for a task whose
+  # owner sat right beside its tasks/ directory. Widen only when the record is
+  # genuinely not there.
+  if [ "${#candidates[@]}" -eq 0 ]; then
+    collect_owning_adrs "$(dirname "$parent")"
+  fi
   shopt -u nullglob
   if [ "${#candidates[@]}" -ne 1 ]; then
     printf 'facts-first gate FAILED (ADR ownership) for %s: expected exactly one owning ADR%s, found %s.\n' \
@@ -145,7 +170,7 @@ elif [[ "$f" == */docs/specs/*.md ]] \
   # facts-first spec (structure-only draft gate while authoring; --spec stays a deliberate step)
   gate="spec-verify --draft"
   out=$("$BIN/spec-verify" --draft "$f" 2>&1); rc=$?
-elif [[ "$base_lc" == "architecture.md" || "$base_lc" == "architecture-template.md" ]] \
+elif [[ "$base_lc" == "architecture.md" ]] \
   || is_architecture "$f"; then
   gate="arch-lint"
   out=$("$BIN/arch-lint" "$f" 2>&1); rc=$?

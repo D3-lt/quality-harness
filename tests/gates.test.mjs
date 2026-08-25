@@ -237,6 +237,75 @@ test('the plugin-local facts hook accepts valid facts and blocks invalid facts',
   expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], temp, payload), 2, 'invalid hook input')
 })
 
+test('editing a template does not fail the facts gate', () => {
+  // A template ships placeholders on purpose. Reported 2026-08-25: editing a
+  // user-global adr-template.md failed the gate, and because the path stayed in
+  // mutationPaths it then blocked every later commit in the session, in every
+  // repository. Selection was the bug, not the templates.
+  const hook = join(root, 'scripts', 'run-shell-hook.mjs')
+  for (const name of [
+    'adr-template.md', 'architecture-template.md', 'spec-template.md',
+    'task-template.md', 'tasks-readme-template.md', 'adr-archive-readme-template.md',
+  ]) {
+    const target = join(root, 'templates', name)
+    const payload = JSON.stringify({ tool_input: { file_path: target } })
+    expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], root, payload), 0, name)
+  }
+
+  // A template outside a templates/ directory: this is what makes the filename
+  // rule load-bearing. Without it the six above still pass on their directory
+  // alone, and the check reads green while covering half of what it claims.
+  const loose = mkdtempSync(join(os.tmpdir(), 'quality-harness-template-'))
+  const stray = join(loose, 'service-adr-template.md')
+  writeFileSync(stray, [
+    '# ADR-000: <decision>', '', '## Existing Primitives Audit', '- <what exists>', '',
+    '## Decision', '<what is decided>', '', '## Alternatives Considered', '- <option>', '',
+    '## Consequences', '- <result>', '',
+  ].join('\n'))
+  expectExit(
+    run(process.execPath, [hook, 'facts-gate-dispatch.sh'], loose,
+      JSON.stringify({ tool_input: { file_path: stray } })),
+    0,
+    'template outside a templates directory',
+  )
+
+  // The gates themselves stay strict when asked directly — a placeholder ADR is
+  // still not a valid ADR, which is the distinction this fix preserves.
+  expectExit(run('adr-lint', [join(root, 'templates', 'adr-template.md')]), 1, 'direct adr-lint')
+})
+
+test('a record beside its tasks owns them, whatever the corpus is named', () => {
+  // Ownership was resolved by scanning the task's parent AND the directory above
+  // it, then disambiguating on an `# ADR-<id>` title. A corpus using date-named
+  // records has no such id, so the filter never engaged and every sibling record
+  // counted: measured 2026-08-25, a real repository reported "found 22" for a
+  // task whose owner sat right beside it. The directory above is now consulted
+  // only when the record is genuinely not next to its tasks.
+  const repo = mkdtempSync(join(os.tmpdir(), 'quality-harness-owner-'))
+  const adrRoot = join(repo, 'docs', 'adr')
+  mkdirSync(adrRoot, { recursive: true })
+  cpSync(fixture, join(adrRoot, '2026-07-15-app-tier'), { recursive: true })
+
+  const record = [
+    '# Some Unrelated Decision', '', '## Existing Primitives Audit', '- x', '',
+    '## Decision', 'd', '', '## Alternatives Considered', '- a', '', '## Consequences', '- c', '',
+  ].join('\n')
+  for (let index = 0; index < 22; index += 1) {
+    writeFileSync(join(adrRoot, `2026-0${(index % 9) + 1}-${index}-thing.md`), record)
+  }
+
+  const task = join(adrRoot, '2026-07-15-app-tier', 'tasks', 'T1-fixture.md')
+  const hook = join(root, 'scripts', 'run-shell-hook.mjs')
+  const result = run(process.execPath, [hook, 'facts-gate-dispatch.sh'], repo,
+    JSON.stringify({ tool_input: { file_path: task } }))
+  assert.doesNotMatch(
+    result.stderr,
+    /expected exactly one owning ADR/,
+    `ownership must not widen past the record beside the tasks\n${result.stderr}`,
+  )
+  expectExit(result, 0, 'date-named corpus beside a nested record')
+})
+
 test('the facts hook parses payloads in Node without jq or Python', () => {
   const hook = join(root, 'scripts', 'run-shell-hook.mjs')
   const dispatcher = readFileSync(join(root, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')

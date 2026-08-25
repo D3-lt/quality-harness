@@ -342,7 +342,9 @@ test('spec-verify --implemented runs the bound tests and separates RED from brok
 
   // A Cmd override makes the run deterministic: the point here is the gate's
   // handling of a green and a red command, not which runner a repo happens to
-  // have installed.
+  // have installed. Written IN BACKTICKS, the way the template writes every
+  // command and the way the Test cell beside it is written — that form used to
+  // reach the shell with its backticks intact.
   const bind = (tag, cmd) => good
     .replace('| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | `test_selftest_fixture.py::test_gates_run` | @spec | |',
       `| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | \`test_selftest_fixture.py::test_gates_run\` | ${tag} | ${cmd} |`)
@@ -358,6 +360,22 @@ test('spec-verify --implemented runs the bound tests and separates RED from brok
   const red = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
   assert.equal(red.status, 3, red.stdout)
   assert.match(red.stdout, /F-1/)
+
+  // The case that can SEE the difference. With the backticks left on, a POSIX
+  // shell treats the cell as a command SUBSTITUTION: it runs the command, then
+  // executes its OUTPUT. So a command that succeeds while printing a word runs
+  // that word — here a nonexistent one — and the fact goes RED for a reason that
+  // has nothing to do with the test. Exit codes alone cannot tell the two apart,
+  // which is why reverting the strip left this suite green until this row.
+  writeFileSync(spec, bind('@implemented', '`python3 -c "print(\'definitely-not-a-command-xyzzy\')"`'))
+  const printing = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.equal(printing.status, 0, `the command's OUTPUT must not be executed\n${printing.stdout}`)
+
+  // The same override without backticks must behave identically; neither form
+  // may be the one that happens to work.
+  writeFileSync(spec, bind('@implemented', 'python3 -c "raise SystemExit(1)"'))
+  const bare = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.equal(bare.status, 3, bare.stdout)
 
   // And an @spec-tagged row is not run at all: the tag is the claim that it has
   // been implemented, so a spec still being drafted is not failed for it.

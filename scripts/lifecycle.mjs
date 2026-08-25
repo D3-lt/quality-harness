@@ -13,6 +13,15 @@ const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
 const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 const DOC_EXTENSIONS = new Set(['.md', '.mdx', '.rst', '.txt'])
 const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
+// Per artifact, at the commit and completion boundaries. The per-edit boundary
+// gets the runner's own budget from hooks.json; this one used to be a flat 10s
+// that no setting could change, because the value was written into the child's
+// environment AFTER process.env was spread. Reported 2026-08-25: a clean 25-ADR
+// corpus timed out, every commit blocked, and QUALITY_HARNESS_SHELL_TIMEOUT_MS
+// did nothing — the gate's cost grows with the corpus it reads, so the budget has
+// to be raisable by whoever owns the corpus.
+const ARTIFACT_GATE_TIMEOUT_MS = 30_000
+const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
 const VALIDATION_PATTERNS = [
   /^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
   /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,
@@ -1082,6 +1091,16 @@ function deletedTrackedPaths(cwd) {
     .map(relative => path.join(top, relative))
 }
 
+// The runner clamps this the same way; reading it here keeps the outer kill above
+// the inner timeout, so a raised budget is not cut short by the process that
+// spawned it.
+export function artifactGateTimeoutMs(env = process.env) {
+  const configured = Number(env.QUALITY_HARNESS_SHELL_TIMEOUT_MS)
+  return Number.isSafeInteger(configured) && configured >= 100 && configured <= 110_000
+    ? configured
+    : ARTIFACT_GATE_TIMEOUT_MS
+}
+
 export function runArtifactGates(paths, cwd = process.cwd()) {
   const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
@@ -1104,15 +1123,23 @@ export function runArtifactGates(paths, cwd = process.cwd()) {
     targets.push(filePath)
   }
   for (const filePath of [...new Set(targets)]) {
+    const timeoutMs = artifactGateTimeoutMs()
     const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
       input: JSON.stringify({ tool_input: { file_path: filePath } }),
       encoding: 'utf8',
-      env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: '10000' },
-      timeout: 15_000,
+      env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(timeoutMs) },
+      timeout: timeoutMs + ARTIFACT_GATE_KILL_MARGIN_MS,
     })
     if (run.status !== 0) {
       const detail = (run.stderr || run.error?.message || `artifact gate exited ${run.status}`).trim()
-      failures.push(detail)
+      // A gate that ran out of time reported nothing about the artifact. Keep it
+      // blocking — an unread artifact is not a clean one — but name the budget,
+      // because "Artifact validation failed" sends the reader to the record.
+      failures.push(/timed out after \d+ms/.test(detail)
+        ? `${detail}\nThe gate did not finish, so it says nothing about ${filePath}. `
+          + `This is a budget, not a finding: raise QUALITY_HARNESS_SHELL_TIMEOUT_MS `
+          + `(currently ${timeoutMs}ms, max 110000) for a corpus this size.`
+        : detail)
     }
   }
   return failures.length ? `Artifact validation failed:\n${failures.join('\n')}` : null

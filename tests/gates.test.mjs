@@ -17,12 +17,28 @@ const testDir = dirname(fileURLToPath(import.meta.url))
 const root = resolve(testDir, '..')
 const bin = join(root, 'bin')
 const fixture = join(testDir, 'fixtures', 'ok')
-const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
+// Gates run with implicit-encoding use promoted to a hard error. They decode
+// arbitrary child output, so on a cp1252 Windows box a missing `encoding=` puts
+// mojibake in the evidence log, or raises UnicodeDecodeError and kills the gate
+// instead of letting it judge. Under these flags that class fails the test run.
+const env = {
+  ...process.env,
+  PATH: `${bin}${delimiter}${process.env.PATH ?? ''}`,
+  PYTHONWARNDEFAULTENCODING: '1',
+  PYTHONWARNINGS: 'error::EncodingWarning',
+}
 
-function run(command, args, cwd = fixture, input = undefined) {
+// `tests/gate-regressions.py` is the harness, not a shipped gate: it writes its
+// own ASCII fixtures and decodes nothing it did not create, so its implicit
+// encoding is not a portability defect and it runs without the flags.
+const harnessEnv = { ...env }
+delete harnessEnv.PYTHONWARNDEFAULTENCODING
+delete harnessEnv.PYTHONWARNINGS
+
+function run(command, args, cwd = fixture, input = undefined, spawnEnv = env) {
   return spawnSync(command, args, {
     cwd,
-    env,
+    env: spawnEnv,
     input,
     encoding: 'utf8',
     timeout: 30_000,
@@ -66,6 +82,27 @@ test('adr-verify executes acceptance and writes digest-bound evidence', () => {
   expectExit(result, 0, 'adr-verify')
   const task = readFileSync(join(copy, 'tasks', 'T1-fixture.md'), 'utf8')
   assert.match(task, /exit 0 .* acceptance-sha256:[0-9a-f]{64}/)
+})
+
+test('every gate names an encoding for child process output', () => {
+  // The strict env above only catches sites the fixture run actually reaches;
+  // this reaches the rest statically, so a text-mode call added on a path no
+  // fixture exercises still fails here.
+  const probe = [
+    'import ast, pathlib, sys',
+    'bad = []',
+    'for path in sorted(pathlib.Path(sys.argv[1]).iterdir()):',
+    '    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))',
+    '    for node in ast.walk(tree):',
+    '        if not isinstance(node, ast.Call):',
+    '            continue',
+    '        keys = {keyword.arg for keyword in node.keywords}',
+    '        if keys & {"text", "universal_newlines"} and "encoding" not in keys:',
+    '            bad.append(f"{path.name}:{node.lineno}")',
+    'print("\\n".join(bad))',
+    'raise SystemExit(1 if bad else 0)',
+  ].join('\n')
+  expectExit(run('python3', ['-c', probe, bin]), 0, 'text-mode subprocess without encoding=')
 })
 
 test('adr-lint recognizes async Python test bodies', () => {
@@ -130,6 +167,6 @@ test('focused false-green regressions remain closed', () => {
     join(testDir, 'gate-regressions.py'),
     bin,
     join(root, 'skills', 'postmortem', 'SKILL.md'),
-  ])
+  ], fixture, undefined, harnessEnv)
   expectExit(result, 0, 'gate regressions')
 })

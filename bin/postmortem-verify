@@ -8,6 +8,18 @@ import re
 import sys
 from pathlib import Path
 
+# --- win32 utf-8 io (D1 fix) -------------------------------------------------
+# Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
+# print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
+# which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+# ---------------------------------------------------------------------------
+
 CATEGORIES = {"null-safety", "data-integrity", "inconsistency", "silent-failure",
               "race-condition", "type-error", "missing-validation", "logic-error",
               "performance", "security"}
@@ -17,7 +29,7 @@ SECTIONS = ["Symptom", "Context", "Root Cause", "Investigation", "Fix", "Lesson"
 
 def check(path):
     errs = []
-    text = Path(path).read_text(errors="replace")
+    text = Path(path).read_text(errors="replace", encoding="utf-8")
     fm = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
     if not fm:
         return [f"no YAML frontmatter block"]

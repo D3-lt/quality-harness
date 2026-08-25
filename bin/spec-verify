@@ -20,6 +20,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+# --- win32 utf-8 io (D1 fix) -------------------------------------------------
+# Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
+# print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
+# which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+# ---------------------------------------------------------------------------
+
 SECTIONS = ["Problem", "Goal", "Actors", "Use Cases", "Scenarios", "Facts", "Domain",
             "Contracts Touched", "Non-Goals", "Risks", "Open Questions", "Verify",
             "Grill Log (appendix)"]
@@ -222,7 +234,7 @@ def python_test_defined(text, name):
 
 def test_definition_exists(path, name, stack):
     """Prove a binding names an actual language-level test definition."""
-    text = path.read_text(errors="replace")
+    text = path.read_text(errors="replace", encoding="utf-8")
     suffix = path.suffix.lower()
     leaf = name.rsplit("::", 1)[-1].split("[", 1)[0]
 
@@ -417,7 +429,7 @@ def path_stack(root, path):
 
 def check_spec(path, mode, root_override, collect):
     errors, missing, failing = [], [], []
-    text = Path(path).read_text(errors="replace")
+    text = Path(path).read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
 
     for s in SECTIONS:

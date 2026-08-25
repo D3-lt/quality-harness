@@ -20,8 +20,11 @@ const VALIDATION_PATTERNS = [
   /^(?:npx\s+)?(?:tsc|eslint|ruff|mypy|pyright|shellcheck)\b/i,
   /^(?:node\s+(?:--check|--test)|bash\s+-n|php\s+-l|jq\s+empty|claude\s+plugin\s+validate)\b/i,
   /^(?:make|just)\s+(?:test|check|lint|build|verify|validate)\b/i,
-  /^(?!test(?:\s|$))(?=\S*(?:test|lint|check|verify|validate|selftest))\S+(?:\s|$)/i,
+  /^(?!test(?:\s|$))(?!\S*(?:adr-verify|create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))(?=\S*(?:test|lint|check|verify|validate|selftest))\S+(?:\s|$)/i,
   /^(?:node\s+)?(?:\S*\/)?verify\.mjs\s+--cwd\s+/i,
+  /^(?:python(?:3)?|node|ruby|perl|php)\s+(?!\S*(?:create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))\S*(?:check|lint|verify|test|validate)\S*\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|lint|test|validate|audit|census|status|spine|evals)\b/i,
+  /^(?:python(?:3)?|node|ruby|perl|php)\s+\S*derive_shapes\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|audit|census|status)\b/i,
+  /^(?:python(?:3)?\s+)?\S*(?:adr-lint|adr-debt|spec-verify|arch-lint|postmortem-verify|adr-retire-check)\b/i,
 ]
 
 function walk(value, visit) {
@@ -693,8 +696,76 @@ export function isValidationCommand(command) {
       || /(^|[^|])\|([^|]|$)/.test(command)
       || /(^|[^&])&([^&]|$)/.test(command)) return false
   const segments = command.split(/\s*&&\s*/)
+    .filter(segment => !/^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/.test(segment.trim()))
   return segments.length > 0
     && segments.every(segment => VALIDATION_PATTERNS.some(pattern => pattern.test(segment)))
+}
+
+const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/
+const VISIBLE_CODE_MUTATION_TOKENS = new RegExp([
+  'write_text', 'write_bytes', 'writeFile', 'appendFile', 'createWriteStream',
+  'unlink', 'remove', 'rmtree', 'rmdir', 'rmSync', 'mkdir', 'makedirs',
+  'copyfile', 'copytree', 'rename', 'replace', 'chmod', 'chown', 'shutil',
+  'subprocess', 'os\\.system', 'popen', '\\bexec\\b', '\\beval\\b',
+  '__import__', 'importlib', 'runpy', 'child_process', 'urlopen', 'requests',
+  '\\bfetch\\b', 'axios', '\\bsocket\\b', '\\bdump\\s*\\(', 'to_csv',
+  '\\bdel\\s+', '\\bunlink\\s+', '\\bFile\\.write\\b',
+].join('|'), 'i')
+const SAFE_VISIBLE_CALLS = new Set([
+  'all', 'any', 'bool', 'console.error', 'console.log', 'dict', 'enumerate',
+  'float', 'int', 'JSON.parse', 'JSON.stringify', 'json.dumps', 'json.loads',
+  'len', 'list', 'map', 'max', 'min', 'Object.entries', 'Object.keys',
+  'Object.values', 'Path', 'Path.cwd', 'Path.home', 'print', 'printf', 'puts',
+  'range', 'read_bytes', 'read_text', 'repr', 'set', 'sorted', 'str', 'sum',
+  'tuple', 'type', 'zip',
+])
+
+export function heredocBodies(command) {
+  const bodies = []
+  const pending = []
+  let active = null
+  let quote = null
+  for (const line of command.split('\n')) {
+    if (active) {
+      const candidate = active.stripTabs ? line.replace(/^\t+/, '') : line
+      if (candidate === active.delimiter) active = pending.shift() ?? null
+      else bodies.push(line)
+      continue
+    }
+    const scanned = heredocDeclarations(line, quote)
+    pending.push(...scanned.declarations)
+    quote = scanned.quote
+    if (pending.length > 0) active = pending.shift()
+  }
+  return bodies.join('\n')
+}
+
+function visibleCodeLooksMutating(code) {
+  if (VISIBLE_CODE_MUTATION_TOKENS.test(code)) return true
+  const calls = [...code.matchAll(/\b([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*\(/g)]
+  return calls.some(([, call]) => !SAFE_VISIBLE_CALLS.has(call)
+    && !SAFE_VISIBLE_CALLS.has(call.split('.').at(-1)))
+}
+
+export function interpreterCommandLooksMutating(command, executable) {
+  if (!INTERPRETER_WORD.test(executable)) return false
+  const visible = []
+  let sawStdin = false
+  let stripped = executable.replace(
+    /\b(?:python3?|node|ruby|perl|php)\b((?:\s+-[A-Za-bd-z]\w*)*\s+-[ce]\s+)('[^']*'|"(?:[^"\\]|\\.)*")/g,
+    (whole, options, code) => {
+      visible.push(code.slice(1, -1))
+      return `inline_script${options}""`
+    })
+  stripped = stripped.replace(
+    /\b(?:python3?|node|ruby|perl|php)\b(\s+(?:-\s*)?<<)/g,
+    (whole, redirect) => {
+      sawStdin = true
+      return `stdin_script${redirect}`
+    })
+  if (sawStdin) visible.push(heredocBodies(command))
+  if (INTERPRETER_WORD.test(stripped)) return true
+  return visible.some(visibleCodeLooksMutating)
 }
 
 export function isPotentialMutationCommand(command) {
@@ -703,7 +774,8 @@ export function isPotentialMutationCommand(command) {
   if (/(?:^|\s)\d*>>?\s*(?!&\d|\/dev\/null)/.test(executable)) return true
   return /\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\b/.test(executable)
     || inPlaceEditorCommand(executable)
-    || /\b(?:python3?|node|ruby|perl|php)\b/.test(executable)
+    || interpreterCommandLooksMutating(command, executable)
+    || /(?:^|\s)(?:\S*[\\/])?adr-verify(?:\s|$)/i.test(executable)
     || /\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b/.test(executable)
     || /\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b/.test(executable)
     || /\bprettier\b[^\n]*\s--write\b/.test(executable)
@@ -857,13 +929,22 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   let lastSuccessfulValidation = -1
   const mutationPaths = []
 
+  const executed = use => {
+    const result = results.get(use.id)
+    if (result === undefined) return false
+    if (result.is_error !== true) return true
+    const detail = JSON.stringify(result)
+    return !/(?:PreToolUse[^\n]*hook error|hook blocked|Quality gate blocked)/i.test(detail)
+  }
+
   for (const use of uses) {
-    if (MUTATION_TOOLS.has(use.name)) {
+    if (MUTATION_TOOLS.has(use.name) && executed(use)) {
       lastMutation = Math.max(lastMutation, use.position)
       const filePath = use.input.file_path ?? use.input.notebook_path
       if (typeof filePath === 'string') mutationPaths.push(filePath)
     }
-    if (use.name === 'Bash' && isPotentialMutationCommand(use.input.command)) {
+    if (use.name === 'Bash' && executed(use)
+        && isPotentialMutationCommand(use.input.command)) {
       lastMutation = Math.max(lastMutation, use.position)
       mutationPaths.push(...bashMarkdownMutationPaths(use.input.command, cwd))
       mutationPaths.push(...bashDeletionMutationPaths(use.input.command, cwd))

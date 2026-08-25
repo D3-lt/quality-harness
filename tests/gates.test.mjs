@@ -68,6 +68,17 @@ test('adr-verify executes acceptance and writes digest-bound evidence', () => {
   assert.match(task, /exit 0 .* acceptance-sha256:[0-9a-f]{64}/)
 })
 
+test('adr-lint recognizes async Python test bodies', () => {
+  const probe = [
+    'import runpy, sys',
+    'module = runpy.run_path(sys.argv[1])',
+    'source = "async def test_async():\\n    assert True\\n\\nvalue = 1\\n"',
+    'body = module["test_body"](source, "test_async", python=True)',
+    'raise SystemExit(0 if body and "assert True" in body else 1)',
+  ].join('\n')
+  expectExit(run('python3', ['-c', probe, join(bin, 'adr-lint')]), 0, 'async Python test body')
+})
+
 test('the plugin-local facts hook accepts valid facts and blocks invalid facts', () => {
   const hook = join(root, 'scripts', 'run-shell-hook.mjs')
   const valid = JSON.stringify({ tool_input: { file_path: join(fixture, 'spec-selftest.md') } })

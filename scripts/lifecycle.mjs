@@ -637,20 +637,42 @@ function isGitMutationCommand(command) {
   return false
 }
 
-function protectedBranchException(command) {
+// `git checkout <name>` is a branch switch or a working-tree overwrite depending
+// on what <name> is, and only the repository knows which. Ask it rather than
+// guessing from the spelling.
+function localBranchExists(directory, name) {
+  if (!directory || typeof name !== 'string' || !/^[A-Za-z0-9._\-\/]+$/.test(name)) return false
+  const run = spawnSync('git', ['-C', directory, 'rev-parse', '--verify', '--quiet', `refs/heads/${name}`], {
+    encoding: 'utf8', timeout: 5_000,
+  })
+  return run.status === 0
+}
+
+function protectedBranchException(command, directory) {
   const trimmed = command.trim()
   const invocation = gitInvocation(trimmed)
   if (!invocation || /`|\$\(/.test(trimmed) || WRITE_REDIRECT.test(trimmed)) return false
   const { subcommand, subcommandIndex, words } = invocation
   if (subcommand === 'switch') return true
   const args = []
+  let separated = false
   for (const argument of words.slice(subcommandIndex + 1)) {
-    if (argument === '--') break
+    if (argument === '--') {
+      separated = true
+      break
+    }
     args.push(argument)
   }
   if (subcommand === 'checkout') {
-    return args.some(argument => ['-b', '-B', '--branch', '--orphan'].includes(argument)
-      || argument.startsWith('--branch='))
+    if (args.some(argument => ['-b', '-B', '--branch', '--orphan'].includes(argument)
+      || argument.startsWith('--branch='))) return true
+    // Leaving a protected branch is exactly what the block message asks for, and
+    // `git switch <branch>` is already excepted for it. A pathspec — after `--`,
+    // or as a second operand, or as a name that is not a branch — writes working
+    // tree files instead, so it stays blocked.
+    if (separated) return false
+    const operands = args.filter(argument => !argument.startsWith('-'))
+    return operands.length === 1 && localBranchExists(directory, operands[0])
   }
   return subcommand === 'merge' && args.includes('--ff-only')
 }
@@ -670,10 +692,11 @@ export function branchViolation(input) {
   const command = input.tool_input.command
   for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
     for (const segment of shellSegments(region)) {
-      const addressedBranch = gitBranch(gitCommandDirectory(segment, cwd))
+      const directory = gitCommandDirectory(segment, cwd)
+      const addressedBranch = gitBranch(directory)
       if (!protectedBranch(addressedBranch)
           || !isPotentialMutationCommand(segment)
-          || protectedBranchException(segment)) continue
+          || protectedBranchException(segment, directory)) continue
       const subcommand = gitSubcommand(segment)
       if (subcommand === 'commit') {
         return `git commit would write directly to protected '${addressedBranch}'. Create a task branch first.`

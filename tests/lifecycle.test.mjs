@@ -775,3 +775,31 @@ test('an unresolved Bash deletion is answered by the repository, not held agains
   // Outside a repository Git cannot answer, so the gate stays closed.
   assert.match(runArtifactGates([sentinel], testTmp), /Git cannot say what is missing/)
 })
+
+test('leaving a protected branch is allowed; overwriting its files is not', async () => {
+  const repo = await mkdtemp(path.join(testTmp, 'quality-checkout-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
+  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  git('add', '-A')
+  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
+  git('branch', 'task/work')
+  const check = command => branchViolation({ tool_name: 'Bash', cwd: repo, tool_input: { command } })
+
+  // The block tells you to create a task branch, so the navigation that reaches
+  // one cannot itself be blocked. `switch` was already excepted; `checkout` is
+  // the same move.
+  assert.equal(check('git checkout task/work'), null)
+  assert.equal(check('git switch task/work'), null)
+
+  // With a pathspec the same subcommand overwrites the protected worktree,
+  // whether the pathspec is separated, a second operand, or a bare name.
+  assert.match(check('git checkout -- tracked.txt'), /protected 'main'/)
+  assert.match(check('git checkout HEAD -- tracked.txt'), /protected 'main'/)
+  assert.match(check('git checkout main tracked.txt'), /protected 'main'/)
+  assert.match(check('git checkout .'), /protected 'main'/)
+  assert.match(check('git checkout tracked.txt'), /protected 'main'/)
+
+  // Only the repository can tell a branch from a path, and it says this is neither.
+  assert.match(check('git checkout task/absent'), /protected 'main'/)
+})

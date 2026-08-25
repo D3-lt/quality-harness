@@ -1346,6 +1346,21 @@ export function artifactGateTimeoutMs(env = process.env) {
 // budgets add up past the window would turn the gate fail-open exactly when the
 // corpus is big enough to matter. Running out of window is itself a blocking
 // failure.
+// True when the artifact gate ran out of its budget rather than reaching a verdict.
+//
+// The same budget runs out two ways. Normally run-shell-hook.mjs outlives its
+// child and reports `timed out after Nms` itself; but the spawn in
+// runArtifactGates carries a kill margin, and on a slow host that margin expires
+// first, leaving only the outer ETIMEDOUT. Measured 2026-08-25 on windows-latest,
+// where the finding read `spawnSync … node.exe ETIMEDOUT` and named neither the
+// budget nor the setting that raises it — a wall with no way over it.
+//
+// Separated from runArtifactGates so both arms are testable anywhere: the outer
+// arm is unreachable on a host fast enough to let the runner win the race.
+export function budgetExhausted(detail, error) {
+  return /timed out after \d+ms/.test(detail) || error?.code === 'ETIMEDOUT'
+}
+
 export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000) {
   const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
@@ -1387,7 +1402,7 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
       // A gate that ran out of time reported nothing about the artifact. Keep it
       // blocking — an unread artifact is not a clean one — but name the budget,
       // because "Artifact validation failed" sends the reader to the record.
-      failures.push(/timed out after \d+ms/.test(detail)
+      failures.push(budgetExhausted(detail, run.error)
         ? `${detail}\nThe gate did not finish, so it says nothing about ${filePath}. `
           + `This is a budget, not a finding: raise QUALITY_HARNESS_SHELL_TIMEOUT_MS `
           + `(currently ${timeoutMs}ms, max 110000) for a corpus this size — the boundary `

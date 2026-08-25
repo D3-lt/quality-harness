@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import { readdirSync, readFileSync, statSync } from "node:fs";
-import { dirname, join, resolve } from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 
@@ -50,7 +50,10 @@ test("every bundled skill has discoverable routing metadata", () => {
     const frontmatter = frontmatterOf(path);
     const name = scalar(frontmatter, "name");
     const description = scalar(frontmatter, "description");
-    const directoryName = dirname(path).split("/").at(-1);
+    // basename, not split("/"): a Windows checkout hands this a D:\… path,
+    // where splitting on "/" returns the whole path and the assertion compares
+    // a skill name against an absolute path.
+    const directoryName = basename(dirname(path));
     assert.equal(name, directoryName, `${path}: name must match its skill directory`);
     assert.ok(description.length >= 40, `${path}: description is too thin for discovery`);
     assert.match(

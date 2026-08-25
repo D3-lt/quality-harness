@@ -39,7 +39,12 @@ jobs:
           node --version
           python3 --version
           bash --version | head -1
+      # The plugin-validate job proved on 2026-08-25 that `claude plugin validate`
+      # passes unauthenticated, so a missing CLI here is a broken job, not an
+      # environment nobody can help. PARTIAL is for a laptop, not for CI.
       - name: Run the project's own check
+        env:
+          QUALITY_HARNESS_REQUIRE_CLI: '1'
         run: bash scripts/selftest.sh
 
   coverage:
@@ -65,12 +70,12 @@ jobs:
   windows:
     name: windows (informational — BACKLOG item 6)
     runs-on: windows-latest
-    # Deliberately non-blocking, and deliberately present. The gates reach
-    # Windows through Git Bash in real use, but the SUITE spawns them by bare
-    # name via PATH, which cannot execute a `#!` script natively — so this job
-    # is expected to be red until that is fixed. It exists to produce the
-    # evidence nobody has ever collected, not to gate the branch. Remove
-    # continue-on-error the moment it passes.
+    # Still non-blocking, but it now measures the right thing. Its first run
+    # (2026-08-25) was red for reasons that said nothing about the gates: the
+    # suite spawned them by bare name via PATH, compared skill names against
+    # `D:\…` paths, and read POSIX permission bits a Git for Windows checkout
+    # does not have. Those were test defects and are fixed; what stays red from
+    # here is the harness itself. Remove continue-on-error the moment it passes.
     continue-on-error: true
     defaults:
       run:
@@ -87,14 +92,12 @@ jobs:
         run: bash scripts/selftest.sh
 
   plugin-validate:
-    name: plugin validate (informational — unauthenticated CLI unverified)
+    name: plugin validate
     runs-on: ubuntu-latest
-    # `claude plugin validate` is part of selftest.sh, which skips it loudly
-    # when the CLI is absent. Whether the CLI can validate a manifest without
-    # credentials has never been established, so this job establishes it rather
-    # than assuming either way. When it goes green, drop continue-on-error here
-    # and set QUALITY_HARNESS_REQUIRE_CLI=1 on the selftest job.
-    continue-on-error: true
+    # Answered 2026-08-25: `claude plugin validate --strict` passes with no
+    # credentials (run 32882955305 logged three `✔ Validation passed`). It is a
+    # blocking job now, and selftest.sh runs with QUALITY_HARNESS_REQUIRE_CLI=1
+    # above, so an absent CLI fails instead of quietly downgrading to PARTIAL.
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4

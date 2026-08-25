@@ -3,6 +3,7 @@ import {
   cpSync,
   mkdirSync,
   mkdtempSync,
+  readdirSync,
   readFileSync,
   rmSync,
   writeFileSync,
@@ -35,8 +36,20 @@ const harnessEnv = { ...env }
 delete harnessEnv.PYTHONWARNDEFAULTENCODING
 delete harnessEnv.PYTHONWARNINGS
 
+// The gates ship as `#!/usr/bin/env python3` scripts, and Windows cannot exec a
+// `#!` script: a bare-name spawn through PATH dies before the gate can judge
+// anything, which is BACKLOG item 6 and is why the windows CI job was red for a
+// reason that told us nothing about the gates. Production does not reach them by
+// bare exec either — the hooks go through Git Bash — so naming the interpreter
+// here makes the windows job measure the GATE. On POSIX the PATH lookup and the
+// shebang are both real and both stay under test.
+const GATE_NAMES = new Set(readdirSync(bin))
+
 function run(command, args, cwd = fixture, input = undefined, spawnEnv = env) {
-  return spawnSync(command, args, {
+  const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)
+    ? ['python3', [join(bin, command), ...args]]
+    : [command, args]
+  return spawnSync(file, argv, {
     cwd,
     env: spawnEnv,
     input,

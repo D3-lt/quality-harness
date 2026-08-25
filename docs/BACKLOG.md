@@ -7,6 +7,12 @@ so none was a release blocker; they are the next work.
 
 Ordering is by user pain, worst first.
 
+**Status 2026-08-25, later still.** CI ran for the first time on `2.1.2`
+(run `32882955305`): ubuntu and macOS green, the coverage floor holds under `STRICT=1`,
+and `claude plugin validate` passes **unauthenticated** — so that job is blocking now and
+`selftest.sh` runs with `QUALITY_HARNESS_REQUIRE_CLI=1`. Item 6's Windows bullet is
+answered below.
+
 **Coverage.** A path audit of the whole harness classified 112 uncovered regions: 88
 untested-but-reachable, 15 defensive, 7 Windows-only, and one genuinely dead line (closed
 in `48211bd`). The plan that closes them is `docs/TEST-PLAN.md`; item 14 records defects,
@@ -207,11 +213,26 @@ table item 3 added.
 left: it is the harness, and its fixtures are ASCII it wrote itself. Fixing them would let
 the strict flags run with no exception at all, which is the only reason to bother.
 
-**Windows execution of the gate tests is unverified.** `tests/gates.test.mjs` spawns
-`adr-lint`/`adr-verify` by name through `spawnSync`, which cannot run a `#!` script on
-native Windows, and every Python probe hardcodes `python3`. The gates themselves reach
-Windows through Git Bash, so this may only affect the test suite — but nothing here has
-been executed on Windows, and no fix above changed that either way.
+**Windows execution of the gate tests is unverified.**
+**Measured 2026-08-25, run `32882955305` — and the suite was the problem.** The first
+Windows run ever executed came back with 13 failing tests, and every cause inspected was a
+defect in the TESTS, not in the harness:
+
+- `tests/gates.test.mjs` and the `adr-next` test spawned gates by name, which cannot run a
+  `#!` script on native Windows. Production never reaches them that way — the hooks go
+  through Git Bash — so both now name the interpreter on `win32`.
+- `tests/skill-metadata.test.mjs` used `dirname(path).split("/")`, which on a `D:\…` path
+  returns the whole path and compared a skill name against it.
+- `tests/package.test.mjs` read POSIX permission bits; a Git for Windows checkout has none,
+  so every gate looked non-executable. It asks git's index there instead, which is what
+  actually ships.
+- `tests/lifecycle.test.mjs` spelled an expected resolved path as a POSIX literal, asserting
+  the platform rather than the behaviour.
+- A `SKILL.md` regex spanning lines failed on a CRLF checkout; `.gitattributes` now pins
+  `*.md text eol=lf` alongside `*.sh` and `*.mjs`.
+
+`python3` resolves on the runner — the probes that already called it passed. The job stays
+`continue-on-error` until it is green, but what it reports from here is the harness.
 
 ## 7. A `python`/`node`/`ruby` in a *filename* made reads look like interpreter runs
 

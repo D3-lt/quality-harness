@@ -608,6 +608,17 @@ gated. Confirmed locally: `bashMarkdownMutationPaths` returns `[]` for a backsla
 and a path for the same operand with forward slashes. The parser is right — the fixture was
 wrong, and Git Bash takes forward slashes anyway. The fixtures now build bash-shaped paths.
 
+**Fixed here — on Windows the budget wall named no way over it.** `runArtifactGates`
+spawns the runner with a 5s kill margin on top of the gate's own budget, and produced its
+helpful "this is a budget, not a finding — raise `QUALITY_HARNESS_SHELL_TIMEOUT_MS`" text
+only when the runner reported `timed out after Nms` itself. On windows-latest the outer
+margin expired first and the whole finding was `spawnSync … node.exe ETIMEDOUT`: still
+blocking, correctly, but naming neither the budget nor the setting that raises it. Both are
+the same budget running out, so `budgetExhausted` now recognizes both. It is a separate
+exported function precisely because the outer arm is unreachable on a host fast enough for
+the runner to win the race — asserting it directly is the only way it is covered anywhere
+but Windows. Negative-controlled: dropping the `ETIMEDOUT` clause turns the test red.
+
 **Where this stands.** Windows went 13 → 4 → 1 across `b144d22`, `c89d395` and `3949b1b`.
 All three harness failures above are fixed and confirmed on windows-latest. The one
 remaining failure in `32884859881` was the new test itself: it compared the win32 and POSIX

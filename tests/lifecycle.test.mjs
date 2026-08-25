@@ -39,6 +39,18 @@ function toolResult(id, isError = false, content = 'ok') {
   return { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, is_error: isError, content }] } }
 }
 
+// A real hook payload always names the session directory, so the suite supplies one too.
+// Without it the gate falls back to process.cwd() and answers about *this* checkout: on a
+// protected branch the branch gate fires first and hides the gate the test is exercising.
+function runLifecycleHook(payload, options = {}) {
+  return spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
+    cwd: testTmp,
+    input: JSON.stringify({ cwd: testTmp, ...payload }),
+    encoding: 'utf8',
+    ...options,
+  })
+}
+
 test('recognizes project verification commands without treating arbitrary shell as evidence', () => {
   assert.equal(isValidationCommand('pnpm test'), true)
   assert.equal(isValidationCommand('cargo check --workspace'), true)
@@ -162,11 +174,7 @@ test('quoted Markdown and git text are mentions, not permanent lifecycle failure
     toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
-  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'Stop', transcript_path: file, cwd: dir }),
-    encoding: 'utf8',
-  })
+  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
   assert.equal(run.status, 0, run.stderr)
   assert.equal(run.stdout, '')
 })
@@ -260,12 +268,9 @@ test('branch policy follows the target repository for native edits and git -C', 
     tool_name: 'Bash', cwd: testTmp, tool_input: { command: nestedMutation },
   }), /protected 'main'/)
 
-  const packaged = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
-    input: JSON.stringify({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: testTmp,
-      tool_input: { command: nestedMutation },
-    }),
-    encoding: 'utf8',
+  const packaged = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: nestedMutation },
   })
   assert.equal(packaged.status, 2, packaged.stderr)
   assert.match(packaged.stderr, /protected 'main'/)
@@ -609,13 +614,7 @@ test('command hook blocks subagent completion without later evidence', async () 
     toolResult('e1'),
   ]))
 
-  const { spawnSync } = await import('node:child_process')
-  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
-  const run = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file }),
-    encoding: 'utf8',
-  })
+  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file })
   assert.equal(run.status, 0)
   assert.match(run.stdout, /"decision":"block"/)
 })
@@ -628,22 +627,15 @@ test('commit gate uses exit 2 when this session has unverified edits', async () 
     toolResult('e1'),
   ]))
 
-  const { spawnSync } = await import('node:child_process')
-  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
-  const run = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: testTmp,
-    }),
-    encoding: 'utf8',
+  const run = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: file,
   })
   assert.equal(run.status, 2)
   assert.match(run.stderr, /blocked git commit\/push/i)
 })
 
 test('commit gate recognizes Git global options and executable wrappers', () => {
-  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
   const missing = path.join(testTmp, 'quality-hook-transcript-does-not-exist.jsonl')
   for (const command of [
     'git -c user.name=Bot commit -m test',
@@ -662,46 +654,31 @@ test('commit gate recognizes Git global options and executable wrappers', () => 
     '((1 << 2))\ngit commit -m test',
     ['EOF(){ :; }', "printf %s 'literal <<EOF'", 'git commit -m test', 'EOF'].join('\n'),
   ]) {
-    const run = spawnSync(process.execPath, [script], {
-      cwd: pluginDir,
-      input: JSON.stringify({
-        hook_event_name: 'PreToolUse', tool_name: 'Bash',
-        tool_input: { command }, transcript_path: missing,
-      }),
-      encoding: 'utf8',
+    const run = runLifecycleHook({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command }, transcript_path: missing,
     })
     assert.equal(run.status, 2, command)
     assert.match(run.stderr, /refusing git commit\/push/i, command)
   }
 })
 
-test('commit and completion gates fail closed when the transcript is unreadable', async () => {
-  const { spawnSync } = await import('node:child_process')
-  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
+test('commit and completion gates fail closed when the transcript is unreadable', () => {
   const missing = path.join(testTmp, 'quality-hook-transcript-does-not-exist.jsonl')
 
-  const commit = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({
-      hook_event_name: 'PreToolUse', tool_name: 'Bash',
-      tool_input: { command: 'git commit -m test' }, transcript_path: missing,
-    }),
-    encoding: 'utf8',
+  // Exit 2 alone cannot say which gate answered, so each assertion names its reason.
+  const commit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: missing,
   })
   assert.equal(commit.status, 2)
+  assert.match(commit.stderr, /refusing git commit\/push/i)
 
-  const task = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'TaskCompleted', transcript_path: missing }),
-    encoding: 'utf8',
-  })
+  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: missing })
   assert.equal(task.status, 2)
+  assert.match(task.stderr, /completion evidence is unavailable/i)
 
-  const stop = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'Stop', transcript_path: missing }),
-    encoding: 'utf8',
-  })
+  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: missing })
   assert.equal(stop.status, 0)
   assert.match(stop.stdout, /"decision":"block"/)
 })
@@ -712,14 +689,9 @@ test('subagent evidence gate remains active while the parent has background work
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: '/repo/a.js' }), toolResult('e1'),
   ]))
-  const { spawnSync } = await import('node:child_process')
-  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
-    cwd: pluginDir,
-    input: JSON.stringify({
-      hook_event_name: 'SubagentStop', agent_transcript_path: file,
-      background_tasks: [{ id: 'parent-task' }],
-    }),
-    encoding: 'utf8',
+  const run = runLifecycleHook({
+    hook_event_name: 'SubagentStop', agent_transcript_path: file,
+    background_tasks: [{ id: 'parent-task' }],
   })
   assert.match(run.stdout, /"decision":"block"/)
 })
@@ -734,29 +706,14 @@ test('Stop stays Node-only while strict completion boundaries run artifact gates
     toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
-  const { spawnSync } = await import('node:child_process')
-  const script = path.join(pluginDir, 'scripts/lifecycle.mjs')
-
-  const stop = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'Stop', transcript_path: file }),
-    encoding: 'utf8',
-  })
+  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file })
   assert.equal(stop.status, 0, stop.stderr)
   assert.equal(stop.stdout, '')
 
-  const subagent = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file }),
-    encoding: 'utf8',
-  })
+  const subagent = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file })
   assert.match(subagent.stdout, /Artifact validation failed/)
 
-  const task = spawnSync(process.execPath, [script], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'TaskCompleted', transcript_path: file }),
-    encoding: 'utf8',
-  })
+  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file })
   assert.equal(task.status, 2)
   assert.match(task.stderr, /Artifact validation failed/)
 })
@@ -771,12 +728,7 @@ test('an invalid Markdown artifact written through Bash is still gated', async (
     toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
-  const { spawnSync } = await import('node:child_process')
-  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir }),
-    encoding: 'utf8',
-  })
+  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir })
   assert.match(run.stdout, /Artifact validation failed/)
 })
 
@@ -792,12 +744,7 @@ test('globbed Markdown Bash mutations gate the files that actually exist without
     toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
-  const { spawnSync } = await import('node:child_process')
-  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
-    cwd: pluginDir,
-    input: JSON.stringify({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir }),
-    encoding: 'utf8',
-  })
+  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir })
   assert.match(run.stdout, /Artifact validation failed/)
   assert.doesNotMatch(run.stdout, /unresolved path/i)
 })

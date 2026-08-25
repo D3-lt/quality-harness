@@ -30,6 +30,18 @@ import subprocess
 import sys
 from pathlib import Path
 
+# --- win32 utf-8 io (D1 fix) -------------------------------------------------
+# Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
+# print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
+# which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+# ---------------------------------------------------------------------------
+
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
                  "Test Doubles", "Trust & Data Boundaries"]
 ALL_SECTIONS = ["Module Map"] + RULE_SECTIONS + ["Superseded"]
@@ -221,7 +233,7 @@ def symbol_errors(label, cell, roots, index):
         defn = re.compile(r"(?m)^\s*(func|def|fn|class|const|var|let|function|public|private|"
                           r"protected|static|it|test|describe)?\s*[\w\[\]\*\(\)\s]{0,60}?\b"
                           + re.escape(sym) + r"\b")
-        hits = [f for f in named if defn.search(code_only(f.read_text(errors="replace")))]
+        hits = [f for f in named if defn.search(code_only(f.read_text(errors="replace", encoding="utf-8")))]
         if not hits and named:
             errs.append(f"{label}: names `{sym}` alongside "
                         f"{', '.join(f.name for f in named)}, but that file does not contain it — "
@@ -232,7 +244,7 @@ def symbol_errors(label, cell, roots, index):
             # and resolving to the citation is how a check confirms itself.
             hits = [f for f in index
                     if f.suffix.lower() not in {".md", ".markdown", ".rst", ".txt"}
-                    and defn.search(code_only(f.read_text(errors="replace")))]
+                    and defn.search(code_only(f.read_text(errors="replace", encoding="utf-8")))]
             if not hits:
                 errs.append(f"{label}: names `{sym}`, which appears nowhere in the repo — "
                             f"the row cites a check that does not exist")
@@ -242,7 +254,7 @@ def symbol_errors(label, cell, roots, index):
             continue
         body = None
         for f in hits:
-            text = code_only(f.read_text(errors="replace"))
+            text = code_only(f.read_text(errors="replace", encoding="utf-8"))
             body = symbol_body(text, sym)
             if body is None:
                 continue
@@ -261,7 +273,7 @@ def main():
     if not path.exists():
         print(f"file not found: {path}")
         sys.exit(1)
-    text = path.read_text(errors="replace")
+    text = path.read_text(errors="replace", encoding="utf-8")
     errors = []
 
     if not re.search(r"^\*\*Status:\*\*", text, re.M):

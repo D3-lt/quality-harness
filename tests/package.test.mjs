@@ -67,8 +67,9 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.0.3')
+  assert.equal(manifest.version, '2.0.4')
   assert.equal(manifest.license, 'MIT')
+  assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
 
   const hooks = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8'))
   const post = hooks.hooks.PostToolUse.flatMap(group => group.hooks)
@@ -79,6 +80,7 @@ test('manifest and hook configuration expose the bundled components', () => {
 
   const attributes = readFileSync(join(root, '.gitattributes'), 'utf8')
   assert.match(attributes, /^\*\.sh text eol=lf$/m)
+  assert.match(attributes, /^\*\.mjs text eol=lf$/m)
   assert.match(attributes, /^bin\/\* text eol=lf$/m)
 
   const codexReview = readFileSync(join(root, 'skills', 'codex-review', 'SKILL.md'), 'utf8')

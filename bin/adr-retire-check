@@ -15,6 +15,18 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+# --- win32 utf-8 io (D1 fix) -------------------------------------------------
+# Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
+# print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
+# which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+# ---------------------------------------------------------------------------
+
 
 ADR_ID_RE = re.compile(r"(?<!\w)ADR-?(\d+)(?!\w)", re.I)
 PLACEHOLDERS = {"", "none", "none.", "_none._", "(empty at authoring)"}
@@ -40,7 +52,7 @@ def sections_of(text):
 
 
 def status_of(path):
-    text = path.read_text(errors="replace")
+    text = path.read_text(errors="replace", encoding="utf-8")
     match = re.search(r"^(?:\*\*)?Status:(?:\*\*)?\s*(.+?)\s*$", text, re.M | re.I)
     return match.group(1).strip() if match else ""
 
@@ -62,7 +74,7 @@ def adr_files(root):
 
 
 def adr_id_for_file(path):
-    first = path.read_text(errors="replace").splitlines()[:2]
+    first = path.read_text(errors="replace", encoding="utf-8").splitlines()[:2]
     found = normalize_id(" ".join(first))
     if found:
         return found
@@ -81,7 +93,7 @@ def meaningful_obligations(root):
         adr_id = adr_id_for_file(path)
         if not adr_id:
             continue
-        sections = sections_of(path.read_text(errors="replace"))
+        sections = sections_of(path.read_text(errors="replace", encoding="utf-8"))
         for line in sections.get("Out of Scope", []):
             if re.search(r"\(deferred:\s*[^)]+\)", line):
                 counts[adr_id] += 1
@@ -108,7 +120,7 @@ def receipt_count(lines, adr_id):
 
 def links_in(readme):
     out = []
-    text = readme.read_text(errors="replace")
+    text = readme.read_text(errors="replace", encoding="utf-8")
     for match in re.finditer(r"\[[^]]+\]\(([^)]+)\)", text):
         target = match.group(1).split("#", 1)[0].strip()
         if target and not re.match(r"^[a-z]+://", target, re.I):
@@ -118,7 +130,7 @@ def links_in(readme):
 
 def catalog_rows(readme, errors):
     rows = {}
-    for line in sections_of(readme.read_text(errors="replace")).get("Retired Records", []):
+    for line in sections_of(readme.read_text(errors="replace", encoding="utf-8")).get("Retired Records", []):
         if not line.strip().startswith("|"):
             continue
         cells = [cell.strip() for cell in line.strip().strip("|").split("|")]
@@ -224,7 +236,7 @@ def adoption_report(active_root, archive_root):
 
     obligations = meaningful_obligations(archive_root)
     backlog = active_root / "BACKLOG.md"
-    backlog_text = backlog.read_text(errors="replace") if backlog.is_file() else ""
+    backlog_text = backlog.read_text(errors="replace", encoding="utf-8") if backlog.is_file() else ""
     backlog_lines = sections_of(backlog_text).get("Follow-ups", [])
     for adr_id, count in sorted(obligations.items()):
         receipts = receipt_count(backlog_lines, adr_id)
@@ -255,7 +267,7 @@ def main():
     if not archive_readme.is_file():
         print(f"[FAIL] archive README not found: {archive_readme}")
         raise SystemExit(1)
-    archive_text = archive_readme.read_text(errors="replace")
+    archive_text = archive_readme.read_text(errors="replace", encoding="utf-8")
     if not re.search(r"^\*\*Lifecycle:\*\* Frozen historical ADR records$", archive_text, re.M):
         errors.append("archive README lacks the opt-in lifecycle marker")
     active_match = re.search(r"^\*\*Active corpus:\*\*\s*(.+?)\s*$", archive_text, re.M)
@@ -346,7 +358,7 @@ def main():
         if destination is None or backlog is None or destination != backlog or not backlog.is_file():
             errors.append(f"{adr_id}: {count} obligation(s) need an active backlog receipt or disposition")
             continue
-        destination_text = destination.read_text(errors="replace")
+        destination_text = destination.read_text(errors="replace", encoding="utf-8")
         receipts = receipt_count(sections_of(destination_text).get("Follow-ups", []), adr_id)
         if receipts < count:
             errors.append(

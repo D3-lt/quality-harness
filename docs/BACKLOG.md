@@ -589,26 +589,29 @@ goes red without the fix, and a one-line content edit still breaks the seal. Exi
 LF-committed corpora keep their digests; an archive whose files are committed *with* CRLF
 will need re-sealing once.
 
-**Open — three gates produced NOTHING on Windows where they produce a finding here.**
-`tests/lifecycle.test.mjs:771`, `:785` and `:1159` each assert a gate's own text
-(`/Artifact validation failed/` twice, `/ADR tasks in flight/` once) and each received
-`''`. Empty output with no failure is a **fail-open**: on Windows the artifact gate and the
-session orientation appear to say nothing rather than to say no.
+**Fixed here — session orientation was silently empty on every Windows session.**
+This one was in the shipped harness, not the suite. `readyTaskLines` spawned
+`bin/adr-next` — a `#!/usr/bin/env python3` script — directly. Windows cannot exec a `#!`
+script, so `run.status` came back `null`, and the loop's
+`if (run.status !== 0 && run.status !== 3) continue` swallowed it. The hook then returned
+an empty orientation and exit 0: a fail-open that reported nothing and looked like a
+project with no conventions. `spawnGate` names the interpreter on `win32` (falling back to
+`python` for an install with no `python3` alias) and is the only place allowed to spawn a
+gate; a test exercises the `win32` branch on POSIX by passing the platform explicitly, and
+asserts exactly one `spawnSync(tool` exists in `lifecycle.mjs` so a caller cannot go back
+to a direct spawn. Negative-controlled: restoring the direct spawn turns the test red.
 
-This is not diagnosed. Candidates, in the order worth testing:
+**Fixed here — two artifact-gate tests built a Bash command out of a native path.**
+`printf content > "C:\Users\…\invalid-spec.md"` is a shell string in which `\` is an
+escape, so the operand the gate would have judged does not survive parsing and nothing is
+gated. Confirmed locally: `bashMarkdownMutationPaths` returns `[]` for a backslash operand
+and a path for the same operand with forward slashes. The parser is right — the fixture was
+wrong, and Git Bash takes forward slashes anyway. The fixtures now build bash-shaped paths.
 
-- `runArtifactGates` returns `null` — no finding, no block — when `facts-gate-dispatch.sh`
-  is missing at `PLUGIN_ROOT` (`scripts/lifecycle.mjs:1351`). A `PLUGIN_ROOT` that resolves
-  differently on Windows would silently disarm the whole gate.
-- The path handed to the dispatcher is `D:\…`; `facts-gate-dispatch.sh` classifies
-  artifacts by path shape, and a drive-letter path may match none of its patterns, so every
-  artifact is judged "not mine".
-- `spawnSync` of `run-shell-hook.mjs` succeeding with status 0 and empty stdout, which the
-  caller reads as clean.
-
-Do not guess at a fix: the first two are distinguishable by making the Windows job print
-`PLUGIN_ROOT` and the dispatcher's classification for one known-bad artifact. That
-diagnostic is the next step, not a patch.
+**Where this stands.** Windows went 13 → 4 across `b144d22` and `c89d395`. Both remaining
+causes are addressed above, but *this* change has not been through the Windows job yet —
+that run is the evidence, and this line will say what it found. Drop `continue-on-error`
+from the job only once it is green on its own.
 
 ## Verification claims worth re-running after any of the above
 

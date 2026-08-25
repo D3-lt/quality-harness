@@ -1586,6 +1586,18 @@ function taskDirectories(root) {
   return found
 }
 
+// The gates in bin/ are `#!/usr/bin/env python3` scripts. Windows cannot exec a
+// `#!` script, so spawning one directly returns status null — and readyTaskLines'
+// `continue` swallowed that, leaving session orientation silently empty on every
+// Windows session. Measured 2026-08-25 on windows-latest, where the hook produced
+// nothing and reported no error. Name the interpreter there instead, falling back
+// to `python` for an install that never created the python3 alias.
+export function spawnGate(tool, args, options = {}, platform = process.platform) {
+  if (platform !== 'win32') return spawnSync(tool, args, options)
+  const run = spawnSync('python3', [tool, ...args], options)
+  return run.error ? spawnSync('python', [tool, ...args], options) : run
+}
+
 function readyTaskLines(root, insideRepository) {
   // Without a repository there is no "this project", and the walk below would
   // be scanning whatever else shares the directory.
@@ -1594,7 +1606,7 @@ function readyTaskLines(root, insideRepository) {
   if (!existsSync(tool)) return []
   const lines = []
   for (const directory of taskDirectories(root)) {
-    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
+    const run = spawnGate(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
     if (run.status !== 0 && run.status !== 3) continue
     let report
     try { report = JSON.parse(run.stdout) } catch { continue }

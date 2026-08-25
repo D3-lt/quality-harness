@@ -7,6 +7,10 @@ so none was a release blocker; they are the next work.
 
 Ordering is by user pain, worst first.
 
+**Status 2026-08-25.** Items 2, 3 and 5 landed on `task/post-2.0.4-fixes`; each
+diagnosis is kept below with the commit that closed it. Items 1 and 4 are open, and
+item 6 collects what fixing the others turned up.
+
 ---
 
 ## 1. Commit gate: one unresolved Bash path bricks committing for the whole session
@@ -46,6 +50,13 @@ unresolved deletion must not block a later commit in an unrelated repo*.
 
 ## 2. Encoding: 13 `subprocess(text=True)` sites still decode with the locale codepage
 
+**Done — `f26a4b3`.** All 13 sites carry `encoding="utf-8", errors="replace"`, and
+`scripts/selftest.sh` reads with an explicit encoding. Gate spawns in
+`tests/gates.test.mjs` now run under the two env flags below, and a static AST probe
+covers the sites no fixture reaches; `tests/gate-regressions.py` runs without the flags
+because it is the harness, not a gate — it writes its own ASCII fixtures and decodes
+nothing it did not create. Reverting the acceptance call alone fails both checks.
+
 "All Python gates use explicit UTF-8 I/O" is true for file and stdio I/O only. Child
 process output is still decoded with the platform default (ANSI codepage on Windows):
 
@@ -71,6 +82,12 @@ plumbing; after the fix all 8 pass under those flags. Add that env combination t
 self-test so the class cannot regress.
 
 ## 3. Branch guard false positives: `shellSegments` splits `2>&1` on the bare `&`
+
+**Done — `c889429`.** `&` glued to a redirect (`2>&1`, `>&2`, `>&-`, `&>f`, `&>>f`) stays
+inside its segment; a background `&` and `&&` still separate. Keeping `&>f` whole would
+have lost a real write, because the write-redirect rule never recognized that form, so the
+rule now names `&>` and lives in one constant instead of two copies. `shellSegments` is
+exported and tested per segment, as the guard classifies.
 
 `shellSegments` treats a single `&` as a separator, so `… 2>&1 | head` becomes segments
 `… 2>` + `1` + `head`. The truncated first segment ends in a redirect, matches the
@@ -106,6 +123,15 @@ branch-guard message when the *host* worktree is protected. Either way, add
 
 ## 5. D2 part 1 (`code_only` docstring/backtick fix) has no test
 
+**Done — `b0d90a7`.** A `runpy` probe feeds `code_only(python=True)` two multi-line
+docstrings holding one backtick each — the single-line string rules cannot reach across a
+newline, so those are exactly the backticks the template-literal rule would pair — plus a
+negative twin keeping the JavaScript path stripping template literals. Both halves were
+shown to go red: disabling the Python branch reports missing
+`['assert alpha() == 1', 'def test_beta']`, dropping the backtick rule reports the
+surviving JavaScript literal. A single-line docstring fixture stays green either way,
+because the `"…"` rule eats the backtick first — worth knowing before writing the next one.
+
 `grep -rn code_only tests/` → nothing; `tests/gates.test.mjs` pins only
 `test_body(python=True)` (async). The docstring fix's failure mode was **silent** — the
 JS template-literal rule paired backticks across Python docstring boundaries, deleted
@@ -117,11 +143,43 @@ source whose docstrings contain unbalanced backticks and assert the assertions *
 the docstrings survive; and a negative twin asserting the JS path still strips template
 literals.
 
+## 6. Found while fixing 2, 3 and 5 — not fixed
+
+None of these blocked the work above, and each is its own decision.
+
+**`bash scripts/selftest.sh` is not accepted as evidence; `./scripts/selftest.sh` is.**
+`VALIDATION_PATTERNS` matches the first word, and the `selftest` pattern needs the
+script's own name there. Running the project's own gate the obvious way therefore leaves
+the commit gate saying "Run the smallest repository-owned test" after a green 54/54 run.
+Hit live twice on 2026-08-25. Either teach the patterns the `bash <validator>` form or say
+in the message which invocations count.
+
+**`git fsck 2>&-` classifies as a mutation.** The write-redirect lookahead excludes `&\d`
+and `/dev/null` but not `&-`, so closing a descriptor reads as a write. Same family as
+item 3; the segment fix does not reach it because the whole command already classified
+this way.
+
+**`echo x > /dev/null` classifies as a mutation.** `\s*` before the lookahead backtracks to
+zero width, so the `/dev/null` exclusion never applies when a space follows the redirect.
+Both this and the line above are one careful regex away, and both want the per-segment
+table item 3 added.
+
+**`tests/gate-regressions.py` has ~33 implicit-encoding `write_text` calls.** Deliberately
+left: it is the harness, and its fixtures are ASCII it wrote itself. Fixing them would let
+the strict flags run with no exception at all, which is the only reason to bother.
+
+**Windows execution of the gate tests is unverified.** `tests/gates.test.mjs` spawns
+`adr-lint`/`adr-verify` by name through `spawnSync`, which cannot run a `#!` script on
+native Windows, and every Python probe hardcodes `python3`. The gates themselves reach
+Windows through Git Bash, so this may only affect the test suite — but nothing here has
+been executed on Windows, and no fix above changed that either way.
+
 ---
 
 ## Verification claims worth re-running after any of the above
 
-- `scripts/selftest.sh` → 51/51 (on a task branch until item 4 lands).
+- `./scripts/selftest.sh` → 54/54 (on a task branch until item 4 lands; `bash
+  scripts/selftest.sh` runs the same checks but does not satisfy the commit gate — item 6).
 - The 8 gates under `PYTHONIOENCODING=cp1252` against `tests/fixtures/ok` → 8/8, and the
   `adr-verify`-written evidence row shows `c2 b7` under `cat -A` / `od` (macOS `cat` has
   no `-A`; use `od -c`).

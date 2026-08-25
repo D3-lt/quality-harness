@@ -354,6 +354,33 @@ def fail(msg):
     sys.exit(2)
 
 
+def write_source(path, text, newline="\n"):
+    """Write text without letting Python translate its line endings.
+
+    Path.write_text opens with newline=None, which rewrites every "\n" as
+    os.linesep — CRLF on Windows. Two things then go wrong that look like
+    something else: the mutant `finally` restore does not restore, it rewrites the
+    file it was meant to put back; and every evidence append converts the task file
+    it edits. Measured 2026-08-25 on windows-latest, where the restore check in
+    tests/evidence-chain.test.mjs found the target changed after a REFUSED mutant.
+
+    Writing bytes keeps whatever the file already used, so a CRLF file stays CRLF
+    and an LF file stays LF.
+    """
+    body = text.replace("\r\n", "\n")
+    if newline != "\n":
+        body = body.replace("\n", newline)
+    path.write_bytes(body.encode("utf-8"))
+
+
+def file_newline(path):
+    """The line ending a file already uses, so a rewrite does not convert it."""
+    try:
+        return "\r\n" if b"\r\n" in path.read_bytes() else "\n"
+    except OSError:
+        return "\n"
+
+
 def append_entry(task, text, block, section="Verification Log"):
     m = re.search(rf"(^## {re.escape(section)}\s*\n)(.*?)(?=^## |\Z)", text, re.M | re.S)
     if not m:
@@ -364,7 +391,7 @@ def append_entry(task, text, block, section="Verification Log"):
     body = sec.strip("\n")
     new = m.group(1) + (body + "\n" if body else "") + block + "\n"
     tail = text[m.end():]
-    task.write_text(text[:m.start()] + new + ("\n" + tail if tail else ""), encoding="utf-8")
+    write_source(task, text[:m.start()] + new + ("\n" + tail if tail else ""), file_newline(task))
 
 
 def git_sha(cwd):
@@ -407,7 +434,10 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
     if not target.exists():
         fail(f"--mutant file not found: {target}")
 
-    original = target.read_text(errors="replace", encoding="utf-8")
+    # Kept as BYTES so the restore below is a restore, not a re-encode.
+    original_bytes = target.read_bytes()
+    original = original_bytes.decode("utf-8", errors="replace").replace("\r\n", "\n")
+    target_newline = "\r\n" if b"\r\n" in original_bytes else "\n"
 
     # THE check this tool exists for. An edit that does not apply is the silent
     # no-op that reports a clean pass; an edit that applies in several places is
@@ -430,7 +460,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
 
     verdict, code, detail = "inconclusive", 2, ""
     try:
-        target.write_text(original.replace(frm, to, 1), encoding="utf-8")
+        write_source(target, original.replace(frm, to, 1), target_newline)
 
         ok, why_not = syntax_ok(target)
         if not ok:
@@ -452,7 +482,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
         else:
             verdict, detail = "killed", "a test went red"
     finally:
-        target.write_text(original, encoding="utf-8")
+        target.write_bytes(original_bytes)
 
     digest = acceptance_digest(cmd)
     entry = (f"- {today} · {git_sha(cwd)} · mutant {verdict} · exit {code} · "

@@ -34,6 +34,8 @@ from pathlib import Path
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
 # print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
 # which is not valid UTF-8, so an append-only evidence file becomes undecodable.
+# Child process output decodes with that same default, so the git probe below
+# names its encoding rather than inheriting the codepage.
 import sys as _sys
 for _s in (_sys.stdout, _sys.stderr):
     try:
@@ -77,7 +79,8 @@ def repo_roots(doc):
     roots = [doc.parent, doc.parent.parent]
     try:
         r = subprocess.run(["git", "-C", str(doc.parent), "rev-parse", "--show-toplevel"],
-                           capture_output=True, text=True, timeout=10)
+                           capture_output=True, text=True, timeout=10,
+                           encoding="utf-8", errors="replace")
         if r.returncode == 0:
             roots.append(Path(r.stdout.strip()))
     except Exception:

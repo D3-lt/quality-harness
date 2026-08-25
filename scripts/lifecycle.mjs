@@ -2,7 +2,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { spawnSync } from 'node:child_process'
-import { existsSync, readdirSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -1012,14 +1012,24 @@ function tempRoots() {
   return [...roots]
 }
 
-function underTempRoot(candidate) {
+function underTempRoot(candidate, depth = 0) {
+  if (depth > 8) return false
   let resolved = path.resolve(candidate)
   // Judge the real location, not the spelling: a symlink under /tmp pointing
-  // into a repository must be treated as the repository.
+  // into a repository must be treated as the repository. The leaf needs lstat,
+  // not stat — a symlink to a missing repo file still CREATES that file when
+  // written through, and stat on it just throws.
   try {
-    const anchor = nearestExistingDirectory(resolved)
-    if (anchor) resolved = path.join(realpathSync(anchor), path.relative(anchor, resolved))
-  } catch {}
+    if (lstatSync(resolved).isSymbolicLink()) {
+      return underTempRoot(path.resolve(path.dirname(resolved), readlinkSync(resolved)), depth + 1)
+    }
+    resolved = realpathSync(resolved)
+  } catch {
+    try {
+      const anchor = nearestExistingDirectory(resolved)
+      if (anchor) resolved = path.join(realpathSync(anchor), path.relative(anchor, resolved))
+    } catch {}
+  }
   return tempRoots().some(root => resolved === root || resolved.startsWith(root + path.sep))
 }
 
@@ -1030,7 +1040,11 @@ const TEMP_ACCOUNTABLE_WORDS = new Set(['rm', 'mv', 'cp', 'mkdir', 'rmdir', 'tou
 // disqualifies the whole command from the exemption.
 const TEMP_UNACCOUNTABLE = /\b(?:install|dd|patch|apply_patch|rsync|chmod|chown|ln)\b|\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b|\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b|\bprettier\b[^\n]*\s--write\b|\bfind\b[^\n]*\s-delete\b|(?:^|\s)(?:\S*[\\/])?adr-verify(?:\s|$)/i
 
-const REDIRECT_TARGET = /(?:^|\s)(?:\d*|&)>>?\s*("[^"]*"|'[^']*'|[^\s;|&]+)/g
+// Matches the glued form (`x>file`) as well as the spaced one, because the
+// exemption must account for every `>` in the command, not only the ones the
+// mutation classifier recognizes. Over-matching inside quotes is deliberate:
+// an over-match can only fail the exemption, never widen it.
+const REDIRECT_TARGET = />>?\s*("[^"]*"|'[^']*'|[^\s;|&<>]+)/g
 
 function expandShellToken(token, assignments) {
   let value = token
@@ -1063,9 +1077,11 @@ export function mutatesOnlyTempPaths(command, cwd) {
       || isGitMutationCommand(executable)) return false
 
   // Assignments made inside the command are the only variable values this
-  // function trusts; anything else unresolved disqualifies below.
+  // function trusts, and only in the order they were made: a use may see the
+  // assignments before it, never one after it, or `S=<repo>; write $S; S=/tmp`
+  // would classify the repo write as scratch.
   const assignments = new Map()
-  const segments = []
+  let accounted = 0
   for (const region of shellCommandRegions(executable)) {
     for (const segment of shellSegments(region)) {
       const assignment = segment.match(/^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S*)$/)
@@ -1074,41 +1090,50 @@ export function mutatesOnlyTempPaths(command, cwd) {
         if (value !== null) assignments.set(assignment[1], value)
         continue
       }
-      segments.push(segment)
-    }
-  }
-
-  let accounted = 0
-  for (const segment of segments) {
-    if (!isPotentialMutationCommand(segment)) continue
-    const targets = []
-    for (const match of segment.matchAll(REDIRECT_TARGET)) {
-      const raw = match[1]
-      if (raw.startsWith('&') || raw === '-' || raw === '/dev/null') continue
-      targets.push(raw)
-    }
-    const invocation = commandInvocation(segment)
-    const word = invocation ? executableName(invocation.words[invocation.index]) : ''
-    if (TEMP_ACCOUNTABLE_WORDS.has(word)) {
-      let optionsEnded = false
-      for (const argument of invocation.words.slice(invocation.index + 1)) {
-        if (!optionsEnded && argument === '--') { optionsEnded = true; continue }
-        if (!optionsEnded && argument.startsWith('-')) continue
-        targets.push(argument)
+      const targets = []
+      // Every redirect in every segment is accounted, even in a segment the
+      // mutation classifier does not flag: `echo x>f` writes f all the same.
+      for (const match of segment.matchAll(REDIRECT_TARGET)) {
+        const raw = match[1]
+        if (raw.startsWith('&') || raw === '-' || raw === '/dev/null') continue
+        targets.push(raw)
       }
-    } else if (targets.length === 0) {
-      // Mutating for a reason this function did not identify: keep it a mutation.
-      return false
+      const mutating = isPotentialMutationCommand(segment)
+      if (!mutating && targets.length === 0) continue
+      const invocation = commandInvocation(segment)
+      const word = invocation ? executableName(invocation.words[invocation.index]) : ''
+      if (TEMP_ACCOUNTABLE_WORDS.has(word)) {
+        let optionsEnded = false
+        for (const argument of invocation.words.slice(invocation.index + 1)) {
+          if (!optionsEnded && argument === '--') { optionsEnded = true; continue }
+          if (!optionsEnded && argument.startsWith('-')) {
+            // An option can smuggle the DESTINATION: `cp -tDIR` and
+            // `--target-directory=DIR` write into DIR while looking like flags.
+            // A '='-attached value is checked as a target; the -t forms are
+            // beyond safe accounting, so they disqualify outright.
+            if (word === 'cp' || word === 'mv') {
+              if (/^-t/.test(argument) || /^--target-directory/.test(argument)) return false
+            }
+            const attached = argument.match(/^--?[A-Za-z][A-Za-z-]*=(.+)$/)
+            if (attached) targets.push(attached[1])
+            continue
+          }
+          targets.push(argument)
+        }
+      } else if (mutating && targets.length === 0) {
+        // Mutating for a reason this function did not identify: keep it a mutation.
+        return false
+      }
+      if (mutating && targets.length === 0) return false
+      for (const target of targets) {
+        const expanded = expandShellToken(target, assignments)
+        if (expanded === null || expanded.length === 0
+            || [...expanded].some(character => '*?[]{}'.includes(character))) return false
+        const resolved = resolveToolPath(expanded, cwd)
+        if (!resolved || !underTempRoot(resolved)) return false
+      }
+      if (mutating) accounted += 1
     }
-    if (targets.length === 0) return false
-    for (const target of targets) {
-      const expanded = expandShellToken(target, assignments)
-      if (expanded === null || expanded.length === 0
-          || [...expanded].some(character => '*?[]{}'.includes(character))) return false
-      const resolved = resolveToolPath(expanded, cwd)
-      if (!resolved || !underTempRoot(resolved)) return false
-    }
-    accounted += 1
   }
   return accounted > 0
 }
@@ -1128,7 +1153,9 @@ function gitTreeRefreshKind(segment, cwd) {
     if (argument === '--') { separated = true; break }
     args.push(argument)
   }
-  if (subcommand === 'pull') return 'refresh'
+  // A non-fast-forward pull can CREATE a merge commit — that is authorship,
+  // not navigation, and it stays a mutation like it always was.
+  if (subcommand === 'pull') return args.includes('--ff-only') ? 'refresh' : null
   if (subcommand === 'merge') return args.includes('--ff-only') ? 'refresh' : null
   if (subcommand === 'switch') {
     if (!args.some(argument => ['-c', '-C', '--orphan'].includes(argument))) return 'refresh'
@@ -1205,6 +1232,8 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   let lastTreeRefresh = -1
   let lastValidation = -1
   let lastSuccessfulValidation = -1
+  let lastUnresolvedDeletion = -1
+  let lastPublish = -1
   const mutationPaths = []
 
   const executed = use => {
@@ -1233,8 +1262,15 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
           && !mutatesOnlyTempPaths(use.input.command, cwd)) {
         lastMutation = Math.max(lastMutation, use.position)
         mutationPaths.push(...bashMarkdownMutationPaths(use.input.command, cwd))
-        mutationPaths.push(...bashDeletionMutationPaths(use.input.command, cwd))
+        const deletions = bashDeletionMutationPaths(use.input.command, cwd)
+        if (deletions.includes(UNRESOLVED_DELETION_MUTATION)) {
+          lastUnresolvedDeletion = Math.max(lastUnresolvedDeletion, use.position)
+        }
+        mutationPaths.push(...deletions)
         mutationPaths.push(`<Bash mutation: ${String(use.input.command).slice(0, 120)}>`)
+      }
+      if (isGitPublishCommand(use.input.command)) {
+        lastPublish = Math.max(lastPublish, use.position)
       }
     }
     if (use.name === 'Bash' && isValidationCommand(use.input.command)
@@ -1254,6 +1290,10 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
     lastMutation,
     lastSuccessfulValidation,
     mutationPaths,
+    // A commit landing after an unresolved deletion rewrites HEAD, so the
+    // git-diff resolution below it can no longer see what was removed — the
+    // sentinel must fail closed instead of being laundered by the commit.
+    publishAfterUnresolvedDeletion: lastUnresolvedDeletion >= 0 && lastPublish > lastUnresolvedDeletion,
   }
 }
 
@@ -1265,7 +1305,7 @@ function deletedTrackedPaths(cwd) {
   const options = { encoding: 'utf8', timeout: 10_000 }
   const root = spawnSync('git', ['-C', cwd, 'rev-parse', '--show-toplevel'], options)
   if (root.status !== 0) return null
-  const deleted = spawnSync('git', ['-C', cwd, 'diff', '--name-only', '--diff-filter=D', 'HEAD'], options)
+  const deleted = spawnSync('git', ['-C', cwd, '-c', 'core.quotePath=false', 'diff', '--no-renames', '--name-only', '--diff-filter=D', 'HEAD'], options)
   if (deleted.status !== 0) return null
   const top = root.stdout.trim()
   return deleted.stdout.split('\n')
@@ -1274,22 +1314,28 @@ function deletedTrackedPaths(cwd) {
     .map(relative => path.join(top, relative))
 }
 
-// The runner clamps this the same way; reading it here keeps the outer kill above
-// the inner timeout, so a raised budget is not cut short by the process that
-// spawned it.
+// Reads the operator's budget under the runner's own range. Above the 110s
+// ceiling it CLAMPS to the ceiling — an operator who asked for more wanted more,
+// not the default back; garbage or a sub-100ms value falls back to the default.
 export function artifactGateTimeoutMs(env = process.env) {
   const configured = Number(env.QUALITY_HARNESS_SHELL_TIMEOUT_MS)
-  return Number.isSafeInteger(configured) && configured >= 100 && configured <= 110_000
-    ? configured
-    : ARTIFACT_GATE_TIMEOUT_MS
+  if (!Number.isSafeInteger(configured) || configured < 100) return ARTIFACT_GATE_TIMEOUT_MS
+  return Math.min(configured, 110_000)
 }
 
-export function runArtifactGates(paths, cwd = process.cwd()) {
+// windowMs bounds the WHOLE pass, not one artifact. The hook this runs inside
+// has its own deadline (hooks.json: 60s at PreToolUse, 120s at completion), and
+// a hook that dies on that deadline blocks nothing — so letting per-artifact
+// budgets add up past the window would turn the gate fail-open exactly when the
+// corpus is big enough to matter. Running out of window is itself a blocking
+// failure.
+export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000) {
   const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
   const runner = path.join(PLUGIN_ROOT, 'scripts', 'run-shell-hook.mjs')
   if (!existsSync(runner)) return 'Artifact validation failed:\nThe cross-platform shell-hook runner is missing.'
 
+  const deadline = Date.now() + windowMs
   const failures = []
   const targets = []
   for (const filePath of [...new Set(paths)]) {
@@ -1306,11 +1352,17 @@ export function runArtifactGates(paths, cwd = process.cwd()) {
     targets.push(filePath)
   }
   for (const filePath of [...new Set(targets)]) {
-    const timeoutMs = artifactGateTimeoutMs()
+    const remaining = deadline - Date.now()
+    if (remaining < 1_000) {
+      failures.push(`The boundary's ${Math.round(windowMs / 1000)}s window was exhausted before ${filePath} was gated. `
+        + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.')
+      break
+    }
+    const timeoutMs = Math.min(artifactGateTimeoutMs(), remaining)
     const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
       input: JSON.stringify({ tool_input: { file_path: filePath } }),
       encoding: 'utf8',
-      env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(timeoutMs) },
+      env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(Math.max(timeoutMs, 100)) },
       timeout: timeoutMs + ARTIFACT_GATE_KILL_MARGIN_MS,
     })
     if (run.status !== 0) {
@@ -1321,7 +1373,9 @@ export function runArtifactGates(paths, cwd = process.cwd()) {
       failures.push(/timed out after \d+ms/.test(detail)
         ? `${detail}\nThe gate did not finish, so it says nothing about ${filePath}. `
           + `This is a budget, not a finding: raise QUALITY_HARNESS_SHELL_TIMEOUT_MS `
-          + `(currently ${timeoutMs}ms, max 110000) for a corpus this size.`
+          + `(currently ${timeoutMs}ms, max 110000) for a corpus this size — the boundary `
+          + `still caps the whole pass at ${Math.round(windowMs / 1000)}s so the hook `
+          + `cannot outlive its own deadline.`
         : detail)
     }
   }
@@ -1419,7 +1473,16 @@ export async function handleHook(input) {
       return
     }
     const state = analyzeTranscript(raw, input.cwd)
-    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd)
+    if (state.publishAfterUnresolvedDeletion) {
+      blockWithExit('A Bash deletion used an unresolved path and a commit has already landed since, '
+        + 'so the repository can no longer say what was removed. The facts-first gate cannot '
+        + 'determine whether an ADR archive was affected; name the deleted paths explicitly.')
+      return
+    }
+    // The PreToolUse hook has a 60s deadline (hooks.json) and a hook killed on
+    // its deadline blocks nothing, so the artifact pass gets a window that fits
+    // inside it.
+    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 45_000)
     if (artifactFailure) {
       blockWithExit(artifactFailure)
       return
@@ -1441,8 +1504,16 @@ export async function handleHook(input) {
     return
   }
   const state = analyzeTranscript(raw, input.cwd)
+  if (event !== 'Stop' && state.publishAfterUnresolvedDeletion) {
+    const reason = 'A Bash deletion used an unresolved path and a commit has already landed since, '
+      + 'so the repository can no longer say what was removed. The facts-first gate cannot '
+      + 'determine whether an ADR archive was affected; name the deleted paths explicitly.'
+    if (event === 'TaskCompleted') blockWithExit(reason)
+    else emitJson({ decision: 'block', reason })
+    return
+  }
   if (event !== 'Stop') {
-    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd)
+    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
     if (artifactFailure) {
       if (event === 'TaskCompleted') blockWithExit(artifactFailure)
       else emitJson({ decision: 'block', reason: artifactFailure })

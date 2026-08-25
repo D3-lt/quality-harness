@@ -23,6 +23,8 @@ import {
   shellSegments,
 } from '../scripts/lifecycle.mjs'
 import {
+  HOOK_SCRIPTS,
+  hookArguments,
   hookFilePathFromPayload,
   normalizeHookPayload,
   resolveBashExecutable,
@@ -1210,4 +1212,23 @@ test('adr-next reads the task files, not the index that describes them', async (
   const stillReady = JSON.parse(next(tasks, '--json').stdout)
   assert.deepEqual(stillReady.ready.map(task => task.id), ['T1'])
   assert.deepEqual(stillReady.done, [])
+})
+
+test('every hook script the runner accepts has its arguments wired', () => {
+  // The runner rejects anything outside HOOK_SCRIPTS, so the fall-through in
+  // hookArguments cannot fire today. It exists for the next script added to the
+  // set: without arguments a gate is handed no file, and a gate handed no file
+  // exits 0 — a check that silently cannot fail. This test is what makes adding
+  // a script without wiring it an error instead of a quiet pass.
+  const payload = JSON.stringify({
+    hook_event_name: 'PostToolUse', tool_name: 'Write',
+    tool_input: { file_path: '/repo/docs/ADR-001.md' },
+  })
+  for (const script of HOOK_SCRIPTS) {
+    const args = hookArguments(script, payload, 'linux')
+    assert.ok(Array.isArray(args) && args.length > 0, script)
+    assert.ok(args.includes('/repo/docs/ADR-001.md'), `${script} must pass the file path`)
+  }
+  assert.throws(() => hookArguments('not-wired.sh', payload, 'linux'),
+    /hookArguments does not build its arguments/)
 })

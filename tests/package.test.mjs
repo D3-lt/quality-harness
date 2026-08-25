@@ -123,6 +123,15 @@ test('continuous integration runs the checks this repository owns', () => {
   // mean a check quietly stopped gating.
   assert.match(workflow, /QUALITY_HARNESS_REQUIRE_CLI: '1'/)
   assert.equal((workflow.match(/^\s*continue-on-error: true$/gm) ?? []).length, 1)
+  // Requiring the CLI in a job that never installs it is how both selftest jobs
+  // went red on b144d22: the flag is a promise the job has to keep. Checked per
+  // job, because the install living in a *different* job is exactly the mistake.
+  const jobs = workflow.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1)
+  for (const job of jobs) {
+    if (!job.includes('QUALITY_HARNESS_REQUIRE_CLI')) continue
+    assert.match(job, /npm install -g @anthropic-ai\/claude-code/,
+      `${job.split('\n', 1)[0]} requires the CLI but never installs it`)
+  }
 
   for (const script of ['selftest.sh', 'coverage.sh']) {
     const path = join(root, 'scripts', script)

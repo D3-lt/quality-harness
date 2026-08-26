@@ -777,32 +777,6 @@ export function validationVerdict(result, command) {
   return 'passed'
 }
 
-function resultSucceeded(result, command) {
-  if (result.is_error === true || result.interrupted === true) return false
-  let failedExit = false
-  walk(result, object => {
-    for (const [key, value] of Object.entries(object)) {
-      if (/^(?:exit_code|exitCode)$/.test(key) && Number.isInteger(value) && value !== 0) {
-        failedExit = true
-      }
-    }
-  })
-  if (failedExit) return false
-  const serialized = JSON.stringify(result)
-  const text = collectStrings(result).join('\n')
-  if (/\b(?:command|process)\s+(?:is\s+)?(?:still\s+)?running\b|\brunning in background\b|\bbackground (?:task|process|command)(?:\s+with)?\s+ID\b/i.test(text)) {
-    return false
-  }
-  if (/["']exit_code["']\s*:\s*[1-9]\d*/i.test(serialized)
-      || /\b(?:process|command)\b.{0,80}\bexit(?:ed)?(?: with)?(?: code)?\s+[1-9]\d*/i.test(text)) {
-    return false
-  }
-  if (testCommand(command) && reportsZeroTestWork(text, command)) {
-    return false
-  }
-  return true
-}
-
 const CD_ONLY = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/
 
 // A command substitution inside a `cd` argument still runs a command, so it

@@ -103,6 +103,25 @@ test('a tool a document names is proposed, and an unshipped word is not', () => 
   }
 })
 
+test('a shipped name inside a longer word is a different promise', () => {
+  // Without a word boundary `demo-gate` matches inside `demo-gate-extended`, and
+  // the runner would then rewrite a string the document never promised — a
+  // mutation that fails for a reason unrelated to any contract. Found 2026-08-26
+  // by a catalogue entry that stayed GREEN: the fixture had no longer token to
+  // match against, so the boundary could not fail.
+  const root = fixture({
+    'bin/demo-gate': '#!/bin/sh\n',
+    'docs/guide.md': 'Run demo-gate-extended over the corpus.\n',
+    'skills/demo/SKILL.md': SKILL('Use when the user wants the demonstration gate run'),
+  })
+  try {
+    const tools = proposals(root).filter(entry => entry.kind === 'named-tool').map(e => e.from)
+    assert.deepEqual(tools, [], 'demo-gate is not named here; demo-gate-extended is')
+  } finally {
+    rmSync(root, { recursive: true, force: true })
+  }
+})
+
 test('a flag no script declares belongs to some other command, not this tree', () => {
   const root = fixture({
     'docs/guide.md': 'Pass --apply to write. Pass --pager to git.\n',

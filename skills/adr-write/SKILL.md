@@ -124,6 +124,13 @@ leaving the reader to guess.
 - Ordered Steps start with the failing test (TDD red) for the task's `Covers:` IDs.
 - When a spec exists: `Spec:` header set, inherited sections by reference, and the union of task
   `Covers:` must include every @spec fact/scenario — `adr-lint` blocks Accepted on uncovered IDs.
+- Run `adr-judge <adr.md>` too and paste the run. It checks the two axes a schema cannot see —
+  whether the record rests on anything observable, and whether a reader in a year will know what was
+  decided. It never blocks and never can: these are heuristics about prose, and a model verdict must
+  never enter this corpus's evidence chain. Close what is real, or say in the record why it stands.
+  `adr-judge --rubric` prints the questions rather than answering them; read the record against them
+  yourself when the rules pass but the decision still feels thin — that is the judgement the rules
+  cannot make, and you are the one qualified to make it.
 - Run `adr-lint <adr.md>` before presenting the ADR and paste the run; present any finding you did
   not close, with your reason. Mechanically checked: Status, Spec
   header, Alternatives ≥1, Wiring non-empty, Out of Scope dispositions, task sections/headers,

@@ -845,6 +845,69 @@
       ],
       "from": "        print(f\"[strictFrom] {errors.demotion}\")",
       "to": "        pass"
+    },
+    {
+      "label": "judge: Context must cite something observable",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if context.strip() and not OBSERVABLE.search(context):",
+      "to": "    if False:"
+    },
+    {
+      "label": "judge: an alternative names why it lost",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if not REJECTION.search(entry):",
+      "to": "        if False:"
+    },
+    {
+      "label": "judge: a comparative claim carries a number",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if claim and not NUMBER.search(context + decision):",
+      "to": "    if False:"
+    },
+    {
+      "label": "judge: the Decision commits",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if decision.strip() and HEDGE.search(decision) and not COMMITMENT.search(decision):",
+      "to": "    if False:"
+    },
+    {
+      "label": "judge: an authoring marker is not a template placeholder",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "UNRESOLVED = re.compile(r\"(?<![-\\w])(?:TODO|TBD|FIXME|XXX|\\?\\?\\?)(?![-\\w])\")",
+      "to": "UNRESOLVED = re.compile(r\"\\b(?:TODO|TBD|FIXME|XXX|\\?\\?\\?)\\b\")"
+    },
+    {
+      "label": "judge: Consequences state a cost",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if consequences.strip() and not COST.search(consequences):",
+      "to": "    if False:"
+    },
+    {
+      "label": "judge: prose judgement never blocks",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    return 0\n\n\nif __name__ ==",
+      "to": "    return 1 if findings else 0\n\n\nif __name__ =="
     }
   ]
 }

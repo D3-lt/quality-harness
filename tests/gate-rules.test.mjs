@@ -539,6 +539,7 @@ test('every gate refuses a flag it does not know', () => {
   cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
 
   const invocations = [
+    ['adr-judge', ['ADR-001-selftest.md', '--bogus']],
     ['adr-lint', ['ADR-001-selftest.md', '--bogus']],
     ['adr-verify', ['tasks/T1-fixture.md', '--bogus', 'value']],
     ['adr-next', ['tasks', '--jsonn']],
@@ -594,4 +595,82 @@ test('the machine-readable output lifecycle.mjs depends on is machine-readable',
   for (const field of ['id', 'goal', 'path']) {
     assert.ok(report.ready[0][field], `a ready entry must carry ${field}`)
   }
+})
+
+// --- adr-judge: the two axes a schema cannot check -------------------------
+
+const JUDGE_CLEAN = readFileSync(join(root, 'tests', 'fixtures', 'judge', 'ADR-050-clean.md'), 'utf8')
+
+test('every adr-judge rule has a case that makes it fire, and a record that passes them all', () => {
+  const dir = scratch('judge')
+  const write = text => {
+    const path = join(dir, 'ADR-050.md')
+    writeFileSync(path, text)
+    return path
+  }
+
+  // The positive control. Without it every row below could be firing for its own
+  // reason — the vacuous pass this project keeps finding in its own tests.
+  const clean = run('adr-judge', [write(JUDGE_CLEAN)])
+  assert.equal(clean.status, 0, clean.stdout + clean.stderr)
+  assert.match(clean.stdout, /evidence and clarity rules all pass/)
+
+  const cases = [
+    // EVIDENCE
+    ['E1', 'Context is opinion, not observation',
+      t => t.replace(/## Context\n[\s\S]*?(?=\n## Decision)/,
+        '## Context\n\nThe nightly export feels slow and everyone dislikes it.\n'),
+      /Context cites nothing a reader could check/],
+    ['E2', 'an alternative with no reason it lost',
+      t => t.replace(/- Shard by date range[\s\S]*?does not split the work that is slow\./,
+        '- Shard by date range.'),
+      /gives no reason it was not chosen/],
+    ['E3', 'a comparative claim with no number behind it',
+      t => t.replace(/## Context\n[\s\S]*?(?=\n## Decision)/,
+        '## Context\n\nA queue is faster than the in-process export, as observed by the team.\n'),
+      /is claimed with no number or named source/],
+    // CLARITY
+    ['C1', 'a Decision that hedges without committing',
+      t => t.replace(/## Decision\n[\s\S]*?(?=\n## Alternatives)/,
+        '## Decision\n\nWe might move the export to a queue, and could possibly shard it later.\n'),
+      /hedges without committing/],
+    ['C2', 'an authoring marker left in the record',
+      t => t.replace('## Consequences', '## Consequences\n\nTODO: finish this section.\n'),
+      /is still in the record; it is not finished/],
+    ['C3', 'Consequences with no cost stated',
+      t => t.replace(/## Consequences\n[\s\S]*$/,
+        '## Consequences\n\nEach account is exported on its own and the run finishes sooner.\n'),
+      /Consequences state no cost/],
+  ]
+
+  for (const [rule, label, mutate, expected] of cases) {
+    const text = mutate(JUDGE_CLEAN)
+    assert.notEqual(text, JUDGE_CLEAN, `${label}: the mutation did not apply`)
+    const result = run('adr-judge', [write(text)])
+    // Advisory ALWAYS: this judges prose, and prose is not the kind of thing
+    // that should stop work. A model verdict must never reach the evidence
+    // chain either, which is why the rules here are deterministic.
+    assert.equal(result.status, 0, `${rule} must not block\n${result.stdout}`)
+    assert.match(result.stdout, expected, `${rule} ${label}`)
+    assert.match(result.stdout, /Nothing is blocked/, rule)
+  }
+
+  // The bundled template judges itself finished: `Superseded by ADR-XXX` is a
+  // placeholder for a NUMBER, and reading it as an authoring marker made the
+  // gate fire on the document it ships.
+  const template = run('adr-judge', [join(root, 'templates', 'adr-template.md')])
+  assert.equal(template.status, 0)
+  assert.match(template.stdout, /evidence and clarity rules all pass/)
+
+  // The rubric is the model half: the questions, for the agent to answer.
+  const rubric = run('adr-judge', ['--rubric'])
+  assert.equal(rubric.status, 0)
+  for (const rule of ['E1', 'E2', 'E3', 'C1', 'C2', 'C3']) {
+    assert.match(rubric.stdout, new RegExp(`\\b${rule}\\b`), `the rubric must name ${rule}`)
+  }
+
+  // A broken invocation is not a verdict about a record.
+  assert.equal(run('adr-judge', ['--not-a-flag']).status, 2)
+  assert.equal(run('adr-judge', []).status, 2)
+  assert.equal(run('adr-judge', [join(dir, 'absent.md')]).status, 2)
 })

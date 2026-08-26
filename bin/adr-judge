@@ -1,0 +1,166 @@
+#!/usr/bin/env python3
+"""adr-judge — Evidence and Clarity, the two things a schema cannot see.
+
+adr-lint answers "is this record well formed and is its work proved?". This
+answers a different question: does the record rest on anything observable, and
+will a future reader know what was decided? Those are the axes adr-kit
+(rvdbreemen/adr-kit, MIT) judges with a model. This judges them with rules.
+
+ADVISORY, ALWAYS. Every finding is printed and the exit code is 0 whatever it
+finds, because a heuristic about prose is not the kind of thing that should stop
+work — and because a model verdict must never enter this corpus's evidence
+chain, which is the whole reason its `done` claims are worth more than an
+opinion. The only non-zero exit is a broken invocation.
+
+`--rubric` prints the questions instead of answering them. That is the model
+half, deliberately: the agent reading this IS a model, so it can judge the
+qualitative residue itself against a fixed rubric, with no API key, no network,
+and no verdict laundered into evidence.
+
+Usage:
+  adr-judge <adr.md>
+  adr-judge --rubric
+"""
+import re
+import sys
+from pathlib import Path
+
+RUBRIC = """Evidence and Clarity — judge the record against these, and say which fail and why.
+Nothing here blocks; a finding is a thing to fix or to justify in the record itself.
+
+EVIDENCE — does the decision rest on observed facts rather than preference?
+  E1  Context cites something observable: a measurement, a date, a file path, a
+      command and its output, an incident, a source. Not "the current approach
+      is slow" but what was slow, by how much, measured how.
+  E2  Every alternative names why it was NOT chosen, in its own terms.
+  E3  A comparative claim ("faster", "cheaper", "safer") carries a number or a
+      named source somewhere in the record.
+
+CLARITY — will a reader in a year know what was decided?
+  C1  The Decision commits. It says what will be done, not what might be.
+  C2  Nothing is left to be filled in later.
+  C3  Consequences state at least one cost. A decision with only upside had no
+      trade-off, which means the alternatives were not real.
+"""
+
+# Anything a reader could go and check.
+OBSERVABLE = re.compile(
+    r"\b\d+(?:[.,]\d+)?\s*(?:%|ms|s\b|sec|min|h\b|hours?|days?|weeks?|months?|"
+    r"[kKmMgG]i?[bB]|req|rps|qps|x\b|times)|"          # a measurement
+    r"\b\d{4}-\d{2}-\d{2}\b|"                            # a date
+    r"`[^`]*[./][^`]*`|"                                 # a path or command in a span
+    r"https?://|"                                        # a source
+    r"\b(?:measured|observed|reproduced|benchmark|profil|incident|postmortem|"
+    r"logged|traced|reported)\w*\b",
+    re.I,
+)
+REJECTION = re.compile(
+    r"\b(?:because|since|rejected|discarded|ruled out|dismissed|too |"
+    r"cannot|can't|does not|doesn't|would (?:require|mean|break|cost)|"
+    r"trade-?off|drawback|downside|not chosen|no longer)\b", re.I)
+COMPARATIVE = re.compile(
+    r"\b(?:faster|slower|cheaper|costlier|safer|simpler|better|worse|"
+    r"more reliable|less reliable|more efficient|higher throughput|lower latency)\b", re.I)
+NUMBER = re.compile(r"\b\d+(?:[.,]\d+)?\b")
+HEDGE = re.compile(r"\b(?:might|maybe|perhaps|possibly|probably|we could|"
+                   r"could potentially|may want to|should probably)\b", re.I)
+COMMITMENT = re.compile(r"\b(?:we will|we are|will use|will adopt|will replace|"
+                        r"adopt|use |replace |migrate|standardi[sz]e|adopts|chooses)\b", re.I)
+# (?<![-\w]) not \b: `Superseded by ADR-XXX` in the template is a placeholder for a
+# NUMBER, not an authoring marker, and the hyphen is a word boundary — so the
+# bundled template judged itself unfinished.
+UNRESOLVED = re.compile(r"(?<![-\w])(?:TODO|TBD|FIXME|XXX|\?\?\?)(?![-\w])")
+COST = re.compile(r"\b(?:cost|slower|risk|lose|loss|drawback|downside|regress|"
+                  r"increase[sd]? (?:the )?(?:complexity|latency|cost)|"
+                  r"more (?:work|complex|expensive)|no longer|give[s]? up|trade-?off)\b", re.I)
+
+
+def section(text, heading):
+    """A `## Heading` body, or '' when the record has no such section."""
+    pattern = re.compile(rf"^#{{1,6}}\s+{re.escape(heading)}\s*$", re.M | re.I)
+    match = pattern.search(text)
+    if not match:
+        return ""
+    rest = text[match.end():]
+    nxt = re.search(r"^#{1,6}\s+\S", rest, re.M)
+    return rest[:nxt.start()] if nxt else rest
+
+
+def prose(body):
+    """The body without fenced code, so a snippet is not mistaken for a sentence."""
+    return re.sub(r"```[\s\S]*?```", " ", body)
+
+
+def bullets(body):
+    return [line.strip(" -*\t") for line in body.split("\n")
+            if re.match(r"^\s*(?:[-*]|\d+\.)\s+\S", line)]
+
+
+def judge(text):
+    """(id, axis, finding) for every rule that fires. Deterministic, order fixed."""
+    findings = []
+    context = prose(section(text, "Context"))
+    decision = prose(section(text, "Decision"))
+    alternatives = prose(section(text, "Alternatives Considered"))
+    consequences = prose(section(text, "Consequences"))
+
+    if context.strip() and not OBSERVABLE.search(context):
+        findings.append(("E1", "evidence",
+                         "Context cites nothing a reader could check — no measurement, date, "
+                         "path, command, or source. Name what was observed, not what is believed."))
+    for entry in bullets(alternatives):
+        head = entry.split(".")[0][:60]
+        if not REJECTION.search(entry):
+            findings.append(("E2", "evidence",
+                             f"Alternative '{head}' gives no reason it was not chosen; "
+                             f"an alternative without a rejection is a list item, not a choice."))
+    claim = COMPARATIVE.search(decision) or COMPARATIVE.search(context)
+    if claim and not NUMBER.search(context + decision):
+        findings.append(("E3", "evidence",
+                         f"'{claim.group(0)}' is claimed with no number or named source behind it."))
+
+    if decision.strip() and HEDGE.search(decision) and not COMMITMENT.search(decision):
+        findings.append(("C1", "clarity",
+                         "The Decision hedges without committing — a reader cannot tell what "
+                         "will actually be done."))
+    marker = UNRESOLVED.search(text)
+    if marker:
+        findings.append(("C2", "clarity",
+                         f"'{marker.group(0)}' is still in the record; it is not finished."))
+    if consequences.strip() and not COST.search(consequences):
+        findings.append(("C3", "clarity",
+                         "Consequences state no cost. A decision with only upside had no "
+                         "trade-off, which means the alternatives were not real."))
+    return findings
+
+
+def main():
+    args = sys.argv[1:]
+    if "--rubric" in args:
+        print(RUBRIC)
+        return 0
+    unknown = [a for a in args if a.startswith("--")]
+    if unknown:
+        print(f"unknown option: {unknown[0]}\n\n{__doc__}", file=sys.stderr)
+        return 2
+    if not args:
+        print(__doc__, file=sys.stderr)
+        return 2
+    path = Path(args[0])
+    if not path.exists():
+        print(f"record not found: {path}", file=sys.stderr)
+        return 2
+
+    findings = judge(path.read_text(encoding="utf-8", errors="replace"))
+    print(f"[JUDGE] {path}" + ("" if findings else " — evidence and clarity rules all pass"))
+    for rule, axis, finding in findings:
+        print(f"  {axis} {rule}: {finding}")
+    if findings:
+        print("  Nothing is blocked — these are the two axes a schema cannot check. "
+              "Fix what is real, or say in the record why it stands. "
+              "`adr-judge --rubric` prints the questions for a closer read.")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

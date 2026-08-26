@@ -553,6 +553,109 @@ def main():
                                    "| T1 | probe | pending |", errors)
     assert errors == [], errors
 
+    # --- spec-verify's stack detection, which decides which runner owns a test --
+
+    assert spec_gate.split_binding("tests/api.py::test_login") == ("tests/api.py", "test_login")
+    assert spec_gate.split_binding("test_login") == (None, "test_login")
+    assert spec_gate.split_binding("  a::b  ") == ("a", "b")
+    # Only the FIRST separator splits, so a namespaced name survives intact.
+    assert spec_gate.split_binding("a.php::Class::method") == ("a.php", "Class::method")
+
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+
+        def stack_for(*markers, dirs=()):
+            here = root / "probe"
+            if here.exists():
+                for child in sorted(here.rglob("*"), reverse=True):
+                    child.unlink() if child.is_file() else child.rmdir()
+                here.rmdir()
+            here.mkdir()
+            for d in dirs:
+                (here / d).mkdir(parents=True)
+            for m in markers:
+                (here / m).parent.mkdir(parents=True, exist_ok=True)
+                (here / m).write_text("{}", encoding="utf-8")
+            return spec_gate.detect_stack(here)
+
+        assert stack_for("composer.json") == "phpunit"
+        # pest only when its binary is actually vendored; composer alone is phpunit.
+        assert stack_for("composer.json", "vendor/bin/pest") == "pest"
+        assert stack_for("pyproject.toml") == "pytest"
+        assert stack_for("pytest.ini") == "pytest"
+        assert stack_for("setup.cfg") == "pytest"
+        assert stack_for("Cargo.toml") == "cargo"
+        assert stack_for("package.json") == "vitest"
+        assert stack_for(dirs=("molecule",)) == "molecule"
+        # Nothing to go on is None, not a guess: handing a test to the wrong
+        # runner is what made 23 passing bindings report RED (see the comment in
+        # test_runs).
+        assert stack_for() is None
+        # Order matters where a repo carries two markers — composer wins over
+        # package.json, which is the case a PHP project with a JS front end hits.
+        assert stack_for("composer.json", "package.json") == "phpunit"
+
+    # path_stack answers the same question per TEST rather than per repo, which is
+    # the whole fix for a monorepo: the test's own path says which project owns it.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "apps" / "api" / "vendor" / "bin").mkdir(parents=True)
+        (root / "apps" / "api" / "vendor" / "bin" / "phpunit").write_text("", encoding="utf-8")
+        (root / "apps" / "api" / "tests").mkdir(parents=True)
+        (root / "apps" / "web" / "node_modules").mkdir(parents=True)
+        (root / "apps" / "web" / "package.json").write_text("{}", encoding="utf-8")
+        (root / "apps" / "web" / "tests").mkdir(parents=True)
+
+        assert spec_gate.path_stack(root, "apps/api/tests/LoginTest.php") == (
+            "phpunit", root / "apps" / "api")
+        assert spec_gate.path_stack(root, "apps/web/tests/login.test.ts") == (
+            "vitest", root / "apps" / "web")
+        # No project of its own: the caller keeps the repo-root stack, which is
+        # right for a single-project repository.
+        assert spec_gate.path_stack(root, "docs/notes.md") is None
+        assert spec_gate.path_stack(root, "") is None
+        # A path escaping the root must not walk out of it. `..` is caught by the
+        # walk reaching the root; an ABSOLUTE binding replaces the root entirely
+        # and is caught by the relative_to guard — different code, same answer,
+        # and only the second one exercises that guard.
+        assert spec_gate.path_stack(root, "../elsewhere/test.php") is None
+        assert spec_gate.path_stack(root, "/etc/hosts") is None
+        # pest beats phpunit when both binaries are vendored in the same project.
+        (root / "apps" / "api" / "vendor" / "bin" / "pest").write_text("", encoding="utf-8")
+        assert spec_gate.path_stack(root, "apps/api/tests/LoginTest.php")[0] == "phpunit"
+
+    # test_exists without --collect: a definition in the file, or a named reason.
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "tests").mkdir()
+        (root / "tests" / "api.py").write_text(
+            "def test_login():\n    assert True\n", encoding="utf-8")
+
+        ok, why = spec_gate.test_exists("tests/api.py::test_login", root, "pytest", False)
+        assert ok, why
+        ok, why = spec_gate.test_exists("tests/api.py::test_missing", root, "pytest", False)
+        assert not ok and "tests/api.py" in why, why
+        ok, why = spec_gate.test_exists("tests/gone.py::test_login", root, "pytest", False)
+        assert not ok and "file not found" in why, why
+        # A stack that binds by name only still needs a real definition.
+        ok, why = spec_gate.test_exists("test_login", root, "cargo", False)
+        assert not ok and "#[test]" in why, why
+        (root / "src").mkdir()
+        (root / "src" / "lib.rs").write_text(
+            "#[test]\nfn test_login() { assert!(true); }\n", encoding="utf-8")
+        ok, why = spec_gate.test_exists("test_login", root, "cargo", False)
+        assert ok, why
+        # A molecule scenario is a directory with a molecule.yml in it.
+        ok, why = spec_gate.test_exists("smoke", root, "molecule", False)
+        assert not ok and "Molecule scenario" in why, why
+        (root / "molecule" / "smoke").mkdir(parents=True)
+        (root / "molecule" / "smoke" / "molecule.yml").write_text("", encoding="utf-8")
+        ok, _ = spec_gate.test_exists("smoke", root, "molecule", False)
+        assert ok
+        # A path-less binding on a stack that requires one is malformed, and says so.
+        ok, why = spec_gate.test_exists("test_login", root, "pytest", False)
+        assert not ok and "malformed binding" in why, why
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

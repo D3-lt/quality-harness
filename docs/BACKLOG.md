@@ -355,69 +355,53 @@ is, and only the repository knows which, so the guard now asks it
 after `--`, as a second operand, or as a bare name that is not a branch. Tags, remote refs
 and detached commits are unchanged.
 
-## 12. Found while fixing 1, 4, 6, 10 and 11 — not fixed
+## 12. Found while fixing 1, 4, 6, 10 and 11 — two closed, one permanent
 
-**A session cannot exercise its own fix to this harness.** The live hooks run
-`${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs`, which resolves to
-`~/.claude/plugins/marketplaces/quality-harness` — a separate clone, on whatever version
-it last pulled. Editing this working tree changes nothing about the gates acting on the
-session doing the editing. On 2026-08-25 that clone sat at 2.0.11 while 2.0.12-2.0.15 were
-being written, so item 1's bug kept blocking every commit in the very session that fixed
-it, and each commit had to be run by the user through the `!` prefix. Nothing here is
-broken, but it is the first thing to know before debugging why a fix "did not take", and
-it means no fix in this repository is ever verified live by the session that wrote it —
-`selftest.sh` plus a negative control against `git show HEAD:` is the available evidence.
+**Re-read 2026-08-26 and rewritten, because the item had become the thing it warns about.**
+Both fixable bullets were closed in `2.0.17` and each kept, underneath its `Done` marker,
+the original prose arguing it was undecided or too invasive to fix. An entry that says
+`Done` and then explains why it has not been done is a record kept beside the truth — the
+exact failure the gates in this repository exist to catch. The superseded reasoning is
+summarized rather than repeated; the closing commits hold it in full.
 
-**Navigation and fast-forward integration count as edits.** **Done — `2.0.17`.** The
-fork below was decided by the user on 2026-08-25 ("working, not blocking"): the gate asks
-*"did this session author something it has not verified?"*, while keeping the staleness
-half of the second reading. A navigation-only session owes nothing; a refresh (branch
-switch, `pull`, `merge --ff-only`) after a green run still stales that evidence, so the
-pinned contracts at `tests/lifecycle.test.mjs` (edit → test → pull is unverified) hold
-unchanged. `git checkout -b`/`switch -c` in place are inert — they change no tree and
-stale nothing. `git pull --ff-only` also joined the protected-branch exceptions beside
-`merge --ff-only`: fast-forward integration is the sanctioned way to update `main`.
+**A session cannot exercise its own fix to this harness. — PERMANENT, not an open item.**
+The live hooks run `${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs`, which resolves to
+`~/.claude/plugins/marketplaces/quality-harness` — a separate clone, on whatever version it
+last pulled. Editing this working tree changes nothing about the gates acting on the session
+doing the editing. On 2026-08-25 that clone sat at 2.0.11 while 2.0.12-2.0.15 were being
+written, so item 1's bug kept blocking every commit in the very session that fixed it, and
+each commit had to be run by the user through the `!` prefix.
 
-`git checkout main && git
-pull --ff-only` at session start, with nothing authored afterwards, leaves `Stop` asking
-for a validation run. Both are in `isGitMutationCommand`'s mutating set.
+Nothing is broken here and nothing can close it. It is the first thing to know before
+debugging why a fix "did not take", and it means no fix in this repository is ever verified
+live by the session that wrote it. The available evidence is `selftest.sh`, a negative
+control against `git show HEAD:`, and — since `2.1.2` — CI on three platforms.
 
-This one is a genuine fork, not an oversight, and it should be decided rather than
-patched. Two readings of what the evidence gate asks:
+**Navigation and fast-forward integration count as edits. — CLOSED, `2.0.17`.** The fork was
+real and the user decided it on 2026-08-25 ("working, not blocking"): the gate asks *did
+this session author something it has not verified?*, while keeping the staleness half of the
+second reading. A navigation-only session owes nothing; a refresh (branch switch, `pull`,
+`merge --ff-only`) after a green run still stales that evidence. `git checkout -b` /
+`switch -c` in place are inert — they change no tree and stale nothing — and
+`git pull --ff-only` joined the protected-branch exceptions beside `merge --ff-only`, since
+fast-forward integration is the sanctioned way to update `main`.
 
-- *"Did this session author something it has not verified?"* Then navigation is not an
-  edit, and a session that only moved between branches owes no evidence.
-- *"Is the green run still about this tree?"* Then both are edits, because after either
-  one the tested tree is not the current tree.
+Verified still in force 2026-08-26: `isPotentialMutationCommand('git pull --ff-only')` is
+pinned true at `tests/lifecycle.test.mjs:123`, and the refresh classification at `:1035`.
 
-The repository has already chosen the second reading, twice and deliberately:
-`isPotentialMutationCommand('git pull --ff-only') === true` (`tests/lifecycle.test.mjs:93`)
-and the stale-evidence loop at `:576`. Changing it flips a pinned contract, so it wants a
-decision, not a carve-out. The discriminator now exists either way — item 11 built
-`localBranchExists` and the operand/separator split — so the work is small once the
-reading is settled. Cost of the current behaviour is one extra validation run per session
-start.
+**Scratchpad writes score as repository mutations. — CLOSED, `2.0.17`.** `mutatesOnlyTempPaths`
+proves, fail-closed, that every write of a Bash command lands under the OS temp roots —
+redirect targets and the operands of rm/mv/cp/mkdir/rmdir/touch/truncate/tee, with
+in-command `VAR=` assignments expanded, symlinks realpath-resolved, and every other mutator
+class (interpreters, in-place editors, git, package managers) disqualifying outright. A
+project living under the temp root gets no exemption, which keeps the suite's own fixtures
+strict.
 
-**Scratchpad writes score as repository mutations.** **Done — `2.0.17`.**
-`mutatesOnlyTempPaths` proves, fail-closed, that every write of a Bash command lands
-under the OS temp roots — redirect targets and the operands of
-rm/mv/cp/mkdir/rmdir/touch/truncate/tee, with in-command `VAR=` assignments expanded,
-symlinks realpath-resolved, and every other mutator class (interpreters, in-place
-editors, git, package managers) disqualifying outright. A project living under the temp
-root gets no exemption, which also keeps the test suite's own fixtures strict. Applied in
-both the evidence gate and the branch guard, so a scratch note on `main` no longer
-demands a task branch.
+The original note called this "least costly finding, most invasive fix" and proposed
+weighing it before starting. It was done anyway, and applied in BOTH the evidence gate
+(`scripts/lifecycle.mjs:1279`) and the branch guard (`:732`), so a scratch note on `main` no
+longer demands a task branch and no longer nags at `Stop`.
 
-`cat > /private/tmp/.../scratchpad/commit-msg.txt`
-raises `lastMutation`, so `Stop` demands a repository validation for a file outside any
-repository. Hit repeatedly on 2026-08-25 while writing commit messages for the items
-above. The fix is not small: for a Bash write redirect `mutationPaths` records an opaque
-`<Bash mutation: cmd>` marker rather than a path, so exempting by location needs redirect
-target resolution generalized beyond `bashMarkdownMutationPaths`, plus a rule for what
-counts as scratch (`os.tmpdir()` is the obvious candidate and would misjudge a project
-that lives there). `runArtifactGates` already skips these markers — they are not absolute
-paths — so the damage is confined to the completion nag. Least costly finding here, most
-invasive fix; weigh it against item 12's first bullet before starting.
 
 ## 13. The artifact gate's budget was fixed at 10s and no setting could raise it
 

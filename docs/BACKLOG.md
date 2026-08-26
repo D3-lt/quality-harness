@@ -819,6 +819,41 @@ provably writes under that root, so such a command should be exempted as scratch
 reach the deletion resolver at all. Not attempted here — it is a third change, and the two
 above were the reported ones.
 
+## 23. The edit boundary blocked without preventing anything
+
+Raised by the user on 2026-08-26, after a session in which the harness refused legitimate
+work four separate times: *"the problem is we reject most of the things with tools that we
+do not trust"*, and then the better proposal — **inform the agent that this will be blocked,
+so it has second thoughts.**
+
+Both halves hold up when measured.
+
+**There is no severity anywhere.** Across the five record gates there are 112 distinct
+failure messages — `adr-lint` 41, `adr-retire-check` 33, `spec-verify` 15, `arch-lint` 14,
+`postmortem-verify` 9 — and not one of them distinguishes a finding that breaks the
+guarantee from a structural nitpick. A missing `## Consequences` exited 1 exactly like a
+fabricated `done` status, and the dispatcher blocked on any non-zero.
+
+**And blocking at `PostToolUse` prevented nothing.** The write has already landed; a
+PostToolUse hook cannot undo it. Refusing there costs the turn and protects no file. What
+keeps a bad artifact out of the repository is the commit and completion boundaries, which
+rerun the same dispatcher and do exit 2.
+
+So the edit boundary informs now, for every gate rather than the two that were already
+relaxed, and the message names the consequence: nothing is blocked right now, this WILL
+block `git commit` and completion, fix it now while it is small or before you commit. An
+agent that knows the commit is going to fail has second thoughts. An agent that loses its
+turn to a structural nitpick learns to route around the gate — and the sessions that
+prompted this had started doing exactly that.
+
+Nothing is given up. The guarantee was never at this boundary.
+
+**Still open: the severity question itself.** Advising at the edit removes the friction
+without answering whether all 41 `adr-lint` findings should carry equal weight at the
+COMMIT boundary. They probably should not, and a gate that can say "this is advisory" would
+let the harness be strict about evidence and relaxed about shape. That is a larger change
+than this one and wants its own decision.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

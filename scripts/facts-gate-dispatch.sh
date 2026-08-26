@@ -191,22 +191,32 @@ fi
 [ -z "$gate" ] && exit 0
 [ "$rc" -eq 0 ] && exit 0
 
-# adr-lint and adr-retire-check judge a SET: an ADR together with its task files
-# and index, or an archive catalog together with its records. Mid-sequence that
-# set is legitimately incomplete — a contract row names T3 before T3 is written,
-# an index cannot list files nobody has written yet — so blocking each write makes
-# an inherently multi-file edit unperformable. Measured 2026-08-25: three
-# consecutive writes of one ADR-028 task set, each blocked on the absence of the
-# next file. The findings were right and the moment was wrong. These gates run
-# where the set is whole: the commit and completion boundaries, which rerun this
-# same dispatcher with no boundary argument and still exit 2.
-case "$boundary:$gate" in
-  PostToolUse:adr-lint|PostToolUse:adr-retire-check)
-    printf 'facts-first gate (%s) not satisfied yet for %s; it blocks at commit and completion, where the record set is whole:\n%s\n' \
-      "$gate" "$f" "$out"
-    exit 0
-    ;;
-esac
+# BLOCKING AT THIS BOUNDARY PREVENTS NOTHING. The write has already happened and
+# a PostToolUse hook cannot undo it, so refusing here costs the turn and protects
+# no file. What protects the repository is the commit and completion boundaries,
+# which rerun this same dispatcher with no boundary argument and do exit 2.
+#
+# So this boundary informs instead: the finding reaches the agent at the moment
+# it can still act on it, and says plainly what it will cost later. An agent that
+# knows a commit is going to fail has second thoughts; an agent that loses its
+# turn to a structural nitpick learns to route around the gate.
+#
+# adr-lint and adr-retire-check were already relaxed here for a narrower reason —
+# they judge a SET, and mid-sequence that set is legitimately incomplete: a
+# contract row names T3 before T3 is written, an index cannot list files nobody
+# has written yet. Measured 2026-08-25: three consecutive writes of one ADR-028
+# task set, each blocked on the absence of the next file. The findings were right
+# and the moment was wrong.
+#
+# That turned out to be true of every gate here, not only those two. Across the
+# five gates there are 112 distinct failure messages and no severity concept
+# anywhere, so a missing `## Consequences` stopped a turn exactly as hard as a
+# fabricated `done` status.
+if [ "$boundary" = "PostToolUse" ]; then
+  printf '%s is not satisfied yet for %s.\n\nNothing is blocked right now — this write has already landed, and a PostToolUse hook cannot undo it. But this WILL block `git commit` and completion until the artifact is fixed:\n\n%s\n\nFix it now while it is small, or keep going and fix it before you commit.\n' \
+    "$gate" "$f" "$out"
+  exit 0
+fi
 
 printf 'facts-first gate FAILED (%s, exit %s) for %s:\n%s\n\nFix the artifact, not the gate.\n' \
   "$gate" "$rc" "$f" "$out" >&2

@@ -1078,6 +1078,12 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
   for (const match of executable.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
     let candidate = match[1] ?? match[2] ?? match[3]
     if (!/\.md(?:$|[),\]])/i.test(candidate)) continue
+    // `origin/main:docs/adr/BACKLOG.md` is a git revision, not a file: `git show
+    // <rev>:<path>` reads out of history and writes nothing, but the token was
+    // resolved against the working directory and a path that has never existed
+    // was reported as changed. A colon past the first two characters cannot be a
+    // Windows drive letter, so it is not a path this gate can check.
+    if (/^.{2,}:/.test(candidate)) continue
     candidate = candidate.replace(/[),\]]+$/g, '')
     if (candidate.includes('=') && candidate.startsWith('-')) {
       candidate = candidate.slice(candidate.lastIndexOf('=') + 1)
@@ -1255,6 +1261,12 @@ export function mutatesOnlyTempPaths(command, cwd) {
       const invocation = commandInvocation(segment)
       const word = invocation ? executableName(invocation.words[invocation.index]) : ''
       if (TEMP_ACCOUNTABLE_WORDS.has(word)) {
+        // `cp` READS its sources and WRITES only its destination, so copying a
+        // repository file into scratch mutates nothing in the repository —
+        // requiring every operand to be under the temp root made
+        // `cp notes.md "$S/"` look like repository authorship. `mv` is not the
+        // same shape: it removes the source, so both ends are mutations.
+        const operands = []
         let optionsEnded = false
         for (const argument of invocation.words.slice(invocation.index + 1)) {
           if (!optionsEnded && argument === '--') { optionsEnded = true; continue }
@@ -1270,8 +1282,12 @@ export function mutatesOnlyTempPaths(command, cwd) {
             if (attached) targets.push(attached[1])
             continue
           }
-          targets.push(argument)
+          if (word === 'cp') operands.push(argument)
+          else targets.push(argument)
         }
+        // The destination is the last operand. With only one, it is the only
+        // thing named and stays accountable.
+        if (operands.length > 0) targets.push(operands[operands.length - 1])
       } else if (mutating && targets.length === 0) {
         // Mutating for a reason this function did not identify: keep it a mutation.
         return false

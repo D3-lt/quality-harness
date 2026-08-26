@@ -49,7 +49,32 @@ const VALIDATION_PATTERNS = [
 // duplicate a descriptor and `/dev/null` discards, so neither is a write. One
 // definition because two copies of this policy drift: the branch guard and the
 // exception list must agree on what counts as writing.
-const WRITE_REDIRECT = /(?:^|\s)(?:\d*|&)>>?\s*(?!&\d|\/dev\/null)/
+// Three ways this regex was wrong, all of them live on 2026-08-26.
+//
+// `\s*` backtracked past its own exclusion: with `cmd > /dev/null` it matched the
+// space, the exclusion failed, the engine handed the space back, and the
+// lookahead was re-tried against " /dev/null" — which does not START with
+// /dev/null. So `gh run watch 123 > /dev/null` was authorship, and on a
+// protected branch it demanded a task branch. JavaScript has no possessive
+// quantifier; `(?=(\s*))\1` is how one is spelled.
+//
+// `&-` closes a descriptor and writes nothing: `git fsck 2>&-` was a mutation.
+//
+// And a GLUED redirect was invisible: `printf x>out.txt` writes a file, but the
+// `(?:^|\s)` prefix required whitespace before it, so the evidence gate never
+// saw the write. That is a fail-open, and the two above are false blocks — the
+// same regex managed both directions at once.
+//
+// Quoted segments are removed before the test rather than excluded inside it: a
+// `>` inside `python3 -c 'a>b'` is a comparison in someone else's language, not
+// a redirect, and stripping quotes is a rule instead of a guess.
+const WRITE_REDIRECT = /(?<![-=<>!])(?:\d*|&)>>?(?=(\s*))\1(?!&\d|&-|\/dev\/null(?![^\s;|&<>]))/
+
+// A redirect inside quotes is not a redirect. Removing quoted runs keeps the
+// glued-redirect fix above from reading shell operators out of inline code.
+function withoutQuotedSegments(command) {
+  return command.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, ' ')
+}
 
 function walk(value, visit) {
   if (!value || typeof value !== 'object') return
@@ -669,7 +694,7 @@ function localBranchExists(directory, name) {
 function protectedBranchException(command, directory) {
   const trimmed = command.trim()
   const invocation = gitInvocation(trimmed)
-  if (!invocation || /`|\$\(/.test(trimmed) || WRITE_REDIRECT.test(trimmed)) return false
+  if (!invocation || /`|\$\(/.test(trimmed) || WRITE_REDIRECT.test(withoutQuotedSegments(trimmed))) return false
   const { subcommand, subcommandIndex, words } = invocation
   if (subcommand === 'switch') return true
   const args = []
@@ -895,7 +920,7 @@ export function interpreterCommandLooksMutating(command, executable) {
 export function isPotentialMutationCommand(command) {
   if (typeof command !== 'string' || isValidationCommand(command)) return false
   const executable = withoutHeredocBodies(command)
-  if (WRITE_REDIRECT.test(executable)) return true
+  if (WRITE_REDIRECT.test(withoutQuotedSegments(executable))) return true
   return /\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\b/.test(executable)
     || inPlaceEditorCommand(executable)
     || interpreterCommandLooksMutating(command, executable)

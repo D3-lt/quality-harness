@@ -94,7 +94,12 @@ Ask one concise question for anything missing:
    review document.
 6. Present paths, summary, and the lint run. Stop for user review/acceptance; do not commit.
 
-## Hard Gates
+## What a complete record contains
+
+These are the record's own quality bar, checked by `adr-lint` so nobody has to take your word for
+it. Each one exists because a record missing it could not be executed or could not be proved. Write
+the record so they hold; where one genuinely does not apply, say so in the record itself rather than
+leaving the reader to guess.
 
 - Include every template section, or write `None — <reason>`.
 - Include at least one alternative.
@@ -113,7 +118,8 @@ Ask one concise question for anything missing:
 - Ordered Steps start with the failing test (TDD red) for the task's `Covers:` IDs.
 - When a spec exists: `Spec:` header set, inherited sections by reference, and the union of task
   `Covers:` must include every @spec fact/scenario — `adr-lint` blocks Accepted on uncovered IDs.
-- `adr-lint <adr.md>` exits 0 before presenting the ADR. Mechanically enforced: Status, Spec
+- Run `adr-lint <adr.md>` before presenting the ADR and paste the run; present any finding you did
+  not close, with your reason. Mechanically checked: Status, Spec
   header, Alternatives ≥1, Wiring non-empty, Out of Scope dispositions, task sections/headers,
   bash-fence Acceptance, TDD step 1, README↔task-file consistency, task-DAG cycles,
   wave/order-vs-dependency ordering (Depends-on + Consumes edges), Verification Log grammar +

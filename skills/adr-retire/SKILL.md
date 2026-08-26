@@ -28,8 +28,9 @@ decision effect controls whether a choice still governs. Archive is not a synony
 1. Discover the repository's active ADR root, active catalog, archive convention, and task layouts.
    Project convention wins; do not dispatch on a project name.
 2. Run `adr-debt <active-root>` and inspect the candidate decision unit: its ADR file,
-   owned task directory, reviews, and attachments. Refuse a candidate with running tasks or an
-   unresolved product/owner decision.
+   owned task directory, reviews, and attachments. A candidate with running tasks or an unresolved
+   product/owner decision is not ready to retire — name what is still outstanding and leave the
+   record active, because retiring it is how an open obligation disappears.
 3. Classify the decision effect separately from record lifecycle:
    - `governing`: still authoritative but no longer worth current-format validation;
    - `superseded by ADR-NNN`: replacement is accepted, governing, and linked to its exact record;

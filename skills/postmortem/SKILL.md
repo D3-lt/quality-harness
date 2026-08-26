@@ -114,10 +114,10 @@ If a session found multiple bugs, create ONE postmortem per bug. Each gets its o
 
 ## After Writing
 
-1. Run `postmortem-verify docs/postmortems/<filename>` — exit 0 required. It checks
-   the frontmatter enums, files_changed list, every section present and non-empty, and the
-   Before/After code fences. A malformed doc silently poisons the fine-tuning corpus; the script,
-   not a read-back, is the gate.
+1. Run `postmortem-verify docs/postmortems/<filename>` and paste the run. It checks the
+   frontmatter enums, files_changed list, every section present and non-empty, and the Before/After
+   code fences. Take its findings seriously: a malformed doc silently poisons the fine-tuning
+   corpus, and the script sees what a read-back does not. Report what it said either way.
 2. Verify the frontmatter `files_changed` matches the actual files touched
 3. Do NOT commit automatically — the user may want to review first
 4. Report: "Postmortem written to `docs/postmortems/<filename>`, postmortem-verify exit 0. Review and commit when ready."

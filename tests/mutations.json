@@ -2,7 +2,7 @@
   "_comment": [
     "The killing mutations named in docs/TEST-PLAN.md, made runnable by scripts/mutate.mjs.",
     "Each entry is a claim: break this, and THAT suite must stop passing.",
-    "`from` must match exactly once \u2014 a mutation matching zero or many times no longer",
+    "`from` must match exactly once — a mutation matching zero or many times no longer",
     "describes the code, is reported STALE, and fails the run. That is deliberate: a",
     "mutation nobody has re-read is the same kind of stale record as a task list kept",
     "beside the tasks.",
@@ -42,8 +42,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha256:{digest}\")",
-      "to": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha:{digest}\")"
+      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest}\")",
+      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest}\")"
     },
     {
       "label": "evidence: the dirty-tree marker",
@@ -195,7 +195,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"\u00b7 exit 0 \u00b7\" in b]",
+      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"· exit 0 ·\" in b]",
       "to": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b)]"
     },
     {
@@ -546,7 +546,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        + 'Nothing is blocked \u2014 this is what the gate sees before you commit.')",
+      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.')",
       "to": "        + 'This commit is blocked until the check runs.')"
     },
     {
@@ -701,6 +701,24 @@
       ],
       "from": "    if (input.tool_name !== 'Bash') return",
       "to": "    if (input.tool_name !== 'Bash') { advise(\"you are on protected 'main'\"); return }"
+    },
+    {
+      "label": "skills: no skill halts on a gate verdict",
+      "file": "skills/adr-execute/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "Check these before starting.",
+      "to": "Verify before starting; stop and ask if any fail:"
+    },
+    {
+      "label": "skills: the guidance still names the gate to run",
+      "file": "skills/arch-write/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "4. Run `arch-lint <architecture.md>` and paste the run.",
+      "to": "4. Check the document yourself."
     }
   ]
 }

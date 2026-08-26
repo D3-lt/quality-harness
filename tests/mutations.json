@@ -620,6 +620,24 @@
       ],
       "from": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 0",
       "to": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 2"
+    },
+    {
+      "label": "advisory: the turn does not re-ask about what was published",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!state.unverifiedSince(state.lastPublish)) {",
+      "to": "  if (!state.hasMutations || state.verifiedAfterLastMutation) {"
+    },
+    {
+      "label": "advisory: a verify script is the project's named check",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { file: 'verify.sh', command: 'bash verify.sh' },",
+      "to": ""
     }
   ]
 }

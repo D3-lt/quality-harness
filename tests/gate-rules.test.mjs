@@ -9,7 +9,7 @@
 // reason cannot be mistaken for the rule under test.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -640,4 +640,43 @@ test('every adr-judge rule has a case that makes it fire, and a record that pass
   assert.equal(run('adr-judge', ['--not-a-flag']).status, 2)
   assert.equal(run('adr-judge', []).status, 2)
   assert.equal(run('adr-judge', [join(dir, 'absent.md')]).status, 2)
+})
+
+test('the mutation runner refuses to run over an editor, or beside another runner', () => {
+  // This rewrites real source and restores it from a journal. Twice on
+  // 2026-08-26 a patch written while a run was in flight was silently rolled
+  // back by that restore: the work looked applied, the tests ran against the old
+  // code, and the only clue was a failure that made no sense. A second runner
+  // started the same way. Both cost more than the guards do.
+  const runner = join(root, 'scripts', 'mutate.mjs')
+  const call = extraArgs => spawnSync(process.execPath,
+    [runner, '--case', 'mktemp -d is a temp', ...extraArgs],
+    { cwd: root, env, encoding: 'utf8', timeout: 60_000 })
+
+  // A live owner is refused. `process.pid` is this test, which is certainly alive.
+  const lock = join(root, '.mutate-lock')
+  writeFileSync(lock, String(process.pid))
+  try {
+    const second = call([])
+    assert.equal(second.status, 2, second.stdout + second.stderr)
+    assert.match(second.stderr, /another run is in flight/)
+  } finally {
+    rmSync(lock, { force: true })
+  }
+
+  // A dead owner left the lock behind; that is a crash, not a conflict, and the
+  // next run reclaims it rather than wedging forever.
+  writeFileSync(lock, '999999')
+  try {
+    const reclaimed = call([])
+    // Not a status assertion: the OTHER guard — uncommitted changes to the files
+    // this run rewrites — legitimately also exits 2, and in a working tree it
+    // usually does. What matters is that the stale lock is not the reason.
+    assert.doesNotMatch(reclaimed.stderr, /another run is in flight/,
+      'a stale lock must not wedge the runner')
+    assert.equal(existsSync(lock) ? readFileSync(lock, 'utf8').trim() : '', '',
+      'the dead owner\'s lock is cleared rather than inherited')
+  } finally {
+    rmSync(lock, { force: true })
+  }
 })

@@ -862,7 +862,7 @@ test('leaving a protected branch is allowed; overwriting its files is not', asyn
   assert.match(check('git checkout task/absent'), /protected 'main'/)
 })
 
-test('a set-level record gate reports at the edit and blocks at the boundary', async () => {
+test('every record gate advises at the edit and blocks at the boundary', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-adr-set-'))
   const fixtures = path.join(pluginDir, 'tests', 'fixtures', 'ok')
   const docs = path.join(repo, 'docs')
@@ -900,13 +900,29 @@ test('a set-level record gate reports at the edit and blocks at the boundary', a
   assert.equal(dispatch('', task).status, 2)
   assert.match(runArtifactGates([task], repo), /no README\.md index/)
 
-  // A gate that judges one file on its own keeps blocking at the edit.
+  // A gate that judges ONE file behaves the same way, and this is the change:
+  // blocking at PostToolUse prevented nothing, because the write had already
+  // landed and a hook cannot undo it. It cost the turn and protected no file.
+  // Across the five gates there are 112 distinct failure messages and no
+  // severity concept, so a missing section stopped a turn exactly as hard as a
+  // fabricated `done` status.
   const spec = path.join(docs, 'specs', 'invalid.md')
   await mkdir(path.join(docs, 'specs'), { recursive: true })
   await writeFile(spec, '# Invalid\n\n## Facts\n\n## Grill Log\n')
   const specEdit = dispatch('PostToolUse', spec)
-  assert.equal(specEdit.status, 2)
-  assert.match(specEdit.stderr, /facts-first gate FAILED \(spec-verify/)
+  assert.equal(specEdit.status, 0, specEdit.stderr)
+
+  const specContext = JSON.parse(specEdit.stdout).hookSpecificOutput.additionalContext
+  assert.match(specContext, /spec-verify/)
+  // The advice has to name the consequence, or it is just noise: an agent that
+  // knows the commit will fail has second thoughts, one that is merely told
+  // something is imperfect does not.
+  assert.match(specContext, /WILL block `git commit`/)
+  assert.match(specContext, /Nothing is blocked right now/)
+
+  // And the teeth are still there, at the boundary where refusing actually
+  // keeps the artifact out of the repository.
+  assert.equal(dispatch('', spec).status, 2)
 })
 
 test('both ways the artifact gate can run out of budget reach the same guidance', () => {

@@ -350,6 +350,33 @@
       ],
       "from": "        const ambiguous = platform === 'win32' ? '*?[]{}' : '*?[]{}\\\\'",
       "to": "        const ambiguous = '*?[]{}\\\\'"
+    },
+    {
+      "label": "gates: the edit boundary advises rather than blocks",
+      "file": "scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "if [ \"$boundary\" = \"PostToolUse\" ]; then\n  printf '%s is not satisfied yet",
+      "to": "if false; then\n  printf '%s is not satisfied yet"
+    },
+    {
+      "label": "gates: the advice names what it will cost",
+      "file": "scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  printf '%s is not satisfied yet for %s.\\n\\nNothing is blocked right now \u2014 this write has already landed, and a PostToolUse hook cannot undo it. But this WILL block `git commit` and completion until the artifact is fixed:\\n\\n%s\\n\\nFix it now while it is small, or keep going and fix it before you commit.\\n' \\",
+      "to": "  printf '%s is not satisfied yet for %s.\\n\\nNothing is blocked right now \u2014 this write has already landed, and a PostToolUse hook cannot undo it. The artifact is not right yet:\\n\\n%s\\n\\nFix it now while it is small, or keep going and fix it before you commit.\\n' \\"
+    },
+    {
+      "label": "gates: the boundary still blocks",
+      "file": "scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  \"$gate\" \"$rc\" \"$f\" \"$out\" >&2\nexit 2",
+      "to": "  \"$gate\" \"$rc\" \"$f\" \"$out\" >&2\nexit 0"
     }
   ]
 }

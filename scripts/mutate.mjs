@@ -75,11 +75,66 @@ function finish(file, original) {
   rmSync(journalPath, { force: true })
 }
 
+// One runner at a time, and never over an editor.
+//
+// This mutates real source and restores it from a journal. Two things break
+// that, and both happened on 2026-08-26: a SECOND runner started while one was
+// going, and — twice — a patch written while a run was in flight was silently
+// rolled back by the restore. The work looked applied, the tests ran against the
+// old code, and the only clue was a test failing for a reason that made no
+// sense. A lock and a clean-tree check cost nothing next to that.
+const lockPath = path.join(root, '.mutate-lock')
+
+function claimTheRun() {
+  if (existsSync(lockPath)) {
+    const owner = readFileSync(lockPath, 'utf8').trim()
+    let alive = true
+    try { process.kill(Number(owner), 0) } catch { alive = false }
+    if (alive) {
+      process.stderr.write(`mutate: another run is in flight (pid ${owner}). `
+        + 'Two runners restore each other\'s files and both report nonsense.\n')
+      return false
+    }
+    // A dead owner left it behind; recover() has already repaired the source.
+    rmSync(lockPath, { force: true })
+  }
+  writeFileSync(lockPath, String(process.pid))
+  return true
+}
+
+function releaseTheRun() {
+  try {
+    if (readFileSync(lockPath, 'utf8').trim() === String(process.pid)) {
+      rmSync(lockPath, { force: true })
+    }
+  } catch {}
+}
+
+/** Files this run will rewrite, so an edit in flight is refused rather than lost. */
+function dirtyTargets() {
+  const targets = [...new Set(selected.map(mutation => mutation.file))]
+  const status = spawnSync('git', ['-C', root, 'status', '--porcelain', '--', ...targets],
+    { encoding: 'utf8' })
+  if (status.status !== 0) return []
+  return status.stdout.split('\n').map(line => line.slice(3).trim()).filter(Boolean)
+}
+
+process.on('exit', () => { releaseTheRun() })
 process.on('SIGINT', () => { recover(); process.exit(130) })
 process.on('SIGTERM', () => { recover(); process.exit(143) })
 process.on('exit', () => { recover() })
 
 recover()
+
+if (!claimTheRun()) process.exit(2)
+const dirty = dirtyTargets()
+if (dirty.length && !argv.includes('--force')) {
+  process.stderr.write(`mutate: ${dirty.join(', ')} ${dirty.length === 1 ? 'has' : 'have'} `
+    + 'uncommitted changes, and this run rewrites and restores exactly those files — an edit '
+    + 'made while it runs is silently rolled back. Commit or stash first, or pass --force if '
+    + 'you accept losing them.\n')
+  process.exit(2)
+}
 
 const results = []
 for (const mutation of selected) {

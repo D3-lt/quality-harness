@@ -1158,6 +1158,51 @@
       ],
       "from": "  if (excuse) return `${changed} ${excuse}`",
       "to": "  if (false) return `${changed} ${excuse}`"
+    },
+    {
+      "label": "verdict: Windows says none of what POSIX says",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  'the system cannot find the file specified', 'the system cannot find the path specified',",
+      "to": ""
+    },
+    {
+      "label": "verdict: cmd.exe reports 9009, not 127",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const NEVER_STARTED_EXITS = new Set([126, 127, 9009])",
+      "to": "const NEVER_STARTED_EXITS = new Set([126, 127])"
+    },
+    {
+      "label": "verdict: an explicit exit 0 is authoritative",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (exitCode === 0) {\n    return testCommand(command) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
+      "to": ""
+    },
+    {
+      "label": "mutate: refuses a second runner",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if (alive) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "mutate: refuses to rewrite a file you are editing",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "if (dirty.length && !argv.includes('--force')) {",
+      "to": "if (false) {"
     }
   ]
 }

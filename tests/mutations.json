@@ -303,8 +303,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const first = String(command ?? '').split('\\n')[0].replace(/\\s+/g, ' ').trim()",
-      "to": "  const first = String(command ?? '').slice(0, 120)"
+      "from": "  const line = collapse(remainder) || collapse(script)",
+      "to": "  const line = String(command ?? '').slice(0, 120)"
     },
     {
       "label": "hooks: a commit gates only what it publishes",
@@ -519,8 +519,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const line = collapse(remainder) || collapse(script)",
-      "to": "  const line = collapse(script.split(String.fromCharCode(10))[0])"
+      "from": "  const script = withoutHeredocBodies(String(command ?? ''))",
+      "to": "  const script = String(command ?? '').split(String.fromCharCode(10))[0]"
     },
     {
       "label": "advisory: cd arguments stop at the newline",
@@ -555,8 +555,71 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (state.unverifiedSince(state.lastPublish)) {",
-      "to": "    if (state.hasMutations && !state.verifiedAfterLastMutation) {"
+      "from": "    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {",
+      "to": "    if (state.hasMutations && !state.verifiedAfterLastMutation && projectCheckCommand(input.cwd)) {"
+    },
+    {
+      "label": "advisory: a project that names no check hears nothing",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!projectCheckCommand(input.cwd)) return",
+      "to": "  if (false) return"
+    },
+    {
+      "label": "advisory: finding the repo root does not disqualify the check",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !inertNavigation(line))",
+      "to": "    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !CD_ONLY.test(line))"
+    },
+    {
+      "label": "advisory: an env prefix does not hide the command",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "pattern.test(segment.replace(ASSIGNMENT_PREFIX, ''))",
+      "to": "pattern.test(segment)"
+    },
+    {
+      "label": "advisory: a substitution still fails the guard",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      && segments.every(segment => !UNSAFE_SEGMENT.test(segment)",
+      "to": "      && segments.every(segment => true"
+    },
+    {
+      "label": "advisory: a git revision is not a changed path",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (/^.{2,}:/.test(candidate)) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "advisory: cp is accounted by its destination",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "          if (word === 'cp') operands.push(argument)",
+      "to": "          if (false) operands.push(argument)"
+    },
+    {
+      "label": "advisory: the harness never blocks over its own breakage",
+      "file": "scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 0",
+      "to": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 2"
     }
   ]
 }

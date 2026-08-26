@@ -2142,3 +2142,25 @@ test('the corpus reader handles the spellings real repositories use', async () =
   })
   assert.equal(run.status, 0)
 })
+
+test('reported: a scratch corpus does not pull the record gates', async () => {
+  // Observed 2026-08-26 while building the decision reader, against its own
+  // throwaway fixture: `facts-first gate FAILED (ADR ownership) for
+  // /tmp/…/tasks/T1-schema.md: expected exactly one owning ADR, found 0` — a
+  // finding about a file nobody was shipping, from a corpus built to try
+  // something out. A project's records are never under the OS temp root.
+  const scratch = path.join(os.tmpdir(), 'quality-scratch-corpus')
+  await mkdir(path.join(scratch, 'docs', 'adr', 'tasks'), { recursive: true })
+  const orphan = path.join(scratch, 'docs', 'adr', 'tasks', 'T1-orphan.md')
+  await writeFile(orphan, '# Task ADR-001-T1-orphan: no owning ADR anywhere\n')
+
+  // pluginDir stands in for a real checkout, which is what makes the temp path
+  // scratch rather than the project's own files.
+  assert.equal(runArtifactGates([orphan], pluginDir), null)
+
+  // A project that genuinely lives under the temp root keeps full strictness —
+  // there the "scratch" files ARE the records, and this suite's own fixtures
+  // depend on that.
+  const inside = runArtifactGates([orphan], scratch)
+  assert.match(String(inside), /ADR ownership|owning ADR/)
+})

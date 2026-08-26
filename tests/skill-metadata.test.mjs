@@ -109,3 +109,42 @@ test("the coordinator drives its routed chain instead of naming stages", () => {
     assert.match(body, pattern, `skills/work/SKILL.md: ${why}`);
   }
 });
+
+// A description is the only thing Claude reads when deciding whether a skill
+// applies, so a trigger an eval proved load-bearing is a contract, not prose.
+// Measured 2026-08-26: "Mark T3 done in docs/adr/tasks/README.md" matched no
+// description in the set, `Skill called 0x`, and the model hand-declared the
+// row — the exact failure adr-execute exists to prevent. Adding the done/mark
+// wording took that case 0.00 -> 1.00 with the sandbox otherwise unchanged.
+// Mutation 135 deleted the wording and every test stayed green.
+test("a skill claims the triggers its eval proved it needs", () => {
+  const proven = [
+    {
+      skill: "adr-execute",
+      evalCase: "done-needs-tool-written-evidence",
+      // The user's words, not the lifecycle's vocabulary. Nobody types
+      // "execute an accepted decision" when they mean "tick this off".
+      triggers: [/mark a task done/i, /tick off a task/i, /task's status/i, /record that work passed/i],
+      // The boundary is half the routing: the skill must say what it prevents.
+      boundary: /adr-verify/,
+    },
+  ]
+  for (const { skill, evalCase, triggers, boundary } of proven) {
+    const description = scalar(
+      frontmatterOf(join(skillsRoot, skill, "SKILL.md")),
+      "description",
+    )
+    for (const trigger of triggers) {
+      assert.match(
+        description,
+        trigger,
+        `skills/${skill}: eval ${evalCase} regressed to 0.00 without this trigger`,
+      )
+    }
+    assert.match(
+      description,
+      boundary,
+      `skills/${skill}: the description must name the tool it routes to`,
+    )
+  }
+})

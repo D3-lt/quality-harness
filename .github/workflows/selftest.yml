@@ -12,8 +12,12 @@ on:
 permissions:
   contents: read
 
+# A manual dispatch and the push it was meant to double-check share a ref, so a
+# single group let the dispatch cancel the run that actually gates main: on
+# 2026-08-26 fb3582c was green on all five jobs via dispatch and showed
+# `cancelled` on the branch. The event belongs in the key.
 concurrency:
-  group: selftest-${{ github.ref }}
+  group: selftest-${{ github.event_name }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:

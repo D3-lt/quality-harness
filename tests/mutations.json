@@ -458,6 +458,24 @@
       ],
       "from": "errors.advise(f\"{adr_id}: Retired must be YYYY-MM-DD",
       "to": "errors.append(f\"{adr_id}: Retired must be YYYY-MM-DD"
+    },
+    {
+      "label": "inline: a done claim with nowhere to prove it is named",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if inline_done:\n            errors.advise(",
+      "to": "        if False:\n            errors.advise("
+    },
+    {
+      "label": "inline: the advice does not fire on layout alone",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                       if re.search(r\"(?<!\\w)T\\d+(?!\\w)\", ln) and re.search(r\"\\bdone\\b\", ln, re.I)]",
+      "to": "                       if True]"
     }
   ]
 }

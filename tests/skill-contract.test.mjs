@@ -209,6 +209,18 @@ test('a documented invocation with two or more flags has a runnable instantiatio
   }
 })
 
+test('no skill recommends a shape the evidence chain cannot cover', () => {
+  // adr-write used to say "≤3 tasks: inline numbered list inside the ADR. No
+  // `tasks/` directory." adr-verify writes its Verification Log and Mutation Log
+  // into a TASK FILE, so inline tasks have nowhere for tool-written evidence to
+  // land, and adr-lint runs ADR-level checks only without a tasks directory.
+  // The plugin's own guidance routed small work around its own guarantee.
+  const adrWrite = readFileSync(join(root, 'skills', 'adr-write', 'SKILL.md'), 'utf8')
+  assert.doesNotMatch(adrWrite, /No `tasks\/` directory/,
+    'adr-write must not recommend an ADR shape adr-verify cannot write evidence into')
+  assert.match(adrWrite, /≤3 tasks.*`tasks\/` directory/s)
+})
+
 test('every command and template a skill points at resolves', () => {
   for (const skill of skills) {
     const text = readFileSync(join(root, 'skills', skill, 'SKILL.md'), 'utf8')

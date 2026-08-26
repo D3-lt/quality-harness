@@ -889,6 +889,36 @@ postmortem — a document the gate cannot recognise as the kind of record it val
 a form problem. That joins the two the first pass found: an unfilled placeholder blocks,
 and a section present and EMPTY blocks.
 
+## 24. The skill recommended the one shape the evidence chain cannot cover
+
+Found by a session working on another repository, which followed `/adr-write`, hit the
+contradiction, and did the right thing: it kept the task files the skill told it not to
+create, and wrote down why. Its note — *"inline tasks have nowhere to accept those entries,
+they would be unverifiable"* — is exactly right, and the situation is worse than
+unverifiable.
+
+`skills/adr-write/SKILL.md` said: **"≤3 tasks: inline numbered list inside the ADR. No
+`tasks/` directory."** But `adr-verify` appends its Verification Log and Mutation Log to a
+TASK FILE, and `adr-lint` runs ADR-level checks only when there is no tasks directory — so
+`done_task_ids` and `evidenced_task_ids` read an index that does not exist.
+
+Measured 2026-08-26: an ADR with three inline tasks **all marked done**, no evidence
+anywhere, passes `adr-lint` with exit 0. The plugin's own guidance routed small work around
+the plugin's own guarantee.
+
+Same class as item 18 — a check that applies to nothing — but reached through documented
+advice rather than a parsing bug, which is arguably worse. Item 18 was an accident.
+
+**Two halves.** The skill now says `tasks/` at every size: it is three small files, and it
+is the only shape the evidence chain can cover. And `adr-lint` advises when an ADR marks
+something done inline with no tasks directory, because an existing corpus would otherwise
+keep passing silently — saying nothing is how the hole stayed open. Advice rather than a
+failure: the record is not lying about anything the gate can see, and refusing an ADR over
+its layout is what teaches people to stop running the gate.
+
+`tests/skill-contract.test.mjs` now asserts that no skill recommends a shape `adr-verify`
+cannot write evidence into, which is the general form of this bug.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

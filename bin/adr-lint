@@ -1051,6 +1051,25 @@ def main():
                 break
 
     all_covers = set()
+    if tasks_dir is None:
+        # An ADR with no tasks directory gets ADR-level checks only, so anything
+        # it calls `done` inside its own body is outside the evidence contract
+        # entirely: adr-verify appends its Verification Log to a TASK FILE, and
+        # done_task_ids reads an index that is not there. Measured 2026-08-26 —
+        # three inline tasks all marked done, no evidence anywhere, exit 0.
+        #
+        # Advice rather than a failure: the record is not lying about anything
+        # this gate can see, and refusing an ADR for its layout is the behaviour
+        # that teaches people to stop running the gate. But saying nothing is how
+        # the hole stayed open, and skills/adr-write no longer recommends it.
+        body = adr.read_text(errors="replace", encoding="utf-8")
+        inline_done = [ln.strip() for ln in body.splitlines()
+                       if re.search(r"(?<!\w)T\d+(?!\w)", ln) and re.search(r"\bdone\b", ln, re.I)]
+        if inline_done:
+            errors.advise(
+                f"{adr.name}: {len(inline_done)} inline task(s) marked done, and no tasks/ "
+                f"directory — nothing here can carry tool-written evidence, so adr-verify has "
+                f"nowhere to write and adr-lint cannot check the claim. Move them to task files.")
     if tasks_dir:
         task_files = sorted(p for p in tasks_dir.glob("*.md") if p.name != "README.md")
         stems = [p.stem for p in task_files]

@@ -13,6 +13,35 @@ and `claude plugin validate` passes **unauthenticated** — so that job is block
 `selftest.sh` runs with `QUALITY_HARNESS_REQUIRE_CLI=1`. Item 6's Windows bullet is
 answered below.
 
+**Status 2026-08-26, v2.14.0 — the first with-without measurement.** `claude plugin eval`
+now defaults to a no-plugin baseline arm, so for the first time the suite reports what the
+plugin *changes* rather than what a model scores while it happens to be loaded. Three cases,
+**mean Δ 0.00**:
+
+| case | with | without | Δ |
+|---|---|---|---|
+| `done-needs-tool-written-evidence` | 0.40 | 0.00 | **+0.40** |
+| `adr-write-consults-the-corpus` | 0.00 | 0.00 | 0.00 |
+| `gates-advise-never-block` | 0.60 | 1.00 | **−0.40** |
+
+Three findings, all open:
+
+- **A. The advisory push over-corrected, and it is measurable.** `gates-advise-never-block`
+  is the only case the plugin makes *worse*. Baseline called `Alternatives Considered has no
+  entries` "a real FAIL" and separated it from the `advice:` line. With the plugin loaded the
+  answer called the same finding "a document-completeness check, not a decision-validity
+  check" and waved it away. Teaching "gates report, they never block" taught de-escalation of
+  every finding, including the one about a record claiming a decision it did not make. The
+  rule was right; the skills need severity back on top of it.
+- **B. `adr-write-consults-the-corpus` has never actually been able to run its tool.**
+  `allowed_tools` in a case's frontmatter does not grant `Bash`; that is an operator grant
+  (`--allow-tools Bash`). Every run of this case so far was scored with the model unable to
+  execute `adr-context.mjs`. The 0.00 is not yet evidence about the skill.
+- **C. No case has a fixture.** All three run in an empty sandbox, so every answer spends its
+  first paragraph reporting that the repository is missing. `done-needs` still scores +0.40
+  through it — the skill fires and names `adr-verify` regardless — but the noise is real and
+  it is why single-run scores swing.
+
 **Coverage.** A path audit of the whole harness classified 112 uncovered regions: 88
 untested-but-reachable, 15 defensive, 7 Windows-only, and one genuinely dead line (closed
 in `48211bd`). The plan that closes them is `docs/TEST-PLAN.md`; item 14 records defects,

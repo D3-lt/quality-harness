@@ -1591,6 +1591,15 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
       continue
     }
     if (typeof filePath !== 'string' || !path.isAbsolute(filePath)) continue
+    // A project's records are never under the OS temp root. Scratch corpora —
+    // a fixture built to try something, a copy pulled out of history to read —
+    // were pulling the full record gates, so building a throwaway ADR to test
+    // against reported "expected exactly one owning ADR, found 0" about a file
+    // nobody was shipping. Observed 2026-08-26 while building this release, on
+    // its own scratch fixture. mutatesOnlyTempPaths already exempts scratch
+    // writes it can PROVE; this catches the ones it could not, one layer later,
+    // where the path is resolved and the question is only where it lives.
+    if (underTempRoot(filePath) && !underTempRoot(cwd)) continue
     targets.push(filePath)
   }
   for (const filePath of [...new Set(targets)]) {

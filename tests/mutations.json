@@ -791,6 +791,15 @@
       ],
       "from": "      if (theirs && theirs !== digest(ours)) stale.push(path.join('~', '.claude', relative, name))",
       "to": "      if (false) stale.push(path.join('~', '.claude', relative, name))"
+    },
+    {
+      "label": "context: scratch corpora are not the project's records",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (underTempRoot(filePath) && !underTempRoot(cwd)) continue",
+      "to": "    if (false) continue"
     }
   ]
 }

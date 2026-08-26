@@ -94,6 +94,13 @@ Ask one concise question for anything missing:
    review document.
 6. Present paths, summary, and the lint run. Stop for user review/acceptance; do not commit.
 
+**Start from what the corpus has already decided.** `node ${CLAUDE_PLUGIN_ROOT}/scripts/adr-state.mjs`
+prints what governs what as it stands now — supersessions already applied — plus three things worth
+knowing before you add a record: areas two accepted decisions both claim, decisions nothing points
+at the code, and supersessions whose replacement is missing. It is derived from the corpus rather
+than maintained beside it, so it cannot drift; it reads, judges nothing, and exits 0 whatever it
+finds.
+
 **Before proposing, ask what was already decided here.** `node
 ${CLAUDE_PLUGIN_ROOT}/scripts/adr-context.mjs <path>...` over the paths this decision would touch
 returns the governing records and the graveyard — superseded and withdrawn decisions about the same

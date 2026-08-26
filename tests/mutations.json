@@ -1023,6 +1023,141 @@
       ],
       "from": "    .filter(entry => entry.state !== 'same')",
       "to": "    .filter(entry => true)"
+    },
+    {
+      "label": "state: a supersession chain is followed",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      supersededBy: /^superseded\\s+by\\b/i.test(status)",
+      "to": "      supersededBy: false &&"
+    },
+    {
+      "label": "state: two accepted records over one path is contested",
+      "file": "scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const contested = [...areas].filter(([, records]) => records.length > 1)",
+      "to": "const contested = []"
+    },
+    {
+      "label": "state: a decision pointing at no code is named",
+      "file": "scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const orphans = governing.filter(record => record.governs.length === 0)",
+      "to": "const orphans = []"
+    },
+    {
+      "label": "state: a supersession with no replacement is named",
+      "file": "scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const dangling = corpus.filter(record => record.supersededBy && !byNumber.has(record.supersededBy))",
+      "to": "const dangling = []"
+    },
+    {
+      "label": "corpus: tasks resolve from the directory named for the record",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (owns && Number(owns[1]) === number) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "corpus: a named directory is attribution in itself",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        if (tasks.owned) {",
+      "to": "        if (false) {"
+    },
+    {
+      "label": "corpus: an Affected Files cell is a path, not prose",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (/\\s/.test(cell) || !/[./\\\\]/.test(cell)) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "corpus: an ISO-dated file is not a decision record",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const ADR_FILE = /^(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?\\d{3,4}[-._]/i",
+      "to": "const ADR_FILE = /^(?:adr[-_]?)?\\d{3,4}[-._]/i"
+    },
+    {
+      "label": "corpus: a status may carry a date after the word",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (/^accepted\\b/i.test(status)) return 'governing'",
+      "to": "  if (/^accepted$/i.test(status)) return 'governing'"
+    },
+    {
+      "label": "state: history is not a contradiction",
+      "file": "scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  for (const declared of record.declares) {",
+      "to": "  for (const declared of record.governs) {"
+    },
+    {
+      "label": "verdict: a command that never started is not a failure",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (exitCode === 127 || exitCode === 126 || NEVER_STARTED.test(text)) return 'unstarted'",
+      "to": "  if (false) return 'unstarted'"
+    },
+    {
+      "label": "verdict: a killed run is not a failure either",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'",
+      "to": "  if (false) return 'timeout'"
+    },
+    {
+      "label": "verdict: the environment is checked before the exit code",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
+      "to": "  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (result.is_error === true || result.interrupted === true) return 'failed'"
+    },
+    {
+      "label": "verdict: only a pass is evidence",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        if (lastVerdict === 'passed') {",
+      "to": "        if (lastVerdict !== 'failed') {"
+    },
+    {
+      "label": "verdict: an environment problem says so instead of asking again",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (excuse) return `${changed} ${excuse}`",
+      "to": "  if (false) return `${changed} ${excuse}`"
     }
   ]
 }

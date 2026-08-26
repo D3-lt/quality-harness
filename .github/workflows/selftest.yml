@@ -100,6 +100,30 @@ jobs:
       - name: Run the project's own check under Git Bash
         run: bash scripts/selftest.sh
 
+  mutations:
+    name: mutations
+    runs-on: ubuntu-latest
+    # 145 catalogue entries that had never run anywhere but a laptop, in the
+    # project whose own thesis is that a suite nobody runs is a claim. It is the
+    # highest-value check here — it is the only one that measures whether the
+    # other checks detect anything — and it was the only one not gating.
+    #
+    # ubuntu, deliberately. The Windows-shaped mutations break a CLASSIFIER's
+    # string table (cmd.exe, PowerShell, Win32 and Docker Desktop failure text,
+    # exits 126/127/9009), and a table maps the same on every host. What genuinely
+    # needs Windows is resolution and process spawning, and the windows job runs
+    # those — through cmd.exe and, since 2026-08-26, PowerShell.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Break each mechanism and check the tests notice
+        run: node scripts/mutate.mjs
+
   plugin-validate:
     name: plugin validate
     runs-on: ubuntu-latest

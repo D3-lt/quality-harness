@@ -578,6 +578,26 @@ test('on Windows the shim runs the gate the documented invocation names', { skip
   assert.match(result.stdout, /\[PASS\]/)
 })
 
+test('on Windows a bare gate name resolves under PowerShell', { skip: process.platform !== 'win32' }, () => {
+  // The cmd.exe path is covered above (spawnSync `shell: true` uses ComSpec).
+  // PowerShell is a different resolver and it is the one that was actually
+  // reported broken on 2026-08-26: `/adr-write` ran a gate there and got a
+  // file-open dialog, because PowerShell offers to pick an application for an
+  // extensionless file rather than refusing it. PATHEXT includes .CMD, so the
+  // bare name the skills document has to reach the shim — and a bare name is
+  // what a skill writes, never an explicit `.cmd`.
+  const dir = scratch('powershell-shim')
+  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  // Windows environment names are case-insensitive but a spread object is not,
+  // so a lone PATH key leaves the inherited Path winning and bin off the list.
+  const shellEnv = { ...env, Path: env.PATH }
+  const result = spawnSync('powershell',
+    ['-NoProfile', '-NonInteractive', '-Command', 'adr-lint ADR-001-selftest.md tasks'],
+    { cwd: dir, env: shellEnv, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+  assert.match(result.stdout, /\[PASS\]/)
+})
+
 test('the machine-readable output lifecycle.mjs depends on is machine-readable', () => {
   // readyTaskLines parses this and swallows a parse failure with `continue`, so
   // nothing downstream would report that the contract broke.

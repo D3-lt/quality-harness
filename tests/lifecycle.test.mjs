@@ -751,9 +751,11 @@ test('reported: the changed-path list holds paths, and only ones that changed', 
   // path beside it survives. (The guard keys on a colon past the second
   // character, so a Windows `C:\…` drive letter is still a path — not asserted
   // here, because resolving one on POSIX proves nothing either way.)
+  // A repo-relative target, not an absolute one: expandExistingGlob refuses any
+  // candidate containing a backslash, so a Windows absolute path resolves to
+  // nothing and the assertion would be about that instead (run 32957651615).
   assert.deepEqual(
-    bashMarkdownMutationPaths(
-      `git show origin/main:docs/adr/BACKLOG.md > "${path.join(repo, 'BACKLOG.md')}"`, repo),
+    bashMarkdownMutationPaths('git show origin/main:docs/adr/BACKLOG.md > BACKLOG.md', repo),
     [path.join(repo, 'BACKLOG.md')])
 
   // pluginDir, not the temp fixture above: a project that lives under the temp

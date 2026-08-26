@@ -332,6 +332,15 @@
       ],
       "from": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw",
       "to": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, true) : raw"
+    },
+    {
+      "label": "hooks: deletion+commit in one command is refused",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (isGitPublishCommand(command)\n        && bashDeletionMutationPaths(command, input.cwd).includes(UNRESOLVED_DELETION_MUTATION)) {",
+      "to": "    if (false) {"
     }
   ]
 }

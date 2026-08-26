@@ -2,8 +2,9 @@
 
 import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
+import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, statSync } from 'node:fs'
+import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -1890,6 +1891,354 @@ function readyTaskLines(root, insideRepository) {
 // What a session would otherwise learn by hitting a wall. Additive only: this
 // hook can never block, and says nothing it cannot establish from the project
 // itself — an empty orientation is correct for a project with no conventions.
+// --- Decisions that reach the code -----------------------------------------
+//
+// Everything above answers "is this work proved?". This answers a question the
+// harness had never asked: "what has already been decided about the file you are
+// about to change?" — which is the difference between a tool that reports on you
+// and a tool that hands you something.
+//
+// The idea and its vocabulary are lifted from adrkit (mbeacom/adrkit, Apache-2.0),
+// which added an `affects:` field so tooling can resolve which decisions govern a
+// change, and deliberately surfaces the graveyard of superseded and withdrawn
+// records so an agent stops re-proposing an approach somebody already killed.
+// Two things are ours: resolution needs no new header, because every task file in
+// this corpus already carries a machine-readable `## Affected Files` table that
+// adr-lint requires; and nothing here is a finding, so nothing here can fail.
+//
+// Resolution is a pure function of (corpus, paths) — same corpus, same paths,
+// same answer — and runs entirely in this process. A subprocess per record at
+// the edit boundary would rebuild the artifact-gate budget problem somewhere
+// much hotter.
+
+const ADR_FILE = /^(?:adr[-_]?)?\d{3,4}[-._]/i
+const RECORD_BUDGET = 200
+
+// A `## Heading` section's body. Written as a scan rather than one regex because
+// JavaScript has no `\Z`: `(?=^##\s|\Z)` requires a literal Z, so the lookahead
+// never matched and every section read came back empty — silently, which is the
+// only way a corpus-reading feature can ship looking like an empty corpus.
+function markdownSection(text, heading) {
+  const lines = text.split('\n')
+  const start = lines.findIndex(line => new RegExp(`^#{1,6}\\s+${heading}\\s*$`, 'i').test(line))
+  if (start < 0) return ''
+  const body = []
+  for (const line of lines.slice(start + 1)) {
+    if (/^#{1,6}\s+\S/.test(line)) break
+    body.push(line)
+  }
+  return body.join('\n')
+}
+
+// `**Status:** Accepted`, `Status: Accepted`, or a `## Status` section's first line.
+function recordStatus(text) {
+  const inline = text.match(/^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$/im)
+  if (inline) return inline[1].replace(/[*_`]/g, '').trim()
+  const section = markdownSection(text, 'Status')
+  return section.split('\n').map(line => line.trim()).find(Boolean) ?? ''
+}
+
+// Accepted governs — including in the archive, where "an archived Accepted ADR
+// may still govern" is this corpus's own stated rule. Proposed and Draft govern
+// nothing yet, and are neither.
+function statusKind(status) {
+  if (/^accepted\b/i.test(status)) return 'governing'
+  if (/^(?:superseded|withdrawn|rejected|deprecated)\b/i.test(status)) return 'graveyard'
+  return null
+}
+
+// One glob component at a time, so `**` can cross separators and `*` cannot.
+function globToRegExp(pattern) {
+  const normalised = pattern.replace(/\\/g, '/').replace(/^\.\//, '')
+  let source = '^'
+  for (let index = 0; index < normalised.length; index += 1) {
+    const character = normalised[index]
+    if (character === '*') {
+      if (normalised[index + 1] === '*') {
+        source += '.*'
+        index += normalised[index + 2] === '/' ? 2 : 1
+      } else {
+        source += '[^/]*'
+      }
+    } else if (character === '?') source += '[^/]'
+    else source += character.replace(/[.+^${}()|[\]\\]/g, '\\$&')
+  }
+  try {
+    return new RegExp(`${source}$`, 'i')
+  } catch {
+    return null
+  }
+}
+
+// A declared path matches the file itself, anything under it when it names a
+// directory, and whatever its globs cover.
+export function pathMatchesDeclaration(candidate, declaration) {
+  const file = candidate.replace(/\\/g, '/').replace(/^\.\//, '')
+  const declared = declaration.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
+  if (!declared) return false
+  if (/[*?]/.test(declared)) return globToRegExp(declared)?.test(file) ?? false
+  return file === declared || file.startsWith(`${declared}/`)
+}
+
+// `**Governs:**` is optional and additive: a corpus that never adopts it still
+// resolves through its task tables. Both the plain list and adrkit's typed
+// matcher form are read; only `type: path` is RESOLVED, and the others are
+// recorded rather than silently matching nothing — a matcher that matches
+// nothing reads as coverage while covering nothing, which is the vacuous pass
+// this project's own arch-write skill warns about.
+function declaredGoverns(text) {
+  const paths = []
+  const unresolved = []
+  const header = text.match(/^[ \t]*\*{0,2}Governs:?\*{0,2}[ \t]*:?[ \t]*(.*)$/im)
+  if (header) {
+    const inline = header[1]
+    if (!/^none\b/i.test(inline.trim())) {
+      for (const token of inline.matchAll(/`([^`]+)`|([^\s,]+)/g)) {
+        const value = (token[1] ?? token[2]).trim()
+        if (value && !/^[<(]/.test(value)) paths.push(value)
+      }
+    }
+    // The dashed/indented run under the header. The first split element is the
+    // remainder of the header line itself, which `(.*)` already consumed.
+    const following = text.slice(text.indexOf(header[0]) + header[0].length).split('\n').slice(1)
+    const block = []
+    for (const line of following) {
+      if (!line.trim()) { if (block.length) break; else continue }
+      if (!/^\s*-/.test(line) && !/^\s\s+\S/.test(line)) break
+      block.push(line)
+    }
+    for (const matcher of block.join('\n').matchAll(/-\s*type:\s*(\w+)[\s\S]*?pattern:\s*["']?([^"'\n]+?)["']?\s*$/gm)) {
+      if (matcher[1].toLowerCase() === 'path') paths.push(matcher[2].trim())
+      else unresolved.push(`${matcher[1]}:${matcher[2].trim()}`)
+    }
+  }
+  return { paths, unresolved }
+}
+
+// Cell 0 of every `## Affected Files` row. The table is required by adr-lint, so
+// this resolves on records nobody has touched for this feature.
+function affectedFiles(text) {
+  const section = markdownSection(text, 'Affected Files')
+  if (!section) return []
+  const paths = []
+  for (const line of section.split('\n')) {
+    if (!line.trim().startsWith('|')) continue
+    const first = line.split('|')[1]?.trim() ?? ''
+    const cell = first.match(/`([^`]+)`/)?.[1] ?? first
+    if (!cell || /^-+$/.test(cell) || /^file$/i.test(cell) || /^</.test(cell)) continue
+    paths.push(cell)
+  }
+  return paths
+}
+
+// ADR-014, 014-thing.md, `# ADR-14: …` — the number, however this corpus spells it.
+function adrNumber(file, text) {
+  const fromName = path.basename(file).match(/(?:adr[-_]?)?(\d{3,4})[-._]/i)
+  const fromTitle = text.match(/^#\s+ADR[-_ ]?(\d{1,4})\b/im)
+  const raw = fromTitle?.[1] ?? fromName?.[1]
+  return raw ? String(Number(raw)) : null
+}
+
+function readRecordFiles(root) {
+  const files = []
+  const walk = (directory, depth) => {
+    if (depth > 4 || files.length >= RECORD_BUDGET) return
+    let entries
+    try { entries = readdirSync(directory, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      if (entry.name.startsWith('.')) continue
+      const child = path.join(directory, entry.name)
+      if (entry.isDirectory()) {
+        if (UNINTERESTING_DIRECTORY.test(entry.name)) continue
+        walk(child, depth + 1)
+      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')
+          && ADR_FILE.test(entry.name)) {
+        files.push(child)
+      }
+    }
+  }
+  const docs = path.join(root, 'docs')
+  if (existsSync(docs)) walk(docs, 0)
+  if (!files.length) walk(root, 0)
+  return files
+}
+
+/**
+ * Every decision record in a repository, with what it governs already resolved.
+ *
+ * Pure with respect to the corpus on disk: no subprocess, no network, no writes.
+ */
+export function adrCorpus(root) {
+  const records = []
+  const files = readRecordFiles(root)
+  const recordsPerDirectory = new Map()
+  for (const file of files) {
+    const directory = path.dirname(file)
+    recordsPerDirectory.set(directory, (recordsPerDirectory.get(directory) ?? 0) + 1)
+  }
+  for (const file of files) {
+    let text
+    try {
+      if (statSync(file).size > 512 * 1024) continue
+      text = readFileSync(file, 'utf8')
+    } catch { continue }
+    const kind = statusKind(recordStatus(text))
+    if (!kind) continue
+    const declared = declaredGoverns(text)
+    const governs = new Set(declared.paths)
+    // Sibling task files carry the per-task Affected Files tables. Attribution
+    // matters: several ADRs commonly share one `tasks/` directory, and taking
+    // every table would make each record claim its neighbours' files. A task
+    // names its ADR in its title (`# Task ADR-001-T1: …`); where no task does,
+    // the directory is attributed only if this is the one record beside it.
+    const number = adrNumber(file, text)
+    const tasks = path.join(path.dirname(file), 'tasks')
+    let taskEntries = []
+    try { taskEntries = readdirSync(tasks).filter(name => name.toLowerCase().endsWith('.md')) } catch {}
+    const texts = []
+    for (const name of taskEntries) {
+      try { texts.push(readFileSync(path.join(tasks, name), 'utf8')) } catch {}
+    }
+    const claimed = number
+      ? texts.filter(taskText => new RegExp(`ADR[-_ ]?0*${number}\\b`, 'i').test(taskText))
+      : []
+    // Only when this is the one record beside them: a shared tasks/ directory
+    // whose files name no ADR cannot be attributed, and guessing would make
+    // every record claim its neighbours' files.
+    const sole = recordsPerDirectory.get(path.dirname(file)) === 1
+    for (const taskText of (claimed.length ? claimed : (sole ? texts : []))) {
+      for (const declaredPath of affectedFiles(taskText)) governs.add(declaredPath)
+    }
+    records.push({
+      file,
+      title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim(),
+      status: recordStatus(text),
+      kind,
+      governs: [...governs],
+      unresolved: declared.unresolved,
+    })
+  }
+  return records
+}
+
+// `/tmp` is a symlink to `/private/tmp` on macOS, and git answers with the real
+// path while the hook payload carries the spelling. A plain path.relative then
+// produced `../../tmp/...`, which escapes the root and filtered every path out —
+// so on a symlinked checkout the corpus read as empty, silently. The same trap
+// underTempRoot already realpaths both sides for.
+function relativeWithinRoot(root, candidate) {
+  const direct = path.relative(root, candidate)
+  if (!direct.startsWith('..')) return direct
+  const real = target => {
+    try { return realpathSync(target) } catch {}
+    const anchor = nearestExistingDirectory(target)
+    try { return anchor ? path.join(realpathSync(anchor), path.relative(anchor, target)) : target }
+    catch { return target }
+  }
+  return path.relative(real(root), real(candidate))
+}
+
+/**
+ * The decisions that govern a set of paths, and the ones that were killed.
+ *
+ * The graveyard is the half an agent needs most: re-proposing an approach the
+ * team already rejected is the expensive failure of working without memory, and
+ * it is invisible from the code alone.
+ */
+export function decisionsGoverning(paths, root, corpus = adrCorpus(root)) {
+  const relative = paths
+    .map(candidate => (path.isAbsolute(candidate) ? relativeWithinRoot(root, candidate) : candidate))
+    .map(candidate => candidate?.replace(/\\/g, '/'))
+    .filter(candidate => candidate && !candidate.startsWith('..'))
+  const hits = record => relative.some(candidate =>
+    record.governs.some(declaration => pathMatchesDeclaration(candidate, declaration)))
+  return {
+    governing: corpus.filter(record => record.kind === 'governing' && hits(record)),
+    graveyard: corpus.filter(record => record.kind === 'graveyard' && hits(record)),
+  }
+}
+
+/** The same answer as prose, or '' when the corpus has nothing to say. */
+export function decisionContext(paths, root) {
+  const { governing, graveyard } = decisionsGoverning(paths, root)
+  if (!governing.length && !graveyard.length) return ''
+  const lines = []
+  const name = record => `${path.relative(root, record.file) || record.file} — ${record.title}`
+  if (governing.length) {
+    lines.push('Decisions that govern what you are about to change:')
+    for (const record of governing.slice(0, 5)) lines.push(`  ${name(record)}`)
+    if (governing.length > 5) lines.push(`  (+${governing.length - 5} more)`)
+  }
+  if (graveyard.length) {
+    lines.push('Already decided against here — do not re-propose without saying why it is different now:')
+    for (const record of graveyard.slice(0, 5)) {
+      lines.push(`  ${name(record)} [${record.status}]`)
+    }
+    if (graveyard.length > 5) lines.push(`  (+${graveyard.length - 5} more)`)
+  }
+  const unresolved = [...new Set([...governing, ...graveyard].flatMap(record => record.unresolved))]
+  if (unresolved.length) {
+    lines.push(`Recorded but not resolved by this tool: ${unresolved.slice(0, 4).join(', ')}. `
+      + 'Only `type: path` matchers are matched against files; read those records yourself.')
+  }
+  return lines.join('\n')
+}
+
+// Said once per path per session. New context at every Edit would repeat the
+// same decisions all session for a hot file, which is how a delivery becomes a
+// nag — the failure this whole release is about. Session-scoped because a marker
+// that outlived the session would silence the FIRST edit of the next one.
+function firstMentionThisSession(sessionId, key) {
+  if (typeof sessionId !== 'string' || !sessionId) return true
+  const stamp = createHash('sha256').update(`${sessionId}\u0000${key}`).digest('hex').slice(0, 32)
+  const marker = path.join(os.tmpdir(), `quality-harness-said-${stamp}`)
+  if (existsSync(marker)) return false
+  try { writeFileSync(marker, '') } catch { return true }
+  return true
+}
+
+// A second, older copy of this toolkit answering instead of the plugin.
+//
+// A `.claude/bin/` and `.claude/hooks/` under the user's home hold a standalone
+// install that some machines keep as a compatibility entrypoint. It is NOT updated with the
+// plugin, and when it drifts it drifts silently: measured 2026-08-26, a
+// standalone adr-lint dated 2026-07-30 predated the `acceptance-sha256:`
+// digest that adr-verify now writes, so its Verification Log grammar rejected
+// the exact lines adr-verify had just produced — and then cascaded into "marked
+// done but no exit-0 entry". Direct invocation passed the whole time, which made
+// the HOOK look like the unreliable one. A session was spent finding that.
+//
+// Nothing here is enforced. The harness cannot uninstall a copy it does not own;
+// it can say which one it is and what differs, which is the whole cost of the bug.
+export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT) {
+  const digest = file => {
+    try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
+  }
+  const stale = []
+  for (const [relative, shipped] of [
+    ['bin', path.join(pluginRoot, 'bin')],
+    ['hooks', path.join(pluginRoot, 'scripts')],
+  ]) {
+    const shadow = path.join(homeDirectory, '.claude', relative)
+    let entries = []
+    try { entries = readdirSync(shadow) } catch { continue }
+    for (const name of entries) {
+      const ours = path.join(shipped, name)
+      if (!existsSync(ours)) continue
+      const theirs = digest(path.join(shadow, name))
+      if (theirs && theirs !== digest(ours)) stale.push(path.join('~', '.claude', relative, name))
+    }
+  }
+  if (!stale.length) return ''
+  const shown = stale.slice(0, 4).join(', ')
+  return `Heads up: a second copy of this toolkit is installed outside the plugin and has drifted `
+    + `from it — ${shown}${stale.length > 4 ? `, +${stale.length - 4} more` : ''}. `
+    + 'The plugin updates its own copies and never touches those. If a gate rejects something '
+    + 'adr-verify just wrote, or a hook disagrees with the same tool run by hand, an old copy is '
+    + 'answering: compare against '
+    + `\`${path.join(pluginRoot, 'bin')}\`, and delete or refresh the standalone one.`
+}
+
 export function sessionOrientation(cwd) {
   const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
   if (!directory) return ''
@@ -1904,6 +2253,9 @@ export function sessionOrientation(cwd) {
       + 'a piped or `|| true` run does not count, because it hides the exit code.')
   }
 
+  const shadow = shadowInstallNotice()
+  if (shadow) lines.push(shadow)
+
   const ready = readyTaskLines(root, repositoryRoot !== null)
   if (ready.length) {
     const shown = ready.slice(0, 3)
@@ -1912,6 +2264,22 @@ export function sessionOrientation(cwd) {
   }
 
   return lines.join('\n\n')
+}
+
+// The governing and killed decisions for whatever this call is about to touch.
+// Wrapped so a corpus this tool cannot read costs the edit nothing.
+function decisionContextFor(input) {
+  const cwd = typeof input.cwd === 'string' && path.isAbsolute(input.cwd) ? input.cwd : process.cwd()
+  const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
+  if (typeof target !== 'string' || !target) return ''
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  const root = directory ? gitRepositoryRoot(directory) ?? directory : null
+  if (!root) return ''
+  const resolved = path.resolve(cwd, target)
+  let context
+  try { context = decisionContext([resolved], root) } catch { return '' }
+  if (!context) return ''
+  return firstMentionThisSession(input.session_id, resolved) ? context : ''
 }
 
 export async function handleHook(input) {
@@ -1941,6 +2309,21 @@ export async function handleHook(input) {
   }
 
   if (event === 'PreToolUse') {
+    // What has already been decided about this file. Not a finding — there is
+    // nothing to fix and nothing to answer for; it is the one thing the corpus
+    // knows that the code does not say, handed over at the moment it applies.
+    if (MUTATION_TOOLS.has(input.tool_name)) {
+      const context = decisionContextFor(input)
+      if (context) {
+        emitJson({
+          hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            additionalContext: context,
+          },
+        })
+      }
+      return
+    }
     // No branch guard. This harness is about the quality of a project's records
     // and the evidence behind them, not about how anyone uses git — the agent
     // already knows git, and a repository that wants a branch policy states it

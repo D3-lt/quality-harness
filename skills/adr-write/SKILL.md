@@ -94,6 +94,12 @@ Ask one concise question for anything missing:
    review document.
 6. Present paths, summary, and the lint run. Stop for user review/acceptance; do not commit.
 
+**Before proposing, ask what was already decided here.** `node
+${CLAUDE_PLUGIN_ROOT}/scripts/adr-context.mjs <path>...` over the paths this decision would touch
+returns the governing records and the graveyard — superseded and withdrawn decisions about the same
+code. A new ADR that re-proposes a killed approach without naming what changed is the expensive
+failure of deciding without memory.
+
 ## What a complete record contains
 
 These are the record's own quality bar, checked by `adr-lint` so nobody has to take your word for

@@ -68,7 +68,8 @@ Grill rules (inherited from /quality-harness:spec-write):
    *every rule row binds to an executable check in this repo's toolchain*, the mechanism is
    ecosystem-specific.
 3. Set **Gate command:** to the one command that runs every check (usually a test-suite subset).
-4. Run `arch-lint <architecture.md>` — exit 0 required; paste the run.
+4. Run `arch-lint <architecture.md>` and paste the run. Its findings are about this document —
+   close them, or say which one stands and why.
 5. Run the Gate command itself; failing checks are the point — each failure is a found defect:
    fix the code or supersede the rule, never soften the check.
 6. **Red proof for every new check:** deliberately violate the rule (or mutate the input),

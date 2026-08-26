@@ -250,3 +250,43 @@ test('every command and template a skill points at resolves', () => {
     }
   }
 })
+
+test('no skill tells the agent to stop on a gate verdict', () => {
+  // The harness advises; so must its instructions. On 2026-08-26 the hooks were
+  // made advisory-only and the skills were not, so adr-execute still opened with
+  // "Verify before starting; stop and ask if any fail" and "Do not proceed on a
+  // failing lint" — a block one layer up from the one that had just been removed.
+  // Confirmed: "we opted FULL in with guided instructions for an AI agent."
+  //
+  // A gate's finding is information. The agent fixes what is real, and says
+  // plainly what stands and why. What it must never do is halt with the verdict
+  // as the reason.
+  const halts = [
+    /stop and ask if any fail/i,
+    /do not proceed on a failing/i,
+    /exit 0 required/i,
+    /^#+\s*Hard Gates/im,
+    /\bRefuse a candidate\b/,
+  ]
+  for (const skill of skills) {
+    const file = join(root, 'skills', skill, 'SKILL.md')
+    if (!existsSync(file)) continue
+    const text = readFileSync(file, 'utf8')
+    for (const halt of halts) {
+      assert.doesNotMatch(text, halt, `${skill}: ${halt}`)
+    }
+  }
+
+  // And the guidance that replaced them still names the gate — dropping the
+  // instruction to RUN it would be the opposite failure: silence instead of a
+  // block, which is the one the owner called worse than having no plugin.
+  const execute = readFileSync(join(root, 'skills', 'adr-execute', 'SKILL.md'), 'utf8')
+  assert.match(execute, /Run `adr-lint <adr\.md>` and paste the run/)
+  assert.match(execute, /name which finding and why it does not apply/)
+  const arch = readFileSync(join(root, 'skills', 'arch-write', 'SKILL.md'), 'utf8')
+  assert.match(arch, /Run `arch-lint <architecture\.md>` and paste the run/)
+  const post = readFileSync(join(root, 'skills', 'postmortem', 'SKILL.md'), 'utf8')
+  assert.match(post, /Run `postmortem-verify [^`]+` and paste the run/)
+  const spec = readFileSync(join(root, 'skills', 'spec-write', 'SKILL.md'), 'utf8')
+  assert.match(spec, /paste both/)
+})

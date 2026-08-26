@@ -103,9 +103,13 @@ Non-Goals/Risks by reference (deltas only); tasks carry `Covers:` fact/scenario 
 **facts-coverage diff**: which checklist items have zero facts, which facts have no test binding,
 which scenarios have no failure sibling, plus an Open Questions list. No spec authored.
 
-## Hard Gates (enforced by `spec-verify`, not by promise)
+## What a complete spec contains (checked by `spec-verify`, not by promise)
 
-- `spec-verify --draft` exit 0 before the grill closes; `--spec` exit 0 before Ready-for-ADR.
+These are the spec's own quality bar. `spec-verify` reports on them so the claim is mechanical
+rather than remembered; a finding you leave open is one you should name and justify, not one to
+work around.
+
+- Run `spec-verify --draft` before the grill closes and `--spec` before Ready-for-ADR; paste both.
 - Every UC has ≥1 [failure] scenario; every scenario heading parses; Facts table non-empty; every
   Grill Log row cites a Fact ID or `non-behavioral`; Open Questions empty at Ready-for-ADR.
 - No implementation detail (schemas, storage, algorithms) in the spec — but every behavioral

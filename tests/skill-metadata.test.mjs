@@ -45,7 +45,7 @@ function skillPaths() {
 
 test("every bundled skill has discoverable routing metadata", () => {
   const paths = skillPaths();
-  assert.equal(paths.length, 12, `unexpected bundled skill count: ${paths.length}`);
+  assert.equal(paths.length, 13, `unexpected bundled skill count: ${paths.length}`);
   for (const path of paths) {
     const frontmatter = frontmatterOf(path);
     const name = scalar(frontmatter, "name");
@@ -73,6 +73,7 @@ test("overlapping lifecycle skills state a negative routing boundary", () => {
     "codex-advise",
     "codex-review",
     "execution",
+    "mutation-audit",
     "postmortem",
     "quality-policy",
     "review",

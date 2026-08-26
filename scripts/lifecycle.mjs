@@ -147,10 +147,6 @@ function gitBranch(candidate) {
   return run.status === 0 ? run.stdout.trim() : null
 }
 
-function protectedBranch(branch) {
-  return branch === 'main' || branch === 'master'
-}
-
 function resolveToolPath(value, cwd) {
   if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) return null
   if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2))
@@ -695,87 +691,6 @@ function localBranchExists(directory, name) {
   return run.status === 0
 }
 
-function protectedBranchException(command, directory) {
-  const trimmed = command.trim()
-  const invocation = gitInvocation(trimmed)
-  if (!invocation || /`|\$\(/.test(trimmed) || WRITE_REDIRECT.test(withoutQuotedSegments(trimmed))) return false
-  const { subcommand, subcommandIndex, words } = invocation
-  if (subcommand === 'switch') return true
-  const args = []
-  let separated = false
-  for (const argument of words.slice(subcommandIndex + 1)) {
-    if (argument === '--') {
-      separated = true
-      break
-    }
-    args.push(argument)
-  }
-  if (subcommand === 'checkout') {
-    if (args.some(argument => ['-b', '-B', '--branch', '--orphan'].includes(argument)
-      || argument.startsWith('--branch='))) return true
-    // Leaving a protected branch is exactly what the block message asks for, and
-    // `git switch <branch>` is already excepted for it. A pathspec — after `--`,
-    // or as a second operand, or as a name that is not a branch — writes working
-    // tree files instead, so it stays blocked.
-    if (separated) return false
-    const operands = args.filter(argument => !argument.startsWith('-'))
-    return operands.length === 1 && localBranchExists(directory, operands[0])
-  }
-  // Fast-forward integration is the sanctioned way to bring a protected branch
-  // up to date, whichever spelling fetches first.
-  return (subcommand === 'merge' || subcommand === 'pull') && args.includes('--ff-only')
-}
-
-// The one command that resolves a protected-branch block. Naming it is the
-// difference between a rule and an instruction: this session spent four turns
-// discovering that `git switch` was allowed where `git checkout` was not.
-export function taskBranchSuggestion(directory) {
-  const run = spawnSync('git', ['-C', directory ?? '.', 'rev-parse', '--short', 'HEAD'], {
-    encoding: 'utf8', timeout: 5_000,
-  })
-  const slug = run.status === 0 && run.stdout.trim() ? run.stdout.trim() : 'work'
-  return `git switch -c task/${slug}`
-}
-
-export function branchViolation(input) {
-  const tool = input.tool_name
-  const cwd = typeof input.cwd === 'string' && path.isAbsolute(input.cwd) ? input.cwd : process.cwd()
-  if (MUTATION_TOOLS.has(tool)) {
-    const target = resolveToolPath(input.tool_input?.file_path ?? input.tool_input?.notebook_path, cwd)
-    const branch = target && gitBranch(target)
-    return protectedBranch(branch)
-      ? `${tool} would mutate a file in a protected '${branch}' worktree. `
-        + `Create a task branch first: ${taskBranchSuggestion(nearestExistingDirectory(target))}`
-      : null
-  }
-  if (tool !== 'Bash' || typeof input.tool_input?.command !== 'string') return null
-
-  const command = input.tool_input.command
-  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
-    for (const segment of shellSegments(region)) {
-      const directory = gitCommandDirectory(segment, cwd)
-      const addressedBranch = gitBranch(directory)
-      if (!protectedBranch(addressedBranch)
-          || !isPotentialMutationCommand(segment)
-          || protectedBranchException(segment, directory)
-          || mutatesOnlyTempPaths(segment, directory)) continue
-      const subcommand = gitSubcommand(segment)
-      const escape = taskBranchSuggestion(nearestExistingDirectory(directory))
-      if (subcommand === 'commit') {
-        return `git commit would write directly to protected '${addressedBranch}'. `
-          + `Create a task branch first: ${escape}`
-      }
-      if (subcommand === 'merge') {
-        return `git merge without --ff-only would write a merge commit into protected `
-          + `'${addressedBranch}'. Use \`git merge --ff-only <branch>\`, or merge from a task branch.`
-      }
-      return `Bash would mutate files in protected '${addressedBranch}'. `
-        + `Create a task branch first: ${escape}`
-    }
-  }
-  return null
-}
-
 function resultSucceeded(result, command) {
   if (result.is_error === true || result.interrupted === true) return false
   let failedExit = false
@@ -940,6 +855,15 @@ const SAFE_VISIBLE_CALLS = new Set([
   'Object.values', 'Path', 'Path.cwd', 'Path.home', 'print', 'printf', 'puts',
   'range', 'read_bytes', 'read_text', 'repr', 'set', 'sorted', 'str', 'sum',
   'tuple', 'type', 'zip',
+  // Introspection. Asking an object what it is writes nothing, and the default
+  // here is "an unrecognised call is a mutation" — so `python -c "import
+  // inspect; print(inspect.signature(X.__init__))"` was authorship, and looking
+  // something up meant re-running the project's check. Reported 2026-08-26 from
+  // redash-api, where the whole command was a `print` of a signature.
+  'dir', 'getattr', 'hasattr', 'id', 'inspect.getmembers', 'inspect.getmodule',
+  'inspect.getsource', 'inspect.isclass', 'inspect.isfunction',
+  'inspect.signature', 'isinstance', 'issubclass', 'getmembers', 'getsource',
+  'isclass', 'isfunction', 'signature', 'vars',
 ])
 
 export function heredocBodies(command) {
@@ -974,13 +898,17 @@ export function interpreterCommandLooksMutating(command, executable) {
   const visible = []
   let sawStdin = false
   let stripped = executable.replace(
-    /\b(?:python3?|node|ruby|perl|php)\b((?:\s+-[A-Za-bd-z]\w*)*\s+-[ce]\s+)('[^']*'|"(?:[^"\\]|\\.)*")/g,
+    // `.exe` because a Windows venv interpreter is `./.venv/Scripts/python.exe`,
+    // and without it the `-c` body was never lifted out: the script went unread
+    // and the command counted as a mutation on its interpreter name alone.
+    // Reported 2026-08-26 from redash-api.
+    /\b(?:python3?|node|ruby|perl|php)(?:\.exe)?\b((?:\s+-[A-Za-bd-z]\w*)*\s+-[ce]\s+)('[^']*'|"(?:[^"\\]|\\.)*")/g,
     (whole, options, code) => {
       visible.push(code.slice(1, -1))
       return `inline_script${options}""`
     })
   stripped = stripped.replace(
-    /\b(?:python3?|node|ruby|perl|php)\b(\s+(?:-\s*)?<<)/g,
+    /\b(?:python3?|node|ruby|perl|php)(?:\.exe)?\b(\s+(?:-\s*)?<<)/g,
     (whole, redirect) => {
       sawStdin = true
       return `stdin_script${redirect}`
@@ -988,6 +916,19 @@ export function interpreterCommandLooksMutating(command, executable) {
   if (sawStdin) visible.push(heredocBodies(command))
   if (hasInterpreterCommand(stripped)) return true
   return visible.some(visibleCodeLooksMutating)
+}
+
+// adr-verify writes a Verification Log entry into the record it is given, so it
+// is authorship. Naming it is not running it.
+function runsAdrVerify(executable) {
+  for (const region of shellCommandRegions(executable)) {
+    for (const segment of shellSegments(region)) {
+      const invocation = commandInvocation(segment)
+      if (!invocation) continue
+      if (/^adr-verify$/i.test(executableName(invocation.words[invocation.index]))) return true
+    }
+  }
+  return false
 }
 
 export function isPotentialMutationCommand(command) {
@@ -1003,7 +944,10 @@ export function isPotentialMutationCommand(command) {
   return /(?<![-\w])(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)(?![-\w])/.test(executable)
     || inPlaceEditorCommand(executable)
     || interpreterCommandLooksMutating(command, executable)
-    || /(?:^|\s)(?:\S*[\\/])?adr-verify(?:\s|$)/i.test(executable)
+    // As the COMMAND, not as an argument: `which adr-lint adr-verify arch-lint`
+    // asks where the gates are and runs none of them, and `(?:^|\s)` counted the
+    // mention. Reported 2026-08-26.
+    || runsAdrVerify(executable)
     || /\b(?:npm|pnpm|yarn|bun)\s+(?:install|add|remove|update|exec)\b/.test(executable)
     || /\b(?:cargo\s+fmt|go\s+generate|gofmt|black|ruff\s+format)\b/.test(executable)
     || /\bprettier\b[^\n]*\s--write\b/.test(executable)
@@ -1109,7 +1053,7 @@ export function bashDeletionMutationPaths(command, cwd = process.cwd(), platform
   const assignments = new Map()
   for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
     for (const segment of shellSegments(region)) {
-      const assignment = segment.match(/^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S*)$/)
+      const assignment = segment.match(SHELL_ASSIGNMENT)
       if (assignment) {
         const value = expandShellToken(assignment[2], assignments, false)
         if (value !== null) assignments.set(assignment[1], value)
@@ -1202,6 +1146,40 @@ const REDIRECT_TARGET = />>?\s*("[^"]*"|'[^']*'|[^\s;|&<>]+)/g
 // bashDeletionMutationPaths it is the reverse: resolving `$W` turns an
 // unresolved deletion into a named path and disarms the sentinel, so only a
 // value this command set itself may be trusted.
+// `$(mktemp -d)` is a directory under the OS temp root by construction — that is
+// the entire contract of the command. Its exact name cannot be known statically
+// and does not need to be: every question this file asks of the value is "is it
+// under the temp root". Without this, the standard way to make a scratch
+// directory armed the unresolved-deletion sentinel AND counted as repository
+// authorship, so `W=$(mktemp -d); …; rm -rf "$W"` invalidated a check that had
+// already passed and put <Unresolved Bash deletion> in the changed-path list.
+const mktempDirectoryValue = () => path.join(os.tmpdir(), '<mktemp -d>')
+
+// Only the spellings that cannot name somewhere else. `-p` and `--tmpdir` point
+// wherever they are told, and a bare template operand is created relative to the
+// working directory by GNU mktemp — `mktemp -d buildXXXXXX` writes into the
+// repository. `-t <prefix>` is safe on both: BSD reads it as a prefix under
+// $TMPDIR and GNU interpolates its template there too.
+function mktempDirectoryCommand(inner) {
+  const words = String(inner).trim().split(/\s+/).filter(Boolean)
+  if (words.shift() !== 'mktemp') return false
+  let directory = false
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index]
+    if (!word.startsWith('-')) return false
+    if (/^(?:-p|--tmpdir)/.test(word)) return false
+    if (word === '-t') { index += 1; continue }
+    if (word === '--directory' || /^-[A-Za-z]*d[A-Za-z]*$/.test(word)) directory = true
+  }
+  return directory
+}
+
+// One definition, because two copies of this pattern drift. The command
+// substitution alternative is what lets `W=$(mktemp -d)` be seen as an
+// assignment at all: `\S*` stops at the space inside the substitution, so the
+// segment matched nothing and the value was never recorded.
+const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\$\([^()]*\)|`[^`]*`|\S*)$/
+
 function expandShellToken(token, assignments, fromEnvironment = true) {
   let value = token
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
@@ -1211,7 +1189,11 @@ function expandShellToken(token, assignments, fromEnvironment = true) {
     (match, braced, plain) => assignments.get(braced ?? plain)
       ?? (fromEnvironment ? process.env[braced ?? plain] : undefined)
       ?? match)
-  return /[`$]/.test(expanded) ? null : expanded
+  const substituted = expanded.replace(/\$\(([^()]*)\)|`([^`]*)`/g,
+    (match, parenthesised, backticked) => (mktempDirectoryCommand(parenthesised ?? backticked ?? '')
+      ? mktempDirectoryValue()
+      : match))
+  return /[`$]/.test(substituted) ? null : substituted
 }
 
 // True only when every write this command performs provably lands under the OS
@@ -1242,7 +1224,7 @@ export function mutatesOnlyTempPaths(command, cwd) {
   let accounted = 0
   for (const region of shellCommandRegions(executable)) {
     for (const segment of shellSegments(region)) {
-      const assignment = segment.match(/^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S*)$/)
+      const assignment = segment.match(SHELL_ASSIGNMENT)
       if (assignment) {
         const value = expandShellToken(assignment[2], assignments)
         if (value !== null) assignments.set(assignment[1], value)
@@ -1922,14 +1904,6 @@ export function sessionOrientation(cwd) {
       + 'a piped or `|| true` run does not count, because it hides the exit code.')
   }
 
-  const branch = gitBranch(root)
-  if (protectedBranch(branch)) {
-    lines.push(`Branch: you are on protected '${branch}'. Edits and commits here will each draw an `
-      + `advisory — nothing stops them, but start with \`${taskBranchSuggestion(root)}\` and none of `
-      + 'them fire. Navigation off it, `git pull --ff-only`, and scratch writes under the temp '
-      + 'directory are unremarkable either way.')
-  }
-
   const ready = readyTaskLines(root, repositoryRoot !== null)
   if (ready.length) {
     const shown = ready.slice(0, 3)
@@ -1967,11 +1941,12 @@ export async function handleHook(input) {
   }
 
   if (event === 'PreToolUse') {
-    const branchFailure = branchViolation(input)
-    if (branchFailure) {
-      advise(branchFailure)
-      return
-    }
+    // No branch guard. This harness is about the quality of a project's records
+    // and the evidence behind them, not about how anyone uses git — the agent
+    // already knows git, and a repository that wants a branch policy states it
+    // in CLAUDE.md, where a human wrote it. Told plainly on 2026-08-26 after the
+    // guard fired on a command whose FIRST act was `git switch -c task/…`, the
+    // very escape it was demanding.
     if (input.tool_name !== 'Bash') return
     const command = input.tool_input?.command
     if (!isGitPublishCommand(command)) return

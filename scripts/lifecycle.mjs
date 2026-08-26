@@ -692,6 +692,64 @@ function localBranchExists(directory, name) {
   return run.status === 0
 }
 
+// Why a validation did not clear, not merely that it did not.
+//
+// Taken from zeus-eval-harness (a Rust harness, same author), whose
+// AcceptanceVerdict is Passed / Failed{exit_code} / Timeout / SpawnError, and
+// whose evidence record keeps `infra_failure_class` apart from an acceptance
+// miss so "the provider was down" never reads as "the work is wrong".
+//
+// This harness had one bit. A check that FAILED, a check that TIMED OUT, and a
+// check that never started because Docker was not running all produced the same
+// sentence: "Nothing has verified the work since your last change." Only the
+// first is a finding about the change. The same mistake was fixed one layer
+// down in 2.5.0 — the harness failing to RUN is not a verdict about the edit —
+// and never applied to the project's own check.
+export const VALIDATION_VERDICTS = ['passed', 'failed', 'timeout', 'unstarted', 'running', 'no-work']
+
+// A command that never got a status. 127 is "not found" and 126 is "found but
+// not executable" in every POSIX shell; the rest is what the tools themselves
+// say when the thing they need is absent.
+const NEVER_STARTED = new RegExp([
+  'command not found', 'no such file or directory', 'permission denied',
+  'is not recognized as an internal or external command', 'executable file not found',
+  'cannot connect to the docker daemon', 'is the docker daemon running',
+  'ENOENT', 'EACCES',
+].join('|'), 'i')
+const KILLED_ON_TIME = new RegExp([
+  'timed out', 'timeout exceeded', 'deadline exceeded', 'ETIMEDOUT',
+  'killed by signal', 'SIGKILL', 'SIGTERM',
+].join('|'), 'i')
+
+export function validationVerdict(result, command) {
+  const text = collectStrings(result).join('\n')
+  const serialized = JSON.stringify(result)
+  let exitCode = null
+  walk(result, object => {
+    for (const [key, value] of Object.entries(object)) {
+      if (/^(?:exit_code|exitCode)$/.test(key) && Number.isInteger(value) && exitCode === null) {
+        exitCode = value
+      }
+    }
+  })
+  if (/\b(?:command|process)\s+(?:is\s+)?(?:still\s+)?running\b|\brunning in background\b|\bbackground (?:task|process|command)(?:\s+with)?\s+ID\b/i.test(text)) {
+    return 'running'
+  }
+  // Environment before verdict: a shell that could not start the command reports
+  // 127, and reading that as "your tests failed" is the accusation this exists
+  // to stop. 124 is GNU timeout's own code.
+  if (exitCode === 127 || exitCode === 126 || NEVER_STARTED.test(text)) return 'unstarted'
+  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'
+  if (result.is_error === true || result.interrupted === true) return 'failed'
+  if (exitCode !== null && exitCode !== 0) return 'failed'
+  if (/["\']exit_code["\']\s*:\s*[1-9]\d*/i.test(serialized)
+      || /\b(?:process|command)\b.{0,80}\bexit(?:ed)?(?: with)?(?: code)?\s+[1-9]\d*/i.test(text)) {
+    return 'failed'
+  }
+  if (testCommand(command) && reportsZeroTestWork(text, command)) return 'no-work'
+  return 'passed'
+}
+
 function resultSucceeded(result, command) {
   if (result.is_error === true || result.interrupted === true) return false
   let failedExit = false
@@ -1439,6 +1497,10 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   let lastTreeRefresh = -1
   let lastValidation = -1
   let lastSuccessfulValidation = -1
+  // Why the most recent attempt did not clear, so the advisory can tell an
+  // environment apart from a finding rather than accusing the work either way.
+  let lastVerdict = null
+  let lastVerdictCommand = null
   let lastUnresolvedDeletion = -1
   let lastPublish = -1
   const mutationPaths = []
@@ -1492,8 +1554,12 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
     if (use.name === 'Bash' && isValidationCommand(use.input.command)
         && use.input.run_in_background !== true) {
       lastValidation = Math.max(lastValidation, use.position)
-      if (results.has(use.id) && resultSucceeded(results.get(use.id), use.input.command)) {
-        lastSuccessfulValidation = Math.max(lastSuccessfulValidation, use.position)
+      if (results.has(use.id)) {
+        lastVerdict = validationVerdict(results.get(use.id), use.input.command)
+        lastVerdictCommand = describeCommand(use.input.command)
+        if (lastVerdict === 'passed') {
+          lastSuccessfulValidation = Math.max(lastSuccessfulValidation, use.position)
+        }
       }
     }
   }
@@ -1513,6 +1579,8 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
     // commit meant an ADR-heavy session eventually exceeded the boundary's 45s
     // window and then EVERY commit failed, whatever was staged. Reported from a
     // live 2.1.7 session on 2026-08-26 and reproduced here.
+    lastVerdict,
+    lastVerdictCommand,
     mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),
     // Whether anything authored AFTER `position` is still unchecked. The commit
     // gate asks about what it is publishing now; the completion gate asks about
@@ -1754,6 +1822,22 @@ export function runTheCheckSentence(cwd) {
     : 'Run the smallest repository-owned test, lint, build, or validation command after the final edit and report the exact command and result.'
 }
 
+// What the last attempt was, when it was not a pass. An environment that could
+// not run the check is not a finding about the change, and saying so is the
+// difference between guidance and an accusation.
+function environmentExcuse(state) {
+  if (state.lastVerdict === 'unstarted') {
+    return `\`${state.lastVerdictCommand}\` never started — the command or something it needs is `
+      + 'missing here. That is this environment, not your change; nothing is wrong with the work '
+      + 'that this can see.'
+  }
+  if (state.lastVerdict === 'timeout') {
+    return `\`${state.lastVerdictCommand}\` was killed on its time budget rather than reporting. `
+      + 'That is not a verdict about your change either — raise the budget or narrow the run.'
+  }
+  return null
+}
+
 function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
   // Distinct paths, because the list is five slots wide and repeats spend them
   // saying the same thing. A live session filled all five with one identical
@@ -1762,6 +1846,8 @@ function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
   const changed = distinct.length
     ? `Changed paths include: ${distinct.slice(-5).join(', ')}.`
     : 'The transcript contains file mutations.'
+  const excuse = environmentExcuse(state)
+  if (excuse) return `${changed} ${excuse}`
   return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
 }
 
@@ -1920,7 +2006,11 @@ function readyTaskLines(root, insideRepository) {
 // the edit boundary would rebuild the artifact-gate budget problem somewhere
 // much hotter.
 
-const ADR_FILE = /^(?:adr[-_]?)?\d{3,4}[-._]/i
+// A record's filename, and NOT an ISO-dated one: `2026-03-08-retrospective.md`
+// begins with four digits and a dash like every `0043-thing.md` does, so a
+// postmortem or a journal entry was read as ADR-2026. Measured on a real corpus,
+// 2026-08-26.
+const ADR_FILE = /^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?\d{3,4}[-._]/i
 const RECORD_BUDGET = 200
 
 // A `## Heading` section's body. Written as a scan rather than one regex because
@@ -2035,6 +2125,10 @@ function affectedFiles(text) {
     const first = line.split('|')[1]?.trim() ?? ''
     const cell = first.match(/`([^`]+)`/)?.[1] ?? first
     if (!cell || /^-+$/.test(cell) || /^file$/i.test(cell) || /^</.test(cell)) continue
+    // A path, not prose. On a real corpus, cell 0 of neighbouring tables produced
+    // `(T3's two tests)`, `(compile)` and `! rg -iq 'MCP stdio' README.md`, every
+    // one reported as a governed path. A cell with a space in it is a sentence.
+    if (/\s/.test(cell) || !/[./\\]/.test(cell)) continue
     paths.push(cell)
   }
   return paths
@@ -2042,10 +2136,39 @@ function affectedFiles(text) {
 
 // ADR-014, 014-thing.md, `# ADR-14: …` — the number, however this corpus spells it.
 function adrNumber(file, text) {
-  const fromName = path.basename(file).match(/(?:adr[-_]?)?(\d{3,4})[-._]/i)
   const fromTitle = text.match(/^#\s+ADR[-_ ]?(\d{1,4})\b/im)
+  // Anchored, and the bare form only at the START of the basename: unanchored,
+  // `(\d{3,4})[-._]` read the `2026` of a date as an ADR number and the corpus
+  // grew an ADR-2026. Measured on a real corpus, 2026-08-26.
+  const fromName = path.basename(file).match(/^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?(\d{1,4})[-._]/i)
   const raw = fromTitle?.[1] ?? fromName?.[1]
-  return raw ? String(Number(raw)) : null
+  return raw === undefined ? null : Number(raw)
+}
+
+// Where a record's tasks actually live. Two layouts, both real: `tasks/` beside
+// the record, and a sibling directory NAMED FOR THE RECORD holding it —
+// `docs/adr/ADR-110-slug.md` with `docs/adr/ADR-110/tasks/`. Measured against a
+// 171-record corpus on 2026-08-26, where the second is the only layout used and
+// looking beside the record found nothing: 142 accepted decisions reported as
+// governing no code, which is a confident wrong answer rather than a gap.
+//
+// `owned` says the directory is named for this record, which is attribution in
+// itself — no back-reference needed, and that corpus has none: its task files
+// never name their ADR in the text.
+function taskDirectoriesFor(file, number) {
+  const directory = path.dirname(file)
+  const found = [{ path: path.join(directory, 'tasks'), owned: false }]
+  if (number === null) return found
+  let siblings = []
+  try { siblings = readdirSync(directory, { withFileTypes: true }) } catch { return found }
+  for (const entry of siblings) {
+    if (!entry.isDirectory()) continue
+    const owns = /^(?:adr[-_]?)?0*(\d{1,4})\b/i.exec(entry.name)
+    if (owns && Number(owns[1]) === number) {
+      found.push({ path: path.join(directory, entry.name, 'tasks'), owned: true })
+    }
+  }
+  return found
 }
 
 function readRecordFiles(root) {
@@ -2094,6 +2217,13 @@ export function adrCorpus(root) {
     const kind = statusKind(recordStatus(text))
     if (!kind) continue
     const declared = declaredGoverns(text)
+    // Two different claims, deliberately kept apart. `declares` is a record
+    // saying "I am authoritative over this"; `touches` is a task table saying
+    // "this change edited that file". Conflating them made every file five
+    // accepted ADRs had edited over two years look like five decisions
+    // contradicting each other — 278 of them on a real corpus, every one noise.
+    // Authority contests; history does not.
+    const declares = new Set(declared.paths)
     const governs = new Set(declared.paths)
     // Sibling task files carry the per-task Affected Files tables. Attribution
     // matters: several ADRs commonly share one `tasks/` directory, and taking
@@ -2101,12 +2231,22 @@ export function adrCorpus(root) {
     // names its ADR in its title (`# Task ADR-001-T1: …`); where no task does,
     // the directory is attributed only if this is the one record beside it.
     const number = adrNumber(file, text)
-    const tasks = path.join(path.dirname(file), 'tasks')
-    let taskEntries = []
-    try { taskEntries = readdirSync(tasks).filter(name => name.toLowerCase().endsWith('.md')) } catch {}
     const texts = []
-    for (const name of taskEntries) {
-      try { texts.push(readFileSync(path.join(tasks, name), 'utf8')) } catch {}
+    for (const tasks of taskDirectoriesFor(file, number)) {
+      let taskEntries = []
+      try {
+        taskEntries = readdirSync(tasks.path).filter(name => name.toLowerCase().endsWith('.md'))
+      } catch { continue }
+      for (const name of taskEntries) {
+        let taskText
+        try { taskText = readFileSync(path.join(tasks.path, name), 'utf8') } catch { continue }
+        // A directory NAMED for this record is attribution in itself.
+        if (tasks.owned) {
+          for (const declaredPath of affectedFiles(taskText)) governs.add(declaredPath)
+        } else {
+          texts.push(taskText)
+        }
+      }
     }
     const claimed = number
       ? texts.filter(taskText => new RegExp(`ADR[-_ ]?0*${number}\\b`, 'i').test(taskText))
@@ -2118,12 +2258,21 @@ export function adrCorpus(root) {
     for (const taskText of (claimed.length ? claimed : (sole ? texts : []))) {
       for (const declaredPath of affectedFiles(taskText)) governs.add(declaredPath)
     }
+    const status = recordStatus(text)
     records.push({
       file,
+      number,
       title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim(),
-      status: recordStatus(text),
+      status,
       kind,
+      // Which record replaced this one, when the status says so. The number
+      // alone, because a corpus spells the reference every way there is:
+      // `Superseded by ADR-0004`, `superseded by ADR-4`, `Superseded by 0004`.
+      supersededBy: /^superseded\s+by\b/i.test(status)
+        ? (/(\d{1,4})/.exec(status)?.[1] ?? null) && String(Number(/(\d{1,4})/.exec(status)[1]))
+        : null,
       governs: [...governs],
+      declares: [...declares],
       unresolved: declared.unresolved,
     })
   }

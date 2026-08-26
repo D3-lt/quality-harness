@@ -19,6 +19,7 @@ import {
   sessionOrientation,
   spawnGate,
   adrCorpus,
+  validationVerdict,
   shadowInstallNotice,
   staleVersionNotice,
   decisionContext,
@@ -2274,4 +2275,207 @@ test('the sync command reports before it writes, and syncs from the newest insta
     [path.join(pluginDir, 'scripts', 'sync-standalone.mjs'), '--nope'],
     { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
   assert.equal(broken.status, 2, 'a broken invocation is not a verdict')
+})
+
+test('adr-state derives what is decided now, instead of asking anyone to maintain it', async () => {
+  // A decision corpus records CHANGES: after thirty records, "what governs this
+  // area right now" means reading thirty and applying the supersessions by hand.
+  // OpenSpec keeps an accumulated `specs/` beside its `changes/`; this derives
+  // the same view, because a summary kept beside the truth drifts from it — the
+  // failure this project has hit in its own README index twice.
+  const root = await decisionCorpus('quality-state-')
+  const write = (name, text) => writeFile(path.join(root, 'docs', 'adr', name), text)
+  await write('ADR-004-rq.md', '# ADR-004: RQ for queued work\n\n**Status:** Accepted\n'
+    + '**Governs:** `src/queue/**`\n')
+  await write('ADR-007-rest.md', '# ADR-007: REST for the public API\n\n**Status:** Accepted\n'
+    + '**Governs:** `src/api/**`\n')
+  await write('ADR-011-graphql.md', '# ADR-011: GraphQL for the public API\n\n**Status:** Accepted\n'
+    + '**Governs:** `src/api/**`\n')
+  await write('ADR-005-trunk.md', '# ADR-005: Adopt trunk-based development\n\n**Status:** Accepted\n')
+
+  const run = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8' })
+  assert.equal(run.status, 0, run.stderr)
+  const state = JSON.parse(run.stdout)
+
+  const area = candidate => state.areas.find(entry => entry.path === candidate)
+  assert.deepEqual(area('src/queue/**').governedBy.map(record => record.id), ['ADR-004'])
+  // The chain is followed: ADR-002 said "Superseded by ADR-004", so the record
+  // that governs the queue names what it replaced.
+  assert.deepEqual(area('src/queue/**').replaced.map(record => record.id), ['ADR-002'])
+  // A withdrawn record governs nothing, even where it declared a path.
+  assert.deepEqual(area('src/orders/**').governedBy.map(record => record.id), ['ADR-001'])
+
+  // Two accepted records over the same code is the corpus saying two things and
+  // being unable to say which wins — the finding adrkit calls a contradiction.
+  assert.deepEqual(state.contested, [{ path: 'src/api/**', records: ['ADR-007', 'ADR-011'] }])
+
+  // A decision nothing points at the code cannot be found by anyone editing it.
+  assert.deepEqual(state.governingNothing.map(record => record.id), ['ADR-005'])
+
+  // ADR-004 exists here, so nothing dangles. Remove it and ADR-002's pointer
+  // goes nowhere, which is a corpus that lost its own replacement.
+  assert.deepEqual(state.danglingSupersession, [])
+  await rm(path.join(root, 'docs', 'adr', 'ADR-004-rq.md'))
+  const after = JSON.parse(spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8' }).stdout)
+  assert.deepEqual(after.danglingSupersession.map(record => record.id), ['ADR-002'])
+
+  // It reads and never judges: exit 0 whatever it finds, and a broken
+  // invocation is not a verdict about a corpus.
+  const prose = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), root], { encoding: 'utf8' })
+  assert.equal(prose.status, 0)
+  assert.match(prose.stdout, /What governs what, as it stands now/)
+  assert.match(prose.stdout, /Contested/)
+  assert.equal(spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--nope'], { encoding: 'utf8' }).status, 2)
+
+  // A directory with no records says so rather than printing an empty report.
+  const empty = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), await mkdtemp(path.join(testTmp, 'quality-none-'))],
+    { encoding: 'utf8' })
+  assert.equal(empty.status, 0)
+  assert.match(empty.stdout, /No decision records found/)
+})
+
+test('reported: the layouts and scale a real corpus actually has', async () => {
+  // Everything here was measured against a 171-record Rust corpus on
+  // 2026-08-26. Every one of these was a confident wrong answer, not a gap.
+  const root = await mkdtemp(path.join(testTmp, 'quality-realworld-'))
+  const adr = path.join(root, 'docs', 'adr')
+  // Tasks in a directory NAMED for the record, which is the only layout that
+  // corpus uses. Looking beside the record found nothing at all, and 142
+  // accepted decisions were reported as governing no code.
+  await mkdir(path.join(adr, 'ADR-110', 'tasks'), { recursive: true })
+  await writeFile(path.join(adr, 'ADR-110-standalone-agents.md'),
+    '# ADR-110: Standalone agents over a shared harness\n\n**Status:** Accepted\n')
+  await writeFile(path.join(adr, 'ADR-110', 'tasks', 'T1-crate.md'),
+    // No back-reference to ADR-110 anywhere: the directory name is the
+    // attribution, and real task files do not repeat it.
+    '# T1: the harness crate\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n'
+    + '| `crates/zeus-harness/src/lib.rs` | add | the crate |\n'
+    // Prose in cell 0 of the Affected Files table ITSELF, which is where a real
+    // corpus put `(T3's two tests)`, `(compile)` and
+    // `! rg -iq 'MCP stdio' README.md` — all reported as governed paths.
+    + '| (T3\'s two tests) | n/a | covered elsewhere |\n'
+    + '| `! rg -iq \'MCP stdio\' README.md` | check | an acceptance command |\n'
+    + '| compile | n/a | no path at all |\n\n'
+    + '## Tests\n\n| Test | Check |\n|---|---|\n| `tests/a.rs` | cargo test |\n')
+  // A second record, so "the one record beside them" can never be the reason
+  // attribution works here.
+  await writeFile(path.join(adr, 'ADR-111-other.md'),
+    '# ADR-111: Something else\n\n**Status:** Accepted\n')
+  // A date in a filename is not an ADR number.
+  await writeFile(path.join(adr, '2026-03-08-retrospective.md'),
+    '# Retrospective\n\n**Status:** Accepted\n')
+
+  const corpus = adrCorpus(root)
+  const record = corpus.find(entry => entry.number === 110)
+  assert.ok(record, 'the record is found')
+  assert.deepEqual(record.governs, ['crates/zeus-harness/src/lib.rs'],
+    'tasks resolve from the directory named for the record, and only paths')
+  // Not read as a record AT ALL: `2026-03-08-…` begins with four digits and a
+  // dash exactly like `0043-thing.md`, so a journal entry became ADR-2026. The
+  // filename guard is what stops it; asserting only on the number would pass
+  // through adrNumber's own guard and leave this untested.
+  assert.ok(!corpus.some(entry => entry.file.endsWith('2026-03-08-retrospective.md')),
+    'an ISO-dated file is not a decision record')
+  assert.ok(!corpus.some(entry => entry.number === 2026), 'and no ADR-2026 appears')
+  // Statuses in the wild carry dates and prose after the word.
+  for (const status of ['Accepted — Implemented (2026-03-08)', 'Accepted (revised 2026-03-15)']) {
+    await writeFile(path.join(adr, 'ADR-120-variant.md'), `# ADR-120: Variant\n\n**Status:** ${status}\n`)
+    assert.equal(adrCorpus(root).find(entry => entry.number === 120)?.kind, 'governing', status)
+  }
+
+  // Authority and history are different claims. `Governs:` is a record saying
+  // "I am authoritative here"; an Affected Files row says "this change edited
+  // that file". Conflating them made every file several ADRs had edited over
+  // two years look like decisions contradicting each other — 278 of them.
+  await writeFile(path.join(adr, 'ADR-112-also-touches.md'),
+    '# ADR-112: Also touches the harness\n\n**Status:** Accepted\n')
+  await mkdir(path.join(adr, 'ADR-112', 'tasks'), { recursive: true })
+  await writeFile(path.join(adr, 'ADR-112', 'tasks', 'T1.md'),
+    '# T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n'
+    + '| `crates/zeus-harness/src/lib.rs` | edit | again |\n')
+  const state = JSON.parse(spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8' }).stdout)
+  assert.deepEqual(state.contested, [],
+    'two records editing one file over time is history, not a contradiction')
+  assert.equal(state.touchedPaths, 1)
+  // But both are still the answer to "what relates to this file".
+  assert.deepEqual(
+    decisionsGoverning(['crates/zeus-harness/src/lib.rs'], root).governing
+      .map(entry => entry.number).sort((a, b) => a - b),
+    [110, 112])
+})
+
+test('a check that could not run is not a finding about the change', async () => {
+  // Taken from zeus-eval-harness, whose AcceptanceVerdict is
+  // Passed / Failed{exit_code} / Timeout / SpawnError, and whose evidence record
+  // keeps `infra_failure_class` apart from an acceptance miss so "the provider
+  // was down" never reads as "the work is wrong".
+  //
+  // This harness had one bit. A check that FAILED, one that TIMED OUT and one
+  // that never started because Docker was not running all produced the same
+  // sentence. Only the first is about the change — the same mistake fixed one
+  // layer down in 2.5.0 and never applied to the project's own check.
+  const outcome = (content, isError = false) =>
+    ({ type: 'tool_result', content, is_error: isError })
+
+  assert.equal(validationVerdict(outcome('ok\n12 passed'), 'npm test'), 'passed')
+  assert.equal(validationVerdict(outcome('FAIL 3 tests', true), 'npm test'), 'failed')
+  assert.equal(validationVerdict(outcome('Command exited with code 1'), 'npm test'), 'failed')
+  assert.equal(validationVerdict({ exit_code: 2 }, 'npm test'), 'failed')
+
+  // Never got a status. 127 is "not found" and 126 "found but not executable" in
+  // every POSIX shell; reading either as "your tests failed" is the accusation.
+  for (const [content, label] of [
+    ['docker: command not found', 'a missing binary'],
+    ['Cannot connect to the Docker daemon. Is the docker daemon running?', 'a dead daemon'],
+    ['bash: ./verify.sh: Permission denied', 'a file that will not execute'],
+  ]) {
+    assert.equal(validationVerdict(outcome(content), 'npm test'), 'unstarted', label)
+  }
+  assert.equal(validationVerdict({ exit_code: 127 }, 'npm test'), 'unstarted')
+  assert.equal(validationVerdict({ exit_code: 126 }, 'npm test'), 'unstarted')
+
+  assert.equal(validationVerdict(outcome('Command timed out after 120s'), 'go test ./...'), 'timeout')
+  assert.equal(validationVerdict({ exit_code: 124 }, 'go test ./...'), 'timeout', 'GNU timeout')
+
+  assert.equal(validationVerdict(outcome('Command running in background with ID: x'), 'npm test'),
+    'running')
+  assert.equal(validationVerdict(outcome('no tests ran'), 'pytest'), 'no-work')
+
+  // End to end: the three cases must not read the same.
+  const repo = await checkedProject('quality-verdict-')
+  const file = path.join(repo, 'agent.jsonl')
+  const say = async (content, isError) => {
+    await writeFile(file, transcript([
+      toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.js') }), toolResult('e1'),
+      toolUse('v1', 'Bash', { command: 'npm test' }), toolResult('v1', isError, content),
+    ]))
+    const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: repo })
+    assert.equal(run.status, 0)
+    return JSON.parse(run.stdout).systemMessage
+  }
+
+  const failed = await say('FAIL 3 tests', true)
+  assert.match(failed, /Run `npm run test`/, 'a real failure still asks for the check')
+  assert.doesNotMatch(failed, /environment/)
+
+  const unstarted = await say('docker: command not found', false)
+  assert.match(unstarted, /never started/)
+  assert.match(unstarted, /this environment, not your change/)
+  assert.doesNotMatch(unstarted, /Do not add cleanup/,
+    'an environment problem is not a scope lecture')
+
+  const timedOut = await say('Command timed out after 120s', false)
+  assert.match(timedOut, /killed on its time budget/)
+  assert.match(timedOut, /not a verdict about your change/)
+
+  // All three still name what changed, and none of them blocks.
+  for (const message of [failed, unstarted, timedOut]) {
+    assert.match(message, /Changed paths include: .*a\.js/)
+  }
 })

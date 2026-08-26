@@ -2446,6 +2446,17 @@ export function staleVersionNotice(pluginRoot = PLUGIN_ROOT, homeDirectory = os.
     + 'consistent so nothing else will say so. Restart Claude Code to pick up the newer one.'
 }
 
+// Whether this repository has anything the gates would read. Cheap on purpose:
+// the answer only decides whether an advisory line is worth a user's attention.
+function hasDecisionCorpus(root) {
+  for (const relative of ['docs/adr', 'docs/specs', 'docs/decisions', 'adr', 'specs']) {
+    try {
+      if (statSync(path.join(root, relative)).isDirectory()) return true
+    } catch { /* absent is the common case */ }
+  }
+  return false
+}
+
 export function sessionOrientation(cwd) {
   const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
   if (!directory) return ''
@@ -2463,13 +2474,21 @@ export function sessionOrientation(cwd) {
   const stale = staleVersionNotice()
   if (stale) lines.push(stale)
 
-  const shadow = shadowInstallNotice()
-  if (shadow) {
-    lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports what `
-      + 'differs; `--apply` copies this plugin over the standalone set.')
+  const ready = readyTaskLines(root, repositoryRoot !== null)
+
+  // A stale standalone copy can only give a wrong answer where a gate actually
+  // runs, so the warning belongs in a repository that has a corpus for one to
+  // read. Ungated it opened every session in every repository — including ones
+  // that never opted into this lifecycle at all, which is the noise this
+  // project was told is worse than not shipping the plugin.
+  if (check || ready.length || hasDecisionCorpus(root)) {
+    const shadow = shadowInstallNotice()
+    if (shadow) {
+      lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports what `
+        + 'differs; `--apply` copies this plugin over the standalone set.')
+    }
   }
 
-  const ready = readyTaskLines(root, repositoryRoot !== null)
   if (ready.length) {
     const shown = ready.slice(0, 3)
     if (ready.length > shown.length) shown.push(`  (+${ready.length - shown.length} more record set(s))`)

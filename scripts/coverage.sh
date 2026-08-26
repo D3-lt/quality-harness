@@ -18,13 +18,14 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 MODE=${1-}
 
 # Floors. Measured 2026-08-25 (Wave 3): js 94.92 line / 85.43 branch / 95.59 funcs,
-# python 78%. Every gate in bin/ is now at or above 69%; the whole surface was at
-# 63% before the plan's three waves, with adr-verify — the anti-fabrication tool —
-# the least covered file in the repository at 47%.
+# python 80%. Every gate in bin/ is now at or above 69%; the whole surface was at
+# 63% before the plan's waves, with adr-verify — the anti-fabrication tool — the
+# least covered file in the repository at 47%. The JS branch figure sits close to
+# its floor on purpose: it is held, not padded.
 JS_LINES=${QUALITY_HARNESS_JS_LINES:-94}
 JS_BRANCHES=${QUALITY_HARNESS_JS_BRANCHES:-85}
 JS_FUNCTIONS=${QUALITY_HARNESS_JS_FUNCTIONS:-95}
-PY_TOTAL=${QUALITY_HARNESS_PY_TOTAL:-77}
+PY_TOTAL=${QUALITY_HARNESS_PY_TOTAL:-79}
 
 # A measurement that cannot run is not a pass. Locally a missing coverage.py is
 # reported and skipped; CI sets this so the same absence fails the build.

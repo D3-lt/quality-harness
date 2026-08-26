@@ -485,3 +485,58 @@ test('arch-lint rejects a gate that cannot fail and a symbol that is not there',
   const deferred = write(['| the boundary holds | `src/missing.py` (deferred: ADR-002) |'])
   assert.equal(deferred.status, 0, deferred.stdout)
 })
+
+// --- an unrecognized flag is a typo, not an instruction ---------------------
+
+test('every gate refuses a flag it does not know', () => {
+  // A gate that ignores an unknown flag answers a question nobody asked.
+  // Measured 2026-08-26: `adr-next tasks --jsonn` printed the HUMAN report and
+  // exited 0. lifecycle.mjs asks for `--json` and JSON.parse()s the result inside
+  // a try/catch that continues on failure, so a renamed or mistyped flag would
+  // have made session orientation silently empty at exit 0 — the same fail-open,
+  // by another route, as the `#!` spawn in BACKLOG item 17.
+  const dir = scratch('unknown-flag')
+  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+
+  const invocations = [
+    ['adr-lint', ['ADR-001-selftest.md', '--bogus']],
+    ['adr-verify', ['tasks/T1-fixture.md', '--bogus', 'value']],
+    ['adr-next', ['tasks', '--jsonn']],
+    ['adr-debt', ['.', '--bogus']],
+    ['adr-retire-check', ['adr-archive/README.md', '--bogus']],
+    ['arch-lint', ['architecture.md', '--bogus']],
+    ['postmortem-verify', ['postmortem-selftest.md', '--bogus']],
+    ['spec-verify', ['--spec', '--bogus', 'spec-selftest.md']],
+  ]
+  for (const [gate, args] of invocations) {
+    const result = run(gate, args, dir)
+    assert.notEqual(result.status, 0, `${gate} accepted an unknown flag\n${result.stdout}`)
+    assert.match(`${result.stdout}${result.stderr}`, /unknown option|unrecognized/i, gate)
+  }
+
+  // Every gate in bin/ is covered, so a new gate cannot be added without one.
+  assert.deepEqual(
+    invocations.map(([gate]) => gate).sort(),
+    readdirSync(bin).sort(),
+    'a bundled gate has no unknown-flag case here',
+  )
+})
+
+test('the machine-readable output lifecycle.mjs depends on is machine-readable', () => {
+  // readyTaskLines parses this and swallows a parse failure with `continue`, so
+  // nothing downstream would report that the contract broke.
+  const dir = scratch('json-contract')
+  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+
+  const result = run('adr-next', ['tasks', '--json'], dir)
+  assert.equal(result.status, 0, result.stderr)
+  const report = JSON.parse(result.stdout)
+  for (const key of ['ready', 'done', 'blocked']) {
+    assert.ok(Array.isArray(report[key]), `--json must carry a ${key} array`)
+  }
+  assert.ok(report.ready.length > 0, 'the fixture has a ready task')
+  // The exact fields lifecycle.mjs reads off a ready entry.
+  for (const field of ['id', 'goal', 'path']) {
+    assert.ok(report.ready[0][field], `a ready entry must carry ${field}`)
+  }
+})

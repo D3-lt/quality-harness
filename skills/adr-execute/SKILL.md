@@ -9,17 +9,23 @@ Implement an accepted ADR task-by-task. Use the harness's built-in todo/task tra
 
 ## Preconditions
 
-Verify before starting; stop and ask if any fail:
+Check these before starting. They are what a plan needs to be executable, not a barrier: run them,
+read what they say, and fix what is real. If something cannot be fixed here — the decision is wrong,
+the plan contradicts the code, a section is missing that only the author can supply — say so plainly
+with the output, and say what you propose instead. Executing anyway is a decision you are allowed to
+make; making it silently is not.
 
 - ADR exists in the active corpus, is linked by its active catalog, and `Status` is `Accepted`.
   A path under an archive whose `README.md` says `Lifecycle: Frozen historical ADR records` is
   historical evidence, never an executable plan. If new implementation is required, write a new
   active ADR that links the archived decision.
-- Run `adr-lint <adr.md>` — exit 0 required. This mechanically enforces template
-  conformance, shell-command acceptance, TDD step 1, README↔task-file consistency, and spec
-  coverage. Do not proceed on a failing lint; paste its output and ask for a better plan.
-- When the ADR's `Spec:` header names a file: run `spec-verify --spec <spec>` — exit 0
-  required (every covered fact has a committed, collectable test).
+- Run `adr-lint <adr.md>` and paste the run. It mechanically checks template conformance,
+  shell-command acceptance, TDD step 1, README↔task-file consistency, and spec coverage. A finding
+  here is nearly always a real gap in the plan — the cheapest moment to close it is before the first
+  task. If you execute past one, name which finding and why it does not apply.
+- When the ADR's `Spec:` header names a file: run `spec-verify --spec <spec>` and paste the run
+  (every covered fact should have a committed, collectable test). A fact with no test is a fact
+  nothing will prove; say which, rather than discovering it at acceptance.
 - Work is represented as either ≤3 inline tasks or a sibling `tasks/` directory with task files and `README.md`.
 - Wave table in `tasks/README.md` is required only for >5 tasks; 4–5 tasks use flat sequential order.
 

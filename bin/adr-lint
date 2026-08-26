@@ -32,9 +32,11 @@ Checks:
 Exit: 0 pass · 1 failures found
 """
 import hashlib
+import json
 import re
 import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
@@ -1017,9 +1019,80 @@ class Findings(list):
     def __init__(self):
         super().__init__()
         self.advice = []
+        # Why this record's content findings are advisory, or None when they block.
+        # Set from `strictFrom` in .quality-harness.json: a corpus that adopts these
+        # gates late would otherwise light up on every record written before the
+        # decision to adopt them, and a gate that fails on day one over history
+        # nobody is changing is a gate people turn off. Graduated strictness is
+        # adr-kit's idea (rvdbreemen/adr-kit, MIT).
+        self.demotion = None
+        self._protected = 0
 
     def advise(self, message):
         self.advice.append(message)
+
+    def append(self, message, evidence=False):
+        # `evidence=True` and everything inside `protected()` are the checks
+        # strictFrom must never reach: a task marked done with nothing behind it,
+        # a Verification Log that does not match what adr-verify writes, a mutant
+        # nobody killed. Those are not template conformance — they are the claim
+        # the corpus exists to make, and demoting them on an old record would let
+        # it assert `done` forever with no run behind it. Everything else is a
+        # record's shape and content, which history is allowed to be imperfect at.
+        if self.demotion and not evidence and not self._protected:
+            self.advise(f"{message} [advisory: {self.demotion}]")
+            return
+        super().append(message)
+
+    @contextmanager
+    def protected(self):
+        """Findings raised in here are never demoted, whatever strictFrom says."""
+        self._protected += 1
+        try:
+            yield
+        finally:
+            self._protected -= 1
+
+
+# `{"strictFrom": "ADR-0012"}` — records numbered below the cutoff report their
+# content findings as advice. Absent or unreadable, nothing changes: this can only
+# ever loosen a verdict a project asked to loosen, and never on its own.
+CONFIG_NAME = ".quality-harness.json"
+
+
+def strict_from_number(start, errors):
+    """The ADR number at which content findings start blocking, or None."""
+    root = git_root(start)
+    if root is None:
+        return None
+    config = root / CONFIG_NAME
+    if not config.exists():
+        return None
+    try:
+        declared = json.loads(config.read_text(encoding="utf-8", errors="replace")).get("strictFrom")
+    except Exception as exc:
+        # Never silently. A config this tool cannot read must not quietly become
+        # either stricter or looser than the project asked for.
+        errors.advise(f"{CONFIG_NAME} could not be read ({exc.__class__.__name__}); "
+                      f"strictFrom is not in effect and every record is checked in full")
+        return None
+    if declared is None:
+        return None
+    match = re.search(r"(\d+)", str(declared))
+    if not match:
+        errors.advise(f"{CONFIG_NAME}: strictFrom={declared!r} names no ADR number; "
+                      f"write it as `ADR-0012` or `12`. Every record is checked in full.")
+        return None
+    return int(match.group(1))
+
+
+def adr_number(path, text):
+    """ADR-014, 014-thing.md, `# ADR-14: ...` — the number, however it is spelled."""
+    title = re.search(r"^#\s+ADR[-_ ]?(\d{1,4})\b", text, re.M | re.I)
+    if title:
+        return int(title.group(1))
+    name = re.search(r"(?:adr[-_]?)?(\d{3,4})[-._]", path.name, re.I)
+    return int(name.group(1)) if name else None
 
 
 def main():
@@ -1032,6 +1105,18 @@ def main():
         print(f"ADR not found: {adr}")
         sys.exit(1)
     errors = Findings()
+    # Before any check runs, so every finding this record produces is judged the
+    # same way. A record at or above the cutoff, or a corpus that declares none,
+    # is checked exactly as it was before this existed.
+    cutoff = strict_from_number(adr.parent, errors)
+    if cutoff is not None:
+        number = adr_number(adr, adr.read_text(errors="replace", encoding="utf-8"))
+        if number is None:
+            errors.advise(f"strictFrom is ADR-{cutoff:04d} but this record's number could not be "
+                          f"read from its filename or title, so it is checked in full")
+        elif number < cutoff:
+            errors.demotion = (f"ADR-{number:04d} predates strictFrom ADR-{cutoff:04d}; "
+                               f"evidence checks still block")
     spec_file = check_adr(adr, errors)
 
     if len(sys.argv) > 2:
@@ -1091,12 +1176,16 @@ def main():
         else:
             errors.advise(f"{tasks_dir}: no README.md index")
         check_dag(infos, readme_text, errors)
-        check_verification(infos, readme_text, errors)
-        check_status_allows_execution(adr, readme_text, errors)
-        check_tests_exist(infos, readme_text, errors, git_root(tasks_dir))
-        check_tests_can_fail(infos, readme_text, errors, git_root(tasks_dir))
-        check_mutation_evidence(infos, readme_text, errors)
-        check_named_tests_are_run(infos, readme_text, errors)
+        # The evidence chain, and the only checks strictFrom cannot reach. Held
+        # here rather than tagged at each call site so the exclusion is visible
+        # in one place and a new check inside these functions inherits it.
+        with errors.protected():
+            check_verification(infos, readme_text, errors)
+            check_status_allows_execution(adr, readme_text, errors)
+            check_tests_exist(infos, readme_text, errors, git_root(tasks_dir))
+            check_tests_can_fail(infos, readme_text, errors, git_root(tasks_dir))
+            check_mutation_evidence(infos, readme_text, errors)
+            check_named_tests_are_run(infos, readme_text, errors)
         check_file_collisions(infos, errors)
         check_contract_table(adr, stems, errors)
 
@@ -1111,6 +1200,8 @@ def main():
                           f"{', '.join(sorted(uncovered))} — uncovered facts block Accepted")
 
     status = "PASS" if not errors else "FAIL"
+    if errors.demotion:
+        print(f"[strictFrom] {errors.demotion}")
     print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only)"))
     for e in errors:
         print(f"  {e}")

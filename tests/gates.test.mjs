@@ -476,3 +476,87 @@ test('focused false-green regressions remain closed', () => {
   ], fixture, undefined, harnessEnv)
   expectExit(result, 0, 'gate regressions')
 })
+
+// A corpus with history: the fixture copied into a repo of its own, with one
+// content rule broken and one evidence claim unbacked.
+function agedCorpus(prefix, config) {
+  const repo = mkdtempSync(join(os.tmpdir(), prefix))
+  spawnSync('git', ['init', '-q', repo], { encoding: 'utf8' })
+  const adrDir = join(repo, 'docs', 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  cpSync(join(fixture, 'ADR-001-selftest.md'), join(adrDir, 'ADR-001-old.md'))
+  cpSync(join(fixture, 'tasks'), join(adrDir, 'tasks'), { recursive: true })
+
+  // Content: a section that is present and empty considered no alternatives.
+  const adr = join(adrDir, 'ADR-001-old.md')
+  writeFileSync(adr, readFileSync(adr, 'utf8')
+    .replace(/(## Alternatives Considered\n)[\s\S]*?(?=\n## )/, '$1\n'))
+  if (config !== null) writeFileSync(join(repo, '.quality-harness.json'), config)
+  return { repo, adr, tasks: join(adrDir, 'tasks') }
+}
+
+test('strictFrom lets a corpus adopt these gates without failing on its own history', () => {
+  // A project that adopts the gates late lights up on every record written
+  // before the decision to adopt them, and a gate that fails on day one over
+  // history nobody is changing is a gate people turn off. The idea is adr-kit's
+  // (rvdbreemen/adr-kit, MIT); the exclusion below is ours.
+  const without = agedCorpus('qh-strict-none-', null)
+  const before = run('adr-lint', [without.adr, without.tasks], without.repo)
+  expectExit(before, 1, 'with no config a content finding still blocks')
+  assert.match(before.stdout, /Alternatives Considered has no entries/)
+  assert.doesNotMatch(before.stdout, /strictFrom/,
+    'a corpus that declares nothing must behave exactly as it did before this existed')
+
+  const aged = agedCorpus('qh-strict-', '{"strictFrom":"ADR-0012"}\n')
+  const demoted = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  expectExit(demoted, 0, 'a record below the cutoff reports its content findings as advice')
+  assert.match(demoted.stdout, /\[strictFrom\] ADR-0001 predates strictFrom ADR-0012/)
+  assert.match(demoted.stdout, /advice: .*Alternatives Considered has no entries \[advisory:/)
+  // A demoted PASS and a clean PASS are different things, and the verdict says so.
+  assert.match(demoted.stdout, /^\[strictFrom\]/m)
+
+  // At or above the cutoff nothing is demoted.
+  writeFileSync(join(aged.repo, '.quality-harness.json'), '{"strictFrom":"ADR-0001"}\n')
+  const atCutoff = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  expectExit(atCutoff, 1, 'the cutoff record itself is checked in full')
+  assert.doesNotMatch(atCutoff.stdout, /advisory: ADR-0001 predates/)
+})
+
+test('strictFrom never reaches the evidence chain', () => {
+  // The whole point of this corpus is that `done` means a tool wrote an exit-0
+  // entry. Demoting that on an old record would let a pre-cutoff task claim done
+  // forever with nothing behind it — which is exactly the proxy SpecBench shows
+  // agents learn to satisfy. Content is allowed to be imperfect in history;
+  // evidence is not.
+  const aged = agedCorpus('qh-strict-evidence-', '{"strictFrom":"ADR-0012"}\n')
+  const readme = join(aged.tasks, 'README.md')
+  writeFileSync(readme, readFileSync(readme, 'utf8')
+    .replace(/\|\s*(pending|ready|todo|blocked)\s*\|/i, '| done |'))
+  for (const name of readdirSync(aged.tasks).filter(entry => /^T\d+/.test(entry))) {
+    const task = join(aged.tasks, name)
+    writeFileSync(task, readFileSync(task, 'utf8')
+      .replace(/(## Verification Log\n)[\s\S]*?(?=\n## |$)/, '$1\n'))
+  }
+
+  const result = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  expectExit(result, 1, 'an unbacked done claim blocks whatever strictFrom says')
+  assert.match(result.stdout, /marked done but its Verification Log has no exit-0 entry/)
+  assert.doesNotMatch(result.stdout, /advice: .*marked done but its Verification Log/,
+    'the evidence chain must never be demoted to advice')
+  // The content finding beside it IS still demoted, which is what proves the
+  // exclusion is selective rather than the feature being off.
+  assert.match(result.stdout, /advice: .*Alternatives Considered has no entries/)
+})
+
+test('an unreadable or unusable strictFrom changes nothing, and says so', () => {
+  const aged = agedCorpus('qh-strict-broken-', '{ this is not json\n')
+  const broken = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  expectExit(broken, 1, 'a config this tool cannot read must not loosen anything')
+  assert.match(broken.stdout, /could not be read/)
+  assert.match(broken.stdout, /every record is checked in full/)
+
+  writeFileSync(join(aged.repo, '.quality-harness.json'), '{"strictFrom":"soon"}\n')
+  const nonsense = run('adr-lint', [aged.adr, aged.tasks], aged.repo)
+  expectExit(nonsense, 1, 'a cutoff naming no ADR number is not a cutoff')
+  assert.match(nonsense.stdout, /names no ADR number/)
+})

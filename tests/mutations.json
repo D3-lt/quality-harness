@@ -800,6 +800,51 @@
       ],
       "from": "    if (underTempRoot(filePath) && !underTempRoot(cwd)) continue",
       "to": "    if (false) continue"
+    },
+    {
+      "label": "strictFrom: demotes, and only downward",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if self.demotion and not evidence and not self._protected:",
+      "to": "        if self.demotion is None and not evidence and not self._protected:"
+    },
+    {
+      "label": "strictFrom: the evidence chain is never demoted",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if self.demotion and not evidence and not self._protected:",
+      "to": "        if self.demotion:"
+    },
+    {
+      "label": "strictFrom: a record at the cutoff is checked in full",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif number < cutoff:",
+      "to": "        elif number <= cutoff:"
+    },
+    {
+      "label": "strictFrom: an unreadable config loosens nothing",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        errors.advise(f\"{CONFIG_NAME} could not be read ({exc.__class__.__name__}); \"",
+      "to": "        errors.demotion = 'unreadable config'; errors.advise(f\"{CONFIG_NAME} could not be read ({exc.__class__.__name__}); \""
+    },
+    {
+      "label": "strictFrom: a demoted PASS is not a clean PASS",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        print(f\"[strictFrom] {errors.demotion}\")",
+      "to": "        pass"
     }
   ]
 }

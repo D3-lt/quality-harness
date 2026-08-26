@@ -2104,3 +2104,41 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   await writeFile(path.join(home, '.claude', 'bin', 'some-other-tool'), 'x\n')
   assert.equal(shadowInstallNotice(home, pluginDir), '')
 })
+
+test('the corpus reader handles the spellings real repositories use', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'quality-corpus-shapes-'))
+  await mkdir(path.join(root, 'docs', 'adr'), { recursive: true })
+  const write = (name, text) => writeFile(path.join(root, 'docs', 'adr', name), text)
+
+  // Nygard's original shape: a `## Status` section rather than a header line.
+  // Half the corpora in the wild are written this way, and reading only the
+  // inline form would classify every one of them as governing nothing.
+  await write('0007-nygard.md',
+    '# 7. Use event sourcing\n\n## Status\n\nAccepted\n\n## Context\n\n...\n'
+    + '\n**Governs:** `src/events/**`\n')
+  // A glob no engine can compile must not throw and must not match.
+  await write('0008-broken-glob.md',
+    '# ADR-0008: Broken matcher\n\n**Status:** Accepted\n**Governs:** `src/[unclosed/**`\n')
+  // A record with no status at all is neither governing nor graveyard.
+  await write('0009-no-status.md', '# ADR-0009: Nothing declared\n\n**Governs:** `src/**`\n')
+
+  const corpus = adrCorpus(root)
+  const nygard = corpus.find(record => /event sourcing/.test(record.title))
+  assert.ok(nygard, 'a `## Status` section is a status')
+  assert.equal(nygard.kind, 'governing')
+  assert.match(decisionContext(['src/events/handler.ts'], root), /0007-nygard\.md/)
+
+  assert.ok(!corpus.some(record => /Nothing declared/.test(record.title)),
+    'a record with no status governs nothing')
+
+  // The broken matcher is inert, not fatal.
+  assert.doesNotThrow(() => decisionsGoverning(['src/anything.ts'], root, corpus))
+  assert.equal(pathMatchesDeclaration('src/x/a.ts', 'src/[unclosed/**'), false)
+
+  // An unreadable corpus costs the edit nothing: the hook swallows it.
+  const run = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Write', session_id: 'shapes',
+    cwd: path.join(root, 'does', 'not', 'exist'), tool_input: { file_path: 'x.ts' },
+  })
+  assert.equal(run.status, 0)
+})

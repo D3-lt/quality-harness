@@ -268,7 +268,24 @@ def symbol_errors(label, cell, roots, index):
     return errs
 
 
+def reject_unknown_flags(known=()):
+    """A flag this gate does not know is a typo, and a gate that ignores one
+    answers a question nobody asked.
+
+    Measured 2026-08-26: `adr-next tasks --jsonn` printed the human report and
+    exited 0. lifecycle.mjs asks for `--json` and JSON.parse()s the result inside
+    a try/catch that continues on failure, so a renamed or mistyped flag would
+    have made session orientation silently empty at exit 0 — the same fail-open,
+    by a different route, as the `#!` spawn that BACKLOG item 17 fixed.
+    """
+    unknown = [a for a in sys.argv[1:] if a.startswith("--") and a not in known]
+    if unknown:
+        print(f"unknown option: {unknown[0]}", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
+    reject_unknown_flags()
     if len(sys.argv) != 2:
         print(__doc__)
         sys.exit(1)

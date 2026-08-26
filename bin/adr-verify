@@ -520,6 +520,12 @@ def main():
         elif args[i] == "--why":
             i += 1
             why = args[i]
+        elif args[i].startswith("--"):
+            # Without this an unknown flag becomes the task path, and its VALUE
+            # becomes the next one: `--why probe` with --why renamed reported
+            # `task file not found: probe`, which reads like a missing file
+            # rather than a gate that no longer speaks the documented interface.
+            fail(f"unknown option: {args[i]}")
         else:
             task = Path(args[i])
         i += 1

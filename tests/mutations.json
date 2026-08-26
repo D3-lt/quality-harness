@@ -1120,7 +1120,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (exitCode === 127 || exitCode === 126 || NEVER_STARTED.test(text)) return 'unstarted'",
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'",
       "to": "  if (false) return 'unstarted'"
     },
     {
@@ -1138,8 +1138,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
-      "to": "  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (result.is_error === true || result.interrupted === true) return 'failed'"
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
+      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'"
     },
     {
       "label": "verdict: only a pass is evidence",

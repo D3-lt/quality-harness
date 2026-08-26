@@ -1,6 +1,6 @@
 ---
 name: review
-description: Default code review skill. Use when the user asks for a review, PR review, audit of changes, a second opinion on implementation quality, or a test-quality review. Loads a performance or security mode from references/ when the review centers on those. Do not use for implementation work.
+description: Default code review skill, reading a diff and judging it. Use when the user asks for a review, PR review, audit of changes, a second opinion on implementation quality, or a test-quality review of tests as written. Loads a performance or security mode from references/ when the review centers on those. Do not use for implementation work, and do not use to measure what a suite actually detects — breaking a mechanism to see whether anything notices is `mutation-audit`.
 ---
 
 # Review

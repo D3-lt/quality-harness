@@ -90,7 +90,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.14.0')
+  assert.equal(manifest.version, '2.15.0')
   assert.equal(manifest.license, 'MIT')
   assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
 
@@ -150,6 +150,11 @@ test('continuous integration runs the checks this repository owns', () => {
   const workflow = readFileSync(join(root, '.github', 'workflows', 'selftest.yml'), 'utf8')
   assert.match(workflow, /bash scripts\/selftest\.sh/)
   assert.match(workflow, /bash scripts\/coverage\.sh/)
+  // The mutation campaign is what measures whether the rest of these detect
+  // anything. It ran only on a laptop until 2026-08-26, which made it the one
+  // check in this repository that could silently stop being run.
+  assert.match(workflow, /node scripts\/mutate\.mjs/)
+  assert.match(workflow, /^ {2}mutations:$/m)
   assert.match(workflow, /QUALITY_HARNESS_COVERAGE_STRICT: '1'/)
   // Pull requests must be covered; a workflow that only runs on push to main
   // reports regressions after they land.

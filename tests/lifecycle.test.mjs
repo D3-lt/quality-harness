@@ -1118,6 +1118,44 @@ test('the artifact pass never outlives the hook it runs inside', async () => {
 // written as the reports arrived rather than as tidy minimal cases, because the
 // tidy version is what passed while the real one failed.
 
+test('reported: a read-only command is not authorship because of how it is spelled', () => {
+  // Hit live on 2026-08-26 while trying to WATCH a CI run:
+  //   gh run watch 123 > /dev/null 2>&1
+  //   -> "Bash would mutate files in protected 'main'. Create a task branch first"
+  //
+  // `\s*` matched the space, the /dev/null exclusion failed, the engine handed the
+  // space back, and the lookahead was re-tried against " /dev/null" — which does
+  // not start with /dev/null. So the spacing decided whether reading counted as
+  // writing. Recorded in BACKLOG item 6 as "one careful regex away" and left
+  // unfixed until it blocked a session.
+  const nul = ['>', ' /dev/null'].join('')
+  for (const spelling of [`gh run watch 123 ${nul} 2>&1`, `gh run watch 123 >/dev/null`,
+    `printf x ${nul}`, `node --test ${nul} 2>&1`]) {
+    assert.equal(isPotentialMutationCommand(spelling), false, spelling)
+  }
+
+  // Closing a descriptor writes nothing either.
+  assert.equal(isPotentialMutationCommand('git fsck 2>&-'), false)
+  assert.equal(isPotentialMutationCommand('git fsck 2>&1'), false)
+
+  // The exclusion must stay narrow: a real write is still a write, and a path
+  // that merely BEGINS like the null device is not it.
+  assert.equal(isPotentialMutationCommand(['printf x ', ' out.txt'].join('>')), true)
+  assert.equal(isPotentialMutationCommand(['printf x ', ' /dev/null-backup'].join('>')), true)
+  assert.equal(isPotentialMutationCommand(['printf x ', '> appended.log'].join('>')), true)
+
+  // A glued redirect is a redirect. `printf x>out.txt` writes a file, and the
+  // old `(?:^|\s)` prefix required whitespace, so the evidence gate never saw it
+  // — a fail-open living in the same regex as the two false blocks above.
+  assert.equal(isPotentialMutationCommand(['printf x', 'out.txt'].join('>')), true)
+
+  // Quoted segments are stripped before the test, so a `>` that is a comparison
+  // in someone else's language is not read as a redirect in this one. That is
+  // what makes the glued-redirect fix safe rather than noisy.
+  assert.equal(isPotentialMutationCommand("python3 -c 'print(1 if a>b else 2)'"), false)
+  assert.equal(isPotentialMutationCommand('echo "a > b"'), false)
+})
+
 test('reported: a long session can still commit', async () => {
   // Webitel, 2026-08-26. An ADR/spec session made dozens of edits; every commit
   // re-gated the whole accumulated list against a fixed 45s window, so once the

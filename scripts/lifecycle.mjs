@@ -2224,9 +2224,19 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
     try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
   }
   const stale = []
+  // Every directory the plugin ships that a standalone install also has. The
+  // first version checked only bin and hooks, and templates was the one that
+  // actually bit: an ADR authored against a drifted adr-template.md is missing
+  // headers the current gates require, so the gate reports a malformed record
+  // and the author has no way to see that they were writing to last month's
+  // shape. Reported 2026-08-26, where a standalone template had no Governs:,
+  // no **Data dependency:**, no ## Mutation Log and no ## Reachability table.
+  // Skills too: a stale SKILL.md instructs an invocation the gates no longer
+  // accept, which is the same failure one layer up.
   for (const [relative, shipped] of [
     ['bin', path.join(pluginRoot, 'bin')],
     ['hooks', path.join(pluginRoot, 'scripts')],
+    ['templates', path.join(pluginRoot, 'templates')],
   ]) {
     const shadow = path.join(homeDirectory, '.claude', relative)
     let entries = []
@@ -2238,13 +2248,26 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
       if (theirs && theirs !== digest(ours)) stale.push(path.join('~', '.claude', relative, name))
     }
   }
+  // Skills are directories, so the comparable file is one level down.
+  const shadowSkills = path.join(homeDirectory, '.claude', 'skills')
+  let skillEntries = []
+  try { skillEntries = readdirSync(shadowSkills) } catch {}
+  for (const name of skillEntries) {
+    const ours = path.join(pluginRoot, 'skills', name, 'SKILL.md')
+    if (!existsSync(ours)) continue
+    const theirs = digest(path.join(shadowSkills, name, 'SKILL.md'))
+    if (theirs && theirs !== digest(ours)) {
+      stale.push(path.join('~', '.claude', 'skills', name, 'SKILL.md'))
+    }
+  }
   if (!stale.length) return ''
   const shown = stale.slice(0, 4).join(', ')
   return `Heads up: a second copy of this toolkit is installed outside the plugin and has drifted `
     + `from it — ${shown}${stale.length > 4 ? `, +${stale.length - 4} more` : ''}. `
     + 'The plugin updates its own copies and never touches those. If a gate rejects something '
-    + 'adr-verify just wrote, or a hook disagrees with the same tool run by hand, an old copy is '
-    + 'answering: compare against '
+    + 'adr-verify just wrote, a hook disagrees with the same tool run by hand, or a record you '
+    + 'authored from a template is missing headers the gates require, an old copy is answering: '
+    + 'compare against '
     + `\`${path.join(pluginRoot, 'bin')}\`, and delete or refresh the standalone one.`
 }
 

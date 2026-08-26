@@ -2099,8 +2099,32 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   assert.match(notice, /an old copy is answering/)
   assert.match(notice, /adr-verify just wrote/)
 
-  // A file the plugin does not ship is not the plugin's business.
+  // Templates and skills drift too, and templates is the one that actually bit:
+  // an ADR authored from a stale adr-template.md is missing headers the current
+  // gates require, so the gate reports a malformed record and the author cannot
+  // see they were writing to last month's shape. Reported 2026-08-26 — a
+  // standalone template with no Governs:, no **Data dependency:**, no
+  // ## Mutation Log and no ## Reachability table.
   await rm(path.join(home, '.claude', 'bin', 'adr-lint'))
+  await mkdir(path.join(home, '.claude', 'templates'), { recursive: true })
+  await cp(path.join(pluginDir, 'templates', 'adr-template.md'),
+    path.join(home, '.claude', 'templates', 'adr-template.md'))
+  assert.equal(shadowInstallNotice(home, pluginDir), '', 'an identical template is not drift')
+  await writeFile(path.join(home, '.claude', 'templates', 'adr-template.md'), '# ADR-NNN\n')
+  assert.match(shadowInstallNotice(home, pluginDir), /templates[\\/]adr-template\.md/)
+  assert.match(shadowInstallNotice(home, pluginDir), /missing headers the gates require/)
+  await rm(path.join(home, '.claude', 'templates', 'adr-template.md'))
+
+  // A skill is a directory, so the comparable file is one level down.
+  await mkdir(path.join(home, '.claude', 'skills', 'adr-write'), { recursive: true })
+  await cp(path.join(pluginDir, 'skills', 'adr-write', 'SKILL.md'),
+    path.join(home, '.claude', 'skills', 'adr-write', 'SKILL.md'))
+  assert.equal(shadowInstallNotice(home, pluginDir), '', 'an identical skill is not drift')
+  await writeFile(path.join(home, '.claude', 'skills', 'adr-write', 'SKILL.md'), '# old\n')
+  assert.match(shadowInstallNotice(home, pluginDir), /skills[\\/]adr-write[\\/]SKILL\.md/)
+  await rm(path.join(home, '.claude', 'skills', 'adr-write', 'SKILL.md'))
+
+  // A file the plugin does not ship is not the plugin's business.
   await writeFile(path.join(home, '.claude', 'bin', 'some-other-tool'), 'x\n')
   assert.equal(shadowInstallNotice(home, pluginDir), '')
 })

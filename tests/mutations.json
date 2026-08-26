@@ -960,6 +960,24 @@
       ],
       "from": "    r\"regress\\w*|fail|fails|failing|failure|break|breaks|degrade\\w*|harder|\"",
       "to": ""
+    },
+    {
+      "label": "context: a drifted template is named too",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    ['templates', path.join(pluginRoot, 'templates')],",
+      "to": ""
+    },
+    {
+      "label": "context: a drifted skill is named too",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    const ours = path.join(pluginRoot, 'skills', name, 'SKILL.md')",
+      "to": "    const ours = path.join(pluginRoot, 'skills', name, 'ABSENT.md')"
     }
   ]
 }

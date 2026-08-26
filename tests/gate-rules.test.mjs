@@ -615,45 +615,12 @@ test('every adr-judge rule has a case that makes it fire, and a record that pass
   assert.equal(clean.status, 0, clean.stdout + clean.stderr)
   assert.match(clean.stdout, /evidence and clarity rules all pass/)
 
-  const cases = [
-    // EVIDENCE
-    ['E1', 'Context is opinion, not observation',
-      t => t.replace(/## Context\n[\s\S]*?(?=\n## Decision)/,
-        '## Context\n\nThe nightly export feels slow and everyone dislikes it.\n'),
-      /Context cites nothing a reader could check/],
-    ['E2', 'an alternative with no reason it lost',
-      t => t.replace(/- Shard by date range[\s\S]*?does not split the work that is slow\./,
-        '- Shard by date range.'),
-      /gives no reason it was not chosen/],
-    ['E3', 'a comparative claim with no number behind it',
-      t => t.replace(/## Context\n[\s\S]*?(?=\n## Decision)/,
-        '## Context\n\nA queue is faster than the in-process export, as observed by the team.\n'),
-      /is claimed with no number or named source/],
-    // CLARITY
-    ['C1', 'a Decision that hedges without committing',
-      t => t.replace(/## Decision\n[\s\S]*?(?=\n## Alternatives)/,
-        '## Decision\n\nWe might move the export to a queue, and could possibly shard it later.\n'),
-      /hedges without committing/],
-    ['C2', 'an authoring marker left in the record',
-      t => t.replace('## Consequences', '## Consequences\n\nTODO: finish this section.\n'),
-      /is still in the record; it is not finished/],
-    ['C3', 'Consequences with no cost stated',
-      t => t.replace(/## Consequences\n[\s\S]*$/,
-        '## Consequences\n\nEach account is exported on its own and the run finishes sooner.\n'),
-      /Consequences state no cost/],
-  ]
-
-  for (const [rule, label, mutate, expected] of cases) {
-    const text = mutate(JUDGE_CLEAN)
-    assert.notEqual(text, JUDGE_CLEAN, `${label}: the mutation did not apply`)
-    const result = run('adr-judge', [write(text)])
-    // Advisory ALWAYS: this judges prose, and prose is not the kind of thing
-    // that should stop work. A model verdict must never reach the evidence
-    // chain either, which is why the rules here are deterministic.
-    assert.equal(result.status, 0, `${rule} must not block\n${result.stdout}`)
-    assert.match(result.stdout, expected, `${rule} ${label}`)
-    assert.match(result.stdout, /Nothing is blocked/, rule)
-  }
+  // The per-rule firing table lives in tests/judge-rules.test.mjs, which drives
+  // every rule in BOTH directions over a corpus of realistic sections and
+  // asserts the exact set of rules that fired. Duplicating a weaker copy here is
+  // how two corpora drift and one of them starts asserting the wrong thing —
+  // which is exactly what happened to this block once E1 learned to recognise
+  // "as observed by the team".
 
   // The bundled template judges itself finished: `Superseded by ADR-XXX` is a
   // placeholder for a NUMBER, and reading it as an authoring marker made the

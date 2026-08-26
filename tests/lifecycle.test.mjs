@@ -44,6 +44,16 @@ function transcript(entries) {
   return entries.map(entry => JSON.stringify(entry)).join('\n')
 }
 
+// A temp directory that looks like a project with a check of its own. The
+// evidence gates only speak when they can name the command to run, so a bare
+// mkdtemp fixture exercises the silence rather than the gate — which is a real
+// behaviour, tested separately, but not the one these fixtures are for.
+async function checkedProject(prefix) {
+  const dir = await mkdtemp(path.join(testTmp, prefix))
+  await writeFile(path.join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
+  return dir
+}
+
 function toolUse(id, name, input) {
   return { type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } }
 }
@@ -667,21 +677,23 @@ test('successful negative-control suites are not rejected by their output text',
   assert.equal(state.verifiedAfterLastMutation, true)
 })
 
-test('command hook blocks subagent completion without later evidence', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
+test('command hook advises on subagent completion without later evidence', async () => {
+  const dir = await checkedProject('quality-hook-')
   const file = path.join(dir, 'agent.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: '/repo/a.js' }),
     toolResult('e1'),
   ]))
 
-  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file })
+  const run = runLifecycleHook({
+    hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir,
+  })
   assert.equal(run.status, 0)
   assert.match(run.stdout, /"systemMessage"/)
 })
 
-test('commit gate uses exit 2 when this session has unverified edits', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
+test('commit gate advises, never blocks, when this session has unverified edits', async () => {
+  const dir = await checkedProject('quality-hook-')
   const file = path.join(dir, 'main.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: '/repo/a.js' }),
@@ -690,10 +702,134 @@ test('commit gate uses exit 2 when this session has unverified edits', async () 
 
   const run = runLifecycleHook({
     hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' }, transcript_path: file,
+    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
   })
   assert.equal(run.status, 0)
-  assert.match(run.stderr, /blocked git commit\/push/i)
+  assert.match(run.stderr, /would publish unchecked/i)
+  assert.match(run.stderr, /Changed paths include: \/repo\/a\.js\./)
+})
+
+test('reported: finding the repository root does not disqualify the check that follows', () => {
+  // blueprints, 2026-08-26. `cd "$(git rev-parse --show-toplevel)" && …
+  // ./verify.sh` is how a script finds its own root, and the guard rejected the
+  // whole command for containing `$(` — so the project's check ran, passed, and
+  // the gate asked for it again at the end of the turn.
+  assert.equal(isValidationCommand(
+    'cd "$(git rev-parse --show-toplevel)" && BLUEPRINT_VENV=.venv ./verify.sh'), true)
+  assert.equal(isValidationCommand('cd "$(git rev-parse --show-toplevel)"\nnpm test'), true)
+  assert.equal(isValidationCommand('cd `pwd` && npm test'), true)
+
+  // The guard did not go away, it moved. A substitution anywhere a command can
+  // actually run is still opaque, and a `cd` whose argument runs something with
+  // effects is not navigation.
+  assert.equal(isValidationCommand('npm test $(rm -rf build)'), false)
+  assert.equal(isValidationCommand('cd "$(rm -rf x && pwd)" && npm test'), false)
+  assert.equal(isValidationCommand('cd "$(curl -s http://evil)" && npm test'), false)
+  assert.equal(isValidationCommand('npm test; rm -rf build'), false)
+  assert.equal(isValidationCommand('npm test | tail -3'), false)
+  assert.equal(isValidationCommand('npm test > out.txt'), false)
+  assert.equal(isValidationCommand('npm test &'), false)
+  assert.equal(isValidationCommand('cd /repo && npm test && rm -rf build'), false)
+})
+
+test('reported: no advisory claims to have blocked anything', async () => {
+  // The wording IS the contract. A live 2.3.0 session read "Quality gate blocked
+  // git commit/push", believed it had been stopped, committed anyway and then
+  // narrated "Committed — the reload cleared the stuck hook": a false belief
+  // about the harness AND a false explanation of the success. Advisory text that
+  // describes itself as a refusal is the same defect as refusing.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-wording-'))
+  const file = path.join(dir, 'main.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(dir, 'a.js') }), toolResult('e1'),
+  ]))
+  const missing = path.join(testTmp, 'quality-wording-absent.jsonl')
+
+  const runs = [
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir,
+      tool_input: { command: 'git commit -m test' }, transcript_path: file },
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir,
+      tool_input: { command: 'git commit -m test' }, transcript_path: missing },
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir,
+      tool_input: { command: 'git merge feature' }, transcript_path: file },
+    { hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: dir,
+      tool_input: { file_path: path.join(dir, 'a.js') }, transcript_path: file },
+    { hook_event_name: 'SessionStart', cwd: dir },
+    { hook_event_name: 'Stop', transcript_path: file, cwd: dir },
+    { hook_event_name: 'TaskCompleted', transcript_path: file, cwd: dir },
+  ]
+  for (const payload of runs) {
+    const run = runLifecycleHook(payload)
+    assert.equal(run.status, 0, JSON.stringify(payload))
+    const message = `${run.stdout}${run.stderr}`
+    // "nothing is blocked" is the disclaimer, not the offence.
+    const claims = message.replace(/[Nn]othing (?:is|was) blocked/g, '')
+      .match(/\b(?:blocked|blocking|refus\w*|denied|prevented|not allowed|disallowed)\b/gi) ?? []
+    assert.deepEqual(claims, [], `${JSON.stringify(payload)} -> ${message}`)
+  }
+})
+
+test('reported: committing does not make the next commit demand a check of it', async () => {
+  // agentsmemory, 2026-08-26, on 2.3.0. `git add -A && git commit …` is itself a
+  // git mutation, so the commit landed, was recorded as unverified authorship,
+  // and the following push was advised to go verify... the commit. No test could
+  // clear it: the loop closed on the publish itself.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-loop-'))
+  const file = path.join(dir, 'main.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(dir, 'a.go') }), toolResult('e1'),
+    toolUse('v1', 'Bash', { command: 'go test ./...' }), toolResult('v1'),
+    toolUse('c1', 'Bash', { command: 'git add -A && git commit -m done' }), toolResult('c1'),
+  ]))
+
+  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+  // The whole session still knows the commit was authorship — the completion
+  // gate's question is unchanged.
+  assert.equal(state.hasMutations, true)
+  assert.equal(state.verifiedAfterLastMutation, false)
+  // But the publish boundary has nothing unchecked after it.
+  assert.equal(state.unverifiedSince(state.lastPublish), false)
+
+  const push = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git push' }, transcript_path: file, cwd: dir,
+  })
+  assert.equal(push.status, 0)
+  assert.equal(`${push.stdout}${push.stderr}`.trim(), '', 'the loop is closed, so the gate is quiet')
+})
+
+test('reported: a project that names no check hears nothing from the evidence gates', async () => {
+  // redash-api, 2026-08-26, on 2.3.0: "this is useless.. repeats everywhere even
+  // when we do not work with quality harness". The generic fallback — "run the
+  // smallest repository-owned test, lint, build, or validation command" — fired
+  // at the end of every turn in a repository that had never opted in, naming no
+  // command and asking for nothing that could be delivered. A gate with nothing
+  // specific to say says nothing.
+  const bare = await mkdtemp(path.join(testTmp, 'quality-unopted-'))
+  const file = path.join(bare, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(bare, 'redash_core.py') }), toolResult('e1'),
+  ]))
+  assert.equal(projectCheckCommand(bare), null, 'the fixture must declare no check')
+
+  for (const event of ['Stop', 'TaskCompleted', 'SubagentStop']) {
+    const run = runLifecycleHook({
+      hook_event_name: event, transcript_path: file, agent_transcript_path: file, cwd: bare,
+    })
+    assert.equal(run.status, 0)
+    assert.equal(`${run.stdout}${run.stderr}`.trim(), '', `${event} should be silent`)
+  }
+  const commit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m x' }, transcript_path: file, cwd: bare,
+  })
+  assert.equal(commit.status, 0)
+  assert.equal(`${commit.stdout}${commit.stderr}`.trim(), '')
+
+  // Declare one and the same session gets the same finding it always did, by name.
+  await writeFile(path.join(bare, 'package.json'), JSON.stringify({ scripts: { test: 'pytest' } }))
+  const named = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: bare })
+  assert.match(named.stdout, /npm run test/)
 })
 
 test('commit gate recognizes Git global options and executable wrappers', () => {
@@ -720,7 +856,7 @@ test('commit gate recognizes Git global options and executable wrappers', () => 
       tool_input: { command }, transcript_path: missing,
     })
     assert.equal(run.status, 0, command)
-    assert.match(run.stderr, /refusing git commit\/push/i, command)
+    assert.match(run.stderr, /cannot tell whether this change was checked/i, command)
   }
 })
 
@@ -733,7 +869,7 @@ test('commit and completion gates fail closed when the transcript is unreadable'
     tool_input: { command: 'git commit -m test' }, transcript_path: missing,
   })
   assert.equal(commit.status, 0)
-  assert.match(commit.stderr, /refusing git commit\/push/i)
+  assert.match(commit.stderr, /cannot tell whether this change was checked/i)
 
   const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: missing })
   assert.equal(task.status, 0)
@@ -745,13 +881,13 @@ test('commit and completion gates fail closed when the transcript is unreadable'
 })
 
 test('subagent evidence gate remains active while the parent has background work', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
+  const dir = await checkedProject('quality-hook-')
   const file = path.join(dir, 'agent.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: '/repo/a.js' }), toolResult('e1'),
   ]))
   const run = runLifecycleHook({
-    hook_event_name: 'SubagentStop', agent_transcript_path: file,
+    hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir,
     background_tasks: [{ id: 'parent-task' }],
   })
   assert.match(run.stdout, /"systemMessage"/)
@@ -1214,7 +1350,7 @@ test('no finding is ever hidden: every advisory surfaces as a systemMessage', as
   // only in transcript view, so a finding written there reaches nobody. Every
   // advisory therefore emits a systemMessage, which the session shows regardless
   // of exit code, alongside stderr for the transcript.
-  const repo = await mkdtemp(path.join(testTmp, 'quality-visible-'))
+  const repo = await checkedProject('quality-visible-')
   const file = path.join(repo, 'agent.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
@@ -1318,7 +1454,7 @@ test('reported: the nag says what changed in a form a person can read', async ()
   //   python3 - <<'PY'
   //   import io
   //   p="tests/Unit/Notifications/CustomerEmailTest.p>
-  const dir = await mkdtemp(path.join(testTmp, 'quality-nag-'))
+  const dir = await checkedProject('quality-nag-')
   const file = path.join(dir, 'agent.jsonl')
   const heredoc = 'cd /repo\npython3 - <<\'PY\'\nimport pathlib\n'
     + 'pathlib.Path("tests/Unit/Notifications/CustomerEmailTest.php").write_text("x")\nPY'
@@ -1651,7 +1787,20 @@ test('an unresolvable Bash write is named in one readable line', async () => {
     + 'pathlib.Path("tests/Unit/CustomerEmailTest.php").write_text("x")\nPY'
   const described = describeCommand(heredoc)
   assert.doesNotMatch(described, /\n/, 'a marker must not carry newlines into the sentence')
-  assert.equal(described, 'cd /repo')
+  // NOT 'cd /repo'. The first line of an agent's Bash call is almost always the
+  // move into the repository, so describing it describes the one segment that
+  // changed nothing — and five such calls produced five identical markers that
+  // said nothing at all. Live 2.3.0 session, 2026-08-26.
+  assert.equal(described, "python3 - <<'PY'")
+
+  // Navigation is peeled however it is spelled, and a command that is ONLY
+  // navigation still describes itself rather than collapsing to an empty marker.
+  assert.equal(describeCommand('cd /repo\ngit add -A && git commit -m x'),
+    'git add -A && git commit -m x')
+  assert.equal(describeCommand('cd "/a b/repo" && rm -rf build'), 'rm -rf build')
+  assert.equal(describeCommand('pushd /repo; touch f'), 'touch f')
+  assert.equal(describeCommand('cd /repo'), 'cd /repo')
+  assert.equal(describeCommand('cd /repo &&'), 'cd /repo &&')
 
   // Long single-line commands are cut at a word boundary, not mid-token.
   const long = `git commit -m ${'word '.repeat(40)}`
@@ -1719,7 +1868,7 @@ test('a read-only role is told it is read-only, and an editing role is not', asy
 // A docs-only change with no verification after it — the state both escapes exist
 // to release, and the state they must not release without their condition.
 async function unverifiedDocsChange(name) {
-  const dir = await mkdtemp(path.join(testTmp, `quality-escape-${name}-`))
+  const dir = await checkedProject(`quality-escape-${name}-`)
   const file = path.join(dir, 'agent.jsonl')
   await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
   await writeFile(file, transcript([
@@ -1751,7 +1900,7 @@ test('EVIDENCE-LIMITED does not release a code change, however well explained', 
   // The escape exists because prose cannot always be executed. Code can, so
   // docsOnly guards it — and that guard is the difference between an escape and
   // a bypass.
-  const dir = await mkdtemp(path.join(testTmp, 'quality-escape-code-'))
+  const dir = await checkedProject('quality-escape-code-')
   const file = path.join(dir, 'agent.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(dir, 'service.py') }), toolResult('e1'),

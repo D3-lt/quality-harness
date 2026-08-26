@@ -766,8 +766,8 @@ export function branchViolation(input) {
           + `Create a task branch first: ${escape}`
       }
       if (subcommand === 'merge') {
-        return `git merge without --ff-only is blocked on protected '${addressedBranch}'. `
-          + 'Use `git merge --ff-only <branch>`, or merge from a task branch.'
+        return `git merge without --ff-only would write a merge commit into protected `
+          + `'${addressedBranch}'. Use \`git merge --ff-only <branch>\`, or merge from a task branch.`
       }
       return `Bash would mutate files in protected '${addressedBranch}'. `
         + `Create a task branch first: ${escape}`
@@ -803,7 +803,33 @@ function resultSucceeded(result, command) {
 }
 
 const CD_ONLY = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/
+
+// A command substitution inside a `cd` argument still runs a command, so it
+// cannot be waved past the guard on faith — but `cd "$(git rev-parse
+// --show-toplevel)" && ./verify.sh` is how a script finds its own repository
+// root, and the whole-command guard rejected it as if the `$(` were hiding
+// something. The project's check had just run and the gate asked for it again.
+// Reported from blueprints, 2026-08-26. An explicit list of read-only idioms,
+// not an inference: anything else keeps failing the guard.
+const INERT_SUBSTITUTION = /^\s*(?:git\s+rev-parse\s+--show-toplevel|pwd|dirname\s+[^;&|`$()]*|realpath\s+[^;&|`$()]*|basename\s+[^;&|`$()]*)\s*$/
+
+// A segment that only moves, and moves somewhere it can name without side
+// effects. Carries no verdict, so it neither counts as validation nor spoils it.
+function inertNavigation(segment) {
+  if (!CD_ONLY.test(segment)) return false
+  for (const match of segment.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
+    if (!INERT_SUBSTITUTION.test(match[1] ?? match[2] ?? '')) return false
+  }
+  return true
+}
+
+// Everything the whole-command guard used to reject: a second command hiding
+// behind a separator, a redirect, a pipe, a background job, a substitution.
+// Applied per segment now rather than to the whole string, so navigation can be
+// dropped first without letting anything ride along with the validation itself.
+const UNSAFE_SEGMENT = /[;`>]|\|\||\$\(|(?:^|[^|])\|(?:[^|]|$)|(?:^|[^&])&(?:[^&]|$)/
 const ASSIGNMENT_ONLY = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*)+$/
+const ASSIGNMENT_PREFIX = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+)+/
 
 // A command run inside a container is still that command.
 //
@@ -845,26 +871,30 @@ export function isValidationCommand(command) {
   // below sees the inner command's characters rather than the wrapper's.
   const inner = commandInsideWrappers(command)
   if (inner && inner !== command.trim()) return isValidationCommand(inner)
-  if (typeof command !== 'string'
-      || /[;`>]|\|\||\$\(/.test(command)
-      || /(^|[^|])\|([^|]|$)/.test(command)
-      || /(^|[^&])&([^&]|$)/.test(command)) return false
+  if (typeof command !== 'string') return false
   // Rejecting every multi-line command meant the project's own gate did not
   // count as evidence: setting a tool path on one line and running the gate on
   // the next is the ordinary shape, and the run went unseen while the hook kept
   // asking for a validation the user had already produced. Judge each line
   // instead. Assignment-only and `cd` lines carry no verdict; every remaining
   // line must be a validation, so a mutation cannot ride along above a passing
-  // test. The character guard above still applies to the whole command, so no
-  // line can hide a redirect, a pipe, a background job or a substitution.
+  // test. UNSAFE_SEGMENT applies to each surviving segment, so none of them can
+  // hide a redirect, a pipe, a background job or a substitution — it moved off
+  // the whole command precisely so that navigation can be dropped first.
   const lines = command.split(/\r?\n/)
     .map(line => line.trim())
-    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !CD_ONLY.test(line))
+    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !inertNavigation(line))
   return lines.length > 0 && lines.every(line => {
     const segments = line.split(/\s*&&\s*/)
-      .filter(segment => !CD_ONLY.test(segment.trim()))
+      .map(segment => segment.trim())
+      .filter(segment => !inertNavigation(segment))
     return segments.length > 0
-      && segments.every(segment => VALIDATION_PATTERNS.some(pattern => pattern.test(segment)))
+      && segments.every(segment => !UNSAFE_SEGMENT.test(segment)
+        // `BLUEPRINT_VENV=.venv ./verify.sh` is the same run as `./verify.sh`.
+        // Every pattern is anchored, so the environment prefix hid the command
+        // from all of them. UNSAFE_SEGMENT has already seen the whole segment,
+        // so nothing is laundered by trimming it here.
+        && VALIDATION_PATTERNS.some(pattern => pattern.test(segment.replace(ASSIGNMENT_PREFIX, ''))))
   })
 }
 
@@ -1336,17 +1366,47 @@ export function bashNavigationImpact(command, cwd) {
 //   import io
 //   p="tests/Unit/Notifications/CustomerEmailTest.p>, <Bash mutation: cd /repo
 //
-// A reader needs to recognize the command, not re-read it: first line, one line,
-// cut at a word boundary. The marker only has to stay a non-absolute string —
+// A reader needs to recognize the command, not re-read it: one line, cut at a
+// word boundary. The marker only has to stay a non-absolute string —
 // runArtifactGates skips it by `path.isAbsolute`, which is what keeps an
 // unresolvable command out of the gate rather than into it.
+//
+// Taking the FIRST line was the wrong line. An agent's Bash call almost always
+// opens by moving to the repository, so line one is `cd <somewhere>` and naming
+// it names the one segment that changed nothing. Reported from a live 2.3.0
+// session on 2026-08-26, where the advisory read:
+//
+//   Changed paths include: <Bash mutation: cd /src/the-project>,
+//   <Bash mutation: cd /src/the-project>, …
+//
+// — five markers, all the same, none of them the write. Peel the navigation and
+// describe what is left.
 export function describeCommand(command, limit = 72) {
-  const first = String(command ?? '').split('\n')[0].replace(/\s+/g, ' ').trim()
-  if (first.length <= limit) return first
-  const cut = first.slice(0, limit)
+  // A heredoc body is input to a command, not the command. Splicing it in is
+  // what put raw newlines and mid-token truncation into the sentence before.
+  const script = withoutHeredocBodies(String(command ?? ''))
+  let remainder = script
+  while (true) {
+    const peeled = remainder.replace(NAVIGATION_PREFIX, '')
+    if (peeled === remainder) break
+    remainder = peeled
+  }
+  // All navigation and nothing else: describe the navigation rather than nothing.
+  const line = collapse(remainder) || collapse(script)
+  if (line.length <= limit) return line
+  const cut = line.slice(0, limit)
   const boundary = cut.lastIndexOf(' ')
   return `${(boundary > limit / 2 ? cut.slice(0, boundary) : cut).trimEnd()}…`
 }
+
+// `cd <dir>` (or pushd/popd) followed by a separator — newline included, since
+// that is how a multi-line Bash call is written. The argument separator is
+// [ \t]+ and not \s+ deliberately: \s crosses the newline, so `cd /repo\ngit add
+// -A && git commit` had its `git add -A &&` eaten as further arguments to cd and
+// the marker named the wrong half of the command.
+const NAVIGATION_PREFIX = /^\s*(?:cd|pushd|popd)(?:[ \t]+(?:"[^"]*"|'[^']*'|[^\s;&|<>]+))*[ \t]*(?:&&|;|\n)/
+
+const collapse = text => text.replace(/\s+/g, ' ').trim()
 
 export function analyzeTranscript(raw, cwd = process.cwd()) {
   const uses = []
@@ -1455,6 +1515,12 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
     // window and then EVERY commit failed, whatever was staged. Reported from a
     // live 2.1.7 session on 2026-08-26 and reproduced here.
     mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),
+    // Whether anything authored AFTER `position` is still unchecked. The commit
+    // gate asks about what it is publishing now; the completion gate asks about
+    // the whole session, which is what verifiedAfterLastMutation answers.
+    unverifiedSince: position => lastMutation > position
+      && !(lastSuccessfulValidation > Math.max(lastMutation, lastTreeRefresh)
+        && lastSuccessfulValidation === lastValidation),
     lastUnresolvedDeletion,
   }
 }
@@ -1672,9 +1738,13 @@ export function runTheCheckSentence(cwd) {
     : 'Run the smallest repository-owned test, lint, build, or validation command after the final edit and report the exact command and result.'
 }
 
-function missingEvidenceReason(state, cwd) {
-  const changed = state.mutationPaths.length
-    ? `Changed paths include: ${state.mutationPaths.slice(-5).join(', ')}.`
+function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
+  // Distinct paths, because the list is five slots wide and repeats spend them
+  // saying the same thing. A live session filled all five with one identical
+  // marker and the sentence that exists to say WHAT CHANGED said nothing.
+  const distinct = [...new Set(paths)]
+  const changed = distinct.length
+    ? `Changed paths include: ${distinct.slice(-5).join(', ')}.`
     : 'The transcript contains file mutations.'
   return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
 }
@@ -1830,9 +1900,10 @@ export function sessionOrientation(cwd) {
 
   const branch = gitBranch(root)
   if (protectedBranch(branch)) {
-    lines.push(`Branch: you are on protected '${branch}'. Edits and commits here are blocked — `
-      + `start with \`${taskBranchSuggestion(root)}\`. Navigation off it, `
-      + '`git pull --ff-only`, and scratch writes under the temp directory are all allowed.')
+    lines.push(`Branch: you are on protected '${branch}'. Edits and commits here will each draw an `
+      + `advisory — nothing stops them, but start with \`${taskBranchSuggestion(root)}\` and none of `
+      + 'them fire. Navigation off it, `git pull --ff-only`, and scratch writes under the temp '
+      + 'directory are unremarkable either way.')
   }
 
   const ready = readyTaskLines(root, repositoryRoot !== null)
@@ -1908,9 +1979,9 @@ export async function handleHook(input) {
 
     const raw = await readTranscript(input)
     if (!raw) {
-      advise('Quality gate could not read the session transcript; refusing git commit/push '
-        + 'without verifiable evidence. Nothing is wrong with your change — the gate cannot see this '
-        + `session's history. ${runTheCheckSentence(input.cwd)} then retry; if it repeats, the `
+      advise('Quality gate could not read the session transcript, so it cannot tell whether this '
+        + 'change was checked. Nothing is wrong with your change and nothing is blocked — the gate '
+        + `is blind here, not unhappy. ${runTheCheckSentence(input.cwd)} If this repeats, the `
         + 'transcript path the hook was given does not exist.')
       return
     }
@@ -1929,8 +2000,17 @@ export async function handleHook(input) {
       advise(artifactFailure)
       return
     }
-    if (state.hasMutations && !state.verifiedAfterLastMutation) {
-      advise(`Quality gate blocked git commit/push. ${missingEvidenceReason(state, input.cwd)}`)
+    // Since the last publish, for the same reason the artifact pass is: a commit
+    // that itself counts as a mutation (`git add -A && git commit …`) made the
+    // NEXT commit demand a check of the previous one, and no amount of testing
+    // could satisfy it — the loop closed on the publish itself. Reported from a
+    // live 2.3.0 session on 2026-08-26.
+    // Same rule as the completion gates: with no check to name, this has nothing
+    // to ask for.
+    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {
+      advise('Nothing has verified the work since your last change, so this commit would publish '
+        + `unchecked. ${missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))} `
+        + 'Nothing is blocked — this is what the gate sees before you commit.')
     }
     return
   }
@@ -1968,6 +2048,14 @@ export async function handleHook(input) {
   }
   if (docsOnly(state.mutationPaths) && evidenceLimited(input.last_assistant_message)) return
   if (event === 'Stop' && interimResponse(input.last_assistant_message)) return
+  // No check to name, nothing to ask for. This gate's whole question is "did you
+  // run THE check", and in a project that declares none it degrades into "run the
+  // smallest repository-owned test, lint, build, or validation command" at the
+  // end of every single turn — advice that names nothing, cannot be satisfied,
+  // and fires in repositories that never opted into this harness. Reported from
+  // redash-api on 2026-08-26: "this is useless.. repeats everywhere even when we
+  // do not work with quality harness".
+  if (!projectCheckCommand(input.cwd)) return
 
   const reason = missingEvidenceReason(state, input.cwd)
   if (event === 'TaskCompleted') {

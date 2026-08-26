@@ -210,8 +210,10 @@ export async function runShellHook(scriptName) {
   const timeoutMs = shellHookTimeoutMs()
   const executable = resolveBashExecutable()
   if (!executable) {
-    process.stderr.write('quality-harness: Git Bash was not found. Set CLAUDE_CODE_GIT_BASH_PATH to Git for Windows bin/bash.exe.\n')
-    return 2
+    process.stderr.write('quality-harness: Git Bash was not found, so the artifact gates did not '
+      + 'run. Set CLAUDE_CODE_GIT_BASH_PATH to Git for Windows bin/bash.exe. Your edit is '
+      + 'untouched — this is the harness reporting its own absence.\n')
+    return 0
   }
   const raw = await readStdin()
   const run = await runWithTimeout(executable, [scriptPath, ...hookArguments(
@@ -241,20 +243,35 @@ export async function runShellHook(scriptName) {
     process.stdout.write(run.stdout)
   }
   if (run.stderr) process.stderr.write(run.stderr)
+  // Everything below is the harness failing to run, not a finding about the
+  // edit. It used to exit 2, which BLOCKS the tool call: a Windows machine with
+  // no Git Bash, a slow gate, a crashed shell — each one refused an edit it had
+  // never even read. That is the failure the advisory rule exists to prevent,
+  // and it is worse here than anywhere else, because the user is being stopped
+  // by the harness's own breakage.
   if (run.timedOut) {
-    process.stderr.write(`quality-harness: ${scriptName} timed out after ${timeoutMs}ms\n`)
-    return 2
+    process.stderr.write(`quality-harness: ${scriptName} timed out after ${timeoutMs}ms, so the `
+      + 'gates have no verdict on this edit. Nothing is blocked.\n')
+    return 0
   }
   if (run.error) {
-    process.stderr.write(`quality-harness: could not run ${scriptName}: ${run.error.message}\n`)
-    return 2
+    process.stderr.write(`quality-harness: could not run ${scriptName}: ${run.error.message}. `
+      + 'The gates did not report; nothing is blocked.\n')
+    return 0
   }
   if (shellRuntimeCrashed(run.stderr)) {
     process.stderr.write(`quality-harness: the shell running ${scriptName} aborted before the gate `
-      + 'could report; treating the run as failed rather than clean.\n')
-    return 2
+      + 'could report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n')
+    return 0
   }
-  return Number.isInteger(run.status) ? run.status : 2
+  // The hook scripts are advisory by construction and exit 0 even when they have
+  // findings. A non-zero here is one of them breaking, which is still not a
+  // reason to refuse the user's edit.
+  if (Number.isInteger(run.status) && run.status !== 0) {
+    process.stderr.write(`quality-harness: ${scriptName} exited ${run.status}, which it should `
+      + 'never do — the gates report, they do not refuse. Nothing is blocked; please report this.\n')
+  }
+  return 0
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

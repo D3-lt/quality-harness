@@ -13,6 +13,7 @@ import {
   mutatesOnlyTempPaths,
   projectCheckCommand,
   budgetExhausted,
+  commandInsideWrappers,
   describeCommand,
   sessionOrientation,
   spawnGate,
@@ -321,7 +322,7 @@ test('branch policy follows the target repository for native edits and git -C', 
     hook_event_name: 'PreToolUse', tool_name: 'Bash',
     tool_input: { command: nestedMutation },
   })
-  assert.equal(packaged.status, 2, packaged.stderr)
+  assert.equal(packaged.status, 0, packaged.stderr)
   assert.match(packaged.stderr, /protected 'main'/)
 
   assert.equal(branchViolation({
@@ -501,6 +502,7 @@ test('shell-hook runner rejects scripts outside its fixed hook set', () => {
     path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'),
     '../untrusted.sh',
   ], { input: '{}', encoding: 'utf8' })
+  // A broken invocation, not a verdict — still refused.
   assert.equal(run.status, 2)
   assert.match(run.stderr, /unsupported shell hook/)
 })
@@ -675,7 +677,7 @@ test('command hook blocks subagent completion without later evidence', async () 
 
   const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file })
   assert.equal(run.status, 0)
-  assert.match(run.stdout, /"decision":"block"/)
+  assert.match(run.stdout, /"systemMessage"/)
 })
 
 test('commit gate uses exit 2 when this session has unverified edits', async () => {
@@ -690,7 +692,7 @@ test('commit gate uses exit 2 when this session has unverified edits', async () 
     hook_event_name: 'PreToolUse', tool_name: 'Bash',
     tool_input: { command: 'git commit -m test' }, transcript_path: file,
   })
-  assert.equal(run.status, 2)
+  assert.equal(run.status, 0)
   assert.match(run.stderr, /blocked git commit\/push/i)
 })
 
@@ -717,7 +719,7 @@ test('commit gate recognizes Git global options and executable wrappers', () => 
       hook_event_name: 'PreToolUse', tool_name: 'Bash',
       tool_input: { command }, transcript_path: missing,
     })
-    assert.equal(run.status, 2, command)
+    assert.equal(run.status, 0, command)
     assert.match(run.stderr, /refusing git commit\/push/i, command)
   }
 })
@@ -730,16 +732,16 @@ test('commit and completion gates fail closed when the transcript is unreadable'
     hook_event_name: 'PreToolUse', tool_name: 'Bash',
     tool_input: { command: 'git commit -m test' }, transcript_path: missing,
   })
-  assert.equal(commit.status, 2)
+  assert.equal(commit.status, 0)
   assert.match(commit.stderr, /refusing git commit\/push/i)
 
   const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: missing })
-  assert.equal(task.status, 2)
+  assert.equal(task.status, 0)
   assert.match(task.stderr, /completion evidence is unavailable/i)
 
   const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: missing })
   assert.equal(stop.status, 0)
-  assert.match(stop.stdout, /"decision":"block"/)
+  assert.match(stop.stdout, /"systemMessage"/)
 })
 
 test('subagent evidence gate remains active while the parent has background work', async () => {
@@ -752,7 +754,7 @@ test('subagent evidence gate remains active while the parent has background work
     hook_event_name: 'SubagentStop', agent_transcript_path: file,
     background_tasks: [{ id: 'parent-task' }],
   })
-  assert.match(run.stdout, /"decision":"block"/)
+  assert.match(run.stdout, /"systemMessage"/)
 })
 
 test('Stop stays Node-only while strict completion boundaries run artifact gates', async () => {
@@ -773,7 +775,7 @@ test('Stop stays Node-only while strict completion boundaries run artifact gates
   assert.match(subagent.stdout, /Artifact validation failed/)
 
   const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file })
-  assert.equal(task.status, 2)
+  assert.equal(task.status, 0)
   assert.match(task.stderr, /Artifact validation failed/)
 })
 
@@ -862,7 +864,7 @@ test('leaving a protected branch is allowed; overwriting its files is not', asyn
   assert.match(check('git checkout task/absent'), /protected 'main'/)
 })
 
-test('every record gate advises at the edit and blocks at the boundary', async () => {
+test('every record gate advises, at the edit and at the boundary alike', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-adr-set-'))
   const fixtures = path.join(pluginDir, 'tests', 'fixtures', 'ok')
   const docs = path.join(repo, 'docs')
@@ -896,8 +898,12 @@ test('every record gate advises at the edit and blocks at the boundary', async (
   assert.match(context.hookSpecificOutput.additionalContext, /no README\.md index/)
 
   // The commit and completion boundaries rerun the same dispatcher with no
-  // boundary argument, where the same finding still blocks.
-  assert.equal(dispatch('', task).status, 2)
+  // boundary argument. The finding arrives there too — it just does not refuse,
+  // and runArtifactGates still collects it, which is the half that matters: a
+  // finding nobody is told about is worse than one that does not stop you.
+  const atBoundary = dispatch('', task)
+  assert.equal(atBoundary.status, 0, atBoundary.stderr)
+  assert.match(atBoundary.stderr, /no README\.md index/)
   assert.match(runArtifactGates([task], repo), /no README\.md index/)
 
   // A gate that judges ONE file behaves the same way, and this is the change:
@@ -914,15 +920,20 @@ test('every record gate advises at the edit and blocks at the boundary', async (
 
   const specContext = JSON.parse(specEdit.stdout).hookSpecificOutput.additionalContext
   assert.match(specContext, /spec-verify/)
-  // The advice has to name the consequence, or it is just noise: an agent that
-  // knows the commit will fail has second thoughts, one that is merely told
-  // something is imperfect does not.
-  assert.match(specContext, /WILL block `git commit`/)
-  assert.match(specContext, /Nothing is blocked right now/)
+  // The advice has to carry the gate's own words, or it is just a mood: an agent
+  // told WHICH sections are missing can fix them, one told the artifact is
+  // imperfect cannot.
+  assert.match(specContext, /no use cases found/)
+  assert.match(specContext, /Nothing is blocked/)
+  // And the severity split survives the trip: form arrives labelled as advice.
+  assert.match(specContext, /advice\s+missing section/)
 
-  // And the teeth are still there, at the boundary where refusing actually
-  // keeps the artifact out of the repository.
-  assert.equal(dispatch('', spec).status, 2)
+  // Same at the boundary: reported, not refused. What the harness keeps is the
+  // ability to NAME a finding every time it sees one; what it gives up is the
+  // ability to stop the call. That was the owner's decision, stated twice.
+  const specBoundary = dispatch('', spec)
+  assert.equal(specBoundary.status, 0, specBoundary.stderr)
+  assert.match(specBoundary.stderr, /no use cases found/)
 })
 
 test('both ways the artifact gate can run out of budget reach the same guidance', () => {
@@ -1108,7 +1119,7 @@ test('a deletion and a commit in one command cannot hide what was removed', asyn
   })
 
   const blocked = attempt('rm -rf "$ARCHIVE_DIR" && git add -A && git commit -m cover')
-  assert.equal(blocked.status, 2)
+  assert.equal(blocked.status, 0)
   assert.match(blocked.stderr, /deletes by an unresolved path and commits in the same breath/)
 
   // Named explicitly, the repository can answer, so it is allowed through here.
@@ -1195,6 +1206,89 @@ test('reported: a Windows path is a path, not an escape sequence', () => {
     assert.ok(bashDeletionMutationPaths('rm -rf build/*', '/repo', platform)
       .includes('<Unresolved Bash deletion>'), platform)
   }
+})
+
+test('no finding is ever hidden: every advisory surfaces as a systemMessage', async () => {
+  // The owner's rule, stated three times: never block, never hide. The advisory
+  // conversion nearly violated the second half — exit-0 stderr alone is surfaced
+  // only in transcript view, so a finding written there reaches nobody. Every
+  // advisory therefore emits a systemMessage, which the session shows regardless
+  // of exit code, alongside stderr for the transcript.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-visible-'))
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+  ]))
+
+  // A completion boundary with unverified edits: exit 0, and the finding is in
+  // BOTH channels.
+  const completion = runLifecycleHook({
+    hook_event_name: 'TaskCompleted', transcript_path: file, cwd: repo,
+  })
+  assert.equal(completion.status, 0, completion.stderr)
+  assert.match(completion.stdout, /"systemMessage"/, 'the session must see it')
+  assert.match(completion.stderr, /\S/, 'the transcript must see it')
+
+  // The commit boundary, same contract.
+  const commit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+    transcript_path: file, tool_input: { command: 'git commit -m x' },
+  })
+  assert.equal(commit.status, 0, commit.stderr)
+  assert.match(commit.stdout, /"systemMessage"/)
+
+  // And a clean state stays silent — guidance, not noise.
+  const clean = await mkdtemp(path.join(testTmp, 'quality-visible-clean-'))
+  const cleanFile = path.join(clean, 'agent.jsonl')
+  await writeFile(cleanFile, transcript([
+    toolUse('t1', 'Bash', { command: 'npm run test' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  const quiet = runLifecycleHook({
+    hook_event_name: 'TaskCompleted', transcript_path: cleanFile, cwd: clean,
+  })
+  assert.equal(quiet.status, 0)
+  assert.doesNotMatch(quiet.stdout, /"systemMessage"/)
+})
+
+test('reported: a build in a container is a build, not a deletion', () => {
+  // depozitas_laravel, 2026-08-26. `docker compose run --rm --no-deps node sh -c
+  // 'cd /var/www && npm run build'` was recorded as a MUTATION, so every build
+  // demanded another build — a closed loop the session escaped only by running
+  // npm ci (37 packages) to make a native build possible.
+  //
+  // `--rm` was read as the `rm` command: \b treats a hyphen as a word boundary.
+  const containerBuild = "docker compose run --rm --no-deps node sh -c 'cd /var/www && npm run build'"
+  assert.equal(isPotentialMutationCommand(containerBuild), false, containerBuild)
+  assert.equal(isPotentialMutationCommand('docker compose run --rm app npm run build'), false)
+  // The same trap sits under every mutator word that is also a flag.
+  for (const flag of ['--rm', '--move', '--copy', '--install', '--patch', '--link']) {
+    assert.equal(isPotentialMutationCommand(`some-tool ${flag} thing`), false, flag)
+  }
+  // And a real one is still real.
+  assert.equal(isPotentialMutationCommand('rm -rf build'), true)
+  assert.equal(isPotentialMutationCommand('docker compose exec -T app rm -rf storage'), true)
+
+  // The other half: nothing containerised counted as validation, so a project
+  // whose tests run in a container produced no evidence at all — 286 passing
+  // tests, and the completion gate still asking for a check.
+  assert.equal(isValidationCommand('docker compose exec -T app php artisan test'), true)
+  assert.equal(isValidationCommand(containerBuild), true)
+  assert.equal(isValidationCommand('docker exec -u root ctr npm run test'), true)
+
+  // A wrapper judges what it runs — it does not launder what it runs.
+  assert.equal(isValidationCommand('docker compose exec -T app rm -rf storage'), false)
+  assert.equal(isValidationCommand('docker compose exec -T app php artisan migrate'), false)
+
+  // Two runners that were missing outright, container or not.
+  assert.equal(isValidationCommand('php artisan test'), true)
+  assert.equal(isValidationCommand('./vendor/bin/phpunit'), true)
+  assert.equal(isValidationCommand('php artisan migrate'), false)
+
+  // Only one layer of each wrapper is peeled: guessing deeper is how a wrapper
+  // starts hiding a mutation inside a validation.
+  assert.equal(commandInsideWrappers('docker compose exec -T app php artisan test'), 'php artisan test')
+  assert.equal(commandInsideWrappers('npm run test'), 'npm run test')
 })
 
 test('reported: a long session can still commit', async () => {
@@ -1323,7 +1417,7 @@ test('the gate names the check this project owns instead of asking for one', asy
     hook_event_name: 'PreToolUse', tool_name: 'Bash',
     tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: node,
   })
-  assert.equal(run.status, 2)
+  assert.equal(run.status, 0)
   assert.match(run.stderr, /Run `pnpm test` \(this project's own check\)/)
 })
 
@@ -1643,14 +1737,14 @@ test('EVIDENCE-LIMITED opens the completion gate only with a stated reason', asy
   // Negative control first: without the escape this state must block, or every
   // assertion below is about a gate that was open anyway.
   const blocked = stop('Done.')
-  assert.match(blocked.stdout, /"decision":"block"/)
+  assert.match(blocked.stdout, /"systemMessage"/)
 
   assert.equal(stop('EVIDENCE-LIMITED: no runtime is installed here').stdout, '')
 
   // A reason short enough to be a shrug is not a reason. `EVIDENCE-LIMITED: x`
   // would otherwise be a two-character bypass of the whole gate.
-  assert.match(stop('EVIDENCE-LIMITED: x').stdout, /"decision":"block"/)
-  assert.match(stop('EVIDENCE-LIMITED:').stdout, /"decision":"block"/)
+  assert.match(stop('EVIDENCE-LIMITED: x').stdout, /"systemMessage"/)
+  assert.match(stop('EVIDENCE-LIMITED:').stdout, /"systemMessage"/)
 })
 
 test('EVIDENCE-LIMITED does not release a code change, however well explained', async () => {
@@ -1666,7 +1760,7 @@ test('EVIDENCE-LIMITED does not release a code change, however well explained', 
     hook_event_name: 'Stop', transcript_path: file, cwd: dir,
     last_assistant_message: 'EVIDENCE-LIMITED: the integration environment is unreachable',
   })
-  assert.match(run.stdout, /"decision":"block"/)
+  assert.match(run.stdout, /"systemMessage"/)
 })
 
 test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {
@@ -1683,9 +1777,9 @@ test('an interim answer defers the gate at Stop, and never at TaskCompleted', as
   // TaskCompleted is a claim that the work is finished. "I am blocked" cannot
   // both be true and finish the task, so the escape must not reach here.
   const claimed = at('TaskCompleted', 'I am blocked on which schema you want.')
-  assert.equal(claimed.status, 2)
+  assert.equal(claimed.status, 0)
   assert.match(claimed.stderr, /Changed paths include:.*notes\.md/)
 
   // And a plain sign-off is not an interim answer at either boundary.
-  assert.match(at('Stop', 'All done, shipped it.').stdout, /"decision":"block"/)
+  assert.match(at('Stop', 'All done, shipped it.').stdout, /"systemMessage"/)
 })

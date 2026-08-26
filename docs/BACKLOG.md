@@ -787,6 +787,30 @@ resolving `$W` disarms the sentinel — so only assignments this command made, e
 same command, are trusted. `expandShellToken` takes a `fromEnvironment` flag for exactly
 that, and `rm -rf "$HOME/thing"` still reports unresolved.
 
+**The sticky sentinel was inverted, and is now gone.** Three independent sessions were
+blocked by it on 2026-08-26 — this repository, a Webitel spec repo, and agentsmemory — all
+with the same message and all false. Measured rather than argued:
+
+| shape | armed the rule? | already checked? |
+|---|---|---|
+| `rm -rf "$X" && git commit` — one command | **no** | **no** — the hook runs before the deletion exists |
+| `rm -rf "$X"` … later `git commit` | **yes** | **yes** — that commit's own gate ran `deletedTrackedPaths` |
+
+Both land at the same tool-use position in the one-command case, and the comparison was
+strict (`lastPublish > lastUnresolvedDeletion`), so the shape the rule was written for never
+armed it. Meanwhile a deletion followed by a separate commit armed it for the rest of the
+session — even though that commit ran this very hook first, and `runArtifactGates` resolves
+the deletion through `deletedTrackedPaths` while HEAD can still answer. **It fired only on
+deletions that had already been checked, and never on the one that had not.**
+
+It had a test. The test asserted the inverted semantics, which is why nobody noticed: it
+used a deletion plus a *separate* commit and asserted that blocking was correct.
+
+The transcript rule is removed. The genuinely uncovered case — a command that deletes by an
+unresolved path and publishes inside itself — is now checked directly against the incoming
+command at `PreToolUse`, before the transcript is even read, so it holds when the transcript
+is unavailable too.
+
 **Open — `VAR=$(mktemp -d …)` is still unresolved, and correctly so.** Six commands in this
 session's transcript arm the sentinel that way. The path genuinely is not knowable from the
 text, so naming one would be a fabrication. The right fix is not in the deletion resolver

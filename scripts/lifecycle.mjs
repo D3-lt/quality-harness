@@ -1375,10 +1375,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
     // window and then EVERY commit failed, whatever was staged. Reported from a
     // live 2.1.7 session on 2026-08-26 and reproduced here.
     mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),
-    // A commit landing after an unresolved deletion rewrites HEAD, so the
-    // git-diff resolution below it can no longer see what was removed — the
-    // sentinel must fail closed instead of being laundered by the commit.
-    publishAfterUnresolvedDeletion: lastUnresolvedDeletion >= 0 && lastPublish > lastUnresolvedDeletion,
+    lastUnresolvedDeletion,
   }
 }
 
@@ -1777,6 +1774,32 @@ export async function handleHook(input) {
     if (input.tool_name !== 'Bash') return
     const command = input.tool_input?.command
     if (!isGitPublishCommand(command)) return
+
+    // The one case the transcript cannot cover: a command that deletes by an
+    // unresolved path AND publishes, in that order, inside itself. This hook runs
+    // BEFORE the command does, so the deletion is not in the transcript yet and
+    // deletedTrackedPaths would answer about a tree the command has not touched.
+    // Afterwards HEAD has moved and the answer is gone.
+    //
+    // The rule this replaces asked the transcript whether a publish had landed
+    // after an unresolved deletion. Measured 2026-08-26, that is exactly
+    // backwards: `rm -rf "$X" && git commit` in ONE command did NOT arm it —
+    // both land at the same tool-use position and the comparison was strict —
+    // while a deletion followed by a SEPARATE commit did, on every commit for the
+    // rest of the session. But a separate commit runs this hook first, and
+    // runArtifactGates resolves the deletion through deletedTrackedPaths while
+    // HEAD still answers. So the old rule fired only on deletions that had
+    // already been checked, and never on the one that had not. It blocked real
+    // work in three different sessions and caught nothing.
+    if (isGitPublishCommand(command)
+        && bashDeletionMutationPaths(command, input.cwd).includes(UNRESOLVED_DELETION_MUTATION)) {
+      blockWithExit('This command deletes by an unresolved path and commits in the same breath, so '
+        + 'nothing can establish what was removed: before it runs the deletion has not happened, and '
+        + 'after it HEAD no longer shows the difference. Name the deleted paths explicitly, or delete '
+        + 'and commit as two commands — a separate commit is checked against the repository.')
+      return
+    }
+
     const raw = await readTranscript(input)
     if (!raw) {
       blockWithExit('Quality gate could not read the session transcript; refusing git commit/push '
@@ -1786,12 +1809,6 @@ export async function handleHook(input) {
       return
     }
     const state = analyzeTranscript(raw, input.cwd)
-    if (state.publishAfterUnresolvedDeletion) {
-      blockWithExit('A Bash deletion used an unresolved path and a commit has already landed since, '
-        + 'so the repository can no longer say what was removed. The facts-first gate cannot '
-        + 'determine whether an ADR archive was affected; name the deleted paths explicitly.')
-      return
-    }
     // The PreToolUse hook has a 60s deadline (hooks.json) and a hook killed on
     // its deadline blocks nothing, so the artifact pass gets a window that fits
     // inside it.
@@ -1825,14 +1842,6 @@ export async function handleHook(input) {
     return
   }
   const state = analyzeTranscript(raw, input.cwd)
-  if (event !== 'Stop' && state.publishAfterUnresolvedDeletion) {
-    const reason = 'A Bash deletion used an unresolved path and a commit has already landed since, '
-      + 'so the repository can no longer say what was removed. The facts-first gate cannot '
-      + 'determine whether an ADR archive was affected; name the deleted paths explicitly.'
-    if (event === 'TaskCompleted') blockWithExit(reason)
-    else emitJson({ decision: 'block', reason })
-    return
-  }
   if (event !== 'Stop') {
     const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
     if (artifactFailure) {

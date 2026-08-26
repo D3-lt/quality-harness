@@ -1076,34 +1076,33 @@ test('navigation refreshes the tree without counting as authored work', async ()
   assert.match(check('git pull --rebase'), /protected 'main'/)
 })
 
-test('a commit cannot launder an unresolved deletion, and the gate window fails closed', async () => {
-  // Landing a commit after an unresolved deletion rewrites the HEAD the
-  // sentinel would be resolved against, so the resolution must refuse.
-  const laundered = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: 'rm -rf "$ARCHIVE_DIR"' }), toolResult('b1'),
-    toolUse('b2', 'Bash', { command: 'git add -A && git commit -m cover' }), toolResult('b2'),
-  ]), '/repo')
-  assert.equal(laundered.publishAfterUnresolvedDeletion, true)
-  const honest = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: 'git commit -m early' }), toolResult('b1'),
-    toolUse('b2', 'Bash', { command: 'rm -rf "$ARCHIVE_DIR"' }), toolResult('b2'),
-  ]), '/repo')
-  assert.equal(honest.publishAfterUnresolvedDeletion, false)
-
-  const dir = await mkdtemp(path.join(testTmp, 'quality-launder-'))
-  const file = path.join(dir, 'main.jsonl')
+test('a deletion and a commit in one command cannot hide what was removed', async () => {
+  // The one shape nothing else can check. This hook runs BEFORE the command, so
+  // the deletion has not happened and deletedTrackedPaths would answer about an
+  // untouched tree; afterwards HEAD has moved and the answer is gone.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-launder-'))
+  const file = path.join(repo, 'main.jsonl')
   await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: 'rm -rf "$ARCHIVE_DIR"' }), toolResult('b1'),
-    toolUse('b2', 'Bash', { command: 'git add -A && git commit -m cover' }), toolResult('b2'),
     toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
     toolResult('t1', false, 'tests 1\npass 1'),
   ]))
-  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file })
-  assert.equal(task.status, 2)
-  assert.match(task.stderr, /commit has already landed since/)
+  const attempt = command => runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+    transcript_path: file, tool_input: { command },
+  })
 
-  // The artifact pass must never outlive the hook it runs inside: an exhausted
-  // window is a blocking failure, not a silent skip.
+  const blocked = attempt('rm -rf "$ARCHIVE_DIR" && git add -A && git commit -m cover')
+  assert.equal(blocked.status, 2)
+  assert.match(blocked.stderr, /deletes by an unresolved path and commits in the same breath/)
+
+  // Named explicitly, the repository can answer, so it is allowed through here.
+  assert.notEqual(attempt('rm -rf docs/adr-archive && git commit -m x').status, 2)
+  assert.notEqual(attempt('git commit -m x').status, 2)
+})
+
+test('the artifact pass never outlives the hook it runs inside', async () => {
+  // An exhausted window is a blocking failure, not a silent skip: an unread
+  // artifact is not a clean one.
   const repo = await mkdtemp(path.join(testTmp, 'quality-window-'))
   const adr = path.join(repo, 'ADR-001-window.md')
   await writeFile(adr, ['# ADR-001: Window', '', '## Existing Primitives Audit', '',
@@ -1111,6 +1110,97 @@ test('a commit cannot launder an unresolved deletion, and the gate window fails 
   const exhausted = runArtifactGates([adr], repo, 500)
   assert.match(exhausted, /window was exhausted before/)
   assert.match(exhausted, /Artifact validation failed/)
+})
+
+// --- the false blocks users actually reported -------------------------------
+//
+// Each of these is a shape that stopped real work in a real session. They are
+// written as the reports arrived rather than as tidy minimal cases, because the
+// tidy version is what passed while the real one failed.
+
+test('reported: a long session can still commit', async () => {
+  // Webitel, 2026-08-26. An ADR/spec session made dozens of edits; every commit
+  // re-gated the whole accumulated list against a fixed 45s window, so once the
+  // per-file cost crossed it EVERY commit failed, naming a different file as the
+  // cutoff each time. Three retries, three different files.
+  const entries = []
+  for (let index = 0; index < 40; index += 1) {
+    entries.push(toolUse(`e${index}`, 'Write', { file_path: `/repo/docs/specs/spec-${index}.md` }),
+      toolResult(`e${index}`))
+  }
+  entries.push(toolUse('c1', 'Bash', { command: 'git commit -m "first batch"' }), toolResult('c1'))
+  entries.push(toolUse('last', 'Write', { file_path: '/repo/docs/specs/current.md' }), toolResult('last'))
+
+  const state = analyzeTranscript(transcript(entries))
+  assert.ok(state.mutationPaths.length > 40, 'the session still knows everything it touched')
+  // But the commit gates one file: the one being published.
+  assert.deepEqual(state.mutationPathsSince(state.lastPublish), ['/repo/docs/specs/current.md'])
+})
+
+test('reported: the nag says what changed in a form a person can read', async () => {
+  // depozitas_laravel, 2026-08-26. The Stop message spliced 120 raw characters of
+  // each command into one sentence, so a heredoc put newlines and a mid-token
+  // truncation into the text that exists to say WHAT CHANGED:
+  //   <Bash mutation: cd /repo
+  //   python3 - <<'PY'
+  //   import io
+  //   p="tests/Unit/Notifications/CustomerEmailTest.p>
+  const dir = await mkdtemp(path.join(testTmp, 'quality-nag-'))
+  const file = path.join(dir, 'agent.jsonl')
+  const heredoc = 'cd /repo\npython3 - <<\'PY\'\nimport pathlib\n'
+    + 'pathlib.Path("tests/Unit/Notifications/CustomerEmailTest.php").write_text("x")\nPY'
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: heredoc }), toolResult('b1'),
+  ]))
+  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  const message = `${run.stdout}${run.stderr}`
+  assert.match(message, /Changed paths include/)
+  // The reader must get one line per thing changed. A raw newline inside a
+  // marker is what made the report unreadable.
+  const markers = message.match(/<Bash mutation: [^>]*>/g) ?? []
+  assert.ok(markers.length > 0, message)
+  for (const marker of markers) assert.doesNotMatch(marker, /\n/, marker)
+})
+
+test('reported: cleaning up a scratch directory does not brick the session', async () => {
+  // This repository, 2026-08-26, mid-session. `W=<temp>; rm -rf "$W"` armed the
+  // unresolved-deletion sentinel, and because a publish after one failed closed,
+  // committing was blocked for the rest of the session. Two commits had to be
+  // run by hand through the `!` prefix.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-scratch-'))
+  const scratch = path.join(os.tmpdir(), 'quality-scratch-target')
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: `W=${scratch}\nrm -rf "$W"\nmkdir -p "$W"` }), toolResult('b1'),
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'notes.md') }), toolResult('e1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m one' }), toolResult('c1'),
+  ]))
+
+  // The scratch deletion resolves, so nothing is unresolved and nothing sticks.
+  assert.deepEqual(bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo), [scratch])
+  const state = analyzeTranscript(await readFile(file, 'utf8'), repo)
+  assert.ok(!state.mutationPaths.includes('<Unresolved Bash deletion>'))
+})
+
+test('reported: a deletion in one command does not block every commit after it', async () => {
+  // The rule that did this was inverted. Measured 2026-08-26: `rm -rf "$X" &&
+  // git commit` in ONE command did NOT arm it — both land at the same tool-use
+  // position and the comparison was strict — while a deletion followed by a
+  // SEPARATE commit did, on every commit for the rest of the session. A separate
+  // commit runs the PreToolUse hook first, and runArtifactGates resolves the
+  // deletion through deletedTrackedPaths while HEAD still answers. So it fired
+  // only on deletions that had already been checked.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-sticky-'))
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: 'rm -rf "$ARCHIVE_DIR"' }), toolResult('b1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m one' }), toolResult('c1'),
+    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  // The completion boundary must not refuse the session outright.
+  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file, cwd: repo })
+  assert.doesNotMatch(`${task.stdout}${task.stderr}`, /commit has already landed since/)
 })
 
 test('the gate names the check this project owns instead of asking for one', async () => {

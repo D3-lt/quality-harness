@@ -377,6 +377,42 @@
       ],
       "from": "  \"$gate\" \"$rc\" \"$f\" \"$out\" >&2\nexit 2",
       "to": "  \"$gate\" \"$rc\" \"$f\" \"$out\" >&2\nexit 0"
+    },
+    {
+      "label": "severity: advice does not block",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    def advise(self, message):\n        self.advice.append(message)",
+      "to": "    def advise(self, message):\n        self.append(message)"
+    },
+    {
+      "label": "severity: a placeholder still blocks",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "errors.append(f\"{adr_path.name}: **Served-path change:** is still the template placeho",
+      "to": "errors.advise(f\"{adr_path.name}: **Served-path change:** is still the template placeho"
+    },
+    {
+      "label": "severity: an empty section still blocks",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "errors.append(f\"{adr_path.name}: Alternatives Considered has no entries",
+      "to": "errors.advise(f\"{adr_path.name}: Alternatives Considered has no entries"
+    },
+    {
+      "label": "severity: advice is reported, not swallowed",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for a in errors.advice:\n        print(f\"  advice: {a}\")",
+      "to": "    pass"
     }
   ]
 }

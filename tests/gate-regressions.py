@@ -553,6 +553,61 @@ def main():
                                    "| T1 | probe | pending |", errors)
     assert errors == [], errors
 
+    # --- severity: what blocks, and what only advises ---------------------
+
+    # The line is between form and content, and both halves must hold or the
+    # distinction is decoration. Absent FORM advises; absent CONTENT, an unfilled
+    # placeholder, a fabricated claim and a self-contradicting record all block.
+    with tempfile.TemporaryDirectory() as tmp:
+        adr = Path(tmp) / "ADR-001-probe.md"
+
+        def findings(text):
+            adr.write_text(text, encoding="utf-8")
+            errors = lint.Findings()
+            lint.check_adr(adr, errors)
+            return errors, errors.advice
+
+        complete = (
+            "# ADR-001: Probe\n\n"
+            "**Status:** Accepted\n"
+            "**Spec:** None — no spec stage\n"
+            "**Served-path change:** None — this decision changes no served path.\n\n"
+            "## Existing Primitives Audit\n\nNothing existing covers it.\n\n"
+            "## Decision\n\nDo the thing.\n\n"
+            "## Alternatives Considered\n\n- Doing nothing — rejected, the bug persists.\n\n"
+            "## Consequences\n\nThe thing is done.\n\n"
+            "## Wiring & Contract Changes\n\nNone.\n\n"
+            "## Out of Scope\n\n- The other thing (deferred: ADR-002)\n")
+        errors, advice = findings(complete)
+        assert errors == [], errors
+
+        # FORM: the header is gone. The record still says what it decided.
+        errors, advice = findings(complete.replace("**Status:** Accepted\n", ""))
+        assert errors == [], errors
+        assert any("Status" in a for a in advice), advice
+
+        # CONTENT: the section is there and says nothing.
+        errors, _ = findings(complete.replace(
+            "- Doing nothing — rejected, the bug persists.\n", ""))
+        assert any("Alternatives Considered" in e for e in errors), errors
+
+        # PLACEHOLDER: a document presenting as a decision while containing none.
+        # Moving this to advice let the bundled adr-template.md pass outright.
+        errors, _ = findings(complete.replace(
+            "**Served-path change:** None — this decision changes no served path.",
+            "**Served-path change:** <one sentence>"))
+        assert any("placeholder" in e for e in errors), errors
+
+        # A POINTER THAT DOES NOT RESOLVE contradicts the record.
+        errors, _ = findings(complete.replace(
+            "**Spec:** None — no spec stage", "**Spec:** docs/specs/nowhere.md"))
+        assert any("does not exist" in e for e in errors), errors
+
+    # Advice never changes the verdict, which is the whole point of the channel.
+    empty = lint.Findings()
+    empty.advise("shape")
+    assert not empty and empty.advice == ["shape"]
+
     # --- spec-verify's stack detection, which decides which runner owns a test --
 
     assert spec_gate.split_binding("tests/api.py::test_login") == ("tests/api.py", "test_login")

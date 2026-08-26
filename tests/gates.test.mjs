@@ -168,6 +168,46 @@ test('a form finding is reported to the reader without failing the record', () =
   rmSync(temp, { recursive: true, force: true })
 })
 
+test('an inline task claiming done is told nothing can prove it', () => {
+  // The skill used to recommend this shape for small work: "≤3 tasks: inline
+  // numbered list inside the ADR. No `tasks/` directory." That routed small work
+  // into the one place the anti-fabrication guarantee does not apply — adr-verify
+  // appends its Verification Log to a TASK FILE, and with no tasks directory
+  // adr-lint runs ADR-level checks only. Reported from a live session on
+  // 2026-08-26 whose author kept the task files anyway and wrote down why.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-inline-'))
+  const adr = join(temp, 'ADR-001-inline.md')
+  const base = [
+    '# ADR-001: Inline', '',
+    '**Status:** Accepted',
+    '**Spec:** None — no spec stage',
+    '**Served-path change:** None — this decision changes no served path.', '',
+    '## Existing Primitives Audit', '', 'Nothing existing covers it.', '',
+    '## Decision', '', 'Do the thing.', '',
+    '## Alternatives Considered', '', '- Doing nothing — rejected, the bug persists.', '',
+    '## Consequences', '', 'The thing is done.', '',
+    '## Wiring & Contract Changes', '', 'None.', '',
+    '## Out of Scope', '', '- The other thing (deferred: ADR-002)', '',
+  ]
+
+  writeFileSync(adr, [...base, '## Tasks', '', '1. T1 — rewrite the guard. **Status:** done', ''].join('\n'))
+  const claimed = run('adr-lint', [adr], temp)
+  // Advice, not a failure: the record is not lying about anything this gate can
+  // see, and refusing an ADR for its layout is what teaches people to stop
+  // running the gate. But saying nothing is how the hole stayed open.
+  expectExit(claimed, 0, 'layout is not a lie')
+  assert.match(claimed.stdout, /^\s+advice: .*inline task\(s\) marked done/m, claimed.stdout)
+  assert.match(claimed.stdout, /nowhere to write/)
+
+  // An ADR with no such claim is left alone — the advice must not fire on layout
+  // alone, or it becomes noise on every ADR without a tasks directory.
+  writeFileSync(adr, base.join('\n'))
+  const quiet = run('adr-lint', [adr], temp)
+  expectExit(quiet, 0, quiet.stdout)
+  assert.doesNotMatch(quiet.stdout, /inline task/)
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('every gate names an encoding for child process output', () => {
   // The strict env above only catches sites the fixture run actually reaches;
   // this reaches the rest statically, so a text-mode call added on a path no

@@ -37,7 +37,7 @@ Ask one concise question for anything missing:
 - Topic and trigger: what changes, why now.
 - Owner.
 - ADR number and project ADR path; match existing repo naming.
-- Task scale: inline tasks for small work, `tasks/` for larger work.
+- Task scale: always a `tasks/` directory; the wave table and DAG appear as the count grows.
 
 ## Workflow
 
@@ -133,7 +133,16 @@ detour or weakens the proof.
 
 ## Task Layout by Size
 
-- **≤3 tasks**: inline numbered list inside the ADR. No `tasks/` directory.
+- **≤3 tasks**: `tasks/` directory with task files and a flat `README.md`, same as 4–5. It is
+  three small files, and it is the only shape the evidence chain can cover.
+
+  This used to say "inline numbered list inside the ADR, no `tasks/` directory", and that
+  advice routed small work into the one place the anti-fabrication guarantee does not apply.
+  `adr-verify` appends its Verification Log and Mutation Log to a TASK FILE; without one
+  there is nowhere for tool-written evidence to land. `adr-lint` runs ADR-level checks only
+  when there is no tasks directory, so `done_task_ids` and `evidenced_task_ids` read an index
+  that does not exist. Measured 2026-08-26: an ADR with three inline tasks all marked
+  **done**, and no evidence anywhere, passes `adr-lint` with exit 0.
 - **4–5 tasks**: `tasks/` directory with task files + a flat `README.md` listing tasks in execution order with `Depends-on` per task. Skip the ASCII DAG diagram.
 - **>5 tasks**: full `tasks/README.md` with wave table (parallel-safe groups); ASCII DAG only when it clarifies complex branching (matches the template).
 

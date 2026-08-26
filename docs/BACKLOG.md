@@ -869,10 +869,25 @@ ADR that decided nothing pass; that is content, not form. Both are pinned now, i
 directions, and the mutation that swallows advice instead of printing it is pinned too —
 advice nobody sees is the same as suppressing the finding.
 
-**Still open: the other four gates.** `adr-retire-check` (33), `spec-verify` (15),
-`arch-lint` (14) and `postmortem-verify` (9) have no severity yet. The pattern is
-established and mechanical to extend; each wants the same form-versus-content pass over its
-own findings, which is a judgement per finding rather than a code change.
+**Done — all five gates.** The split, and what it says about each gate:
+
+| gate | advises | blocks | what that shape means |
+|---|---:|---:|---|
+| `adr-lint` | 12 | 29 | a record and its task set; most of it is claims |
+| `postmortem-verify` | 6 | 3 | a document validator — mostly form |
+| `spec-verify` | 5 | 10 | grammar advises, an unresolvable citation does not |
+| `arch-lint` | 3 | 11 | nearly every rule asks whether a claimed check EXISTS |
+| `adr-retire-check` | 3 | 30 | a contract checker; a link or digest that fails is not form |
+
+A gate that turns out to be mostly blocking is not a failure of the exercise. `arch-lint`
+and `adr-retire-check` exist to ask whether something written down as evidence has anything
+behind it, and that question has no advisory answer.
+
+**A third clause emerged, and a test found it.** Identity blocks. Making
+`no YAML frontmatter block` advisory let `postmortem-verify` accept an ADR template as a
+postmortem — a document the gate cannot recognise as the kind of record it validates is not
+a form problem. That joins the two the first pass found: an unfilled placeholder blocks,
+and a section present and EMPTY blocks.
 
 ## Verification claims worth re-running after any of the above
 

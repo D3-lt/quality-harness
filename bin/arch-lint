@@ -88,6 +88,28 @@ def repo_roots(doc):
     return roots
 
 
+class Findings(list):
+    """Findings that block, and a second channel for the ones that should not.
+
+    Most of this gate blocks, and that is not an oversight: nearly every rule
+    here asks whether a claimed check EXISTS and can fail. A rule row citing a
+    path that is not in the repo, a symbol that is nowhere, a test with no
+    failure call, or an escaped `\\|` that matches nothing in a shell — each is a
+    check written down as evidence with nothing behind it, which is the failure
+    this gate was built for.
+
+    What advises is form: a header or section that is ABSENT. The line is between
+    form and content — a section present and EMPTY is content.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.advice = []
+
+    def advise(self, message):
+        self.advice.append(message)
+
+
 def vacuous_gate_errors(label, cell, roots):
     """Static vacuous-pass detection for one check cell / gate command."""
     errs = []
@@ -294,14 +316,14 @@ def main():
         print(f"file not found: {path}")
         sys.exit(1)
     text = path.read_text(errors="replace", encoding="utf-8")
-    errors = []
+    errors = Findings()
 
     if not re.search(r"^\*\*Status:\*\*", text, re.M):
-        errors.append("no **Status:** line")
+        errors.advise("no **Status:** line")
     roots = repo_roots(path)
     gm = re.search(r"^\*\*Gate command:\*\*\s*(`[^`]+`)", text, re.M)
     if not gm:
-        errors.append("no **Gate command:** line with a backticked command")
+        errors.advise("no **Gate command:** line with a backticked command")
     else:
         errors.extend(vacuous_gate_errors("Gate command", gm.group(1), roots))
 
@@ -327,7 +349,7 @@ def main():
     secs = sections_of(text)
     for s in ALL_SECTIONS:
         if s not in secs:
-            errors.append(f"missing section ## {s}")
+            errors.advise(f"missing section ## {s}")
 
     mm = data_rows(secs.get("Module Map", []))
     mm = [r for r in mm if "`" in r]
@@ -371,6 +393,9 @@ def main():
     print(f"[{status}] {path}")
     for e in errors:
         print(f"  {e}")
+    # Printed on a PASS too: acceptable and finished are different things.
+    for a in errors.advice:
+        print(f"  advice: {a}")
     sys.exit(1 if errors else 0)
 
 

@@ -413,6 +413,51 @@
       ],
       "from": "    for a in errors.advice:\n        print(f\"  advice: {a}\")",
       "to": "    pass"
+    },
+    {
+      "label": "severity: postmortem frontmatter is identity",
+      "file": "bin/postmortem-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        out.append(\"no YAML frontmatter block\")",
+      "to": "        out.advise(\"no YAML frontmatter block\")"
+    },
+    {
+      "label": "severity: postmortem advice is reported",
+      "file": "bin/postmortem-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        for a in errs.advice:\n            print(f\"  advice: {a}\")",
+      "to": "        pass"
+    },
+    {
+      "label": "severity: an arch placeholder still blocks",
+      "file": "bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "errors.append(f\"{s}: check cell is an unfilled template placeholder",
+      "to": "errors.advise(f\"{s}: check cell is an unfilled template placeholder"
+    },
+    {
+      "label": "severity: the seal still blocks",
+      "file": "bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "errors.append(f\"{adr_id}: SHA-256 does not match the frozen decision unit",
+      "to": "errors.advise(f\"{adr_id}: SHA-256 does not match the frozen decision unit"
+    },
+    {
+      "label": "severity: a retirement date advises",
+      "file": "bin/adr-retire-check",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "errors.advise(f\"{adr_id}: Retired must be YYYY-MM-DD",
+      "to": "errors.append(f\"{adr_id}: Retired must be YYYY-MM-DD"
     }
   ]
 }

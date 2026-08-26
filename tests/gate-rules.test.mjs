@@ -102,30 +102,40 @@ test('every postmortem-verify rule has a case that makes it fire', () => {
   assert.equal(run('postmortem-verify', [write(POSTMORTEM)]).status, 0,
     run('postmortem-verify', [write(POSTMORTEM)]).stdout)
 
+  // Each rule still has a case that makes it fire — that is what this test is
+  // for. What changed is the CHANNEL. Form advises: absent frontmatter, a
+  // heading that is not there. Content blocks: a section present and empty
+  // states nothing, and a Fix with no before/after shows no fix.
   const cases = [
-    ['date not YYYY-MM-DD', t => t.replace('date: 2026-08-25', 'date: 25 Aug 2026'), /date missing or not YYYY-MM-DD/],
-    ['category off the enum', t => t.replace('category: logic-error', 'category: vibes'), /category missing or not one of/],
-    ['severity off the enum', t => t.replace('severity: medium', 'severity: quite bad'), /severity missing or not one of/],
-    ['files_changed empty', t => t.replace('files_changed:\n  - bin/adr-lint', 'files_changed:'), /files_changed missing or empty/],
-    ['tags not list form', t => t.replace('tags: [gate, evidence]', 'tags: gate, evidence'), /tags missing or not/],
-    ['missing section', t => t.replace('## Lesson', '## Takeaway'), /missing section ## Lesson/],
-    ['empty section', t => t.replace('A check that iterates an empty list reports success.\n', ''), /section ## Lesson is empty/],
+    ['advise', 'date not YYYY-MM-DD', t => t.replace('date: 2026-08-25', 'date: 25 Aug 2026'), /date missing or not YYYY-MM-DD/],
+    ['advise', 'category off the enum', t => t.replace('category: logic-error', 'category: vibes'), /category missing or not one of/],
+    ['advise', 'severity off the enum', t => t.replace('severity: medium', 'severity: quite bad'), /severity missing or not one of/],
+    ['advise', 'files_changed empty', t => t.replace('files_changed:\n  - bin/adr-lint', 'files_changed:'), /files_changed missing or empty/],
+    ['advise', 'tags not list form', t => t.replace('tags: [gate, evidence]', 'tags: gate, evidence'), /tags missing or not/],
+    ['advise', 'missing section', t => t.replace('## Lesson', '## Takeaway'), /missing section ## Lesson/],
+    // Identity, not form: without frontmatter this is not a postmortem at all.
+    ['block', 'no frontmatter at all', t => t.replace(/\A?---\ndate[\s\S]*?---\n/, ''), /no YAML frontmatter/],
+    ['block', 'empty section', t => t.replace('A check that iterates an empty list reports success.\n', ''), /section ## Lesson is empty/],
     // `### Beforehand` would still satisfy this rule — it is a substring check.
     // Not chased: the fence count is the real guard and no real document is
     // written that way. Removing the heading is the case worth asserting.
-    ['no Before/After fences', t => t.replace('### Before\n', '### Old\n'), /### Before and ### After/],
-    ['Root Cause unfenced', t => t.replace(
+    ['block', 'no Before/After fences', t => t.replace('### Before\n', '### Old\n'), /### Before and ### After/],
+    ['block', 'Root Cause unfenced', t => t.replace(
       '```python\nm = re.match(r"^\\[?(T\\d+)\\b", cells[0], re.I)\n```\n\n## Investigation',
       'The status scan was wrong.\n\n## Investigation'), /Root Cause must include the offending code/],
-    ['no frontmatter at all', t => t.replace(/\A?---\ndate[\s\S]*?---\n/, ''), /no YAML frontmatter/],
   ]
 
-  for (const [label, mutate, expected] of cases) {
+  for (const [severity, label, mutate, expected] of cases) {
     const text = mutate(POSTMORTEM)
     assert.notEqual(text, POSTMORTEM, `${label}: the mutation did not apply`)
     const result = run('postmortem-verify', [write(text)])
-    assert.equal(result.status, 1, `${label} must be rejected\n${result.stdout}`)
+    assert.equal(result.status, severity === 'block' ? 1 : 0,
+      `${label} must ${severity}\n${result.stdout}`)
     assert.match(result.stdout, expected, label)
+    if (severity === 'advise') {
+      assert.match(result.stdout, /^\s+advice: /m, `${label} must reach the reader\n${result.stdout}`)
+      assert.match(result.stdout, /^\[PASS\]/m, label)
+    }
   }
 })
 
@@ -251,8 +261,7 @@ test('every adr-retire-check row rule has a case that makes it fire', () => {
       withRow(row.replace('ADR-001-history.md', 'ADR-001-missing.md')), /does not resolve|not found|missing/i],
     ['a decision effect off the enum',
       withRow(row.replace('| governing |', '| quite important |')), /effect/i],
-    ['a retirement date that is not YYYY-MM-DD',
-      withRow(row.replace('| 2026-08-22 |', '| last Tuesday |')), /YYYY-MM-DD|date/i],
+
     ['a placeholder reason',
       withRow(row.replace('Current gates postdate the record', '<why>')), /reason/i],
     ['a digest that does not match the record',
@@ -267,6 +276,13 @@ test('every adr-retire-check row rule has a case that makes it fire', () => {
     assert.equal(result.status, 1, `${label} must be rejected\n${result.stdout}`)
     assert.match(result.stdout, expected, `${label}\n${result.stdout}`)
   }
+
+  // A retirement date not written as YYYY-MM-DD is form: the row still says what
+  // was retired and why, and the record is not misrepresenting anything. It
+  // advises, and the advice still reaches the reader.
+  const badDate = check(withRow(row.replace('| 2026-08-22 |', '| last Tuesday |')))
+  assert.equal(badDate.status, 0, badDate.stdout)
+  assert.match(badDate.stdout, /^\s+advice: .*YYYY-MM-DD/m, badDate.stdout)
 
   // The id is recovered from the link target, not only from the cell's label, so
   // relabelling a row does not quietly drop that record's seal. Asserted because

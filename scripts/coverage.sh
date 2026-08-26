@@ -34,9 +34,20 @@ STRICT=${QUALITY_HARNESS_COVERAGE_STRICT:-0}
 WORK=$(mktemp -d)
 trap 'rm -rf "$WORK"' EXIT
 
-js_flags=()
+# The floor measures the PLUGIN, not the tools that test it. mutate.mjs is a test
+# runner: it rewrites source and restores it, so importing it to exercise its
+# functions would run a mutation campaign inside the coverage run. Its own guards
+# are asserted through its CLI in tests/gate-rules.test.mjs, which is a
+# subprocess and therefore invisible to --experimental-test-coverage. Excluding
+# it is honest; letting it drag the floor down until someone lowers the floor is
+# not, because the floor is what protects everything else.
+# Both excludes, not one: passing --test-coverage-exclude REPLACES node's default,
+# which is what keeps the test files themselves out of the report. Excluding only
+# mutate.mjs pulled every tests/*.mjs in at ~100% and lifted "all files" from
+# 93.6% to 97.9% — a floor that measures its own tests measures nothing.
+js_flags=(--test-coverage-exclude='**/tests/**' --test-coverage-exclude='scripts/mutate.mjs')
 if [ "$MODE" != "--report" ]; then
-  js_flags=(
+  js_flags+=(
     "--test-coverage-lines=$JS_LINES"
     "--test-coverage-branches=$JS_BRANCHES"
     "--test-coverage-functions=$JS_FUNCTIONS"

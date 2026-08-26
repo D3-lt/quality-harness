@@ -5,6 +5,25 @@
 **Owner:** <name or role>
 **Spec:** <path to the Ready-for-ADR spec, or `None — no spec stage`>
 **Cross-references:** <ADR/doc paths or none>
+**Governs:** <paths this decision is authoritative over — globs allowed — or `None — declared by its tasks`>
+
+<Optional and additive. Without it, what this decision governs is resolved from the union of its
+tasks' `## Affected Files` tables, which every conforming task already has; declare it here when the
+decision is broader than the files that first implemented it (a directory, a whole surface), or when
+it has no tasks. A record that declares its scope is a record tooling can hand to whoever edits
+those files next, and the `adr-context` reader does exactly that — including for `Superseded` and
+`Withdrawn` records, so nobody re-proposes an approach this team already killed.
+
+The typed form from adrkit is also read:
+
+    **Governs:**
+    - type: path
+      pattern: "src/orders/**"
+    - type: package
+      pattern: "mongodb@>=6"
+
+Only `type: path` is resolved against files. Anything else is recorded and reported as unresolved —
+a matcher that quietly matches nothing reads as coverage while covering nothing.>
 **Invalidates:** <accepted ADRs whose tasks this decision changes, or `none — checked`>
 **Served-path change:** <what a user or agent experiences differently once this ships — one sentence naming the code path — or `None — this ADR changes only measurement or tooling`>
 

@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { realpathSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -17,6 +18,11 @@ import {
   describeCommand,
   sessionOrientation,
   spawnGate,
+  adrCorpus,
+  shadowInstallNotice,
+  decisionContext,
+  decisionsGoverning,
+  pathMatchesDeclaration,
   bashMarkdownMutationPaths,
   isGitPublishCommand,
   isPotentialMutationCommand,
@@ -1921,4 +1927,180 @@ test('the harness has no opinion about git branches', async () => {
   })
   assert.match(commit.stderr, /would publish unchecked/)
   assert.match(commit.stderr, /npm run test/)
+})
+
+// A corpus in the shape a real repository has: an accepted decision with tasks,
+// a superseded one, a proposed one that governs nothing yet, and an ARCHIVED
+// withdrawn record — because this project's own adr-retire skill states that an
+// archived Accepted ADR may still govern, so the archive is part of the corpus.
+async function decisionCorpus(prefix) {
+  const root = await mkdtemp(path.join(testTmp, prefix))
+  await mkdir(path.join(root, 'docs', 'adr', 'tasks'), { recursive: true })
+  await mkdir(path.join(root, 'docs', 'adr', 'archive'), { recursive: true })
+  const write = (relative, text) => writeFile(path.join(root, relative), text)
+  await write('docs/adr/ADR-001-postgres.md',
+    '# ADR-001: Use Postgres for the order store\n\n**Status:** Accepted\n'
+    + '**Governs:** `src/orders/**`, `migrations/*.sql`\n')
+  await write('docs/adr/tasks/T1-schema.md',
+    '# Task ADR-001-T1-schema: the orders schema\n\n## Affected Files\n\n'
+    + '| File | Change | Why |\n|------|--------|-----|\n'
+    + '| `src/orders/schema.ts` | add | the table |\n| `<path>` | add | template placeholder |\n'
+    // A LATER section with a table of its own. Without a heading boundary the
+    // Affected Files read runs to end-of-file and claims these too.
+    + '\n## Tests\n\n| Test | Check |\n|------|-------|\n| `tests/unrelated.spec.ts` | pytest |\n')
+  await write('docs/adr/ADR-002-redis.md',
+    '# ADR-002: Redis for the work queue\n\n**Status:** Superseded by ADR-004\n'
+    + '**Governs:** `src/queue/**`\n')
+  await write('docs/adr/ADR-003-idea.md',
+    '# ADR-003: Something proposed\n\n**Status:** Proposed\n**Governs:** `src/orders/**`\n')
+  await write('docs/adr/archive/ADR-000-mongo.md',
+    '# ADR-000: Mongo for everything\n\n**Status:** Withdrawn\n**Governs:**\n'
+    + '- type: path\n  pattern: "src/orders/**"\n- type: package\n  pattern: "mongodb@>=6"\n')
+  return root
+}
+
+test('decisions reach the code: what governs a file, and what was killed there', async () => {
+  const root = await decisionCorpus('quality-corpus-')
+  const corpus = adrCorpus(root)
+
+  // Proposed governs nothing yet; accepted and archived-withdrawn both count.
+  assert.deepEqual(corpus.map(record => record.kind).sort(), ['governing', 'graveyard', 'graveyard'])
+
+  const { governing, graveyard } = decisionsGoverning(['src/orders/schema.ts'], root, corpus)
+  assert.deepEqual(governing.map(record => path.basename(record.file)), ['ADR-001-postgres.md'])
+  // The graveyard is the half an agent needs most, and it lives in the archive.
+  assert.deepEqual(graveyard.map(record => path.basename(record.file)), ['ADR-000-mongo.md'])
+
+  // Resolution comes free from the task table: nothing declares schema.ts by
+  // name except `## Affected Files`, which adr-lint already requires.
+  const accepted = corpus.find(record => record.kind === 'governing')
+  assert.ok(accepted.governs.includes('src/orders/schema.ts'))
+  // The template's own placeholder row is not a path.
+  assert.ok(!accepted.governs.includes('<path>'))
+  // And a table in a LATER section belongs to that section.
+  assert.ok(!accepted.governs.includes('tests/unrelated.spec.ts'),
+    'the Affected Files read must stop at the next heading')
+
+  // Only `type: path` resolves; the rest is reported, never silently dropped.
+  const archived = corpus.find(record => /Withdrawn/.test(record.status))
+  assert.deepEqual(archived.governs, ['src/orders/**'])
+  assert.deepEqual(archived.unresolved, ['package:mongodb@>=6'])
+
+  const prose = decisionContext(['src/orders/schema.ts'], root)
+  assert.match(prose, /Decisions that govern/)
+  assert.match(prose, /Already decided against here/)
+  assert.match(prose, /not resolved by this tool: package:mongodb@>=6/)
+  // Nothing to say is said as nothing.
+  assert.equal(decisionContext(['README.md'], root), '')
+})
+
+test('reported: a shared tasks directory does not make every record claim its neighbours', async () => {
+  // Three ADRs commonly sit beside one `tasks/` directory. Taking every table
+  // would have ADR-002 governing the orders schema it never mentions — found
+  // while building this, against the fixture above.
+  const root = await decisionCorpus('quality-corpus-share-')
+  const corpus = adrCorpus(root)
+  const redis = corpus.find(record => /Redis/.test(record.title))
+  assert.deepEqual(redis.governs, ['src/queue/**'])
+
+  // A task that names no ADR is attributed only when it sits beside exactly one.
+  await writeFile(path.join(root, 'docs', 'adr', 'tasks', 'T2-loose.md'),
+    '# T2: no back-reference\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n'
+    + '| `src/loose.ts` | add | orphan |\n')
+  assert.ok(!adrCorpus(root).some(record => record.governs.includes('src/loose.ts')),
+    'an unattributable task file must not be claimed by every record in the directory')
+})
+
+test('reported: a symlinked checkout is not an empty corpus', async () => {
+  // /tmp is a symlink to /private/tmp on macOS: git answers with the real path
+  // while the hook payload carries the spelling, so path.relative produced
+  // `../../tmp/...`, every path was filtered as outside the root, and the corpus
+  // read as EMPTY — silently, which is the only way this feature can ship
+  // looking like a repository that has decided nothing.
+  const real = await decisionCorpus('quality-corpus-link-')
+  // A genuine symlink, because testTmp is already realpath'd on darwin and the
+  // trap would otherwise be invisible on every platform.
+  const link = path.join(await mkdtemp(path.join(testTmp, 'quality-corpus-via-')), 'repo')
+  await symlink(real, link, 'dir')
+  const spelled = path.join(link, 'src', 'orders', 'schema.ts')
+
+  // Root spelled through the link, file spelled through the link.
+  assert.match(decisionContext([spelled], link), /Decisions that govern/)
+  // The mix that actually happens: git answers with the real path, the hook
+  // payload carries the link.
+  assert.match(decisionContext([spelled], real), /Decisions that govern/)
+  assert.match(decisionContext([path.join(real, 'src', 'orders', 'schema.ts')], link),
+    /Decisions that govern/)
+})
+
+test('a declaration matches the file, the directory under it, and its globs', () => {
+  assert.equal(pathMatchesDeclaration('src/orders/schema.ts', 'src/orders/schema.ts'), true)
+  assert.equal(pathMatchesDeclaration('src/orders/deep/a.ts', 'src/orders'), true)
+  assert.equal(pathMatchesDeclaration('src/orders/deep/a.ts', 'src/orders/**'), true)
+  assert.equal(pathMatchesDeclaration('src/orders/a.ts', 'src/*/a.ts'), true)
+  // `*` does not cross a separator; `**` does.
+  assert.equal(pathMatchesDeclaration('src/orders/deep/a.ts', 'src/*/a.ts'), false)
+  assert.equal(pathMatchesDeclaration('src/ordersX/a.ts', 'src/orders'), false)
+  assert.equal(pathMatchesDeclaration('src/orders/a.ts', ''), false)
+  assert.equal(pathMatchesDeclaration('migrations/001.sql', 'migrations/*.sql'), true)
+})
+
+test('the decision context is delivered once per path per session, and never as a finding', async () => {
+  const root = await decisionCorpus('quality-corpus-once-')
+  const payload = session => ({
+    hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: root, session_id: session,
+    tool_input: { file_path: path.join(root, 'src', 'orders', 'schema.ts') },
+  })
+
+  const first = runLifecycleHook(payload('session-one'))
+  assert.equal(first.status, 0)
+  const emitted = JSON.parse(first.stdout)
+  assert.equal(emitted.hookSpecificOutput.hookEventName, 'PreToolUse')
+  assert.match(emitted.hookSpecificOutput.additionalContext, /ADR-001-postgres\.md/)
+  // Delivery, not judgement: no decision, no systemMessage, nothing to answer for.
+  assert.doesNotMatch(first.stdout, /"decision"|systemMessage/)
+  assert.equal(first.stderr, '')
+
+  // Saying it again at every edit of a hot file is how a delivery becomes a nag.
+  assert.equal(runLifecycleHook(payload('session-one')).stdout.trim(), '')
+  // A new session has not heard it.
+  assert.match(runLifecycleHook(payload('session-two')).stdout, /ADR-001-postgres\.md/)
+
+  // An ungoverned file costs the edit nothing at all.
+  const quiet = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: root, session_id: 'session-three',
+    tool_input: { file_path: path.join(root, 'README.md') },
+  })
+  assert.equal(quiet.status, 0)
+  assert.equal(`${quiet.stdout}${quiet.stderr}`.trim(), '')
+})
+
+test('reported: a stale standalone copy answering instead of the plugin is named', async () => {
+  // blueprints, 2026-08-26. the standalone `.claude/bin/adr-lint` was dated 2026-07-30 and
+  // predated the `acceptance-sha256:` digest adr-verify now writes, so its
+  // Verification Log grammar rejected the exact lines adr-verify had just
+  // produced, then cascaded into "marked done but no exit-0 entry". Running the
+  // same gate by hand passed the whole time — which made the HOOK look like the
+  // unreliable one. A session went into finding that.
+  const home = await mkdtemp(path.join(testTmp, 'quality-shadow-'))
+  await mkdir(path.join(home, '.claude', 'bin'), { recursive: true })
+
+  // Nothing installed outside the plugin: nothing to say.
+  assert.equal(shadowInstallNotice(home, pluginDir), '')
+
+  // An identical copy is not drift — a machine may keep one deliberately.
+  await cp(path.join(pluginDir, 'bin', 'adr-lint'), path.join(home, '.claude', 'bin', 'adr-lint'))
+  assert.equal(shadowInstallNotice(home, pluginDir), '')
+
+  // A copy that has drifted is exactly the case that cost the session.
+  await writeFile(path.join(home, '.claude', 'bin', 'adr-lint'), '#!/usr/bin/env python3\n# July\n')
+  const notice = shadowInstallNotice(home, pluginDir)
+  assert.match(notice, /~[\\/]\.claude[\\/]bin[\\/]adr-lint/)
+  assert.match(notice, /an old copy is answering/)
+  assert.match(notice, /adr-verify just wrote/)
+
+  // A file the plugin does not ship is not the plugin's business.
+  await rm(path.join(home, '.claude', 'bin', 'adr-lint'))
+  await writeFile(path.join(home, '.claude', 'bin', 'some-other-tool'), 'x\n')
+  assert.equal(shadowInstallNotice(home, pluginDir), '')
 })

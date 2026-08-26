@@ -848,11 +848,31 @@ prompted this had started doing exactly that.
 
 Nothing is given up. The guarantee was never at this boundary.
 
-**Still open: the severity question itself.** Advising at the edit removes the friction
-without answering whether all 41 `adr-lint` findings should carry equal weight at the
-COMMIT boundary. They probably should not, and a gate that can say "this is advisory" would
-let the harness be strict about evidence and relaxed about shape. That is a larger change
-than this one and wants its own decision.
+**Answered — `adr-lint` has severities now.** 41 findings became 29 blocking and 12
+advisory, and the line is between **form and content**, not between big and small:
+
+- **Form advises.** A section or header that is ABSENT, a table with no data rows, step
+  numbering, a wave table, a missing README index. The record is still readable and nothing
+  has been claimed that is not true.
+- **Content blocks.** A section present and EMPTY — an ADR whose Alternatives Considered has
+  no entries considered no alternatives, whatever its shape. So does an unfilled placeholder,
+  a pointer that does not resolve, a fabricated claim, and a record that contradicts itself.
+
+Advice prints on a PASS as `advice: …`, because a record that is acceptable and a record
+that is finished are different things and the reader deserves both.
+
+**Two of these were classified wrong on the first attempt, and the tests said so.** Moving
+the template-placeholder check to advice let the bundled `adr-template.md` pass `adr-lint`
+outright — a placeholder is not a shape problem, it is a document presenting as a decision
+while containing none. And moving "Alternatives Considered has no entries" to advice let an
+ADR that decided nothing pass; that is content, not form. Both are pinned now, in both
+directions, and the mutation that swallows advice instead of printing it is pinned too —
+advice nobody sees is the same as suppressing the finding.
+
+**Still open: the other four gates.** `adr-retire-check` (33), `spec-verify` (15),
+`arch-lint` (14) and `postmortem-verify` (9) have no severity yet. The pattern is
+established and mechanical to extend; each wants the same form-versus-content pass over its
+own findings, which is a judgement per finding rather than a code change.
 
 ## Verification claims worth re-running after any of the above
 

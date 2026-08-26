@@ -2479,3 +2479,67 @@ test('a check that could not run is not a finding about the change', async () =>
     assert.match(message, /Changed paths include: .*a\.js/)
   }
 })
+
+test('reported: a check that never ran on Windows was counted as a passing check', async () => {
+  // Asked directly on 2026-08-26: "is it true in windows environment too?" It
+  // was not. The verdict taxonomy was written against POSIX — exit 127/126,
+  // `command not found`, `permission denied` — and eight of nine shapes Windows
+  // actually produces were misread. Six of them came back `passed`, which is
+  // not the accusation the taxonomy was built to stop but its opposite: a
+  // FAIL-OPEN. `verifiedAfterLastMutation` returned true for a check that never
+  // ran, so the gate reported the work verified. That predates the taxonomy —
+  // the boolean it replaced did the same — and is the worst class of defect
+  // this project has, a confident wrong answer that clears the gate.
+  //
+  // Platform-independent on purpose: these are the STRINGS Windows tools emit,
+  // and the hook reads them out of a transcript wherever it runs.
+  const outcome = content => ({ type: 'tool_result', content })
+
+  const neverRan = [
+    // cmd.exe
+    ["'pytest' is not recognized as an internal or external command,\noperable program or batch file.", 'cmd.exe'],
+    // PowerShell says something completely different
+    ["The term 'pytest' is not recognized as the name of a cmdlet, function, script file, or operable program.", 'PowerShell'],
+    ['CommandNotFoundException', 'PowerShell exception type'],
+    // Win32 error text, which is what most tooling surfaces
+    ['The system cannot find the file specified.', 'ERROR_FILE_NOT_FOUND'],
+    ['The system cannot find the path specified.', 'ERROR_PATH_NOT_FOUND'],
+    ['Access is denied.', 'ERROR_ACCESS_DENIED'],
+    // Docker Desktop, which is how a containerised check fails on Windows
+    ['error during connect: open //./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.',
+      'Docker Desktop not running'],
+  ]
+  for (const [content, label] of neverRan) {
+    assert.equal(validationVerdict(outcome(content), 'npm test'), 'unstarted', label)
+  }
+  // cmd.exe's own "command not found" code. 127 is the POSIX one and Windows
+  // does not use it.
+  assert.equal(validationVerdict({ exit_code: 9009 }, 'npm test'), 'unstarted', 'cmd.exe 9009')
+  // Windows has no signals; a killed process is reported by taskkill.
+  assert.equal(validationVerdict(outcome('ERROR: The process was terminated by taskkill'), 'npm test'),
+    'timeout', 'taskkill')
+
+  // The other direction, which adding those strings could easily break: an
+  // explicit exit 0 is authoritative, so a suite that PASSES while printing one
+  // of these phrases — a test named for the error it asserts — is still a pass.
+  assert.equal(validationVerdict(
+    { exit_code: 0, content: 'test_access_is_denied ... ok\n12 passed' }, 'npm test'), 'passed')
+  assert.equal(validationVerdict(
+    { exit_code: 0, content: 'the system cannot find the file specified ... ok' }, 'npm test'), 'passed')
+  // And an explicit exit 0 does not launder a run that collected nothing.
+  assert.equal(validationVerdict({ exit_code: 0, content: 'no tests ran' }, 'pytest'), 'no-work')
+
+  // End to end: the gate must not report work verified by a check that never ran.
+  const repo = await checkedProject('quality-windows-')
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.js') }), toolResult('e1'),
+    toolUse('v1', 'Bash', { command: 'npm test' }),
+    toolResult('v1', false, 'The system cannot find the file specified.'),
+  ]))
+  const state = analyzeTranscript(await readFile(file, 'utf8'), repo)
+  assert.equal(state.verifiedAfterLastMutation, false,
+    'a check that never ran is not evidence that the work is verified')
+  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: repo })
+  assert.match(JSON.parse(run.stdout).systemMessage, /never started/)
+})

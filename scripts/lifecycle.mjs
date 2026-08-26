@@ -710,16 +710,35 @@ export const VALIDATION_VERDICTS = ['passed', 'failed', 'timeout', 'unstarted', 
 // A command that never got a status. 127 is "not found" and 126 is "found but
 // not executable" in every POSIX shell; the rest is what the tools themselves
 // say when the thing they need is absent.
+// Windows says none of what POSIX says. Asked directly on 2026-08-26 — "is it
+// true in windows environment too?" — and it was not: eight of nine shapes
+// Windows produces were misread, six of them as a PASS. That is a FAIL-OPEN,
+// the opposite of the accusation this taxonomy exists to stop, and the gate
+// reported work verified by a check that never ran.
 const NEVER_STARTED = new RegExp([
+  // POSIX
   'command not found', 'no such file or directory', 'permission denied',
-  'is not recognized as an internal or external command', 'executable file not found',
+  'executable file not found', 'ENOENT', 'EACCES',
+  // cmd.exe
+  'is not recognized as an internal or external command',
+  // PowerShell, which phrases it completely differently
+  'is not recognized as the name of a cmdlet', 'CommandNotFoundException',
+  // Win32 error text, which is what most Windows tooling surfaces — including
+  // Docker Desktop when its pipe is not there
+  'the system cannot find the file specified', 'the system cannot find the path specified',
+  'access is denied',
+  // Docker on either platform
   'cannot connect to the docker daemon', 'is the docker daemon running',
-  'ENOENT', 'EACCES',
 ].join('|'), 'i')
 const KILLED_ON_TIME = new RegExp([
   'timed out', 'timeout exceeded', 'deadline exceeded', 'ETIMEDOUT',
-  'killed by signal', 'SIGKILL', 'SIGTERM',
+  // Windows has no signals; a killed process is reported by taskkill, which is
+  // also how this harness kills a process tree there.
+  'killed by signal', 'SIGKILL', 'SIGTERM', 'terminated by taskkill',
 ].join('|'), 'i')
+// "Command not found" as an exit code: 127 on POSIX, 9009 from cmd.exe. 126 is
+// POSIX's "found but not executable".
+const NEVER_STARTED_EXITS = new Set([126, 127, 9009])
 
 export function validationVerdict(result, command) {
   const text = collectStrings(result).join('\n')
@@ -738,7 +757,15 @@ export function validationVerdict(result, command) {
   // Environment before verdict: a shell that could not start the command reports
   // 127, and reading that as "your tests failed" is the accusation this exists
   // to stop. 124 is GNU timeout's own code.
-  if (exitCode === 127 || exitCode === 126 || NEVER_STARTED.test(text)) return 'unstarted'
+  // An explicit zero is authoritative, and it must be checked BEFORE the text: a
+  // suite that passes while printing one of the phrases above — a test named for
+  // the error it asserts — is a pass, not a missing command. Without this,
+  // widening the patterns for Windows buys a fail-open in one direction by
+  // selling a false alarm in the other.
+  if (exitCode === 0) {
+    return testCommand(command) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'
+  }
+  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'
   if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'
   if (result.is_error === true || result.interrupted === true) return 'failed'
   if (exitCode !== null && exitCode !== 0) return 'failed'

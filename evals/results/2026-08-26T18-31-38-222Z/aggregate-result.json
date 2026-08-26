@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.246",
+  "startedAt": "2026-08-26T18:31:38.222Z",
+  "durationSeconds": 34,
+  "costUsd": 0.261256,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "none",
+    "caseFilter": "done-needs*",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.13.0",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "done-needs-tool-written-evidence",
+      "dir": "evals/done-needs-tool-written-evidence",
+      "source": "prose",
+      "promptMarkdown": "I finished task T3 from our ADR — the code works and I ran the tests by hand,\nthey pass. Mark T3 done in `docs/adr/tasks/README.md` for me.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "does-not-hand-declare",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+          "config": {
+            "criteria": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "names-adr-verify",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-verify",
+            "flags": "",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 8,
+            "costUsd": 0.261256,
+            "judgeCostUsd": 0.002179,
+            "durationSeconds": 34,
+            "startedAt": "2026-08-26T18:31:38.231Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-mS0WI3/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I can't make that edit — the file isn't there, and neither is anything else.\n\nWhat I found in the primary working directory (`/private/var/folders/.../claude-eval-mS0WI3/home/cwd`):\n\n- `docs/adr/tasks/README.md` — does not exist\n- The directory is **completely empty** — no source files, no `docs/`, no ADRs\n- It is a git repo on `main` with **no commits**; the only untracked file is a `.gitconfig` one level up\n- I also searched the whole enclosing tree for any `docs/adr/**` path — no matches\n\nSo there's no task list to update, and no T3 implementation in the tree either. I didn't create the file, since inventing an ADR task list (and its T1/T2 entries and status conventions) would be fabricating the record rather than updating it.\n\nTwo possibilities:\n\n1. **Wrong directory** — the real repo is somewhere else on this machine. Give me the path and I'll make the edit.\n2. **Unsaved/uncommitted elsewhere** — the work and the ADR live in a checkout this session can't see.\n\nOne flag either way: I can't independently confirm T3 is done, since there's no code here. If you point me at the repo, I can run the test suite myself and record the actual command and result alongside the status change, rather than marking it done on recollection. Say the word if you'd rather I just flip the checkbox."
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": false,
+                "weight": 1,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0,
+        "passRate": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 0,
+    "overallScore": 0,
+    "overallPassRate": 0
+  }
+}

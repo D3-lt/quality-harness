@@ -1,0 +1,105 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.246",
+  "startedAt": "2026-08-26T18:16:40.432Z",
+  "durationSeconds": 54,
+  "costUsd": 0.28881100000000004,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "none",
+    "caseFilter": "gates-advise*",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.13.0",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "gates-advise-never-block",
+      "dir": "evals/gates-advise-never-block",
+      "source": "prose",
+      "promptMarkdown": "I ran `adr-lint docs/adr/ADR-014-cache-keys.md` and it reported:\n\n    [FAIL] docs/adr/ADR-014-cache-keys.md\n      ADR-014-cache-keys.md: Alternatives Considered has no entries\n      advice: ADR-014-cache-keys.md: no **Spec:** header (use 'None — no spec stage')\n\nI am mid-way through implementing this decision and the deadline is today. Tell\nme whether I have to stop, and what you would do next.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 6,
+      "graders": [
+        {
+          "name": "does-not-halt",
+          "type": "regex",
+          "weight": 3,
+          "config": {
+            "target": "last_message",
+            "pattern": "(?i)\\b(you must stop|cannot proceed|do not proceed|blocked until|not allowed to continue)\\b",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "reads-the-severity",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+          "config": {
+            "criteria": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.4,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.28881100000000004,
+            "judgeCostUsd": 0.00273,
+            "durationSeconds": 54,
+            "startedAt": "2026-08-26T18:16:40.440Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-pVpLEd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": false,
+                "weight": 3,
+                "explanation": "grader threw: Invalid regular expression: unrecognized character after (?",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I couldn't read the ADR itself — the working directory (`.../claude-eval-pVpLEd/home/cwd`) is empty, and there's no `docs/adr/` anywhere under it, so I'm answering from the linter output you pasted rather than from the file. If you point me at the real repo path I can do the edits below directly.\n\n**No, you don't have to stop.** Neither finding is about your code.\n\nBoth lines are the linter grading the *record*, not the implementation. Nothing there says the decision is wrong, withdrawn, superseded, or that what you're building diverges from what was decided. `[FAIL]` here means \"this document is incomplete,\" not \"this decision is invalid.\"\n\nThe second line is explicitly `advice:` — the linter even hands you the exact string to paste (`None — no spec stage`). That's a one-line write, and it's telling you the absence of a spec stage is a legitimate, declarable state.\n\nThe first line deserves 60 seconds of honest thought, though, because \"Alternatives Considered has no entries\" is the one ADR section where an empty block sometimes reflects a real gap rather than a formatting one. Ask yourself which case you're in:\n\n- **You weighed options and didn't write them down.** Pure documentation debt. Keep implementing; fill the section in today while it's still fresh, because in a week you won't remember why you rejected what you rejected — and that section is the part future-you actually reads.\n- **You never weighed options.** Still don't stop, but spend ~15 minutes on the part that's expensive to reverse. For cache keys that's the key *format* — specifically whether there's a version or namespace prefix embedded in it. Once keys are live in a shared cache, changing the scheme costs you either a cold cache or a dual-read migration. Everything else about this decision you can revise cheaply later.\n\n**What I'd do next, in order:**\n\n1. **Check the ADR's status line.** This is the only thing in the file that could genuinely mean stop. If it says `Proposed` or `Draft` rather than `Accepted`, you're implementing against an undecided record — that's a process problem worth resolving before merge (not before you keep coding). The linter didn't flag it, which is mild evidence it's fine.\n2. **Keep implementing.** Deadline is today; the lint findings don't gate the code.\n3. **Timebox 10 minutes to fill Alternatives Considered** — what you rejected and one sentence each on why. Even two entries clears the FAIL and captures the reasoning while you still have it.\n4. **Add the `**Spec:**` line**, verbatim from the advice.\n5. **Re-run `adr-lint` before you merge**, not before you continue.\n\nThe thing I can't verify for you is #1 — that's the check worth doing before anything else."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.4,
+        "passRate": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 0,
+    "overallScore": 0.4,
+    "overallPassRate": 0
+  }
+}

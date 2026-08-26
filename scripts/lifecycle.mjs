@@ -987,8 +987,24 @@ export function bashDeletionMutationPaths(command, cwd = process.cwd()) {
   if (typeof command !== 'string' || !/\brm\b/.test(command)) return []
   const paths = []
   let unresolved = false
+  // `W=/tmp/scratch; rm -rf "$W"` names its own path: the value is in the
+  // command, in front of the use. Without this the sentinel armed on every
+  // scratch cleanup written that way, and — since a publish after an unresolved
+  // deletion fails closed — bricked committing for the rest of the session.
+  // Measured 2026-08-26 on this repository, mid-session.
+  //
+  // Only assignments made EARLIER in the same command count, and never the
+  // ambient environment: an expansion here disarms the sentinel, so a value this
+  // command did not set is not evidence of what was deleted.
+  const assignments = new Map()
   for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
     for (const segment of shellSegments(region)) {
+      const assignment = segment.match(/^([A-Za-z_][A-Za-z0-9_]*)=("[^"]*"|'[^']*'|\S*)$/)
+      if (assignment) {
+        const value = expandShellToken(assignment[2], assignments, false)
+        if (value !== null) assignments.set(assignment[1], value)
+        continue
+      }
       const match = segment.match(/^(?:(?:sudo|command)\s+)*(?:\/\S+\/)?rm\b(.*)$/)
       if (!match) continue
       const args = [...match[1].matchAll(/"([^"]*)"|'([^']*)'|([^\s]+)/g)]
@@ -1002,12 +1018,13 @@ export function bashDeletionMutationPaths(command, cwd = process.cwd()) {
         }
         if (!optionsEnded && raw.startsWith('-')) continue
         operands += 1
-        if (!raw || /[`$]/.test(raw) || raw.includes('://')
-            || [...raw].some(character => '*?[]{}\\'.includes(character))) {
+        const operand = /\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw
+        if (!operand || /[`$]/.test(operand) || operand.includes('://')
+            || [...operand].some(character => '*?[]{}\\'.includes(character))) {
           unresolved = true
           continue
         }
-        const resolved = resolveToolPath(raw, cwd)
+        const resolved = resolveToolPath(operand, cwd)
         if (resolved) paths.push(resolved)
         else unresolved = true
       }
@@ -1063,13 +1080,21 @@ const TEMP_UNACCOUNTABLE = /\b(?:install|dd|patch|apply_patch|rsync|chmod|chown|
 // an over-match can only fail the exemption, never widen it.
 const REDIRECT_TARGET = />>?\s*("[^"]*"|'[^']*'|[^\s;|&<>]+)/g
 
-function expandShellToken(token, assignments) {
+// `fromEnvironment` is false wherever expanding a variable WIDENS what the gate
+// will accept. In mutatesOnlyTempPaths a wrong expansion can only fail the temp
+// exemption, so the ambient environment is a safe last resort. In
+// bashDeletionMutationPaths it is the reverse: resolving `$W` turns an
+// unresolved deletion into a named path and disarms the sentinel, so only a
+// value this command set itself may be trusted.
+function expandShellToken(token, assignments, fromEnvironment = true) {
   let value = token
   if ((value.startsWith('"') && value.endsWith('"')) || (value.startsWith("'") && value.endsWith("'"))) {
     value = value.slice(1, -1)
   }
   const expanded = value.replace(/\$(?:\{([A-Za-z_][A-Za-z0-9_]*)\}|([A-Za-z_][A-Za-z0-9_]*))/g,
-    (match, braced, plain) => assignments.get(braced ?? plain) ?? process.env[braced ?? plain] ?? match)
+    (match, braced, plain) => assignments.get(braced ?? plain)
+      ?? (fromEnvironment ? process.env[braced ?? plain] : undefined)
+      ?? match)
   return /[`$]/.test(expanded) ? null : expanded
 }
 
@@ -1278,6 +1303,15 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   let lastUnresolvedDeletion = -1
   let lastPublish = -1
   const mutationPaths = []
+  // Where each path was recorded, so a boundary can ask for the ones that matter
+  // to it. The flat list above keeps its meaning for every existing consumer.
+  const mutationPositions = []
+  const record = (position, ...values) => {
+    for (const value of values) {
+      mutationPaths.push(value)
+      mutationPositions.push(position)
+    }
+  }
 
   const executed = use => {
     const result = results.get(use.id)
@@ -1291,7 +1325,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
     if (MUTATION_TOOLS.has(use.name) && executed(use)) {
       lastMutation = Math.max(lastMutation, use.position)
       const filePath = use.input.file_path ?? use.input.notebook_path
-      if (typeof filePath === 'string') mutationPaths.push(filePath)
+      if (typeof filePath === 'string') record(use.position, filePath)
     }
     if (use.name === 'Bash' && executed(use)) {
       const navigation = bashNavigationImpact(use.input.command, cwd)
@@ -1304,13 +1338,13 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       } else if (navigation !== 'inert' && isPotentialMutationCommand(use.input.command)
           && !mutatesOnlyTempPaths(use.input.command, cwd)) {
         lastMutation = Math.max(lastMutation, use.position)
-        mutationPaths.push(...bashMarkdownMutationPaths(use.input.command, cwd))
+        record(use.position, ...bashMarkdownMutationPaths(use.input.command, cwd))
         const deletions = bashDeletionMutationPaths(use.input.command, cwd)
         if (deletions.includes(UNRESOLVED_DELETION_MUTATION)) {
           lastUnresolvedDeletion = Math.max(lastUnresolvedDeletion, use.position)
         }
-        mutationPaths.push(...deletions)
-        mutationPaths.push(`<Bash mutation: ${describeCommand(use.input.command)}>`)
+        record(use.position, ...deletions)
+        record(use.position, `<Bash mutation: ${describeCommand(use.input.command)}>`)
       }
       if (isGitPublishCommand(use.input.command)) {
         lastPublish = Math.max(lastPublish, use.position)
@@ -1331,8 +1365,16 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       && lastSuccessfulValidation > Math.max(lastMutation, lastTreeRefresh)
       && lastSuccessfulValidation === lastValidation,
     lastMutation,
+    lastPublish,
     lastSuccessfulValidation,
     mutationPaths,
+    // Paths recorded after a given position. A commit gates what is being
+    // published now, not everything the session has ever touched: mutationPaths
+    // is append-only across the whole transcript, so re-gating all of it at every
+    // commit meant an ADR-heavy session eventually exceeded the boundary's 45s
+    // window and then EVERY commit failed, whatever was staged. Reported from a
+    // live 2.1.7 session on 2026-08-26 and reproduced here.
+    mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),
     // A commit landing after an unresolved deletion rewrites HEAD, so the
     // git-diff resolution below it can no longer see what was removed — the
     // sentinel must fail closed instead of being laundered by the commit.
@@ -1753,7 +1795,13 @@ export async function handleHook(input) {
     // The PreToolUse hook has a 60s deadline (hooks.json) and a hook killed on
     // its deadline blocks nothing, so the artifact pass gets a window that fits
     // inside it.
-    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 45_000)
+    // What is being published now, not everything the session has touched. A
+    // publish is the boundary at which authored work was submitted; re-gating it
+    // at every later commit is what made a long session unable to commit at all.
+    // A commit that bypassed this gate (--no-verify) still moves the boundary —
+    // the override was the author's, and punishing every later commit for it is
+    // the "fights you" behaviour this gate exists to avoid.
+    const artifactFailure = runArtifactGates(state.mutationPathsSince(state.lastPublish), input.cwd, 45_000)
     if (artifactFailure) {
       blockWithExit(artifactFailure)
       return

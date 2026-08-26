@@ -850,6 +850,7 @@
       "label": "judge: Context must cite something observable",
       "file": "bin/adr-judge",
       "tests": [
+        "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
       ],
       "from": "    if context.strip() and not OBSERVABLE.search(context):",
@@ -859,24 +860,27 @@
       "label": "judge: an alternative names why it lost",
       "file": "bin/adr-judge",
       "tests": [
+        "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
       ],
-      "from": "        if not REJECTION.search(entry):",
+      "from": "        if len(reason.split()) < 3:",
       "to": "        if False:"
     },
     {
-      "label": "judge: a comparative claim carries a number",
+      "label": "judge: a comparative claim carries evidence in its own section",
       "file": "bin/adr-judge",
       "tests": [
+        "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    if claim and not NUMBER.search(context + decision):",
-      "to": "    if False:"
+      "from": "        if claim and not OBSERVABLE.search(body):",
+      "to": "        if False:"
     },
     {
       "label": "judge: the Decision commits",
       "file": "bin/adr-judge",
       "tests": [
+        "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
       ],
       "from": "    if decision.strip() and HEDGE.search(decision) and not COMMITMENT.search(decision):",
@@ -886,6 +890,7 @@
       "label": "judge: an authoring marker is not a template placeholder",
       "file": "bin/adr-judge",
       "tests": [
+        "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
       ],
       "from": "UNRESOLVED = re.compile(r\"(?<![-\\w])(?:TODO|TBD|FIXME|XXX|\\?\\?\\?)(?![-\\w])\")",
@@ -895,6 +900,7 @@
       "label": "judge: Consequences state a cost",
       "file": "bin/adr-judge",
       "tests": [
+        "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
       ],
       "from": "    if consequences.strip() and not COST.search(consequences):",
@@ -904,10 +910,56 @@
       "label": "judge: prose judgement never blocks",
       "file": "bin/adr-judge",
       "tests": [
+        "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
       ],
       "from": "    return 0\n\n\nif __name__ ==",
       "to": "    return 1 if findings else 0\n\n\nif __name__ =="
+    },
+    {
+      "label": "judge: a Context may cite a ticket, version, standard or commit",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    r\"\\b[A-Z][A-Z0-9]+-\\d+\\b|\"                            # a tracker id: JIRA-4821",
+      "to": ""
+    },
+    {
+      "label": "judge: prose alternatives are judged too",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    if not entries and alternatives.strip():",
+      "to": "    if False:"
+    },
+    {
+      "label": "judge: a bare name has no clause after a separator",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        reason = split[1] if len(split) > 1 else \"\"",
+      "to": "        reason = entry"
+    },
+    {
+      "label": "judge: a marker inside a fence is not this record's",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    marker = UNRESOLVED.search(prose(text))",
+      "to": "    marker = UNRESOLVED.search(text)"
+    },
+    {
+      "label": "judge: a cost may be worded any way a record words it",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "    r\"regress\\w*|fail|fails|failing|failure|break|breaks|degrade\\w*|harder|\"",
+      "to": ""
     }
   ]
 }

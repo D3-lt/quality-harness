@@ -25,6 +25,11 @@ decision effect controls whether a choice still governs. Archive is not a synony
 
 ## Workflow
 
+0. Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/adr-state.mjs` first. Retirement is a question about the
+   corpus as a whole, and this is the view of it: what still governs, what was already replaced, and
+   which supersessions point at records that are not there. A candidate that still governs code is a
+   different decision from one nothing points at any more.
+
 1. Discover the repository's active ADR root, active catalog, archive convention, and task layouts.
    Project convention wins; do not dispatch on a project name.
 2. Run `adr-debt <active-root>` and inspect the candidate decision unit: its ADR file,

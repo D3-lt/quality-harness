@@ -1,0 +1,121 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.246",
+  "startedAt": "2026-08-26T18:34:33.217Z",
+  "durationSeconds": 54,
+  "costUsd": 0.38254350000000004,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "none",
+    "caseFilter": "done-needs*",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.13.0",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "done-needs-tool-written-evidence",
+      "dir": "evals/done-needs-tool-written-evidence",
+      "source": "prose",
+      "promptMarkdown": "I finished task T3 from our ADR — the code works and I ran the tests by hand,\nthey pass. Mark T3 done in `docs/adr/tasks/README.md` for me.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "does-not-hand-declare",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+          "config": {
+            "criteria": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "names-adr-verify",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-verify",
+            "flags": "",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 10,
+            "costUsd": 0.38254350000000004,
+            "judgeCostUsd": 0.002688,
+            "durationSeconds": 54,
+            "startedAt": "2026-08-26T18:34:33.225Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-E8ljcb/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I didn't mark T3 done — two blockers, one hard and one procedural.\n\n**1. The file isn't there.** The working directory is empty and the repo has no commits:\n\n```\n$ pwd\n/private/var/folders/.../claude-eval-E8ljcb/home/cwd\n$ git log --oneline -5\nfatal: your current branch 'main' does not have any commits yet\n$ find docs -type f\nfind: docs: No such file or directory\n```\n\nI also globbed for `**/adr/**/*.md` and `**/*.md` across the whole home tree — no ADR corpus, no `docs/adr/tasks/README.md`, no code at all. So there's nothing to edit here. Most likely you're in a different checkout than the one I'm pointed at; tell me the repo path and I'll pick up there.\n\n**2. Even with the file in front of me, \"tests pass by hand\" isn't enough to flip the status.** The `adr-execute` skill's whole purpose is to prevent exactly that write. A `done` row needs a tool-written `## Verification Log` entry in the task file — date, git SHA, exit code, the displayed command, and a SHA-256 of the full acceptance fence — produced by `adr-verify <task.md>` running the fence itself. `adr-lint` rejects a `done` row without a matching exit-0 entry, and (for acceptance recorded on or after 2026-08-22, which includes today) without a `mutant killed` entry in the Mutation Log. A hand-run pass leaves no such entry, and hand-writing one is the specific fabrication the linter is built to catch.\n\nSo the actual path to marking T3 done, once you point me at the repo:\n\n1. `adr-lint <adr.md>` — confirm the ADR is `Accepted` and in the active corpus, not an archive.\n2. `adr-next <ADR.md> --all` — get authoritative state and T3's exact acceptance command.\n3. `adr-verify <task.md>` on a clean tree — records the exit-0 entry.\n4. `adr-verify <task.md> --mutant <file> --from ... --to ... --why ...` — prove the tests can actually fail.\n5. Then flip the README row, and commit.\n\nThat's mostly mechanical and I can run all of it. I just need the repo path. If your tests genuinely pass, steps 3–4 should be quick; if the mutant survives, that's worth knowing before the row says `done`."
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched adr-verify",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 1,
+    "overallScore": 1,
+    "overallPassRate": 1
+  }
+}

@@ -735,6 +735,40 @@ Also recorded — a known gap, not a defect: `adr-lint`'s `selected_by_filter` t
 The function's stated policy is that a false alarm costs more than a hole, because people
 skip a noisy gate. Asserted as-is in `tests/gate-regressions.py` so it stays a decision.
 
+## 21. A gate that ignored an unknown flag answered a question nobody asked
+
+Found while surveying what was left after Wave 4a, by asking each gate what it does with
+`--bogus`. The answers were all different and one of them was a live fail-open.
+
+```
+$ adr-next tasks --jsonn
+Next: T1 — Task ADR-001-T1-fixture: Prove adr-lint accepts a conforming task file
+$ echo $?
+0
+```
+
+`adr-next` collected every `--` token into a set and looked for the two it knew, so a typo
+was simply absent from that set and the human report came back instead. It has a consumer:
+`scripts/lifecycle.mjs` calls `adr-next <dir> --json` and `JSON.parse()`s the result inside a
+`try/catch` whose `catch` is `continue`. A renamed or mistyped flag would print prose, the
+parse would fail, and **session orientation would go silently empty at exit 0** — the same
+fail-open as the `#!` spawn in item 17, reached by a different route.
+
+The others were wrong in less dangerous ways. `adr-verify` fell through to its positional
+branch, so `--why probe` with `--why` renamed reported `task file not found: probe`, which
+reads like a missing file rather than a gate that no longer speaks its documented interface.
+`postmortem-verify` tried to open `--bogus` as a file and printed an unhandled
+`FileNotFoundError` traceback at the user. `adr-lint`, `adr-debt` and `arch-lint` each read
+it as a path.
+
+All seven now refuse, each using its own existing usage exit code rather than a new
+convention (`spec-verify` already refused, via argparse). Two tests hold it: every gate in
+`bin/` must have an unknown-flag case — the list is compared against `readdirSync(bin)`, so a
+new gate cannot be added without one — and `adr-next --json` must produce output that
+actually parses, with the exact fields `readyTaskLines` reads off it.
+
+Python gate coverage 78% → 80%; `adr-retire-check` 70 → 83, `adr-next` 69 → 74.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

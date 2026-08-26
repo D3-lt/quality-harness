@@ -30,7 +30,9 @@ const env = {
 // Windows cannot exec a `#!` script; the gates reach it through Git Bash in real
 // use. Same reasoning as tests/gates.test.mjs — and the GATE_NAMES guard matters:
 // without it `run('python3', …)` rewrites itself into `python3 bin/python3 …`.
-const GATE_NAMES = new Set(readdirSync(bin))
+// The gates are the extensionless executables; the .cmd files beside them
+// are Windows shims that invoke these.
+const GATE_NAMES = new Set(readdirSync(bin).filter(name => !name.includes('.')))
 
 function run(command, args, cwd, input = undefined) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)

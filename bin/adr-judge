@@ -43,25 +43,40 @@ CLARITY — will a reader in a year know what was decided?
       trade-off, which means the alternatives were not real.
 """
 
-# Anything a reader could go and check.
+# Anything a reader could go and check. The first version recognised only
+# numbers-with-units, dates, paths and a handful of verbs — so a Context citing a
+# ticket, a version, a standard, a commit or a log was called opinion. Those are
+# how real records cite evidence, and a rule that fires on them is the alert
+# fatigue this harness exists not to cause.
 OBSERVABLE = re.compile(
     r"\b\d+(?:[.,]\d+)?\s*(?:%|ms|s\b|sec|min|h\b|hours?|days?|weeks?|months?|"
     r"[kKmMgG]i?[bB]|req|rps|qps|x\b|times)|"          # a measurement
     r"\b\d{4}-\d{2}-\d{2}\b|"                            # a date
-    r"`[^`]*[./][^`]*`|"                                 # a path or command in a span
+    r"\bv?\d+\.\d+(?:\.\d+)?\b|"                         # a version
+    r"\b[A-Z][A-Z0-9]+-\d+\b|"                            # a tracker id: JIRA-4821
+    r"(?:^|\s)#\d+\b|"                                   # an issue number
+    r"\b(?:RFC|CVE|ISO|IETF)[- ]?\d+\b|"                  # a standard
+    r"\b[0-9a-f]{7,40}\b|"                                # a commit
+    r"`[^`]*[-./_ ][^`]*`|"                                # a path, command or quoted output
     r"https?://|"                                        # a source
     r"\b(?:measured|observed|reproduced|benchmark|profil|incident|postmortem|"
-    r"logged|traced|reported)\w*\b",
+    r"logged|traced|reported)\w*\b|"
+    r"\b(?:logs?|stack|traceback|output|metrics?|dashboard|ticket|issue)\b",
     re.I,
 )
+# An explicit rejection always passes, whatever its shape.
 REJECTION = re.compile(
     r"\b(?:because|since|rejected|discarded|ruled out|dismissed|too |"
     r"cannot|can't|does not|doesn't|would (?:require|mean|break|cost)|"
     r"trade-?off|drawback|downside|not chosen|no longer)\b", re.I)
+# Otherwise the test is SHAPE, not vocabulary. "- Kafka — operationally heavy for
+# one queue" states its reason and contains no rejection word at all; keyword
+# matching called it a bare name. What separates a name from a name-plus-reason
+# is the clause after the separator, so that is what gets counted.
+ALTERNATIVE_CLAUSE = re.compile(r"[—–:;]|(?:^|\s)-\s|,\s", re.U)
 COMPARATIVE = re.compile(
     r"\b(?:faster|slower|cheaper|costlier|safer|simpler|better|worse|"
     r"more reliable|less reliable|more efficient|higher throughput|lower latency)\b", re.I)
-NUMBER = re.compile(r"\b\d+(?:[.,]\d+)?\b")
 HEDGE = re.compile(r"\b(?:might|maybe|perhaps|possibly|probably|we could|"
                    r"could potentially|may want to|should probably)\b", re.I)
 COMMITMENT = re.compile(r"\b(?:we will|we are|will use|will adopt|will replace|"
@@ -70,9 +85,17 @@ COMMITMENT = re.compile(r"\b(?:we will|we are|will use|will adopt|will replace|"
 # NUMBER, not an authoring marker, and the hyphen is a word boundary — so the
 # bundled template judged itself unfinished.
 UNRESOLVED = re.compile(r"(?<![-\w])(?:TODO|TBD|FIXME|XXX|\?\?\?)(?![-\w])")
-COST = re.compile(r"\b(?:cost|slower|risk|lose|loss|drawback|downside|regress|"
-                  r"increase[sd]? (?:the )?(?:complexity|latency|cost)|"
-                  r"more (?:work|complex|expensive)|no longer|give[s]? up|trade-?off)\b", re.I)
+COST = re.compile(
+    r"\b(?:cost|costs|price|slower|risk|risks|lose|loses|loss|drawback|downside|"
+    r"regress\w*|fail|fails|failing|failure|break|breaks|degrade\w*|harder|"
+    r"complex|complexity|burden|maintenance|extra|additional|requires|require|"
+    r"coupling|lock-?in|trade-?off|no longer|give[s]? up|one more|another\s+\w+ to (?:run|operate)|"
+    # A record that LABELS its downsides has stated them. `**Negative:**` is this
+    # project's own template, and "Bad, because" is MADR's — reading either as
+    # "no cost stated" fires on the two most common shapes there are.
+    r"negative|bad, because|downsides?|cons\b|must be\b|"
+    r"more (?:work|complex|expensive)|increase[sd]? (?:the )?(?:complexity|latency|cost))\b",
+    re.I)
 
 
 def section(text, heading):
@@ -108,22 +131,36 @@ def judge(text):
         findings.append(("E1", "evidence",
                          "Context cites nothing a reader could check — no measurement, date, "
                          "path, command, or source. Name what was observed, not what is believed."))
-    for entry in bullets(alternatives):
-        head = entry.split(".")[0][:60]
-        if not REJECTION.search(entry):
+    entries = bullets(alternatives)
+    if not entries and alternatives.strip():
+        # Not every corpus writes alternatives as bullets. Treating "no bullets"
+        # as "nothing to check" is a vacuous pass, which reads as coverage while
+        # covering nothing — the failure arch-write warns about.
+        entries = [alternatives.strip()]
+    for entry in entries:
+        head = re.split(r"[—–:;.,]", entry)[0].strip()[:60]
+        if REJECTION.search(entry):
+            continue
+        split = ALTERNATIVE_CLAUSE.split(entry, 1)
+        reason = split[1] if len(split) > 1 else ""
+        if len(reason.split()) < 3:
             findings.append(("E2", "evidence",
                              f"Alternative '{head}' gives no reason it was not chosen; "
                              f"an alternative without a rejection is a list item, not a choice."))
-    claim = COMPARATIVE.search(decision) or COMPARATIVE.search(context)
-    if claim and not NUMBER.search(context + decision):
-        findings.append(("E3", "evidence",
-                         f"'{claim.group(0)}' is claimed with no number or named source behind it."))
+    for body in (decision, context):
+        claim = COMPARATIVE.search(body)
+        if claim and not OBSERVABLE.search(body):
+            findings.append(("E3", "evidence",
+                             f"'{claim.group(0)}' is claimed with no measurement or named source "
+                             f"in the same section. A date elsewhere in the record is not evidence "
+                             f"that one option beats another."))
+            break
 
     if decision.strip() and HEDGE.search(decision) and not COMMITMENT.search(decision):
         findings.append(("C1", "clarity",
                          "The Decision hedges without committing — a reader cannot tell what "
                          "will actually be done."))
-    marker = UNRESOLVED.search(text)
+    marker = UNRESOLVED.search(prose(text))
     if marker:
         findings.append(("C2", "clarity",
                          f"'{marker.group(0)}' is still in the record; it is not finished."))

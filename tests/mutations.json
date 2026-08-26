@@ -1203,6 +1203,33 @@
       ],
       "from": "if (dirty.length && !argv.includes('--force')) {",
       "to": "if (false) {"
+    },
+    {
+      "label": "router: a corpus with no Verification Log is not behind on evidence",
+      "file": "scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (state.usesVerificationLog && state.unbacked.length) {",
+      "to": "  if (state.unbacked.length) {"
+    },
+    {
+      "label": "router: a done claim with no exit-0 entry routes to adr-verify",
+      "file": "scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} \u00b7 .*\u00b7 exit 0\\b/m.test(text)\n  })",
+      "to": "    return false\n  })"
+    },
+    {
+      "label": "skills: adr-execute claims the stage that records evidence",
+      "file": "skills/adr-execute/SKILL.md",
+      "tests": [
+        "tests/skill-metadata.test.mjs"
+      ],
+      "from": "or asks to mark a task done, tick off a task, update a task's status, or record that work passed",
+      "to": ""
     }
   ]
 }

@@ -1,0 +1,204 @@
+#!/usr/bin/env node
+// Where this repository is in the lifecycle, and what comes next.
+//
+// The lifecycle is a DAG and always has been — spec → decision → execution →
+// architecture, with retirement and postmortem hanging off it — but it lived
+// only as prose spread across twelve skills, so the routing existed in whatever
+// the model happened to recall. Measured 2026-08-26 with `claude plugin eval`:
+// "mark T3 done in docs/adr/tasks/README.md" fired NO skill at all, because
+// recording evidence for finished work is neither "implement an accepted
+// decision" nor "a substantive development goal". A stage nobody's description
+// claims is a stage nobody routes to.
+//
+// So the edges are static and written down here, and the STATE is derived from
+// the corpus — never maintained beside it, for the same reason adr-state is
+// derived: a summary kept next to the truth drifts from it.
+//
+// Reads only. Suggests only. Exit 0 whatever it finds; a router that refused
+// would be the thing this harness spent a week removing.
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import path from 'node:path'
+import { adrCorpus } from './lifecycle.mjs'
+
+const argv = process.argv.slice(2)
+const json = argv.includes('--json')
+const unknown = argv.filter(a => a.startsWith('--') && a !== '--json')
+if (unknown.length) {
+  process.stderr.write(`unknown option: ${unknown[0]}\nusage: work-next.mjs [--json] [<root>]\n`)
+  process.exit(2)
+}
+const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
+
+// The DAG, as edges. Each stage names what must be TRUE for it to be the next
+// move, so the router explains itself instead of asserting.
+const STAGES = [
+  {
+    id: 'adr-verify',
+    entry: 'adr-verify <task file>',
+    when: 'a task is marked done, or claims passing work, with no tool-written exit-0 entry',
+    why: 'The corpus\'s whole claim is that `done` means a tool wrote the evidence. '
+      + 'This is the stage no skill description claimed, and the one an eval caught firing nothing.',
+  },
+  {
+    id: 'adr-execute',
+    entry: '/adr-execute <adr>',
+    when: 'an Accepted ADR has tasks that are ready and not yet done',
+    why: 'The decision is made and the work is not. Execute it task by task.',
+  },
+  {
+    id: 'adr-retire',
+    entry: '/adr-retire',
+    when: 'a record is Superseded or Withdrawn but still sits in the active corpus',
+    why: 'A retired decision left active still governs, and adr-context will hand it '
+      + 'to whoever edits those files next.',
+  },
+  {
+    id: 'arch-write',
+    entry: '/arch-write',
+    when: 'every task of an Accepted ADR carries evidence and the architecture document '
+      + 'is older than the record',
+    why: 'The decision shipped and the map still shows the old shape.',
+  },
+  {
+    id: 'adr-write',
+    entry: '/adr-write',
+    when: 'a spec is Ready-for-ADR and no record Covers its facts',
+    why: 'Requirements are settled and nothing has decided how to meet them.',
+  },
+  {
+    id: 'spec-write',
+    entry: '/spec-write',
+    when: 'there is no spec corpus at all, or the work is not yet decided',
+    why: 'Nothing downstream can be verified against requirements nobody wrote.',
+  },
+]
+
+const read = file => {
+  try {
+    return statSync(file).size > 512 * 1024 ? '' : readFileSync(file, 'utf8')
+  } catch { return '' }
+}
+
+function taskFiles(directory) {
+  const found = []
+  const walk = (dir, depth) => {
+    if (depth > 5 || found.length > 400) return
+    let entries = []
+    try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return }
+    for (const entry of entries) {
+      const child = path.join(dir, entry.name)
+      if (entry.isDirectory()) walk(child, depth + 1)
+      else if (entry.name.toLowerCase().endsWith('.md') && /[\\/]tasks[\\/]/.test(child)
+        && !/readme\.md$/i.test(entry.name)) found.push(child)
+    }
+  }
+  const docs = path.join(directory, 'docs')
+  walk(existsSync(docs) ? docs : directory, 0)
+  return found
+}
+
+/** Observations, each carrying the evidence that produced it. */
+export function observe(directory) {
+  const corpus = adrCorpus(directory)
+  const tasks = taskFiles(directory)
+
+  // A task that CLAIMS done without a tool-written exit-0 entry. The grammar is
+  // adr-verify's, and anything off it was typed by a person.
+  const unbacked = tasks.filter(file => {
+    const text = read(file)
+    // `**Status:** done` puts the colon INSIDE the bold markers, which is how
+    // every template in this corpus writes it — a pattern expecting the colon
+    // after them matched nothing at all.
+    if (!/^\s*[-*]?\s*\*{0,2}(?:Status|State):?\*{0,2}:?\s*done\b/im.test(text)
+      && !/\bmarked\s+done\b/i.test(text)) return false
+    return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
+  })
+
+  const ready = tasks.filter(file => {
+    const text = read(file)
+    return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
+      && /^##\s+Acceptance/im.test(text)
+  })
+
+  const retirable = corpus.filter(record => record.kind === 'graveyard'
+    && !/[\\/]archive[\\/]/i.test(record.file))
+
+  const specs = existsSync(path.join(directory, 'docs', 'specs'))
+    ? readdirSync(path.join(directory, 'docs', 'specs')).filter(n => n.endsWith('.md'))
+    : []
+
+  // Does this corpus record evidence the way adr-verify writes it at all? On a
+  // real 149-record corpus that uses its own conventions, 395 of 405 task files
+  // carried no exit-0 entry — and calling all 395 "pending" is a confident wrong
+  // answer about somebody else's format, not a finding about their work.
+  const usesVerificationLog = tasks.some(file =>
+    /^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(read(file)))
+
+  return {
+    usesVerificationLog,
+    records: corpus.length,
+    accepted: corpus.filter(record => record.kind === 'governing').length,
+    tasks: tasks.length,
+    unbacked,
+    ready,
+    retirable,
+    specs: specs.length,
+  }
+}
+
+export function nextStage(state) {
+  // Both of these read the Verification Log grammar. A corpus that never writes
+  // it is not behind on evidence; it keeps its records somewhere this tool
+  // cannot see, and saying so is the honest answer.
+  if (state.usesVerificationLog && state.unbacked.length) {
+    return STAGES.find(s => s.id === 'adr-verify')
+  }
+  if (state.usesVerificationLog && state.ready.length) {
+    return STAGES.find(s => s.id === 'adr-execute')
+  }
+  if (state.retirable.length) return STAGES.find(s => s.id === 'adr-retire')
+  if (state.accepted && !state.tasks) return STAGES.find(s => s.id === 'adr-write')
+  if (!state.records && !state.specs) return STAGES.find(s => s.id === 'spec-write')
+  return null
+}
+
+const state = observe(root)
+const stage = nextStage(state)
+const relative = file => path.relative(root, file) || file
+
+if (json) {
+  process.stdout.write(`${JSON.stringify({
+    records: state.records,
+    accepted: state.accepted,
+    tasks: state.tasks,
+    unbackedDoneClaims: state.unbacked.map(relative),
+    tasksWithoutEvidence: state.ready.map(relative),
+    retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
+    specs: state.specs,
+    next: stage ? { id: stage.id, entry: stage.entry, when: stage.when } : null,
+    stages: STAGES.map(({ id, entry, when }) => ({ id, entry, when })),
+  }, null, 2)}\n`)
+  process.exit(0)
+}
+
+process.stdout.write(`${state.records} record(s), ${state.accepted} accepted, `
+  + `${state.tasks} task file(s), ${state.specs} spec(s).\n`)
+if (!stage) {
+  if (state.tasks && !state.usesVerificationLog) {
+    process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
+      + 'this corpus records evidence some other way, so the execution stages cannot see it. '
+      + 'Everything below is still the flow; only the state reading is blind here.\n')
+  } else {
+    process.stdout.write('\nNothing in the corpus is waiting on a lifecycle stage. '
+      + 'Anything you start now begins at /spec-write or /adr-write.\n')
+  }
+  for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\n`)
+  process.exit(0)
+}
+process.stdout.write(`\nNext: ${stage.entry}\n  because ${stage.when}.\n  ${stage.why}\n`)
+const evidence = stage.id === 'adr-verify' ? state.unbacked
+  : stage.id === 'adr-execute' ? state.ready
+    : stage.id === 'adr-retire' ? state.retirable.map(record => record.file)
+      : []
+for (const file of evidence.slice(0, 5)) process.stdout.write(`    ${relative(file)}\n`)
+if (evidence.length > 5) process.stdout.write(`    (+${evidence.length - 5} more)\n`)

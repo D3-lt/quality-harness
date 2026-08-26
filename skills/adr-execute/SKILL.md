@@ -1,6 +1,6 @@
 ---
 name: adr-execute
-description: Execute an active Accepted ADR task-by-task with test and verification gates. Use when the user invokes `/quality-harness:adr-execute` with an active ADR path or asks to implement an accepted current decision. Do not execute archived, superseded, withdrawn, Proposed, or Draft records; retire records with `adr-retire` instead.
+description: Execute an active Accepted ADR task-by-task, and record the tool-written evidence that a task is finished. Use when the user invokes `/quality-harness:adr-execute` with an active ADR path, asks to implement an accepted current decision, or asks to mark a task done, tick off a task, update a task's status, or record that work passed — marking done without `adr-verify` is the one thing this skill exists to prevent. Do not execute archived, superseded, withdrawn, Proposed, or Draft records; retire records with `adr-retire` instead.
 ---
 
 # ADR Execute

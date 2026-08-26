@@ -2592,11 +2592,33 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
     '# ADR-002: Old\n\n**Status:** Superseded by ADR-003\n')
   assert.equal(nextStage(observe(retire)).id, 'adr-retire')
 
-  // It reads and never blocks.
-  const run = spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'work-next.mjs'), root], { encoding: 'utf8' })
+  // It reads and never blocks, in every branch it can print.
+  const cli = (...args) => spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'work-next.mjs'), ...args], { encoding: 'utf8' })
+  const run = cli(root)
   assert.equal(run.status, 0)
   assert.match(run.stdout, /record\(s\)/)
+
+  // --json carries the whole DAG, not just the next step: a caller that only
+  // learns "do this next" cannot tell whether the router understood the repo.
+  const structured = JSON.parse(cli('--json', root).stdout)
+  assert.ok(structured.stages.length >= 5)
+  assert.ok(structured.stages.every(entry => entry.entry && entry.when))
+  assert.equal(structured.next, null, 'this fixture keeps its evidence elsewhere')
+  assert.equal(structured.tasks, 1)
+
+  // A corpus with tasks and no Verification Log says what it cannot see, and
+  // still prints the flow — the stages are the point even when the state is not.
+  assert.match(run.stdout, /records evidence some other way/)
+  assert.match(run.stdout, /adr-verify <task file>/)
+
+  // An empty repository is told where to start rather than shown an empty table.
+  const nothing = cli(await mkdtemp(path.join(testTmp, 'quality-router-cli-')))
+  assert.equal(nothing.status, 0)
+  assert.match(nothing.stdout, /spec-write/)
+
+  // And the retirement branch prints its evidence.
+  assert.match(cli(retire).stdout, /ADR-002-old\.md/)
   assert.equal(spawnSync(process.execPath,
     [path.join(pluginDir, 'scripts', 'work-next.mjs'), '--nope'], { encoding: 'utf8' }).status, 2)
 })

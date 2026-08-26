@@ -19,6 +19,16 @@ make; making it silently is not.
   A path under an archive whose `README.md` says `Lifecycle: Frozen historical ADR records` is
   historical evidence, never an executable plan. If new implementation is required, write a new
   active ADR that links the archived decision.
+**Adopting these gates on a corpus that predates them.** A repository whose records were written
+before this harness will light up on every one of them, and a gate that fails on day one over
+history nobody is changing is a gate people turn off. Put `{"strictFrom": "ADR-0012"}` in
+`.quality-harness.json` at the repository root and records numbered below the cutoff report their
+content findings as advice instead of blocking — the shape of history is allowed to be imperfect.
+The evidence chain is never demoted: a task marked `done` still needs a tool-written exit-0
+Verification Log entry whatever its number, because that is the claim the corpus exists to make.
+The verdict line says `[strictFrom] …` whenever it is in effect, so a demoted PASS is never
+mistaken for a clean one.
+
 - Run `adr-lint <adr.md>` and paste the run. It mechanically checks template conformance,
   shell-command acceptance, TDD step 1, README↔task-file consistency, and spec coverage. A finding
   here is nearly always a real gap in the plan — the cheapest moment to close it is before the first

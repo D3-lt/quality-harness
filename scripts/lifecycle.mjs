@@ -1217,6 +1217,32 @@ export function bashNavigationImpact(command, cwd) {
   return refreshSeen ? 'refresh' : inertSeen ? 'inert' : null
 }
 
+// A one-line, readable stand-in for a Bash command whose writes could not be
+// resolved to a path.
+//
+// It used to be the command's first 120 characters verbatim. A heredoc or a
+// shell function definition then put raw newlines and a mid-token truncation
+// into the completion message, and five of them joined by ", " made the sentence
+// that is supposed to say WHAT CHANGED unreadable. Reported from a live 2.1.7
+// session on 2026-08-26:
+//
+//   Changed paths include: …, <Bash mutation: cd /repo
+//   python3 - <<'PY'
+//   import io
+//   p="tests/Unit/Notifications/CustomerEmailTest.p>, <Bash mutation: cd /repo
+//
+// A reader needs to recognize the command, not re-read it: first line, one line,
+// cut at a word boundary. The marker only has to stay a non-absolute string —
+// runArtifactGates skips it by `path.isAbsolute`, which is what keeps an
+// unresolvable command out of the gate rather than into it.
+export function describeCommand(command, limit = 72) {
+  const first = String(command ?? '').split('\n')[0].replace(/\s+/g, ' ').trim()
+  if (first.length <= limit) return first
+  const cut = first.slice(0, limit)
+  const boundary = cut.lastIndexOf(' ')
+  return `${(boundary > limit / 2 ? cut.slice(0, boundary) : cut).trimEnd()}…`
+}
+
 export function analyzeTranscript(raw, cwd = process.cwd()) {
   const uses = []
   const results = new Map()
@@ -1284,7 +1310,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
           lastUnresolvedDeletion = Math.max(lastUnresolvedDeletion, use.position)
         }
         mutationPaths.push(...deletions)
-        mutationPaths.push(`<Bash mutation: ${String(use.input.command).slice(0, 120)}>`)
+        mutationPaths.push(`<Bash mutation: ${describeCommand(use.input.command)}>`)
       }
       if (isGitPublishCommand(use.input.command)) {
         lastPublish = Math.max(lastPublish, use.position)

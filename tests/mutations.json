@@ -1,0 +1,310 @@
+{
+  "_comment": [
+    "The killing mutations named in docs/TEST-PLAN.md, made runnable by scripts/mutate.mjs.",
+    "Each entry is a claim: break this, and THAT suite must stop passing.",
+    "`from` must match exactly once \u2014 a mutation matching zero or many times no longer",
+    "describes the code, is reported STALE, and fails the run. That is deliberate: a",
+    "mutation nobody has re-read is the same kind of stale record as a task list kept",
+    "beside the tasks.",
+    "This is a representative set, one per defect class, not every mutation ever run."
+  ],
+  "mutations": [
+    {
+      "label": "evidence: done status is checked at all",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        found = next(((i, m) for i, c in enumerate(cells)",
+      "to": "        found = next(((i, m) for i, c in enumerate(cells[:1])"
+    },
+    {
+      "label": "evidence: exit-0-but-scored-nothing is a failure",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    empty = code == 0 and scored_nothing(output)",
+      "to": "    empty = False"
+    },
+    {
+      "label": "evidence: a real result outranks an empty one",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    return not any(re.search(p, output, re.M) for p in SOMETHING_RAN)",
+      "to": "    return True"
+    },
+    {
+      "label": "evidence: the digest label the readers parse",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha256:{digest}\")",
+      "to": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha:{digest}\")"
+    },
+    {
+      "label": "evidence: the dirty-tree marker",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    return sha + (\"*\" if d.stdout.strip() else \"\")",
+      "to": "    return sha"
+    },
+    {
+      "label": "evidence: the failure fence",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        block += \"\\n\" + \"\\n\".join([\"  ```\"] + [\"  \" + ln for ln in out] + [\"  ```\"])",
+      "to": "        pass"
+    },
+    {
+      "label": "evidence: cwd defaults to the repository root",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        cwd = Path(r.stdout.strip()) if r.returncode == 0 else task.parent",
+      "to": "        cwd = task.parent"
+    },
+    {
+      "label": "evidence: the append keeps line endings",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    write_source(task, text[:m.start()] + new + (\"\\n\" + tail if tail else \"\"), file_newline(task))",
+      "to": "    task.write_text(text[:m.start()] + new + (\"\\n\" + tail if tail else \"\"), encoding=\"utf-8\")"
+    },
+    {
+      "label": "evidence: a refused mutant restores byte-for-byte",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        target.write_bytes(original_bytes)",
+      "to": "        target.write_text(original, encoding=\"utf-8\")"
+    },
+    {
+      "label": "evidence: the seal survives a CRLF checkout",
+      "file": "bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        digest.update(canonical_bytes(path.read_bytes()))",
+      "to": "        digest.update(path.read_bytes())"
+    },
+    {
+      "label": "hooks: a bin/ gate is spawned so Windows can run it",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    const run = spawnGate(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })",
+      "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })"
+    },
+    {
+      "label": "hooks: EVIDENCE-LIMITED needs a stated reason",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "/\\bEVIDENCE-LIMITED:\\s+\\S.{15,}/i",
+      "to": "/\\bEVIDENCE-LIMITED:\\s*/i"
+    },
+    {
+      "label": "hooks: EVIDENCE-LIMITED does not release code",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (docsOnly(state.mutationPaths) && evidenceLimited(input.last_assistant_message)) return",
+      "to": "  if (evidenceLimited(input.last_assistant_message)) return"
+    },
+    {
+      "label": "hooks: an interim answer is Stop-only",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return",
+      "to": "  if (interimResponse(input.last_assistant_message)) return"
+    },
+    {
+      "label": "hooks: SubagentStart names its own event",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        hookEventName: 'SubagentStart',",
+      "to": "        hookEventName: 'SubagentStarted',"
+    },
+    {
+      "label": "hooks: a read-only role is told it is read-only",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "/(explore|plan|research|review|audit|scout|memory)/",
+      "to": "/(explore|plan|research|audit|scout|memory)/"
+    },
+    {
+      "label": "hooks: both ways the budget runs out say so",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return /timed out after \\d+ms/.test(detail) || error?.code === 'ETIMEDOUT'",
+      "to": "  return /timed out after \\d+ms/.test(detail)"
+    },
+    {
+      "label": "hooks: the runner fails closed on a timeout",
+      "file": "scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    const timer = setTimeout(() => {\n      timedOut = true\n      terminateProcessTree(child, platform)\n    }, timeoutMs)",
+      "to": "    const timer = setTimeout(() => {\n    }, timeoutMs)"
+    },
+    {
+      "label": "hooks: the wrapper propagates a child's exit code",
+      "file": "scripts/verify.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "  process.exitCode = code ?? 1",
+      "to": "  process.exitCode = 0"
+    },
+    {
+      "label": "gates: a dependency cycle is detected",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for n in sorted(nodes):\n        if not state.get(n):\n            c = dfs(n)\n            if c:\n                return c\n    return None",
+      "to": "    for n in sorted(nodes):\n        if not state.get(n):\n            dfs(n)\n    return None"
+    },
+    {
+      "label": "gates: a done task needs an exit-0 entry",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"\u00b7 exit 0 \u00b7\" in b]",
+      "to": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b)]"
+    },
+    {
+      "label": "gates: a test that cannot go red is reported",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if not FAIL_CALLS.search(body):\n                errors.append(",
+      "to": "            if False:\n                errors.append("
+    },
+    {
+      "label": "gates: postmortem dates are YYYY-MM-DD",
+      "file": "bin/postmortem-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if not re.search(r\"^date:\\s*\\d{4}-\\d{2}-\\d{2}\\s*$\", front, re.M):",
+      "to": "    if False:"
+    },
+    {
+      "label": "gates: a markdown-escaped pipe is a vacuous gate",
+      "file": "bin/arch-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if r\"\\|\" in cell:",
+      "to": "    if False:"
+    },
+    {
+      "label": "gates: a deferred pointer must resolve",
+      "file": "bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        return \"path\", any((r / t).exists() for t in ptoks for r in roots)",
+      "to": "        return \"path\", True"
+    },
+    {
+      "label": "gates: a Cmd override is not command substitution",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "            cmd = row[4].strip(\"`\").strip() if len(row) > 4 and row[4] else None\n            cmd = cmd or None",
+      "to": "            cmd = row[4] if len(row) > 4 and row[4] else None"
+    },
+    {
+      "label": "gates: path_stack stays inside the repository",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        try:\n            here.relative_to(Path(root))\n        except ValueError:\n            return None",
+      "to": "        pass"
+    },
+    {
+      "label": "gates: an unknown flag is refused",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    reject_unknown_flags((\"--all\", \"--json\"))\n",
+      "to": ""
+    },
+    {
+      "label": "gates: a README is not a task",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if path.name.lower() == \"readme.md\":\n            continue",
+      "to": "        if False:\n            continue"
+    },
+    {
+      "label": "gates: a contract edge orders two tasks",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                if tokens & produced:\n                    out[tid].add(other)",
+      "to": "                if False:\n                    out[tid].add(other)"
+    },
+    {
+      "label": "skills: a documented flag must be parsed",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "        elif args[i] == \"--why\":",
+      "to": "        elif args[i] == \"--rationale\":"
+    },
+    {
+      "label": "skills: --all changes what adr-next prints",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "\"--all\" in flags",
+      "to": "\"--every\" in flags"
+    },
+    {
+      "label": "hooks: an unresolvable Bash write is one readable line",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const first = String(command ?? '').split('\\n')[0].replace(/\\s+/g, ' ').trim()",
+      "to": "  const first = String(command ?? '').slice(0, 120)"
+    }
+  ]
+}

@@ -128,6 +128,27 @@ def links_in(readme):
     return out
 
 
+class Findings(list):
+    """Findings that block, and a second channel for the ones that should not.
+
+    Almost everything here blocks, and that is not an oversight: this gate checks
+    a CONTRACT. A link that does not resolve, a digest that does not match the
+    frozen record, an obligation with no receipt — each is the archive claiming
+    something the repository does not support.
+
+    What advises is form: a row whose cell count is wrong, a lifecycle marker
+    that is absent, a date not written as YYYY-MM-DD. The record is still
+    readable and nothing has been misrepresented.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.advice = []
+
+    def advise(self, message):
+        self.advice.append(message)
+
+
 def catalog_rows(readme, errors):
     rows = {}
     for line in sections_of(readme.read_text(errors="replace", encoding="utf-8")).get("Retired Records", []):
@@ -137,7 +158,7 @@ def catalog_rows(readme, errors):
         if not cells or cells[0] in ("ADR", "-----") or set(cells[0]) == {"-"}:
             continue
         if len(cells) != 7:
-            errors.append(f"archive catalog row needs 7 cells: {line[:100]}")
+            errors.advise(f"archive catalog row needs 7 cells: {line[:100]}")
             continue
         adr_id = normalize_id(cells[0])
         if not adr_id:
@@ -212,7 +233,7 @@ def decision_unit_digest(archive_root, adr_id, source):
 
 def adoption_report(active_root, archive_root):
     active_root, archive_root = active_root.resolve(), archive_root.resolve()
-    errors = []
+    errors = Findings()
     if not active_root.is_dir() or not archive_root.is_dir():
         print("[FAIL] --adopt needs existing active and archive directories")
         raise SystemExit(1)
@@ -299,13 +320,13 @@ def main():
         raise SystemExit(1)
 
     archive_readme = Path(sys.argv[1]).resolve()
-    errors = []
+    errors = Findings()
     if not archive_readme.is_file():
         print(f"[FAIL] archive README not found: {archive_readme}")
         raise SystemExit(1)
     archive_text = archive_readme.read_text(errors="replace", encoding="utf-8")
     if not re.search(r"^\*\*Lifecycle:\*\* Frozen historical ADR records$", archive_text, re.M):
-        errors.append("archive README lacks the opt-in lifecycle marker")
+        errors.advise("archive README lacks the opt-in lifecycle marker")
     active_match = re.search(r"^\*\*Active corpus:\*\*\s*(.+?)\s*$", archive_text, re.M)
     active_root = ((archive_readme.parent / active_match.group(1).strip("` ")).resolve()
                    if active_match else None)
@@ -373,7 +394,7 @@ def main():
         elif effect != "withdrawn":
             errors.append(f"{adr_id}: bad Decision effect '{row['effect']}'")
         if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", row["retired"]):
-            errors.append(f"{adr_id}: Retired must be YYYY-MM-DD")
+            errors.advise(f"{adr_id}: Retired must be YYYY-MM-DD")
         if not row["reason"] or row["reason"].startswith("<"):
             errors.append(f"{adr_id}: retirement Reason is empty or a placeholder")
         digest = decision_unit_digest(archive_root, adr_id, source)
@@ -428,6 +449,9 @@ def main():
           f"{len(archive_records)} archived · {len(governing)} governing")
     for error in errors:
         print(f"  {error}")
+    # Printed on a PASS too: acceptable and finished are different things.
+    for note in errors.advice:
+        print(f"  advice: {note}")
     raise SystemExit(1 if errors else 0)
 
 

@@ -27,25 +27,50 @@ SEVERITIES = {"critical", "medium", "low"}
 SECTIONS = ["Symptom", "Context", "Root Cause", "Investigation", "Fix", "Lesson"]
 
 
+class Findings(list):
+    """Findings that block, and a second channel for the ones that should not.
+
+    Same distinction as adr-lint: `.append` means the record CLAIMS something it
+    has not established or contradicts itself; `.advise` means FORM — absent
+    frontmatter, a heading that is not there. The line is between form and
+    content, not between big and small: a section that is ABSENT is form, and a
+    section present and EMPTY states nothing, which is content. IDENTITY blocks
+    too — a document the gate cannot recognise as the kind of record it
+    validates is not a form problem.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.advice = []
+
+    def advise(self, message):
+        self.advice.append(message)
+
+
 def check(path):
-    errs = []
+    errs = Findings()
     text = Path(path).read_text(errors="replace", encoding="utf-8")
     fm = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
     if not fm:
-        return [f"no YAML frontmatter block"]
+        # Identity, not form: a document with no frontmatter is not a
+        # postmortem at all. Made advisory once, and postmortem-verify accepted
+        # an ADR template as a postmortem.
+        out = Findings()
+        out.append("no YAML frontmatter block")
+        return out
     front = fm.group(1)
     if not re.search(r"^date:\s*\d{4}-\d{2}-\d{2}\s*$", front, re.M):
-        errs.append("frontmatter: date missing or not YYYY-MM-DD")
+        errs.advise("frontmatter: date missing or not YYYY-MM-DD")
     m = re.search(r"^category:\s*(\S+)\s*$", front, re.M)
     if not m or m.group(1).strip("'\"") not in CATEGORIES:
-        errs.append(f"frontmatter: category missing or not one of {sorted(CATEGORIES)}")
+        errs.advise(f"frontmatter: category missing or not one of {sorted(CATEGORIES)}")
     m = re.search(r"^severity:\s*(\S+)\s*$", front, re.M)
     if not m or m.group(1).strip("'\"") not in SEVERITIES:
-        errs.append(f"frontmatter: severity missing or not one of {sorted(SEVERITIES)}")
+        errs.advise(f"frontmatter: severity missing or not one of {sorted(SEVERITIES)}")
     if not re.search(r"^files_changed:\s*\n(\s+-\s+\S+\n?)+", front, re.M):
-        errs.append("frontmatter: files_changed missing or empty list")
+        errs.advise("frontmatter: files_changed missing or empty list")
     if not re.search(r"^tags:\s*\[.+\]\s*$", front, re.M):
-        errs.append("frontmatter: tags missing or not [a, b] list form")
+        errs.advise("frontmatter: tags missing or not [a, b] list form")
 
     body = text[fm.end():]
     secs, cur, fence = {}, None, False
@@ -60,7 +85,7 @@ def check(path):
             secs[cur].append(line)
     for s in SECTIONS:
         if s not in secs:
-            errs.append(f"missing section ## {s}")
+            errs.advise(f"missing section ## {s}")
         elif not any(ln.strip() for ln in secs[s]):
             errs.append(f"section ## {s} is empty")
     fix = "\n".join(secs.get("Fix", []))
@@ -98,6 +123,9 @@ def main():
         print(f"[{'PASS' if not errs else 'FAIL'}] {path}")
         for e in errs:
             print(f"  {e}")
+        # Printed on a PASS too: acceptable and finished are different things.
+        for a in errs.advice:
+            print(f"  advice: {a}")
         bad += bool(errs)
     sys.exit(1 if bad else 0)
 

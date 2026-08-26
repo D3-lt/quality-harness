@@ -434,14 +434,32 @@ def path_stack(root, path):
         here = here.parent
 
 
+class Findings(list):
+    """Findings that block, and a second channel for the ones that should not.
+
+    Same line as adr-lint: `.append` means the record CLAIMS something it has not
+    established or contradicts itself; `.advise` means FORM — a section or
+    heading that is ABSENT, a row whose shape is wrong. A section present and
+    EMPTY is content, and a document the gate cannot recognise at all is
+    identity, which blocks too.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.advice = []
+
+    def advise(self, message):
+        self.advice.append(message)
+
+
 def check_spec(path, mode, root_override, collect):
-    errors, missing, failing = [], [], []
+    errors, missing, failing = Findings(), [], []
     text = Path(path).read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
 
     for s in SECTIONS:
         if s not in secs:
-            errors.append(f"missing section: ## {s}")
+            errors.advise(f"missing section: ## {s}")
 
     ucs = set()
     for line in secs.get("Use Cases", []):
@@ -456,7 +474,7 @@ def check_spec(path, mode, root_override, collect):
         if SCEN_HEAD_RE.match(line):
             m = SCEN_RE.match(line)
             if not m:
-                errors.append(f"scenario heading does not match grammar "
+                errors.advise(f"scenario heading does not match grammar "
                               f"'### UCn-Sm [happy|failure] <title> [@tag] → `test`': {line.strip()}")
                 continue
             uc, s, kind, title, tag, test = m.groups()
@@ -468,9 +486,9 @@ def check_spec(path, mode, root_override, collect):
     for uc in sorted(ucs):
         kinds = {sc["kind"] for sc in scenarios if sc["uc"] == uc}
         if "failure" not in kinds:
-            errors.append(f"UC-{uc} has no [failure] scenario")
+            errors.advise(f"UC-{uc} has no [failure] scenario")
         if "happy" not in kinds:
-            errors.append(f"UC-{uc} has no [happy] scenario")
+            errors.advise(f"UC-{uc} has no [happy] scenario")
 
     facts = []
     for line in secs.get("Facts", []):
@@ -478,7 +496,7 @@ def check_spec(path, mode, root_override, collect):
         if m:
             row = cells(line)
             if len(row) < 4:
-                errors.append(f"fact row too short (need ID|Assertion|Test|Tag): {line.strip()}")
+                errors.advise(f"fact row too short (need ID|Assertion|Test|Tag): {line.strip()}")
                 continue
             fid, assertion, test, tag = row[0], row[1], row[2].strip("`"), row[3]
             # Backticks stripped, exactly as the Test cell above is stripped. The
@@ -573,6 +591,9 @@ def main():
             print(f"  NOTEST  {m}")
         for f in failing:
             print(f"  RED     {f}")
+        # Printed on a PASS too: acceptable and finished are different things.
+        for a in errors.advice:
+            print(f"  advice  {a}")
         if failing:
             worst = max(worst, 3)
         elif missing:

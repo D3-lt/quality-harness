@@ -341,6 +341,15 @@
       ],
       "from": "    if (isGitPublishCommand(command)\n        && bashDeletionMutationPaths(command, input.cwd).includes(UNRESOLVED_DELETION_MUTATION)) {",
       "to": "    if (false) {"
+    },
+    {
+      "label": "hooks: a Windows path is a path, not an escape",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        const ambiguous = platform === 'win32' ? '*?[]{}' : '*?[]{}\\\\'",
+      "to": "        const ambiguous = '*?[]{}\\\\'"
     }
   ]
 }

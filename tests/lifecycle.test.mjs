@@ -724,6 +724,9 @@ test('reported: finding the repository root does not disqualify the check that f
   // effects is not navigation.
   assert.equal(isValidationCommand('npm test $(rm -rf build)'), false)
   assert.equal(isValidationCommand('cd "$(rm -rf x && pwd)" && npm test'), false)
+  // Same on its own line, where a plain `cd`-shaped filter would have dropped it
+  // unread and let the test below stand as the session's only evidence.
+  assert.equal(isValidationCommand('cd "$(rm -rf x && pwd)"\nnpm test'), false)
   assert.equal(isValidationCommand('cd "$(curl -s http://evil)" && npm test'), false)
   assert.equal(isValidationCommand('npm test; rm -rf build'), false)
   assert.equal(isValidationCommand('npm test | tail -3'), false)
@@ -732,13 +735,62 @@ test('reported: finding the repository root does not disqualify the check that f
   assert.equal(isValidationCommand('cd /repo && npm test && rm -rf build'), false)
 })
 
+test('reported: the changed-path list holds paths, and only ones that changed', async () => {
+  // agentsmemory, 2026-08-26. Of five "changed paths" one was real. The list
+  // carried a git REVISION resolved as if it were a file —
+  // `<repo>/origin/main:docs/adr/BACKLOG.md`, a path that has never existed —
+  // and a scratch copy, because `cp <repo file> "$S/"` was accounted by its
+  // source instead of its destination.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-paths-'))
+  await writeFile(path.join(repo, 'BACKLOG.md'), '# Backlog\n')
+
+  // `git show <rev>:<path>` reads out of history. Nothing is written.
+  assert.deepEqual(
+    bashMarkdownMutationPaths('git show origin/main:docs/adr/BACKLOG.md', repo), [])
+  // Selective, not blanket: in one command the revision is dropped and the real
+  // path beside it survives. (The guard keys on a colon past the second
+  // character, so a Windows `C:\…` drive letter is still a path — not asserted
+  // here, because resolving one on POSIX proves nothing either way.)
+  assert.deepEqual(
+    bashMarkdownMutationPaths(
+      `git show origin/main:docs/adr/BACKLOG.md > "${path.join(repo, 'BACKLOG.md')}"`, repo),
+    [path.join(repo, 'BACKLOG.md')])
+
+  // pluginDir, not the temp fixture above: a project that lives under the temp
+  // root deliberately gets no scratch exemption at all.
+  const scratch = path.join(os.tmpdir(), 'qh-copy-target')
+  // Copying a repository file INTO scratch writes only the scratch copy.
+  assert.equal(mutatesOnlyTempPaths(`S=${scratch}; cp docs/BACKLOG.md "$S/"`, pluginDir), true)
+  assert.equal(mutatesOnlyTempPaths(`S=${scratch}; cp a.md b.md "$S/"`, pluginDir), true)
+  // Moving it out is authorship: mv removes the source.
+  assert.equal(mutatesOnlyTempPaths(`S=${scratch}; mv docs/BACKLOG.md "$S/"`, pluginDir), false)
+  // And copying the other way lands in the repository.
+  assert.equal(mutatesOnlyTempPaths(`cp ${scratch}/a.md ./docs/BACKLOG.md`, pluginDir), false)
+
+  // The list is five slots wide. Five copies of one marker report one thing —
+  // which is what the live session saw, with `cd <repo>` filling every slot.
+  const project = await checkedProject('quality-repeats-')
+  const file = path.join(project, 'agent.jsonl')
+  const same = `cd ${project}\nprintf x > note.txt`
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: same }), toolResult('b1'),
+    toolUse('b2', 'Bash', { command: same }), toolResult('b2'),
+    toolUse('b3', 'Bash', { command: same }), toolResult('b3'),
+  ]))
+  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: project })
+  const listed = (`${run.stdout}`.match(/Changed paths include: ([^"]*?)\. Run/) ?? [])[1] ?? ''
+  const entries = listed.split(', ').filter(Boolean)
+  assert.ok(entries.length > 0, run.stdout)
+  assert.deepEqual(entries, [...new Set(entries)], `repeated entries: ${listed}`)
+})
+
 test('reported: no advisory claims to have blocked anything', async () => {
   // The wording IS the contract. A live 2.3.0 session read "Quality gate blocked
   // git commit/push", believed it had been stopped, committed anyway and then
   // narrated "Committed — the reload cleared the stuck hook": a false belief
   // about the harness AND a false explanation of the success. Advisory text that
   // describes itself as a refusal is the same defect as refusing.
-  const dir = await mkdtemp(path.join(testTmp, 'quality-wording-'))
+  const dir = await checkedProject('quality-wording-')
   const file = path.join(dir, 'main.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: path.join(dir, 'a.js') }), toolResult('e1'),
@@ -774,7 +826,7 @@ test('reported: committing does not make the next commit demand a check of it', 
   // git mutation, so the commit landed, was recorded as unverified authorship,
   // and the following push was advised to go verify... the commit. No test could
   // clear it: the loop closed on the publish itself.
-  const dir = await mkdtemp(path.join(testTmp, 'quality-loop-'))
+  const dir = await checkedProject('quality-loop-')
   const file = path.join(dir, 'main.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: path.join(dir, 'a.go') }), toolResult('e1'),
@@ -1146,7 +1198,10 @@ test('scratch writes under the temp root are not the repository\'s edits', async
   assert.equal(mutatesOnlyTempPaths('printf x > docs/spec.md', pluginDir), false)
   assert.equal(mutatesOnlyTempPaths(`sed -i '' "${scratch}/x.md"`, pluginDir), false)
   assert.equal(mutatesOnlyTempPaths(`python3 "${scratch}/rewrite.py"`, pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`cp scripts/lifecycle.mjs "${scratch}/"`, pluginDir), false)
+  // NOT here any more: `cp scripts/lifecycle.mjs "<scratch>/"`. It used to be
+  // false, accounted by its source — but cp reads the source and writes only the
+  // destination, so nothing in the repository changed. Asserted the other way in
+  // the changed-path test above.
   assert.equal(mutatesOnlyTempPaths('cat > "$UNSET_VAR_QH/f"', pluginDir), false)
   assert.equal(mutatesOnlyTempPaths(`rm -rf "${scratch}/a" && printf x > README.md`, pluginDir), false)
   // A project living under the temp root gets no exemption at all.

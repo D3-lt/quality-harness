@@ -41,7 +41,7 @@ exists to prevent.
 
 | Surface | Harness | Why |
 |---|---|---|
-| `scripts/lifecycle.mjs` hooks | `tests/lifecycle.test.mjs` via `runLifecycleHook()` | It supplies an explicit `cwd` in the payload. Without it the gate falls back to `process.cwd()` and answers about *this* checkout — on a protected branch the branch gate fires first and hides the gate under test. |
+| `scripts/lifecycle.mjs` hooks | `tests/lifecycle.test.mjs` via `runLifecycleHook()` | It supplies an explicit `cwd` in the payload. Without it the gate falls back to `process.cwd()` and answers about *this* checkout — it answers about a repository the test never set up. |
 | `bin/*` gates, end to end | `tests/gates.test.mjs`, `mkdtempSync` + `cpSync(fixture)` as at `tests/gates.test.mjs:77-84` | Rows that mutate task files must not mutate `tests/fixtures/ok`. |
 | `bin/*` internals, function level | `tests/gate-regressions.py` via `load_script()` | Reaches helpers that no CLI invocation exercises. |
 | Manifest / CI / declaration pins | `tests/package.test.mjs` | Binds config to the scripts a human runs. |

@@ -17,9 +17,7 @@ import {
   describeCommand,
   sessionOrientation,
   spawnGate,
-  taskBranchSuggestion,
   bashMarkdownMutationPaths,
-  branchViolation,
   isGitPublishCommand,
   isPotentialMutationCommand,
   isValidationCommand,
@@ -237,131 +235,6 @@ test('quoted Markdown and git text are mentions, not permanent lifecycle failure
   const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
   assert.equal(run.status, 0, run.stderr)
   assert.equal(run.stdout, '')
-})
-
-test('branch policy follows the target repository for native edits and git -C', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-branch-'))
-  const { spawnSync } = await import('node:child_process')
-  const initialized = spawnSync('git', ['init', '-b', 'main', dir], { encoding: 'utf8' })
-  assert.equal(initialized.status, 0, initialized.stderr)
-
-  assert.match(branchViolation({
-    tool_name: 'Edit', cwd: testTmp, tool_input: { file_path: path.join(dir, 'new.txt') },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: { command: `git -C "${dir}" commit -m test` },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: dir,
-    tool_input: { command: "sed -i.bak 's/x/y/' file.txt" },
-  }), /protected 'main'/)
-
-  const switched = spawnSync('git', ['-C', dir, 'switch', '-c', 'task/test'], { encoding: 'utf8' })
-  assert.equal(switched.status, 0, switched.stderr)
-  assert.equal(branchViolation({
-    tool_name: 'Write', cwd: testTmp, tool_input: { file_path: path.join(dir, 'new.txt') },
-  }), null)
-
-  const protectedDir = await mkdtemp(path.join(testTmp, 'quality-branch-main-'))
-  const protectedInit = spawnSync('git', ['init', '-b', 'main', protectedDir], { encoding: 'utf8' })
-  assert.equal(protectedInit.status, 0, protectedInit.stderr)
-
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: {
-      command: `git -C "${dir}" status --short && git -C "${protectedDir}" commit -m test`,
-    },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: protectedDir,
-    tool_input: { command: 'cp source.txt destination.txt' },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: protectedDir,
-    tool_input: { command: 'touch generated.txt' },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: { command: `git -C "${protectedDir}" restore tracked.txt` },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: {
-      command: `GIT_AUTHOR_NAME="Bot User" command git -C "${protectedDir}" -c user.name=Bot commit -m test`,
-    },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: { command: `git -C "${dir}" -C "${protectedDir}" reset --hard` },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: {
-      command: `git --git-dir="${protectedDir}/.git" --work-tree="${protectedDir}" reset --hard`,
-    },
-  }), /protected 'main'/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: {
-      command: `git -C "${protectedDir}" merge topic -m "consider --ff-only later"`,
-    },
-  }), /merge without --ff-only/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: {
-      command: `git -C "${protectedDir}" merge topic -- --ff-only`,
-    },
-  }), /merge without --ff-only/)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: {
-      command: `git -C "${protectedDir}" -c foo.bar="x --branch y" checkout tracked.txt`,
-    },
-  }), /protected 'main'/)
-  assert.equal(branchViolation({
-    tool_name: 'Bash', cwd: protectedDir,
-    tool_input: { command: "cat <<'EOF'\ngit commit -m prose\nEOF" },
-  }), null)
-  const nestedMutation = `git -C "${dir}" status --short $(git -C "${protectedDir}" restore --worktree -- .)`
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: testTmp, tool_input: { command: nestedMutation },
-  }), /protected 'main'/)
-
-  const packaged = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: nestedMutation },
-  })
-  assert.equal(packaged.status, 0, packaged.stderr)
-  assert.match(packaged.stderr, /protected 'main'/)
-
-  assert.equal(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: { command: `git -C "${protectedDir}" switch -c task/new` },
-  }), null)
-  assert.equal(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: { command: `git -C "${protectedDir}" checkout -b task/newer` },
-  }), null)
-  assert.equal(branchViolation({
-    tool_name: 'Bash', cwd: testTmp,
-    tool_input: { command: `git -C "${protectedDir}" merge --ff-only task/test` },
-  }), null)
-
-  // Read-only probes stay runnable on a protected branch. These were blocked
-  // while `2>&1` split at the bare `&` and left a segment ending in `2>`.
-  assert.equal(branchViolation({
-    tool_name: 'Bash', cwd: protectedDir,
-    tool_input: { command: 'git ls-remote --heads https://example.invalid/repo.git 2>&1 | head -20' },
-  }), null)
-  assert.equal(branchViolation({
-    tool_name: 'Bash', cwd: protectedDir,
-    tool_input: { command: 'curl -s https://example.invalid/release 2>&1 | head -5' },
-  }), null)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: protectedDir,
-    tool_input: { command: 'git log --oneline &> notes.txt' },
-  }), /protected 'main'/)
 })
 
 test('requires successful verification after the final edit', () => {
@@ -1061,34 +934,6 @@ test('an unresolved Bash deletion is answered by the repository, not held agains
   assert.match(runArtifactGates([sentinel], testTmp), /Git cannot say what is missing/)
 })
 
-test('leaving a protected branch is allowed; overwriting its files is not', async () => {
-  const repo = await mkdtemp(path.join(testTmp, 'quality-checkout-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
-  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
-  git('add', '-A')
-  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
-  git('branch', 'task/work')
-  const check = command => branchViolation({ tool_name: 'Bash', cwd: repo, tool_input: { command } })
-
-  // The block tells you to create a task branch, so the navigation that reaches
-  // one cannot itself be blocked. `switch` was already excepted; `checkout` is
-  // the same move.
-  assert.equal(check('git checkout task/work'), null)
-  assert.equal(check('git switch task/work'), null)
-
-  // With a pathspec the same subcommand overwrites the protected worktree,
-  // whether the pathspec is separated, a second operand, or a bare name.
-  assert.match(check('git checkout -- tracked.txt'), /protected 'main'/)
-  assert.match(check('git checkout HEAD -- tracked.txt'), /protected 'main'/)
-  assert.match(check('git checkout main tracked.txt'), /protected 'main'/)
-  assert.match(check('git checkout .'), /protected 'main'/)
-  assert.match(check('git checkout tracked.txt'), /protected 'main'/)
-
-  // Only the repository can tell a branch from a path, and it says this is neither.
-  assert.match(check('git checkout task/absent'), /protected 'main'/)
-})
-
 test('every record gate advises, at the edit and at the boundary alike', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-adr-set-'))
   const fixtures = path.join(pluginDir, 'tests', 'fixtures', 'ok')
@@ -1277,58 +1122,6 @@ test('scratch writes under the temp root are not the repository\'s edits', async
     toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
   ]), pluginDir)
   assert.equal(verifiedThenScratch.verifiedAfterLastMutation, true)
-})
-
-test('navigation refreshes the tree without counting as authored work', async () => {
-  const repo = await mkdtemp(path.join(testTmp, 'quality-navigation-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
-  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
-  git('add', '-A')
-  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
-  git('branch', 'task/work')
-
-  assert.equal(bashNavigationImpact('git checkout task/work && git pull --ff-only', repo), 'refresh')
-  assert.equal(bashNavigationImpact('git switch task/work', repo), 'refresh')
-  // A non-fast-forward pull can create a merge commit: authorship, not navigation.
-  assert.equal(bashNavigationImpact('git pull', repo), null)
-  assert.equal(bashNavigationImpact('git pull --rebase', repo), null)
-  assert.equal(bashNavigationImpact('git checkout -b task/next', repo), 'inert')
-  assert.equal(bashNavigationImpact('git checkout -b task/next origin/main', repo), 'refresh')
-  assert.equal(bashNavigationImpact('git pull --ff-only && rm -rf src', repo), null)
-  assert.equal(bashNavigationImpact('git checkout tracked.txt', repo), null)
-  assert.equal(bashNavigationImpact('git status', repo), null)
-
-  // A session that only navigated authored nothing and owes nothing.
-  const navigationOnly = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: 'git checkout task/work && git pull --ff-only' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(navigationOnly.hasMutations, false)
-
-  // But navigating after a green run stales that evidence: the tested tree is
-  // no longer the current tree.
-  const staleAfterSwitch = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'git checkout task/work' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(staleAfterSwitch.verifiedAfterLastMutation, false)
-
-  // Creating a branch where you stand changes no tree and stales nothing.
-  const branchAfterGreen = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'git checkout -b task/next' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(branchAfterGreen.verifiedAfterLastMutation, true)
-
-  // Fast-forward integration is the sanctioned way to update a protected
-  // branch, whichever spelling fetches first; anything else stays blocked.
-  const check = command => branchViolation({ tool_name: 'Bash', cwd: repo, tool_input: { command } })
-  assert.equal(check('git pull --ff-only'), null)
-  assert.equal(check('git pull --ff-only origin main'), null)
-  assert.match(check('git pull'), /protected 'main'/)
-  assert.match(check('git pull --rebase'), /protected 'main'/)
 })
 
 test('a deletion and a commit in one command cannot hide what was removed', async () => {
@@ -1649,33 +1442,6 @@ test('the gate names the check this project owns instead of asking for one', asy
   assert.match(run.stderr, /Run `pnpm test` \(this project's own check\)/)
 })
 
-test('a refusal carries the command that resolves it', async () => {
-  const repo = await mkdtemp(path.join(testTmp, 'quality-remedy-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
-  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
-  git('add', '-A')
-  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
-
-  // The escape has to be a command the guard itself permits, or the block is a
-  // dead end: `git checkout <new>` is not, `git switch -c` is.
-  const suggestion = taskBranchSuggestion(repo)
-  assert.match(suggestion, /^git switch -c task\//)
-  assert.equal(branchViolation({
-    tool_name: 'Bash', cwd: repo, tool_input: { command: suggestion },
-  }), null)
-
-  assert.match(branchViolation({
-    tool_name: 'Write', cwd: repo, tool_input: { file_path: path.join(repo, 'new.txt') },
-  }), /git switch -c task\//)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: repo, tool_input: { command: 'git commit -m test' },
-  }), /git switch -c task\//)
-  assert.match(branchViolation({
-    tool_name: 'Bash', cwd: repo, tool_input: { command: 'git merge topic' },
-  }), /--ff-only/)
-})
-
 test('a bin/ gate is spawned in a way Windows can actually run', async () => {
   // The gates are `#!` scripts, which Windows cannot exec: a direct spawn returns
   // status null, and readyTaskLines' `continue` turned that into a silently empty
@@ -1707,46 +1473,6 @@ test('a bin/ gate is spawned in a way Windows can actually run', async () => {
   const source = await readFile(path.join(pluginDir, 'scripts', 'lifecycle.mjs'), 'utf8')
   assert.equal((source.match(/spawnSync\(tool\b/g) ?? []).length, 1,
     'a bin/ gate must be spawned through spawnGate, which names the interpreter on Windows')
-})
-
-test('session orientation states this project, and only this project', async () => {
-  // Everything it says is established from the repository in front of it.
-  const here = sessionOrientation(pluginDir)
-  assert.match(here, /bash scripts\/selftest\.sh/)
-
-  const repo = await mkdtemp(path.join(testTmp, 'quality-orientation-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
-  await writeFile(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'vitest' } }))
-  const onMain = sessionOrientation(repo)
-  assert.match(onMain, /npm run test/)
-  assert.match(onMain, /protected 'main'/)
-  assert.match(onMain, /git switch -c task\//)
-  // The escape it advertises must actually be allowed.
-  const advertised = /`(git switch -c task\/[^`]+)`/.exec(onMain)[1]
-  assert.equal(branchViolation({ tool_name: 'Bash', cwd: repo, tool_input: { command: advertised } }), null)
-
-  spawnSync('git', ['-C', repo, 'switch', '-q', '-c', 'task/work'], { encoding: 'utf8' })
-  assert.doesNotMatch(sessionOrientation(repo), /protected/)
-
-  // A directory that is not a repository gets no ADR reading at all: a shared
-  // temp directory once yielded another project's tasks, and work from another
-  // codebase must never be offered to a session that was not opened on it.
-  const loose = await mkdtemp(path.join(testTmp, 'quality-orientation-loose-'))
-  await mkdir(path.join(loose, 'docs', 'tasks'), { recursive: true })
-  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
-    path.join(loose, 'docs', 'tasks', 'T1-fixture.md'))
-  assert.doesNotMatch(sessionOrientation(loose), /ADR tasks in flight/)
-
-  // Inside a repository the same records are read.
-  spawnSync('git', ['init', '-q', '-b', 'task/work', loose], { encoding: 'utf8' })
-  assert.match(sessionOrientation(loose), /ADR tasks in flight/)
-
-  // The hook itself is additive: it never blocks and never exits non-zero.
-  const run = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: pluginDir })
-  assert.equal(run.status, 0, run.stderr)
-  const emitted = JSON.parse(run.stdout)
-  assert.equal(emitted.hookSpecificOutput.hookEventName, 'SessionStart')
-  assert.doesNotMatch(run.stdout, /"decision"/)
 })
 
 test('adr-next reads the task files, not the index that describes them', async () => {
@@ -2023,4 +1749,176 @@ test('an interim answer defers the gate at Stop, and never at TaskCompleted', as
 
   // And a plain sign-off is not an interim answer at either boundary.
   assert.match(at('Stop', 'All done, shipped it.').stdout, /"systemMessage"/)
+})
+
+test('navigation refreshes the tree without counting as authored work', async () => {
+  const repo = await mkdtemp(path.join(testTmp, 'quality-navigation-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
+  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  git('add', '-A')
+  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
+  git('branch', 'task/work')
+
+  assert.equal(bashNavigationImpact('git checkout task/work && git pull --ff-only', repo), 'refresh')
+  assert.equal(bashNavigationImpact('git switch task/work', repo), 'refresh')
+  // A non-fast-forward pull can create a merge commit: authorship, not navigation.
+  assert.equal(bashNavigationImpact('git pull', repo), null)
+  assert.equal(bashNavigationImpact('git pull --rebase', repo), null)
+  assert.equal(bashNavigationImpact('git checkout -b task/next', repo), 'inert')
+  assert.equal(bashNavigationImpact('git checkout -b task/next origin/main', repo), 'refresh')
+  assert.equal(bashNavigationImpact('git pull --ff-only && rm -rf src', repo), null)
+  assert.equal(bashNavigationImpact('git checkout tracked.txt', repo), null)
+  assert.equal(bashNavigationImpact('git status', repo), null)
+
+  // A session that only navigated authored nothing and owes nothing.
+  const navigationOnly = analyzeTranscript(transcript([
+    toolUse('b1', 'Bash', { command: 'git checkout task/work && git pull --ff-only' }), toolResult('b1'),
+  ]), repo)
+  assert.equal(navigationOnly.hasMutations, false)
+
+  // But navigating after a green run stales that evidence: the tested tree is
+  // no longer the current tree.
+  const staleAfterSwitch = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: 'git checkout task/work' }), toolResult('b1'),
+  ]), repo)
+  assert.equal(staleAfterSwitch.verifiedAfterLastMutation, false)
+
+  // Creating a branch where you stand changes no tree and stales nothing.
+  const branchAfterGreen = analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
+    toolUse('b1', 'Bash', { command: 'git checkout -b task/next' }), toolResult('b1'),
+  ]), repo)
+  assert.equal(branchAfterGreen.verifiedAfterLastMutation, true)
+})
+
+test('session orientation states this project, and only this project', async () => {
+  // Everything it says is established from the repository in front of it.
+  const here = sessionOrientation(pluginDir)
+  assert.match(here, /bash scripts\/selftest\.sh/)
+
+  const repo = await mkdtemp(path.join(testTmp, 'quality-orientation-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  await writeFile(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'vitest' } }))
+  const named = sessionOrientation(repo)
+  assert.match(named, /npm run test/)
+  // Nothing about git. This harness has no opinion on which branch anyone is
+  // on, and says so by saying nothing: the agent knows git, and a repository
+  // with a branch policy states it in CLAUDE.md. Told plainly on 2026-08-26.
+  assert.doesNotMatch(named, /branch|protected|git switch/i)
+
+  // A directory that is not a repository gets no ADR reading at all: a shared
+  // temp directory once yielded another project's tasks, and work from another
+  // codebase must never be offered to a session that was not opened on it.
+  const loose = await mkdtemp(path.join(testTmp, 'quality-orientation-loose-'))
+  await mkdir(path.join(loose, 'docs', 'tasks'), { recursive: true })
+  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+    path.join(loose, 'docs', 'tasks', 'T1-fixture.md'))
+  assert.doesNotMatch(sessionOrientation(loose), /ADR tasks in flight/)
+
+  // Inside a repository the same records are read.
+  spawnSync('git', ['init', '-q', '-b', 'task/work', loose], { encoding: 'utf8' })
+  assert.match(sessionOrientation(loose), /ADR tasks in flight/)
+
+  // The hook itself is additive: it never blocks and never exits non-zero.
+  const run = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: pluginDir })
+  assert.equal(run.status, 0, run.stderr)
+  const emitted = JSON.parse(run.stdout)
+  assert.equal(emitted.hookSpecificOutput.hookEventName, 'SessionStart')
+  assert.doesNotMatch(run.stdout, /"decision"/)
+})
+
+test('reported: a scratch directory made the standard way is still scratch', async () => {
+  // `W=$(mktemp -d)` is how everyone makes a scratch directory, and every use of
+  // it armed the unresolved-deletion sentinel AND counted as repository
+  // authorship — so cleaning up after yourself invalidated a check that had
+  // already passed. Two causes: the assignment pattern's `\S*` stopped at the
+  // space inside the substitution, so the value was never recorded at all, and
+  // nothing knew what mktemp -d returns.
+  const repo = pluginDir
+  const clean = 'W=$(mktemp -d); cp README.md "$W/"; rm -rf "$W"'
+  assert.equal(mutatesOnlyTempPaths(clean, repo), true)
+  assert.deepEqual(bashDeletionMutationPaths(clean, repo)
+    .filter(entry => entry === '<Unresolved Bash deletion>'), [])
+  assert.equal(mutatesOnlyTempPaths('rm -rf "$(mktemp -d)"', repo), true)
+  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -t qh); rm -rf "$W"', repo), true)
+
+  // Only the spellings that cannot name somewhere else. -p and --tmpdir point
+  // where they are told, and a bare template is created relative to the working
+  // directory by GNU mktemp — `mktemp -d buildXXXXXX` writes into the repo.
+  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -p .); rm -rf "$W"', repo), false)
+  // The glued and `=` spellings are the ones the flag guard exists for: a bare
+  // operand is already refused, so without it these would read as scratch.
+  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -p.); rm -rf "$W"', repo), false)
+  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d --tmpdir=.); rm -rf "$W"', repo), false)
+  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d buildXXXX); rm -rf "$W"', repo), false)
+  assert.equal(mutatesOnlyTempPaths('W=$(mktemp); rm -rf "$W"', repo), false)
+  assert.equal(mutatesOnlyTempPaths('W=$(pwd); rm -rf "$W"', repo), false)
+})
+
+test('reported: naming a gate is not running it, and asking is not writing', async () => {
+  // Both from live sessions on 2026-08-26.
+  // `which adr-lint adr-verify arch-lint` asks where the gates are and runs
+  // none of them; the pattern counted the mention.
+  assert.equal(isPotentialMutationCommand('which adr-lint adr-verify arch-lint'), false)
+  assert.equal(isPotentialMutationCommand('command -v adr-verify'), false)
+  // Running it really is authorship: it writes a Verification Log entry.
+  assert.equal(isPotentialMutationCommand('adr-verify docs/tasks/T1.md'), true)
+  assert.equal(isPotentialMutationCommand('python3 bin/adr-verify docs/tasks/T1.md'), true)
+
+  // An unrecognised call inside `-c` is treated as a mutation, which made
+  // `print(inspect.signature(X.__init__))` authorship and demanded a re-run of
+  // the project's check for having looked something up.
+  assert.equal(isPotentialMutationCommand(
+    'python3 -c "import inspect; print(inspect.signature(int))"'), false)
+  assert.equal(isPotentialMutationCommand(
+    './.venv/Scripts/python.exe -c "import inspect\nfrom x import Y\nprint(inspect.signature(Y.__init__))"'), false)
+  // The conservative default survives: a call nobody recognises still counts.
+  assert.equal(isPotentialMutationCommand('python3 -c "open(\'f\',\'w\').write(1)"'), true)
+  assert.equal(isPotentialMutationCommand('python3 -c "shutil.rmtree(p)"'), true)
+})
+
+test('the harness has no opinion about git branches', async () => {
+  // Removed on 2026-08-26: "leave GIT alone... our quality harness is only about
+  // ADR skills, not the GIT usage, AI agent already knows how to work here, and
+  // even so — CLAUDE.md must be the one who instructs." The guard had just fired
+  // on a command whose first act was `git switch -c task/…`, the escape it was
+  // itself demanding.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-nogit-'))
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  await writeFile(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
+  await writeFile(path.join(repo, 'a.js'), 'x\n')
+
+  const payloads = [
+    { hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: repo,
+      tool_input: { file_path: path.join(repo, 'a.js') } },
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+      tool_input: { command: 'printf x > a.js' } },
+    { hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+      tool_input: { command: 'git merge feature' } },
+    { hook_event_name: 'SessionStart', cwd: repo },
+  ]
+  for (const payload of payloads) {
+    const run = runLifecycleHook(payload)
+    assert.equal(run.status, 0)
+    const message = `${run.stdout}${run.stderr}`
+    assert.doesNotMatch(message, /protected|task branch|git switch|--ff-only/i,
+      `${JSON.stringify(payload)} -> ${message}`)
+  }
+
+  // The evidence question is untouched: it is about the project's check, not
+  // about git, and it still fires at the commit boundary.
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.js') }), toolResult('e1'),
+  ]))
+  const commit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+    tool_input: { command: 'git commit -m x' }, transcript_path: file,
+  })
+  assert.match(commit.stderr, /would publish unchecked/)
+  assert.match(commit.stderr, /npm run test/)
 })

@@ -978,6 +978,51 @@
       ],
       "from": "    const ours = path.join(pluginRoot, 'skills', name, 'SKILL.md')",
       "to": "    const ours = path.join(pluginRoot, 'skills', name, 'ABSENT.md')"
+    },
+    {
+      "label": "sync: a cached newer version outranks the running one",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!newest || order(newest) <= order(running)) return ''",
+      "to": "  if (!newest) return ''"
+    },
+    {
+      "label": "sync: versions are ordered as semver, not as strings",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  parsed.sort((a, b) => b.parts[0] - a.parts[0] || b.parts[1] - a.parts[1] || b.parts[2] - a.parts[2])",
+      "to": "  parsed.sort((a, b) => (a.name < b.name ? 1 : -1))"
+    },
+    {
+      "label": "sync: it syncs from the newest install, not the running one",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return { root: path.join(cache, newest), version: newest, running }",
+      "to": "  return { root: runningRoot, version: newest, running }"
+    },
+    {
+      "label": "sync: reporting is the default and writes nothing",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const apply = process.argv.includes('--apply')",
+      "to": "  const apply = true"
+    },
+    {
+      "label": "sync: an identical file is not work",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    .filter(entry => entry.state !== 'same')",
+      "to": "    .filter(entry => true)"
     }
   ]
 }

@@ -2271,6 +2271,31 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
     + `\`${path.join(pluginRoot, 'bin')}\`, and delete or refresh the standalone one.`
 }
 
+// The plugin that is RUNNING is not always the newest one installed. Claude Code
+// can keep serving a cached version across an update and a restart, and the
+// session has no way to tell — every gate, skill and template it uses is then
+// last week's, silently. Reported 2026-08-26: "even with updated plugin and
+// restart claude uses older cache". Comparing version directories is the only
+// check that catches it, because a stale copy is internally consistent.
+export function staleVersionNotice(pluginRoot = PLUGIN_ROOT, homeDirectory = os.homedir()) {
+  const running = /(\d+\.\d+\.\d+)$/.exec(pluginRoot)?.[1]
+  if (!running) return ''
+  const cache = path.join(homeDirectory, '.claude', 'plugins', 'cache',
+    'quality-harness', 'quality-harness')
+  let versions = []
+  try { versions = readdirSync(cache) } catch { return '' }
+  const order = name => {
+    const parts = /^(\d+)\.(\d+)\.(\d+)$/.exec(name)
+    return parts ? Number(parts[1]) * 1e6 + Number(parts[2]) * 1e3 + Number(parts[3]) : -1
+  }
+  const newest = versions.filter(name => existsSync(path.join(cache, name, 'scripts', 'lifecycle.mjs')))
+    .sort((a, b) => order(b) - order(a))[0]
+  if (!newest || order(newest) <= order(running)) return ''
+  return `Heads up: this session is running quality-harness ${running}, but ${newest} is installed. `
+    + 'Every gate, skill and template it uses is the older one, and a stale copy is internally '
+    + 'consistent so nothing else will say so. Restart Claude Code to pick up the newer one.'
+}
+
 export function sessionOrientation(cwd) {
   const directory = nearestExistingDirectory(path.resolve(cwd ?? process.cwd()))
   if (!directory) return ''
@@ -2285,8 +2310,14 @@ export function sessionOrientation(cwd) {
       + 'a piped or `|| true` run does not count, because it hides the exit code.')
   }
 
+  const stale = staleVersionNotice()
+  if (stale) lines.push(stale)
+
   const shadow = shadowInstallNotice()
-  if (shadow) lines.push(shadow)
+  if (shadow) {
+    lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports what `
+      + 'differs; `--apply` copies this plugin over the standalone set.')
+  }
 
   const ready = readyTaskLines(root, repositoryRoot !== null)
   if (ready.length) {

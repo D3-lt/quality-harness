@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { realpathSync } from 'node:fs'
+import { existsSync, realpathSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -20,6 +20,7 @@ import {
   spawnGate,
   adrCorpus,
   shadowInstallNotice,
+  staleVersionNotice,
   decisionContext,
   decisionsGoverning,
   pathMatchesDeclaration,
@@ -2190,4 +2191,87 @@ test('reported: a scratch corpus does not pull the record gates', async () => {
   // depend on that.
   const inside = runArtifactGates([orphan], scratch)
   assert.match(String(inside), /ADR ownership|owning ADR/)
+})
+
+test('reported: a session running a cached older plugin is told so', async () => {
+  // "even with updated plugin and restart claude uses older cache", 2026-08-26.
+  // A stale copy is internally consistent — its gates, skills and templates all
+  // agree with each other — so nothing inside the session can notice. Comparing
+  // installed version directories is the only check that catches it.
+  const home = await mkdtemp(path.join(testTmp, 'quality-versions-'))
+  const cache = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness', 'quality-harness')
+  for (const version of ['2.0.0', '2.9.0', '2.10.0']) {
+    await mkdir(path.join(cache, version, 'scripts'), { recursive: true })
+    await writeFile(path.join(cache, version, 'scripts', 'lifecycle.mjs'), '// stub\n')
+  }
+
+  const stale = staleVersionNotice(path.join(cache, '2.9.0'), home)
+  assert.match(stale, /running quality-harness 2\.9\.0, but 2\.10\.0 is installed/)
+  assert.match(stale, /Restart Claude Code/)
+  // 2.10.0 beats 2.9.0: a string comparison would put 2.9.0 ahead and report
+  // the newest version as stale against itself.
+  assert.equal(staleVersionNotice(path.join(cache, '2.10.0'), home), '')
+  assert.match(staleVersionNotice(path.join(cache, '2.0.0'), home), /2\.10\.0 is installed/)
+
+  // A version directory with no lifecycle.mjs is a partial download, not a
+  // newer install to point at.
+  await mkdir(path.join(cache, '3.0.0'), { recursive: true })
+  assert.equal(staleVersionNotice(path.join(cache, '2.10.0'), home), '')
+
+  // No cache, or a root that is not version-stamped: nothing to say.
+  assert.equal(staleVersionNotice(path.join(cache, '2.10.0'), path.join(home, 'absent')), '')
+  assert.equal(staleVersionNotice('/opt/quality-harness', home), '')
+})
+
+test('the sync command reports before it writes, and syncs from the newest install', async () => {
+  const { newestVersion, newestInstalledRoot, plan } =
+    await import('../scripts/sync-standalone.mjs')
+
+  // Semver order, not string order.
+  assert.equal(newestVersion(['2.9.0', '2.10.0', '2.0.0']), '2.10.0')
+  assert.equal(newestVersion(['not-a-version']), null)
+  assert.equal(newestVersion([]), null)
+
+  const home = await mkdtemp(path.join(testTmp, 'quality-sync-'))
+  const cache = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness', 'quality-harness')
+  for (const version of ['2.9.0', '2.10.0']) {
+    await mkdir(path.join(cache, version, 'bin'), { recursive: true })
+  }
+  // Syncing from whatever is EXECUTING would copy the older files over the
+  // standalone set and call it done, which is the reported failure exactly.
+  const newest = newestInstalledRoot(path.join(cache, '2.9.0'), home)
+  assert.equal(newest.version, '2.10.0')
+  assert.equal(newest.running, '2.9.0')
+  // The ROOT is what gets copied from, and reporting the newer version while
+  // copying from the older one is the reported failure with a nicer label.
+  assert.equal(newest.root, path.join(cache, '2.10.0'))
+
+  // The plan names only what differs, and says which way.
+  await mkdir(path.join(home, '.claude', 'bin'), { recursive: true })
+  await cp(path.join(pluginDir, 'bin', 'adr-lint'), path.join(home, '.claude', 'bin', 'adr-lint'))
+  await writeFile(path.join(home, '.claude', 'bin', 'adr-judge'), '# stale\n')
+  const work = plan(pluginDir, home)
+  const state = name => work.find(entry => entry.to.endsWith(name))?.state
+  assert.equal(state(path.join('bin', 'adr-lint')), undefined, 'an identical file is not work')
+  assert.equal(state(path.join('bin', 'adr-judge')), 'drifted')
+  assert.equal(state(path.join('templates', 'adr-template.md')), 'missing')
+  assert.equal(state(path.join('skills', 'adr-write', 'SKILL.md')), 'missing')
+
+  // Reporting is the default; --apply is the only thing that writes.
+  // The fake newest version needs real content, or the plan is trivially empty
+  // and the assertion below would pass without exercising anything.
+  await cp(path.join(pluginDir, 'bin', 'adr-judge'),
+    path.join(cache, '2.10.0', 'bin', 'adr-judge'))
+  const dry = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'sync-standalone.mjs')],
+    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+  assert.equal(dry.status ?? 0, 0)
+  assert.match(dry.stdout, /Re-run with --apply/)
+  assert.equal(existsSync(path.join(home, '.claude', 'templates', 'adr-template.md')), false,
+    'a report must not write anything')
+
+  const broken = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'sync-standalone.mjs'), '--nope'],
+    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+  assert.equal(broken.status, 2, 'a broken invocation is not a verdict')
 })

@@ -23,7 +23,9 @@ fi
 
 node --test "$ROOT"/tests/*.test.mjs
 
+# The gates are the extensionless files; bin/*.cmd are Windows shims.
 for file in "$ROOT"/bin/*; do
+  case "$file" in *.*) continue ;; esac
   python3 -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])' "$file"
 done
 

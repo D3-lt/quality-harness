@@ -43,7 +43,9 @@ delete harnessEnv.PYTHONWARNINGS
 // bare exec either — the hooks go through Git Bash — so naming the interpreter
 // here makes the windows job measure the GATE. On POSIX the PATH lookup and the
 // shebang are both real and both stay under test.
-const GATE_NAMES = new Set(readdirSync(bin))
+// The gates are the extensionless executables; the .cmd files beside them
+// are Windows shims that invoke these.
+const GATE_NAMES = new Set(readdirSync(bin).filter(name => !name.includes('.')))
 
 function run(command, args, cwd = fixture, input = undefined, spawnEnv = env) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)
@@ -137,7 +139,10 @@ test('every gate names an encoding for child process output', () => {
   const probe = [
     'import ast, pathlib, sys',
     'bad = []',
+    '# The gates are the extensionless files; bin/*.cmd are Windows shims.',
     'for path in sorted(pathlib.Path(sys.argv[1]).iterdir()):',
+    '    if path.suffix:',
+    '        continue',
     '    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))',
     '    for node in ast.walk(tree):',
     '        if not isinstance(node, ast.Call):',

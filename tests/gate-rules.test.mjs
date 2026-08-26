@@ -19,7 +19,9 @@ const testDir = dirname(fileURLToPath(import.meta.url))
 const root = resolve(testDir, '..')
 const bin = join(root, 'bin')
 const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
-const GATE_NAMES = new Set(readdirSync(bin))
+// The gates are the extensionless executables; the .cmd files beside them
+// are Windows shims that invoke these.
+const GATE_NAMES = new Set(readdirSync(bin).filter(name => !name.includes('.')))
 
 function run(command, args, cwd = root) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)
@@ -517,9 +519,23 @@ test('every gate refuses a flag it does not know', () => {
   // Every gate in bin/ is covered, so a new gate cannot be added without one.
   assert.deepEqual(
     invocations.map(([gate]) => gate).sort(),
-    readdirSync(bin).sort(),
+    readdirSync(bin).filter(name => !name.includes('.')).sort(),
     'a bundled gate has no unknown-flag case here',
   )
+})
+
+test('on Windows the shim runs the gate the documented invocation names', { skip: process.platform !== 'win32' }, () => {
+  // The only place this can be checked is Windows itself, and until 2026-08-26
+  // nothing checked it: `/adr-write` there ran adr-debt through PowerShell and
+  // got a file-open dialog, because an extensionless `#!` script has no
+  // association. The shim exists so the invocation the skills document works.
+  const dir = scratch('windows-shim')
+  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  const shim = join(bin, 'adr-lint.cmd')
+  const result = spawnSync(shim, ['ADR-001-selftest.md', 'tasks'],
+    { cwd: dir, env, encoding: 'utf8', timeout: 60_000, shell: true })
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+  assert.match(result.stdout, /\[PASS\]/)
 })
 
 test('the machine-readable output lifecycle.mjs depends on is machine-readable', () => {

@@ -2,3 +2,4 @@
 *.md text eol=lf
 *.mjs text eol=lf
 bin/* text eol=lf
+*.cmd text eol=crlf

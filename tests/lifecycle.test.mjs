@@ -1156,6 +1156,31 @@ test('reported: a read-only command is not authorship because of how it is spell
   assert.equal(isPotentialMutationCommand('echo "a > b"'), false)
 })
 
+test('reported: a Windows path is a path, not an escape sequence', () => {
+  // `\` is a shell escape on POSIX and the path separator on Windows. The
+  // deletion resolver treated it as unresolvable on both, so on Windows EVERY
+  // literal path deletion came back <Unresolved Bash deletion> — which is why the
+  // sticky sentinel bit hardest there. Caught by the windows job on 2026-08-26,
+  // on a test written for the POSIX shape of the same bug.
+  //
+  // The platform is a parameter so both branches are exercised here rather than
+  // on one machine each. mutatesOnlyTempPaths already excluded `\` from its own
+  // ambiguous set; the two had simply disagreed.
+  const win = String.raw`C:\Users\RUNNER~1\AppData\Local\Temp\scratch`
+  const onWindows = bashDeletionMutationPaths(`rm -rf "${win}"`, 'C:\\repo', 'win32')
+  assert.ok(!onWindows.includes('<Unresolved Bash deletion>'), JSON.stringify(onWindows))
+
+  // On POSIX the same characters really are escapes, and must stay unresolvable.
+  assert.ok(bashDeletionMutationPaths(`rm -rf "${win}"`, '/repo', 'linux')
+    .includes('<Unresolved Bash deletion>'))
+
+  // A glob is unresolvable on both, because it names no single path.
+  for (const platform of ['win32', 'linux']) {
+    assert.ok(bashDeletionMutationPaths('rm -rf build/*', '/repo', platform)
+      .includes('<Unresolved Bash deletion>'), platform)
+  }
+})
+
 test('reported: a long session can still commit', async () => {
   // Webitel, 2026-08-26. An ADR/spec session made dozens of edits; every commit
   // re-gated the whole accumulated list against a fixed 45s window, so once the
@@ -1215,7 +1240,8 @@ test('reported: cleaning up a scratch directory does not brick the session', asy
   ]))
 
   // The scratch deletion resolves, so nothing is unresolved and nothing sticks.
-  assert.deepEqual(bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo), [scratch])
+  const cleaned = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo)
+  assert.ok(!cleaned.includes('<Unresolved Bash deletion>'), JSON.stringify(cleaned))
   const state = analyzeTranscript(await readFile(file, 'utf8'), repo)
   assert.ok(!state.mutationPaths.includes('<Unresolved Bash deletion>'))
 })
@@ -1480,10 +1506,12 @@ test('a deletion whose path the command itself set is not unresolved', async () 
   // It happened here, mid-session, on this repository.
   const repo = await mkdtemp(path.join(testTmp, 'quality-deletion-'))
   const scratch = path.join(os.tmpdir(), 'quality-deletion-target')
-  assert.deepEqual(
-    bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo),
-    [scratch],
-  )
+  const resolved = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo)
+  assert.ok(!resolved.includes('<Unresolved Bash deletion>'), JSON.stringify(resolved))
+  assert.equal(resolved.length, 1)
+  // Separator-insensitive: the resolver normalises, and which separator it lands
+  // on is not what this test is about.
+  assert.match(resolved[0].replaceAll('\\', '/'), /quality-deletion-target$/)
 
   // The three ways it must STILL refuse, because each would disarm the sentinel
   // on a value the command did not establish.
@@ -1497,10 +1525,8 @@ test('a deletion whose path the command itself set is not unresolved', async () 
   }
 
   // Ordering is the point: a later reassignment must not reach back.
-  assert.deepEqual(
-    bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"\nW=${repo}`, repo),
-    [scratch],
-  )
+  const ordered = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"\nW=${repo}`, repo)
+  assert.match(ordered[0].replaceAll('\\', '/'), /quality-deletion-target$/)
 })
 
 test('an unresolvable Bash write is named in one readable line', async () => {

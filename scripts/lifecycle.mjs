@@ -1008,7 +1008,7 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
   return [...new Set(paths)]
 }
 
-export function bashDeletionMutationPaths(command, cwd = process.cwd()) {
+export function bashDeletionMutationPaths(command, cwd = process.cwd(), platform = process.platform) {
   if (typeof command !== 'string' || !/\brm\b/.test(command)) return []
   const paths = []
   let unresolved = false
@@ -1044,8 +1044,14 @@ export function bashDeletionMutationPaths(command, cwd = process.cwd()) {
         if (!optionsEnded && raw.startsWith('-')) continue
         operands += 1
         const operand = /\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw
+        // `\` is a shell escape on POSIX and a path separator on Windows, where
+        // treating it as unresolvable made EVERY literal path deletion unresolved
+        // — which is why the sticky sentinel bit hardest there. Measured on
+        // windows-latest 2026-08-26: `rm -rf C:\Users\…\scratch` reported
+        // <Unresolved Bash deletion>.
+        const ambiguous = platform === 'win32' ? '*?[]{}' : '*?[]{}\\'
         if (!operand || /[`$]/.test(operand) || operand.includes('://')
-            || [...operand].some(character => '*?[]{}\\'.includes(character))) {
+            || [...operand].some(character => ambiguous.includes(character))) {
           unresolved = true
           continue
         }

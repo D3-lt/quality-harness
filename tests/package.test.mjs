@@ -102,6 +102,23 @@ test('manifest and hook configuration expose the bundled components', () => {
       `${event} must be routed to lifecycle.mjs`)
   }
 
+  // Windows cannot run a `#!` script, and an extensionless file has no
+  // association there — PowerShell offers to pick an application for it and cmd
+  // reports nothing at all. Reported live on 2026-08-26: `/adr-write` on Windows
+  // ran adr-debt and got a file-open dialog. PATHEXT includes .CMD, so a shim
+  // beside each gate makes the documented `adr-debt docs/adr` resolve.
+  for (const gate of gates) {
+    const shim = join(root, 'bin', `${gate}.cmd`)
+    assert.ok(statSync(shim).isFile(), `${gate} has no Windows shim`)
+    const text = readFileSync(shim, 'utf8')
+    // The py launcher first: a Windows Python is `python.exe`, so `python3` —
+    // the name the shebang asks for — often does not exist there.
+    assert.match(text, /where \/q py/, gate)
+    assert.match(text, new RegExp(`%~dp0${gate}`), gate)
+    // cmd needs CRLF; a shim checked out with LF fails in confusing ways.
+    assert.match(text, /\r\n/, `${gate}.cmd must use CRLF`)
+  }
+
   const attributes = readFileSync(join(root, '.gitattributes'), 'utf8')
   assert.match(attributes, /^\*\.sh text eol=lf$/m)
   assert.match(attributes, /^\*\.mjs text eol=lf$/m)
@@ -109,6 +126,7 @@ test('manifest and hook configuration expose the bundled components', () => {
   // The skills and templates are parsed by the gates and asserted on by this
   // suite; a CRLF checkout on Windows broke a multi-line regex in a SKILL.md.
   assert.match(attributes, /^\*\.md text eol=lf$/m)
+  assert.match(attributes, /^\*\.cmd text eol=crlf$/m)
 
   const codexReview = readFileSync(join(root, 'skills', 'codex-review', 'SKILL.md'), 'utf8')
   assert.match(codexReview, /advertise `review \[OPTIONS\] \[PROMPT\]`[\s\S]*reject an actual selector-plus-prompt/)

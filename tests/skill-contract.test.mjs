@@ -24,7 +24,8 @@ import { fileURLToPath } from 'node:url'
 const testDir = dirname(fileURLToPath(import.meta.url))
 const root = resolve(testDir, '..')
 const bin = join(root, 'bin')
-const gates = readdirSync(bin)
+// Extensionless only: a bin/*.cmd is a Windows shim for a gate, not a gate.
+const gates = readdirSync(bin).filter(name => !name.includes('.'))
 const skills = readdirSync(join(root, 'skills'))
 const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
 

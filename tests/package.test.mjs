@@ -70,10 +70,19 @@ test('the publishable plugin has no dependency on a personal install or retired 
     String.raw`\/Users\/zy`,
     ['adr', 'toolkit'].join('-'),
   ].join('|'))
+  // shadowInstallNotice READS the standalone install under the user's home to
+  // warn that a stale copy is answering instead of the plugin. That is the
+  // opposite of depending on one — a plugin that cannot name the copy shadowing
+  // it leaves the user debugging a false alarm for a session, which is what
+  // happened on 2026-08-26. It builds those paths from os.homedir() rather than
+  // writing one down, and the second assertion holds the line that matters:
+  // nothing is ever EXECUTED from there.
   for (const directory of textRoots) {
     for (const path of filesBelow(join(root, directory))) {
       const text = readFileSync(path, 'utf8')
       assert.doesNotMatch(text, forbidden, path)
+      // Never EXECUTED from there, only compared.
+      assert.doesNotMatch(text, /(?:spawnSync|execFile|exec)\([^)]*\.claude[\\/](?:bin|hooks)/, path)
     }
   }
 })
@@ -81,7 +90,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.6.0')
+  assert.equal(manifest.version, '2.7.0')
   assert.equal(manifest.license, 'MIT')
   assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
 

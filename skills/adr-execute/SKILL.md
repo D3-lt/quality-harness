@@ -29,6 +29,14 @@ make; making it silently is not.
 - Work is represented as either ≤3 inline tasks or a sibling `tasks/` directory with task files and `README.md`.
 - Wave table in `tasks/README.md` is required only for >5 tasks; 4–5 tasks use flat sequential order.
 
+**Ask what already governs the code you are about to touch.** Run `node
+${CLAUDE_PLUGIN_ROOT}/scripts/adr-context.mjs <path>...` for the task's Affected Files. It answers
+from this repository's own corpus — which accepted decisions are authoritative over those paths, and
+which superseded or withdrawn records decided against something there. The second half is the one
+that saves work: re-proposing an approach the team already killed is invisible from the code alone.
+It is read-only, cannot fail, and says nothing when the corpus has nothing to say. The same answer
+arrives unprompted the first time you edit a governed file in a session.
+
 **Recall before you start.** `am_search` for lessons about this stage ("adr execution", "gate that
 cannot fail", the subsystem you are about to touch). This skill is the stable process; the palace is
 where the process learns, and a lesson filed by any session last week applies to this one without

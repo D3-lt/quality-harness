@@ -2,7 +2,7 @@
   "_comment": [
     "The killing mutations named in docs/TEST-PLAN.md, made runnable by scripts/mutate.mjs.",
     "Each entry is a claim: break this, and THAT suite must stop passing.",
-    "`from` must match exactly once — a mutation matching zero or many times no longer",
+    "`from` must match exactly once \u2014 a mutation matching zero or many times no longer",
     "describes the code, is reported STALE, and fails the run. That is deliberate: a",
     "mutation nobody has re-read is the same kind of stale record as a task list kept",
     "beside the tasks.",
@@ -42,8 +42,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest}\")",
-      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest}\")"
+      "from": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha256:{digest}\")",
+      "to": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha:{digest}\")"
     },
     {
       "label": "evidence: the dirty-tree marker",
@@ -195,7 +195,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"· exit 0 ·\" in b]",
+      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"\u00b7 exit 0 \u00b7\" in b]",
       "to": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b)]"
     },
     {
@@ -546,7 +546,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.')",
+      "from": "        + 'Nothing is blocked \u2014 this is what the gate sees before you commit.')",
       "to": "        + 'This commit is blocked until the check runs.')"
     },
     {
@@ -699,8 +699,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (input.tool_name !== 'Bash') return",
-      "to": "    if (input.tool_name !== 'Bash') { advise(\"you are on protected 'main'\"); return }"
+      "from": "    if (MUTATION_TOOLS.has(input.tool_name)) {",
+      "to": "    if (MUTATION_TOOLS.has(input.tool_name)) {\n      advise(\"you are on protected 'main'; create a task branch first\")"
     },
     {
       "label": "skills: no skill halts on a gate verdict",
@@ -719,6 +719,78 @@
       ],
       "from": "4. Run `arch-lint <architecture.md>` and paste the run.",
       "to": "4. Check the document yourself."
+    },
+    {
+      "label": "context: the archive is part of the corpus",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (/^(?:superseded|withdrawn|rejected|deprecated)\\b/i.test(status)) return 'graveyard'",
+      "to": "  if (false) return null"
+    },
+    {
+      "label": "context: a section is read without a JS \\Z anchor",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (/^#{1,6}\\s+\\S/.test(line)) break",
+      "to": "    if (false) break"
+    },
+    {
+      "label": "context: a shared tasks directory is attributed, not assumed",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    for (const taskText of (claimed.length ? claimed : (sole ? texts : []))) {",
+      "to": "    for (const taskText of texts) {"
+    },
+    {
+      "label": "context: a symlinked root still resolves",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return path.relative(real(root), real(candidate))",
+      "to": "  return direct"
+    },
+    {
+      "label": "context: said once per path per session",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (existsSync(marker)) return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "context: only type path is resolved",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (matcher[1].toLowerCase() === 'path') paths.push(matcher[2].trim())",
+      "to": "      if (true) paths.push(matcher[2].trim())"
+    },
+    {
+      "label": "context: * does not cross a separator",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        source += '[^/]*'",
+      "to": "        source += '.*'"
+    },
+    {
+      "label": "context: a drifted standalone copy is named",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (theirs && theirs !== digest(ours)) stale.push(path.join('~', '.claude', relative, name))",
+      "to": "      if (false) stale.push(path.join('~', '.claude', relative, name))"
     }
   ]
 }

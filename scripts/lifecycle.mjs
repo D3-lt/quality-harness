@@ -1685,6 +1685,14 @@ async function readTranscript(input) {
 const PROJECT_CHECKS = [
   { file: 'scripts/selftest.sh', command: 'bash scripts/selftest.sh' },
   { file: 'selftest.sh', command: 'bash selftest.sh' },
+  // Ahead of the language manifests on purpose: a repository that ships a
+  // verify script has said what its check is, and `cargo test` / `go test ./...`
+  // is a guess at part of it. blueprints ran `./verify.sh`, this list did not
+  // know the name, and the gate asked for "the smallest repository-owned test,
+  // lint, build, or validation command" — naming nothing it could not already
+  // see. Reported 2026-08-26.
+  { file: 'scripts/verify.sh', command: 'bash scripts/verify.sh' },
+  { file: 'verify.sh', command: 'bash verify.sh' },
   { file: 'Cargo.toml', command: 'cargo test' },
   { file: 'go.mod', command: 'go test ./...' },
   { file: 'pytest.ini', command: 'pytest' },
@@ -2052,8 +2060,14 @@ export async function handleHook(input) {
       return
     }
   }
-  if (!state.hasMutations || state.verifiedAfterLastMutation) {
-    // The check passed, so nothing is blocked. If an ADR task is waiting on
+  // Since the last publish, like the commit gate. `git add -A && git commit` is
+  // itself a git mutation, so a session that edited, checked, and committed
+  // ended its turn being told nothing had verified the work — the check had run,
+  // it just ran before the commit that came after it. Reported from blueprints,
+  // 2026-08-26. Work authored AFTER the publish still counts, which is the case
+  // this gate is actually for.
+  if (!state.unverifiedSince(state.lastPublish)) {
+    // The check passed, so there is no finding. If an ADR task is waiting on
     // exactly this kind of evidence, say so — a V-Log entry written by
     // adr-verify is the difference between a claim and a record.
     if (state.verifiedAfterLastMutation && event !== 'TaskCompleted') {
@@ -2073,7 +2087,7 @@ export async function handleHook(input) {
   // do not work with quality harness".
   if (!projectCheckCommand(input.cwd)) return
 
-  const reason = missingEvidenceReason(state, input.cwd)
+  const reason = missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))
   if (event === 'TaskCompleted') {
     advise(reason)
     return

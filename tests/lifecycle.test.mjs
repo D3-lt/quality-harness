@@ -848,6 +848,41 @@ test('reported: committing does not make the next commit demand a check of it', 
   })
   assert.equal(push.status, 0)
   assert.equal(`${push.stdout}${push.stderr}`.trim(), '', 'the loop is closed, so the gate is quiet')
+
+  // And the end of the turn asks the same question, so it gets the same answer.
+  // blueprints, 2026-08-26: edit, check, commit — and Stop reported that nothing
+  // had verified the work, because the commit came after the check.
+  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  assert.equal(stop.status, 0)
+  assert.equal(`${stop.stdout}${stop.stderr}`.trim(), '', stop.stdout)
+
+  // Editing AFTER the commit is unpublished work, and still draws the advisory.
+  await writeFile(file, `${await readFile(file, 'utf8')}\n${transcript([
+    toolUse('e2', 'Edit', { file_path: path.join(dir, 'b.go') }), toolResult('e2'),
+  ])}`)
+  const after = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  assert.match(after.stdout, /Changed paths include/)
+  assert.match(after.stdout, /b\.go/)
+  assert.doesNotMatch(after.stdout, /a\.go/, 'the published half is not re-reported')
+})
+
+test('reported: a project that ships a verify script is asked for that script', async () => {
+  // blueprints, 2026-08-26. The project ran `./verify.sh` and the gate asked for
+  // "the smallest repository-owned test, lint, build, or validation command" —
+  // the fallback that names nothing, because this list did not know the name.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-verify-'))
+  await writeFile(path.join(dir, 'verify.sh'), '#!/usr/bin/env bash\n')
+  assert.equal(projectCheckCommand(dir), 'bash verify.sh')
+
+  const nested = await mkdtemp(path.join(testTmp, 'quality-verify-nested-'))
+  await mkdir(path.join(nested, 'scripts'), { recursive: true })
+  await writeFile(path.join(nested, 'scripts', 'verify.sh'), '#!/usr/bin/env bash\n')
+  assert.equal(projectCheckCommand(nested), 'bash scripts/verify.sh')
+
+  // A project's own wrapper wins over the language's default: `go test ./...`
+  // is a guess at part of what ./verify.sh does.
+  await writeFile(path.join(dir, 'go.mod'), 'module example.com/x\n')
+  assert.equal(projectCheckCommand(dir), 'bash verify.sh')
 })
 
 test('reported: a project that names no check hears nothing from the evidence gates', async () => {

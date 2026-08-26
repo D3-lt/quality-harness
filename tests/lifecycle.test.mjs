@@ -1315,6 +1315,66 @@ test('every hook script the runner accepts has its arguments wired', () => {
 
 // --- Wave 2 of docs/TEST-PLAN.md: the escapes, and the hook nothing ever fired.
 
+test('a commit gates what it is publishing, not everything the session touched', () => {
+  // mutationPaths is append-only across the whole transcript. Re-gating all of it
+  // at every commit meant the per-file cost grew without bound until it exceeded
+  // the boundary's 45s window — and from then on EVERY commit failed, whatever
+  // was staged, naming a different file as the cutoff each time. Reported from a
+  // live 2.1.7 session on 2026-08-26; on this repository's own transcript the
+  // accumulated list had reached 390 entries against 33 actually being published.
+  const state = analyzeTranscript(transcript([
+    toolUse('e1', 'Write', { file_path: '/repo/first.md' }), toolResult('e1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m first' }), toolResult('c1'),
+    toolUse('e2', 'Write', { file_path: '/repo/second.md' }), toolResult('e2'),
+  ]))
+
+  // The whole list is unchanged, because the completion gate and the nag still
+  // ask about the session.
+  assert.ok(state.mutationPaths.includes('/repo/first.md'))
+  assert.ok(state.mutationPaths.includes('/repo/second.md'))
+
+  // What a commit gates is only what came after the last publish.
+  const publishing = state.mutationPathsSince(state.lastPublish)
+  assert.deepEqual(publishing, ['/repo/second.md'])
+
+  // Before any publish, nothing is pruned — a first commit still gates it all.
+  const fresh = analyzeTranscript(transcript([
+    toolUse('e1', 'Write', { file_path: '/repo/only.md' }), toolResult('e1'),
+  ]))
+  assert.deepEqual(fresh.mutationPathsSince(fresh.lastPublish), ['/repo/only.md'])
+})
+
+test('a deletion whose path the command itself set is not unresolved', async () => {
+  // `W=/tmp/scratch; rm -rf "$W"` names its own path — the value is in the
+  // command, in front of the use. Until 2026-08-26 the sentinel armed on every
+  // scratch cleanup written that way, and because a publish after an unresolved
+  // deletion fails closed, committing was bricked for the rest of the session.
+  // It happened here, mid-session, on this repository.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-deletion-'))
+  const scratch = path.join(os.tmpdir(), 'quality-deletion-target')
+  assert.deepEqual(
+    bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo),
+    [scratch],
+  )
+
+  // The three ways it must STILL refuse, because each would disarm the sentinel
+  // on a value the command did not establish.
+  const refuses = {
+    'a use before its assignment': `rm -rf "$W"\nW=${scratch}`,
+    'a value from the ambient environment': 'rm -rf "$HOME/thing"',
+    'a glob, which names no single path': `W=${scratch}\nrm -rf "$W"/*`,
+  }
+  for (const [why, command] of Object.entries(refuses)) {
+    assert.ok(bashDeletionMutationPaths(command, repo).includes('<Unresolved Bash deletion>'), why)
+  }
+
+  // Ordering is the point: a later reassignment must not reach back.
+  assert.deepEqual(
+    bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"\nW=${repo}`, repo),
+    [scratch],
+  )
+})
+
 test('an unresolvable Bash write is named in one readable line', async () => {
   // The completion message exists to say what changed. It used to splice 120 raw
   // characters of the command into that sentence, so a heredoc put newlines and a

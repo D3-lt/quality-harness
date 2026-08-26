@@ -305,6 +305,33 @@
       ],
       "from": "  const first = String(command ?? '').split('\\n')[0].replace(/\\s+/g, ' ').trim()",
       "to": "  const first = String(command ?? '').slice(0, 120)"
+    },
+    {
+      "label": "hooks: a commit gates only what it publishes",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),",
+      "to": "    mutationPathsSince: () => mutationPaths,"
+    },
+    {
+      "label": "hooks: a deletion path the command set is resolved",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw",
+      "to": "        const operand = raw"
+    },
+    {
+      "label": "hooks: a deletion never trusts the ambient environment",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw",
+      "to": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, true) : raw"
     }
   ]
 }

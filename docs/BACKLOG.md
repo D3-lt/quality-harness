@@ -753,6 +753,48 @@ actually parses, with the exact fields `readyTaskLines` reads off it.
 
 Python gate coverage 78% → 80%; `adr-retire-check` 70 → 83, `adr-next` 69 → 74.
 
+## 22. The commit gate degraded with session length until it blocked everything
+
+Reported from a live 2.1.7 session on 2026-08-26 and reproduced here. Two separate defects,
+both of which make the harness fight a session that has been productive.
+
+**Every commit re-gated everything the session had ever touched.** `mutationPaths` is
+append-only across the whole transcript and was never pruned, and the commit boundary calls
+`runArtifactGates(state.mutationPaths, cwd, 45_000)` — a literal window that
+`QUALITY_HARNESS_SHELL_TIMEOUT_MS` cannot extend, because that setting bounds the per-file
+call. So the per-file cost grew without bound until it crossed 45s, and from then on **every
+commit failed for the rest of the session, whatever was staged**, naming a different file as
+the cutoff each time. On this repository's own transcript the list had reached 390 entries
+while 33 were actually being published.
+
+A commit gates what it is publishing. `mutationPathsSince(lastPublish)` is what the boundary
+asks for now; the full list is unchanged for the completion gate and the nag, which are
+about the session. A commit that bypassed the gate with `--no-verify` still moves the
+boundary — the override was the author's, and punishing every later commit for it is the
+behaviour this gate exists to avoid.
+
+**A deletion whose path the command itself set counted as unresolved.**
+`W=/tmp/scratch; rm -rf "$W"` names its own path — the value is in the command, in front of
+the use — but `bashDeletionMutationPaths` did no expansion, so the sentinel armed, and
+because a publish after an unresolved deletion fails closed, committing was bricked for the
+rest of the session. It happened to this session, mid-flight, while writing the fix for the
+defect above.
+
+`mutatesOnlyTempPaths` already had the machinery; the safety direction is what differs and
+why it could not simply be shared. There, a wrong expansion can only FAIL the temp
+exemption, so the ambient environment is a safe last resort. Here it is the reverse —
+resolving `$W` disarms the sentinel — so only assignments this command made, earlier in the
+same command, are trusted. `expandShellToken` takes a `fromEnvironment` flag for exactly
+that, and `rm -rf "$HOME/thing"` still reports unresolved.
+
+**Open — `VAR=$(mktemp -d …)` is still unresolved, and correctly so.** Six commands in this
+session's transcript arm the sentinel that way. The path genuinely is not knowable from the
+text, so naming one would be a fabrication. The right fix is not in the deletion resolver
+but in `mutatesOnlyTempPaths`: `mktemp -d` with a literal template under a temp root
+provably writes under that root, so such a command should be exempted as scratch and never
+reach the deletion resolver at all. Not attempted here — it is a third change, and the two
+above were the reported ones.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

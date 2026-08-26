@@ -83,7 +83,11 @@ function finish(file, original) {
 // rolled back by the restore. The work looked applied, the tests ran against the
 // old code, and the only clue was a test failing for a reason that made no
 // sense. A lock and a clean-tree check cost nothing next to that.
-const lockPath = path.join(root, '.mutate-lock')
+// The path is overridable so the suite can exercise these guards without
+// colliding with a real campaign that may be running in the same checkout —
+// which is exactly the collision the lock exists to prevent, and it made the
+// dirty-tree guard untestable because the lock refused the inner run first.
+const lockPath = process.env.QUALITY_HARNESS_MUTATE_LOCK || path.join(root, '.mutate-lock')
 
 function claimTheRun() {
   if (existsSync(lockPath)) {

@@ -156,7 +156,7 @@ def spec_ids(spec_path):
 def check_adr(adr_path, errors):
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
     if not re.search(r"^\*\*Status:\*\*", text, re.M):
-        errors.append(f"{adr_path.name}: no **Status:** line")
+        errors.advise(f"{adr_path.name}: no **Status:** line")
     secs = sections_of(text)
     alts = [ln for ln in secs.get("Alternatives Considered", []) if ln.strip().startswith("-")]
     if not alts:
@@ -169,14 +169,14 @@ def check_adr(adr_path, errors):
         s = ln.strip()
         if s.startswith("- ") and not re.search(
                 r"\((?:permanent(?::[^)]*)?|deferred:\s*[^)\s][^)]*)\)\s*$", s):
-            errors.append(f"{adr_path.name}: Out of Scope entry needs a disposition — "
+            errors.advise(f"{adr_path.name}: Out of Scope entry needs a disposition — "
                           f"'(permanent[: why])' or '(deferred: <pointer>)': {s[:70]}")
     spec = header_val(text, "Spec")
     if spec is None:
-        errors.append(f"{adr_path.name}: no **Spec:** header (use 'None — no spec stage')")
+        errors.advise(f"{adr_path.name}: no **Spec:** header (use 'None — no spec stage')")
     served = header_val(text, "Served-path change")
     if not served:
-        errors.append(f"{adr_path.name}: no **Served-path change:** header — say in one sentence "
+        errors.advise(f"{adr_path.name}: no **Served-path change:** header — say in one sentence "
                       f"what a user or agent experiences differently once this ships, or write "
                       f"'None — this ADR changes only measurement or tooling'. An ADR that improves "
                       f"the measurement reads identically to one that improves the thing.")
@@ -240,10 +240,10 @@ def check_task(path, all_stems, errors):
     secs = sections_of(text)
     for s in TASK_SECTIONS:
         if s not in secs:
-            errors.append(f"{path.name}: missing section ## {s}")
+            errors.advise(f"{path.name}: missing section ## {s}")
     for h in TASK_HEADERS:
         if header_val(text, h) is None:
-            errors.append(f"{path.name}: missing **{h}:** header")
+            errors.advise(f"{path.name}: missing **{h}:** header")
     acc = "\n".join(secs.get("Acceptance", []))
     if "```bash" not in acc and "Acceptance is human-observed:" not in acc:
         errors.append(f"{path.name}: ## Acceptance has no ```bash fence and no explicit "
@@ -251,7 +251,7 @@ def check_task(path, all_stems, errors):
     aff = [ln for ln in secs.get("Affected Files", [])
            if ln.strip().startswith("|") and "`" in ln]
     if not aff:
-        errors.append(f"{path.name}: Affected Files table has no data rows "
+        errors.advise(f"{path.name}: Affected Files table has no data rows "
                       f"(a row with a backticked path)")
     adds = set()
     for ln in aff:
@@ -262,10 +262,10 @@ def check_task(path, all_stems, errors):
                 adds.add(pm.group(1))
     steps = [ln for ln in secs.get("Ordered Steps", []) if re.match(r"^\s*1\.", ln)]
     if not steps:
-        errors.append(f"{path.name}: Ordered Steps has no '1.' numbered step — step 1 must "
+        errors.advise(f"{path.name}: Ordered Steps has no '1.' numbered step — step 1 must "
                       f"establish the failing test (TDD red)")
     elif "test" not in steps[0].lower():
-        errors.append(f"{path.name}: Ordered Steps step 1 must establish the failing test "
+        errors.advise(f"{path.name}: Ordered Steps step 1 must establish the failing test "
                       f"(TDD red) — currently: {steps[0].strip()[:80]}")
     dep = header_val(text, "Depends-on") or ""
     if dep and dep.lower() not in ("none", '"none"'):
@@ -967,9 +967,9 @@ def check_readme(readme, task_stems, errors):
     for stem in task_stems:
         if not any(id_matches(tid, stem) for tid in listed) and \
            stem.lower() not in text.lower():
-            errors.append(f"README.md: task file '{stem}.md' not listed in the index")
+            errors.advise(f"README.md: task file '{stem}.md' not listed in the index")
     if len(task_stems) > 5 and "| Wave |" not in text:
-        errors.append(f"README.md: {len(task_stems)} tasks (>5) requires a wave table")
+        errors.advise(f"README.md: {len(task_stems)} tasks (>5) requires a wave table")
 
 
 def reject_unknown_flags(known=()):
@@ -988,6 +988,40 @@ def reject_unknown_flags(known=()):
         sys.exit(1)
 
 
+class Findings(list):
+    """Findings that block, and a second channel for the ones that should not.
+
+    `.append` is what every check already calls and still means "this blocks":
+    the record CLAIMS something it has not established, or it contradicts itself
+    in a way that makes it unusable. An unfilled TEMPLATE PLACEHOLDER belongs
+    here too, and finding that out cost a test: moved to advice, the bundled
+    adr-template.md passed adr-lint outright. A placeholder is not a shape
+    problem — it is a document presenting as a decision while containing none. `.advise` is the new channel — SHAPE. A
+    missing section, an unfilled placeholder, a table with no rows: the record is
+    still readable, nothing has been fabricated, and refusing the work over it
+    teaches people to route around the gate.
+
+    The line is between form and content, not between big and small. A section
+    that is ABSENT is form. A section that is present and EMPTY is content: an
+    ADR whose Alternatives Considered has no entries considered no alternatives,
+    whatever its shape.
+
+    The distinction is the one this gate could not previously make. Across the
+    five record gates there are 112 distinct failure messages and not one said
+    whether it broke the guarantee or merely the template, so a missing
+    `## Consequences` stopped work exactly as hard as a `done` status with no
+    evidence behind it. Raised by the user on 2026-08-26 after four refusals of
+    legitimate work in a single session.
+    """
+
+    def __init__(self):
+        super().__init__()
+        self.advice = []
+
+    def advise(self, message):
+        self.advice.append(message)
+
+
 def main():
     reject_unknown_flags()
     if len(sys.argv) < 2:
@@ -997,7 +1031,7 @@ def main():
     if not adr.exists():
         print(f"ADR not found: {adr}")
         sys.exit(1)
-    errors = []
+    errors = Findings()
     spec_file = check_adr(adr, errors)
 
     if len(sys.argv) > 2:
@@ -1036,7 +1070,7 @@ def main():
             readme_text = readme.read_text(errors="replace", encoding="utf-8")
             check_readme(readme, stems, errors)
         else:
-            errors.append(f"{tasks_dir}: no README.md index")
+            errors.advise(f"{tasks_dir}: no README.md index")
         check_dag(infos, readme_text, errors)
         check_verification(infos, readme_text, errors)
         check_status_allows_execution(adr, readme_text, errors)
@@ -1061,6 +1095,10 @@ def main():
     print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only)"))
     for e in errors:
         print(f"  {e}")
+    # Advice is printed on a PASS too: a record that is acceptable and a record
+    # that is finished are different things, and the reader deserves both.
+    for a in errors.advice:
+        print(f"  advice: {a}")
     sys.exit(1 if errors else 0)
 
 

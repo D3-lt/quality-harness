@@ -132,6 +132,42 @@ test('the retirement seal survives a checkout that rewrote line endings', () => 
   rmSync(temp, { recursive: true, force: true })
 })
 
+test('a form finding is reported to the reader without failing the record', () => {
+  // Advice nobody sees is the same as suppressing the finding, so the channel is
+  // asserted at the CLI, not only in-process: exit 0, and the words on stdout.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-advice-'))
+  const adr = join(temp, 'ADR-001-probe.md')
+  const complete = [
+    '# ADR-001: Probe', '',
+    '**Status:** Accepted',
+    '**Spec:** None — no spec stage',
+    '**Served-path change:** None — this decision changes no served path.', '',
+    '## Existing Primitives Audit', '', 'Nothing existing covers it.', '',
+    '## Decision', '', 'Do the thing.', '',
+    '## Alternatives Considered', '', '- Doing nothing — rejected, the bug persists.', '',
+    '## Consequences', '', 'The thing is done.', '',
+    '## Wiring & Contract Changes', '', 'None.', '',
+    '## Out of Scope', '', '- The other thing (deferred: ADR-002)', '',
+  ].join('\n')
+
+  writeFileSync(adr, complete)
+  expectExit(run('adr-lint', [adr], temp), 0, 'a complete record passes clean')
+
+  // Drop the header. The record still says what it decided, so this advises.
+  writeFileSync(adr, complete.replace('**Status:** Accepted\n', ''))
+  const advised = run('adr-lint', [adr], temp)
+  expectExit(advised, 0, 'a form finding must not fail the record')
+  assert.match(advised.stdout, /^\s+advice: .*Status/m, advised.stdout)
+  assert.match(advised.stdout, /^\[PASS\]/m)
+
+  // Empty the section instead. That is content, and it still fails.
+  writeFileSync(adr, complete.replace('- Doing nothing — rejected, the bug persists.\n', ''))
+  const failed = run('adr-lint', [adr], temp)
+  expectExit(failed, 1, 'an empty required section is not a form problem')
+  assert.match(failed.stdout, /Alternatives Considered/)
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('every gate names an encoding for child process output', () => {
   // The strict env above only catches sites the fixture run actually reaches;
   // this reaches the rest statically, so a text-mode call added on a path no

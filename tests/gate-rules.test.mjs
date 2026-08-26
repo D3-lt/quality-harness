@@ -160,10 +160,16 @@ test('the shell-hook runner reports every way a gate can not report, and blocks 
   // exit 2 — which blocks the tool call. A Windows machine without Git Bash had
   // every edit refused by a gate that had never read the file; a slow gate did
   // the same. Reported while auditing what still blocks, 2026-08-26.
-  // Driven through "there is no bash here", which is deterministic on both
-  // platforms and needs no race: POSIX fails to spawn it, Windows fails to find
-  // it, and each is an environment failure the runner used to answer with 2.
-  const noShell = runner('facts-gate-dispatch.sh', payload, { PATH: join(root, 'no-such-bin') })
+  // Driven through "there is no bash here", which needs no race. Both levers
+  // are set because each platform ignores the other's: POSIX resolves the bare
+  // name off PATH and never reads the variable, while Windows reads the
+  // variable first and, failing that, falls back to the well-known Git install
+  // roots that windows-latest actually has — so clearing PATH alone left a
+  // working bash and the test asserted nothing there (run 32957651615).
+  const noShell = runner('facts-gate-dispatch.sh', payload, {
+    PATH: join(root, 'no-such-bin'),
+    CLAUDE_CODE_GIT_BASH_PATH: join(root, 'no-such-bin', 'bash.exe'),
+  })
   assert.equal(noShell.status, 0, `a missing shell must not block the edit: ${noShell.stderr}`)
   // Silence would be the other failure: the reader has to learn the edit went
   // unchecked, or a harness that could not run looks exactly like one that passed.

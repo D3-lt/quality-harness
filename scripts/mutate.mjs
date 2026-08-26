@@ -56,7 +56,11 @@ if (selected.length === 0) {
 //
 // So the intent is written to disk BEFORE the source is touched, and any leftover
 // is repaired at startup. A crash can lose the process; it cannot lose the file.
-const journalPath = path.join(root, '.mutate-inflight.json')
+// Beside the lock: a run that owns its own lock owns its own journal, or the
+// two campaigns repair each other's files.
+const journalPath = process.env.QUALITY_HARNESS_MUTATE_LOCK
+  ? `${process.env.QUALITY_HARNESS_MUTATE_LOCK}.inflight.json`
+  : path.join(root, '.mutate-inflight.json')
 
 function recover() {
   if (!existsSync(journalPath)) return
@@ -128,9 +132,14 @@ process.on('SIGINT', () => { recover(); process.exit(130) })
 process.on('SIGTERM', () => { recover(); process.exit(143) })
 process.on('exit', () => { recover() })
 
-recover()
-
+// The lock BEFORE the repair, not after. recover() restores whatever the journal
+// names, so a second invocation was un-mutating a live campaign's file and
+// deleting its journal — the outer run then measured an unmutated source and
+// reported the mutation unnoticed. Found on 2026-08-26 by a test that spawns
+// this runner: the guard it was written for could never fail, because this ran
+// first and quietly repaired the thing under test.
 if (!claimTheRun()) process.exit(2)
+recover()
 const dirty = dirtyTargets()
 if (dirty.length && !argv.includes('--force')) {
   process.stderr.write(`mutate: ${dirty.join(', ')} ${dirty.length === 1 ? 'has' : 'have'} `

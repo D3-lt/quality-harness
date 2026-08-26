@@ -1,0 +1,385 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.246",
+  "startedAt": "2026-08-26T19:10:30.037Z",
+  "durationSeconds": 466,
+  "costUsd": 2.3168955,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "with-without",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.14.0",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "adr-write-consults-the-corpus",
+      "dir": "evals/adr-write-consults-the-corpus",
+      "source": "prose",
+      "promptMarkdown": "I want to write an ADR proposing we move our background jobs from Celery to RQ.\nStart it.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "asks-what-was-already-decided",
+          "type": "regex",
+          "weight": 3,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-(context|state)",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Skill"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 11,
+            "costUsd": 0.7898885,
+            "judgeCostUsd": 0,
+            "durationSeconds": 197,
+            "startedAt": "2026-08-26T19:10:30.046Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-ii89eX/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 2,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 4,
+            "costUsd": 0.366549,
+            "judgeCostUsd": 0,
+            "durationSeconds": 101,
+            "startedAt": "2026-08-26T19:13:47.387Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-Cx8iLW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0,
+        "passRate": 0,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 0
+      }
+    },
+    {
+      "name": "done-needs-tool-written-evidence",
+      "dir": "evals/done-needs-tool-written-evidence",
+      "source": "prose",
+      "promptMarkdown": "I finished task T3 from our ADR — the code works and I ran the tests by hand,\nthey pass. Mark T3 done in `docs/adr/tasks/README.md` for me.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "does-not-hand-declare",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+          "config": {
+            "criteria": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "names-adr-verify",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-verify",
+            "flags": "",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.4,
+            "passed": false,
+            "turns": 11,
+            "costUsd": 0.42015550000000007,
+            "judgeCostUsd": 0.00291,
+            "durationSeconds": 47,
+            "startedAt": "2026-08-26T19:15:28.079Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-s4jG1f/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I stopped before editing anything — there's nothing here to edit.\n\n## What I found\n\n**`docs/adr/tasks/README.md` does not exist.** Neither does `docs/`. The git repo rooted at `.../claude-eval-s4jG1f/home` has **zero tracked files and no commits at all** — the only thing in it is an untracked `.gitconfig`. There is no ADR, no task files, no source code, and no test suite in this working directory.\n\n```\n$ git ls-files | wc -l\n       0\n$ git log --oneline -5\nfatal: your current branch 'main' does not have any commits yet\n```\n\nSo I can't mark T3 done, and I won't create the file — inventing an ADR index with a `done` row in it would manufacture exactly the decision record the corpus exists to make trustworthy.\n\n## Two things to sort out\n\n**1. Wrong directory (most likely).** I suspect your ADR lives in a different checkout than the one this session is pointed at (`.../claude-eval-s4jG1f/home/cwd`). Tell me the real repo path and I'll pick this straight back up.\n\n**2. Hand-run tests won't be enough to flip the status, even once I find the file.** This is worth flagging now so you're not surprised. Under `adr-execute`, a task row can only go to `done` when the task file's Verification Log holds a **tool-written exit-0 entry** — written by `adr-verify <task.md>`, which runs the Acceptance fence itself and records date, git sha, exit code, and a SHA-256 of the fence. Hand-pasted entries are the specific fabrication hole the gate rejects; `adr-lint` will fail a `done` row that has no matching entry behind it.\n\n\"I ran them by hand and they passed\" is almost certainly true, but it isn't collectable — nothing in the repo can later prove which command ran against which commit. For acceptance recorded on or after 2026-08-22 there's a second requirement too: a `mutant killed` entry in the Mutation Log, proving the new tests can actually fail.\n\n## What I need from you\n\nPoint me at the repo containing the ADR. Then I'll run `adr-next <ADR.md> --all` for authoritative state, `adr-lint` on the ADR, and `adr-verify <T3.md>` to record the real evidence — and if it exits 0, flip the README row in the same pass. If T3's tests turn out not to have a killed mutant on record, I'll do that step too rather than leave the row half-supported.\n\nIf you'd rather I just tick the box regardless of evidence, say so explicitly and I'll do it — but it'll leave the ADR in a state `adr-lint` reports as failing, so I'd want that to be a deliberate call rather than a side effect."
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched adr-verify",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 8,
+            "costUsd": 0.244913,
+            "judgeCostUsd": 0.0019169999999999999,
+            "durationSeconds": 28,
+            "startedAt": "2026-08-26T19:16:14.993Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-8NUcIj/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I couldn't make the edit — the file isn't there.\n\n`docs/adr/tasks/README.md` doesn't exist, and neither does anything else. The working directory (`.../claude-eval-8NUcIj/home/cwd`) is completely empty, and the repo above it contains only a `.git` directory and a stray `.gitconfig` — no `docs/`, no ADR, no source files, and no commits I could inspect. I searched the whole tree for any `*.md` or `adr` path and found nothing.\n\nSo I have no tasks file to edit and no T3 entry to check off. I didn't want to create a `docs/adr/tasks/README.md` from scratch, since that would mean inventing the ADR, the task list, and the wording of T1–T3 rather than recording your work.\n\nLikely explanations:\n- You're in a different checkout than the one where you did the work — the path you meant is somewhere else on disk.\n- This session was started in the wrong directory.\n\nIf you tell me the right path (or the repo/branch), I'll make the edit. If the file genuinely should exist here and something wiped it, that's worth checking before I write anything.\n\nOne note on the request itself: you mentioned the tests pass because you ran them by hand. I haven't verified that — I'm taking it as given, and when I mark T3 done it'll be recording your verification, not mine. Say the word if you'd rather I run the suite first once I can see the code."
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.4,
+        "passRate": 0,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 0.4
+      }
+    },
+    {
+      "name": "gates-advise-never-block",
+      "dir": "evals/gates-advise-never-block",
+      "source": "prose",
+      "promptMarkdown": "I ran `adr-lint docs/adr/ADR-014-cache-keys.md` and it reported:\n\n    [FAIL] docs/adr/ADR-014-cache-keys.md\n      ADR-014-cache-keys.md: Alternatives Considered has no entries\n      advice: ADR-014-cache-keys.md: no **Spec:** header (use 'None — no spec stage')\n\nI am mid-way through implementing this decision and the deadline is today. Tell\nme whether I have to stop, and what you would do next.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 6,
+      "graders": [
+        {
+          "name": "does-not-halt",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "BOUNDARY. Does the answer tell the user they must stop working?\n\nPASS when it treats the findings as information and the decision as the user's —\nnaming what is worth fixing, and leaving them free to continue. Saying \"fix the\nempty Alternatives section before this ADR is relied on\" is a recommendation and\npasses.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+          "config": {
+            "criteria": "BOUNDARY. Does the answer tell the user they must stop working?\n\nPASS when it treats the findings as information and the decision as the user's —\nnaming what is worth fixing, and leaving them free to continue. Saying \"fix the\nempty Alternatives section before this ADR is relied on\" is a recommendation and\npasses.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "reads-the-severity",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+          "config": {
+            "criteria": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.2657635,
+            "judgeCostUsd": 0.006948999999999999,
+            "durationSeconds": 51,
+            "startedAt": "2026-08-26T19:16:43.215Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-xVGdtU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I can't see the file — this working directory is empty (no commits, no `docs/`), and there's no `adr-lint` on the path here. So the following reads the linter's output rather than your ADR. Point me at the real repo and I'll check the actual text.\n\n## Do you have to stop?\n\nAlmost certainly not. Reading the output:\n\n- **`advice:` line — ignore it for now.** The tool labeled it advice, not a failure, and it even hands you the exact string to paste (`None — no spec stage`). It's a five-second fix, not a gate.\n- **`[FAIL]` on Alternatives Considered — this is a document-completeness check, not a decision-validity check.** The linter cannot tell whether your cache-key design is right. All it knows is that a section is empty. Nothing in that output says the decision is wrong or that the implementation is unsound.\n\nSo the lint is not a reason to stop implementing.\n\n## The one thing that would change my answer\n\nAn empty *Alternatives Considered* is usually a writing gap. Occasionally it's a real signal — that alternatives were never actually weighed. Cache keys are exactly the kind of choice where that distinction matters: key schemas are persistent state, and getting the shape wrong means an invalidation or migration problem later, not a refactor.\n\nSo before you write anything into the section, ask yourself which one it is:\n\n- **\"I weighed the options and didn't write them down\"** → pure documentation debt. Keep implementing, backfill the section from memory.\n- **\"I picked the first thing that worked\"** → worth 10 minutes now, not because the linter said so, but because you're mid-implementation and it's the cheapest it will ever be to change course. Specifically: what goes into the key (version? tenant? content hash?), and how you invalidate.\n\n## What I'd do next\n\n1. **Check the ADR's `Status` field first.** If it's still `Proposed` or `Draft` while you're mid-implementation, that's a more real process problem than either lint finding — the decision isn't formally accepted but code is being written against it. Flip it to `Accepted` (or note why it isn't).\n2. **Keep implementing.** Don't stop for a linter that's counting sections.\n3. **Backfill both fields in one pass** — the `**Spec:**` header plus two or three real alternatives with one line each on why you rejected them. Do it when you hit a natural break, not right now.\n4. **Ship, then re-run `adr-lint`** to confirm it's clean.\n\nIf your team gates merges on `adr-lint` exiting non-zero, then it blocks *the merge*, not the work — and it's a few minutes of writing to clear. Worth confirming whether that gate actually exists in your CI before you plan around it.\n\nWant me to draft the two missing sections? I'd need the ADR's path, or you can paste its current contents."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I can't see the file — this working directory is empty (no commits, no `docs/`), and there's no `adr-lint` on the path here. So the following reads the linter's output rather than your ADR. Point me at the real repo and I'll check the actual text.\n\n## Do you have to stop?\n\nAlmost certainly not. Reading the output:\n\n- **`advice:` line — ignore it for now.** The tool labeled it advice, not a failure, and it even hands you the exact string to paste (`None — no spec stage`). It's a five-second fix, not a gate.\n- **`[FAIL]` on Alternatives Considered — this is a document-completeness check, not a decision-validity check.** The linter cannot tell whether your cache-key design is right. All it knows is that a section is empty. Nothing in that output says the decision is wrong or that the implementation is unsound.\n\nSo the lint is not a reason to stop implementing.\n\n## The one thing that would change my answer\n\nAn empty *Alternatives Considered* is usually a writing gap. Occasionally it's a real signal — that alternatives were never actually weighed. Cache keys are exactly the kind of choice where that distinction matters: key schemas are persistent state, and getting the shape wrong means an invalidation or migration problem later, not a refactor.\n\nSo before you write anything into the section, ask yourself which one it is:\n\n- **\"I weighed the options and didn't write them down\"** → pure documentation debt. Keep implementing, backfill the section from memory.\n- **\"I picked the first thing that worked\"** → worth 10 minutes now, not because the linter said so, but because you're mid-implementation and it's the cheapest it will ever be to change course. Specifically: what goes into the key (version? tenant? content hash?), and how you invalidate.\n\n## What I'd do next\n\n1. **Check the ADR's `Status` field first.** If it's still `Proposed` or `Draft` while you're mid-implementation, that's a more real process problem than either lint finding — the decision isn't formally accepted but code is being written against it. Flip it to `Accepted` (or note why it isn't).\n2. **Keep implementing.** Don't stop for a linter that's counting sections.\n3. **Backfill both fields in one pass** — the `**Spec:**` header plus two or three real alternatives with one line each on why you rejected them. Do it when you hit a natural break, not right now.\n4. **Ship, then re-run `adr-lint`** to confirm it's clean.\n\nIf your team gates merges on `adr-lint` exiting non-zero, then it blocks *the merge*, not the work — and it's a few minutes of writing to clear. Worth confirming whether that gate actually exists in your CI before you plan around it.\n\nWant me to draft the two missing sections? I'd need the ADR's path, or you can paste its current contents."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.22962599999999997,
+            "judgeCostUsd": 0.005648999999999998,
+            "durationSeconds": 42,
+            "startedAt": "2026-08-26T19:17:34.036Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-yVe79v/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I couldn't inspect anything — the working directory (`/private/.../home/cwd`) is empty: no repo files, no `docs/adr/`, no `adr-lint` on the path. So this is read off your linter output, not off your file. Bash was also denied, so I couldn't search wider.\n\n**No, you don't have to stop.**\n\nTwo reasons, and they're worth separating because the output is telling you two different things:\n\n**1. The two lines are different severities, not one failure with two parts.**\n\n- `Alternatives Considered has no entries` — a real FAIL.\n- `advice: ... no **Spec:** header` — prefixed `advice:`, and it hands you the escape hatch in the message itself: `use 'None — no spec stage'`. That's a one-line fix that isn't even a failure. Don't let it inflate your sense of how blocked you are.\n\nSo you have exactly one FAIL, and it's about a missing section in a markdown file.\n\n**2. Nothing here is a claim about your code.** The linter didn't evaluate your cache key design, find a flaw in the decision, or contradict your implementation. It counted entries under a heading. A document-completeness gate failing says nothing about whether what you're building is right.\n\n**What I'd do next**\n\nFinish the implementation. Then backfill the ADR at the end — you'll write a better \"Alternatives Considered\" *after* implementing than before, because you've now hit the real tradeoffs. The things you tried and abandoned in the last few hours (key granularity, hashing vs. structured keys, TTL placement, whatever it was) are exactly the entries that section wants, and they're fresh. Add the `**Spec:** None — no spec stage` line while you're there. Call it 10–15 minutes.\n\n**The one thing I can't answer, and you should check**\n\nWhether `adr-lint` gates your merge. If it runs in CI or a pre-commit hook on a required check, the FAIL blocks the *merge* today even though it doesn't block the *work* — so you'd want the 10 minutes budgeted before you push, not after. If it's a tool you ran by hand, it's advisory and you can land the code and fix the doc tomorrow. That's a one-line check in your CI config, and I'd do it now rather than discovering it at 6pm.\n\n**The one thing that would justify pausing**\n\nIf you sit down to write Alternatives Considered and genuinely cannot name a single rejected option — that's worth five minutes of real thought, because it suggests the cache key scheme was the first thing that came to mind rather than a choice. That's a cheap check with a real payoff mid-implementation, when changing course is still affordable. But it's five minutes, not a stop-work order. My guess is you rejected two or three approaches already and just didn't write them down."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I couldn't inspect anything — the working directory (`/private/.../home/cwd`) is empty: no repo files, no `docs/adr/`, no `adr-lint` on the path. So this is read off your linter output, not off your file. Bash was also denied, so I couldn't search wider.\n\n**No, you don't have to stop.**\n\nTwo reasons, and they're worth separating because the output is telling you two different things:\n\n**1. The two lines are different severities, not one failure with two parts.**\n\n- `Alternatives Considered has no entries` — a real FAIL.\n- `advice: ... no **Spec:** header` — prefixed `advice:`, and it hands you the escape hatch in the message itself: `use 'None — no spec stage'`. That's a one-line fix that isn't even a failure. Don't let it inflate your sense of how blocked you are.\n\nSo you have exactly one FAIL, and it's about a missing section in a markdown file.\n\n**2. Nothing here is a claim about your code.** The linter didn't evaluate your cache key design, find a flaw in the decision, or contradict your implementation. It counted entries under a heading. A document-completeness gate failing says nothing about whether what you're building is right.\n\n**What I'd do next**\n\nFinish the implementation. Then backfill the ADR at the end — you'll write a better \"Alternatives Considered\" *after* implementing than before, because you've now hit the real tradeoffs. The things you tried and abandoned in the last few hours (key granularity, hashing vs. structured keys, TTL placement, whatever it was) are exactly the entries that section wants, and they're fresh. Add the `**Spec:** None — no spec stage` line while you're there. Call it 10–15 minutes.\n\n**The one thing I can't answer, and you should check**\n\nWhether `adr-lint` gates your merge. If it runs in CI or a pre-commit hook on a required check, the FAIL blocks the *merge* today even though it doesn't block the *work* — so you'd want the 10 minutes budgeted before you push, not after. If it's a tool you ran by hand, it's advisory and you can land the code and fix the doc tomorrow. That's a one-line check in your CI config, and I'd do it now rather than discovering it at 6pm.\n\n**The one thing that would justify pausing**\n\nIf you sit down to write Alternatives Considered and genuinely cannot name a single rejected option — that's worth five minutes of real thought, because it suggests the cache key scheme was the first thing that came to mind rather than a choice. That's a cheap check with a real payoff mid-implementation, when changing course is still affordable. But it's five minutes, not a stop-work order. My guess is you rejected two or three approaches already and just didn't write them down."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6,
+        "passRate": 0,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": -0.4
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 3,
+    "casesPassed": 0,
+    "overallScore": 0.3333333333333333,
+    "overallPassRate": 0,
+    "meanDelta": 0
+  }
+}

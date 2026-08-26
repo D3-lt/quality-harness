@@ -14,7 +14,19 @@ would put the opinion back at the bottom of the stack.
 
 `llm` graders appear only where the question is genuinely about prose.
 
-    CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval --runs 1 .
+    CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval --runs 1 --allow-tools Bash .
+
+`--allow-tools` is an operator grant and `allowed_tools:` in a case's
+frontmatter does not stand in for it. Without the grant a case that instructs
+the model to run a script is scored on a model that could not run it, which
+looks exactly like the skill failing to mention the script.
+
+The runner defaults to `--ablation with-without`: each case also runs a
+no-plugin baseline and reports Δ. That number is the only one worth quoting —
+a score without a baseline cannot tell a skill that works from a model that
+would have answered well anyway. `tool_used: Skill` becomes a with-only
+indicator under ablation rather than part of the score, which is correct: a
+baseline arm has no skill to invoke.
 
 Cases are cheap on purpose — `max_turns` is small and `runs: 1` — because a suite
 nobody runs is the claim-without-evidence this whole plan exists to remove.

@@ -153,8 +153,22 @@ function runner(scriptName, payload, extraEnv = {}) {
   })
 }
 
-test('the shell-hook runner fails closed on every way a gate can not report', () => {
+test('the shell-hook runner reports every way a gate can not report, and blocks on none', async () => {
   const payload = { hook_event_name: 'PreToolUse', tool_input: { file_path: join(root, 'README.md') } }
+
+  // The harness failing to RUN is not a finding about the edit, and it used to
+  // exit 2 — which blocks the tool call. A Windows machine without Git Bash had
+  // every edit refused by a gate that had never read the file; a slow gate did
+  // the same. Reported while auditing what still blocks, 2026-08-26.
+  // Driven through "there is no bash here", which is deterministic on both
+  // platforms and needs no race: POSIX fails to spawn it, Windows fails to find
+  // it, and each is an environment failure the runner used to answer with 2.
+  const noShell = runner('facts-gate-dispatch.sh', payload, { PATH: join(root, 'no-such-bin') })
+  assert.equal(noShell.status, 0, `a missing shell must not block the edit: ${noShell.stderr}`)
+  // Silence would be the other failure: the reader has to learn the edit went
+  // unchecked, or a harness that could not run looks exactly like one that passed.
+  assert.match(noShell.stderr, /quality-harness:/)
+  assert.match(noShell.stderr, /[Nn]othing is blocked|Your edit is\s+untouched/)
 
   // NOT re-tested here: a gate exceeding its budget. Driving that end to end
   // needs a record slower to read than the 100ms floor, which is a race on a

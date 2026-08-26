@@ -228,6 +228,48 @@ Grouped by gate, ordered by what a silent regression costs.
 
 ---
 
+# Wave 4a — the skill/gate contract — **DONE**
+
+**5 tests in `tests/skill-contract.test.mjs`; 8 killing mutations, all red.** Nothing was
+broken — this is a ratchet, and saying so is part of reporting it honestly.
+
+It asserts that every gate flag a skill instructs is one that gate declares, that every
+multi-flag invocation the skills document has an entry that actually RUNS it, that a new
+multi-flag shape cannot be added to a SKILL.md without one, and that every
+`/quality-harness:<name>` and `templates/*.md` a skill points at resolves.
+
+Three things the build taught, each of which had already produced a wrong answer once:
+
+- **A wrapped code span is one instruction.** `adr-verify … --from --to` continued with
+  `--why` on the next line; read line-wise it looks like a documented invocation the gate
+  refuses. I nearly reported that as a defect. A false alarm on a shared gate is how the
+  gate gets switched off.
+- **But the window must still stop at a line end.** Joining the whole file attributed
+  `git diff --summary`, three lines away, to `adr-debt`.
+- **Pin the exit code, not the error text.** These gates parse argv by hand, so an
+  unrecognized flag does not announce itself — its VALUE falls through to the positionals.
+  With `--why` unparsed, `adr-verify` says `task file not found: probe`, which no
+  usage-error pattern catches. And where a flag's whole effect is what it PRINTS — `--all` —
+  the exit code is identical either way, so the output has to be asserted too.
+
+# Wave 4b — behavioural evals — **BLOCKED**
+
+`claude plugin eval` reports `` `plugin eval` is currently in early access `` and scaffolds
+nothing. This is account-side, not a missing manifest key: `--eval-dir evals .` gives the
+same message. CI cannot run it either, and it needs credentials for its agent runs and judge
+model besides.
+
+**Correcting an earlier claim in this document:** Wave 0's green `plugin-validate` job was
+read as unblocking this. It does not — `validate` and `eval` are different commands.
+
+Not started on purpose. A `case.yaml` plus graders nobody has ever run is exactly the
+claim-without-evidence this plan exists to remove, and with the runner unavailable there is
+no negative control at all. The first three cases to write, when it can be run:
+
+1. `/adr-execute` on a task whose acceptance fails must not report success.
+2. `/work` must not mark a README row `done` without running `adr-verify`.
+3. `/execution` must respect the leaf-role contract Wave 2 pinned.
+
 # Wave 4 — the skills (gated on Wave 0's `plugin-validate` result)
 
 16,801 words of skill instruction across 12 skills currently have **zero** behavioural

@@ -2543,3 +2543,60 @@ test('reported: a check that never ran on Windows was counted as a passing check
   const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: repo })
   assert.match(JSON.parse(run.stdout).systemMessage, /never started/)
 })
+
+test('the lifecycle router reads corpus state, and says so when it cannot', async () => {
+  // The lifecycle was always a DAG — spec, decision, execution, architecture,
+  // with retirement and postmortem hanging off it — but it lived only as prose
+  // spread across twelve skills, so routing happened from whatever the model
+  // recalled. An eval measured the cost: "mark T3 done in tasks/README.md" fired
+  // NO skill at all, because recording evidence for finished work was claimed by
+  // no description. The edges are static now; only the state is derived.
+  const { observe, nextStage } = await import('../scripts/work-next.mjs')
+  const root = await mkdtemp(path.join(testTmp, 'quality-router-'))
+  const tasks = path.join(root, 'docs', 'adr', 'tasks')
+  await mkdir(tasks, { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-thing.md'),
+    '# ADR-001: A thing\n\n**Status:** Accepted\n')
+
+  // A task claiming done with a tool-written exit-0 entry beside one without.
+  const backed = '# Task ADR-001-T1\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · acceptance-sha256:beef\n'
+  const unbacked = '# Task ADR-001-T2\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n'
+  await writeFile(path.join(tasks, 'T1.md'), backed)
+  await writeFile(path.join(tasks, 'T2.md'), unbacked)
+
+  const state = observe(root)
+  assert.equal(state.usesVerificationLog, true)
+  assert.deepEqual(state.unbacked.map(file => path.basename(file)), ['T2.md'])
+  assert.equal(nextStage(state).id, 'adr-verify',
+    'a done claim with nothing behind it is the stage no skill used to claim')
+
+  // A corpus that records evidence some other way is not behind on evidence —
+  // it keeps its records where this tool cannot see them. Measured against a
+  // real 149-record corpus where 395 of 405 task files carried no entry: calling
+  // all 395 pending is a confident wrong answer about somebody else's format.
+  await rm(path.join(tasks, 'T1.md'))
+  const foreign = observe(root)
+  assert.equal(foreign.usesVerificationLog, false)
+  assert.notEqual(nextStage(foreign)?.id, 'adr-verify')
+
+  // An empty repository starts at the top of the DAG.
+  const empty = await mkdtemp(path.join(testTmp, 'quality-router-empty-'))
+  assert.equal(nextStage(observe(empty)).id, 'spec-write')
+
+  // A superseded record still in the active corpus is a stage of its own.
+  const retire = await mkdtemp(path.join(testTmp, 'quality-router-retire-'))
+  await mkdir(path.join(retire, 'docs', 'adr'), { recursive: true })
+  await writeFile(path.join(retire, 'docs', 'adr', 'ADR-002-old.md'),
+    '# ADR-002: Old\n\n**Status:** Superseded by ADR-003\n')
+  assert.equal(nextStage(observe(retire)).id, 'adr-retire')
+
+  // It reads and never blocks.
+  const run = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'work-next.mjs'), root], { encoding: 'utf8' })
+  assert.equal(run.status, 0)
+  assert.match(run.stdout, /record\(s\)/)
+  assert.equal(spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'work-next.mjs'), '--nope'], { encoding: 'utf8' }).status, 2)
+})

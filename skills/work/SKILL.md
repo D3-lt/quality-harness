@@ -10,6 +10,20 @@ goal and non-goals, then run only the stages justified by uncertainty and risk. 
 `quality-harness:quality-policy` skill in this session. Spawned agents receive narrow leaf roles and
 must not invoke `/quality-harness:work` or restart the lifecycle.
 
+## Where this repository is
+
+Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/work-next.mjs` first, every time. It reads the corpus and
+says which lifecycle stage is waiting and why, with the files that put it there — a task claiming
+done with no exit-0 entry, an Accepted ADR whose tasks are not executed, a superseded record still
+sitting in the active corpus, an architecture document older than the decision that changed it.
+
+The lifecycle is a DAG and the edges are static; only the STATE is derived, and it is derived from
+the corpus rather than kept beside it. Routing from what is actually there beats routing from what
+this file happens to say, which is how a whole stage — recording evidence for finished work — ended
+up claimed by no skill's description at all until an eval measured it firing nothing.
+
+It reads, suggests, and exits 0 whatever it finds. Disagree with it when you have reason; say why.
+
 ## 0. Ground the current project
 
 Before classifying:

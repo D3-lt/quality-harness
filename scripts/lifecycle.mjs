@@ -26,7 +26,11 @@ const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
 const VALIDATION_PATTERNS = [
   /^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
   /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,
-  /^(?:pytest|python(?:3)?\s+-m\s+(?:pytest|unittest)|phpunit|pest|rspec|bundle\s+exec\s+rspec)\b/i,
+  // `php artisan test` is how a Laravel project runs its tests, and it was not
+  // here: a session with 286 passing tests kept being asked for a check.
+  // vendor/bin/phpunit needed its path prefix allowed for the same reason —
+  // requiring the bare name meant only a globally installed runner counted.
+  /^(?:pytest|python(?:3)?\s+-m\s+(?:pytest|unittest)|(?:php\s+)?(?:\S*\/)?(?:phpunit|pest)|(?:php\s+)?artisan\s+test|rspec|bundle\s+exec\s+rspec)\b/i,
   /^(?:npx\s+)?(?:tsc|eslint|ruff|mypy|pyright|shellcheck)\b/i,
   /^(?:node\s+(?:--check|--test)|bash\s+-n|php\s+-l|jq\s+empty|claude\s+plugin\s+validate)\b/i,
   /^(?:make|just)\s+(?:test|check|lint|build|verify|validate)\b/i,
@@ -801,7 +805,46 @@ function resultSucceeded(result, command) {
 const CD_ONLY = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/
 const ASSIGNMENT_ONLY = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*)+$/
 
+// A command run inside a container is still that command.
+//
+// `docker compose exec -T app php artisan test` was not validation, so a project
+// whose tests run in a container produced no evidence the gate could see — 286
+// passing tests, and the completion gate still asking for a check. Reported from
+// a live session on 2026-08-26.
+//
+// Peels one container-runner prefix and one `sh -c '…'` wrapper, which together
+// cover the shape people actually type:
+//   docker compose run --rm --no-deps node sh -c 'cd /var/www && npm run build'
+//
+// Deliberately narrow. The runner words are fixed, the flag skip stops at the
+// first non-flag token (the service or image), and only ONE layer of each is
+// peeled — guessing deeper is how a wrapper starts laundering a mutation.
+const CONTAINER_RUNNER = /^(?:sudo\s+)?(?:docker|podman)(?:\s+compose)?\s+(?:run|exec)\b/
+const FLAG_WITH_VALUE = /^(?:-e|--env|-u|--user|-w|--workdir|-v|--volume|--entrypoint|-p|--publish)$/
+
+export function commandInsideWrappers(command) {
+  let text = String(command ?? '').trim()
+  if (CONTAINER_RUNNER.test(text)) {
+    const tokens = text.split(/\s+/)
+    let index = tokens[0] === 'sudo' ? 1 : 0
+    index += tokens[index + 1] === 'compose' ? 3 : 2   // runner [compose] run|exec
+    while (index < tokens.length && tokens[index].startsWith('-')) {
+      index += FLAG_WITH_VALUE.test(tokens[index]) ? 2 : 1
+    }
+    index += 1                                          // the service or image
+    text = tokens.slice(index).join(' ').trim()
+  }
+  const shell = text.match(/^(?:\S*\/)?(?:ba|z|k|da)?sh\s+-[a-z]*c\s+('([^']*)'|"([^"]*)")$/)
+  if (shell) text = (shell[2] ?? shell[3] ?? '').trim()
+  return text
+}
+
 export function isValidationCommand(command) {
+  if (typeof command !== 'string') return false
+  // A containerised run is judged by what it runs. Checked first so the guard
+  // below sees the inner command's characters rather than the wrapper's.
+  const inner = commandInsideWrappers(command)
+  if (inner && inner !== command.trim()) return isValidationCommand(inner)
   if (typeof command !== 'string'
       || /[;`>]|\|\||\$\(/.test(command)
       || /(^|[^|])\|([^|]|$)/.test(command)
@@ -921,7 +964,13 @@ export function isPotentialMutationCommand(command) {
   if (typeof command !== 'string' || isValidationCommand(command)) return false
   const executable = withoutHeredocBodies(command)
   if (WRITE_REDIRECT.test(withoutQuotedSegments(executable))) return true
-  return /\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\b/.test(executable)
+  // (?<![-\w]) not \b: a hyphen is a word boundary, so `--rm` matched the `rm`
+  // command. `docker compose run --rm app npm run build` was therefore a
+  // DELETION, and since no containerised command counted as validation either,
+  // every build demanded another build — a closed loop reported from a live
+  // session on 2026-08-26. The same trap sits under --move, --copy, --install,
+  // --patch and --link.
+  return /(?<![-\w])(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)(?![-\w])/.test(executable)
     || inPlaceEditorCommand(executable)
     || interpreterCommandLooksMutating(command, executable)
     || /(?:^|\s)(?:\S*[\\/])?adr-verify(?:\s|$)/i.test(executable)
@@ -1493,11 +1542,16 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
       env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(Math.max(timeoutMs, 100)) },
       timeout: timeoutMs + ARTIFACT_GATE_KILL_MARGIN_MS,
     })
-    if (run.status !== 0) {
-      const detail = (run.stderr || run.error?.message || `artifact gate exited ${run.status}`).trim()
-      // A gate that ran out of time reported nothing about the artifact. Keep it
-      // blocking — an unread artifact is not a clean one — but name the budget,
-      // because "Artifact validation failed" sends the reader to the record.
+    // The exit code no longer carries the verdict: the gates advise, so a finding
+    // arrives as OUTPUT with a clean exit. Reading status alone would drop every
+    // one of them silently, which is worse than blocking ever was — advisory has
+    // to mean reported, not swallowed.
+    const said = (run.stderr || '').trim()
+    if (run.status !== 0 || said) {
+      const detail = (said || run.error?.message || `artifact gate exited ${run.status}`).trim()
+      // A gate that ran out of time reported nothing about the artifact — name
+      // the budget, because the gate's own words would send the reader to the
+      // record instead of to the clock.
       failures.push(budgetExhausted(detail, run.error)
         ? `${detail}\nThe gate did not finish, so it says nothing about ${filePath}. `
           + `This is a budget, not a finding: raise QUALITY_HARNESS_SHELL_TIMEOUT_MS `
@@ -1664,9 +1718,30 @@ function emitJson(value) {
   process.stdout.write(`${JSON.stringify(value)}\n`)
 }
 
-function blockWithExit(reason) {
+// ADVISORY ONLY. This harness does not refuse a tool call — it tells the agent
+// what it found and leaves the decision where it belongs.
+//
+// It used to block, and across three projects in one day it refused legitimate
+// work six times: a commit gate that degraded with session length until nothing
+// could be committed, a deletion sentinel that fired only on deletions already
+// checked, a read-only `> /dev/null` read as authorship, an unfilled template
+// shape stopping an edit that had already landed. Every one of those was the
+// harness fighting its user, and the pattern is what it teaches: an agent that
+// loses turns to a gate learns to route around the gate, and then the gate
+// protects nothing at all.
+//
+// So a finding is now information, delivered at the moment it can still be acted
+// on. What the harness gives up is the ability to STOP a fabricated claim; what
+// it keeps is the ability to name one, loudly, every time it sees it. That was
+// the owner's call, made explicitly and more than once.
+function advise(reason) {
+  // BOTH channels, because each alone can hide the finding. Exit-0 stderr is
+  // surfaced only in transcript view, so a finding written there alone reaches
+  // nobody — advisory-that-nobody-sees is concealment, which the owner has
+  // named as worse than having no plugin at all. `systemMessage` is shown in
+  // the session regardless of exit code; stderr keeps it in the transcript.
+  emitJson({ systemMessage: reason })
   process.stderr.write(`${reason}\n`)
-  process.exitCode = 2
 }
 
 const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|tests?|spec|fixtures?|testdata|examples?)$/i
@@ -1799,7 +1874,7 @@ export async function handleHook(input) {
   if (event === 'PreToolUse') {
     const branchFailure = branchViolation(input)
     if (branchFailure) {
-      blockWithExit(branchFailure)
+      advise(branchFailure)
       return
     }
     if (input.tool_name !== 'Bash') return
@@ -1824,7 +1899,7 @@ export async function handleHook(input) {
     // work in three different sessions and caught nothing.
     if (isGitPublishCommand(command)
         && bashDeletionMutationPaths(command, input.cwd).includes(UNRESOLVED_DELETION_MUTATION)) {
-      blockWithExit('This command deletes by an unresolved path and commits in the same breath, so '
+      advise('This command deletes by an unresolved path and commits in the same breath, so '
         + 'nothing can establish what was removed: before it runs the deletion has not happened, and '
         + 'after it HEAD no longer shows the difference. Name the deleted paths explicitly, or delete '
         + 'and commit as two commands — a separate commit is checked against the repository.')
@@ -1833,7 +1908,7 @@ export async function handleHook(input) {
 
     const raw = await readTranscript(input)
     if (!raw) {
-      blockWithExit('Quality gate could not read the session transcript; refusing git commit/push '
+      advise('Quality gate could not read the session transcript; refusing git commit/push '
         + 'without verifiable evidence. Nothing is wrong with your change — the gate cannot see this '
         + `session's history. ${runTheCheckSentence(input.cwd)} then retry; if it repeats, the `
         + 'transcript path the hook was given does not exist.')
@@ -1851,11 +1926,11 @@ export async function handleHook(input) {
     // the "fights you" behaviour this gate exists to avoid.
     const artifactFailure = runArtifactGates(state.mutationPathsSince(state.lastPublish), input.cwd, 45_000)
     if (artifactFailure) {
-      blockWithExit(artifactFailure)
+      advise(artifactFailure)
       return
     }
     if (state.hasMutations && !state.verifiedAfterLastMutation) {
-      blockWithExit(`Quality gate blocked git commit/push. ${missingEvidenceReason(state, input.cwd)}`)
+      advise(`Quality gate blocked git commit/push. ${missingEvidenceReason(state, input.cwd)}`)
     }
     return
   }
@@ -1868,16 +1943,16 @@ export async function handleHook(input) {
     const reason = 'Quality gate could not read the session transcript; completion evidence is '
       + 'unavailable. This is an environment problem, not a finding about your work: the hook was '
       + 'given a transcript path it cannot read.'
-    if (event === 'TaskCompleted') blockWithExit(reason)
-    else emitJson({ decision: 'block', reason })
+    if (event === 'TaskCompleted') advise(reason)
+    else emitJson({ systemMessage: reason })
     return
   }
   const state = analyzeTranscript(raw, input.cwd)
   if (event !== 'Stop') {
     const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
     if (artifactFailure) {
-      if (event === 'TaskCompleted') blockWithExit(artifactFailure)
-      else emitJson({ decision: 'block', reason: artifactFailure })
+      if (event === 'TaskCompleted') advise(artifactFailure)
+      else emitJson({ systemMessage: artifactFailure })
       return
     }
   }
@@ -1896,10 +1971,10 @@ export async function handleHook(input) {
 
   const reason = missingEvidenceReason(state, input.cwd)
   if (event === 'TaskCompleted') {
-    blockWithExit(reason)
+    advise(reason)
     return
   }
-  emitJson({ decision: 'block', reason })
+  emitJson({ systemMessage: reason })
 }
 
 async function readStdin() {

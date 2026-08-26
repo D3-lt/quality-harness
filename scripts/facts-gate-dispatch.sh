@@ -173,7 +173,7 @@ elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' "$f
     fi
     printf 'facts-first gate FAILED (ADR ownership) for %s: expected exactly one owning ADR%s, found %s.\n' \
       "$f" "${adr_ref:+ ($adr_ref)}" "${#candidates[@]}" >&2
-    exit 2
+    exit 0
   fi
   gate="adr-lint"
   out=$("$BIN/adr-lint" "${candidates[0]}" "$tdir" 2>&1); rc=$?
@@ -191,15 +191,14 @@ fi
 [ -z "$gate" ] && exit 0
 [ "$rc" -eq 0 ] && exit 0
 
-# BLOCKING AT THIS BOUNDARY PREVENTS NOTHING. The write has already happened and
-# a PostToolUse hook cannot undo it, so refusing here costs the turn and protects
-# no file. What protects the repository is the commit and completion boundaries,
-# which rerun this same dispatcher with no boundary argument and do exit 2.
+# NOTHING HERE REFUSES A CALL. Every boundary informs; the decision stays with
+# the agent and its owner.
 #
-# So this boundary informs instead: the finding reaches the agent at the moment
-# it can still act on it, and says plainly what it will cost later. An agent that
-# knows a commit is going to fail has second thoughts; an agent that loses its
-# turn to a structural nitpick learns to route around the gate.
+# This boundary was the first to change, for a reason that turned out to apply
+# everywhere: the write has already happened and a PostToolUse hook cannot undo
+# it, so refusing cost the turn and protected no file. The rest followed once
+# blocking had refused legitimate work six times across three projects in a day.
+# An agent that loses turns to a gate learns to route around the gate.
 #
 # adr-lint and adr-retire-check were already relaxed here for a narrower reason —
 # they judge a SET, and mid-sequence that set is legitimately incomplete: a
@@ -213,11 +212,13 @@ fi
 # anywhere, so a missing `## Consequences` stopped a turn exactly as hard as a
 # fabricated `done` status.
 if [ "$boundary" = "PostToolUse" ]; then
-  printf '%s is not satisfied yet for %s.\n\nNothing is blocked right now — this write has already landed, and a PostToolUse hook cannot undo it. But this WILL block `git commit` and completion until the artifact is fixed:\n\n%s\n\nFix it now while it is small, or keep going and fix it before you commit.\n' \
+  printf '%s is not satisfied yet for %s.\n\n%s\n\nFix it now while it is small, or note why it stands. Nothing is blocked — this is what the gate sees, not a refusal.\n' \
     "$gate" "$f" "$out"
   exit 0
 fi
 
-printf 'facts-first gate FAILED (%s, exit %s) for %s:\n%s\n\nFix the artifact, not the gate.\n' \
-  "$gate" "$rc" "$f" "$out" >&2
-exit 2
+# Advisory, like every other finding this harness reports. It names what it
+# found and leaves the decision where it belongs; it does not refuse the call.
+printf '%s is not satisfied for %s:\n\n%s\n\nFix the artifact, not the gate.\n' \
+  "$gate" "$f" "$out" >&2
+exit 0

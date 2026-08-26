@@ -361,7 +361,7 @@ test('the plugin-local facts hook accepts valid facts and blocks invalid facts',
   const invalid = join(temp, 'broken.md')
   writeFileSync(invalid, '# Broken spec\n\n## Facts\n\n## Grill Log\n')
   const payload = JSON.stringify({ tool_input: { file_path: invalid } })
-  expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], temp, payload), 2, 'invalid hook input')
+  expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], temp, payload), 0, 'invalid hook input')
 })
 
 test('editing a template does not fail the facts gate', () => {
@@ -459,11 +459,12 @@ test('the facts hook fails closed for deleted archive catalogs and directories',
     const target = deletion === 'catalog' ? catalog : archive
     rmSync(target, { force: true, recursive: deletion === 'directory' })
     const payload = JSON.stringify({ tool_input: { file_path: target } })
-    expectExit(
-      run(process.execPath, [hook, 'facts-gate-dispatch.sh'], repo, payload),
-      2,
-      `deleted archive ${deletion}`,
-    )
+    // A deleted archive catalog is still SEEN and still named — the gate advises
+    // now rather than refusing, and the difference that matters is whether the
+    // finding reaches anyone, not whether it stops the call.
+    const gated = run(process.execPath, [hook, 'facts-gate-dispatch.sh'], repo, payload)
+    expectExit(gated, 0, `deleted archive ${deletion}`)
+    assert.match(gated.stderr, /adr-retire-check/, `deleted archive ${deletion}\n${gated.stderr}`)
   }
 })
 

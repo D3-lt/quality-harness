@@ -328,6 +328,28 @@ regression.
 
 ---
 
+# How to know the plan itself worked — **RUNNABLE**
+
+`node scripts/mutate.mjs` applies each mutation in `tests/mutations.json`, runs the suite that
+should catch it, and restores the source. `--list` names them; `--case <substring>` runs one.
+
+**33/33 noticed.** Four verdicts, and three of them are failures:
+
+- `RED` — the suite stopped passing. What every row must do.
+- `GREEN` — the tests did not notice. The row is asserting something else.
+- `STALE` — the mutation no longer matches the code exactly once, so it asserts nothing.
+  Deliberately a failure: a mutation nobody has re-read is the same stale record as a task
+  list kept beside the tasks.
+- `HUNG` — noticed, but by hanging rather than failing. Removing `path_stack`'s
+  `relative_to` guard never terminates, because `Path("/").parent` is `Path("/")`.
+
+**It found two of its own catalogue errors on the first run** — one row pointed at the wrong
+test file (GREEN) and one no longer matched the source (STALE) — and one defect in itself: a
+hard kill left `scripts/lifecycle.mjs` mutated in the working tree, because
+`process.on('exit')` runs no JavaScript under SIGKILL. The intent is now journalled to
+`.mutate-inflight.json` before the source is touched, and any leftover is repaired at
+startup. A crash can lose the process; it cannot lose the file.
+
 # How to know the plan itself worked
 
 Two checks, neither of which is "the suite is green":

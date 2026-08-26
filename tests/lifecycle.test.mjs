@@ -13,6 +13,7 @@ import {
   mutatesOnlyTempPaths,
   projectCheckCommand,
   budgetExhausted,
+  describeCommand,
   sessionOrientation,
   spawnGate,
   taskBranchSuggestion,
@@ -1313,6 +1314,45 @@ test('every hook script the runner accepts has its arguments wired', () => {
 })
 
 // --- Wave 2 of docs/TEST-PLAN.md: the escapes, and the hook nothing ever fired.
+
+test('an unresolvable Bash write is named in one readable line', async () => {
+  // The completion message exists to say what changed. It used to splice 120 raw
+  // characters of the command into that sentence, so a heredoc put newlines and a
+  // mid-token truncation into it and five of them joined by ", " were unreadable.
+  // Reported from a live 2.1.7 session on 2026-08-26.
+  // The body has to actually WRITE. A heredoc that only reads is correctly not a
+  // mutation — the classifier inspects the script rather than assuming, which is
+  // why `python3 -` with unknown stdin counts and this one is judged on content.
+  const heredoc = 'cd /repo\npython3 - <<\'PY\'\nimport pathlib\n'
+    + 'pathlib.Path("tests/Unit/CustomerEmailTest.php").write_text("x")\nPY'
+  const described = describeCommand(heredoc)
+  assert.doesNotMatch(described, /\n/, 'a marker must not carry newlines into the sentence')
+  assert.equal(described, 'cd /repo')
+
+  // Long single-line commands are cut at a word boundary, not mid-token.
+  const long = `git commit -m ${'word '.repeat(40)}`
+  const cut = describeCommand(long)
+  assert.ok(cut.length <= 73, cut)
+  assert.match(cut, /…$/)
+  assert.doesNotMatch(cut, /wor…$/, 'cut at a space, not inside a word')
+
+  // Short commands are left exactly as they are.
+  assert.equal(describeCommand('rm -rf build'), 'rm -rf build')
+  assert.equal(describeCommand(undefined), '')
+
+  // And the marker must stay non-absolute, because that is what keeps an
+  // unresolvable command OUT of the artifact gate rather than into it.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-marker-'))
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: heredoc }), toolResult('b1'),
+  ]))
+  const state = analyzeTranscript(await readFile(file, 'utf8'))
+  const marker = state.mutationPaths.find(p => p.startsWith('<Bash mutation:'))
+  assert.ok(marker, 'the write is still recorded')
+  assert.doesNotMatch(marker, /\n/)
+  assert.equal(path.isAbsolute(marker), false)
+})
 
 test('SubagentStart states the leaf-role contract, and never blocks', async () => {
   // hooks.json declares this event and the installed plugin registers it, so

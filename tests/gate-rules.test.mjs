@@ -649,12 +649,15 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   // code, and the only clue was a failure that made no sense. A second runner
   // started the same way. Both cost more than the guards do.
   const runner = join(root, 'scripts', 'mutate.mjs')
-  const call = extraArgs => spawnSync(process.execPath,
+  // Its own lock file, so exercising these guards cannot collide with a real
+  // campaign running in the same checkout.
+  const isolated = join(mkdtempSync(join(os.tmpdir(), 'qh-mutate-')), 'lock')
+  const call = (extraArgs, lock = isolated) => spawnSync(process.execPath,
     [runner, '--case', 'mktemp -d is a temp', ...extraArgs],
-    { cwd: root, env, encoding: 'utf8', timeout: 60_000 })
+    { cwd: root, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: lock }, encoding: 'utf8', timeout: 60_000 })
 
   // A live owner is refused. `process.pid` is this test, which is certainly alive.
-  const lock = join(root, '.mutate-lock')
+  const lock = isolated
   writeFileSync(lock, String(process.pid))
   try {
     const second = call([])
@@ -662,6 +665,25 @@ test('the mutation runner refuses to run over an editor, or beside another runne
     assert.match(second.stderr, /another run is in flight/)
   } finally {
     rmSync(lock, { force: true })
+  }
+
+  // The other guard: a file this run rewrites that has uncommitted changes. The
+  // runner restores from a journal, so an edit made while it runs is silently
+  // rolled back — which is how two patches were lost on 2026-08-26.
+  const target = join(root, 'scripts', 'lifecycle.mjs')
+  const pristine = readFileSync(target, 'utf8')
+  try {
+    writeFileSync(target, `${pristine}\n// scratch\n`)
+    const overAnEditor = call([])
+    assert.equal(overAnEditor.status, 2, overAnEditor.stdout + overAnEditor.stderr)
+    assert.match(overAnEditor.stderr, /uncommitted changes/)
+    assert.match(overAnEditor.stderr, /silently rolled back/)
+    // NOT tested here: that --force proceeds. It would run a mutation campaign
+    // inside a test, nested in whatever campaign is already running — the exact
+    // concurrency this guard exists to stop. The refusal is the behaviour that
+    // matters; the override is one `argv.includes` away from it.
+  } finally {
+    writeFileSync(target, pristine)
   }
 
   // A dead owner left the lock behind; that is a crash, not a conflict, and the

@@ -1230,6 +1230,96 @@
       ],
       "from": "or asks to mark a task done, tick off a task, update a task's status, or record that work passed",
       "to": ""
+    },
+    {
+      "label": "propose: the catalogue is not counted as coverage",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "    .filter(file => !/mutations?\\.json$/.test(file))\n    .map(file => readIfSmall(file) ?? '')",
+      "to": "    .map(file => readIfSmall(file) ?? '')"
+    },
+    {
+      "label": "propose: a catalogue hit outranks nothing and stays 'catalogued'",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "  if (catalogueText.includes(candidate)) return 'catalogued'",
+      "to": "  if (catalogueText.includes(candidate)) return 'asserted'"
+    },
+    {
+      "label": "propose: a clause the runner cannot target uniquely is dropped",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "        if (occurrences(text, clause) !== 1) continue",
+      "to": "        if (occurrences(text, clause) < 1) continue"
+    },
+    {
+      "label": "propose: a root given without --tests survives argument parsing",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "  const valueIndex = testsIndex === -1 ? -1 : testsIndex + 1",
+      "to": "  const valueIndex = testsIndex + 1"
+    },
+    {
+      "label": "propose: a clause too short to identify one place is not a claim",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "const MIN_CLAUSE = 14",
+      "to": "const MIN_CLAUSE = 1"
+    },
+    {
+      "label": "propose: a tool name is matched word-bounded, not as a substring",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "`(?<![\\\\w-])${escapeForPattern(tool)}(?![\\\\w-])`",
+      "to": "`${escapeForPattern(tool)}`"
+    },
+    {
+      "label": "propose: a flag no script declares is another command's contract",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "        if (!declared) continue",
+      "to": "        if (false) continue"
+    },
+    {
+      "label": "propose: catalogue output carries the runner schema only",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "export function catalogueEntries(found) {\n  return found.map(candidate => ({",
+      "to": "export function catalogueEntries(found) {\n  return found.map(candidate => ({\n    ...candidate,"
+    },
+    {
+      "label": "propose: a leading conjunction is punctuation, not part of the claim",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": ".replace(/^(?:or|and|then)\\s+/i, '')",
+      "to": ""
+    },
+    {
+      "label": "propose: this tool reports and never refuses",
+      "file": "scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "    process.stdout.write(`${JSON.stringify({ mutations: catalogueEntries(chosen) }, null, 2)}\\n`)\n    return 0",
+      "to": "    process.stdout.write(`${JSON.stringify({ mutations: catalogueEntries(chosen) }, null, 2)}\\n`)\n    return chosen.length ? 1 : 0"
     }
   ]
 }

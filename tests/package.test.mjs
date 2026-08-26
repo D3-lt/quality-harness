@@ -10,8 +10,8 @@ const root = resolve(testDir, '..')
 
 const skills = [
   'adr-execute', 'adr-retire', 'adr-write', 'arch-write', 'codex-advise',
-  'codex-review', 'execution', 'postmortem', 'quality-policy', 'review',
-  'spec-write', 'work',
+  'codex-review', 'execution', 'mutation-audit', 'postmortem', 'quality-policy',
+  'review', 'spec-write', 'work',
 ]
 const gates = [
   'adr-debt', 'adr-judge', 'adr-lint', 'adr-next', 'adr-retire-check', 'adr-verify', 'arch-lint',

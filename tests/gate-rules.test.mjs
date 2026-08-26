@@ -165,6 +165,8 @@ test('the shell-hook runner fails closed on every way a gate can not report', ()
   // worse than none.
 
   // A script outside the allow-list is refused rather than run.
+  // A broken INVOCATION is not a finding about a record: the harness advises on
+  // what it judges, and still refuses to run something it does not recognise.
   const unsupported = runner('definitely-not-a-hook.sh', payload)
   assert.equal(unsupported.status, 2)
   assert.match(unsupported.stderr, /unsupported shell hook/)
@@ -528,6 +530,7 @@ test('every gate refuses a flag it does not know', () => {
   ]
   for (const [gate, args] of invocations) {
     const result = run(gate, args, dir)
+    // A flag the gate does not know is a typo, not a finding about a record.
     assert.notEqual(result.status, 0, `${gate} accepted an unknown flag\n${result.stdout}`)
     assert.match(`${result.stdout}${result.stderr}`, /unknown option|unrecognized/i, gate)
   }

@@ -2137,19 +2137,22 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /bin[\\/]adr-lint/,
     'a forwarder is current by construction and is not drift')
 
-  // A symlink needs no special case: the digest reads THROUGH it, so a link on
-  // the current plugin matches and stays silent, and one left on an older
-  // version really is behind and is worth saying. Giving links a blanket pass
-  // suppressed the second case, and a mutation removing that pass stayed green.
-  await mkdir(path.join(home, '.claude', 'skills'), { recursive: true })
-  // 'junction' explicitly: a directory link created with the default type is a
-  // FILE link on Windows, which is broken on arrival, and the type argument is
-  // ignored everywhere else. The standalone-link suite already passes 'dir' or
-  // 'junction' for exactly this reason.
-  await symlink(path.join(pluginDir, 'skills', 'execution'),
-    path.join(home, '.claude', 'skills', 'execution'), 'junction')
+  // A link needs no special case and gets none: the digest reads THROUGH it, so a
+  // link on the current plugin is byte-identical to the plugin's own file and a
+  // link left on an older version really is behind and worth saying. Giving links
+  // a blanket pass suppressed the second case, and a mutation removing that pass
+  // stayed green.
+  //
+  // Asserted with a copy rather than a real link, deliberately. What reaches this
+  // function is bytes; creating an actual link would test the filesystem's link
+  // support — which differs per platform and needs a privilege on Windows — and
+  // not the behaviour, which is identical either way. The standalone-link suite
+  // owns real links, where they ARE the mechanism.
+  await mkdir(path.join(home, '.claude', 'skills', 'execution'), { recursive: true })
+  await cp(path.join(pluginDir, 'skills', 'execution', 'SKILL.md'),
+    path.join(home, '.claude', 'skills', 'execution', 'SKILL.md'))
   assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /skills[\\/]execution/,
-    'a link on the current plugin is not drift')
+    'what a link resolves to is what the plugin ships, so it is not drift')
 
   // A hook under the home directory can only answer if the user's own settings
   // name it: this plugin wires its hooks through CLAUDE_PLUGIN_ROOT and never

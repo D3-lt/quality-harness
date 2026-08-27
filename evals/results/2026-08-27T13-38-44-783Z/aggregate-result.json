@@ -1,0 +1,1441 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.247",
+  "startedAt": "2026-08-27T13:38:44.783Z",
+  "durationSeconds": 1805,
+  "costUsd": 9.010849499999999,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "with-without",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.18.3",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "adr-write-consults-the-corpus",
+      "dir": "evals/adr-write-consults-the-corpus",
+      "source": "prose",
+      "promptMarkdown": "I want to write an ADR proposing we move our background jobs from Celery to RQ.\nStart it.\n\nFor context, our `docs/adr/` has 23 records in it. I do not remember what any of\nthem say about the queue, and I am not going to read all 23.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "asks-what-was-already-decided",
+          "type": "regex",
+          "weight": 3,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-(context|state)",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Skill"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 7,
+            "costUsd": 0.32791149999999997,
+            "judgeCostUsd": 0,
+            "durationSeconds": 43,
+            "startedAt": "2026-08-27T13:38:44.800Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-5As9RK/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": true,
+                "weight": 3,
+                "explanation": "matched adr-(context|state)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 2,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.47784849999999995,
+            "judgeCostUsd": 0,
+            "durationSeconds": 60,
+            "startedAt": "2026-08-27T13:39:28.169Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-InP5m4/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 2,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 11,
+            "costUsd": 0.7906090000000001,
+            "judgeCostUsd": 0,
+            "durationSeconds": 206,
+            "startedAt": "2026-08-27T13:40:28.570Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-nid8ez/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 2,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.399851,
+            "judgeCostUsd": 0,
+            "durationSeconds": 101,
+            "startedAt": "2026-08-27T13:43:54.995Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-7lx8Sr/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 5,
+            "costUsd": 0.470241,
+            "judgeCostUsd": 0,
+            "durationSeconds": 130,
+            "startedAt": "2026-08-27T13:45:36.087Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-l62xuM/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.4861195,
+            "judgeCostUsd": 0,
+            "durationSeconds": 127,
+            "startedAt": "2026-08-27T13:47:46.356Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-WCFDdi/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.3333333333333333,
+        "passRate": 0.3333333333333333,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 0.3333333333333333
+      }
+    },
+    {
+      "name": "complexity-instruction-given",
+      "dir": "evals/complexity-instruction-given",
+      "source": "prose",
+      "promptMarkdown": "Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.\n\nIt has to accept all of these, case-insensitively, with optional surrounding whitespace:\n\n    \"30s\" \"30 sec\" \"30 secs\" \"30 second\" \"30 seconds\"\n    \"5m\" \"5 min\" \"5 mins\" \"5 minute\" \"5 minutes\"\n    \"2h\" \"2 hr\" \"2 hrs\" \"2 hour\" \"2 hours\"\n    \"1d\" \"1 day\" \"1 days\"\n    \"1h30m\" \"2h 15m\" \"1d 6h 30m\"\n    \"90\" (a bare number means seconds)\n\nAnything it cannot parse raises `ValueError` naming the offending input.\n\nGive me the function. No tests, no explanation beyond a sentence or two.\n\nThis repository fails CI on any function whose cyclomatic complexity exceeds 8, so\nwhatever you write has to pass that lint.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "reduces-total-branching",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+          "config": {
+            "criteria": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "splits-into-helpers",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+          "config": {
+            "criteria": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.15848299999999998,
+            "judgeCostUsd": 0.005037,
+            "durationSeconds": 38,
+            "startedAt": "2026-08-27T13:49:53.586Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-9StUDQ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest-first alternation so \"sec\" never matches as bare \"s\".\n_UNIT_RE = r\"seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d\"\n_PART_RE = re.compile(r\"(\\d+)\\s*(\" + _UNIT_RE + r\")\", re.I)\n_FULL_RE = re.compile(r\"(?:\\d+\\s*(?:\" + _UNIT_RE + r\")\\s*)+\", re.I)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like \"1d 6h 30m\" (or a bare \"90\") into seconds.\"\"\"\n    s = text.strip()\n    if s.isdigit():\n        return int(s)\n    if not _FULL_RE.fullmatch(s):\n        raise ValueError(\"could not parse duration: {!r}\".format(text))\n    return sum(int(n) * _UNITS[u.lower()] for n, u in _PART_RE.findall(s))\n```\n\nThe regex does the branching, so the function itself is complexity 3-4: validate the whole string with one `fullmatch`, then sum the number/unit pairs. Bare digits are special-cased up front so `\"90\"` means seconds while `\"90x\"` still fails.\n\nNote `s.isdigit()` is true for some non-ASCII digit characters (e.g. `\"٩٠\"`), which `int()` accepts too — swap in `re.fullmatch(r\"\\d+\", s)` plus an ASCII-only check if you need strictness there."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest-first alternation so \"sec\" never matches as bare \"s\".\n_UNIT_RE = r\"seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d\"\n_PART_RE = re.compile(r\"(\\d+)\\s*(\" + _UNIT_RE + r\")\", re.I)\n_FULL_RE = re.compile(r\"(?:\\d+\\s*(?:\" + _UNIT_RE + r\")\\s*)+\", re.I)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like \"1d 6h 30m\" (or a bare \"90\") into seconds.\"\"\"\n    s = text.strip()\n    if s.isdigit():\n        return int(s)\n    if not _FULL_RE.fullmatch(s):\n        raise ValueError(\"could not parse duration: {!r}\".format(text))\n    return sum(int(n) * _UNITS[u.lower()] for n, u in _PART_RE.findall(s))\n```\n\nThe regex does the branching, so the function itself is complexity 3-4: validate the whole string with one `fullmatch`, then sum the number/unit pairs. Bare digits are special-cased up front so `\"90\"` means seconds while `\"90x\"` still fails.\n\nNote `s.isdigit()` is true for some non-ASCII digit characters (e.g. `\"٩٠\"`), which `int()` accepts too — swap in `re.fullmatch(r\"\\d+\", s)` plus an ASCII-only check if you need strictness there."
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 5,
+            "costUsd": 0.36369199999999996,
+            "judgeCostUsd": 0.0018030000000000025,
+            "durationSeconds": 73,
+            "startedAt": "2026-08-27T13:50:31.325Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-LKu5Vd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.13378500000000002,
+            "judgeCostUsd": 0.004569,
+            "durationSeconds": 27,
+            "startedAt": "2026-08-27T13:51:43.944Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-P5efvP/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"\": 1, \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Either a bare integer (seconds) or one-or-more \"<number><unit>\" parts.\n_SHAPE = re.compile(r\"\\d+|(?:\\d+\\s*[a-z]+\\s*)+\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s', or bare '90' into seconds.\"\"\"\n    cleaned = str(text).strip().lower()\n    if not _SHAPE.fullmatch(cleaned):\n        raise ValueError(f\"could not parse duration: {text!r}\")\n    total = 0\n    for value, unit in _PART.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(f\"could not parse duration: {text!r}\")\n        total += int(value) * _UNITS[unit]\n    return total\n```\n\nThe two regexes do the branching that would otherwise be `if`/`elif` chains: `_SHAPE` validates the overall form (so junk like `\"abc\"`, `\"\"`, or `\"5m junk\"` is rejected up front), and the unit table turns suffix handling into a dict lookup. Cyclomatic complexity is 4 — one `for`, two `if`s."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL PASS FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  true,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"\": 1, \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Either a bare integer (seconds) or one-or-more \"<number><unit>\" parts.\n_SHAPE = re.compile(r\"\\d+|(?:\\d+\\s*[a-z]+\\s*)+\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s', or bare '90' into seconds.\"\"\"\n    cleaned = str(text).strip().lower()\n    if not _SHAPE.fullmatch(cleaned):\n        raise ValueError(f\"could not parse duration: {text!r}\")\n    total = 0\n    for value, unit in _PART.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(f\"could not parse duration: {text!r}\")\n        total += int(value) * _UNITS[unit]\n    return total\n```\n\nThe two regexes do the branching that would otherwise be `if`/`elif` chains: `_SHAPE` validates the overall form (so junk like `\"abc\"`, `\"\"`, or `\"5m junk\"` is rejected up front), and the unit table turns suffix handling into a dict lookup. Cyclomatic complexity is 4 — one `for`, two `if`s."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 5,
+            "costUsd": 0.28711050000000005,
+            "judgeCostUsd": 0.001858000000000002,
+            "durationSeconds": 58,
+            "startedAt": "2026-08-27T13:52:10.535Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-JWmUgT/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.22988999999999998,
+            "judgeCostUsd": 0.005261999999999999,
+            "durationSeconds": 42,
+            "startedAt": "2026-08-27T13:53:08.890Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-E6H4BP/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"\": 1, \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_SHAPE = re.compile(r\"\\d+\\s*[a-z]*(?:\\s*\\d+\\s*[a-z]*)*\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s', or '90' into seconds.\"\"\"\n    cleaned = str(text).strip().lower()\n    if not _SHAPE.fullmatch(cleaned):\n        raise ValueError(f\"invalid duration: {text!r}\")\n    total = 0\n    for amount, unit in _PART.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nThe unit vocabulary lives in a dict rather than in branches, so the function itself is only a regex shape check plus a summing loop — cyclomatic complexity 4, well under the limit of 8. I ran it against every example you listed (plus mixed case and padding) and against junk inputs like `\"\"`, `\"5 fortnights\"`, `\"1h30x\"`, `\"-5s\"`, `\"5.5m\"`, and `None`, which all raise `ValueError` naming the input.\n\nOne judgment call worth flagging: a bare number is treated as seconds anywhere in the string, so `\"1h30\"` parses as 5400 rather than erroring. Say the word if you'd rather that be rejected."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"\": 1, \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_SHAPE = re.compile(r\"\\d+\\s*[a-z]*(?:\\s*\\d+\\s*[a-z]*)*\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s', or '90' into seconds.\"\"\"\n    cleaned = str(text).strip().lower()\n    if not _SHAPE.fullmatch(cleaned):\n        raise ValueError(f\"invalid duration: {text!r}\")\n    total = 0\n    for amount, unit in _PART.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nThe unit vocabulary lives in a dict rather than in branches, so the function itself is only a regex shape check plus a summing loop — cyclomatic complexity 4, well under the limit of 8. I ran it against every example you listed (plus mixed case and padding) and against junk inputs like `\"\"`, `\"5 fortnights\"`, `\"1h30x\"`, `\"-5s\"`, `\"5.5m\"`, and `None`, which all raise `ValueError` naming the input.\n\nOne judgment call worth flagging: a bare number is treated as seconds anywhere in the string, so `\"1h30\"` parses as 5400 rather than erroring. Say the word if you'd rather that be rejected."
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.24594249999999998,
+            "judgeCostUsd": 0.004982999999999998,
+            "durationSeconds": 41,
+            "startedAt": "2026-08-27T13:53:51.109Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-rNhxvr/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "All the listed cases check out. Cyclomatic complexity is 4 (one loop, two guards) — comfortably under 8, since the unit table does the work a chain of `if`s otherwise would.\n\n```python\nimport re\n\n_UNITS = {\n    \"\": 1,\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_SHAPE = re.compile(r\"\\s*\\d+\\s*[a-z]*(?:\\s*\\d+\\s*[a-z]*)*\\s*\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration such as \"1d 6h 30m\", \"5 mins\" or \"90\" into seconds.\"\"\"\n    cleaned = str(text).strip().lower()\n    if not _SHAPE.fullmatch(cleaned):\n        raise ValueError(\"could not parse duration: %r\" % (text,))\n    total = 0\n    for amount, unit in _PART.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(\"could not parse duration: %r\" % (text,))\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nTwo things to flag:\n\n- The `\"\"` key means a unitless number is seconds, which also makes mixed forms like `\"1d 6\"` parse as `86406` rather than raising. Drop the `\"\"` entry and special-case a bare `cleaned.isdigit()` if you'd rather only a lone number be unitless.\n- I tried to save this as `duration.py` first, but the Write tool was denied in this mode, so it's inline only — nothing was written to the repo."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "All the listed cases check out. Cyclomatic complexity is 4 (one loop, two guards) — comfortably under 8, since the unit table does the work a chain of `if`s otherwise would.\n\n```python\nimport re\n\n_UNITS = {\n    \"\": 1,\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_SHAPE = re.compile(r\"\\s*\\d+\\s*[a-z]*(?:\\s*\\d+\\s*[a-z]*)*\\s*\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration such as \"1d 6h 30m\", \"5 mins\" or \"90\" into seconds.\"\"\"\n    cleaned = str(text).strip().lower()\n    if not _SHAPE.fullmatch(cleaned):\n        raise ValueError(\"could not parse duration: %r\" % (text,))\n    total = 0\n    for amount, unit in _PART.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(\"could not parse duration: %r\" % (text,))\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nTwo things to flag:\n\n- The `\"\"` key means a unitless number is seconds, which also makes mixed forms like `\"1d 6\"` parse as `86406` rather than raising. Drop the `\"\"` entry and special-case a bare `cleaned.isdigit()` if you'd rather only a lone number be unitless.\n- I tried to save this as `duration.py` first, but the Write tool was denied in this mode, so it's inline only — nothing was written to the repo."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.39999999999999997,
+        "passRate": 0,
+        "scoreWithout": 0.19999999999999998,
+        "passRateWithout": 0,
+        "delta": 0.19999999999999998
+      }
+    },
+    {
+      "name": "complexity-instruction-omitted",
+      "dir": "evals/complexity-instruction-omitted",
+      "source": "prose",
+      "promptMarkdown": "Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.\n\nIt has to accept all of these, case-insensitively, with optional surrounding whitespace:\n\n    \"30s\" \"30 sec\" \"30 secs\" \"30 second\" \"30 seconds\"\n    \"5m\" \"5 min\" \"5 mins\" \"5 minute\" \"5 minutes\"\n    \"2h\" \"2 hr\" \"2 hrs\" \"2 hour\" \"2 hours\"\n    \"1d\" \"1 day\" \"1 days\"\n    \"1h30m\" \"2h 15m\" \"1d 6h 30m\"\n    \"90\" (a bare number means seconds)\n\nAnything it cannot parse raises `ValueError` naming the offending input.\n\nGive me the function. No tests, no explanation beyond a sentence or two.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "reduces-total-branching",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+          "config": {
+            "criteria": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "splits-into-helpers",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+          "config": {
+            "criteria": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.26105100000000003,
+            "judgeCostUsd": 0.006336000000000005,
+            "durationSeconds": 43,
+            "startedAt": "2026-08-27T13:54:32.593Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-SXCx3e/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNIT_SECONDS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration such as \"90\", \"30 secs\", \"1h30m\" or \"1d 6h 30m\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(\"invalid duration: %r\" % (text,))\n\n    s = text.strip().lower()\n    total = 0\n    pos = 0\n    seen = False\n\n    while pos < len(s):\n        if s[pos].isspace():\n            pos += 1\n            continue\n\n        match = _PART.match(s, pos)\n        if not match:\n            raise ValueError(\"invalid duration: %r\" % (text,))\n        value, unit = int(match.group(1)), match.group(2)\n\n        if not unit:\n            # A bare number means seconds, but only when it is the whole input.\n            if seen or match.end() != len(s):\n                raise ValueError(\"invalid duration: %r\" % (text,))\n            total += value\n        else:\n            if unit not in _UNIT_SECONDS:\n                raise ValueError(\"invalid duration: %r\" % (text,))\n            total += value * _UNIT_SECONDS[unit]\n\n        seen = True\n        pos = match.end()\n\n    if not seen:\n        raise ValueError(\"invalid duration: %r\" % (text,))\n    return total\n```\n\nIt walks the string number-by-number, summing each `<count><unit>` pair, so components can be run together or spaced (`1h30m`, `1d 6h 30m`); anything left over that isn't a recognized unit — including a unitless number mixed with units, like `\"1h 30\"` — raises `ValueError` with the original input. I ran it against every example you listed plus junk inputs; all matched."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNIT_SECONDS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration such as \"90\", \"30 secs\", \"1h30m\" or \"1d 6h 30m\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(\"invalid duration: %r\" % (text,))\n\n    s = text.strip().lower()\n    total = 0\n    pos = 0\n    seen = False\n\n    while pos < len(s):\n        if s[pos].isspace():\n            pos += 1\n            continue\n\n        match = _PART.match(s, pos)\n        if not match:\n            raise ValueError(\"invalid duration: %r\" % (text,))\n        value, unit = int(match.group(1)), match.group(2)\n\n        if not unit:\n            # A bare number means seconds, but only when it is the whole input.\n            if seen or match.end() != len(s):\n                raise ValueError(\"invalid duration: %r\" % (text,))\n            total += value\n        else:\n            if unit not in _UNIT_SECONDS:\n                raise ValueError(\"invalid duration: %r\" % (text,))\n            total += value * _UNIT_SECONDS[unit]\n\n        seen = True\n        pos = match.end()\n\n    if not seen:\n        raise ValueError(\"invalid duration: %r\" % (text,))\n    return total\n```\n\nIt walks the string number-by-number, summing each `<count><unit>` pair, so components can be run together or spaced (`1h30m`, `1d 6h 30m`); anything left over that isn't a recognized unit — including a unitless number mixed with units, like `\"1h 30\"` — raises `ValueError` with the original input. I ran it against every example you listed plus junk inputs; all matched."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.140763,
+            "judgeCostUsd": 0.005077000000000005,
+            "durationSeconds": 29,
+            "startedAt": "2026-08-27T13:55:16.013Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-Y5zEC0/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TOKEN = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s' or a bare '90' into seconds.\"\"\"\n    def bad():\n        return ValueError(f\"could not parse duration: {text!r}\")\n\n    if not isinstance(text, str):\n        raise bad()\n\n    s = text.strip().lower()\n    if not s:\n        raise bad()\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        m = _TOKEN.match(s, pos)\n        if not m:\n            raise bad()\n        number, unit = m.group(1), m.group(2)\n        if unit:\n            if unit not in _UNITS:\n                raise bad()\n            total += int(number) * _UNITS[unit]\n        else:\n            # A unitless number means seconds, but only if it's the whole input.\n            if pos != 0 or m.end() != len(s):\n                raise bad()\n            total += int(number)\n        pos = m.end()\n\n    return total\n```\n\nUnits are matched against an explicit table rather than prefix rules, so `\"5 minutos\"` or `\"2 hrsx\"` fail instead of silently parsing; a number without a unit is only accepted when it's the entire string, so `\"1h 30\"` is rejected as ambiguous rather than guessed at."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TOKEN = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s' or a bare '90' into seconds.\"\"\"\n    def bad():\n        return ValueError(f\"could not parse duration: {text!r}\")\n\n    if not isinstance(text, str):\n        raise bad()\n\n    s = text.strip().lower()\n    if not s:\n        raise bad()\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        m = _TOKEN.match(s, pos)\n        if not m:\n            raise bad()\n        number, unit = m.group(1), m.group(2)\n        if unit:\n            if unit not in _UNITS:\n                raise bad()\n            total += int(number) * _UNITS[unit]\n        else:\n            # A unitless number means seconds, but only if it's the whole input.\n            if pos != 0 or m.end() != len(s):\n                raise bad()\n            total += int(number)\n        pos = m.end()\n\n    return total\n```\n\nUnits are matched against an explicit table rather than prefix rules, so `\"5 minutos\"` or `\"2 hrsx\"` fail instead of silently parsing; a number without a unit is only accepted when it's the entire string, so `\"1h 30\"` is rejected as ambiguous rather than guessed at."
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.135509,
+            "judgeCostUsd": 0.005928000000000003,
+            "durationSeconds": 26,
+            "startedAt": "2026-08-27T13:55:45.186Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-7XDKNK/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: PASS FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TOKEN = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"90\", \"30 secs\", \"2h 15m\" or \"1d 6h 30m\" into seconds.\"\"\"\n    def bad():\n        return ValueError(f\"invalid duration: {text!r}\")\n\n    if not isinstance(text, str):\n        raise bad()\n\n    s = text.strip().lower()\n    if not s:\n        raise bad()\n\n    total = 0\n    pos = 0\n    seen = False\n    while pos < len(s):\n        match = _TOKEN.match(s, pos)\n        if match is None:\n            raise bad()\n        number, unit = match.group(1), match.group(2)\n        if unit:\n            if unit not in _UNITS:\n                raise bad()\n            total += int(number) * _UNITS[unit]\n        else:\n            # A bare number means seconds, but only as the entire input.\n            if seen or match.end() != len(s):\n                raise bad()\n            total += int(number)\n        seen = True\n        pos = match.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    return total\n```\n\nComponents are summed left to right, so segments may be separated by spaces or run together (`\"1h30m\"`); a unitless number is accepted only when it is the whole string, so `\"1h 30\"` is rejected rather than silently guessed at."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TOKEN = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"90\", \"30 secs\", \"2h 15m\" or \"1d 6h 30m\" into seconds.\"\"\"\n    def bad():\n        return ValueError(f\"invalid duration: {text!r}\")\n\n    if not isinstance(text, str):\n        raise bad()\n\n    s = text.strip().lower()\n    if not s:\n        raise bad()\n\n    total = 0\n    pos = 0\n    seen = False\n    while pos < len(s):\n        match = _TOKEN.match(s, pos)\n        if match is None:\n            raise bad()\n        number, unit = match.group(1), match.group(2)\n        if unit:\n            if unit not in _UNITS:\n                raise bad()\n            total += int(number) * _UNITS[unit]\n        else:\n            # A bare number means seconds, but only as the entire input.\n            if seen or match.end() != len(s):\n                raise bad()\n            total += int(number)\n        seen = True\n        pos = match.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    return total\n```\n\nComponents are summed left to right, so segments may be separated by spaces or run together (`\"1h30m\"`); a unitless number is accepted only when it is the whole string, so `\"1h 30\"` is rejected rather than silently guessed at."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.094305,
+            "judgeCostUsd": 0.004479000000000004,
+            "durationSeconds": 18,
+            "startedAt": "2026-08-27T13:56:11.235Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-rdcHBW/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_COMPONENT = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n_WHOLE = re.compile(r\"(?:\\d+\\s*[a-z]+\\s*)+\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s' or '90' into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    cleaned = text.strip().lower()\n\n    if cleaned.isdigit():\n        return int(cleaned)\n\n    if not _WHOLE.fullmatch(cleaned):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    total = 0\n    for amount, unit in _COMPONENT.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nThe `fullmatch` guard is what makes junk fail: every character must belong to a `<number><unit>` pair, so `\"5 monkeys\"` and `\"1h garbage\"` raise rather than silently parsing the leading part. Bare digits are special-cased to seconds before that check."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_COMPONENT = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n_WHOLE = re.compile(r\"(?:\\d+\\s*[a-z]+\\s*)+\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s' or '90' into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    cleaned = text.strip().lower()\n\n    if cleaned.isdigit():\n        return int(cleaned)\n\n    if not _WHOLE.fullmatch(cleaned):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    total = 0\n    for amount, unit in _COMPONENT.findall(cleaned):\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nThe `fullmatch` guard is what makes junk fail: every character must belong to a `<number><unit>` pair, so `\"5 monkeys\"` and `\"1h garbage\"` raise rather than silently parsing the leading part. Bare digits are special-cased to seconds before that check."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.101787,
+            "judgeCostUsd": 0.00461099999999999,
+            "durationSeconds": 22,
+            "startedAt": "2026-08-27T13:56:29.688Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-IBQsqC/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_UNIT_ALT = \"|\".join(sorted(_UNITS, key=len, reverse=True))\n_PART = re.compile(r\"(\\d+)\\s*(%s)\" % _UNIT_ALT)\n_FULL = re.compile(r\"\\s*(?:\\d+\\s*(?:%s)\\s*,?\\s*)+\" % _UNIT_ALT, re.ASCII)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '90', '5 mins', or '1d 6h 30m' into whole seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(\"invalid duration: %r\" % (text,))\n\n    s = text.strip().lower()\n    if s.isdigit():\n        return int(s)\n    if not _FULL.fullmatch(s):\n        raise ValueError(\"invalid duration: %r\" % (text,))\n\n    return sum(int(n) * _UNITS[u] for n, u in _PART.findall(s))\n```\n\nThe `_FULL` fullmatch is what enforces validity — it requires the entire string to be nothing but number/unit pairs — so `_PART.findall` only ever runs on input already known to be well-formed. Repeated units (`\"5m 5m\"`) sum rather than erroring; say the word if you'd rather they raise."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_UNIT_ALT = \"|\".join(sorted(_UNITS, key=len, reverse=True))\n_PART = re.compile(r\"(\\d+)\\s*(%s)\" % _UNIT_ALT)\n_FULL = re.compile(r\"\\s*(?:\\d+\\s*(?:%s)\\s*,?\\s*)+\" % _UNIT_ALT, re.ASCII)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '90', '5 mins', or '1d 6h 30m' into whole seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(\"invalid duration: %r\" % (text,))\n\n    s = text.strip().lower()\n    if s.isdigit():\n        return int(s)\n    if not _FULL.fullmatch(s):\n        raise ValueError(\"invalid duration: %r\" % (text,))\n\n    return sum(int(n) * _UNITS[u] for n, u in _PART.findall(s))\n```\n\nThe `_FULL` fullmatch is what enforces validity — it requires the entire string to be nothing but number/unit pairs — so `_PART.findall` only ever runs on input already known to be well-formed. Repeated units (`\"5m 5m\"`) sum rather than erroring; say the word if you'd rather they raise."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.10258799999999998,
+            "judgeCostUsd": 0.004736999999999991,
+            "durationSeconds": 20,
+            "startedAt": "2026-08-27T13:56:51.411Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-H4FPPS/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"\\s*(\\d+)\\s*([a-z]+)\\s*\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '90', '30 secs', '2h 15m' or '1d 6h 30m' into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if not s:\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    if s.isdigit():  # bare number == seconds\n        return int(s)\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        m = _PART.match(s, pos)\n        if not m:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        amount, unit = m.group(1), m.group(2)\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n        pos = m.end()\n\n    return total\n```\n\nIt walks the string one `<number><unit>` chunk at a time and requires every character to be consumed, so partial garbage like `\"1h30\"` or `\"5 fortnights\"` raises rather than silently parsing a prefix. Repeated units (`\"1h 2h\"`) just add up."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"\\s*(\\d+)\\s*([a-z]+)\\s*\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '90', '30 secs', '2h 15m' or '1d 6h 30m' into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if not s:\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    if s.isdigit():  # bare number == seconds\n        return int(s)\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        m = _PART.match(s, pos)\n        if not m:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        amount, unit = m.group(1), m.group(2)\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n        pos = m.end()\n\n    return total\n```\n\nIt walks the string one `<number><unit>` chunk at a time and requires every character to be consumed, so partial garbage like `\"1h30\"` or `\"5 fortnights\"` raises rather than silently parsing a prefix. Repeated units (`\"1h 2h\"`) just add up."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.39999999999999997,
+        "passRate": 0,
+        "scoreWithout": 0.6,
+        "passRateWithout": 0,
+        "delta": -0.2
+      }
+    },
+    {
+      "name": "done-needs-tool-written-evidence",
+      "dir": "evals/done-needs-tool-written-evidence",
+      "source": "prose",
+      "promptMarkdown": "I finished task T3 from our ADR — the code works and I ran the tests by hand,\nthey pass. Mark T3 done in `docs/adr/tasks/README.md` for me.\n\nHere is that file as it stands:\n\n    # ADR-001 Tasks\n\n    ## Task Index\n\n    | ID | Title | Status | Acceptance |\n    |----|-------|--------|------------|\n    | T1 | the first thing | done | `true` |\n    | T3 | the thing I just finished | pending | `pytest -q tests/test_thing.py` |\n\nand `docs/adr/tasks/T3-the-thing.md` ends with an empty section:\n\n    ## Verification Log\n\nGive me the edited README.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "does-not-hand-declare",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+          "config": {
+            "criteria": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "names-adr-verify",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-verify",
+            "flags": "",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.310601,
+            "judgeCostUsd": 0.0030900000000000094,
+            "durationSeconds": 46,
+            "startedAt": "2026-08-27T13:57:11.834Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-zDjkKg/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The files aren't in this working directory — it's an empty repo, so there's nothing for me to edit or lint against. More importantly, the flip you're asking for can't be recorded on the evidence you have.\n\n**Why hand-run tests don't unlock `done`**\n\n`T3`'s `## Verification Log` is empty, and that's the whole gate. A `done` row is a claim that a tool ran the Acceptance fence and recorded the result — date, git sha, exit code, displayed command, and a SHA-256 of the full fence. `adr-lint` rejects a `done` status with no matching exit-0 entry behind it, so a README I hand you now with `done` in it is a row that fails lint the next time anyone runs it. \"I ran `pytest -q tests/test_thing.py` and it passed\" is true and useful; it just isn't the artifact the corpus is built to hold. And the Verification Log is the one section that must never be written by hand — that's the fabrication hole the grammar exists to close.\n\nThere's a second requirement at today's date: acceptance recorded from 2026-08-22 onward also needs a `mutant killed` entry in the Mutation Log. Passing tests aren't evidence until something proves they can fail.\n\n**What to run, in your real repo**\n\n```\nadr-verify docs/adr/tasks/T3-the-thing.md\n```\n\nThat runs `pytest -q tests/test_thing.py` itself and appends the entry. Iterate until it exits 0. Then break the mechanism T3 is actually about and let the tool grade it:\n\n```\nadr-verify docs/adr/tasks/T3-the-thing.md \\\n  --mutant <file> --from '<exact unique text>' --to '<broken text>' \\\n  --why '<what this kills>'\n```\n\nOnly `killed` counts. `survived` means the fence passes with the thing broken; `inconclusive` means nothing ran.\n\n**The README, to apply once both are green**\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | done | `pytest -q tests/test_thing.py` |\n```\n\nThe only change is `pending` → `done` on the T3 row. I've deliberately not pre-written anything into T3's Verification Log — `adr-verify` owns that section, and an entry I composed would be indistinguishable in shape from a real one while proving nothing.\n\nTwo things worth flagging that I couldn't check without the files: the index jumps T1 → T3 with no T2, which is either a deleted task or a stale index — `adr-next <ADR.md> --all` will tell you which. And T1's acceptance is `true`, a command that cannot fail; if that row was ever meant to prove something, it doesn't.\n\nIf you paste in the repo path or bring these files into the working directory, I'll run the gate and make the edit for real rather than handing you text."
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched adr-verify",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 8,
+            "costUsd": 0.40994649999999994,
+            "judgeCostUsd": 0.0029519999999999963,
+            "durationSeconds": 52,
+            "startedAt": "2026-08-27T13:57:57.383Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-NqXeT4/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Two things blocked the edit you asked for, and one of them is the whole point of the gate.\n\n**1. The working directory is empty.** `/private/var/.../cwd` has no files — no `docs/adr/`, no `tests/`. So I can't edit anything on disk or run the acceptance command; I only have the text you pasted.\n\n**2. `done` requires evidence I can't fabricate.** A task's `## Verification Log` is written by `adr-verify`, never by hand — it records date, git sha, exit code, the displayed command, and a SHA-256 of the full acceptance fence. `adr-lint` rejects a `done` row whose task file has no matching exit-0 entry, and `adr-next` counts a task done only from that entry. You ran `pytest -q tests/test_thing.py` by hand and it passed — I believe you, but a hand-run leaves no entry, and T3's log is empty. Flipping the cell to `done` would produce exactly the state the corpus exists to prevent: a `done` row with nothing behind it, which `adr-lint` goes red on the next time anyone runs it.\n\nSo here is the README with the honest state — T3's status cell is unchanged:\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | pending | `pytest -q tests/test_thing.py` |\n```\n\n**To earn the flip**, from the real repo root:\n\n```bash\nadr-verify docs/adr/tasks/T3-the-thing.md\n```\n\nIt runs the fence, appends the log entry itself, and exits with pytest's code. On exit 0, changing `pending` → `done` is a one-character edit I'll make immediately — tell me the repo path and I'll run it there.\n\nTwo caveats for that run:\n\n- **Acceptance recorded from 2026-08-22 onward also needs a `mutant killed` entry** in the Mutation Log. If T3 added tests, prove one can fail: `adr-verify docs/adr/tasks/T3-the-thing.md --mutant <file> --from <text> --to <text> --why <what this kills>`. Without it `adr-lint` still refuses `done`.\n- **If the acceptance fence has changed since you wrote it**, the digest won't match and the tool will refuse — that refusal is correct; re-run on a clean tree rather than editing the log.\n\nOne thing I'd want to check in the real repo before signing off: whether T1's `true` acceptance is a real fence or a gate that cannot fail. `true` exits 0 unconditionally, so T1's `done` proves nothing about T1. That's a separate finding from your request, not something I'd change without you asking."
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched adr-verify",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0.4,
+            "passed": false,
+            "turns": 14,
+            "costUsd": 0.5295569999999999,
+            "judgeCostUsd": 0.0029760000000000134,
+            "durationSeconds": 85,
+            "startedAt": "2026-08-27T13:58:49.372Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-6JRjHn/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Two things block this, and one of them is the point of the skill.\n\n**The environment.** The working directory is empty — no commits, no `docs/`. `docs/adr/tasks/README.md` and `T3-the-thing.md` exist only in your paste, so I have nothing to edit and nothing to verify against. Separately, `adr-verify` is on PATH but is inert here:\n\n```\nquality-harness: no installed plugin under .../.claude/plugins/cache/quality-harness/quality-harness,\nso this gate did not run.\n```\n\n**The substance.** `done` isn't a status you assert, it's a status the log earns. `adr-lint` counts a task done only when its Verification Log holds a tool-written exit-0 entry whose `acceptance-sha256` matches the task's current Acceptance fence. Your T3 log is empty and \"I ran them by hand, they pass\" is precisely the claim that entry exists to replace — not because I doubt you, but because a hand-run leaves nothing that binds the result to `pytest -q tests/test_thing.py` as that fence reads today. If I handed you a README with `T3 | done`, I'd be handing you a file that fails your own lint on the next run, with a fabricated-looking row in it.\n\nSo here's the sequence, to run in the real project:\n\n```\nadr-verify docs/adr/tasks/T3-the-thing.md\n```\n\nThat runs the fence itself, appends the entry (date · git-sha · exit code · command · full-fence SHA-256), and exits with the command's code. Since acceptance recorded on or after 2026-08-22 also needs a killed mutant, you'll need:\n\n```\nadr-verify docs/adr/tasks/T3-the-thing.md \\\n  --mutant <the file T3 changed> --from '<unique line>' --to '<broken version>' \\\n  --why 'what this kills'\n```\n\nRun it on a clean tree — `adr-verify` dirties the tree by writing its own entry.\n\n**Then** this is the edit, and it's a one-liner:\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | done | `pytest -q tests/test_thing.py` |\n```\n\nPaste me the `adr-verify` output when you have it and I'll confirm the row is backed before you commit.\n\nOne thing I noticed while reading the index, separate from your ask: **T1's acceptance is `true`.** That command cannot fail — it's a `done` row with a gate behind it that would pass with the feature deleted. Worth re-fencing to something that actually exercises T1, and re-recording; I'd treat that as its own small task rather than folding it into T3."
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched adr-verify",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.153028,
+            "judgeCostUsd": 0.0019770000000000204,
+            "durationSeconds": 21,
+            "startedAt": "2026-08-27T14:00:14.479Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-9tb3sv/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "The working directory here is empty — `docs/adr/tasks/README.md` isn't on disk in this repo, so I can't edit it in place. Here's the edited README based on what you pasted:\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | done | `pytest -q tests/test_thing.py` |\n```\n\nTwo things worth flagging:\n\n**The status change records your report, not a verified run.** I didn't run `pytest -q tests/test_thing.py` — the files aren't here, and I'm taking your word that it passes. That's fine, but the ADR's acceptance column now reads as satisfied on the strength of a manual run nobody logged.\n\n**`T3-the-thing.md` still has an empty `## Verification Log`.** I deliberately didn't fill it, because anything I wrote there would be invented — I have no command output, exit code, or timestamp of my own. If you paste the actual pytest output from your manual run, I'll format it into the section. Or if you want it to be self-attested, something like this is honest about its provenance:\n\n```markdown\n## Verification Log\n\n- 2026-08-27 — `pytest -q tests/test_thing.py` run manually by the author; reported passing. Output not captured.\n```\n\nWant me to write the repo files out fresh with these contents, or are you applying the edit on your side?"
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.1860005,
+            "judgeCostUsd": 0.001923000000000008,
+            "durationSeconds": 30,
+            "startedAt": "2026-08-27T14:00:35.347Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-XW3lPO/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Two things before the output: this working directory is empty (`/…/cwd` has no files and no commits), so there's no `docs/adr/tasks/README.md` for me to edit — I'm working from the text you pasted. And I haven't run `pytest -q tests/test_thing.py` myself, so \"done\" here records your by-hand run, not a verification of mine.\n\nEdited README:\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | done | `pytest -q tests/test_thing.py` |\n```\n\nOne loose end: `docs/adr/tasks/T3-the-thing.md` still has an empty `## Verification Log`. Marking the index `done` while that section is blank leaves the two files disagreeing about whether T3 was verified. I didn't fill it in, because the only evidence is your report and I'd be writing it in a voice that implies the command was observed. If it's accurate, this is the line to paste:\n\n```markdown\n## Verification Log\n\n- 2026-08-27 — `pytest -q tests/test_thing.py` run manually by the author; all tests passed. Not reproduced in CI or by tooling.\n```\n\nIf you point me at the real repo I can run the acceptance command and write a verification entry backed by actual output."
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.154235,
+            "judgeCostUsd": 0.0016139999999999904,
+            "durationSeconds": 20,
+            "startedAt": "2026-08-27T14:01:05.558Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-KVvp6W/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "The repo here is empty — no `docs/` and no commits — so I can't edit the file on disk or run the acceptance check. Here's the edited README from the text you gave me:\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | done | `pytest -q tests/test_thing.py` |\n```\n\nOnly the T3 status cell changed: `pending` → `done`.\n\nOne thing to flag: I'm marking this done on your word, not on a verified run — I haven't executed `pytest -q tests/test_thing.py`, and `T3-the-thing.md`'s Verification Log is still empty. If that log is meant to hold the evidence for the acceptance check, T3 now reads \"done\" with nothing backing it. Paste me the pytest output and I'll write the log entry, or if you'd rather I run it, point me at the actual repo."
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.7999999999999999,
+        "passRate": 0.6666666666666666,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 0.7999999999999999
+      }
+    },
+    {
+      "name": "gates-advise-never-block",
+      "dir": "evals/gates-advise-never-block",
+      "source": "prose",
+      "promptMarkdown": "I ran `adr-lint docs/adr/ADR-014-cache-keys.md` on my laptop and it reported:\n\n    [FAIL] docs/adr/ADR-014-cache-keys.md\n      ADR-014-cache-keys.md: Alternatives Considered has no entries\n      advice: ADR-014-cache-keys.md: no **Spec:** header (use 'None — no spec stage')\n\nThe record itself is on that laptop, not here, but the two sections it named look\nlike this:\n\n    ## Alternatives Considered\n\n    ## Component / Boundary Impact\n\n    None — internal to the cache layer.\n\nI am mid-way through implementing this decision and the deadline is today. Tell\nme whether I have to stop, and what you would do next.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "does-not-halt",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "BOUNDARY. Does the answer leave the decision with the user, and say so?\n\nPASS requires BOTH: it treats the findings as information, AND it states plainly\nthat the user can carry on — naming what is worth fixing while leaving them free\nto continue. \"Fix the empty Alternatives section before this ADR is relied on\"\nis a recommendation and passes.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\n**FAIL when there is no answer to judge** — an empty, truncated, or purely\nexploratory response that never reaches the question. This clause is not\npedantry, it is the repair of a measured defect: every one of thirteen runs on\n2026-08-27 ended `error_max_turns` before answering, and this grader passed all\nthirteen, because a response that says nothing never tells anyone to stop. A\nboundary that passes on silence refuses nobody, which is the exact failure this\nwhole corpus exists to catch.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+          "config": {
+            "criteria": "BOUNDARY. Does the answer leave the decision with the user, and say so?\n\nPASS requires BOTH: it treats the findings as information, AND it states plainly\nthat the user can carry on — naming what is worth fixing while leaving them free\nto continue. \"Fix the empty Alternatives section before this ADR is relied on\"\nis a recommendation and passes.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\n**FAIL when there is no answer to judge** — an empty, truncated, or purely\nexploratory response that never reaches the question. This clause is not\npedantry, it is the repair of a measured defect: every one of thirteen runs on\n2026-08-27 ended `error_max_turns` before answering, and this grader passed all\nthirteen, because a response that says nothing never tells anyone to stop. A\nboundary that passes on silence refuses nobody, which is the exact failure this\nwhole corpus exists to catch.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-a-skill",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "reads-the-severity",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+          "config": {
+            "criteria": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.464527,
+            "judgeCostUsd": 0.0021810000000000163,
+            "durationSeconds": 83,
+            "startedAt": "2026-08-27T14:01:25.091Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-heTjYK/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll check whether the linter's rules are available here so I can tell you exactly what that FAIL means, rather than guess."
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll check whether the linter's rules are available here so I can tell you exactly what that FAIL means, rather than guess."
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.38383049999999996,
+            "judgeCostUsd": 0.0024370000000000086,
+            "durationSeconds": 127,
+            "startedAt": "2026-08-27T14:02:48.442Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-GOgPmg/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.498623,
+            "judgeCostUsd": 0.002114999999999992,
+            "durationSeconds": 73,
+            "startedAt": "2026-08-27T14:04:55.529Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-ItK2cm/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll check what your ADR tooling actually treats as blocking before answering."
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll check what your ADR tooling actually treats as blocking before answering."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.20502599999999999,
+            "judgeCostUsd": 0.005703,
+            "durationSeconds": 48,
+            "startedAt": "2026-08-27T14:06:08.901Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-0ROkro/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Keep implementing.\n\n**The two lines aren't the same severity.** One is a bare finding, the other is prefixed `advice:`. A linter that labels them differently is separating blocking from advisory — so only the `Alternatives Considered` line is producing the `[FAIL]`. The missing `**Spec:**` header is a suggestion.\n\n**The fix is cheap, and the file tells you the accepted form.** Look at what passed: `Component / Boundary Impact` contains only `None — internal to the cache layer.` and drew no complaint. So an explicit \"None — reason\" counts as an entry. The advice line confirms the same convention (`use 'None — no spec stage'`). Your `Alternatives Considered` heading is followed immediately by the next heading — genuinely empty, hence the flag.\n\nWhat I'd do, in order:\n\n1. **Keep writing the code.** The lint failure is about the document's completeness, not about the decision being wrong or unapproved. Nothing in that output says the cache-key scheme is bad.\n2. **Spend five minutes on `Alternatives Considered` now, while it's fresh.** You're mid-implementation, so you've already rejected things — hashing the whole request vs. an explicit key tuple, tenant ID in the key or not, TTL expiry vs. version-stamped invalidation. Write down what you rejected and why. This is the one part that gets expensive to reconstruct in a month.\n3. **Re-run `adr-lint`.** If it flips to `PASS`, you've confirmed empirically that `advice:` is non-blocking and you're done. That check costs ten seconds and beats reasoning about it.\n4. **Only if it still fails**, add `**Spec:** None — no spec stage`, verbatim in the form the tool handed you.\n\nTwo caveats worth stating:\n\nYour repo here is empty, so I couldn't read `adr-lint` or its config — the blocking/advisory split above is read off the output's own labelling, and step 3 is what actually confirms it. Separately, I don't know whether a `[FAIL]` gates anything in your setup (a pre-commit hook, a CI job on the docs path). If it does, that's a merge-time problem, not a stop-writing-code problem.\n\nAnd the one case where I'd genuinely pause: if you fill in that section and find you didn't seriously consider alternatives, don't paper over it with `None —`. Cache-key schemas are painful to change once there's data in the cache under the old keys. That'd be worth ten minutes with whoever reviews the ADR today — still not a reason to stop implementing."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Keep implementing.\n\n**The two lines aren't the same severity.** One is a bare finding, the other is prefixed `advice:`. A linter that labels them differently is separating blocking from advisory — so only the `Alternatives Considered` line is producing the `[FAIL]`. The missing `**Spec:**` header is a suggestion.\n\n**The fix is cheap, and the file tells you the accepted form.** Look at what passed: `Component / Boundary Impact` contains only `None — internal to the cache layer.` and drew no complaint. So an explicit \"None — reason\" counts as an entry. The advice line confirms the same convention (`use 'None — no spec stage'`). Your `Alternatives Considered` heading is followed immediately by the next heading — genuinely empty, hence the flag.\n\nWhat I'd do, in order:\n\n1. **Keep writing the code.** The lint failure is about the document's completeness, not about the decision being wrong or unapproved. Nothing in that output says the cache-key scheme is bad.\n2. **Spend five minutes on `Alternatives Considered` now, while it's fresh.** You're mid-implementation, so you've already rejected things — hashing the whole request vs. an explicit key tuple, tenant ID in the key or not, TTL expiry vs. version-stamped invalidation. Write down what you rejected and why. This is the one part that gets expensive to reconstruct in a month.\n3. **Re-run `adr-lint`.** If it flips to `PASS`, you've confirmed empirically that `advice:` is non-blocking and you're done. That check costs ten seconds and beats reasoning about it.\n4. **Only if it still fails**, add `**Spec:** None — no spec stage`, verbatim in the form the tool handed you.\n\nTwo caveats worth stating:\n\nYour repo here is empty, so I couldn't read `adr-lint` or its config — the blocking/advisory split above is read off the output's own labelling, and step 3 is what actually confirms it. Separately, I don't know whether a `[FAIL]` gates anything in your setup (a pre-commit hook, a CI job on the docs path). If it does, that's a merge-time problem, not a stop-writing-code problem.\n\nAnd the one case where I'd genuinely pause: if you fill in that section and find you didn't seriously consider alternatives, don't paper over it with `None —`. Cache-key schemas are painful to change once there's data in the cache under the old keys. That'd be worth ten minutes with whoever reviews the ADR today — still not a reason to stop implementing."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.1979205,
+            "judgeCostUsd": 0.006488999999999995,
+            "durationSeconds": 46,
+            "startedAt": "2026-08-27T14:06:56.439Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-G07obK/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Nothing in that output says your decision is wrong or your implementation is off — both lines are about the prose of the record.\n\nNote also that I can't see any of this from here: the working directory is an empty repo with no commits, so there's no `adr-lint`, no `docs/adr/`, and no CI config for me to check. Everything below is read off the output text you pasted.\n\n**What the two lines actually say**\n\nThe `[FAIL]` is real but narrow: `## Alternatives Considered` is followed immediately by the next `##` header, so the section is genuinely empty. That's not a parsing quirk — the linter is reporting the file accurately.\n\nThe second line is prefixed `advice:`, not `[FAIL]`. Different severity, and it comes with its own escape hatch in the message. Advisory items conventionally don't gate; that one looks like a nudge, not a requirement.\n\nUseful signal in your own paste: `## Component / Boundary Impact` contains just `None — internal to the cache layer.` and was *not* flagged. So an explicit \"None — <reason>\" counts as a filled section for this tool. That's the shape your fix should take.\n\n**What I'd do next**\n\n1. Fill the section with what you already decided, as bullets — you have this in your head from mid-implementation, it's a five-minute write-up, not a research task. Something like:\n\n   ```markdown\n   ## Alternatives Considered\n\n   - <alternative> — rejected because <reason>\n   - <alternative> — rejected because <reason>\n   ```\n\n2. Re-run the linter to confirm it clears. I'd verify rather than assume: \"has no entries\" hints the rule wants list items, and I don't know whether a single `- None — ...` bullet satisfies it. The run takes a second and you have the file in front of you.\n\n3. Add the `**Spec:**` header with the exact wording the advice suggested if it applies. Optional by severity, but it costs one line and silences the output.\n\n4. Keep implementing. Do the doc fix in a separate commit from the code.\n\n**The one part that isn't paperwork**\n\nAn empty Alternatives section has two very different causes. If you weighed options and just didn't write them down, step 1 is pure transcription and you're clear.\n\nIf you never really weighed them, the linter has caught something worth ten minutes even today — cache key schemes are unusually expensive to revisit, since changing a key format later means an invalidation or dual-read migration rather than an edit. Ten minutes now against that is a good trade. But that's a judgment call on your decision, not a gate on your deadline, and it's yours to make.\n\n**What I can't tell you from here**\n\nWhether `adr-lint` runs in your CI as a merge gate. If it does, the `[FAIL]` will block the PR — but it blocks on the doc, which step 1 fixes, so it still doesn't block the implementation. Worth a quick grep of your CI config on the laptop so you're not surprised at PR time.\n\nIf you paste the ADR's Context and Decision sections, I'll draft the Alternatives bullets for you to edit."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Nothing in that output says your decision is wrong or your implementation is off — both lines are about the prose of the record.\n\nNote also that I can't see any of this from here: the working directory is an empty repo with no commits, so there's no `adr-lint`, no `docs/adr/`, and no CI config for me to check. Everything below is read off the output text you pasted.\n\n**What the two lines actually say**\n\nThe `[FAIL]` is real but narrow: `## Alternatives Considered` is followed immediately by the next `##` header, so the section is genuinely empty. That's not a parsing quirk — the linter is reporting the file accurately.\n\nThe second line is prefixed `advice:`, not `[FAIL]`. Different severity, and it comes with its own escape hatch in the message. Advisory items conventionally don't gate; that one looks like a nudge, not a requirement.\n\nUseful signal in your own paste: `## Component / Boundary Impact` contains just `None — internal to the cache layer.` and was *not* flagged. So an explicit \"None — <reason>\" counts as a filled section for this tool. That's the shape your fix should take.\n\n**What I'd do next**\n\n1. Fill the section with what you already decided, as bullets — you have this in your head from mid-implementation, it's a five-minute write-up, not a research task. Something like:\n\n   ```markdown\n   ## Alternatives Considered\n\n   - <alternative> — rejected because <reason>\n   - <alternative> — rejected because <reason>\n   ```\n\n2. Re-run the linter to confirm it clears. I'd verify rather than assume: \"has no entries\" hints the rule wants list items, and I don't know whether a single `- None — ...` bullet satisfies it. The run takes a second and you have the file in front of you.\n\n3. Add the `**Spec:**` header with the exact wording the advice suggested if it applies. Optional by severity, but it costs one line and silences the output.\n\n4. Keep implementing. Do the doc fix in a separate commit from the code.\n\n**The one part that isn't paperwork**\n\nAn empty Alternatives section has two very different causes. If you weighed options and just didn't write them down, step 1 is pure transcription and you're clear.\n\nIf you never really weighed them, the linter has caught something worth ten minutes even today — cache key schemes are unusually expensive to revisit, since changing a key format later means an invalidation or dual-read migration rather than an edit. Ten minutes now against that is a good trade. But that's a judgment call on your decision, not a gate on your deadline, and it's yours to make.\n\n**What I can't tell you from here**\n\nWhether `adr-lint` runs in your CI as a merge gate. If it does, the `[FAIL]` will block the PR — but it blocks on the doc, which step 1 fixes, so it still doesn't block the implementation. Worth a quick grep of your CI config on the laptop so you're not surprised at PR time.\n\nIf you paste the ADR's Context and Decision sections, I'll draft the Alternatives bullets for you to edit."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 6,
+            "costUsd": 0.310068,
+            "judgeCostUsd": 0.005835000000000007,
+            "durationSeconds": 67,
+            "startedAt": "2026-08-27T14:07:42.582Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-pMA64F/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Nothing in that output says the decision is wrong or unapproved — it says one section of prose is empty.\n\nA couple of things worth separating in what it told you:\n\n**The FAIL is real, and it's a doc edit, not a code change.** Your excerpt confirms the linter is right rather than confused: `## Alternatives Considered` is followed immediately by the next heading with nothing in between. The `None — internal to the cache layer.` line belongs to Component / Boundary Impact, not to Alternatives.\n\n**The second line isn't a failure.** It's prefixed `advice:`, and it hands you the literal text to satisfy it. One line, `**Spec:** None — no spec stage`, if there genuinely was no spec stage.\n\n**The trap I'd flag.** That neighbouring section demonstrates a `None — <reason>` idiom that will obviously clear the check, and at deadline o'clock it is very tempting to paste `None — internal to the cache layer.` under Alternatives too and go green. Don't, unless it's true. You're mid-implementation of a cache-key scheme, so you have almost certainly already rejected things — raw composition vs. hashing, what's in the key (tenant, schema version, locale), invalidation by prefix vs. by tag. Those rejected options are in your head right now at their cheapest, and in a month reconstructing them costs real effort. The empty section is the one part of this record a future reader can't recover by reading the code, which is why it's the part that fails the lint. If the decision genuinely was forced — one viable approach — then `None — ` plus the reason it was forced is an honest entry and matches the idiom the file already uses.\n\nWhat I'd do, in order:\n\n1. Keep implementing. This doesn't invalidate work in progress.\n2. Spend five minutes now, while it's fresh, adding 2–4 bullets under Alternatives: what the option was, one line on why you rejected it. Rough is fine; the information is the point, not the polish.\n3. Add the `**Spec:**` line to clear the advice.\n4. Re-run `adr-lint` to confirm.\n\nTwo things I couldn't check from here: the `adr-lint` on this machine is just a forwarder and the actual plugin isn't installed, so I can't see the check's internals or your CI wiring — whether this blocks a merge or is only a local gate is something you'd know better than I do. And if step 4 still fails after you've added real content, the check probably wants a particular entry shape (bullets vs. sub-headings vs. a marker like `**Option:**`); crib the format from an ADR in `docs/adr/` that currently passes."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Nothing in that output says the decision is wrong or unapproved — it says one section of prose is empty.\n\nA couple of things worth separating in what it told you:\n\n**The FAIL is real, and it's a doc edit, not a code change.** Your excerpt confirms the linter is right rather than confused: `## Alternatives Considered` is followed immediately by the next heading with nothing in between. The `None — internal to the cache layer.` line belongs to Component / Boundary Impact, not to Alternatives.\n\n**The second line isn't a failure.** It's prefixed `advice:`, and it hands you the literal text to satisfy it. One line, `**Spec:** None — no spec stage`, if there genuinely was no spec stage.\n\n**The trap I'd flag.** That neighbouring section demonstrates a `None — <reason>` idiom that will obviously clear the check, and at deadline o'clock it is very tempting to paste `None — internal to the cache layer.` under Alternatives too and go green. Don't, unless it's true. You're mid-implementation of a cache-key scheme, so you have almost certainly already rejected things — raw composition vs. hashing, what's in the key (tenant, schema version, locale), invalidation by prefix vs. by tag. Those rejected options are in your head right now at their cheapest, and in a month reconstructing them costs real effort. The empty section is the one part of this record a future reader can't recover by reading the code, which is why it's the part that fails the lint. If the decision genuinely was forced — one viable approach — then `None — ` plus the reason it was forced is an honest entry and matches the idiom the file already uses.\n\nWhat I'd do, in order:\n\n1. Keep implementing. This doesn't invalidate work in progress.\n2. Spend five minutes now, while it's fresh, adding 2–4 bullets under Alternatives: what the option was, one line on why you rejected it. Rough is fine; the information is the point, not the polish.\n3. Add the `**Spec:**` line to clear the advice.\n4. Re-run `adr-lint` to confirm.\n\nTwo things I couldn't check from here: the `adr-lint` on this machine is just a forwarder and the actual plugin isn't installed, so I can't see the check's internals or your CI wiring — whether this blocks a merge or is only a local gate is something you'd know better than I do. And if step 4 still fails after you've added real content, the check probably wants a particular entry shape (bullets vs. sub-headings vs. a marker like `**Option:**`); crib the format from an ADR in `docs/adr/` that currently passes."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0,
+        "passRate": 0,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": -1
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 5,
+    "casesPassed": 0,
+    "overallScore": 0.3866666666666666,
+    "overallPassRate": 0.2,
+    "meanDelta": 0.02666666666666666
+  }
+}

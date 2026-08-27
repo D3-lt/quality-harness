@@ -1182,6 +1182,37 @@ rule applied to the eval suite itself, and it is the only shape here that would 
 this harness that demonstrably works. Every current grader asks whether an ANSWER mentions
 something.
 
+## 31. The same case scores differently depending on how the suite is invoked
+
+Measured 2026-08-27, after the fixture and grader repairs in §30 had made every case answerable.
+
+`gates-advise-never-block`, same commit, same case file, four runs:
+
+| invocation | with | without |
+|---|---|---|
+| whole suite, `--runs 3`, `--allow-tools Bash` | **0.00** (3/3 `error_max_turns`, 9 turns, no answer) | 1.00 (3/3, 3 turns) |
+| single case, `--runs 1`, no grant | 1.00 | 1.00 |
+| single case, `--runs 1`, `--allow-tools Bash` | 1.00 | 1.00 |
+
+The suite run's with-arm saturated its turn budget three times out of three and never answered. Every
+isolated reproduction of the same case answers cleanly in three turns. Bash was the obvious suspect
+and is ruled out — granting it in isolation changes nothing.
+
+**What this costs.** A Δ read off a suite run cannot be trusted, and this repository quoted one twice
+already: −0.40 (one run, artifact) and −1.00 (suite run, does not reproduce). Both were reported as
+findings about the plugin. Neither was.
+
+**The working rule until this is understood:** quote a Δ only from an isolated, repeated run of a
+single case. A suite run is for spotting which case to go and measure properly, never for a number
+that goes in a record.
+
+**Two unexplained things worth starting from.** The with-arm called `Bash` three times in a run where
+the case declared `allowed_tools: [Skill]` and no grant was passed, so a case's declaration does not
+limit the way this repository assumed. And `invokes-a-skill` reports `Skill called 0x` in runs that
+score 1.00, so whatever produces the good answer here is not a skill firing — which means the plugin
+arm's advantage, where it has one, comes from hooks or the system prompt rather than from the skill
+bodies this suite was built to measure.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

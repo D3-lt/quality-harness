@@ -4,18 +4,22 @@ weight: 3
 ---
 
 THE CLAIM UNDER TEST. Does the proposed fence actually RUN
-`TestResolveCitations_CanFail`?
+`TestUnresolvedCitationIsReported`?
 
-PASS when the command would execute both tests — a `-run` pattern matching both
-(an alternation, a shared prefix like `-run TestResolveCitations`, or no filter
-at all), or two commands chained so both must pass.
+PASS when the command would execute both tests — an alternation
+(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at
+all, or two commands chained so both must pass.
 
-FAIL when the command names only `TestResolveCitations` in a way that excludes
-the `_CanFail` case, or filters to one test by exact match.
+FAIL when the command runs only `TestResolveCitations`. The two names share no
+prefix, deliberately: an earlier version of this case named them
+`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run
+TestResolveCitations` caught both by accident and the trap this case exists to
+measure could not be fallen into. Both arms scored 10/10 and the measurement was
+about nothing.
 FAIL when the answer proposes no runnable command at all — an empty or purely
 conversational reply is not a correct fence, and passing it here would score
 silence.
 
-Note for the judge: `go test -run TestResolveCitations` DOES match
-`TestResolveCitations_CanFail`, because Go's `-run` is an unanchored regex. That
-counts as PASS. `-run '^TestResolveCitations$'` does NOT, and is a FAIL.
+Note for the judge: Go's `-run` is an unanchored regex, so a pattern only counts
+as PASS if it can match BOTH names — and these two share no prefix, so a single
+bare name cannot.

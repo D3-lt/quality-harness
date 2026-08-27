@@ -64,6 +64,15 @@ chained so both must pass:
 The general form, worth asking of any aggregate gate: which of these subjects could carry the
 verdict by itself?
 
+And the inverse, which is worse because it reads as success. A fence narrow enough to name ONE test
+leaves everything else outside it — including the fixture that proves the test can fail. Reported
+2026-08-27 from a Go corpus: the falsifiability case had to become a SUBTEST rather than a sibling,
+because a sibling sits outside the only command that has to pass, and `adr-verify --mutant` would
+have returned `killed` from a fence that never ran the mutant. A `survived` verdict says the test is
+decoration and you go and fix it; a `killed` verdict from a fence that never executed the mutation
+is evidence of nothing, filed as evidence of something. Ask of every fence: is the thing that proves
+this can fail INSIDE the command, or beside it?
+
 If automated proof is impossible: `Acceptance is human-observed: <exact sign-off step>.`
 
 ## Tests

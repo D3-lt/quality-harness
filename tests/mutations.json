@@ -1021,8 +1021,26 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    .filter(entry => entry.state !== 'same')",
+      "from": "    .filter(entry => entry.state !== 'same' && entry.state !== 'forwarding')",
       "to": "    .filter(entry => true)"
+    },
+    {
+      "label": "sync: a forwarder is not reported as drifted",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      : forwards(pair.to) ? 'forwarding'",
+      "to": "      : false ? 'forwarding'"
+    },
+    {
+      "label": "sync: a forwarder is recognised by the mark it carries",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  try { return readFileSync(file, 'utf8').includes(FORWARDER_MARK) } catch { return false }",
+      "to": "  try { return readFileSync(file, 'utf8').length > 0 } catch { return false }"
     },
     {
       "label": "state: a supersession chain is followed",

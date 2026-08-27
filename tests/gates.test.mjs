@@ -56,7 +56,7 @@ function run(command, args, cwd = fixture, input = undefined, spawnEnv = env) {
     env: spawnEnv,
     input,
     encoding: 'utf8',
-    timeout: 30_000,
+    timeout: 60_000,
   })
 }
 

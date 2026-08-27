@@ -446,3 +446,45 @@ test('a plugin with no gates yields no forwarders rather than throwing', () => {
     rmSync(directory, { recursive: true, force: true })
   }
 })
+
+test('an archive that cannot create a symlink records its target instead', () => {
+  // Windows refuses symlink creation to an unprivileged account. Measured on a
+  // real machine 2026-08-27: archive() threw EPERM, so write() threw, so the
+  // repoint never happened, and thirteen of nineteen skill links stayed pinned
+  // to the previous release. An archive that can fail takes the work with it.
+  const directory = home({ 'elsewhere/SKILL.md': '---\nname: adr-write\n---\n' })
+  mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
+  const link = path.join(directory, '.claude', 'skills', 'adr-write')
+  symlinkSync(path.join(directory, 'elsewhere'), link, 'junction')
+  const refuse = () => { const error = new Error('EPERM'); error.code = 'EPERM'; throw error }
+  try {
+    const kept = archive({ to: link, relative: path.join('skills', 'adr-write') },
+      'stamp', directory, refuse)
+    assert.equal(readFileSync(kept, 'utf8').trim(), path.join(directory, 'elsewhere'),
+      'the target is the whole content of a link, so recording it loses nothing')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a repoint still happens when the archive cannot make a link', () => {
+  // The failure that mattered: archive threw, so write threw, so the entry was
+  // never repointed. Thirteen of nineteen skill links stayed on the previous
+  // release and the run reported "6 of 19 installed".
+  const directory = home()
+  const old = path.join(cacheDirectory(directory), '1.0.0', 'skills', 'adr-write')
+  mkdirSync(old, { recursive: true })
+  mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
+  const link = path.join(directory, '.claude', 'skills', 'adr-write')
+  symlinkSync(old, link, 'junction')
+  const refuse = () => { const error = new Error('EPERM'); error.code = 'EPERM'; throw error }
+  try {
+    const entry = linkPlan(root, directory).find(e => e.to.endsWith(`skills${path.sep}adr-write`))
+    assert.equal(entry.state, 'repointed')
+    // Only the ARCHIVE's link creation is refused; the repoint itself must land.
+    write(entry, 'stamp', directory, refuse)
+    assert.equal(readlinkSync(link), entry.target)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})

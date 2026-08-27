@@ -1,14 +1,16 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import {
+  chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+} from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  FORWARDER_MARK, RESOLVER, cacheDirectory, forwarderCmd, forwarderScript, linkPlan, replaceable,
-  sameLineage,
+  FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, forwarderCmd, forwarderScript,
+  linkPlan, replaceable, sameLineage, write,
 } from '../scripts/standalone-link.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -245,6 +247,69 @@ test('every gate the plugin ships gets both a forwarder and a Windows shim', () 
     for (const gate of plan.filter(e => e.lineage === 'gate')) {
       assert.match(gate.contents, /^#!\/bin\/sh\n/, path.basename(gate.to))
     }
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('the original is kept before it is replaced', () => {
+  // Asked for on 2026-08-27 — "i need to backup my original ones first then" —
+  // and the right answer is that nobody should have to. A backup you must
+  // remember is the same failure as a sync you must remember.
+  const directory = home({ '.claude/bin/adr-lint': '#!/usr/bin/env python3\n"""adr-lint — old.\n' })
+  try {
+    const entry = linkPlan(root, directory).find(e => e.to.endsWith(`bin${path.sep}adr-lint`))
+    assert.equal(entry.state, 'replaced')
+    const kept = write(entry, 'stamp', directory)
+    assert.equal(readFileSync(kept, 'utf8'), '#!/usr/bin/env python3\n"""adr-lint — old.\n')
+    assert.ok(kept.startsWith(backupRoot('stamp', directory)))
+    // And the new one is in place, so the archive is not a substitute for the work.
+    assert.ok(readFileSync(entry.to, 'utf8').includes(FORWARDER_MARK))
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a skill directory is kept whole, not just its SKILL.md', () => {
+  const directory = home({
+    '.claude/skills/adr-write/SKILL.md': '---\nname: adr-write\n---\nold\n',
+    '.claude/skills/adr-write/references/notes.md': 'a reference nothing else records\n',
+  })
+  try {
+    const entry = linkPlan(root, directory).find(e => e.to.endsWith(`skills${path.sep}adr-write`))
+    const kept = write(entry, 'stamp', directory)
+    assert.equal(readFileSync(path.join(kept, 'references', 'notes.md'), 'utf8'),
+      'a reference nothing else records\n')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a symlink is archived as a symlink, not as what it points at', () => {
+  // The home skills directory holds a tracked symlink out to another repository.
+  // Copying through it would pull that whole repository into a backup directory
+  // and call it an original.
+  const directory = home({ 'elsewhere/SKILL.md': '---\nname: adr-write\n---\n' })
+  mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
+  symlinkSync(path.join(directory, 'elsewhere'),
+    path.join(directory, '.claude', 'skills', 'adr-write'), 'dir')
+  try {
+    const kept = archive({
+      to: path.join(directory, '.claude', 'skills', 'adr-write'),
+      relative: path.join('skills', 'adr-write'),
+    }, 'stamp', directory)
+    assert.ok(lstatSync(kept).isSymbolicLink(), 'the backup must not dereference it')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('nothing to keep is not an error', () => {
+  const directory = home()
+  try {
+    assert.equal(archive({
+      to: path.join(directory, 'absent'), relative: 'absent',
+    }, 'stamp', directory), null)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

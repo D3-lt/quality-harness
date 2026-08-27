@@ -1410,6 +1410,33 @@
       ],
       "from": "  return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `",
       "to": "  return `A second copy of this toolkit has drifted from the plugin \u2014 `"
+    },
+    {
+      "label": "link: the original is archived before it is replaced",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const kept = stamp ? archive(entry, stamp, homeDirectory) : null",
+      "to": "  const kept = null"
+    },
+    {
+      "label": "link: a symlink is archived as a symlink, not dereferenced",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  if (info.isSymbolicLink()) symlinkSync(readlinkSync(entry.to), kept)\n  else cpSync",
+      "to": "  if (false) symlinkSync(readlinkSync(entry.to), kept)\n  else cpSync"
+    },
+    {
+      "label": "link: a skill directory is archived whole",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  else cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })",
+      "to": "  else cpSync(entry.to, kept, { recursive: false, preserveTimestamps: true, verbatimSymlinks: true })"
     }
   ]
 }

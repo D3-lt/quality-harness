@@ -18,7 +18,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { linkPlan, write as writeLink } from './standalone-link.mjs'
+import { backupRoot, linkPlan, write as writeLink } from './standalone-link.mjs'
 
 const HERE = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -109,16 +109,24 @@ function linkMode(root, home, apply) {
       + 'call time, so no release has to touch it again.\n')
     return 0
   }
+  // One archive directory per run, named for when it ran, never reused. The
+  // originals are copied before anything is removed.
+  const stamp = new Date().toISOString().replace(/[:.]/g, '-')
   let written = 0
+  let kept = 0
   for (const entry of writable) {
     try {
-      writeLink(entry)
+      if (writeLink(entry, stamp, home)) kept += 1
       written += 1
     } catch (error) {
       process.stderr.write(`  could not write ${entry.to}: ${error.message}\n`)
     }
   }
-  process.stdout.write(`\nInstalled ${written} of ${writable.length} entry(s)`
+  if (kept) {
+    process.stdout.write(`\nKept ${kept} original(s) in `
+      + `${backupRoot(stamp, home).replace(home, '~')}\n`)
+  }
+  process.stdout.write(`Installed ${written} of ${writable.length} entry(s)`
     + `${skipped ? `; ${skipped} left alone because it is not a file this plugin installed` : ''}.\n`)
   return written === writable.length ? 0 : 1
 }

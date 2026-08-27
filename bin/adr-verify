@@ -57,16 +57,27 @@ What this does NOT prove: that the mutant was WELL CHOSEN. Uniqueness makes a
 trivial irrelevant line an available escape hatch, and only --why guards that,
 which is prose. The gate closes "the mutant proved nothing mechanically".
 
+--restore puts back a mutant that a killed run could not. A `finally` unwinds on
+a Ctrl-C and on the SIGTERM this installs a handler for; SIGKILL unwinds nothing,
+so the restore is journalled to disk before the mutation lands. The next run
+recovers it, and `adr-verify --restore [--cwd <repo>]` does it on demand. If the
+file has changed since, nothing is overwritten and the original is written out
+beside the journal instead.
+
 Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
---mutant) · 2 = usage/parse problem.
+--mutant; 0 for --restore) · 2 = usage/parse problem.
 """
+import base64
 import datetime
 import hashlib
+import json
 import ntpath
 import os
 import re
+import signal
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
@@ -367,10 +378,17 @@ def write_source(path, text, newline="\n"):
     Writing bytes keeps whatever the file already used, so a CRLF file stays CRLF
     and an LF file stays LF.
     """
+    path.write_bytes(source_bytes(text, newline))
+
+
+def source_bytes(text, newline="\n"):
+    """The exact bytes `write_source` would write. Shared so the restore journal
+    can record the mutated file before it exists, rather than re-deriving the
+    rule and drifting from it."""
     body = text.replace("\r\n", "\n")
     if newline != "\n":
         body = body.replace("\n", newline)
-    path.write_bytes(body.encode("utf-8"))
+    return body.encode("utf-8")
 
 
 def file_newline(path):
@@ -406,13 +424,91 @@ def git_sha(cwd):
     return sha + ("*" if d.stdout.strip() else "")
 
 
+def _restore_and_exit(signum, frame):
+    """Turn SIGTERM into an unwind so the `finally` restore actually runs."""
+    raise SystemExit(128 + signum)
+
+
+def mutant_journal(cwd):
+    """Where an in-flight mutant is recorded, OUTSIDE the repository it edits.
+
+    A gate that runs in other people's repositories does not get to leave files
+    in them, so this is keyed by the repository path rather than stored beside
+    it. The key is a digest because a path is not a filename on any platform.
+    """
+    key = hashlib.sha256(str(Path(cwd).resolve()).encode("utf-8")).hexdigest()[:16]
+    base = os.environ.get("CLAUDE_PLUGIN_DATA") or tempfile.gettempdir()
+    return Path(base) / f"adr-verify-mutant-{key}.json"
+
+
+def recover_mutant(cwd):
+    """Put back a mutant a killed run could not restore. True if it restored one.
+
+    The `finally` below unwinds on a normal exit, an exception and a Ctrl-C, and
+    NOT on the kill an agent harness sends when a fence outruns its timeout.
+    Measured 2026-08-27: SIGINT restored the file, SIGTERM and SIGKILL both left
+    the mutant on disk. Reported the same day from a Windows session whose fence
+    takes about eleven minutes against a ten-minute cap — twice — and noticed
+    only because those files had just become tracked. Untracked, a deliberate
+    defect sits in the tree silently, which is the one outcome this gate exists
+    to prevent.
+    """
+    journal = mutant_journal(cwd)
+    if not journal.exists():
+        return False
+    try:
+        data = json.loads(journal.read_text(encoding="utf-8"))
+        target = Path(data["file"])
+        original = base64.b64decode(data["original"])
+        mutated = base64.b64decode(data["mutated"])
+    except (OSError, ValueError, KeyError):
+        journal.unlink(missing_ok=True)
+        return False
+
+    if not target.exists():
+        print(f"[adr-verify] a killed run left a mutant recorded for {target}, "
+              f"which no longer exists; nothing restored.")
+        journal.unlink(missing_ok=True)
+        return False
+
+    now = target.read_bytes()
+    if now == original:
+        journal.unlink(missing_ok=True)
+        return False
+    if now != mutated:
+        # The file moved on. Overwriting would discard work that is not ours to
+        # discard, so the original is left where it can be read and applied by
+        # hand — a restore that destroys an edit is a worse bug than the one
+        # being fixed.
+        kept = journal.with_name(journal.stem + "-original.txt")
+        try:
+            kept.write_bytes(original)
+        except OSError:
+            kept = None
+        print(f"[adr-verify] a killed --mutant run left a mutant in {target}, but that file has "
+              f"changed since, so nothing was overwritten.")
+        if kept:
+            print(f"[adr-verify] the pre-mutation content is at {kept} — compare before you commit.")
+        journal.unlink(missing_ok=True)
+        return False
+
+    target.write_bytes(original)
+    journal.unlink(missing_ok=True)
+    print(f"[adr-verify] RESTORED {target}: a previous --mutant run was killed before it could "
+          f"put the file back. Check nothing was committed in between.")
+    return True
+
+
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
     """Break one mechanism, run the task's own fence, and record whether it noticed.
 
-    Never returns — every path exits. The file is restored in `finally`, so a
-    crash or a Ctrl-C cannot leave a mutated working tree behind; that mattered
-    more than it sounds, because the whole point is to run this on a clean tree
-    and the failure mode would be silently committing a deliberate defect.
+    Never returns — every path exits. The file is restored in `finally`, which
+    covers a normal exit, an exception and a Ctrl-C, and a SIGTERM only because
+    one is installed below to turn it into an unwind. It does NOT cover SIGKILL,
+    which unwinds nothing. So the restore is also journalled to disk before the
+    mutation lands, and the next run puts the file back. That mattered more than
+    it sounds: the whole point is to run this on a clean tree, and the failure
+    mode is silently committing a deliberate defect.
     """
     if frm is None or to is None:
         fail("--mutant needs --from <text> and --to <text> "
@@ -459,8 +555,51 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
              f"about the mutant, not the test.")
 
     verdict, code, detail = "inconclusive", 2, ""
+    journal = mutant_journal(cwd)
+    previous = None
+    mutated_bytes = source_bytes(original.replace(frm, to, 1), target_newline)
     try:
+        # Both of these go in BEFORE the file is touched. A kill that lands in the
+        # window between mutating and arming leaves a mutant nothing knows about:
+        # measured 2026-08-27, a SIGTERM probe left the file broken while the very
+        # next identical run restored it, because the race is won or lost by
+        # microseconds and looks like a working fix half the time.
+        try:
+            journal.parent.mkdir(parents=True, exist_ok=True)
+            journal.write_text(json.dumps({
+                "file": str(target),
+                "original": base64.b64encode(original_bytes).decode("ascii"),
+                "mutated": base64.b64encode(mutated_bytes).decode("ascii"),
+                "from": frm, "to": to, "why": why.strip(), "cmd": cmd,
+            }), encoding="utf-8")
+        except OSError as e:
+            print(f"[adr-verify] could not journal the restore ({e}); a killed run will "
+                  f"leave the mutant in place. The line below says how to undo it by hand.",
+                  flush=True)
+
+        # Python default-terminates on SIGTERM without unwinding, so `finally`
+        # never runs. Measured 2026-08-27: SIGINT restored, SIGTERM and SIGKILL
+        # did not. Turning it into SystemExit gives the restore its chance;
+        # SIGKILL still cannot be caught, which is what the journal is for.
+        try:
+            previous = signal.signal(signal.SIGTERM, _restore_and_exit)
+        except (OSError, ValueError, AttributeError):
+            previous = None
+
         write_source(target, original.replace(frm, to, 1), target_newline)
+
+        # Said BEFORE the fence runs, because the fence is the part that gets
+        # killed. Whatever else is lost, the transcript then names the file that
+        # was deliberately broken — the only recovery that survives a SIGKILL.
+        # flush=True is the whole point of saying it here. Redirected stdout is
+        # block-buffered, so without this the warning sits in the buffer and dies
+        # with the process — measured 2026-08-27, both kill probes produced an
+        # EMPTY log. A notice that survives only when nothing goes wrong is not a
+        # notice.
+        print(f"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken "
+              f"until the fence finishes.", flush=True)
+        print(f"[adr-verify] if this run is killed, restore it with `adr-verify --restore "
+              f"--cwd {cwd}`, or `git checkout -- {rel}`.", flush=True)
 
         ok, why_not = syntax_ok(target)
         if not ok:
@@ -483,6 +622,12 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
             verdict, detail = "killed", "a test went red"
     finally:
         target.write_bytes(original_bytes)
+        journal.unlink(missing_ok=True)
+        if previous is not None:
+            try:
+                signal.signal(signal.SIGTERM, previous)
+            except (OSError, ValueError):
+                pass
 
     digest = acceptance_digest(cmd)
     entry = (f"- {today} · {git_sha(cwd)} · mutant {verdict} · exit {code} · "
@@ -500,6 +645,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
 def main():
     args, task, cwd, human = sys.argv[1:], None, None, None
     mutant = frm = to = why = None
+    restore = False
     i = 0
     while i < len(args):
         if args[i] == "--cwd":
@@ -520,6 +666,8 @@ def main():
         elif args[i] == "--why":
             i += 1
             why = args[i]
+        elif args[i] == "--restore":
+            restore = True
         elif args[i].startswith("--"):
             # Without this an unknown flag becomes the task path, and its VALUE
             # becomes the next one: `--why probe` with --why renamed reported
@@ -529,6 +677,16 @@ def main():
         else:
             task = Path(args[i])
         i += 1
+    # Recovery needs no task file: the run that needs recovering is the one that
+    # did not get far enough to finish, and asking for its paperwork first would
+    # make the repair harder than the damage.
+    if restore:
+        where = cwd if cwd is not None else Path.cwd()
+        if not recover_mutant(where):
+            print(f"[adr-verify] no mutant is recorded for {Path(where).resolve()} — "
+                  f"nothing to restore.")
+        sys.exit(0)
+
     if task is None:
         fail(__doc__)
     if not task.exists():
@@ -558,6 +716,11 @@ def main():
         r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],
                            capture_output=True, text=True, encoding="utf-8", errors="replace")
         cwd = Path(r.stdout.strip()) if r.returncode == 0 else task.parent
+
+    # Before anything else touches this tree: a mutant a killed run left behind
+    # would otherwise be measured as if it were the code under test, and every
+    # verdict after it would be about the defect rather than the change.
+    recover_mutant(cwd)
 
     if mutant is not None:
         run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why)

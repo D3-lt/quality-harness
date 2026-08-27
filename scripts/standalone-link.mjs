@@ -256,19 +256,17 @@ export function linkPlan(source, homeDirectory = os.homedir(), platform = proces
     })
   }
 
-  for (const name of (() => {
-    try { return readdirSync(path.join(source, 'skills')) } catch { return [] }
-  })()) {
-    if (!existsSync(path.join(source, 'skills', name, 'SKILL.md'))) continue
-    work.push({
-      kind: 'link',
-      to: path.join(home, 'skills', name),
-      relative: path.join('skills', name),
-      target: path.join(source, 'skills', name),
-      lineage: 'skill',
-      directory: true,
-    })
-  }
+  // SKILLS ARE DELIBERATELY NOT LINKED, and this is the one place the rule is
+  // written down. Linking a personal skill at the plugin's own skill directory
+  // makes the two resolve to the SAME path, and the loader then offers one
+  // skill rather than two: the bare name survives and `quality-harness:<name>`
+  // disappears. Reported 2026-08-27 — "where quality-harness:work skill gone?"
+  // — in the session that installed the links, and the namespaced entrypoint is
+  // the one the plugin actually documents. A drifting copy is a worse answer
+  // than a stale one; an entrypoint that is simply gone is worse than both.
+  //
+  // Gates and templates have no such collision: nothing serves them by name
+  // from two places, so a link there only ever removes drift.
 
   for (const name of (() => {
     try { return readdirSync(path.join(source, 'templates')) } catch { return [] }

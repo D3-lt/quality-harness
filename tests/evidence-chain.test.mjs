@@ -10,7 +10,9 @@
 //
 // So every test here reads the file adr-verify wrote. None reconstructs it.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
+import { once } from 'node:events'
+import { setTimeout } from 'node:timers/promises'
 import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
@@ -443,4 +445,141 @@ test('the mutated file the fence sees keeps its line endings too', () => {
   // adr-verify would score as `killed` — a verdict about the writer, not the test.
   expectExit(mutated, 1, 'the fence must not go red merely because the file was rewritten')
   assert.match(readTask(copy), /· mutant survived ·/)
+})
+
+// ---------------------------------------------------------------------------
+// The mutant a killed run leaves behind.
+//
+// `run_mutant` restores in a `finally`. Measured 2026-08-27 by sending each
+// signal to a real run mid-fence: SIGINT restored the file, SIGTERM and SIGKILL
+// both left the mutant on disk. Reported the same day from a Windows session
+// whose fence takes about eleven minutes against a ten-minute agent cap — twice
+// — and noticed only because those files had just become tracked. Untracked, a
+// deliberate defect sits in the working tree and nothing says so.
+
+/** A task whose fence outlives the test, so the mutant is on disk when we kill. */
+function slowFence(copy, seconds = 60) {
+  writeTask(copy, `${readTask(copy)}`.replace(/```bash\n[\s\S]*?```/,
+    `\`\`\`bash\nsleep ${seconds}; exit 1\n\`\`\``))
+  addMutationLog(copy)
+}
+
+function spawnMutant(copy, journalHome) {
+  const args = ['tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'ADR-001-selftest.md',
+    '--from', '## Decision', '--to', '## Decisiun', '--why', 'kill probe']
+  const child = spawn(process.platform === 'win32' ? 'python3' : join(bin, 'adr-verify'),
+    process.platform === 'win32' ? [join(bin, 'adr-verify'), ...args] : args,
+    { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journalHome } })
+  let output = ''
+  child.stdout.on('data', chunk => { output += chunk })
+  return { child, said: () => output }
+}
+
+/** adr-verify with a journal directory of this test's own, so runs cannot see
+ *  each other's records — and so a restore is measured against the journal the
+ *  killed run actually wrote, not whatever the ambient temp directory holds. */
+function runWith(journal, args, copy) {
+  const win = process.platform === 'win32'
+  return spawnSync(win ? 'python3' : join(bin, 'adr-verify'),
+    win ? [join(bin, 'adr-verify'), ...args] : args,
+    { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal }, encoding: 'utf8', timeout: 60_000 })
+}
+
+const mutated = copy => readFileSync(join(copy, 'ADR-001-selftest.md'), 'utf8').includes('## Decisiun')
+
+async function untilMutated(copy) {
+  for (let i = 0; i < 200 && !mutated(copy); i += 1) await setTimeout(25)
+  return mutated(copy)
+}
+
+test('a SIGKILLed mutant run is restored by the next run, not left in the tree', async () => {
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  slowFence(copy)
+  const { child } = spawnMutant(copy, journal)
+  assert.ok(await untilMutated(copy), 'the mutant never landed, so nothing was probed')
+
+  child.kill('SIGKILL')
+  await once(child, 'exit')
+  await setTimeout(100)
+  // SIGKILL unwinds nothing, so the in-process restore cannot have run. This is
+  // the state the Windows session found, and the state that must not persist.
+  assert.ok(mutated(copy), 'a SIGKILL that unwound is not the case being tested')
+
+  const recovered = runWith(journal, ['--restore', '--cwd', '.'], copy)
+  expectExit(recovered, 0, 'adr-verify --restore')
+  assert.match(recovered.stdout, /RESTORED/)
+  assert.ok(!mutated(copy), 'the mutant survived a restore that reported success')
+})
+
+test('the warning that names the broken file survives the kill that hides it', async () => {
+  // The announcement is the only recovery a SIGKILL cannot take away — but only
+  // if it is flushed. Measured 2026-08-27: redirected stdout is block-buffered,
+  // and both kill probes produced a COMPLETELY EMPTY log while the mutant sat in
+  // the tree. A warning that arrives only when nothing goes wrong is not one.
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  slowFence(copy)
+  const { child, said } = spawnMutant(copy, journal)
+  assert.ok(await untilMutated(copy))
+  child.kill('SIGKILL')
+  await once(child, 'exit')
+
+  assert.match(said(), /MUTANT APPLIED to ADR-001-selftest\.md/)
+  assert.match(said(), /--restore/, 'the warning must say how to undo it')
+  runWith(journal, ['--restore', '--cwd', '.'], copy)
+})
+
+test('a restore never overwrites a file that moved on since the mutant', async () => {
+  // Restoring on top of later work would discard an edit that is not ours to
+  // discard — a worse bug than the one being fixed.
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  slowFence(copy)
+  const { child } = spawnMutant(copy, journal)
+  assert.ok(await untilMutated(copy))
+  child.kill('SIGKILL')
+  await once(child, 'exit')
+  await setTimeout(100)
+
+  const record = join(copy, 'ADR-001-selftest.md')
+  writeFileSync(record, `${readFileSync(record, 'utf8')}\n<!-- edited after the kill -->\n`)
+  const result = runWith(journal, ['--restore', '--cwd', '.'], copy)
+  expectExit(result, 0, 'adr-verify --restore')
+  assert.match(result.stdout, /has changed since, so nothing was overwritten/)
+  assert.match(readFileSync(record, 'utf8'), /edited after the kill/)
+  assert.match(result.stdout, /pre-mutation content is at/,
+    'refusing to overwrite must not also lose the original')
+})
+
+test('--restore with nothing recorded says so rather than implying it repaired something', () => {
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  const result = runWith(journal, ['--restore', '--cwd', '.'], copy)
+  expectExit(result, 0, 'adr-verify --restore')
+  assert.match(result.stdout, /no mutant is recorded/)
+})
+
+test('an ordinary run recovers a mutant a killed run left, before it measures anything', async () => {
+  // Otherwise the leftover defect IS the code under test, and every verdict
+  // after it is about the mutation rather than about the change.
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  slowFence(copy)
+  const { child } = spawnMutant(copy, journal)
+  assert.ok(await untilMutated(copy))
+  child.kill('SIGKILL')
+  await once(child, 'exit')
+  await setTimeout(100)
+
+  // Put a fence back that returns promptly, so this is an ordinary verify run.
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?```/, '```bash\nadr-lint ADR-001-selftest.md tasks\n```'))
+  const result = runWith(journal, ['tasks/T1-fixture.md', '--cwd', '.'], copy)
+  assert.match(result.stdout, /RESTORED/)
+  assert.ok(!mutated(copy), 'the run measured a tree that still held the mutant')
 })

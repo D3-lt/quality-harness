@@ -29,7 +29,20 @@ execution:
     write anything, and say what you found in the record's Context. If something
     there already settles the question, write the record anyway and say so in
     it — I want the finding on paper either way.
-  max_turns: 14
+  # 14 was not enough for the plugin arm and was for the baseline: measured
+  # 2026-08-27, the baseline reached Write@24 and scored 1.00 while the with-arm
+  # invoked a skill, exhausted the budget and produced nothing. `adr-write`
+  # instructs a long preamble — adr-state, adr-context, adr-debt, three
+  # templates, the backlog, the lessons file — before a record may be written, so
+  # a budget that fits an unguided answer does not fit a guided one. A cap that
+  # only one arm can finish inside measures the cap.
+  max_turns: 40
+  # 300s is the default and the plugin arm hit it after `max_turns: 14` and then
+  # 30 both ran out first — three budgets, three ceilings, the same outcome,
+  # while the baseline wrote a record in about twenty tool calls every time. The
+  # question this generous budget answers is the one that matters: does the
+  # guided path converge slowly, or not at all?
+  timeout_seconds: 900
   allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill]
   add_dirs:
     - "{{CORPUS}}"

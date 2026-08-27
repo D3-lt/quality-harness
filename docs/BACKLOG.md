@@ -1213,6 +1213,39 @@ score 1.00, so whatever produces the good answer here is not a skill firing — 
 arm's advantage, where it has one, comes from hooks or the system prompt rather than from the skill
 bodies this suite was built to measure.
 
+## 32. The runs where a skill fires are the runs that do not finish
+
+First measurement against a real corpus, 2026-08-27. `evals/templates/adr-against-a-real-corpus`
+run against a snapshot of a 171-record, 498-task corpus — the first time anything in this plugin has
+been exercised at that scale, against `tests/fixtures/ok`'s single ADR and this repository's two.
+
+Four with-arm runs, and the baseline scored 1.00 in every one of them, writing a record in 19-24
+tool calls:
+
+| budget | `invokes-a-skill` | outcome |
+|---|---|---|
+| `max_turns: 14` | Skill 1x | `error_max_turns`, no record |
+| `max_turns: 30` | Skill 1x | `timed out after 300s`, no record |
+| `max_turns: 14`, grant fixed | Skill 1x | `error_max_turns`, no record |
+| `max_turns: 40`, `timeout_seconds: 900` | **Skill 0x** | **1.00, record written** |
+
+Every run that invoked a skill failed to finish. The run that did not invoke one behaved like the
+baseline. **n=4, and a perfect correlation across four runs is a reason to measure, not a finding.**
+
+If it holds, the shape is not "the plugin is slow" but "when the guidance actually fires, the path
+does not converge inside budgets the unguided path clears with room to spare". The plausible cause is
+`adr-write`'s preamble, which instructs `adr-state`, `adr-context`, `adr-debt`, three templates, the
+backlog and the lessons file before a record may be written — all of it scaling with corpus size, and
+none of it previously exercised beyond three records.
+
+**What to run next:** the same case at the generous budget, ten times, recording `invokes-a-skill`
+against outcome. That either establishes the correlation or kills it, and it is the only question in
+this backlog whose answer changes what the most-used skill in the plugin should say.
+
+Note what made this visible: `invokes-a-skill` is a `tool_used` indicator added on 2026-08-27 after
+discovering that `skill_calls=0` had been invisible for `gates-advise-never-block`'s entire history.
+Without it these four runs would read as an unexplained flake.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

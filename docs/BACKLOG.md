@@ -1246,6 +1246,38 @@ Note what made this visible: `invokes-a-skill` is a `tool_used` indicator added 
 discovering that `skill_calls=0` had been invisible for `gates-advise-never-block`'s entire history.
 Without it these four runs would read as an unexplained flake.
 
+## 33. An MCP wrapper, so the gates work where Claude Code does not
+
+Raised 2026-08-27, deliberately not started. Recorded so it is not rediscovered from scratch.
+
+Everything structural in this plugin is a Claude Code construct: `plugin.json`, the marketplace,
+SessionStart and PostToolUse hooks, `${CLAUDE_PLUGIN_ROOT}` substitution, the namespaced
+`quality-harness:*` skills. Claude Code runs in a terminal, in the desktop app, on the web and in
+IDE extensions, so all of those are covered. **Plain Claude Desktop, with no Claude Code, is not.**
+
+What would and would not transfer:
+
+- **The skills are markdown** and would carry over by hand. That is the guidance half, and this
+  session measured what it is worth alone: Δ 0.00 on `gates-advise-never-block`, a complexity
+  instruction inert in four runs of five, and `invokes-a-skill` reporting 0x in runs that scored
+  1.00. Guidance without enforcement is the half that does not demonstrably work.
+- **The gates are plain Python CLIs** — `adr-lint`, `adr-verify`, `adr-judge`, `adr-state` need
+  nothing but Python and a shell. They are the half that DOES work, and they are unreachable from a
+  client with no shell.
+- **MCP is the bridge that fits.** Exposing the gates as MCP tools would give any MCP-speaking client
+  the enforcement half without porting a single skill. `adr-verify --mutant` is the awkward one: it
+  rewrites a file in the caller's tree, and ADR-002's journal exists because that is dangerous even
+  with a process to clean up after itself.
+
+**Before starting, settle two things.** Whether an MCP tool may write to a caller's working tree at
+all, or whether the wrapper is read-only (`adr-lint`, `adr-judge`, `adr-state`, `adr-context`,
+`adr-debt`) and the writing gates stay behind Claude Code. And what carries the evidence chain when
+there is no PostToolUse hook to notice a task being marked done — the chain is the product, and an
+MCP surface that lints but cannot record evidence is the measuring half again.
+
+This deserves a record rather than a backlog item once it is picked up: it is a new distribution
+surface, a new trust boundary, and it is costly to reverse.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

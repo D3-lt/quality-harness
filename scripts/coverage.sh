@@ -59,7 +59,18 @@ printf '== JavaScript hooks ==\n'
 # bash on macOS) treats an EMPTY array's expansion as an unbound variable and
 # aborts. `--report` deliberately leaves js_flags empty, so the one mode that
 # exists to read the numbers was the one mode that could not run there.
-node --test --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$ROOT"/tests/*.test.mjs \
+# --test-concurrency=1 is what makes this gate deterministic, and it is not a
+# performance preference. `--experimental-test-coverage` measures only the parent
+# process; NINE of fourteen test files here spawn subprocesses, so a line counts
+# as covered when a test imports it and uncovered when a test spawns it. Run the
+# files in parallel and which path wins varies per run.
+#
+# Measured 2026-08-27 on an unchanged tree. Parallel, ten runs: nine passed
+# between 94.83 and 97.00 lines and ONE FAILED at 78.52 — a gate rejecting good
+# code a tenth of the time, which teaches an agent that re-running is a valid
+# response to red. Serial, ten runs: 94.83-94.85, spread 0.02, no failures.
+# The cost is about 20s against 8s, which is nothing next to a flapping verdict.
+node --test --test-concurrency=1 --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$ROOT"/tests/*.test.mjs \
   > "$WORK/js.log" 2>&1 || js_status=$?
 js_status=${js_status:-0}
 sed -n '/start of coverage report/,/end of coverage report/p' "$WORK/js.log" \

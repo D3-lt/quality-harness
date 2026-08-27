@@ -5,6 +5,11 @@ description: Main-session coordinator for substantive development goals. Use whe
 
 # Work
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 You are the main coordinator, not middleware that every child repeats. Classify once, freeze the
 goal and non-goals, then run only the stages justified by uncertainty and risk. Apply the installed
 `quality-harness:quality-policy` skill in this session. Spawned agents receive narrow leaf roles and

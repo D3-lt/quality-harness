@@ -193,7 +193,7 @@ test('the shell-hook runner reports every way a gate can not report, and blocks 
 
   // No script name at all — the same refusal, with the absence named.
   const missing = spawnSync(process.execPath, [runnerPath], {
-    cwd: root, env, input: '{}', encoding: 'utf8', timeout: 30_000,
+    cwd: root, env, input: '{}', encoding: 'utf8', timeout: 60_000,
   })
   assert.equal(missing.status, 2)
   assert.match(missing.stderr, /<missing>/)
@@ -239,7 +239,7 @@ test('a shell that aborted before judging is a failure, not a clean pass', async
 test('the verification wrapper reports what the command it ran actually did', () => {
   const wrapper = join(root, 'scripts', 'verify.mjs')
   const call = (...args) => spawnSync(process.execPath, [wrapper, ...args], {
-    cwd: root, env, encoding: 'utf8', timeout: 30_000,
+    cwd: root, env, encoding: 'utf8', timeout: 60_000,
   })
 
   // The documented invocation, and the whole point of the wrapper: the child's

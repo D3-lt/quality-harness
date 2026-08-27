@@ -1455,6 +1455,15 @@
       ],
       "from": "    ['hooks', path.join(pluginRoot, 'scripts'), wired],",
       "to": "    ['hooks', path.join(pluginRoot, 'scripts'), () => true],"
+    },
+    {
+      "label": "link: an archive that cannot link records the target instead",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      writeFileSync(kept, `${points}\\n`)",
+      "to": "      throw new Error('unreachable')"
     }
   ]
 }

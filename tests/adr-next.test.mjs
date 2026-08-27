@@ -24,11 +24,16 @@ test.after(() => {
   for (const dir of temps) rmSync(dir, { recursive: true, force: true })
 })
 
+// 60s, not 30s: a Windows runner's first Python spawn is slow enough to hit a
+// 30-second cap. Measured 2026-08-27, run 33047105629 — adr-next took 31456ms
+// and reported `status: null` with empty stderr, which reads as a logic failure
+// and is a cold start. A passing spawn never waits the timeout, so the larger
+// cap costs nothing but a genuine hang taking longer to be called one.
 function next(args, cwd) {
   const [file, argv] = process.platform === 'win32'
     ? ['python3', [join(bin, 'adr-next'), ...args]]
     : ['adr-next', args]
-  return spawnSync(file, argv, { cwd, env, encoding: 'utf8', timeout: 30_000 })
+  return spawnSync(file, argv, { cwd, env, encoding: 'utf8', timeout: 60_000 })
 }
 
 // The fence is single-line and blank-free, so normalization is the identity and

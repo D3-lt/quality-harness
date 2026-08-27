@@ -322,7 +322,7 @@ export function backupRoot(stamp, homeDirectory = os.homedir()) {
  *
  * Returns the path written, or null when there was nothing there to keep.
  */
-export function archive(entry, stamp, homeDirectory = os.homedir()) {
+export function archive(entry, stamp, homeDirectory = os.homedir(), makeLink = symlinkSync) {
   let info
   try { info = lstatSync(entry.to) } catch { return null }
   const kept = path.join(backupRoot(stamp, homeDirectory), entry.relative)
@@ -334,16 +334,32 @@ export function archive(entry, stamp, homeDirectory = os.homedir()) {
   // to an exception halfway through a run is how the originals go missing at the
   // moment they matter most. Proved by a mutation that stayed green until the
   // dangling case was tested.
-  if (info.isSymbolicLink()) symlinkSync(readlinkSync(entry.to), kept)
-  else cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })
+  if (info.isSymbolicLink()) {
+    const points = readlinkSync(entry.to)
+    try {
+      makeLink(points, kept)
+    } catch {
+      // Windows refuses symlink creation to an unprivileged account, and this
+      // threw EPERM on a real machine on 2026-08-27 — so the archive failed, so
+      // the repoint failed, and thirteen of nineteen skill links stayed pinned
+      // to the previous release. A link's entire content IS its target, so a
+      // plain file holding that target loses nothing and always succeeds.
+      // Driven by what actually works rather than by a platform guess: some
+      // Windows accounts can create symlinks, and this project has been wrong
+      // about that before.
+      writeFileSync(kept, `${points}\n`)
+    }
+    return kept
+  }
+  cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })
   return kept
 }
 
-export function write(entry, stamp = null, homeDirectory = os.homedir()) {
+export function write(entry, stamp = null, homeDirectory = os.homedir(), makeLink = symlinkSync) {
   // The archive happens first or it does not happen. `write` is the only path
   // that removes anything, so putting the copy anywhere else leaves a caller
   // able to skip it.
-  const kept = stamp ? archive(entry, stamp, homeDirectory) : null
+  const kept = stamp ? archive(entry, stamp, homeDirectory, makeLink) : null
   mkdirSync(path.dirname(entry.to), { recursive: true })
   if (entry.kind === 'forwarder') {
     rmSync(entry.to, { force: true })

@@ -55,7 +55,7 @@ function judge(sections) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has('adr-judge')
     ? ['python3', [join(bin, 'adr-judge'), path]]
     : ['adr-judge', [path]]
-  const result = spawnSync(file, argv, { env, encoding: 'utf8', timeout: 30_000 })
+  const result = spawnSync(file, argv, { env, encoding: 'utf8', timeout: 60_000 })
   assert.equal(result.status, 0, `adr-judge must never block\n${result.stderr}`)
   return {
     fired: [...result.stdout.matchAll(/^\s+(?:evidence|clarity) ([EC]\d): /gm)]

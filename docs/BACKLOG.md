@@ -1314,7 +1314,38 @@ MCP surface that lints but cannot record evidence is the measuring half again.
 This deserves a record rather than a backlog item once it is picked up: it is a new distribution
 surface, a new trust boundary, and it is costly to reverse.
 
-## 34. JavaScript coverage jitters across its own floor
+## 34. FIXED — the coverage gate was rejecting good code one run in ten
+
+**Cause, found by reading rather than guessing.** `--experimental-test-coverage` measures only the
+parent process, and NINE of this repository's fourteen test files spawn subprocesses. A source line
+therefore counts as covered when a test imports it and uncovered when a test spawns it — and
+`node --test` runs files in parallel, so which path wins varies per run.
+
+**Measured 2026-08-27, ten runs each on an unchanged tree:**
+
+| | lines | spread | failures |
+|---|---|---|---|
+| parallel (before) | 78.52 – 97.00 | **2.17** among the nine that passed | **1 in 10** |
+| serial (`--test-concurrency=1`) | 94.83 – 94.85 | **0.02** | **0 in 10** |
+
+The parallel outlier was not a near miss: 78.52 lines, 82.52 branches, everything down at once,
+consistent with a whole file's coverage missing from the aggregate. Cost of the fix is about 20s
+against 8s.
+
+**Why this mattered more than the number.** A gate that rejects good code a tenth of the time
+teaches that re-running is a valid response to red — and that is the one lesson a verification
+harness must never teach, to a human or to an agent. See §36. It also means CI on this repository has
+been failing roughly one push in ten for no reason, and 2.19.0's coverage failure was diagnosed as a
+real shortfall on the assumption the gate was honest. That diagnosis happened to be correct
+(branches were genuinely at 84.86 against a floor of 85), but it was luck rather than method.
+
+**What is still thin, and deliberately not papered over.** Branches now range 85.09 – 85.42 against
+a floor of 85 — a margin of 0.09 in the worst honest run. The floor is NOT being lowered: the answer
+is more branch coverage, and the gaps are named — `scripts/verify.mjs` at 60.00, `sync-standalone.mjs`
+at 72.73, `work-next.mjs` at 74.58. Until then a genuine one-line regression in a well-covered file
+could still tip it, and that would be the gate working.
+
+## 34 (superseded). JavaScript coverage jitters across its own floor
 
 Measured 2026-08-27 while fixing the CI failure below. Consecutive `STRICT=1 bash scripts/coverage.sh`
 runs on an unchanged tree reported `all files` lines of **96.99 and 94.64**, and one earlier run in

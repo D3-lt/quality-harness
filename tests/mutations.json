@@ -1437,6 +1437,33 @@
       ],
       "from": "  else cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })",
       "to": "  else cpSync(entry.to, kept, { recursive: false, preserveTimestamps: true, verbatimSymlinks: true })"
+    },
+    {
+      "label": "notice: a forwarder or link is current, not drift",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (current(path.join(shadow, name)) || !reachable(name)) continue",
+      "to": "      if (!reachable(name)) continue"
+    },
+    {
+      "label": "notice: a hook nothing wires cannot answer",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    ['hooks', path.join(pluginRoot, 'scripts'), wired],",
+      "to": "    ['hooks', path.join(pluginRoot, 'scripts'), () => true],"
+    },
+    {
+      "label": "notice: a linked skill is current, not drift",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (current(path.join(shadowSkills, name))) continue",
+      "to": "    if (false) continue"
     }
   ]
 }

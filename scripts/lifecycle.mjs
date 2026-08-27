@@ -2373,6 +2373,17 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   const digest = file => {
     try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
   }
+  // A forwarder and a symlink are CURRENT BY CONSTRUCTION, and comparing their
+  // bytes to the file they stand in for says the opposite. Installing them on
+  // 2026-08-27 made this notice report twenty files as drifted in the same
+  // session that fixed the drift — the exact false alarm it exists to prevent,
+  // now shouted every session and impossible for the reader to disprove.
+  const current = target => {
+    let info
+    try { info = lstatSync(target) } catch { return false }
+    if (info.isSymbolicLink()) return true
+    try { return readFileSync(target, 'utf8').includes('quality-harness-forwarder') } catch { return false }
+  }
   const stale = []
   // Every directory the plugin ships that a standalone install also has. The
   // first version checked only bin and hooks, and templates was the one that
@@ -2383,10 +2394,21 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   // no **Data dependency:**, no ## Mutation Log and no ## Reachability table.
   // Skills too: a stale SKILL.md instructs an invocation the gates no longer
   // accept, which is the same failure one layer up.
-  for (const [relative, shipped] of [
-    ['bin', path.join(pluginRoot, 'bin')],
-    ['hooks', path.join(pluginRoot, 'scripts')],
-    ['templates', path.join(pluginRoot, 'templates')],
+  // A hook under the home directory can only answer if the user's own settings
+  // name it: this plugin wires its hooks through ${CLAUDE_PLUGIN_ROOT} and never
+  // looks there. Reporting one nothing invokes is drift that cannot be acted on,
+  // and it was doing exactly that here — two files, every session, both dead.
+  const wired = (() => {
+    const text = ['settings.json', 'settings.local.json']
+      .map(name => { try { return readFileSync(path.join(homeDirectory, '.claude', name), 'utf8') } catch { return '' } })
+      .join('\n')
+    return name => text.includes(name)
+  })()
+
+  for (const [relative, shipped, reachable] of [
+    ['bin', path.join(pluginRoot, 'bin'), () => true],
+    ['hooks', path.join(pluginRoot, 'scripts'), wired],
+    ['templates', path.join(pluginRoot, 'templates'), () => true],
   ]) {
     const shadow = path.join(homeDirectory, '.claude', relative)
     let entries = []
@@ -2394,6 +2416,7 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
     for (const name of entries) {
       const ours = path.join(shipped, name)
       if (!existsSync(ours)) continue
+      if (current(path.join(shadow, name)) || !reachable(name)) continue
       const theirs = digest(path.join(shadow, name))
       if (theirs && theirs !== digest(ours)) stale.push(path.join('~', '.claude', relative, name))
     }
@@ -2405,6 +2428,7 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   for (const name of skillEntries) {
     const ours = path.join(pluginRoot, 'skills', name, 'SKILL.md')
     if (!existsSync(ours)) continue
+    if (current(path.join(shadowSkills, name))) continue
     const theirs = digest(path.join(shadowSkills, name, 'SKILL.md'))
     if (theirs && theirs !== digest(ours)) {
       stale.push(path.join('~', '.claude', 'skills', name, 'SKILL.md'))

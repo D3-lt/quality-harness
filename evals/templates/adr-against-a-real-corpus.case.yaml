@@ -22,11 +22,13 @@ execution:
     most of it.
 
     I want to propose that we move our background job queue to a different
-    library. Write the proposed record into ./docs/adr/ in the CURRENT
-    directory, not into the corpus.
+    library. Write the proposed record to ./docs/adr/ADR-900-job-queue.md in the
+    CURRENT directory — that exact path — not into the corpus.
 
     Find out what that corpus has already decided about the queue before you
-    write anything. If something in it already settles this, tell me and stop.
+    write anything, and say what you found in the record's Context. If something
+    there already settles the question, write the record anyway and say so in
+    it — I want the finding on paper either way.
   max_turns: 14
   allowed_tools: [Read, Glob, Grep, Bash, Write, Edit, Skill]
   add_dirs:
@@ -40,6 +42,11 @@ graders:
     # cannot check: reading BEFORE writing. An answer that names `adr-context`
     # in its closing paragraph passes a regex and proves nothing about whether
     # the corpus was consulted, or when.
+    #
+    # The prompt must therefore make the write UNCONDITIONAL. Its first version
+    # offered "tell me and stop" if the corpus settled the question, which is
+    # reasonable behaviour that this grader scores as failure — a prompt and a
+    # grader disagreeing about what success is.
     before: Bash
     after: Write
 
@@ -47,8 +54,14 @@ graders:
     type: file_exists
     weight: 2
     # The artifact, not a description of the artifact. A case that grades prose
-    # accepts "I would create docs/adr/ADR-024-….md" as if a file existed.
-    path: "docs/adr"
+    # accepts "I would create docs/adr/…" as if a file existed.
+    #
+    # An EXACT FILE, and the prompt names it. Measured 2026-08-27: `file_exists`
+    # matches files only — `docs/adr/ADR-999-probe.md` passed and `docs/adr`
+    # reported missing in the same run — so the first version of this grader
+    # asserted a directory and could never pass. It failed in BOTH arms and the
+    # case reported Δ −0.60 about nothing.
+    path: "docs/adr/ADR-900-job-queue.md"
 
   - name: invokes-a-skill
     type: tool_used

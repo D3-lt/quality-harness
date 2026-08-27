@@ -72,6 +72,7 @@ that this task closes a real gap rather than a hypothetical one.
   ```
   the fence passed with the mechanism broken
   ```
+- 2026-08-27 · 674c720* · mutant killed · exit 1 · `tests/package.test.mjs` · removes the enumeration, so a gate shipping with no mutation passes unnamed · acceptance-sha256:228b65bb303f2ff70e37347620e8e7f0df34eaa6cb14f42c360fcf8558c7c958
 
 ## Invariants
 
@@ -95,3 +96,4 @@ be a counterexample to the record rather than a task to force through.
 
 ## Verification Log
 - 2026-08-27 · 51f76cc · exit 0 · `node --test tests/package.test.mjs 2>&1 | tee /tmp/adr003-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr003-t1.out` · acceptance-sha256:228b65bb303f2ff70e37347620e8e7f0df34eaa6cb14f42c360fcf8558c7c958
+- 2026-08-27 · 674c720 · exit 0 · `node --test tests/package.test.mjs 2>&1 | tee /tmp/adr003-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr003-t1.out` · acceptance-sha256:228b65bb303f2ff70e37347620e8e7f0df34eaa6cb14f42c360fcf8558c7c958

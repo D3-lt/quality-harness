@@ -72,6 +72,31 @@ export function measure(root) {
   return { records, tasks }
 }
 
+// Tools the runner refuses unless an OPERATOR grants them. `allowed_tools:` in a
+// case declares what it wants; it does not grant. Measured 2026-08-27: a case
+// declaring Write and Edit ran with `--allow-tools Bash`, the runner printed
+// "not granted … Write, Edit" as its first line, the model could not write, and
+// both behavioural graders failed for a reason that had nothing to do with the
+// model. The same trap is already recorded in docs/BACKLOG.md finding B, read
+// the same day, and hit anyway — so the invocation is generated, not remembered.
+export const GATED = new Set(['Bash', 'Write', 'Edit', 'WebFetch', 'WebSearch', 'NotebookEdit'])
+
+/** The gated tools a rendered case declares, so the printed command grants them. */
+export function grantsFor(bodies) {
+  const wanted = new Set()
+  for (const body of bodies) {
+    const block = /^\s*allowed_tools:\s*\[([^\]]*)\]/m.exec(body)
+    const listed = block
+      ? block[1].split(',')
+      : (/^\s*allowed_tools:\s*$([\s\S]*?)^\s*\w/m.exec(body)?.[1] ?? '').split('\n')
+    for (const raw of listed) {
+      const name = raw.replace(/[-\s'"]/g, '')
+      if (GATED.has(name) || name.startsWith('mcp__')) wanted.add(name)
+    }
+  }
+  return [...wanted].sort()
+}
+
 /** Substitute the generated values into a template body. */
 export function render(body, values) {
   return body.replace(/\{\{(\w+)\}\}/g, (whole, key) =>
@@ -134,21 +159,30 @@ export function main(argv = process.argv.slice(2)) {
   const scale = measure(fixture)
 
   const cases = path.join(out, 'cases')
+  const rendered = []
   for (const name of names) {
     const id = name.replace(/\.case\.yaml$/, '')
     const directory = path.join(cases, id)
     mkdirSync(directory, { recursive: true })
-    writeFileSync(path.join(directory, 'case.yaml'), render(
-      readFileSync(path.join(templates, name), 'utf8'),
-      { CORPUS: fixture, RECORDS: scale.records, TASKS: scale.tasks, NAME: id }))
+    const body = render(readFileSync(path.join(templates, name), 'utf8'),
+      { CORPUS: fixture, RECORDS: scale.records, TASKS: scale.tasks, NAME: id })
+    writeFileSync(path.join(directory, 'case.yaml'), body)
+    rendered.push(body)
   }
+  const grants = grantsFor(rendered)
 
   process.stdout.write(`snapshot: ${taken.join(', ')} from ${source}\n`)
   process.stdout.write(`corpus:   ${fixture} (${scale.records} record(s), ${scale.tasks} task file(s))\n`)
   const relative = path.relative(here, cases).split(path.sep).join('/')
   process.stdout.write(`cases:    ${cases} (${names.length})\n\n`)
   process.stdout.write('Run them with:\n')
-  process.stdout.write(`  claude plugin eval --eval-dir ${relative} --runs 3 --allow-tools Bash .\n`)
+  process.stdout.write(`  claude plugin eval --eval-dir ${relative} --runs 3`
+    + `${grants.length ? ` --allow-tools ${grants.join(' ')}` : ''} .\n`)
+  if (grants.length) {
+    process.stdout.write(`\nThe grant is not optional: these cases DECLARE ${grants.join(', ')}, and a\n`
+      + 'declaration is not a grant — without it the runner says "not granted" on its\n'
+      + 'first line and every behavioural grader fails for a reason about the invocation.\n')
+  }
   return 0
 }
 

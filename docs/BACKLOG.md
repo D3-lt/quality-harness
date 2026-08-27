@@ -1278,6 +1278,29 @@ MCP surface that lints but cannot record evidence is the measuring half again.
 This deserves a record rather than a backlog item once it is picked up: it is a new distribution
 surface, a new trust boundary, and it is costly to reverse.
 
+## 34. JavaScript coverage jitters across its own floor
+
+Measured 2026-08-27 while fixing the CI failure below. Consecutive `STRICT=1 bash scripts/coverage.sh`
+runs on an unchanged tree reported `all files` lines of **96.99 and 94.64**, and one earlier run in
+the same session reported **77.64**. `lifecycle.mjs` read 100.00 in one run and 96.09 in the next.
+
+The floor is 94 lines / 85 branches / 95 functions, so a spread that wide means the gate's verdict
+depends on the run rather than on the tree. It failed CI at 84.86 branches, passes now at 85.14 and
+85.36, and nothing about the code changed between the two passing runs.
+
+The likely cause is that much of this suite spawns subprocesses and coverage is collected across
+them; a child that is slow, killed by a timeout, or racing another test contributes different lines
+each time. That is a hypothesis, not a finding — nothing has been measured to confirm it.
+
+**Why it matters more than the number:** a gate that passes or fails on the same tree teaches people
+to re-run it until it is green, and then it protects nothing. That is the same failure this corpus
+records everywhere else, in the check that guards the checks.
+
+**What to do about it:** measure the spread first — ten consecutive runs on one tree, recording
+`all files` each time — before deciding whether to chase determinism or to set the floor where the
+worst honest run lands. Do NOT simply lower the floor to stop the noise; that hides the variance
+rather than answering it.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

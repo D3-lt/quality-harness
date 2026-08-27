@@ -2804,3 +2804,41 @@ test('a record the corpus reader cannot read is reported, not silently dropped',
   assert.deepEqual(Object.keys(corpus), ['0'], 'the list must still look like an array of records')
   assert.equal(JSON.parse(JSON.stringify(corpus)).length, 1)
 })
+
+test('adr-state reports the three kinds of record it did not read, separately', async () => {
+  // The printing half of the unreadable report, which the corpus-level test does
+  // not reach. Lumping the three together overstates the problem — most of what
+  // a real corpus withholds is proposals, which govern nothing BY DESIGN — and a
+  // reader told twenty records are unreadable stops believing the tool.
+  const root = await mkdtemp(path.join(testTmp, 'quality-state-unread-'))
+  const adr = path.join(root, 'docs', 'adr')
+  await mkdir(adr, { recursive: true })
+  await writeFile(path.join(adr, 'ADR-001-accepted.md'), '# ADR-001: Fine\n\n**Status:** Accepted\n')
+  await writeFile(path.join(adr, 'ADR-002-proposed.md'), '# ADR-002: Later\n\n**Status:** Proposed\n')
+  await writeFile(path.join(adr, 'ADR-003-odd.md'), '# ADR-003: Odd\n\n**Status:** Implemented\n')
+  await writeFile(path.join(adr, 'ADR-004-nameless.md'), '# ADR-004: Nameless\n\nNothing.\n')
+
+  const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-state.mjs'), root],
+    { encoding: 'utf8', timeout: 30_000 })
+  assert.equal(run.status ?? 0, 0, 'adr-state reads and never refuses')
+
+  assert.match(run.stdout, /1 record\(s\) read/, 'only the Accepted record is applied')
+  // Proposals are correct, and saying so is what keeps the rest credible.
+  assert.match(run.stdout, /1 record\(s\) are Proposed or Draft and govern nothing yet, which is correct/)
+  // The two that are a real problem are named, with the status that caused it —
+  // "could not read this" and "could not read this, it says Implemented" are
+  // different amounts of help to whoever owns the corpus.
+  assert.match(run.stdout, /2 file\(s\) were opened and could NOT be read/)
+  assert.match(run.stdout, /ADR-003-odd\.md\s+\[Implemented\]/)
+  assert.match(run.stdout, /ADR-004-nameless\.md\s+\[no \*\*Status:\*\* line\]/)
+  assert.match(run.stdout, /A status this reader does not know is a decision it cannot apply/)
+
+  // And a corpus with nothing to withhold says none of it.
+  const clean = await mkdtemp(path.join(testTmp, 'quality-state-clean-'))
+  await mkdir(path.join(clean, 'docs', 'adr'), { recursive: true })
+  await writeFile(path.join(clean, 'docs', 'adr', 'ADR-001-a.md'), '# ADR-001: A\n\n**Status:** Accepted\n')
+  const quiet = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), clean], { encoding: 'utf8', timeout: 30_000 })
+  assert.doesNotMatch(quiet.stdout, /could NOT be read|govern nothing yet/,
+    'a clean corpus gets no warning at all')
+})

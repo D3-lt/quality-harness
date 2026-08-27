@@ -26,7 +26,7 @@
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync, statSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const KNOWN = new Set(['--corpus', '--out', '--template', '--list'])
 
@@ -114,7 +114,12 @@ export function main(argv = process.argv.slice(2)) {
     const at = argv.indexOf(flag)
     return at === -1 ? null : argv[at + 1] ?? null
   }
-  const here = path.dirname(path.dirname(new URL(import.meta.url).pathname))
+  // fileURLToPath, not `new URL(...).pathname`: on Windows the latter yields
+  // `/C:/…`, which `path.dirname` walks happily and no directory ever matches.
+  // CI caught it 2026-08-27 — the templates lookup failed, so `main([])` returned
+  // "no template directory" where the test expected "--corpus is required", and
+  // the failure named the assertion rather than the platform.
+  const here = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
   const templates = path.resolve(value('--template') ?? path.join(here, 'evals', 'templates'))
   if (!existsSync(templates)) {
     process.stderr.write(`eval-fixture: no template directory at ${templates}\n`)

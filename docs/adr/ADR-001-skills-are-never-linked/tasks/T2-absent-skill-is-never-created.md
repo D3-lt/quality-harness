@@ -50,6 +50,24 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr001-t2.out; ! grep -qE "
 
 ## Mutation Log
 
+- 2026-08-27 · dd9d952* · mutant killed · exit 1 · `scripts/sync-standalone.mjs` · removes the guard, so a skill the user deleted is reported missing and recreated by --apply · acceptance-sha256:cda47fde00c08e89c17b20ba1c04cc83d45c728c5a395df23738d7e4701f3063
+
+## Class Sweep
+
+**Class:** every artifact kind `pairs()` creates in the user's home when the destination is absent.
+A kind that can be created is a kind that can be re-created after the user deletes it.
+
+```bash
+grep -n "add(path.join(source" scripts/sync-standalone.mjs
+```
+
+Run 2026-08-27: **two** call sites for three kinds — line 70 sits inside a loop over
+`['bin', 'templates']`, line 84 is the skills pair. Only the skills site is guarded, and
+deliberately: `bin` and `templates` have no namespaced twin to shadow, so creating one cannot hide
+anything. The sweep is recorded because "only skills needed the guard" is a claim, and this is the
+command that makes it checkable — a first draft of this paragraph said "three call sites", which the
+command it cites does not return.
+
 ## Invariants
 
 - A bare-name skill that exists is still kept in step; this narrows creation, not refreshing.
@@ -69,3 +87,4 @@ nothing, since that workflow would no longer produce skills.
 - Whether the bare-name entrypoints should exist at all — the operator's `CLAUDE.md` decision, not this tool's.
 
 ## Verification Log
+- 2026-08-27 · dd9d952* · exit 0 · `node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr001-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t2.out` · acceptance-sha256:cda47fde00c08e89c17b20ba1c04cc83d45c728c5a395df23738d7e4701f3063

@@ -21,8 +21,8 @@ follows from it.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | `linkPlan` emits no skill entry, on any platform | pending | — | `node --test tests/standalone-link.test.mjs 2>&1 \| tee /tmp/adr001-t1.out; ! grep -qE "^not ok\|ℹ fail [1-9]\|no tests to run" /tmp/adr001-t1.out` |
-| T2 | a skill the user does not have is never created by a sync | pending | — | `node --test tests/lifecycle.test.mjs 2>&1 \| tee /tmp/adr001-t2.out; ! grep -qE "^not ok\|ℹ fail [1-9]\|no tests to run" /tmp/adr001-t2.out` |
+| T1 | `linkPlan` emits no skill entry, on any platform | done | — | `node --test tests/standalone-link.test.mjs 2>&1 \| tee /tmp/adr001-t1.out; ! grep -qE "^not ok\|ℹ fail [1-9]\|no tests to run" /tmp/adr001-t1.out` |
+| T2 | a skill the user does not have is never created by a sync | done | — | `node --test tests/lifecycle.test.mjs 2>&1 \| tee /tmp/adr001-t2.out; ! grep -qE "^not ok\|ℹ fail [1-9]\|no tests to run" /tmp/adr001-t2.out` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 

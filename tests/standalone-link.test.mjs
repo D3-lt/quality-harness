@@ -234,6 +234,17 @@ test('every gate the plugin ships gets both a forwarder and a Windows shim', () 
     const shims = plan.filter(e => e.lineage === 'shim').map(e => path.basename(e.to, '.cmd')).sort()
     assert.deepEqual(gates, shims, 'a gate with no shim is unreachable from Windows')
     assert.ok(gates.includes('adr-verify'))
+    // Names matching is not enough: a .cmd holding a `#!/bin/sh` body has the
+    // right name and is inert on Windows, which is the whole failure the shim
+    // exists to prevent. Found 2026-08-27 by a mutation that swapped the two
+    // generators and stayed green.
+    for (const shim of plan.filter(e => e.lineage === 'shim')) {
+      assert.match(shim.contents, /^@echo off\r\n/, path.basename(shim.to))
+      assert.doesNotMatch(shim.contents, /^#!/, path.basename(shim.to))
+    }
+    for (const gate of plan.filter(e => e.lineage === 'gate')) {
+      assert.match(gate.contents, /^#!\/bin\/sh\n/, path.basename(gate.to))
+    }
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

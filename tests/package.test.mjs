@@ -191,3 +191,34 @@ test('continuous integration runs the checks this repository owns', () => {
   assert.match(selftest, /SKIPPED —/)
   assert.match(selftest, /PARTIAL —/)
 })
+
+test('every shipped gate carries at least one mutation', () => {
+  // ADR-003: a gate asserts behaviour, not shape. The floor beneath that rule is
+  // that somebody wrote a mutation for each gate at all — and until this test the
+  // invariant held across all ten by accident, with nothing asserting it. That is
+  // the same shape as every defect this corpus was built to catch: a property
+  // that is true, useful, and unguarded.
+  //
+  // A COUNT IS ITSELF A SHAPE CHECK and one entry satisfies it. This says only
+  // "somebody wrote a mutation for this gate"; whether it is noticed is what
+  // `scripts/mutate.mjs` answers by reporting RED or GREEN, and that campaign is
+  // the real assertion. Claiming more here would be the swap ADR-003 forbids.
+  const catalogue = JSON.parse(readFileSync(join(root, 'tests', 'mutations.json'), 'utf8')).mutations
+  // Read from disk, both sides. A list kept beside the truth is a thing somebody
+  // has to remember, which is how the standalone copies drifted for three weeks.
+  const gates = readdirSync(join(root, 'bin')).filter(name => !name.includes('.')).sort()
+  assert.ok(gates.length >= 8, `expected the shipped gates, found ${gates.length}`)
+
+  const covered = new Set(catalogue.map(entry => entry.file))
+  const bare = gates.filter(gate => !covered.has(`bin/${gate}`))
+  // Name the gate. "expected 10 to be 11" makes the reader redo the enumeration
+  // the test just did, which is how a failing check becomes a check people skip.
+  assert.deepEqual(bare, [],
+    `these gates ship with no mutation in tests/mutations.json: ${bare.join(', ')}. `
+    + 'ADR-003 requires a gate to assert something a deleted line breaks; a gate nothing '
+    + 'mutates has never been shown to assert anything at all.')
+
+  // The `.cmd` shims are excluded deliberately: they forward and carry no logic,
+  // and tests/standalone-link.test.mjs already asserts every gate has one.
+  assert.ok(!covered.has('bin/adr-lint.cmd'), 'shims carry no logic and are not in this class')
+})

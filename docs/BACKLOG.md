@@ -24,9 +24,34 @@ plugin *changes* rather than what a model scores while it happens to be loaded. 
 | `adr-write-consults-the-corpus` | 0.00 | 0.00 | 0.00 |
 | `gates-advise-never-block` | 0.60 | 1.00 | **−0.40** |
 
-Three findings, all open:
+**That table is a single run per cell.** Re-measured 2026-08-27 at five runs per arm,
+`gates-advise-never-block` is 0.60 / 0.60 / Δ 0.00 — see finding A. Treat every number above as one
+sample, not a measurement.
 
-- **A. The advisory push over-corrected, and it is measurable.** `gates-advise-never-block`
+Three findings:
+
+- **A — WITHDRAWN 2026-08-27, and the retraction matters more than the finding.** Re-measured at
+  `--runs 5` per arm: **with 0.60, without 0.60, Δ 0.00 over ten runs**, `reads-the-severity`
+  failing 5/5 in BOTH arms with unanimous three-judge votes each time. The −0.40 below was a
+  single-run artifact. The plugin does not make this answer worse; it does not change it at all.
+
+  Worse, and the reason this is kept rather than deleted: **no skill is ever invoked by this case.**
+  All thirteen kept sandboxes across both arms show `skill_calls=0` — the model reaches for Bash,
+  Grep and Read to hunt for a file the empty sandbox does not have, then answers from its own
+  judgement. The case carries no `tool_used: Skill` grader either, so nothing ever reported the
+  absence. Every Δ this case has produced, in either direction, has been noise around a prompt that
+  never touched the thing it claims to measure.
+
+  What the ten runs DO show is a real gap, and a more useful one: a model asked "the gate reported
+  this, am I blocked?" — the single most common question this harness's users actually ask — does
+  not distinguish a content finding from a form finding, with or without the plugin loaded, and
+  **no shipped skill's description claims that question**. That is a Trigger failure, not the
+  Compliance failure recorded below. Fixing it means a skill that fires here, not a re-worded
+  paragraph inside one that does not.
+
+  The original finding, left below for the record it corrects:
+
+- **A (superseded). The advisory push over-corrected, and it is measurable.** `gates-advise-never-block`
   is the only case the plugin makes *worse*. Baseline called `Alternatives Considered has no
   entries` "a real FAIL" and separated it from the `advice:` line. With the plugin loaded the
   answer called the same finding "a document-completeness check, not a decision-validity
@@ -961,6 +986,11 @@ only as `quality-harness:<name>` — plugin context, where the placeholder resol
 harmless and still correct for anyone who keeps a hand-made bare-name copy. It reads as a
 pointer to a copy that, here, no longer exists.
 
+**Deferred here by ADR-001** (`docs/adr/ADR-001-skills-are-never-linked.md`, Out of Scope): making
+templates release-proof the way gates are, so they stop needing a `--link --apply` repoint after
+every release. That ADR's Follow-up asks the narrower question first — whether the six links should
+simply be removed, since nothing reads `~/.claude/templates` once the bare-name skills are gone.
+
 **`archive()` copying a directory.** `linkPlan` now emits gates, shims and templates — all
 files. `write()` is handed nothing else, so the `recursive: true` in `archive`'s `cpSync` is
 reached, with a directory, only by the test written for it. That test constructs its own entry
@@ -971,6 +1001,29 @@ the only function here that deletes, and the cost of the flag is one word.
 Both are the same class as item 21 in reverse — not a check that fires on nothing, but a
 mechanism that nothing reaches. Neither costs anything until someone reads it and looks for
 the thing it describes.
+
+## 26. No answer for a fence that outruns the agent's tool timeout
+
+**Deferred here by ADR-002** (`docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md`, Out of
+Scope and Follow-ups).
+
+Reported 2026-08-27 from a Windows session: `./verify.sh` with `BLUEPRINT_DOCKER=1` takes about
+eleven minutes, and the agent's Bash tool caps a call at ten. Two `adr-verify` runs were killed
+mid-fence. The reporter's workaround is to launch the gate detached with `nohup`, redirect to a log,
+write the exit code to a file, and poll for it — which works, and which nothing in this harness
+offers or documents.
+
+ADR-002 fixed the DAMAGE a kill does (the mutant is now journalled and recovered). It did not fix
+the cause: the run still dies, and an eleven-minute fence still cannot complete inside a ten-minute
+cap. Two shapes worth weighing before building either — a `--detach`/`--resume` pair in `adr-verify`
+that owns the backgrounding itself, or documenting the `nohup` + poll pattern in the skills so an
+agent reaches for it instead of rediscovering it. The second is nearly free and may be enough.
+
+Also observed in the same report and NOT addressed anywhere: a killed run's `verify.sh` child
+survives and skips its own EXIT trap, stranding `redis:8` / `postgres:16` containers and a
+`bp-verify` network. ADR-002 rules this permanently out of scope for the gate — a process cannot
+clean up reliably from inside the kill — so if it is ever to be handled, it belongs to a different
+mechanism than `adr-verify`.
 
 ## Verification claims worth re-running after any of the above
 

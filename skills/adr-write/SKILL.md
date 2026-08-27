@@ -39,6 +39,26 @@ already accepted.
   local. Reconcile any authority change in the active/catalog sidecars in the same commit; never
   rewrite a frozen archived record.
 
+## Audit the class, not the instance
+
+The change in front of you is one member of a set. A record that names only that
+member leaves every sibling ungoverned, and ungoverned is invisible — nothing
+reports the twelve call sites the decision was about but never mentioned.
+
+Before writing `Governs:`, do three things and put the result in the record:
+
+1. **Name the class in one sentence.** What property makes something a member?
+   "Every gate that spawns a subprocess", not "adr-lint".
+2. **Enumerate it with a command, not from memory.** A `grep`, a `glob`, a
+   `adr-context` run — something the next reader can re-run and get the same set.
+3. **Record the command and the count.** A `Governs:` of nine paths that came
+   from a repeatable query is a claim someone can check. Nine paths that came
+   from recall is a guess with a colon after it.
+
+Members you deliberately leave out are part of the decision: name them and say
+why. Silence reads as "there were none", and that is the failure this exists to
+stop.
+
 ## Required Inputs
 
 Ask one concise question for anything missing:

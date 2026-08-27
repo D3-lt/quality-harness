@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot } from '../scripts/eval-fixture.mjs'
+import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot, yamlPath } from '../scripts/eval-fixture.mjs'
 
 function corpus(files) {
   const root = mkdtempSync(path.join(tmpdir(), 'qh-fixture-test-'))
@@ -177,11 +177,20 @@ test('a generate run snapshots the corpus and writes a runnable case', () => {
     const rendered = readFileSync(
       path.join(out, 'cases', 'adr-against-a-real-corpus', 'case.yaml'), 'utf8')
     assert.doesNotMatch(rendered, /\{\{\w+\}\}/, 'every placeholder must be resolved')
-    assert.match(rendered, /add_dirs:\n\s+- ".*qh-corpus-/, 'add_dirs must carry the snapshot path')
+    // \r?\n: the file is written with the platform's line endings, and a regex
+    // anchored on \n alone fails on Windows for a file whose content is correct.
+    assert.match(rendered, /add_dirs:\r?\n\s+- ".*qh-corpus-/, 'add_dirs must carry the snapshot path')
+    // And the path must be safe inside a double-quoted YAML scalar. A Windows
+    // separator there is an ESCAPE sequence — `C:\\Users\\RUNNER~1\\AppData` becomes
+    // \U, \A, \T — so the case either fails to parse or resolves a mangled path.
+    // CI found this in a generator whose only job is to write a path that works.
+    const declared = /add_dirs:\r?\n\s+- "([^"]+)"/.exec(rendered)[1]
+    assert.ok(!declared.includes('\\'),
+      `add_dirs must contain no backslash, got ${declared}`)
     assert.match(rendered, /1\s+records|— 1\b/, 'the case states the corpus scale it was given')
 
     // The snapshot is a copy of the corpus and nothing else.
-    const snapshotPath = /add_dirs:\n\s+- "([^"]+)"/.exec(rendered)[1]
+    const snapshotPath = declared
     assert.ok(existsSync(path.join(snapshotPath, 'docs/adr/ADR-001-a.md')))
     assert.ok(existsSync(path.join(snapshotPath, 'docs/specs/spec-a.md')))
     assert.ok(!existsSync(path.join(snapshotPath, 'src/main.rs')), 'the source tree is not the corpus')
@@ -194,4 +203,18 @@ test('a generate run snapshots the corpus and writes a runnable case', () => {
     rmSync(source, { recursive: true, force: true })
     rmSync(out, { recursive: true, force: true })
   }
+})
+
+test('a Windows path is made safe for a double-quoted YAML scalar', () => {
+  // Asserted directly, not only through a generate run, because the generate
+  // test cannot produce a Windows path on POSIX — the platform that has the bug
+  // is the platform that cannot demonstrate it. CI on windows-latest was the
+  // only thing that ever saw `add_dirs: - "C:\Users\RUNNER~1\AppData\…"`, where
+  // \U, \A and \T are YAML escape sequences.
+  assert.equal(yamlPath('C:\\Users\\RUNNER~1\\AppData\\Local\\Temp\\qh-corpus-a1'),
+    'C:/Users/RUNNER~1/AppData/Local/Temp/qh-corpus-a1')
+  // A POSIX path is already safe and must come back untouched.
+  assert.equal(yamlPath('/var/folders/cp/T/qh-corpus-a1'), '/var/folders/cp/T/qh-corpus-a1')
+  // Every separator, not just the first — a one-shot replace leaves the rest.
+  assert.ok(!yamlPath('a\\b\\c\\d').includes('\\'))
 })

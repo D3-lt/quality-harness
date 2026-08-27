@@ -2142,8 +2142,12 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   // version really is behind and is worth saying. Giving links a blanket pass
   // suppressed the second case, and a mutation removing that pass stayed green.
   await mkdir(path.join(home, '.claude', 'skills'), { recursive: true })
+  // 'junction' explicitly: a directory link created with the default type is a
+  // FILE link on Windows, which is broken on arrival, and the type argument is
+  // ignored everywhere else. The standalone-link suite already passes 'dir' or
+  // 'junction' for exactly this reason.
   await symlink(path.join(pluginDir, 'skills', 'execution'),
-    path.join(home, '.claude', 'skills', 'execution'))
+    path.join(home, '.claude', 'skills', 'execution'), 'junction')
   assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /skills[\\/]execution/,
     'a link on the current plugin is not drift')
 
@@ -2161,7 +2165,7 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   assert.match(shadowInstallNotice(home, pluginDir), /hooks[\\/]post-edit-check\.sh/)
   await rm(path.join(home, '.claude', 'settings.json'))
   await rm(path.join(home, '.claude', 'hooks'), { recursive: true })
-  await rm(path.join(home, '.claude', 'skills', 'execution'))
+  await rm(path.join(home, '.claude', 'skills', 'execution'), { recursive: true, force: true })
   await rm(path.join(home, '.claude', 'templates', 'adr-template.md'))
 
   // A skill is a directory, so the comparable file is one level down.

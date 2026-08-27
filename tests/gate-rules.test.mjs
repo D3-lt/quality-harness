@@ -706,6 +706,28 @@ test('the mutation runner refuses to run over an editor, or beside another runne
     writeFileSync(target, pristine)
   }
 
+  // A campaign that refuses still repairs first. `--case` with no match used to
+  // exit before recover(), so a killed run's mutation stayed applied and the
+  // next thing anyone ran reported a failure that made no sense. Same class as
+  // recover()-before-claim, which was fixed on 2026-08-26 as one instance while
+  // the class of early exits went unaudited. Measured 2026-08-27.
+  const journal = `${isolated}.inflight.json`
+  const victim = join(root, 'scripts', 'adr-state.mjs')
+  const untouched = readFileSync(victim, 'utf8')
+  writeFileSync(victim, `${untouched}\n// left applied by a killed run\n`)
+  writeFileSync(journal, JSON.stringify({ file: victim, original: untouched }))
+  try {
+    const refused = spawnSync(process.execPath, [runner, '--case', 'no-such-mutation-exists'],
+      { cwd: root, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: isolated }, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(refused.status, 1, refused.stdout + refused.stderr)
+    assert.match(refused.stderr, /no mutation matches/)
+    assert.equal(readFileSync(victim, 'utf8'), untouched,
+      'a run that refuses must still repair what a killed run left behind')
+  } finally {
+    writeFileSync(victim, untouched)
+    rmSync(journal, { force: true })
+  }
+
   // A dead owner left the lock behind; that is a crash, not a conflict, and the
   // next run reclaims it rather than wedging forever.
   writeFileSync(lock, '999999')

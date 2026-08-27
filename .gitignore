@@ -2,3 +2,8 @@
 
 # Generated eval cases: absolute paths, one machine, never committed.
 evals/generated/
+
+# Eval HTML reports: presentation only, regenerable from the aggregate JSON
+# beside them, and 660K of a plugin every user downloads. The JSON stays: it is
+# the evidence behind the measurements recorded in docs/BACKLOG.md.
+evals/results/**/report.html

@@ -70,11 +70,18 @@ function pairs(source, home) {
       add(path.join(source, dir, name), path.join(home, '.claude', target, name))
     }
   }
+  // A skill is refreshed only where one ALREADY exists. Creating one is what
+  // produces a second copy of a skill the plugin already serves, and a personal
+  // skill shadows the namespaced `quality-harness:<name>` it duplicates — by
+  // path identity when linked, which removes the namespaced entrypoint outright.
+  // Removing a bare-name skill has to stay removed, or the next sync undoes the
+  // user's decision and calls it an update.
   let skills = []
   try { skills = readdirSync(path.join(source, 'skills')) } catch { skills = [] }
   for (const name of skills) {
-    add(path.join(source, 'skills', name, 'SKILL.md'),
-      path.join(home, '.claude', 'skills', name, 'SKILL.md'))
+    const to = path.join(home, '.claude', 'skills', name, 'SKILL.md')
+    if (!existsSync(to)) continue
+    add(path.join(source, 'skills', name, 'SKILL.md'), to)
   }
   return out
 }
@@ -123,9 +130,10 @@ function linkMode(root, home, apply) {
     process.stdout.write(`\n${writable.length} entry(s) to install`
       + `${skipped ? `, ${skipped} left alone` : ''}. Re-run with --link --apply to write them.\n`)
     process.stdout.write('A gate becomes a forwarder that resolves the newest installed plugin at '
-      + 'call time, so no release has to touch it again. A skill or template becomes a link, and a '
-      + 'link names one version: an update leaves it pointing at the old one, so re-run this after '
-      + 'each release. Only the gates are release-proof.\n')
+      + 'call time, so no release has to touch it again. A template becomes a link, and a link '
+      + 'names one version, so re-run this after each release to repoint those. Skills are never '
+      + 'linked: a personal skill resolving to the plugin own skill directory hides '
+      + '`quality-harness:<name>` entirely.\n')
     return 0
   }
   // One archive directory per run, named for when it ran, never reused. The
@@ -178,8 +186,8 @@ function main() {
   }
   if (!apply) {
     process.stdout.write(`\n${work.length} file(s) differ. Re-run with --apply to copy them, `
-      + 'or with --link, which makes the gates release-proof and leaves skills and templates as '
-      + 'links to update after each release.\n')
+      + 'or with --link, which makes the gates release-proof and leaves templates as links to '
+      + 'repoint after each release.\n')
     return 0
   }
   let written = 0

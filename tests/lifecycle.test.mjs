@@ -2309,7 +2309,21 @@ test('the sync command reports before it writes, and syncs from the newest insta
   assert.equal(state(path.join('bin', 'adr-lint')), undefined, 'an identical file is not work')
   assert.equal(state(path.join('bin', 'adr-judge')), 'drifted')
   assert.equal(state(path.join('templates', 'adr-template.md')), 'missing')
-  assert.equal(state(path.join('skills', 'adr-write', 'SKILL.md')), 'missing')
+  // A skill absent from the home directory stays absent. Creating one puts a
+  // second copy of a skill the plugin already serves beside it, and a personal
+  // skill shadows the namespaced `quality-harness:<name>` it duplicates — by
+  // path identity when linked, which removes the namespaced entrypoint outright
+  // (reported 2026-08-27). Syncing one back would undo that deletion and call it
+  // an update.
+  assert.equal(state(path.join('skills', 'adr-write', 'SKILL.md')), undefined,
+    'a skill the user does not have is not work')
+
+  // One that DOES exist is still kept in step, because that user chose to have it.
+  await mkdir(path.join(home, '.claude', 'skills', 'adr-write'), { recursive: true })
+  await writeFile(path.join(home, '.claude', 'skills', 'adr-write', 'SKILL.md'), '# stale\n')
+  const withSkill = plan(pluginDir, home)
+  assert.equal(withSkill.find(e => e.to.endsWith(path.join('skills', 'adr-write', 'SKILL.md')))?.state,
+    'drifted')
 
   // A forwarder cannot byte-match the gate it forwards to — that is what it is
   // for — so a digest comparison calls every one of them drifted, under a line

@@ -1025,6 +1025,60 @@
       "to": "    .filter(entry => true)"
     },
     {
+      "label": "sync: a skill the user does not have is not created",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (!existsSync(to)) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "link: no skill is ever linked",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'templates')) } catch { return [] }\n  })()) {",
+      "to": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'skills')) } catch { return [] }\n  })()) {"
+    },
+    {
+      "label": "verify: a killed mutant run is journalled so the next one restores it",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            journal.write_text(json.dumps({",
+      "to": "            (lambda *a, **k: None)(json.dumps({"
+    },
+    {
+      "label": "verify: the mutant warning is flushed, not left in the buffer",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "              f\"until the fence finishes.\", flush=True)",
+      "to": "              f\"until the fence finishes.\")"
+    },
+    {
+      "label": "verify: a restore does not overwrite a file that changed since",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if now != mutated:",
+      "to": "    if False:"
+    },
+    {
+      "label": "verify: an ordinary run recovers before it measures anything",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    recover_mutant(cwd)\n\n    if mutant is not None:",
+      "to": "    if mutant is not None:"
+    },
+    {
       "label": "sync: a forwarder is not reported as drifted",
       "file": "scripts/sync-standalone.mjs",
       "tests": [

@@ -752,11 +752,23 @@ test('qh-root answers with a plugin directory, or with nothing at all', () => {
   // would send every template and script read to the wrong version silently.
   const empty = mkdtempSync(join(os.tmpdir(), 'qh-root-'))
   try {
-    // An explicit CLAUDE_PLUGIN_ROOT is the caller knowing better than a search.
-    const told = run('qh-root', [], root)
+    // An explicit CLAUDE_PLUGIN_ROOT is the caller knowing better than a search,
+    // and it is asserted with one supplied rather than with whatever this machine
+    // happens to have installed. The first version of this read the ambient
+    // environment and passed only on a developer's box: CI has no plugin cache,
+    // so qh-root correctly exited 1 and four jobs went red on 2026-08-27.
+    const told = spawnSync('python3', [join(bin, 'qh-root')],
+      { encoding: 'utf8', timeout: 60_000, env: { ...env, CLAUDE_PLUGIN_ROOT: root } })
     assert.equal(told.status, 0, told.stderr)
-    assert.ok(existsSync(join(told.stdout.trim(), 'bin')),
-      `qh-root printed ${told.stdout.trim()}, which holds no gates`)
+    assert.equal(told.stdout.trim(), root,
+      'a caller who names a root already knows the answer; do not go looking past it')
+
+    // A named root that holds no gates is not an answer either, so the search runs.
+    const bogus = spawnSync('python3', [join(bin, 'qh-root')],
+      { encoding: 'utf8', timeout: 60_000,
+        env: { ...env, CLAUDE_PLUGIN_ROOT: empty, HOME: empty, USERPROFILE: empty } })
+    assert.notEqual(bogus.stdout.trim(), empty,
+      'a plugin root with no bin/ is not a plugin root')
 
     // The discriminating behaviour, which "prints a directory holding bin" does
     // not reach: a real cache holds 2.0.4 beside 2.0.10 and 2.9.0 beside 2.15.0,

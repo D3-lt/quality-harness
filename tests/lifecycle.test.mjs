@@ -5,7 +5,7 @@ import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'n
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   analyzeTranscript,
   artifactGateTimeoutMs,
@@ -2625,6 +2625,33 @@ test('reported: a check that never ran on Windows was counted as a passing check
     'a check that never ran is not evidence that the work is verified')
   const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: repo })
   assert.match(JSON.parse(run.stdout).systemMessage, /never started/)
+})
+
+test('importing the router does not end the process that imported it', async () => {
+  // The router's CLI half used to run at module top level, `process.exit` and
+  // all. Two consequences, both silent: it parsed the IMPORTER's argv, so a
+  // `--test-name-pattern` was an unknown option and exited 2; and on the branch
+  // where nothing is waiting it exited 0 outright.
+  //
+  // Measured 2026-08-27. `tests/lifecycle.test.mjs` imports this module, so the
+  // moment THIS repository's own corpus became healthy — two accepted records,
+  // every task carrying evidence — the suite went from 82 tests to 80 and still
+  // reported `fail 0`, because the process was gone before the runner could say
+  // otherwise. The healthier the corpus, the fewer tests ran. Nothing failed.
+  //
+  // Spawned rather than imported here: an in-process import cannot observe the
+  // failure it is about, because the failure is this process dying.
+  const probe = `
+    import('${pathToFileURL(path.join(pluginDir, 'scripts', 'work-next.mjs')).href}')
+      .then(m => { process.stdout.write('ALIVE ' + Object.keys(m).sort().join(',')) })
+      .catch(e => { process.stdout.write('REJECTED ' + e.message) })
+  `
+  // The unknown flag is the point: it is what the module used to read as its own.
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', probe, '--test-name-pattern=x'],
+    { cwd: pluginDir, encoding: 'utf8', timeout: 30_000 })
+  assert.equal(run.status, 0, `importer died: ${run.stdout}${run.stderr}`)
+  assert.match(run.stdout, /ALIVE/, 'the import never returned; the module took the process with it')
+  assert.match(run.stdout, /main/, 'the CLI half must be reachable as an export, not only as a side effect')
 })
 
 test('the lifecycle router reads corpus state, and says so when it cannot', async () => {

@@ -20,8 +20,8 @@ first even though neither declares a `Depends-on`.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | the restore is on disk before the mutation is | pending | — | `node --test tests/evidence-chain.test.mjs …` |
-| T2 | the warning survives the kill, and SIGTERM is actually tested | pending | — | `node --test tests/evidence-chain.test.mjs && node scripts/mutate.mjs --case 'verify:' …` |
+| T1 | the restore is on disk before the mutation is | done | — | `node --test tests/evidence-chain.test.mjs …` |
+| T2 | the warning survives the kill, and SIGTERM is actually tested | done | — | `node --test tests/evidence-chain.test.mjs && node scripts/mutate.mjs --case 'verify:' …` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 
@@ -35,5 +35,7 @@ Status: `pending` | `running` | `blocked` | `done` | `failed`.
 
 - T1 shipped in v2.18.2 (`6bbff6d`) before this record was written; the ADR says so. Executing it
   re-runs its fence against the code as it stands.
-- **T2 is genuinely open.** Steps 4 and 5 are unwritten work: every kill test today uses `SIGKILL`,
-  so the `SIGTERM` handler has no test and no mutation and would rot unnoticed.
+- **T2's open work closed 2026-08-27.** Steps 4 and 5 are done: `a SIGTERM mid-fence is restored
+  in-process, without waiting for the next run` is committed, and mutation `verify: a catchable kill
+  restores in-process, not only via the journal` is RED. Before this the sweep over
+  `kill('SIG` returned `SIGKILL` only.

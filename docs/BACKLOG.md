@@ -1025,6 +1025,49 @@ survives and skips its own EXIT trap, stranding `redis:8` / `postgres:16` contai
 clean up reliably from inside the kill — so if it is ever to be handled, it belongs to a different
 mechanism than `adr-verify`.
 
+## 27. A script that ends the process that imports it, and the three siblings still able to
+
+Found 2026-08-27 while executing ADR-001 and ADR-002 — that is, by using this repository's own
+lifecycle on itself for the first time.
+
+`scripts/work-next.mjs` ran its whole CLI half at module top level, `process.exit` included.
+`tests/lifecycle.test.mjs` imports it. Two silent consequences: the module parsed the IMPORTER's
+argv (a `--test-name-pattern` read as an unknown option, exit 2), and on the branch where nothing is
+waiting it exited 0 outright.
+
+The second one fired the moment this repository's corpus became healthy — two accepted records,
+every task carrying evidence. **The suite went from 82 tests to 80 and reported `fail 0`,
+`skipped 0`.** The healthier the corpus, the fewer tests ran, and nothing said so. Fixed with the
+main-guard three sibling scripts already had, plus a spawned regression test and mutation
+`router: importing the CLI half does not run it`.
+
+**Class sweep**, run 2026-08-27:
+
+```bash
+for f in scripts/*.mjs; do printf '%s guard=%s exit=%s\n' "$f" \
+  "$(grep -c 'import.meta.url ===' $f)" "$(grep -c 'process.exit(' $f)"; done
+grep -n "import('\.\./scripts/\|from '\.\./scripts/" tests/*.mjs
+```
+
+Six scripts are imported by tests — `lifecycle`, `run-shell-hook`, `standalone-link`,
+`sync-standalone`, `mutate-propose`, `work-next` — and all six are now guarded. **Four are not, and
+would do exactly this the day anything imports them:**
+
+- `scripts/adr-state.mjs` (3 `process.exit` calls) — the likeliest next victim, since it is the
+  corpus reader a future test will reach for.
+- `scripts/adr-context.mjs` (1)
+- `scripts/verify.mjs` (2) — worse than exiting: importing it **spawns a child process**.
+- `scripts/mutate.mjs` (8) — importing it would claim the lock and run a campaign.
+
+Not fixed here deliberately. `verify.mjs` and `mutate.mjs` need real restructuring into a `main()`,
+and doing that in the same turn as the fix — while depending on `mutate.mjs` to verify the fix —
+is the scope creep this harness exists to refuse. They are named so the next session does not
+rediscover the class.
+
+The general rule, which is the part worth keeping: **a module with a CLI half must not run it on
+import**, and the test for that has to spawn rather than import, because the failure being tested
+is the test process dying.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

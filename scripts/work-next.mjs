@@ -18,16 +18,8 @@
 // would be the thing this harness spent a week removing.
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import path from 'node:path'
+import { pathToFileURL } from 'node:url'
 import { adrCorpus } from './lifecycle.mjs'
-
-const argv = process.argv.slice(2)
-const json = argv.includes('--json')
-const unknown = argv.filter(a => a.startsWith('--') && a !== '--json')
-if (unknown.length) {
-  process.stderr.write(`unknown option: ${unknown[0]}\nusage: work-next.mjs [--json] [<root>]\n`)
-  process.exit(2)
-}
-const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
 // move, so the router explains itself instead of asserting.
@@ -162,43 +154,69 @@ export function nextStage(state) {
   return null
 }
 
-const state = observe(root)
-const stage = nextStage(state)
-const relative = file => path.relative(root, file) || file
-
-if (json) {
-  process.stdout.write(`${JSON.stringify({
-    records: state.records,
-    accepted: state.accepted,
-    tasks: state.tasks,
-    unbackedDoneClaims: state.unbacked.map(relative),
-    tasksWithoutEvidence: state.ready.map(relative),
-    retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
-    specs: state.specs,
-    next: stage ? { id: stage.id, entry: stage.entry, when: stage.when } : null,
-    stages: STAGES.map(({ id, entry, when }) => ({ id, entry, when })),
-  }, null, 2)}\n`)
-  process.exit(0)
-}
-
-process.stdout.write(`${state.records} record(s), ${state.accepted} accepted, `
-  + `${state.tasks} task file(s), ${state.specs} spec(s).\n`)
-if (!stage) {
-  if (state.tasks && !state.usesVerificationLog) {
-    process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
-      + 'this corpus records evidence some other way, so the execution stages cannot see it. '
-      + 'Everything below is still the flow; only the state reading is blind here.\n')
-  } else {
-    process.stdout.write('\nNothing in the corpus is waiting on a lifecycle stage. '
-      + 'Anything you start now begins at /spec-write or /adr-write.\n')
+/**
+ * The CLI half, returning an exit code instead of taking the process with it.
+ *
+ * This used to run at module top level, `process.exit` and all. Importing the
+ * module therefore parsed the IMPORTER's argv — a `--test-name-pattern` read as
+ * an unknown option and exited 2 — and, on the branch where nothing is waiting,
+ * exited 0 outright. Measured 2026-08-27: `tests/lifecycle.test.mjs` imports
+ * this module, and the moment this repository's own corpus became healthy the
+ * suite dropped from 82 tests to 80 and still reported `fail 0`, because the
+ * process was gone before the runner could say otherwise. The healthier the
+ * corpus, the fewer tests ran. Three sibling scripts already had this guard.
+ */
+export function main(argv = process.argv.slice(2)) {
+  const json = argv.includes('--json')
+  const unknown = argv.filter(a => a.startsWith('--') && a !== '--json')
+  if (unknown.length) {
+    process.stderr.write(`unknown option: ${unknown[0]}\nusage: work-next.mjs [--json] [<root>]\n`)
+    return 2
   }
-  for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\n`)
-  process.exit(0)
+  const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
+  const state = observe(root)
+  const stage = nextStage(state)
+  const relative = file => path.relative(root, file) || file
+
+  if (json) {
+    process.stdout.write(`${JSON.stringify({
+      records: state.records,
+      accepted: state.accepted,
+      tasks: state.tasks,
+      unbackedDoneClaims: state.unbacked.map(relative),
+      tasksWithoutEvidence: state.ready.map(relative),
+      retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
+      specs: state.specs,
+      next: stage ? { id: stage.id, entry: stage.entry, when: stage.when } : null,
+      stages: STAGES.map(({ id, entry, when }) => ({ id, entry, when })),
+    }, null, 2)}\n`)
+    return 0
+  }
+
+  process.stdout.write(`${state.records} record(s), ${state.accepted} accepted, `
+    + `${state.tasks} task file(s), ${state.specs} spec(s).\n`)
+  if (!stage) {
+    if (state.tasks && !state.usesVerificationLog) {
+      process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `
+        + 'this corpus records evidence some other way, so the execution stages cannot see it. '
+        + 'Everything below is still the flow; only the state reading is blind here.\n')
+    } else {
+      process.stdout.write('\nNothing in the corpus is waiting on a lifecycle stage. '
+        + 'Anything you start now begins at /spec-write or /adr-write.\n')
+    }
+    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\n`)
+    return 0
+  }
+  process.stdout.write(`\nNext: ${stage.entry}\n  because ${stage.when}.\n  ${stage.why}\n`)
+  const evidence = stage.id === 'adr-verify' ? state.unbacked
+    : stage.id === 'adr-execute' ? state.ready
+      : stage.id === 'adr-retire' ? state.retirable.map(record => record.file)
+        : []
+  for (const file of evidence.slice(0, 5)) process.stdout.write(`    ${relative(file)}\n`)
+  if (evidence.length > 5) process.stdout.write(`    (+${evidence.length - 5} more)\n`)
+  return 0
 }
-process.stdout.write(`\nNext: ${stage.entry}\n  because ${stage.when}.\n  ${stage.why}\n`)
-const evidence = stage.id === 'adr-verify' ? state.unbacked
-  : stage.id === 'adr-execute' ? state.ready
-    : stage.id === 'adr-retire' ? state.retirable.map(record => record.file)
-      : []
-for (const file of evidence.slice(0, 5)) process.stdout.write(`    ${relative(file)}\n`)
-if (evidence.length > 5) process.stdout.write(`    (+${evidence.length - 5} more)\n`)
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = main()
+}

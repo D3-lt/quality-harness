@@ -10,8 +10,9 @@
 **Served-path change:** A user whose acceptance fence outruns their agent's timeout no longer finds a deliberately broken file left in their working tree; the next `adr-verify` run, or `adr-verify --restore`, puts it back.
 
 Like ADR-001, this record was written after its first half shipped (v2.18.2, `6bbff6d`) and says so.
-Unlike ADR-001, part of it is still open: the SIGTERM handler it describes has no test and no
-mutation, which T2 exists to close. The record is the first place that gap is written down.
+Unlike ADR-001, part of it was still open when written: the SIGTERM handler it describes had no test
+and no mutation, which T2 existed to close. The record is the first place that gap was written down,
+and T2 closed it the same day — see the Risks table and Follow-ups.
 
 ## Context
 
@@ -185,7 +186,7 @@ See `ADR-002-a-mutant-restore-outlives-its-process/tasks/README.md`. Two tasks.
 |------|------------|--------|------------|
 | The journal directory is unwritable, degrading the guarantee to the `finally` alone | Low | Med | The `OSError` path prints that a killed run will leave the mutant in place, directly above the manual undo command — it never fails silently |
 | A stale journal restores over work done since the kill | Low | High | `recover_mutant` restores only when the file's current bytes match the recorded mutant exactly; anything else is left alone and the original is written out beside the journal |
-| The `SIGTERM` handler has no test and no mutation, so it can rot unnoticed | **High** | Med | T2 exists for exactly this and is the open half of this record |
+| The `SIGTERM` handler has no test and no mutation, so it can rot unnoticed | ~~High~~ closed | Med | Closed 2026-08-27 by T2: `a SIGTERM mid-fence is restored in-process, without waiting for the next run`, plus mutation `verify: a catchable kill restores in-process, not only via the journal`, RED |
 | Windows Python handles signals differently and the guarantee differs there | Med | Med | CI run 33067948621 exercises the five kill tests on `windows` and passes; the `signal.signal` call is wrapped so an unsupported platform degrades to the journal rather than raising |
 
 ## Rollback
@@ -197,5 +198,5 @@ which `main()` reports by name rather than misreading as a task path.
 
 ## Follow-ups
 
-- [ ] Close the untested `SIGTERM` handler (T2).
+- [x] Close the untested `SIGTERM` handler (T2). Done 2026-08-27; the test asserts the journal is empty afterwards, which is what separates an in-process restore from a later recovery.
 - [ ] Decide whether `adr-verify` should offer a detached or resumable mode for fences that outrun an agent's tool timeout (docs/BACKLOG.md §26).

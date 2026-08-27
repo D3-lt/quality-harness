@@ -1734,6 +1734,15 @@
       ],
       "from": "## The control is the thing to break, not the code it guards",
       "to": "## Controls"
+    },
+    {
+      "label": "fixture: the printed command grants what the cases declare",
+      "file": "scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "      if (GATED.has(name) || name.startsWith('mcp__')) wanted.add(name)",
+      "to": "      if (name === 'Bash') wanted.add(name)"
     }
   ]
 }

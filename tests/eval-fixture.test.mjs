@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { CORPUS_PARTS, main, measure, render, snapshot } from '../scripts/eval-fixture.mjs'
+import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot } from '../scripts/eval-fixture.mjs'
 
 function corpus(files) {
   const root = mkdtempSync(path.join(tmpdir(), 'qh-fixture-test-'))
@@ -117,4 +117,31 @@ test('an unknown option is named, and --list asks nothing about a corpus', () =>
 
 test('a corpus path that is not a directory is refused before anything is copied', () => {
   assert.equal(main(['--corpus', path.join(tmpdir(), 'definitely-not-here-9f3a')]), 2)
+})
+
+test('the printed command grants every gated tool the cases declare', () => {
+  // `allowed_tools:` declares; only `--allow-tools` grants. Measured 2026-08-27:
+  // a case declaring Write and Edit ran under `--allow-tools Bash`, the runner
+  // said "not granted … Write, Edit" on its first line, the model could not
+  // write, and both behavioural graders failed for a reason about the
+  // invocation rather than about the model. docs/BACKLOG.md finding B already
+  // recorded that trap; it was read the same day and walked into anyway, which
+  // is the argument for deriving the command instead of remembering it.
+  assert.deepEqual(
+    grantsFor(['execution:\n  allowed_tools: [Read, Glob, Bash, Write, Edit, Skill]\n']),
+    ['Bash', 'Edit', 'Write'],
+    'ungated tools like Read and Skill must not be padded into the grant')
+
+  // The block form the generator's own template does not use, but a hand-written
+  // one might — a parser that reads only the inline form would silently grant
+  // nothing and put us straight back where this started.
+  assert.deepEqual(
+    grantsFor(['execution:\n  allowed_tools:\n    - Bash\n    - Skill\n  max_turns: 4\n']),
+    ['Bash'])
+
+  // A case wanting nothing gated gets no flag rather than an empty one.
+  assert.deepEqual(grantsFor(['execution:\n  allowed_tools: [Read, Skill]\n']), [])
+
+  // MCP tools are gated by the same operator grant and are not in the static set.
+  assert.deepEqual(grantsFor(['  allowed_tools: [mcp__thing__do, Read]\n']), ['mcp__thing__do'])
 })

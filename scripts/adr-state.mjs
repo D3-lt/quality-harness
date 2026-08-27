@@ -86,8 +86,44 @@ if (!corpus.length) {
   process.exit(0)
 }
 
+const unreadable = corpus.unreadable ?? []
 process.stdout.write(`${corpus.length} record(s) read; ${governing.length} governing; `
   + `${touched.size} path(s) touched by their tasks.\n`)
+
+// Said immediately, and before anything else this tool has to say. A corpus
+// reader that reports what it read and stays quiet about what it could not is
+// the shape this whole harness exists to catch: the number looks like coverage.
+if (unreadable.length) {
+  // Split three ways, because lumping them together overstates the problem and a
+  // reader who is told 20 records are unreadable will stop believing the tool.
+  // Most are proposals, which govern nothing BY DESIGN. Measured against a real
+  // 171-record corpus 2026-08-27: 11 Proposed, 7 `Implemented…`, 1 `Amended by
+  // ADR-050`, 1 with no status line.
+  const pending = unreadable.filter(entry => /^(?:proposed|draft)\b/i.test(entry.status ?? ''))
+  const nameless = unreadable.filter(entry => !entry.status)
+  const strange = unreadable.filter(entry => entry.status && !pending.includes(entry))
+
+  if (pending.length) {
+    process.stdout.write(`\n${pending.length} record(s) are Proposed or Draft and govern nothing yet, `
+      + 'which is correct — they are not counted above.\n')
+  }
+  if (strange.length || nameless.length) {
+    process.stdout.write(`\n${strange.length + nameless.length} file(s) were opened and could NOT be read `
+      + 'as a record, so they govern nothing and nothing else will tell you that:\n')
+    for (const entry of [...strange, ...nameless].slice(0, SHOWN)) {
+      process.stdout.write(`  ${relative(entry)}  `
+        + `${entry.status ? `[${entry.status.slice(0, 44)}]` : '[no **Status:** line]'}\n`)
+    }
+    if (strange.length + nameless.length > SHOWN) {
+      process.stdout.write(`  (+${strange.length + nameless.length - SHOWN} more)\n`)
+    }
+    if (strange.length) {
+      process.stdout.write('A status this reader does not know is a decision it cannot apply. '
+        + 'Either\nspell it the way the corpus already spells its governing records, or say '
+        + 'so here.\n')
+    }
+  }
+}
 if (!areas.size && touched.size) {
   process.stdout.write('\nNo record declares a `Governs:` scope, so authority is inferred from what\n'
     + 'tasks touched. Ask about one path with `adr-context <path>`, or add `Governs:`\n'

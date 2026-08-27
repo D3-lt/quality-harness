@@ -236,8 +236,12 @@ test('an alternative whose reason wraps is read whole, not judged on its first l
 
   // And a bullet must not swallow the paragraph after it. Blank lines and
   // unindented lines end a bullet in Markdown, and they end one here.
+  // ONE bullet, deliberately. With two, the first fires E2 on its own and the
+  // assertion passes whether or not the second swallowed the paragraph —
+  // mutation `judge: a blank line ends a bullet` reported GREEN against exactly
+  // that shape. The verdict has to hang on the bullet under test.
   const separated = judge({
-    alternatives: '- Kafka\n- RabbitMQ\n\nRejected because we already run Postgres.',
+    alternatives: '- Kafka\n\nRejected because we already run Postgres.',
   })
   assert.ok(separated.fired.includes('E2'),
     'prose after a blank line belongs to the section, not to the last bullet')

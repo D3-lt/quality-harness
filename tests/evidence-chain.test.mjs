@@ -523,7 +523,18 @@ test('the warning that names the broken file survives the kill that hides it', a
   temps.push(journal)
   slowFence(copy)
   const { child, said } = spawnMutant(copy, journal)
-  assert.ok(await untilMutated(copy))
+  // Wait for the WARNING, not for the mutated file. The warning is printed after
+  // `write_source`, so waiting on the file leaves a window where the mutant
+  // exists and the announcement has not been emitted — kill inside that window
+  // and the assertion fails for a reason that has nothing to do with flushing.
+  // CI on ubuntu-latest found it on 2026-08-27; the same test had passed on
+  // macOS repeatedly, which is what a timing race looks like from one machine.
+  const untilAnnounced = async () => {
+    for (let i = 0; i < 400 && !/MUTANT APPLIED/.test(said()); i += 1) await setTimeout(25)
+    return /MUTANT APPLIED/.test(said())
+  }
+  assert.ok(await untilAnnounced(), 'the warning never arrived, so the kill proves nothing')
+  assert.ok(mutated(copy), 'the warning must be emitted while the mutant is on disk')
   child.kill('SIGKILL')
   await once(child, 'exit')
 

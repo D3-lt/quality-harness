@@ -97,6 +97,20 @@ export function grantsFor(bodies) {
   return [...wanted].sort()
 }
 
+/**
+ * A path safe to drop into a double-quoted YAML scalar.
+ *
+ * Windows separators are YAML ESCAPE sequences inside double quotes, so
+ * `C:\Users\RUNNER~1\AppData\…` renders as `\U`, `\A`, `\T` — a case file that
+ * either fails to parse or resolves a mangled path. Caught by CI on
+ * 2026-08-27, in a generator whose whole job is to write an absolute path that
+ * resolves. Forward slashes are accepted by Node and by the runner on Windows,
+ * and are the one form that needs no escaping in either quoting style.
+ */
+export function yamlPath(value) {
+  return String(value).split('\\').join('/')
+}
+
 /** Substitute the generated values into a template body. */
 export function render(body, values) {
   return body.replace(/\{\{(\w+)\}\}/g, (whole, key) =>
@@ -170,7 +184,7 @@ export function main(argv = process.argv.slice(2)) {
     const directory = path.join(cases, id)
     mkdirSync(directory, { recursive: true })
     const body = render(readFileSync(path.join(templates, name), 'utf8'),
-      { CORPUS: fixture, RECORDS: scale.records, TASKS: scale.tasks, NAME: id })
+      { CORPUS: yamlPath(fixture), RECORDS: scale.records, TASKS: scale.tasks, NAME: id })
     writeFileSync(path.join(directory, 'case.yaml'), body)
     rendered.push(body)
   }

@@ -1,1 +1,4 @@
 .mutate-inflight.json
+
+# Generated eval cases: absolute paths, one machine, never committed.
+evals/generated/

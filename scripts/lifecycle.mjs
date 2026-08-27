@@ -2373,15 +2373,18 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   const digest = file => {
     try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
   }
-  // A forwarder and a symlink are CURRENT BY CONSTRUCTION, and comparing their
-  // bytes to the file they stand in for says the opposite. Installing them on
-  // 2026-08-27 made this notice report twenty files as drifted in the same
-  // session that fixed the drift — the exact false alarm it exists to prevent,
-  // now shouted every session and impossible for the reader to disprove.
+  // A forwarder is CURRENT BY CONSTRUCTION: it carries no version and runs the
+  // newest installed plugin, so comparing its bytes to the gate it stands in for
+  // says the opposite of the truth. Installing forwarders on 2026-08-27 made this
+  // notice report twenty files as drifted in the same session that fixed the
+  // drift, and it would have said so every session after.
+  //
+  // A SYMLINK needs no special case, and giving it one was wrong: a link is only
+  // as current as what it points at, so a link left on an older version really is
+  // behind and worth saying. The digest comparison already answers that — it
+  // reads through the link — and a mutation deleting the special case stayed
+  // green precisely because it was doing nothing a live link needed.
   const current = target => {
-    let info
-    try { info = lstatSync(target) } catch { return false }
-    if (info.isSymbolicLink()) return true
     try { return readFileSync(target, 'utf8').includes('quality-harness-forwarder') } catch { return false }
   }
   const stale = []
@@ -2428,7 +2431,6 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   for (const name of skillEntries) {
     const ours = path.join(pluginRoot, 'skills', name, 'SKILL.md')
     if (!existsSync(ours)) continue
-    if (current(path.join(shadowSkills, name))) continue
     const theirs = digest(path.join(shadowSkills, name, 'SKILL.md'))
     if (theirs && theirs !== digest(ours)) {
       stale.push(path.join('~', '.claude', 'skills', name, 'SKILL.md'))

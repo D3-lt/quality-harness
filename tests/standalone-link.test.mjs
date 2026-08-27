@@ -11,10 +11,18 @@ import { fileURLToPath } from 'node:url'
 
 import {
   FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, forwarderCmd, forwarderScript,
-  linkPlan, replaceable, sameLineage, write,
+  knownDigests, linkPlan, replaceable, sameLineage, write,
 } from '../scripts/standalone-link.mjs'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+
+// Exactly two cases below are POSIX-only, and only because a `#!/bin/sh`
+// forwarder cannot be executed on Windows — measured there on 2026-08-27, where
+// both failed and everything else passed, symlink creation included. The Windows
+// artefacts are the `.cmd` forwarder and the copy fallback, and both are asserted
+// on every platform by content, so nothing about Windows goes unchecked. Skipping
+// the symlink cases too would have been a guess that quietly dropped coverage on
+// the platform this project keeps getting wrong.
 
 function home(files = {}) {
   const directory = mkdtempSync(path.join(tmpdir(), 'link-'))
@@ -78,7 +86,7 @@ test('a forwarder pins no version, which is the whole point of it', () => {
   }
 })
 
-test('a forwarder reports a missing plugin and still exits 0', () => {
+test('a forwarder reports a missing plugin and still exits 0', { skip: process.platform === 'win32' }, () => {
   // The harness failing to run is never a finding about the user's file. A
   // non-zero here would make a project's own gate fail because a tool is
   // absent, which is the block this harness spent a release removing.
@@ -103,7 +111,7 @@ test('the Windows forwarder uses CRLF and resolves the bare name through PATHEXT
   assert.match(text, /%USERPROFILE%/)
 })
 
-test('a real forwarder resolves and runs the gate it names', () => {
+test('a real forwarder resolves and runs the gate it names', { skip: process.platform === 'win32' }, () => {
   const directory = home()
   const script = path.join(directory, 'adr-lint')
   writeFileSync(script, forwarderScript('adr-lint', directory))
@@ -332,6 +340,109 @@ test('nothing to keep is not an error', () => {
       to: path.join(directory, 'absent'), relative: 'absent',
     }, 'stamp', directory), null)
   } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a copy of any released version is recognised, not only the newest', () => {
+  // The reason lineage matching exists at all: a standalone set installed months
+  // ago matches a version still in the cache long after it stopped being current.
+  const directory = home()
+  const cache = cacheDirectory(directory)
+  mkdirSync(path.join(cache, '1.2.3', 'bin'), { recursive: true })
+  writeFileSync(path.join(cache, '1.2.3', 'bin', 'adr-lint'), 'an old release\n')
+  try {
+    const digests = knownDigests(path.join('bin', 'adr-lint'), directory)
+    assert.equal(digests.size, 1)
+    assert.equal(knownDigests(path.join('bin', 'absent-everywhere'), directory).size, 0)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a Windows shim is recognised whether it is a forwarder or the copy it replaces', () => {
+  const directory = home({
+    'ours': `@echo off\r\nrem ${FORWARDER_MARK}\r\n`,
+    'copied': '@echo off\r\nwhere /q py && (py -3 "%~dp0adr-lint" %*)\r\n',
+    'theirs': '@echo off\r\necho something else entirely\r\n',
+  })
+  try {
+    assert.ok(sameLineage(path.join(directory, 'ours'), '', 'shim'))
+    assert.ok(sameLineage(path.join(directory, 'copied'), '', 'shim'))
+    assert.ok(!sameLineage(path.join(directory, 'theirs'), '', 'shim'))
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a template is recognised by its title, which survives edits to the body', () => {
+  const directory = home({
+    'drifted': '# ADR-NNN: <Verb + noun title>\n\nan older body entirely\n',
+    'foreign': '# My own notes\n\nnothing to do with this plugin\n',
+  })
+  const source = path.join(root, 'templates', 'adr-template.md')
+  try {
+    assert.ok(sameLineage(path.join(directory, 'drifted'), source, 'template'))
+    assert.ok(!sameLineage(path.join(directory, 'foreign'), source, 'template'))
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a directory where a file belongs is reported, not clobbered', () => {
+  // Someone made the home templates entry a directory. Whatever that
+  // is, it is not the file this plugin installed, and removing it recursively
+  // to put a symlink there is exactly the kind of write this refuses.
+  const directory = home({ '.claude/templates/adr-template.md/inside': 'a file within\n' })
+  try {
+    const entry = linkPlan(root, directory)
+      .find(e => e.to.endsWith(`templates${path.sep}adr-template.md`))
+    assert.equal(entry.state, 'skipped')
+    assert.match(entry.why, /directory where a file belongs/)
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a link left pointing at an older version is repointed', () => {
+  const directory = home()
+  const old = path.join(cacheDirectory(directory), '1.0.0', 'skills', 'adr-write')
+  mkdirSync(old, { recursive: true })
+  mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
+  symlinkSync(old, path.join(directory, '.claude', 'skills', 'adr-write'), 'dir')
+  try {
+    const entry = linkPlan(root, directory).find(e => e.to.endsWith(`skills${path.sep}adr-write`))
+    assert.equal(entry.state, 'repointed')
+    // And a link already on target reads as current — the tool has to recognise
+    // its own work, including when the source is a checkout rather than a cache.
+    write(entry, null, directory)
+    assert.equal(linkPlan(root, directory)
+      .find(e => e.to.endsWith(`skills${path.sep}adr-write`)).state, 'current')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('the Windows copy fallback writes the file, not a broken link', () => {
+  const directory = home()
+  try {
+    const entry = linkPlan(root, directory, 'win32')
+      .find(e => e.to.endsWith(`templates${path.sep}adr-template.md`))
+    write(entry, null, directory)
+    assert.ok(!lstatSync(entry.to).isSymbolicLink())
+    assert.equal(readFileSync(entry.to, 'utf8'), readFileSync(entry.target, 'utf8'))
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a plugin with no gates yields no forwarders rather than throwing', () => {
+  const empty = home()
+  const directory = home()
+  try {
+    assert.deepEqual(linkPlan(empty, directory).filter(e => e.lineage === 'gate'), [])
+  } finally {
+    rmSync(empty, { recursive: true, force: true })
     rmSync(directory, { recursive: true, force: true })
   }
 })

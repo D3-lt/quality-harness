@@ -10,8 +10,13 @@
 // a script rather than a habit:
 //
 //   * An interrupted run leaves the source mutated. It happened, and the working
-//     tree carried a broken gate until it was noticed. Every path here restores,
-//     including on SIGINT.
+//     tree carried a broken gate until it was noticed. The ON-DISK JOURNAL is
+//     what protects you, and it is the only thing that does: this campaign is
+//     one long SYNCHRONOUS loop, so Node never reaches the event loop and the
+//     SIGINT and SIGTERM handlers below cannot run while it is working.
+//     Measured 2026-08-27 — SIGTERM was sent twice and the run carried on
+//     through several more mutations. The handlers are kept because they fire
+//     if the process is ever idle; the guarantee is the file.
 //   * A mutation can HANG rather than fail. Removing path_stack's relative_to
 //     guard makes an upward walk never terminate, because Path("/").parent is
 //     Path("/"). A hang is not a pass and not an ordinary failure — it gets its
@@ -42,11 +47,6 @@ if (listOnly) {
   for (const m of selected) console.log(`${m.label}\n  ${m.file} -> ${m.tests.join(', ')}`)
   process.exit(0)
 }
-if (selected.length === 0) {
-  process.stderr.write(`no mutation matches ${filter}\n`)
-  process.exit(1)
-}
-
 // A mutation left applied is worse than a mutation not run.
 //
 // In-process handlers are not enough, and this script proved it on its own first
@@ -140,6 +140,15 @@ process.on('exit', () => { recover() })
 // first and quietly repaired the thing under test.
 if (!claimTheRun()) process.exit(2)
 recover()
+// AFTER the repair, not before. `--case` with no match used to exit here-ish and
+// leave a killed run's mutation applied — the same class of bug as recover()
+// running before claimTheRun(), which was fixed on 2026-08-26 as a single
+// instance. One early exit was fixed; the class of early exits was not audited.
+// Every path that a campaign can take now repairs before it can refuse.
+if (selected.length === 0) {
+  process.stderr.write(`no mutation matches ${filter}\n`)
+  process.exit(1)
+}
 const dirty = dirtyTargets()
 if (dirty.length && !argv.includes('--force')) {
   process.stderr.write(`mutate: ${dirty.join(', ')} ${dirty.length === 1 ? 'has' : 'have'} `

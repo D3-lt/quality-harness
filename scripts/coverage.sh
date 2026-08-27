@@ -65,6 +65,17 @@ js_status=${js_status:-0}
 sed -n '/start of coverage report/,/end of coverage report/p' "$WORK/js.log" \
   | grep -Ev '^ℹ -+$' || true
 if [ "$js_status" -ne 0 ]; then
+  # `node --test` exits non-zero for a FAILING TEST and for a breached floor
+  # alike, and this used to report both as the floor. On 2026-08-27 a forbidden
+  # path in a new test comment was announced as "coverage is below the floor",
+  # and the numbers printed above it were all above their floors — so the report
+  # contradicted itself and the real failure was named nowhere. A gate that
+  # misnames what broke sends people to fix the wrong thing.
+  if grep -q '^✖ failing tests:' "$WORK/js.log"; then
+    printf '\nFAIL — a JavaScript test failed, so coverage was not judged.\n'
+    sed -n '/^✖ failing tests:/,$p' "$WORK/js.log" | head -40
+    exit 1
+  fi
   printf '\nFAIL — JavaScript coverage is below the floor (lines %s / branches %s / functions %s).\n' \
     "$JS_LINES" "$JS_BRANCHES" "$JS_FUNCTIONS"
   printf 'Add a test for the uncovered lines listed above, or lower the floor deliberately.\n'

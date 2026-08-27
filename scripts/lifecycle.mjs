@@ -2412,13 +2412,18 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   }
   if (!stale.length) return ''
   const shown = stale.slice(0, 4).join(', ')
-  return `Heads up: a second copy of this toolkit is installed outside the plugin and has drifted `
-    + `from it — ${shown}${stale.length > 4 ? `, +${stale.length - 4} more` : ''}. `
-    + 'The plugin updates its own copies and never touches those. If a gate rejects something '
-    + 'adr-verify just wrote, a hook disagrees with the same tool run by hand, or a record you '
-    + 'authored from a template is missing headers the gates require, an old copy is answering: '
-    + 'compare against '
-    + `\`${path.join(pluginRoot, 'bin')}\`, and delete or refresh the standalone one.`
+  // Lead with the plugin being current. The first version opened with "a second
+  // copy has drifted", and the owner read that on 2026-08-27 as "the plugin is
+  // behind" — after updating and restarting twice. A notice that sends someone
+  // to re-update the thing that is already correct is worse than silence.
+  return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `
+    + `your home directory, which the plugin never updates — ${shown}`
+    + `${stale.length > 4 ? `, +${stale.length - 4} more` : ''}. `
+    + 'That copy wins whenever a gate is invoked by bare name, because its directory is on PATH '
+    + 'and the plugin cache is not. So if a gate rejects something adr-verify just wrote, a hook '
+    + 'disagrees with the same tool run by hand, or a record you authored from a template is '
+    + 'missing headers the gates require, the old copy is answering: compare against '
+    + `\`${path.join(pluginRoot, 'bin')}\`.`
 }
 
 // The plugin that is RUNNING is not always the newest one installed. Claude Code
@@ -2484,8 +2489,10 @@ export function sessionOrientation(cwd) {
   if (check || ready.length || hasDecisionCorpus(root)) {
     const shadow = shadowInstallNotice()
     if (shadow) {
-      lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports what `
-        + 'differs; `--apply` copies this plugin over the standalone set.')
+      lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports `
+        + 'what differs. `--apply` copies over it, which is the fix you have to remember again '
+        + 'next release; `--link` replaces each gate with a forwarder that resolves the newest '
+        + 'installed plugin at call time, which you never have to run twice.')
     }
   }
 

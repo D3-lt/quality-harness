@@ -38,6 +38,19 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const catalogue = JSON.parse(readFileSync(path.join(root, 'tests', 'mutations.json'), 'utf8'))
 
 const argv = process.argv.slice(2)
+// An unknown option used to be ignored in silence, and the run it produced looked
+// exactly like the run that was asked for. Measured 2026-08-27: `--filter 'sync:'`
+// — the flag is `--case` — selected nothing, so the filter stayed null and all
+// 181 mutations ran for twenty minutes while the caller waited on three. Every
+// gate in this project names the offending option; this is the one place that
+// did not.
+const KNOWN = new Set(['--case', '--list', '--force'])
+const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
+if (unknown.length) {
+  process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
+    + 'usage: mutate.mjs [--case <substring of a label>] [--list] [--force]\n')
+  process.exit(2)
+}
 const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
 const listOnly = argv.includes('--list')
 const timeoutMs = 180_000

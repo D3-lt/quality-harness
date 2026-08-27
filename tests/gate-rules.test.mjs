@@ -663,6 +663,28 @@ test('every adr-judge rule has a case that makes it fire, and a record that pass
   assert.equal(run('adr-judge', [join(dir, 'absent.md')]).status, 2)
 })
 
+test('the mutation runner names an option it does not know, instead of running everything', () => {
+  // Silently ignoring one selected nothing, so the filter stayed null and every
+  // mutation in the catalogue ran — twenty minutes of campaign for a caller who
+  // asked for three, with output that looked exactly like what was requested.
+  // Measured 2026-08-27 with `--filter`, which is spelled `--case`.
+  const runner = join(root, 'scripts', 'mutate.mjs')
+  const isolated = join(mkdtempSync(join(os.tmpdir(), 'qh-mutate-flag-')), 'lock')
+  const call = args => spawnSync(process.execPath, [runner, ...args],
+    { cwd: root, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: isolated }, encoding: 'utf8', timeout: 60_000 })
+
+  const wrong = call(['--filter', 'sync:'])
+  assert.equal(wrong.status, 2, wrong.stdout + wrong.stderr)
+  assert.match(wrong.stderr, /unknown option: --filter/)
+  // And it must say what IS accepted, or the next guess is as blind as the first.
+  assert.match(wrong.stderr, /--case/)
+
+  // The flags it does know still work: --list selects and exits without running.
+  const listed = call(['--case', 'mktemp -d is a temp', '--list'])
+  assert.equal(listed.status, 0, listed.stdout + listed.stderr)
+  assert.match(listed.stdout, /mktemp -d is a temp/)
+})
+
 test('the mutation runner refuses to run over an editor, or beside another runner', () => {
   // This rewrites real source and restores it from a journal. Twice on
   // 2026-08-26 a patch written while a run was in flight was silently rolled

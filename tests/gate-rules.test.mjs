@@ -270,11 +270,19 @@ test('the verification wrapper reports what the command it ran actually did', ()
   // this branch the wrapper reports `code ?? 1` for a process that never exited
   // normally, and a run killed on its time budget would read as an ordinary
   // failure — the distinction adr-verify's whole verdict taxonomy rests on.
-  const killed = call('--cwd', root, '--', process.execPath, '-e',
-    'process.kill(process.pid, "SIGKILL")')
-  assert.equal(killed.status, 1, killed.stderr)
-  assert.match(killed.stderr, /terminated by SIGKILL/,
-    'the signal must be named; "exit 1" alone loses why')
+  //
+  // POSIX only, and skipped rather than adapted: Windows has no signals, Node
+  // emulates a kill with TerminateProcess, and the child reports an exit CODE.
+  // So `signal` is null there and this branch is genuinely unreachable — the
+  // same fact that already skips the SIGTERM case in tests/evidence-chain.test.mjs,
+  // learned the same evening and not carried across until CI said so.
+  if (process.platform !== 'win32') {
+    const killed = call('--cwd', root, '--', process.execPath, '-e',
+      'process.kill(process.pid, "SIGKILL")')
+    assert.equal(killed.status, 1, killed.stderr)
+    assert.match(killed.stderr, /terminated by SIGKILL/,
+      'the signal must be named; "exit 1" alone loses why')
+  }
 })
 
 // --- adr-retire-check: the row rules that guard a frozen record --------------

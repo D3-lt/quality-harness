@@ -1804,7 +1804,7 @@
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
-      "from": "  return String(value).split('\\\\\\\\').join('/')",
+      "from": "  return String(value).split('\\\\').join('/')",
       "to": "  return String(value)"
     }
   ]

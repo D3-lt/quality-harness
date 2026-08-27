@@ -6,6 +6,11 @@ user-invocable: false
 
 # Quality Policy
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 Apply this policy in the main coordinating session. `/quality-harness:work` owns lifecycle classification; this
 skill supplies the invariant and selects the least expensive quality depth that fits the risk.
 

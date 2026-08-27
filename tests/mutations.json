@@ -1518,6 +1518,51 @@
       ],
       "from": "Members you deliberately leave out are part of the decision: name them and say",
       "to": "Members are"
+    },
+    {
+      "label": "qh-root: versions are ordered numerically, not lexically",
+      "file": "bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    return max(candidates)[1]",
+      "to": "    return sorted(candidates, key=lambda c: str(c[1]))[-1][1]"
+    },
+    {
+      "label": "qh-root: a version directory with no gates is not a candidate",
+      "file": "bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if found and (entry / \"bin\").is_dir():",
+      "to": "        if found:"
+    },
+    {
+      "label": "qh-root: a failed lookup prints no path at all",
+      "file": "bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if root is None:",
+      "to": "    if False:"
+    },
+    {
+      "label": "skills: a skill naming the plugin root says how to resolve it",
+      "file": "skills/adr-write/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it.",
+      "to": "Paths below use it."
+    },
+    {
+      "label": "skills: the way out of an unsubstituted plugin root is a command",
+      "file": "skills/work/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "Run `qh-root` and use what it prints in place of it.",
+      "to": "Go and look for it."
     }
   ]
 }

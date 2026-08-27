@@ -220,11 +220,15 @@ test('an alternative whose reason wraps is read whole, not judged on its first l
   // neither; both were "fixed" by moving words onto line one, which is an author
   // reshaping prose to suit a parser. A gate with false alarms is one people
   // learn to skip, and then it protects nothing.
+  // The first line must carry NEITHER a rejection word NOR three words after its
+  // separator, or E2 stays quiet with the bug restored and this test cannot see
+  // its own mechanism. The first version of this fixture had `:** raised in`
+  // after the colon — three words — and mutation `judge: a wrapped alternative
+  // is read whole` reported GREEN.
   const wrapped = judge({
-    alternatives: '- **Clean up the orphaned children a killed run leaves behind:** raised in\n'
-      + '  the same report, alongside stranded containers and a network.\n'
-      + '  Rejected because a process cannot clean up from inside the kill that is\n'
-      + '  destroying it.',
+    alternatives: '- **Kafka:**\n'
+      + '  rejected because we already run Postgres and one more broker is one more\n'
+      + '  thing to operate at 3am.',
   })
   assert.ok(!wrapped.fired.includes('E2'),
     `a wrapped rejection is a rejection; fired ${wrapped.fired.join(', ')}`)

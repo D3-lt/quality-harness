@@ -167,6 +167,24 @@ When dispatching a subagent, the prompt must enforce:
 - **Output cap:** 400 words. Over budget = truncate and mark `blocked`.
 - **No speculation.** If ambiguous, return `blocked` with the question.
 
+## Audit the class, not the instance
+
+A fix that lands is one member of a set, and the Verification Log proves only the
+member. Before recording a task done:
+
+1. **Name the class the fix belongs to** — the property that made this code
+   wrong, stated so it can be searched for.
+2. **Enumerate the siblings with a command**, not from memory. If the fix was
+   "this regex crossed a newline", grep every regex in the file. If it was "this
+   early exit skipped recovery", find every early exit.
+3. **Put the sweep in the task's evidence**: the command, and what it returned.
+   A sweep that found nothing is worth recording; a sweep nobody ran is not the
+   same thing and must not read like one.
+
+Siblings you leave for later are new tasks, named in the record. They are not
+noticing-and-moving-on, which is how the same defect gets fixed four times as if
+it were new.
+
 ## Ordering Rules
 
 Behavior depends on task count:

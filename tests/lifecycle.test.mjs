@@ -2137,12 +2137,15 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /bin[\\/]adr-lint/,
     'a forwarder is current by construction and is not drift')
 
-  // Same for a symlink, which points at the plugin and cannot be behind it.
+  // A symlink needs no special case: the digest reads THROUGH it, so a link on
+  // the current plugin matches and stays silent, and one left on an older
+  // version really is behind and is worth saying. Giving links a blanket pass
+  // suppressed the second case, and a mutation removing that pass stayed green.
   await mkdir(path.join(home, '.claude', 'skills'), { recursive: true })
   await symlink(path.join(pluginDir, 'skills', 'execution'),
     path.join(home, '.claude', 'skills', 'execution'))
   assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /skills[\\/]execution/,
-    'a link points at the plugin and cannot be behind it')
+    'a link on the current plugin is not drift')
 
   // A hook under the home directory can only answer if the user's own settings
   // name it: this plugin wires its hooks through CLAUDE_PLUGIN_ROOT and never

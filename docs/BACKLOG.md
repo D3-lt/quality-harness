@@ -42,12 +42,30 @@ Three findings:
   absence. Every Δ this case has produced, in either direction, has been noise around a prompt that
   never touched the thing it claims to measure.
 
-  What the ten runs DO show is a real gap, and a more useful one: a model asked "the gate reported
-  this, am I blocked?" — the single most common question this harness's users actually ask — does
-  not distinguish a content finding from a form finding, with or without the plugin loaded, and
-  **no shipped skill's description claims that question**. That is a Trigger failure, not the
-  Compliance failure recorded below. Fixing it means a skill that fires here, not a re-worded
-  paragraph inside one that does not.
+  **Cause found the same day, and it is worse than either reading above.** Every one of the thirteen
+  kept runs ended `error_max_turns` at 7 turns against the case's `max_turns: 6`. **No run ever
+  produced an answer.** The sandbox is empty, so the model spends all six turns hunting for
+  `docs/adr/ADR-014-cache-keys.md` — `ls`, `find`, `Grep`, and in several runs reaching into the
+  real installed plugin cache — and is cut off before it says anything.
+
+  That is the whole 0.60, and it is arithmetic rather than behaviour:
+
+  - `does-not-halt` (weight 3) **passes because there is no answer.** A truncated response never
+    tells the user they must stop, so the BOUNDARY grader the case exists for passes by producing
+    nothing.
+  - `reads-the-severity` (weight 2) fails because there is nothing to read.
+  - 3/5 = 0.60, deterministically, which is why all ten runs scored identically. A genuinely scored
+    case would vary.
+
+  So the earlier inference in this bullet — that no skill claims the "am I blocked?" question — is
+  **not supported by these runs either**, and is withdrawn with the rest. The model never reaches
+  the point of answering, so nothing can be concluded about what it would invoke. It may still be
+  true; this case cannot say.
+
+  The defect is a control that refuses nobody, in the measuring instrument: a boundary grader that
+  passes on silence, scoring a run that timed out. Two things have to change together — the case
+  must be answerable without a corpus to hunt for, and `does-not-halt` must require a positive
+  statement rather than the absence of a negative one.
 
   The original finding, left below for the record it corrects:
 
@@ -1067,6 +1085,54 @@ rediscover the class.
 The general rule, which is the part worth keeping: **a module with a CLI half must not run it on
 import**, and the test for that has to spawn rather than import, because the failure being tested
 is the test process dying.
+
+## 28. Complexity as a conversation trigger, if anywhere
+
+**Deferred here by ADR-003** (`docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md`, Out of Scope
+and Alternatives).
+
+ADR-003 forbids shipping a complexity GATE, and gives the reason: the metric counts branches per
+function, so splitting one twenty-branch function into five four-branch ones turns it green with the
+total branching unchanged. What it does not settle is the softer form the owner named — *"this
+function crossed 15, come look"* — which is information rather than a verdict and cannot be gamed by
+splitting, because nobody is being refused.
+
+Two things stand in the way, and neither is fatal:
+
+1. **Scope.** Every gate this plugin ships judges records and evidence. A complexity advisory would
+   be the first to judge the user's own source, which the standing rule keeps project-scoped. The
+   projects already have better instruments — `zeus` carries `clippy::cognitive_complexity`, the
+   Laravel stacks carry phpstan.
+2. **Prose is the weak instrument.** An advisory nobody is gated on is exactly the kind of output
+   this session measured as producing Δ 0.00, and the `gates-advise-never-block` traces showed skill
+   text never reaching the answer at all.
+
+If it is ever built, the shape that fits the harness is not a new gate but a line in an EXISTING
+report — the same place the session notice already says what changed — and it should carry the
+number, the threshold, and nothing resembling a verdict.
+
+## 29. adr-judge reads a multi-line bullet as its first line only
+
+Found 2026-08-27 while authoring ADR-003, twice in one session.
+
+`bullets()` in `bin/adr-judge` keeps only lines matching `^\s*(?:[-*]|\d+\.)\s+\S`, so a bullet
+whose reasoning wraps is judged on its FIRST LINE alone; every continuation line is discarded before
+the E2 rejection check ever runs. An alternative that states its rejection perfectly well on line
+three reports as "gives no reason it was not chosen".
+
+It fired on two well-formed alternatives in ADR-002 and ADR-003 and was correct about neither. Both
+were "fixed" by moving words onto line one, which is the author reshaping prose to suit a parser —
+the opposite of what a judge is for.
+
+This is a false alarm in a gate, and this repository's own rule is that a gate with false alarms is
+one people learn to skip, after which it protects nothing. Not fixed here because `adr-judge` is a
+shipped gate and changing what it accepts is a contract change deserving its own record: joining the
+continuation lines before splitting would widen what passes, and that needs checking against every
+existing corpus (`zeus` has 171 records) rather than against this one.
+
+The narrow shape of the fix, for whoever takes it: join a bullet with the indented lines that follow
+it before applying `REJECTION` and `ALTERNATIVE_CLAUSE`, then re-run against a real corpus and
+confirm nothing that used to fail now passes for the wrong reason.
 
 ## Verification claims worth re-running after any of the above
 

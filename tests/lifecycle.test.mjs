@@ -2641,9 +2641,16 @@ test('importing the router does not end the process that imported it', async () 
   //
   // Spawned rather than imported here: an in-process import cannot observe the
   // failure it is about, because the failure is this process dying.
+  // Two calls, because there are two contracts. Importing must be inert; and
+  // `main` — now an export — must RETURN a code rather than take the caller's
+  // process with it, which is what the CLI guard cannot protect anyone from.
   const probe = `
     import('${pathToFileURL(path.join(pluginDir, 'scripts', 'work-next.mjs')).href}')
-      .then(m => { process.stdout.write('ALIVE ' + Object.keys(m).sort().join(',')) })
+      .then(m => {
+        process.stdout.write('ALIVE ' + Object.keys(m).sort().join(','))
+        const code = m.main([${JSON.stringify(pluginDir)}])
+        process.stdout.write(' RETURNED:' + code)
+      })
       .catch(e => { process.stdout.write('REJECTED ' + e.message) })
   `
   // The unknown flag is the point: it is what the module used to read as its own.
@@ -2652,6 +2659,16 @@ test('importing the router does not end the process that imported it', async () 
   assert.equal(run.status, 0, `importer died: ${run.stdout}${run.stderr}`)
   assert.match(run.stdout, /ALIVE/, 'the import never returned; the module took the process with it')
   assert.match(run.stdout, /main/, 'the CLI half must be reachable as an export, not only as a side effect')
+  // Two SEPARATE properties, and asserting only the first is how the guard went
+  // unprotected: converting `process.exit(0)` to `return 0` is what stops the
+  // process dying, and the guard is what stops the CLI running at all. A mutation
+  // removing the guard left the suite green because the surviving assertions were
+  // about the other half. So: importing must also produce NO report.
+  const beforeCall = run.stdout.split('ALIVE')[0]
+  assert.doesNotMatch(beforeCall, /record\(s\),/,
+    'importing printed the corpus report: the CLI half ran on import')
+  assert.match(run.stdout, /RETURNED:0/,
+    'main() did not return: an exported function that exits kills whoever calls it')
 })
 
 test('the lifecycle router reads corpus state, and says so when it cannot', async () => {

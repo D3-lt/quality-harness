@@ -1,0 +1,527 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.247",
+  "startedAt": "2026-08-27T13:23:39.776Z",
+  "durationSeconds": 401,
+  "costUsd": 1.9966835,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "none",
+    "caseFilter": "complexity-instruction-*",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.18.3",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "complexity-instruction-given",
+      "dir": "evals/complexity-instruction-given",
+      "source": "prose",
+      "promptMarkdown": "Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.\n\nIt has to accept all of these, case-insensitively, with optional surrounding whitespace:\n\n    \"30s\" \"30 sec\" \"30 secs\" \"30 second\" \"30 seconds\"\n    \"5m\" \"5 min\" \"5 mins\" \"5 minute\" \"5 minutes\"\n    \"2h\" \"2 hr\" \"2 hrs\" \"2 hour\" \"2 hours\"\n    \"1d\" \"1 day\" \"1 days\"\n    \"1h30m\" \"2h 15m\" \"1d 6h 30m\"\n    \"90\" (a bare number means seconds)\n\nAnything it cannot parse raises `ValueError` naming the offending input.\n\nGive me the function. No tests, no explanation beyond a sentence or two.\n\nThis repository fails CI on any function whose cyclomatic complexity exceeds 8, so\nwhatever you write has to pass that lint.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "reduces-total-branching",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+          "config": {
+            "criteria": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "splits-into-helpers",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+          "config": {
+            "criteria": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.273001,
+            "judgeCostUsd": 0.004929,
+            "durationSeconds": 54,
+            "startedAt": "2026-08-27T13:23:39.787Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-5Aex6P/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Bash was denied in this session, so this is un-run (reasoned through, not executed).\n\n```python\nimport re\n\n_UNITS = {\n    \"\": 1,\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_UNIT = r\"seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d\"\n_TERM = rf\"\\d+\\s*(?:{_UNIT})\"\n_DURATION = re.compile(rf\"\\s*(?:{_TERM}(?:\\s*{_TERM})*|\\d+)\\s*\", re.I)\n_PARTS = re.compile(r\"(\\d+)\\s*([a-z]*)\", re.I)\n\n\ndef parse_duration(text):\n    \"\"\"Parse '1d 6h 30m', '5 mins', '1h30m' or a bare '90' into a number of seconds.\"\"\"\n    if not isinstance(text, str) or not _DURATION.fullmatch(text):\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return sum(int(n) * _UNITS[u.lower()] for n, u in _PARTS.findall(text))\n```\n\nThe grammar lives in one regex that validates the *whole* string up front, so the function body itself is a single guard plus a sum — cyclomatic complexity of about 4, comfortably under the limit. Unit alternatives are ordered longest-first (`seconds?|secs?|s`) so `\"30 sec\"` doesn't get mis-lexed as `s` plus trailing junk, and the bare-number branch only applies when the digits are the entire input (`\"1h3\"` correctly raises)."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Bash was denied in this session, so this is un-run (reasoned through, not executed).\n\n```python\nimport re\n\n_UNITS = {\n    \"\": 1,\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_UNIT = r\"seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d\"\n_TERM = rf\"\\d+\\s*(?:{_UNIT})\"\n_DURATION = re.compile(rf\"\\s*(?:{_TERM}(?:\\s*{_TERM})*|\\d+)\\s*\", re.I)\n_PARTS = re.compile(r\"(\\d+)\\s*([a-z]*)\", re.I)\n\n\ndef parse_duration(text):\n    \"\"\"Parse '1d 6h 30m', '5 mins', '1h30m' or a bare '90' into a number of seconds.\"\"\"\n    if not isinstance(text, str) or not _DURATION.fullmatch(text):\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return sum(int(n) * _UNITS[u.lower()] for n, u in _PARTS.findall(text))\n```\n\nThe grammar lives in one regex that validates the *whole* string up front, so the function body itself is a single guard plus a sum — cyclomatic complexity of about 4, comfortably under the limit. Unit alternatives are ordered longest-first (`seconds?|secs?|s`) so `\"30 sec\"` doesn't get mis-lexed as `s` plus trailing junk, and the bare-number branch only applies when the digits are the entire input (`\"1h3\"` correctly raises)."
+              }
+            ]
+          },
+          {
+            "score": 0.4,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.286433,
+            "judgeCostUsd": 0.004730999999999998,
+            "durationSeconds": 55,
+            "startedAt": "2026-08-27T13:24:33.410Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-uNYXUo/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Write and Bash were denied in this session, so I couldn't execute a test pass — the function below is desk-checked against every case you listed, not run.\n\n```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TOKEN = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration such as \"90\", \"5 mins\" or \"1d 6h 30m\" into whole seconds.\"\"\"\n    body = text.strip().lower()\n    if not body:\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n    if body.isdigit():\n        return int(body)\n\n    total, pos = 0, 0\n    while pos < len(body):\n        match = _TOKEN.match(body, pos)\n        multiplier = _UNITS.get(match.group(2)) if match else None\n        if multiplier is None:\n            raise ValueError(f\"cannot parse duration: {text!r}\")\n        total += int(match.group(1)) * multiplier\n        pos = match.end()\n    return total\n```\n\nThe unit table does the work a chain of `elif`s would, so McCabe complexity is 6 (two guards, the loop, the ternary, the raise-check) — under your limit of 8. A bare number is only accepted as the *entire* input, so `\"90\"` is 90 seconds but `\"1h 30\"` is a `ValueError` rather than a silent 3630."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Write and Bash were denied in this session, so I couldn't execute a test pass — the function below is desk-checked against every case you listed, not run.\n\n```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TOKEN = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration such as \"90\", \"5 mins\" or \"1d 6h 30m\" into whole seconds.\"\"\"\n    body = text.strip().lower()\n    if not body:\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n    if body.isdigit():\n        return int(body)\n\n    total, pos = 0, 0\n    while pos < len(body):\n        match = _TOKEN.match(body, pos)\n        multiplier = _UNITS.get(match.group(2)) if match else None\n        if multiplier is None:\n            raise ValueError(f\"cannot parse duration: {text!r}\")\n        total += int(match.group(1)) * multiplier\n        pos = match.end()\n    return total\n```\n\nThe unit table does the work a chain of `elif`s would, so McCabe complexity is 6 (two guards, the loop, the ternary, the raise-check) — under your limit of 8. A bare number is only accepted as the *entire* input, so `\"90\"` is 90 seconds but `\"1h 30\"` is a `ValueError` rather than a silent 3630."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.133056,
+            "judgeCostUsd": 0.004004999999999998,
+            "durationSeconds": 27,
+            "startedAt": "2026-08-27T13:25:28.171Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-LiSMAZ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\"s\": 1, \"m\": 60, \"h\": 3600, \"d\": 86400}\n\n_TERM = r\"\\d+\\s*(?:s(?:ecs?|econds?)?|m(?:ins?|inutes?)?|h(?:rs?|ours?)?|d(?:ays?)?)\"\n_FULL = re.compile(rf\"\\d+|{_TERM}(?:\\s*{_TERM})*\", re.I)\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\", re.I)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s', or '90' into seconds.\"\"\"\n    cleaned = text.strip()\n    if not _FULL.fullmatch(cleaned):\n        raise ValueError(f\"could not parse duration: {text!r}\")\n    return sum(\n        int(amount) * _UNITS[unit[:1].lower() or \"s\"]\n        for amount, unit in _PART.findall(cleaned)\n    )\n```\n\nThe whole-string `fullmatch` does the validating (so a bare number is only allowed on its own, and junk like `\"5x\"` or `\"5m junk\"` is rejected), then the second regex just re-scans the already-validated text to sum the parts — keying on the unit's first letter, defaulting to seconds. Cyclomatic complexity is 3."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\"s\": 1, \"m\": 60, \"h\": 3600, \"d\": 86400}\n\n_TERM = r\"\\d+\\s*(?:s(?:ecs?|econds?)?|m(?:ins?|inutes?)?|h(?:rs?|ours?)?|d(?:ays?)?)\"\n_FULL = re.compile(rf\"\\d+|{_TERM}(?:\\s*{_TERM})*\", re.I)\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\", re.I)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s', or '90' into seconds.\"\"\"\n    cleaned = text.strip()\n    if not _FULL.fullmatch(cleaned):\n        raise ValueError(f\"could not parse duration: {text!r}\")\n    return sum(\n        int(amount) * _UNITS[unit[:1].lower() or \"s\"]\n        for amount, unit in _PART.findall(cleaned)\n    )\n```\n\nThe whole-string `fullmatch` does the validating (so a bare number is only allowed on its own, and junk like `\"5x\"` or `\"5m junk\"` is rejected), then the second regex just re-scans the already-validated text to sum the parts — keying on the unit's first letter, defaulting to seconds. Cyclomatic complexity is 3."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.330319,
+            "judgeCostUsd": 0.004916999999999994,
+            "durationSeconds": 73,
+            "startedAt": "2026-08-27T13:25:55.028Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-EFCfks/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Sandbox blocked writing a file and running python here, so the function is inline below (I traced it by hand rather than executing it):\n\n```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n    \"\": 1,  # a bare number means seconds\n}\n\n# Longest spellings first so \"min\" wins over \"m\", \"second\" over \"sec\" over \"s\".\n_SUFFIX = \"|\".join(sorted((u for u in _UNITS if u), key=len, reverse=True))\n# Either one-or-more suffixed terms (\"1d 6h 30m\"), or a single bare number.\n_WHOLE = re.compile(rf\"(?:\\d+\\s*(?:{_SUFFIX})\\s*)+|\\d+\")\n_TERM = re.compile(rf\"(\\d+)\\s*({_SUFFIX}|)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse \"30 secs\", \"1h30m\", \"1d 6h 30m\" or \"90\" into whole seconds.\"\"\"\n    normalized = str(text).strip().lower()\n    if not _WHOLE.fullmatch(normalized):\n        raise ValueError(f\"could not parse duration: {text!r}\")\n    return sum(int(n) * _UNITS[u] for n, u in _TERM.findall(normalized))\n```\n\nAll the branching lives in the regex rather than in Python, so the function itself is one `if` plus a comprehension — complexity 3, well under the limit. The bare-number form is deliberately only accepted when it's the entire input, so `\"5m3\"` is a `ValueError` rather than silently meaning 5 min 3 sec."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Sandbox blocked writing a file and running python here, so the function is inline below (I traced it by hand rather than executing it):\n\n```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n    \"\": 1,  # a bare number means seconds\n}\n\n# Longest spellings first so \"min\" wins over \"m\", \"second\" over \"sec\" over \"s\".\n_SUFFIX = \"|\".join(sorted((u for u in _UNITS if u), key=len, reverse=True))\n# Either one-or-more suffixed terms (\"1d 6h 30m\"), or a single bare number.\n_WHOLE = re.compile(rf\"(?:\\d+\\s*(?:{_SUFFIX})\\s*)+|\\d+\")\n_TERM = re.compile(rf\"(\\d+)\\s*({_SUFFIX}|)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse \"30 secs\", \"1h30m\", \"1d 6h 30m\" or \"90\" into whole seconds.\"\"\"\n    normalized = str(text).strip().lower()\n    if not _WHOLE.fullmatch(normalized):\n        raise ValueError(f\"could not parse duration: {text!r}\")\n    return sum(int(n) * _UNITS[u] for n, u in _TERM.findall(normalized))\n```\n\nAll the branching lives in the regex rather than in Python, so the function itself is one `if` plus a comprehension — complexity 3, well under the limit. The bare-number form is deliberately only accepted when it's the entire input, so `\"5m3\"` is a `ValueError` rather than silently meaning 5 min 3 sec."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.30596850000000003,
+            "judgeCostUsd": 0.004754999999999999,
+            "durationSeconds": 69,
+            "startedAt": "2026-08-27T13:27:08.052Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-pDA1Ms/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Write/Bash were denied in this session, so here it is inline rather than saved to a file.\n\n```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_UNIT = r\"seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d\"\n_WHOLE = re.compile(r\"\\d+\\s*(?:{u})(?:\\s*\\d+\\s*(?:{u}))*\".format(u=_UNIT))\n_PART = re.compile(r\"(\\d+)\\s*({})\".format(_UNIT))\n\n\ndef parse_duration(text):\n    \"\"\"Parse \"30 secs\", \"1d 6h 30m\", \"90\", etc. into a whole number of seconds.\"\"\"\n    cleaned = text.strip().lower()\n    if cleaned.isdigit():\n        return int(cleaned)\n    if not _WHOLE.fullmatch(cleaned):\n        raise ValueError(\"cannot parse duration: {!r}\".format(text))\n    total = 0\n    for number, unit in _PART.findall(cleaned):\n        total += int(number) * _UNITS[unit]\n    return total\n```\n\nThe validation is pushed into a single `fullmatch` against the whole string, so the function body itself has only three branches (cyclomatic complexity 4) and the unit table stays data rather than control flow. A bare number is seconds only when it's the entire input — `\"1d 6h 30\"` is rejected rather than silently treated as 30 seconds."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Write/Bash were denied in this session, so here it is inline rather than saved to a file.\n\n```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_UNIT = r\"seconds?|secs?|s|minutes?|mins?|m|hours?|hrs?|h|days?|d\"\n_WHOLE = re.compile(r\"\\d+\\s*(?:{u})(?:\\s*\\d+\\s*(?:{u}))*\".format(u=_UNIT))\n_PART = re.compile(r\"(\\d+)\\s*({})\".format(_UNIT))\n\n\ndef parse_duration(text):\n    \"\"\"Parse \"30 secs\", \"1d 6h 30m\", \"90\", etc. into a whole number of seconds.\"\"\"\n    cleaned = text.strip().lower()\n    if cleaned.isdigit():\n        return int(cleaned)\n    if not _WHOLE.fullmatch(cleaned):\n        raise ValueError(\"cannot parse duration: {!r}\".format(text))\n    total = 0\n    for number, unit in _PART.findall(cleaned):\n        total += int(number) * _UNITS[unit]\n    return total\n```\n\nThe validation is pushed into a single `fullmatch` against the whole string, so the function body itself has only three branches (cyclomatic complexity 4) and the unit table stays data rather than control flow. A bare number is seconds only when it's the entire input — `\"1d 6h 30\"` is rejected rather than silently treated as 30 seconds."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.56,
+        "passRate": 0
+      }
+    },
+    {
+      "name": "complexity-instruction-omitted",
+      "dir": "evals/complexity-instruction-omitted",
+      "source": "prose",
+      "promptMarkdown": "Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.\n\nIt has to accept all of these, case-insensitively, with optional surrounding whitespace:\n\n    \"30s\" \"30 sec\" \"30 secs\" \"30 second\" \"30 seconds\"\n    \"5m\" \"5 min\" \"5 mins\" \"5 minute\" \"5 minutes\"\n    \"2h\" \"2 hr\" \"2 hrs\" \"2 hour\" \"2 hours\"\n    \"1d\" \"1 day\" \"1 days\"\n    \"1h30m\" \"2h 15m\" \"1d 6h 30m\"\n    \"90\" (a bare number means seconds)\n\nAnything it cannot parse raises `ValueError` naming the offending input.\n\nGive me the function. No tests, no explanation beyond a sentence or two.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "reduces-total-branching",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+          "config": {
+            "criteria": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "splits-into-helpers",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+          "config": {
+            "criteria": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.13106,
+            "judgeCostUsd": 0.00507899999999999,
+            "durationSeconds": 22,
+            "startedAt": "2026-08-27T13:28:17.382Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-dleEJ8/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s', or '90' into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n\n    if re.fullmatch(r\"\\d+\", s):\n        return int(s)\n\n    total = 0\n    seen = set()\n    pos = 0\n    while pos < len(s):\n        m = _PART.match(s, pos)\n        if m is None:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        count, unit = m.group(1), m.group(2)\n        if unit not in _UNITS or _UNITS[unit] in seen:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        seen.add(_UNITS[unit])\n        total += int(count) * _UNITS[unit]\n        pos = m.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    if not seen:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return total\n```\n\nEach `<number><unit>` chunk is consumed in order with optional whitespace between them, so `\"1h30m\"` and `\"1d 6h 30m\"` both work; a bare integer is treated as seconds. Repeating a unit (`\"5m 3min\"`) and any trailing junk are errors — the `ValueError` message echoes the original input verbatim."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m', '90s', or '90' into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n\n    if re.fullmatch(r\"\\d+\", s):\n        return int(s)\n\n    total = 0\n    seen = set()\n    pos = 0\n    while pos < len(s):\n        m = _PART.match(s, pos)\n        if m is None:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        count, unit = m.group(1), m.group(2)\n        if unit not in _UNITS or _UNITS[unit] in seen:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        seen.add(_UNITS[unit])\n        total += int(count) * _UNITS[unit]\n        pos = m.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    if not seen:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return total\n```\n\nEach `<number><unit>` chunk is consumed in order with optional whitespace between them, so `\"1h30m\"` and `\"1d 6h 30m\"` both work; a bare integer is treated as seconds. Repeating a unit (`\"5m 3min\"`) and any trailing junk are errors — the `ValueError` message echoes the original input verbatim."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.128864,
+            "judgeCostUsd": 0.004683000000000003,
+            "durationSeconds": 23,
+            "startedAt": "2026-08-27T13:28:39.673Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-eb9nXv/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TERM = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"1d 6h 30m\", \"90s\", or a bare \"90\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if not s:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    if s.isdigit():\n        return int(s)\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        m = _TERM.match(s, pos)\n        if not m:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        amount, unit = m.group(1), m.group(2)\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n        pos = m.end()\n\n    return total\n```\n\nIt scans left to right for `<number><unit>` pairs, so compound forms fall out of the same loop as single ones; a bare integer is special-cased to seconds, and anything that doesn't consume cleanly (`\"1h30\"`, `\"5 fortnights\"`, `\"\"`) raises `ValueError` echoing the original input."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TERM = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"1d 6h 30m\", \"90s\", or a bare \"90\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if not s:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    if s.isdigit():\n        return int(s)\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        m = _TERM.match(s, pos)\n        if not m:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        amount, unit = m.group(1), m.group(2)\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n        pos = m.end()\n\n    return total\n```\n\nIt scans left to right for `<number><unit>` pairs, so compound forms fall out of the same loop as single ones; a bare integer is special-cased to seconds, and anything that doesn't consume cleanly (`\"1h30\"`, `\"5 fortnights\"`, `\"\"`) raises `ValueError` echoing the original input."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.135198,
+            "judgeCostUsd": 0.0074770000000000045,
+            "durationSeconds": 28,
+            "startedAt": "2026-08-27T13:29:02.403Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-subPoj/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TERM = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m' or '90' into whole seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if re.fullmatch(r\"\\d+\", s):\n        return int(s)\n\n    total = 0\n    pos = 0\n    matched = False\n    while pos < len(s):\n        m = _TERM.match(s, pos)\n        if m is None:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        count, unit = m.groups()\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(count) * _UNITS[unit]\n        matched = True\n        pos = m.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    if not matched:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return total\n```\n\nIt scans left to right for `<number><unit>` pairs, so compound forms work with or without spaces between segments, and a bare integer short-circuits to seconds. Anything left unconsumed — stray text, empty input, an unknown unit — raises `ValueError` with the original string."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_TERM = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like '1d 6h 30m' or '90' into whole seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if re.fullmatch(r\"\\d+\", s):\n        return int(s)\n\n    total = 0\n    pos = 0\n    matched = False\n    while pos < len(s):\n        m = _TERM.match(s, pos)\n        if m is None:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        count, unit = m.groups()\n        if unit not in _UNITS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(count) * _UNITS[unit]\n        matched = True\n        pos = m.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    if not matched:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return total\n```\n\nIt scans left to right for `<number><unit>` pairs, so compound forms work with or without spaces between segments, and a bare integer short-circuits to seconds. Anything left unconsumed — stray text, empty input, an unknown unit — raises `ValueError` with the original string."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.15459899999999996,
+            "judgeCostUsd": 0.00492299999999999,
+            "durationSeconds": 32,
+            "startedAt": "2026-08-27T13:29:30.373Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-I20sVv/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNIT_SECONDS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"1d 6h 30m\" into seconds; a bare number means seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if not s:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    if s.isdigit():\n        return int(s)\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        match = _PART.match(s, pos)\n        if match is None or match.group(2) not in _UNIT_SECONDS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(match.group(1)) * _UNIT_SECONDS[match.group(2)]\n        pos = match.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    return total\n```\n\nIt walks the string component by component, so `\"1h30m\"`, `\"2h 15m\"`, and `\"1d 6h 30m\"` all work by summation, with whitespace between components optional. Two judgment calls worth knowing: a bare number is only accepted as the *entire* input (`\"1h 30\"` is an error rather than a silent guess), and fractional values like `\"1.5h\"` are rejected — say the word if you'd rather have either."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNIT_SECONDS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_PART = re.compile(r\"(\\d+)\\s*([a-z]+)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"1d 6h 30m\" into seconds; a bare number means seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n\n    s = text.strip().lower()\n    if not s:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    if s.isdigit():\n        return int(s)\n\n    total = 0\n    pos = 0\n    while pos < len(s):\n        match = _PART.match(s, pos)\n        if match is None or match.group(2) not in _UNIT_SECONDS:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(match.group(1)) * _UNIT_SECONDS[match.group(2)]\n        pos = match.end()\n        while pos < len(s) and s[pos].isspace():\n            pos += 1\n\n    return total\n```\n\nIt walks the string component by component, so `\"1h30m\"`, `\"2h 15m\"`, and `\"1d 6h 30m\"` all work by summation, with whitespace between components optional. Two judgment calls worth knowing: a bare number is only accepted as the *entire* input (`\"1h 30\"` is an error rather than a silent guess), and fractional values like `\"1.5h\"` are rejected — say the word if you'd rather have either."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.118185,
+            "judgeCostUsd": 0.004749000000000003,
+            "durationSeconds": 18,
+            "startedAt": "2026-08-27T13:30:02.152Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-sd9Ni2/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest-first so \"secs\" doesn't match as \"sec\" + leftover junk.\n_UNIT_ALT = \"|\".join(sorted(_UNITS, key=len, reverse=True))\n_PART = rf\"(\\d+)\\s*({_UNIT_ALT})\"\n_FULL = re.compile(rf\"(?:{_PART}\\s*)+$\", re.IGNORECASE)\n_PART_RE = re.compile(_PART, re.IGNORECASE)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like \"1d 6h 30m\", \"90s\", or \"90\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    cleaned = text.strip()\n    if cleaned.isdigit():\n        return int(cleaned)\n\n    if not _FULL.match(cleaned):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    return sum(\n        int(amount) * _UNITS[unit.lower()]\n        for amount, unit in _PART_RE.findall(cleaned)\n    )\n```\n\nThe regex anchors on the whole string, so anything with stray characters (`\"5x\"`, `\"1h junk\"`, `\"\"`, `\"-5m\"`) falls through to the `ValueError`; segments are summed, so repeated units like `\"1h 1h\"` add up rather than erroring."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest-first so \"secs\" doesn't match as \"sec\" + leftover junk.\n_UNIT_ALT = \"|\".join(sorted(_UNITS, key=len, reverse=True))\n_PART = rf\"(\\d+)\\s*({_UNIT_ALT})\"\n_FULL = re.compile(rf\"(?:{_PART}\\s*)+$\", re.IGNORECASE)\n_PART_RE = re.compile(_PART, re.IGNORECASE)\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration string like \"1d 6h 30m\", \"90s\", or \"90\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    cleaned = text.strip()\n    if cleaned.isdigit():\n        return int(cleaned)\n\n    if not _FULL.match(cleaned):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    return sum(\n        int(amount) * _UNITS[unit.lower()]\n        for amount, unit in _PART_RE.findall(cleaned)\n    )\n```\n\nThe regex anchors on the whole string, so anything with stray characters (`\"5x\"`, `\"1h junk\"`, `\"\"`, `\"-5m\"`) falls through to the `ValueError`; segments are summed, so repeated units like `\"1h 1h\"` add up rather than erroring."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6,
+        "passRate": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 2,
+    "casesPassed": 0,
+    "overallScore": 0.5800000000000001,
+    "overallPassRate": 0
+  }
+}

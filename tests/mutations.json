@@ -1671,6 +1671,15 @@
       ],
       "from": "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  process.exitCode = main()\n}",
       "to": "{\n  process.exitCode = main()\n}"
+    },
+    {
+      "label": "router: the CLI half returns a code instead of taking the process",
+      "file": "scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\\n`)\n    return 0",
+      "to": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\\n`)\n    process.exit(0)"
     }
   ]
 }

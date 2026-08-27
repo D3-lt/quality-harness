@@ -1376,6 +1376,70 @@ reached the answer), and this — is that instructions in this harness have not 
 move behaviour, while gates and mutations have moved it repeatedly. That is ADR-003's argument,
 arrived at from the other direction.
 
+## 36. What actually reaches an agent, measured on one
+
+Written 2026-08-27 at the owner's request, from a session in which eleven defects were introduced
+and found. This entry exists because the harness guides AGENTS, and almost everything written about
+developer tooling assumes a human reader who scrolls, remembers, and re-reads. An agent does none of
+those reliably. Where the two differ, this is what the difference cost.
+
+### The campaign caught eight, CI caught two, prose caught zero
+
+Eleven defects, all one shape — a check passing or failing for a reason other than the thing it
+named. `scripts/mutate.mjs` found eight of them. CI found two (both Windows, both invisible to any
+local run). Reading found none, including the two occasions the author read the relevant rule the
+same day and broke it anyway.
+
+Against that: three instructions were measured under ablation and all three were inert — a
+complexity lint (§35), the `gates-advise-never-block` skill prose (Δ 0.00, and traces showed it never
+reached the answer), and the fence-trap paragraph (§35, 0.92 both arms).
+
+**The rule that follows, and the one worth holding this project to: every piece of guidance should
+either become a gate or be deleted.** Not because prose is wrong, but because there are now three
+measurements saying it does not arrive, and sixteen thousand words of it competing for the same
+attention. The one exception that demonstrably works is guidance delivered AT THE MOMENT IT APPLIES
+— the SessionStart notice about a stale standalone copy was acted on within one turn of this session
+starting. Load-time guidance competes; moment-of-use guidance lands.
+
+### A verdict that means two things sends an agent to the wrong file
+
+`GREEN` currently means both "your test asserts nothing" and "your mutation was a no-op". Those are
+different diagnoses pointing at different files, and on at least two occasions this session the
+author went and read the test when the fault was in the catalogue entry. Five of the eleven defects
+were of this shape. `docs/specs/2026-08-27-a-mutation-that-proves-nothing.md` is the requirement
+that separates them.
+
+The general form: **an agent acts on the words, so a verdict that compresses two causes into one
+word costs a round trip every time it fires.**
+
+### The load-bearing line belongs where the reader actually looks
+
+The zeus eval was diagnosed for two rounds while the answer sat on LINE ONE of the output:
+`not granted (missing --allow-tools grant): Write, Edit`. Long output scrolls; what an agent
+reliably reads is the TAIL. `mutate.mjs` gets this right — its summary is last. `adr-verify` gets it
+right — the recorded entry is last. The eval runner puts its most important line first, human-style,
+and it cost two rounds.
+
+**Assume the reader sees the last twenty lines.** A warning at the top of long output is a warning
+nobody read.
+
+### A verdict that changes its mind teaches re-running instead of fixing
+
+Two live examples in this repository, both recorded separately: §31, where the same case scored 0.00
+in a suite run and 1.00 in every isolated reproduction; and §34, where consecutive coverage runs on
+an unchanged tree reported 96.99, 94.64 and 77.64 against a floor of 94.
+
+For a human this is annoying. For an agent it is worse than annoying: a flapping gate teaches that
+re-running is a valid response to a red result, and that is the one lesson a verification harness
+must never teach. **A gate that is right 90% of the time trains the agent to discount it 100% of the
+time.**
+
+### What this does NOT claim
+
+Six of the eleven defects would not have been caught by any of the above — they were CI,
+invocation, and grader-calibration problems. This entry ranks what helps; it does not claim the list
+is complete, and the ranking comes from one session with one agent on one codebase.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

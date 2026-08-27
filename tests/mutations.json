@@ -1653,6 +1653,24 @@
       ],
       "from": "const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))",
       "to": "const unknown = []"
+    },
+    {
+      "label": "verify: a catchable kill restores in-process, not only via the journal",
+      "file": "bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            previous = signal.signal(signal.SIGTERM, _restore_and_exit)",
+      "to": "            previous = None"
+    },
+    {
+      "label": "router: importing the CLI half does not run it",
+      "file": "scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  process.exitCode = main()\n}",
+      "to": "{\n  process.exitCode = main()\n}"
     }
   ]
 }

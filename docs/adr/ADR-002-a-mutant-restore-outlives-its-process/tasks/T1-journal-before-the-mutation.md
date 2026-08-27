@@ -58,6 +58,25 @@ node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t1.out; ! grep 
 
 ## Mutation Log
 
+- 2026-08-27 · 1f444f9* · mutant killed · exit 1 · `bin/adr-verify` · removes recovery before measurement, so a leftover mutant becomes the code under test · acceptance-sha256:5e0c2311b46be1ed1aceb693dd9ac9cbb988a24f6a410ec2715414a5be989e1f
+
+## Class Sweep
+
+**Class:** every tool in this repository that deliberately rewrites a source file it is responsible
+for putting back.
+
+```bash
+grep -rln 'write_source\|original_bytes\|restore\|journal' bin/ scripts/
+```
+
+Run 2026-08-27: four files match, two dismissed by reading — `scripts/coverage.sh` mentions the
+mutation runner only in a comment, and `scripts/lifecycle.mjs` matches the word `restore` inside a
+list of git subcommands. **Two real members:** `bin/adr-verify` and `scripts/mutate.mjs`.
+`mutate.mjs` was already correct and is not edited by this task; its header already recorded that
+in-process handlers cannot fire during a synchronous campaign. That is the finding worth keeping —
+the pattern was written down in one member and never carried to the other, so fixing the instance
+would have left the class exactly as it was.
+
 ## Invariants
 
 - Nothing is ever written inside the repository being edited.
@@ -80,3 +99,4 @@ guarantee would then have to be stated differently rather than degraded quietly.
 - Orphaned child processes and containers a killed run leaves behind. (deferred: docs/BACKLOG.md §26)
 
 ## Verification Log
+- 2026-08-27 · 1f444f9 · exit 0 · `node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr002-t1.out` · acceptance-sha256:5e0c2311b46be1ed1aceb693dd9ac9cbb988a24f6a410ec2715414a5be989e1f

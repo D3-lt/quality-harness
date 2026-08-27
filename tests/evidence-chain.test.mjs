@@ -532,6 +532,39 @@ test('the warning that names the broken file survives the kill that hides it', a
   runWith(journal, ['--restore', '--cwd', '.'], copy)
 })
 
+test('a SIGTERM mid-fence is restored in-process, without waiting for the next run', {
+  // Windows has no POSIX signals: Node emulates `SIGTERM` with TerminateProcess,
+  // which runs no handler, so the guarantee there is the journal alone. Skipped
+  // with a reason rather than silently, because a skip nobody can see reads as
+  // coverage.
+  skip: process.platform === 'win32' ? 'Node emulates SIGTERM with TerminateProcess; no handler runs' : false,
+}, async () => {
+  // The measurement this exists for: SIGINT unwound and restored, SIGTERM did
+  // not, because Python's default disposition terminates without unwinding and
+  // `finally` never ran. A handler turns it into a SystemExit so the restore
+  // gets its chance. Every other kill test here uses SIGKILL, which cannot be
+  // caught — so before this test the handler had no coverage at all and deleting
+  // it left the suite green.
+  const copy = corpus()
+  const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+  temps.push(journal)
+  slowFence(copy)
+  const { child } = spawnMutant(copy, journal)
+  assert.ok(await untilMutated(copy), 'the mutant never landed, so nothing was probed')
+
+  child.kill('SIGTERM')
+  await once(child, 'exit')
+  await setTimeout(200)
+
+  assert.ok(!mutated(copy), 'SIGTERM left the mutant in the tree: the handler did not unwind')
+  // The discriminator between this and the SIGKILL path: an in-process restore
+  // also clears the journal on its way out. A file that came back because some
+  // later run recovered it would leave one behind, and would pass a weaker
+  // assertion that only looked at the file.
+  assert.deepEqual(readdirSync(journal), [],
+    'the file came back but a journal remains — that is recovery, not an in-process restore')
+})
+
 test('a restore never overwrites a file that moved on since the mutant', async () => {
   // Restoring on top of later work would discard an edit that is not ours to
   // discard — a worse bug than the one being fixed.

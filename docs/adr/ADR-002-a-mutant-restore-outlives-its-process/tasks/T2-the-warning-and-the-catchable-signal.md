@@ -54,6 +54,22 @@ node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t2a.out && node
 
 ## Mutation Log
 
+- 2026-08-27 · 1f444f9* · mutant killed · exit 1 · `bin/adr-verify` · removes the SIGTERM handler, so a catchable kill no longer unwinds into the finally restore · acceptance-sha256:687cfcd58ddf8c134deecbe39fc47a34471b8f7cef72f64f6370da2bed6c6ad1
+
+## Class Sweep
+
+**Class:** every way this process can be killed mid-fence, and whether the mutant comes back.
+
+```bash
+grep -n "kill('SIG" tests/evidence-chain.test.mjs
+```
+
+Run 2026-08-27 after this task: `SIGTERM` once and `SIGKILL` four times. The third member,
+`SIGINT`, is **not** directly tested and is named here rather than left silent — it reaches the same
+`finally` that `SIGTERM` now reaches, and the SIGTERM test is what proves that path restores. Before
+this task the sweep returned `SIGKILL` only, which is why deleting the handler left the suite green:
+the one signal the handler exists for was the one nothing sent.
+
 ## Invariants
 
 - The warning is emitted before the fence starts, never after.
@@ -74,3 +90,4 @@ here would be worse than the untested handler, because it would report the gap a
 - The journal itself — T1's job.
 
 ## Verification Log
+- 2026-08-27 · 1f444f9* · exit 0 · `node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t2a.out && node scripts/mutate.mjs --case 'verify:' 2>&1 | tee /tmp/adr002-t2b.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr002-t2a.out && ! grep -qE "^GREEN|^STALE|^HUNG" /tmp/adr002-t2b.out` · acceptance-sha256:687cfcd58ddf8c134deecbe39fc47a34471b8f7cef72f64f6370da2bed6c6ad1

@@ -2126,6 +2126,39 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   // And why the stale copy is the one that answers, which is the fact that makes
   // the whole notice actionable rather than trivia.
   assert.match(shadowInstallNotice(home, pluginDir), /on PATH and the plugin cache is not/)
+
+  // A forwarder is CURRENT BY CONSTRUCTION — it carries no version and runs the
+  // newest installed plugin — so comparing its bytes to the gate it stands in
+  // for says the opposite of the truth. Installing forwarders on 2026-08-27 made
+  // this notice report twenty files as drifted in the same session that fixed
+  // the drift, every session after, with no way for the reader to disprove it.
+  await writeFile(path.join(home, '.claude', 'bin', 'adr-lint'),
+    '#!/bin/sh\n# quality-harness-forwarder\nexec "$root/bin/adr-lint" "$@"\n')
+  assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /bin[\\/]adr-lint/,
+    'a forwarder is current by construction and is not drift')
+
+  // Same for a symlink, which points at the plugin and cannot be behind it.
+  await mkdir(path.join(home, '.claude', 'skills'), { recursive: true })
+  await symlink(path.join(pluginDir, 'skills', 'execution'),
+    path.join(home, '.claude', 'skills', 'execution'))
+  assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /skills[\\/]execution/,
+    'a link points at the plugin and cannot be behind it')
+
+  // A hook under the home directory can only answer if the user's own settings
+  // name it: this plugin wires its hooks through CLAUDE_PLUGIN_ROOT and never
+  // looks there. Two dead files were being reported every session.
+  await mkdir(path.join(home, '.claude', 'hooks'), { recursive: true })
+  await writeFile(path.join(home, '.claude', 'hooks', 'post-edit-check.sh'), '# an old copy\n')
+  assert.doesNotMatch(shadowInstallNotice(home, pluginDir), /post-edit-check/,
+    'a hook nothing invokes cannot answer, so it is not drift worth reporting')
+
+  // Wired by the user, it can answer, and then it is worth saying.
+  await writeFile(path.join(home, '.claude', 'settings.json'),
+    JSON.stringify({ hooks: { PostToolUse: [{ hooks: [{ command: 'post-edit-check.sh' }] }] } }))
+  assert.match(shadowInstallNotice(home, pluginDir), /hooks[\\/]post-edit-check\.sh/)
+  await rm(path.join(home, '.claude', 'settings.json'))
+  await rm(path.join(home, '.claude', 'hooks'), { recursive: true })
+  await rm(path.join(home, '.claude', 'skills', 'execution'))
   await rm(path.join(home, '.claude', 'templates', 'adr-template.md'))
 
   // A skill is a directory, so the comparable file is one level down.

@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
-  chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync,
+  chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync,
+  symlinkSync, writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -299,6 +300,26 @@ test('a symlink is archived as a symlink, not as what it points at', () => {
       relative: path.join('skills', 'adr-write'),
     }, 'stamp', directory)
     assert.ok(lstatSync(kept).isSymbolicLink(), 'the backup must not dereference it')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
+test('a dangling symlink is archived rather than throwing mid-run', () => {
+  // The case the explicit branch exists for, and the one the first test missed:
+  // cpSync preserves a live link but throws ENOENT on a broken one. A home
+  // config directory collects broken links, because the checkout a skill points
+  // at gets moved — and an exception here loses the originals of every entry
+  // after it.
+  const directory = home()
+  mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
+  const broken = path.join(directory, '.claude', 'skills', 'adr-write')
+  symlinkSync(path.join(directory, 'moved-away'), broken)
+  try {
+    const kept = archive({ to: broken, relative: path.join('skills', 'adr-write') },
+      'stamp', directory)
+    assert.ok(lstatSync(kept).isSymbolicLink())
+    assert.equal(readlinkSync(kept), path.join(directory, 'moved-away'))
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

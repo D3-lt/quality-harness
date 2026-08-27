@@ -323,9 +323,13 @@ export function archive(entry, stamp, homeDirectory = os.homedir()) {
   try { info = lstatSync(entry.to) } catch { return null }
   const kept = path.join(backupRoot(stamp, homeDirectory), entry.relative)
   mkdirSync(path.dirname(kept), { recursive: true })
-  // A symlink is copied as a symlink: dereferencing one would silently pull in
-  // whatever it points at, which for a skill linked out to another repository
-  // is that repository, not a backup of anything this run touched.
+  // A symlink is recreated rather than copied through. `cpSync` with
+  // verbatimSymlinks preserves a LIVE link, but it throws ENOENT on a dangling
+  // one — and a dangling link is exactly what a home config directory collects,
+  // because the checkout a skill pointed at gets moved. Losing the archive step
+  // to an exception halfway through a run is how the originals go missing at the
+  // moment they matter most. Proved by a mutation that stayed green until the
+  // dangling case was tested.
   if (info.isSymbolicLink()) symlinkSync(readlinkSync(entry.to), kept)
   else cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })
   return kept

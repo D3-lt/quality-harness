@@ -967,7 +967,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    ['templates', path.join(pluginRoot, 'templates')],",
+      "from": "    ['templates', path.join(pluginRoot, 'templates'), () => true],",
       "to": ""
     },
     {

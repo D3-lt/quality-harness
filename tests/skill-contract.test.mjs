@@ -343,3 +343,39 @@ test('a skill that names the plugin root says how to resolve it without one', ()
       `${skill}: the resolution note must come before the first path that needs it`)
   }
 })
+
+test('mutation-audit tells the reader to break the control, not the code it guards', () => {
+  // Reported 2026-08-27 from a real audit: the three most serious findings were
+  // all controls that existed and refused nobody — an admin panel whose docblock
+  // claimed it was restricted, a suite green against SQLite while four documents
+  // said PostgreSQL, a container reporting healthy while every page returned 500.
+  // The catalogue in this skill had eight classes and none of them was that one,
+  // because every class it listed was a shape in code or in a document.
+  //
+  // Asserted rather than merely written, for the reason the section itself gives:
+  // prose nothing asserts survives its own deletion. Both catalogue entries for
+  // this section reported GREEN the first time they ran.
+  const text = readFileSync(join(root, 'skills', 'mutation-audit', 'SKILL.md'), 'utf8')
+
+  assert.match(text, /^## The control is the thing to break, not the code it guards$/m,
+    'the rule must be a section an agent can find, not a buried sentence')
+  const section = text.split(/^## The control is the thing to break, not the code it guards$/m)[1]
+    .split(/^## /m)[0]
+
+  // The instinct is to mutate the guarded thing; the section exists to invert it.
+  assert.match(section, /\bcontrol\b[\s\S]*\btarget\b|\bbreak it\b/i,
+    'the section must say the control is what gets broken')
+  // Named instances, not an abstraction — an authorization check, a healthcheck
+  // and an engine binding are what make the class recognisable in the wild.
+  for (const instance of [/authoriz/i, /healthcheck/i, /SQLite|engine/i]) {
+    assert.match(section, instance, `the section must name a concrete control: ${instance}`)
+  }
+  // And the half a reader would otherwise miss: a success signal is a control.
+  assert.match(section, /exit code|success signal/i,
+    'a swallowed exit code is the same class and has to be named as one')
+
+  // The catalogue list has to carry it too, or a reader scanning classes misses it.
+  const classes = text.split(/^## What is worth a catalogue entry$/m)[1].split(/^## /m)[0]
+  assert.match(classes, /refuses nobody/i, 'the class list must include the control that gates nothing')
+  assert.match(classes, /success signal not gated/i, 'and the ungated success signal')
+})

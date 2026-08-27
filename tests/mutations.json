@@ -1797,6 +1797,15 @@
       ],
       "from": "        elif not line.strip() or not CONTINUATION.match(line):",
       "to": "        elif False:"
+    },
+    {
+      "label": "fixture: a Windows path is made YAML-safe",
+      "file": "scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "  return String(value).split('\\\\\\\\').join('/')",
+      "to": "  return String(value)"
     }
   ]
 }

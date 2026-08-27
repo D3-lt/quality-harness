@@ -1301,6 +1301,45 @@ records everywhere else, in the check that guards the checks.
 worst honest run lands. Do NOT simply lower the floor to stop the noise; that hides the variance
 rather than answering it.
 
+## 35. Three instructions measured, three inert
+
+The task template gained a third fence trap on 2026-08-27, from a real report: a fence narrow enough
+to name one test leaves the falsifiability fixture outside it, and `adr-verify --mutant` then returns
+`killed` from a command that never ran the mutant. The finding is real — a Go session hit it and had
+to make the fixture a subtest.
+
+Whether the PARAGRAPH does anything is a different question, and it was measured:
+`evals/fence-warning-{given,omitted}`, identical task, prompts differing by only that paragraph, five
+runs each, `--ablation none`.
+
+| | fence runs the fixture | guards a vacuous pass | score |
+|---|---|---|---|
+| warning omitted | 5/5 | 4/5 | 0.92 |
+| warning given | 5/5 | 4/5 | 0.92 |
+
+**Inert.** The model writes an alternation or an unfiltered run unprompted, and the single miss in
+each arm was the other grader, falling equally on both sides.
+
+**The first version of this case measured nothing**, and the reason is the finding underneath. The
+two tests were named `TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run
+TestResolveCitations` swept up both by accident and the trap could not be fallen into. Both arms
+scored 10/10 on a question the fixture had made unaskable — this repository's own rule ("ask whether
+the fixture could PRODUCE the failure at all") failed while measuring whether a rule about
+unfalsifiable fences was worth keeping. The names now share no prefix and the grader carries the
+reason inline.
+
+**Kept anyway, and this is the judgement rather than the measurement.** The eval is a fresh model,
+four turns, one clearly-stated task. The session that hit the trap was mid-execution against a large
+corpus with deep context. "Inert on a clean four-turn task" is not "inert where it was needed", so
+the paragraph stays as documentation for a reader who goes looking — and must not be counted as
+guidance that works.
+
+**The pattern across three measurements** — the complexity lint (inert in 4 of 5 runs, and the one
+obedient run got worse), the `gates-advise` skill prose (Δ 0.00, and the traces showed it never
+reached the answer), and this — is that instructions in this harness have not once been shown to
+move behaviour, while gates and mutations have moved it repeatedly. That is ADR-003's argument,
+arrived at from the other direction.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

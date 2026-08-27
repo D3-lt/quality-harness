@@ -1,0 +1,527 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.247",
+  "startedAt": "2026-08-27T18:19:35.356Z",
+  "durationSeconds": 286,
+  "costUsd": 1.923785,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "none",
+    "caseFilter": "fence-warning-*",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.19.1",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "fence-warning-given",
+      "dir": "evals/fence-warning-given",
+      "source": "prose",
+      "promptMarkdown": "I am writing the Acceptance fence for a task. The task adds one function,\n`ResolveCitations`, in a Go package that already has a large passing test suite.\n\nI have written two tests:\n\n    TestResolveCitations              the new behaviour, in citations_test.go\n    TestUnresolvedCitationIsReported  a fixture proving the check reports an\n                                      unresolved citation, in the same package\n\nThe acceptance fence is a single shell command whose exit code decides whether\nthis task is done. Give me the command, and one sentence on why it is that one.\n\nOne convention this project holds you to: a fence narrow enough to name one test\nleaves everything else outside it, including the fixture that proves the test can\nfail. A mutation run against such a fence returns `killed` from a command that\nnever executed the mutant — evidence of nothing, filed as evidence of something.\nAsk whether the thing that proves this can fail is INSIDE the command or beside it.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "covers-the-falsifiability-fixture",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+          "config": {
+            "criteria": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "fence-can-still-fail",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+          "config": {
+            "criteria": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.1942195,
+            "judgeCostUsd": 0.003909,
+            "durationSeconds": 30,
+            "startedAt": "2026-08-27T18:19:35.372Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-HHxncs/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat is the one because both `TestResolveCitations` and `TestUnresolvedCitationIsReported` — the fixture whose pass is the only evidence the new test is capable of failing — plus the existing suite that catches regressions all report through that single exit code, so nothing that could falsify \"done\" sits beside the fence.\n\nTwo notes:\n\n- `-count=1` is load-bearing, not decoration. It is the same failure mode your convention names: a cached `ok` is an exit 0 from a command that ran nothing, and under a mutation run that reads as `killed` on a mutant never executed.\n- `./...` rather than `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`. A regex fence is still a naming fence — it just names two tests instead of one. It re-earns the same defect the moment a third test is added and not added to the pattern, and it excludes the large passing suite that is the actual regression evidence for adding a function to an existing package.\n\nI could not verify this against your tree — the working directory `/private/.../home/cwd` is an empty git repo with no `go.mod`, so the above assumes the module root is where the fence runs. If the package sits under a monorepo with unrelated failing modules, narrow the fence to the module root, not the test names."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat is the one because both `TestResolveCitations` and `TestUnresolvedCitationIsReported` — the fixture whose pass is the only evidence the new test is capable of failing — plus the existing suite that catches regressions all report through that single exit code, so nothing that could falsify \"done\" sits beside the fence.\n\nTwo notes:\n\n- `-count=1` is load-bearing, not decoration. It is the same failure mode your convention names: a cached `ok` is an exit 0 from a command that ran nothing, and under a mutation run that reads as `killed` on a mutant never executed.\n- `./...` rather than `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`. A regex fence is still a naming fence — it just names two tests instead of one. It re-earns the same defect the moment a third test is added and not added to the pattern, and it excludes the large passing suite that is the actual regression evidence for adding a function to an existing package.\n\nI could not verify this against your tree — the working directory `/private/.../home/cwd` is an empty git repo with no `go.mod`, so the above assumes the module root is where the fence runs. If the package sits under a monorepo with unrelated failing modules, narrow the fence to the module root, not the test names."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.181891,
+            "judgeCostUsd": 0.0031290000000000016,
+            "durationSeconds": 25,
+            "startedAt": "2026-08-27T18:20:04.974Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-lEPNPL/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The working directory is empty, so this is advice on the fence rather than a command I can run against your tree.\n\n```sh\ngo test ./... -count=1\n```\n\nThat is the one, because both `TestResolveCitations` and `TestUnresolvedCitationIsReported` execute inside it alongside the whole existing suite — so the fixture that proves the check can fail is a member of the fence rather than a neighbour of it, and any mutant that silences the check flips this command's exit code for a reason you can read in its output.\n\n`-count=1` is the part worth not dropping: without it a cached PASS can be replayed, and a replayed PASS under mutation is exactly the `killed`-without-execution result your convention is guarding against. Adding `-run TestResolveCitations` would reintroduce the whole problem."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The working directory is empty, so this is advice on the fence rather than a command I can run against your tree.\n\n```sh\ngo test ./... -count=1\n```\n\nThat is the one, because both `TestResolveCitations` and `TestUnresolvedCitationIsReported` execute inside it alongside the whole existing suite — so the fixture that proves the check can fail is a member of the fence rather than a neighbour of it, and any mutant that silences the check flips this command's exit code for a reason you can read in its output.\n\n`-count=1` is the part worth not dropping: without it a cached PASS can be replayed, and a replayed PASS under mutation is exactly the `killed`-without-execution result your convention is guarding against. Adding `-run TestResolveCitations` would reintroduce the whole problem."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.1872275,
+            "judgeCostUsd": 0.002906999999999999,
+            "durationSeconds": 23,
+            "startedAt": "2026-08-27T18:20:30.080Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-Od39mA/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nNo `-run` filter: `TestUnresolvedCitationIsReported` — the fixture that proves the check can actually fail — has to execute inside the same command whose exit code you're trusting, otherwise the fence is a filter that reports green without ever running the negative control, and a mutation run against it returns `killed` from a command that never touched the mutant.\n\nTwo notes: `-count=1` defeats Go's test cache so the command genuinely re-executes rather than replaying a stored PASS, and `./...` assumes you run it from the module root (the working directory here is empty, so I couldn't confirm the package layout)."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nNo `-run` filter: `TestUnresolvedCitationIsReported` — the fixture that proves the check can actually fail — has to execute inside the same command whose exit code you're trusting, otherwise the fence is a filter that reports green without ever running the negative control, and a mutation run against it returns `killed` from a command that never touched the mutant.\n\nTwo notes: `-count=1` defeats Go's test cache so the command genuinely re-executes rather than replaying a stored PASS, and `./...` assumes you run it from the module root (the working directory here is empty, so I couldn't confirm the package layout)."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.194835,
+            "judgeCostUsd": 0.003572999999999998,
+            "durationSeconds": 30,
+            "startedAt": "2026-08-27T18:20:53.369Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-TAP2u4/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The working directory here is empty, so this is from your description rather than your tree:\n\n```sh\ngo test -count=1 ./...\n```\n\nThat is the one, because the fixture that proves the check can fail (`TestUnresolvedCitationIsReported`) is a test in the same package — an unfiltered run puts it *inside* the exit code alongside `TestResolveCitations` and the existing suite, whereas any `-run` narrowing leaves the falsifier beside the fence rather than in it.\n\nTwo things that make the narrow alternative worse than merely incomplete:\n\n- `go test -run TestResolveCitations ./...` **exits 0 when the regex matches nothing** — a rename or typo yields a green fence that ran zero assertions. That is exactly the `killed`-from-a-command-that-never-executed-the-mutant failure you're guarding against, and it happens without any mutation tooling involved.\n- `-count=1` matters for the same reason: a cached `ok (cached)` line is also an exit code produced without executing anything. Under a mutation run the source hash changes so the cache would miss anyway, but the fence shouldn't depend on that to be honest."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The working directory here is empty, so this is from your description rather than your tree:\n\n```sh\ngo test -count=1 ./...\n```\n\nThat is the one, because the fixture that proves the check can fail (`TestUnresolvedCitationIsReported`) is a test in the same package — an unfiltered run puts it *inside* the exit code alongside `TestResolveCitations` and the existing suite, whereas any `-run` narrowing leaves the falsifier beside the fence rather than in it.\n\nTwo things that make the narrow alternative worse than merely incomplete:\n\n- `go test -run TestResolveCitations ./...` **exits 0 when the regex matches nothing** — a rename or typo yields a green fence that ran zero assertions. That is exactly the `killed`-from-a-command-that-never-executed-the-mutant failure you're guarding against, and it happens without any mutation tooling involved.\n- `-count=1` matters for the same reason: a cached `ok (cached)` line is also an exit code produced without executing anything. Under a mutation run the source hash changes so the cache would miss anyway, but the fence shouldn't depend on that to be honest."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.17597049999999997,
+            "judgeCostUsd": 0.0032370000000000003,
+            "durationSeconds": 21,
+            "startedAt": "2026-08-27T18:21:23.843Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-rHZ6BN/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat one, because it is the only fence where `TestResolveCitations`, `TestUnresolvedCitationIsReported`, and the whole existing suite share a single exit code — the fixture that proves the check can fail runs *inside* the command rather than beside it, so a `killed` verdict is backed by a run that actually executed the mutant, and `-count=1` keeps a cached PASS from standing in for a run that never happened.\n\nTwo notes: your working directory here is empty, so I'm answering from the description rather than from your tree — run it from the module root, and if the module has packages whose tests are slow or externally dependent, narrow by *package path* (`go test -count=1 ./citations/...`), never by `-run`, since a package path keeps both the behaviour test and its falsifier together while `-run` is exactly the cut that separates them."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat one, because it is the only fence where `TestResolveCitations`, `TestUnresolvedCitationIsReported`, and the whole existing suite share a single exit code — the fixture that proves the check can fail runs *inside* the command rather than beside it, so a `killed` verdict is backed by a run that actually executed the mutant, and `-count=1` keeps a cached PASS from standing in for a run that never happened.\n\nTwo notes: your working directory here is empty, so I'm answering from the description rather than from your tree — run it from the module root, and if the module has packages whose tests are slow or externally dependent, narrow by *package path* (`go test -count=1 ./citations/...`), never by `-run`, since a package path keeps both the behaviour test and its falsifier together while `-run` is exactly the cut that separates them."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.9199999999999999,
+        "passRate": 0.8
+      }
+    },
+    {
+      "name": "fence-warning-omitted",
+      "dir": "evals/fence-warning-omitted",
+      "source": "prose",
+      "promptMarkdown": "I am writing the Acceptance fence for a task. The task adds one function,\n`ResolveCitations`, in a Go package that already has a large passing test suite.\n\nI have written two tests:\n\n    TestResolveCitations              the new behaviour, in citations_test.go\n    TestUnresolvedCitationIsReported  a fixture proving the check reports an\n                                      unresolved citation, in the same package\n\nThe acceptance fence is a single shell command whose exit code decides whether\nthis task is done. Give me the command, and one sentence on why it is that one.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "covers-the-falsifiability-fixture",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+          "config": {
+            "criteria": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "fence-can-still-fail",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+          "config": {
+            "criteria": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.20062449999999998,
+            "judgeCostUsd": 0.004113000000000002,
+            "durationSeconds": 33,
+            "startedAt": "2026-08-27T18:21:44.923Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-ZiQEwj/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat one command is the fence because the fence must fail for *both* reasons a task can be unfinished — `ResolveCitations` missing or wrong (caught by `TestResolveCitations`, and by `TestUnresolvedCitationIsReported` for the negative case) *and* the pre-existing suite regressed — and only an unfiltered full-package run over a cold cache tests both at once.\n\nTwo notes on why not the obvious alternatives:\n\n- **Don't scope it with `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`.** A filter turns the fence into \"the new tests pass,\" which is exactly the condition an implementation that breaks the large existing suite also satisfies. The large passing suite is the most valuable half of the signal; a `-run` flag discards it.\n- **`-count=1` is load-bearing.** Without it Go can serve a cached `ok` for packages it considers unchanged, so the fence can exit 0 on a run that executed nothing. A fence whose exit code is sometimes an artifact of the cache isn't a fence.\n\nI couldn't confirm the module path — the working directory is empty, so there's no `go.mod` to read. If the package sits in a repo with other modules or with generated/integration packages that aren't expected to pass, narrow `./...` to that module's package path (e.g. `go test -count=1 ./internal/citations/`), keeping it at package granularity rather than test granularity."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat one command is the fence because the fence must fail for *both* reasons a task can be unfinished — `ResolveCitations` missing or wrong (caught by `TestResolveCitations`, and by `TestUnresolvedCitationIsReported` for the negative case) *and* the pre-existing suite regressed — and only an unfiltered full-package run over a cold cache tests both at once.\n\nTwo notes on why not the obvious alternatives:\n\n- **Don't scope it with `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`.** A filter turns the fence into \"the new tests pass,\" which is exactly the condition an implementation that breaks the large existing suite also satisfies. The large passing suite is the most valuable half of the signal; a `-run` flag discards it.\n- **`-count=1` is load-bearing.** Without it Go can serve a cached `ok` for packages it considers unchanged, so the fence can exit 0 on a run that executed nothing. A fence whose exit code is sometimes an artifact of the cache isn't a fence.\n\nI couldn't confirm the module path — the working directory is empty, so there's no `go.mod` to read. If the package sits in a repo with other modules or with generated/integration packages that aren't expected to pass, narrow `./...` to that module's package path (e.g. `go test -count=1 ./internal/citations/`), keeping it at package granularity rather than test granularity."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.187218,
+            "judgeCostUsd": 0.0039030000000000002,
+            "durationSeconds": 27,
+            "startedAt": "2026-08-27T18:22:17.991Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-FPLJfd/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Your working directory is empty, so I can't check the module path — this assumes a single Go module rooted at the repo.\n\n```sh\ngo test -count=1 ./...\n```\n\n**Why:** The fence has to answer one question — \"is the repo in the finished state?\" — so it must run the *whole* suite unscoped: `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` would go green on a change that implements `ResolveCitations` while breaking the large suite that already passed, and `./...` plus `-count=1` guarantees the exit code reflects a fresh compile-and-run of both the new tests and every existing one.\n\nTwo things that would invalidate it:\n\n- **`TestUnresolvedCitationIsReported` must pass when the check works.** If you wrote it as a literal failing demonstration (a fixture with an unresolved citation that makes the test fail), the fence can never reach exit 0. It needs to assert *that the report was produced* — call the check, expect a non-nil finding naming the unresolved citation — so a working implementation makes it green and a silent checker makes it red.\n- **If the fixture lives outside the module** (a `testdata/` sub-module, or a golden-file corpus with its own `go.mod`), `./...` won't reach it and you'd need the fence to cover both roots."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Your working directory is empty, so I can't check the module path — this assumes a single Go module rooted at the repo.\n\n```sh\ngo test -count=1 ./...\n```\n\n**Why:** The fence has to answer one question — \"is the repo in the finished state?\" — so it must run the *whole* suite unscoped: `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` would go green on a change that implements `ResolveCitations` while breaking the large suite that already passed, and `./...` plus `-count=1` guarantees the exit code reflects a fresh compile-and-run of both the new tests and every existing one.\n\nTwo things that would invalidate it:\n\n- **`TestUnresolvedCitationIsReported` must pass when the check works.** If you wrote it as a literal failing demonstration (a fixture with an unresolved citation that makes the test fail), the fence can never reach exit 0. It needs to assert *that the report was produced* — call the check, expect a non-nil finding naming the unresolved citation — so a working implementation makes it green and a silent checker makes it red.\n- **If the fixture lives outside the module** (a `testdata/` sub-module, or a golden-file corpus with its own `go.mod`), `./...` won't reach it and you'd need the fence to cover both roots."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.2008165,
+            "judgeCostUsd": 0.0031230000000000008,
+            "durationSeconds": 32,
+            "startedAt": "2026-08-27T18:22:45.168Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-MogqpK/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat one sentence: it is the whole package rather than a `-run` filter, so a green exit proves the new behaviour *and* that the large existing suite did not regress, and `-count=1` defeats Go's test cache so the exit code reflects this build rather than a stale PASS.\n\nThe thing it buys you over `go test -run 'TestResolveCitations|TestUnresolvedCitationIsReported' ./...`: a `-run` regex that matches nothing exits 0, so a renamed, deleted, or `t.Skip`-ed test would pass the fence vacuously — and since `TestUnresolvedCitationIsReported` is an ordinary passing test (it asserts the check *reports*, so it's green when the reporting works), it needs no separate command."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nThat one sentence: it is the whole package rather than a `-run` filter, so a green exit proves the new behaviour *and* that the large existing suite did not regress, and `-count=1` defeats Go's test cache so the exit code reflects this build rather than a stale PASS.\n\nThe thing it buys you over `go test -run 'TestResolveCitations|TestUnresolvedCitationIsReported' ./...`: a `-run` regex that matches nothing exits 0, so a renamed, deleted, or `t.Skip`-ed test would pass the fence vacuously — and since `TestUnresolvedCitationIsReported` is an ordinary passing test (it asserts the check *reports*, so it's green when the reporting works), it needs no separate command."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.2103125,
+            "judgeCostUsd": 0.004448999999999995,
+            "durationSeconds": 34,
+            "startedAt": "2026-08-27T18:23:17.517Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-RarYM8/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "No Go module in the working directory, so this is the answer in the abstract.\n\n```sh\ngo test -count=1 ./...\n```\n\n**Why that one:** your two new tests only prove `ResolveCitations` behaves correctly and that the check reports an unresolved citation — the pre-existing passing suite is what proves the new function didn't break anything, so the fence has to be the whole suite, not a `-run` filter over the two new names.\n\nTwo things that made it that command rather than a near-miss:\n\n- **`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` is the tempting version and it's unsafe.** A misspelled or renamed test name makes `-run` match nothing, and `go test` exits 0 on \"no tests to run\" — the fence passes vacuously, on the exact failure mode a fence exists to catch. `./...` has no such hole: a missing test is a missing test, and a missing `ResolveCitations` is a build failure, which is also a nonzero exit. The fence correctly fails before the work and passes after.\n- **`-count=1` disables the test cache** so the exit code reflects a run that actually happened in the current tree. Go's cache keys on source and does invalidate correctly here, so this is belt-and-braces rather than load-bearing — but a fence whose green comes from a cache entry is worth one flag to rule out.\n\nOne caveat on `TestUnresolvedCitationIsReported`: it earns its place in the fence only if the unresolved citation it feeds the check is a fixture defined in the test itself. If it instead asserts against the real corpus, the fence goes red the day someone legitimately fixes that citation, and you'll be debugging the fence instead of the code."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "No Go module in the working directory, so this is the answer in the abstract.\n\n```sh\ngo test -count=1 ./...\n```\n\n**Why that one:** your two new tests only prove `ResolveCitations` behaves correctly and that the check reports an unresolved citation — the pre-existing passing suite is what proves the new function didn't break anything, so the fence has to be the whole suite, not a `-run` filter over the two new names.\n\nTwo things that made it that command rather than a near-miss:\n\n- **`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` is the tempting version and it's unsafe.** A misspelled or renamed test name makes `-run` match nothing, and `go test` exits 0 on \"no tests to run\" — the fence passes vacuously, on the exact failure mode a fence exists to catch. `./...` has no such hole: a missing test is a missing test, and a missing `ResolveCitations` is a build failure, which is also a nonzero exit. The fence correctly fails before the work and passes after.\n- **`-count=1` disables the test cache** so the exit code reflects a run that actually happened in the current tree. Go's cache keys on source and does invalidate correctly here, so this is belt-and-braces rather than load-bearing — but a fence whose green comes from a cache entry is worth one flag to rule out.\n\nOne caveat on `TestUnresolvedCitationIsReported`: it earns its place in the fence only if the unresolved citation it feeds the check is a fixture defined in the test itself. If it instead asserts against the real corpus, the fence goes red the day someone legitimately fixes that citation, and you'll be debugging the fence instead of the code."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.19067,
+            "judgeCostUsd": 0.00394499999999999,
+            "durationSeconds": 30,
+            "startedAt": "2026-08-27T18:23:51.611Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-kFRLxM/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The directory is empty, so this is advice rather than something I could run and verify here.\n\n```sh\ngo test -count=1 ./path/to/citations/\n```\n\nThat's the one because the fence has to prove three things at once — `TestResolveCitations` passes, `TestUnresolvedCitationIsReported` passes, and the large pre-existing suite in the package still passes — and only an unfiltered package-wide run does that; any `-run TestResolveCitations|TestUnresolvedCitationIsReported` filter would go green while a regression sat in the tests it skipped.\n\nTwo notes on the details:\n\n- `-count=1` defeats the test cache so the exit code always reflects a real execution, which matters when a fence is scripted or re-run in CI.\n- Both your tests are ordinary passing tests here. `TestUnresolvedCitationIsReported` is a fixture whose *assertion* is inverted (feed in an unresolved citation, assert the check reports it) — the test itself must exit 0, so it belongs in the same run rather than being wrapped in something that expects failure. If you ever find yourself wanting `! go test ...` for it, that's a sign the inversion leaked out of the test body into the fence.\n\nIf the new function is exported and other packages in the module might consume it, widen to `go test -count=1 ./...` — same reasoning, larger blast radius."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The directory is empty, so this is advice rather than something I could run and verify here.\n\n```sh\ngo test -count=1 ./path/to/citations/\n```\n\nThat's the one because the fence has to prove three things at once — `TestResolveCitations` passes, `TestUnresolvedCitationIsReported` passes, and the large pre-existing suite in the package still passes — and only an unfiltered package-wide run does that; any `-run TestResolveCitations|TestUnresolvedCitationIsReported` filter would go green while a regression sat in the tests it skipped.\n\nTwo notes on the details:\n\n- `-count=1` defeats the test cache so the exit code always reflects a real execution, which matters when a fence is scripted or re-run in CI.\n- Both your tests are ordinary passing tests here. `TestUnresolvedCitationIsReported` is a fixture whose *assertion* is inverted (feed in an unresolved citation, assert the check reports it) — the test itself must exit 0, so it belongs in the same run rather than being wrapped in something that expects failure. If you ever find yourself wanting `! go test ...` for it, that's a sign the inversion leaked out of the test body into the fence.\n\nIf the new function is exported and other packages in the module might consume it, widen to `go test -count=1 ./...` — same reasoning, larger blast radius."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.9199999999999999,
+        "passRate": 0.8
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 2,
+    "casesPassed": 0,
+    "overallScore": 0.9199999999999999,
+    "overallPassRate": 0.8
+  }
+}

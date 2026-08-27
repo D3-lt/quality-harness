@@ -90,10 +90,48 @@ The classes worth hand-writing, because no language mutation tool reaches them:
   a system you are not running on.
 - **Permission and environment failure** — the branch taken when a file is unreadable, a
   binary is missing, or a command cannot start at all.
+- **A control that refuses nobody** — an authorization check, a healthcheck, an engine
+  binding, a mass-assignment guard: something that exists, is documented, and gates
+  nothing. Mutate the CONTROL, not the code it guards.
+- **A success signal not gated on success** — a piped exit code, an unconditional `echo`,
+  an `&&` whose left side short-circuited before the thing ever launched.
 
 For ordinary code — flipped comparisons, off-by-one, negated conditions — use the
 language's own mutation tool (`cargo-mutants`, `mutmut`, Stryker, PIT). It does that
 better than a hand-written list, and leaves you free to spend the list on the above.
+
+## The control is the thing to break, not the code it guards
+
+The two classes above are worth their own section because the instinct is
+backwards. Asked whether an admin panel is safe, the reflex is to mutate the
+panel. The finding is in the CHECK: delete the authorization middleware from the
+route and see whether anything at all goes red.
+
+Four from one audit, 2026-08-27, all in code that had tests and passed them:
+
+| the control | what it claimed | what it gated |
+|---|---|---|
+| admin panel authorization | a docblock beside it said restricted | nobody — it served its rows to anyone |
+| the test suite | four documents said PostgreSQL | SQLite; it never touched the engine it named |
+| the container healthcheck | reported healthy | not the pages, every one of which returned 500 |
+| `may_write` outside the fillable list | mass assignment blocked | it was the one that WORKED — putting it back turns a test red |
+
+Only the fourth was real, and it is the shape the other three should have had:
+break it and something goes red. For each of the others the mutation is obvious
+once the control is the target — remove the middleware, point the connection at
+the documented engine, make the health endpoint's dependency fail — and each
+takes minutes.
+
+**A success signal is a control too.** Three ways one lies, all seen in one
+session: an exit code swallowed by a pipe, an `echo` that runs whatever happened
+above it, and an `&&` whose left side short-circuited so the thing it was
+chaining never launched. The mutation is the same in all three — make the
+underlying operation fail, and check the signal changes. If it does not, the
+signal was never about the operation.
+
+The tell that you are in this class: the check and the thing checked can be
+described separately, and the check would still print the same thing if the
+thing were deleted.
 
 ## A platform you cannot run is still testable
 

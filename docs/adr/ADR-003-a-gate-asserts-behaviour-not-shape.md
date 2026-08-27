@@ -1,6 +1,6 @@
 # ADR-003: A gate asserts behaviour, not shape
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-27
 **Owner:** zy
 **Spec:** None — no spec stage

@@ -379,3 +379,31 @@ test('mutation-audit tells the reader to break the control, not the code it guar
   assert.match(classes, /refuses nobody/i, 'the class list must include the control that gates nothing')
   assert.match(classes, /success signal not gated/i, 'and the ungated success signal')
 })
+
+test('mutation-audit says which gates earn their place, and names the counterexample', () => {
+  // ADR-003 T1. The skill measured what a suite detects and said nothing about
+  // the question upstream of it — what deserves a gate — which is where the
+  // cyclomatic-complexity proposal that prompted ADR-003 would have landed.
+  const text = readFileSync(join(root, 'skills', 'mutation-audit', 'SKILL.md'), 'utf8')
+  assert.match(text, /^## Choosing what to gate at all$/m,
+    'the rule must be a section an agent can find')
+  const section = text.split(/^## Choosing what to gate at all$/m)[1].split(/^## /m)[0]
+  // Normalised, because the rule is a blockquote and wraps: matching the raw
+  // text would fail the moment someone reflowed the paragraph, which is a test
+  // asserting a line width rather than a rule.
+  const flat = section.replace(/\n\s*>?\s*/g, ' ')
+
+  // The rule itself, in the owner's words — the record quotes it verbatim.
+  assert.match(flat, /a deleted line breaks/,
+    'the section must carry the rule, not a paraphrase of it')
+  // Qualifying shapes, so a reader can recognise one rather than re-derive it.
+  assert.match(flat, /killed mutant|doclint|cannot drift/i,
+    'the section must name gates that qualify')
+  // And the counterexample, WITH its measurement — an unmeasured warning is the
+  // prose this repository keeps proving is inert.
+  assert.match(flat, /complexity/i, 'the counterexample people reach for must be named')
+  assert.match(flat, /\b(four runs of five|4\/5|inert)\b/i,
+    'the counterexample must carry the measurement that settled it')
+  assert.match(flat, /conversation trigger/i,
+    'and where the same number does earn its place')
+})

@@ -100,6 +100,39 @@ For ordinary code — flipped comparisons, off-by-one, negated conditions — us
 language's own mutation tool (`cargo-mutants`, `mutmut`, Stryker, PIT). It does that
 better than a hand-written list, and leaves you free to spend the list on the above.
 
+## Choosing what to gate at all
+
+This skill measures what a suite detects. The question upstream of it — what
+deserves a gate — has one answer, and ADR-003 in this repository records it:
+
+> **Don't ask for simple code, ask for code whose mechanism a deleted line
+> breaks.**
+
+A gate earns its place when it asserts an observable property that no
+restructuring satisfies. Four that qualify:
+
+- *"This test must fail when I delete the wiring"* — a killed mutant.
+- *"A doc comment must document the declaration it sits on"* — a doclint.
+- *"Every catalogue tool appears in the README"* — a count that cannot drift.
+- *"Every mint path honours the exemption"* — written against the paths, not
+  against a function.
+
+None can be satisfied by moving code around.
+
+**A complexity threshold is the counterexample, and it is worth naming because it
+is the one people reach for.** Cyclomatic complexity counts branches per
+function, so splitting one twenty-branch function into five four-branch ones
+turns the metric green with the total branching unchanged. Measured 2026-08-27
+with a five-run A/B on the same task: the instruction "this repository fails CI
+on any function whose cyclomatic complexity exceeds 8" was inert in four runs of
+five, and the single run that obeyed it split the code AND pushed total branching
+over budget — the only run that changed shape was the only run that got worse.
+The unprompted baseline wrote the simple version 5/5.
+
+As a **conversation trigger** the same number earns its place: "this function
+crossed 15, come look" is information, and nobody is being refused. As a gate it
+buys a compliant number and teaches that splitting is the goal.
+
 ## The control is the thing to break, not the code it guards
 
 The two classes above are worth their own section because the instinct is

@@ -56,6 +56,24 @@ node --test tests/standalone-link.test.mjs 2>&1 | tee /tmp/adr001-t1.out; ! grep
 
 ## Mutation Log
 
+- 2026-08-27 · dd9d952* · mutant killed · exit 1 · `scripts/standalone-link.mjs` · re-adds the skill loop the decision removed; the plan must never name a skill · acceptance-sha256:7ec98f05924877db2b979cbae1f582987268a59209043ee34d476c683d3ed32d
+
+## Class Sweep
+
+**Class:** every artifact kind this plugin ships that Claude Code also serves under a namespaced
+`quality-harness:<name>` identity — those are the kinds a link can collapse.
+
+```bash
+ls -d bin hooks scripts skills templates
+node -e "import('./scripts/standalone-link.mjs').then(m=>console.log([...new Set(m.linkPlan(process.cwd()).map(e=>e.lineage))].join(' ')))"
+```
+
+Run 2026-08-27 after the fix: ships `bin hooks scripts skills templates`; `--link` covers
+`gate shim template`. One of the five kinds — `skills` — is served under a namespaced identity, and
+it is no longer linked. `agents/` and `commands/` would join the class the day either is added; the
+first command is what shows they are absent today, and it is why that is a sweep rather than a
+recollection.
+
 ## Invariants
 
 - Gate forwarders and template links keep being planned; this task removes one artifact kind, not the mechanism.
@@ -78,3 +96,4 @@ load-bearing for something other than skills.
 - Templates continuing to be version-pinned links (that's T2's neighbour, and ADR-001's Follow-up).
 
 ## Verification Log
+- 2026-08-27 · dd9d952* · exit 0 · `node --test tests/standalone-link.test.mjs 2>&1 | tee /tmp/adr001-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t1.out` · acceptance-sha256:7ec98f05924877db2b979cbae1f582987268a59209043ee34d476c683d3ed32d

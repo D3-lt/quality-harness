@@ -114,9 +114,44 @@ def prose(body):
     return re.sub(r"```[\s\S]*?```", " ", body)
 
 
+BULLET = re.compile(r"^\s*(?:[-*]|\d+\.)\s+\S")
+CONTINUATION = re.compile(r"^\s+\S")
+
+
 def bullets(body):
-    return [line.strip(" -*\t") for line in body.split("\n")
-            if re.match(r"^\s*(?:[-*]|\d+\.)\s+\S", line)]
+    """Each bullet WITH the indented lines that continue it.
+
+    This used to keep only the lines that start a bullet, so a bullet whose
+    reasoning wrapped was judged on its first line and every continuation was
+    discarded before the E2 rejection check ran. An alternative stating its
+    rejection perfectly well on line three reported as "gives no reason it was
+    not chosen".
+
+    It fired on two well-formed records on 2026-08-27 and was correct about
+    neither; both were "fixed" by moving words onto line one, which is an author
+    reshaping prose to suit a parser. A gate with false alarms is one people
+    learn to skip, and then it protects nothing.
+
+    A blank line or an unindented line ends the bullet — those are the two ways
+    Markdown itself ends one, so nothing swallows the paragraph that follows.
+    """
+    found = []
+    current = None
+    for line in body.split("\n"):
+        if BULLET.match(line):
+            if current is not None:
+                found.append(current)
+            current = line.strip(" -*\t")
+        elif current is None:
+            continue
+        elif not line.strip() or not CONTINUATION.match(line):
+            found.append(current)
+            current = None
+        else:
+            current += " " + line.strip()
+    if current is not None:
+        found.append(current)
+    return found
 
 
 def judge(text):

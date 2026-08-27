@@ -11,7 +11,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
-import { delimiter, dirname, join, resolve } from 'node:path'
+import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -758,10 +758,32 @@ test('qh-root answers with a plugin directory, or with nothing at all', () => {
     assert.ok(existsSync(join(told.stdout.trim(), 'bin')),
       `qh-root printed ${told.stdout.trim()}, which holds no gates`)
 
+    // The discriminating behaviour, which "prints a directory holding bin" does
+    // not reach: a real cache holds 2.0.4 beside 2.0.10 and 2.9.0 beside 2.15.0,
+    // and lexical order picks last month's copy. Found 2026-08-27 by two
+    // mutations that stayed GREEN — the assertion above was about the shape of
+    // the answer, not about which answer it is.
+    const cache = join(empty, '.claude', 'plugins', 'cache', 'quality-harness', 'quality-harness')
+    for (const [version, hasGates] of [['2.0.4', true], ['2.0.10', true], ['2.9.0', true],
+      ['2.15.0', true], ['9.9.9', false]]) {
+      mkdirSync(join(cache, version, hasGates ? 'bin' : 'docs'), { recursive: true })
+    }
+    const home = { ...env, HOME: empty, USERPROFILE: empty, CLAUDE_PLUGIN_ROOT: '' }
+    const picked = spawnSync('python3', [join(bin, 'qh-root')],
+      { encoding: 'utf8', timeout: 60_000, env: home })
+    assert.equal(picked.status, 0, picked.stderr)
+    assert.equal(basename(picked.stdout.trim()), '2.15.0',
+      `qh-root picked ${picked.stdout.trim()} — 2.0.10 over 2.0.4 and 2.15.0 over 2.9.0 are the cases`)
+    // 9.9.9 is the newest by number and holds no gates, so it is not a candidate:
+    // an unpacked directory without bin/ is not something to send a caller to.
+    assert.notEqual(basename(picked.stdout.trim()), '9.9.9')
+
     // Nothing installed and nothing in the environment: say so, do not guess.
-    const nowhere = spawnSync(process.execPath === '' ? 'python3' : 'python3',
-      [join(bin, 'qh-root')],
-      { encoding: 'utf8', timeout: 60_000, env: { ...env, HOME: empty, CLAUDE_PLUGIN_ROOT: '' } })
+    const bare = mkdtempSync(join(os.tmpdir(), 'qh-root-bare-'))
+    const nowhere = spawnSync('python3', [join(bin, 'qh-root')],
+      { encoding: 'utf8', timeout: 60_000,
+        env: { ...env, HOME: bare, USERPROFILE: bare, CLAUDE_PLUGIN_ROOT: '' } })
+    rmSync(bare, { recursive: true, force: true })
     assert.equal(nowhere.status, 1, nowhere.stdout)
     assert.equal(nowhere.stdout, '', 'a failed lookup must print no path at all')
     assert.match(nowhere.stderr, /no installed quality-harness found/)

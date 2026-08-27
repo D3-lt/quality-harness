@@ -8,7 +8,7 @@
 // the generator honest, because a rendered case with a wrong path fails as a
 // skill finding rather than as a broken fixture.
 import assert from 'node:assert/strict'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -144,4 +144,54 @@ test('the printed command grants every gated tool the cases declare', () => {
 
   // MCP tools are gated by the same operator grant and are not in the static set.
   assert.deepEqual(grantsFor(['  allowed_tools: [mcp__thing__do, Read]\n']), ['mcp__thing__do'])
+})
+
+test('a generate run snapshots the corpus and writes a runnable case', () => {
+  // The end-to-end path — snapshot, render, report — was untested: the suite
+  // exercised the pure functions and the early returns only, which left
+  // `main()`'s generate half uncovered and dropped JS branch coverage below its
+  // floor. CI caught that on 2026-08-27, which is the floor doing its job.
+  const source = corpus({
+    'docs/adr/ADR-001-a.md': '# a\n\n**Status:** Accepted\n',
+    'docs/adr/ADR-001-a/tasks/T1-x.md': '# T1\n',
+    'docs/specs/spec-a.md': '# spec\n',
+    'src/main.rs': 'fn main() {}\n',
+  })
+  const out = mkdtempSync(path.join(tmpdir(), 'qh-fixture-out-'))
+  const written = []
+  const write = process.stdout.write.bind(process.stdout)
+  process.stdout.write = chunk => { written.push(String(chunk)); return true }
+  let code
+  try {
+    code = main(['--corpus', source, '--out', out])
+  } finally {
+    process.stdout.write = write
+  }
+  const said = written.join('')
+  try {
+    assert.equal(code, 0, said)
+
+    // A real case.yaml, with the placeholders resolved — an unresolved {{CORPUS}}
+    // reaches `add_dirs` as literal text and reads as a skill that could not find
+    // the corpus.
+    const rendered = readFileSync(
+      path.join(out, 'cases', 'adr-against-a-real-corpus', 'case.yaml'), 'utf8')
+    assert.doesNotMatch(rendered, /\{\{\w+\}\}/, 'every placeholder must be resolved')
+    assert.match(rendered, /add_dirs:\n\s+- ".*qh-corpus-/, 'add_dirs must carry the snapshot path')
+    assert.match(rendered, /1\s+records|— 1\b/, 'the case states the corpus scale it was given')
+
+    // The snapshot is a copy of the corpus and nothing else.
+    const snapshotPath = /add_dirs:\n\s+- "([^"]+)"/.exec(rendered)[1]
+    assert.ok(existsSync(path.join(snapshotPath, 'docs/adr/ADR-001-a.md')))
+    assert.ok(existsSync(path.join(snapshotPath, 'docs/specs/spec-a.md')))
+    assert.ok(!existsSync(path.join(snapshotPath, 'src/main.rs')), 'the source tree is not the corpus')
+
+    // The printed command is the whole point: it carries the grant.
+    assert.match(said, /--eval-dir \S*evals\/generated\/cases|--eval-dir \S*cases/)
+    assert.match(said, /--allow-tools .*Write/, 'the grant the cases declare must be printed')
+    assert.match(said, /not optional/i)
+  } finally {
+    rmSync(source, { recursive: true, force: true })
+    rmSync(out, { recursive: true, force: true })
+  }
 })

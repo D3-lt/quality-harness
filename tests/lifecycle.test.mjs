@@ -2641,6 +2641,25 @@ test('importing the router does not end the process that imported it', async () 
   //
   // Spawned rather than imported here: an in-process import cannot observe the
   // failure it is about, because the failure is this process dying.
+  // A corpus of this test's OWN, deliberately in the state where nothing is
+  // waiting — that is the branch `main` used to `process.exit(0)` from. Pointing
+  // the probe at THIS repository instead made the check depend on whatever the
+  // live corpus happened to be: the mutation that removes the return went RED
+  // alone and GREEN in the full campaign, because by then the repository's own
+  // state routed to a stage and the branch was never reached. A test whose
+  // verdict moves with the tree it is measuring is the bug it was written for.
+  const settled = await mkdtemp(path.join(testTmp, 'quality-settled-'))
+  const settledTasks = path.join(settled, 'docs', 'adr', 'tasks')
+  await mkdir(settledTasks, { recursive: true })
+  await writeFile(path.join(settled, 'docs', 'adr', 'ADR-001-settled.md'),
+    '# ADR-001: Settled\n\n**Status:** Accepted\n')
+  await writeFile(path.join(settledTasks, 'T1.md'),
+    '# Task ADR-001-T1\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n')
+  const { nextStage: stageOf, observe: observeAt } = await import('../scripts/work-next.mjs')
+  assert.equal(stageOf(observeAt(settled)), null,
+    'the fixture must be in the nothing-waiting state, or the branch under test is never reached')
+
   // Two calls, because there are two contracts. Importing must be inert; and
   // `main` — now an export — must RETURN a code rather than take the caller's
   // process with it, which is what the CLI guard cannot protect anyone from.
@@ -2648,7 +2667,7 @@ test('importing the router does not end the process that imported it', async () 
     import('${pathToFileURL(path.join(pluginDir, 'scripts', 'work-next.mjs')).href}')
       .then(m => {
         process.stdout.write('ALIVE ' + Object.keys(m).sort().join(','))
-        const code = m.main([${JSON.stringify(pluginDir)}])
+        const code = m.main([${JSON.stringify(settled)}])
         process.stdout.write(' RETURNED:' + code)
       })
       .catch(e => { process.stdout.write('REJECTED ' + e.message) })

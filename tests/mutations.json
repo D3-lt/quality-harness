@@ -1680,6 +1680,42 @@
       ],
       "from": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\\n`)\n    return 0",
       "to": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\\n`)\n    process.exit(0)"
+    },
+    {
+      "label": "fixture: the corpus is copied, not linked to",
+      "file": "scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "    cpSync(from, to, { recursive: true, dereference: true })\n    taken.push(part)",
+      "to": "    taken.push(part)"
+    },
+    {
+      "label": "fixture: only the corpus parts are copied, not the source tree",
+      "file": "scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "  for (const part of CORPUS_PARTS) {",
+      "to": "  for (const part of [...CORPUS_PARTS, 'src']) {"
+    },
+    {
+      "label": "fixture: an unresolved placeholder is left visible",
+      "file": "scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "    (Object.hasOwn(values, key) ? String(values[key]) : whole))",
+      "to": "    (Object.hasOwn(values, key) ? String(values[key]) : ''))"
+    },
+    {
+      "label": "fixture: an unknown option is named, not ignored",
+      "file": "scripts/eval-fixture.mjs",
+      "tests": [
+        "tests/eval-fixture.test.mjs"
+      ],
+      "from": "  const unknown = argv.filter(a => a.startsWith('--') && !KNOWN.has(a))",
+      "to": "  const unknown = []"
     }
   ]
 }

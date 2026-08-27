@@ -256,6 +256,25 @@ test('the verification wrapper reports what the command it ran actually did', ()
   assert.equal(call('--cwd', root).status, 2)
   assert.equal(call('--cwd', 'relative/path', '--', 'true').status, 2)
   assert.match(call('--cwd', 'relative/path', '--', 'true').stderr, /absolute path/)
+
+  // `--` with nothing after it, and `--cwd` after the separator: two usage
+  // shapes that reach the same guard by different routes, and both would
+  // otherwise spawn `undefined` as a command.
+  assert.equal(call('--cwd', root, '--').status, 2)
+  assert.equal(call('--', 'true', '--cwd', root).status, 2)
+  // The NUL-byte guard in verify.mjs is deliberately NOT tested here: Node's own
+  // spawnSync refuses an argument containing one, so the guard is unreachable
+  // through any normal invocation and a test would only prove Node's validation.
+
+  // A command KILLED by a signal is not a command that returned a code. Without
+  // this branch the wrapper reports `code ?? 1` for a process that never exited
+  // normally, and a run killed on its time budget would read as an ordinary
+  // failure — the distinction adr-verify's whole verdict taxonomy rests on.
+  const killed = call('--cwd', root, '--', process.execPath, '-e',
+    'process.kill(process.pid, "SIGKILL")')
+  assert.equal(killed.status, 1, killed.stderr)
+  assert.match(killed.stderr, /terminated by SIGKILL/,
+    'the signal must be named; "exit 1" alone loses why')
 })
 
 // --- adr-retire-check: the row rules that guard a frozen record --------------

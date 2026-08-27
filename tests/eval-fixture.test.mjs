@@ -81,8 +81,27 @@ test('a placeholder with no value is left alone rather than blanked', () => {
 })
 
 test('an unknown option is named, and --list asks nothing about a corpus', () => {
-  assert.equal(main(['--nope']), 2, 'an unknown option must not be ignored')
-  assert.equal(main([]), 2, '--corpus is required for a generate run')
+  // Exit code alone cannot carry this: a missing `--corpus` ALSO returns 2, so
+  // an assertion on the number passes with the unknown-option guard deleted.
+  // Caught by mutation `fixture: an unknown option is named, not ignored`, which
+  // stayed GREEN against the first version of this test — the same shape as the
+  // flush mutation and the router guard earlier the same day. Assert the message.
+  const said = []
+  const err = process.stderr.write.bind(process.stderr)
+  process.stderr.write = chunk => { said.push(String(chunk)); return true }
+  try {
+    assert.equal(main(['--nope']), 2, 'an unknown option must not be ignored')
+    assert.match(said.join(''), /unknown option: --nope/,
+      'the offending option has to be named; "2" is not a diagnosis')
+    said.length = 0
+    assert.equal(main([]), 2, '--corpus is required for a generate run')
+    assert.match(said.join(''), /--corpus <dir> is required/)
+    assert.doesNotMatch(said.join(''), /unknown option/,
+      'a missing --corpus is not an unknown option; conflating them is what let the guard rot')
+  } finally {
+    process.stderr.write = err
+  }
+
   const written = []
   const write = process.stdout.write.bind(process.stdout)
   process.stdout.write = chunk => { written.push(String(chunk)); return true }

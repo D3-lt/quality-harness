@@ -1563,6 +1563,15 @@
       ],
       "from": "Run `qh-root` and use what it prints in place of it.",
       "to": "Go and look for it."
+    },
+    {
+      "label": "qh-root: a named plugin root outranks the search",
+      "file": "bin/qh-root",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if environment and (Path(environment) / \"bin\").is_dir():\n        return Path(environment)",
+      "to": "    if environment:\n        return Path(environment)"
     }
   ]
 }

@@ -948,6 +948,30 @@ its layout is what teaches people to stop running the gate.
 `tests/skill-contract.test.mjs` now asserts that no skill recommends a shape `adr-verify`
 cannot write evidence into, which is the general form of this bug.
 
+## 25. Two things 2.18.2 made vestigial, kept deliberately
+
+Both are recorded rather than fixed, because removing either is a change nobody asked for
+and neither is wrong today.
+
+**The `qh-root` note in eight skills.** Each skill that names `${CLAUDE_PLUGIN_ROOT}` carries
+a paragraph explaining that the placeholder stays literal when the skill is loaded under its
+bare name from a personal skills directory, and to run `qh-root` instead. 2.18.2 stopped
+linking personal skills and this machine deleted its thirteen, so those skills are now served
+only as `quality-harness:<name>` — plugin context, where the placeholder resolves. The note is
+harmless and still correct for anyone who keeps a hand-made bare-name copy. It reads as a
+pointer to a copy that, here, no longer exists.
+
+**`archive()` copying a directory.** `linkPlan` now emits gates, shims and templates — all
+files. `write()` is handed nothing else, so the `recursive: true` in `archive`'s `cpSync` is
+reached, with a directory, only by the test written for it. That test constructs its own entry
+and says so. The pair is self-referential: the fixture is the only thing that reaches the code
+it tests, which is the exact shape `mutate-propose` exists to find. Kept because `write()` is
+the only function here that deletes, and the cost of the flag is one word.
+
+Both are the same class as item 21 in reverse — not a check that fires on nothing, but a
+mechanism that nothing reaches. Neither costs anything until someone reads it and looks for
+the thing it describes.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

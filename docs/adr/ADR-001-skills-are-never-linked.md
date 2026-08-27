@@ -1,6 +1,6 @@
 # ADR-001: Never install a personal copy of an artifact the plugin already serves by name
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-27
 **Owner:** zy
 **Spec:** None — no spec stage

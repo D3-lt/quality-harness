@@ -1,6 +1,6 @@
 # ADR-002: A mutant restore must outlive the process that applied it
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-27
 **Owner:** zy
 **Spec:** None — no spec stage

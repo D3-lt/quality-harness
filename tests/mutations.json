@@ -1743,6 +1743,24 @@
       ],
       "from": "      if (GATED.has(name) || name.startsWith('mcp__')) wanted.add(name)",
       "to": "      if (name === 'Bash') wanted.add(name)"
+    },
+    {
+      "label": "package: a gate with no mutation is named, not counted",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "  const bare = gates.filter(gate => !covered.has(`bin/${gate}`))",
+      "to": "  const bare = []"
+    },
+    {
+      "label": "skills: mutation-audit says which gates earn their place",
+      "file": "skills/mutation-audit/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Choosing what to gate at all",
+      "to": "## Gates"
     }
   ]
 }

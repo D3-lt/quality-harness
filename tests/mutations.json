@@ -1721,8 +1721,7 @@
       "label": "skills: mutation-audit names the control that refuses nobody",
       "file": "skills/mutation-audit/SKILL.md",
       "tests": [
-        "tests/skill-contract.test.mjs",
-        "tests/skill-metadata.test.mjs"
+        "tests/skill-contract.test.mjs"
       ],
       "from": "- **A control that refuses nobody** — an authorization check, a healthcheck, an engine",
       "to": "- **A control** — an authorization check, a healthcheck, an engine"
@@ -1731,8 +1730,7 @@
       "label": "skills: mutation-audit says to break the control, not the guarded code",
       "file": "skills/mutation-audit/SKILL.md",
       "tests": [
-        "tests/skill-contract.test.mjs",
-        "tests/skill-metadata.test.mjs"
+        "tests/skill-contract.test.mjs"
       ],
       "from": "## The control is the thing to break, not the code it guards",
       "to": "## Controls"

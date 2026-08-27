@@ -210,7 +210,18 @@ test('every shipped gate carries at least one mutation', () => {
   assert.ok(gates.length >= 8, `expected the shipped gates, found ${gates.length}`)
 
   const covered = new Set(catalogue.map(entry => entry.file))
-  const bare = gates.filter(gate => !covered.has(`bin/${gate}`))
+  const uncovered = (names, known) => names.filter(gate => !known.has(`bin/${gate}`))
+
+  // The detector has to be shown capable of firing. Without this the check is
+  // satisfied by a complete catalogue and by a predicate that returns nothing at
+  // all — `adr-verify --mutant` proved it: replacing the filter with `[]` left
+  // the fence GREEN, because an empty list equals an empty list. A gate that
+  // cannot fail is the thing ADR-003 forbids, and it appeared in the task that
+  // introduces the rule.
+  assert.deepEqual(uncovered(['ghost-gate'], new Set(['bin/real-gate'])), ['ghost-gate'],
+    'the check must be able to name an uncovered gate, or it asserts nothing')
+
+  const bare = uncovered(gates, covered)
   // Name the gate. "expected 10 to be 11" makes the reader redo the enumeration
   // the test just did, which is how a failing check becomes a check people skip.
   assert.deepEqual(bare, [],

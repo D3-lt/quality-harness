@@ -2518,9 +2518,11 @@ export function sessionOrientation(cwd) {
       lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports `
         + 'what differs. `--apply` copies over it, which is the fix you have to remember again '
         + 'next release; `--link` turns each gate into a forwarder that resolves the newest '
-        + 'installed plugin at call time, so no release touches a gate again. Skills and templates '
-        + 'become links, and a link names one version, so re-run `--link --apply` after an update '
-        + 'to repoint those.')
+        + 'installed plugin at call time, so no release touches a gate again. Templates become '
+        + 'links, and a link names one version, so re-run `--link --apply` after an update to '
+        + 'repoint those. A bare-name SKILL is better deleted than synced: it duplicates one the '
+        + 'plugin already serves as `quality-harness:<name>`, and linking it at the plugin own '
+        + 'directory hides the namespaced entrypoint outright.')
     }
   }
 

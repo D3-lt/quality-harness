@@ -1213,7 +1213,35 @@ score 1.00, so whatever produces the good answer here is not a skill firing — 
 arm's advantage, where it has one, comes from hooks or the system prompt rather than from the skill
 bodies this suite was built to measure.
 
-## 32. The runs where a skill fires are the runs that do not finish
+## 32. WITHDRAWN — the runs where a skill fires finish fine
+
+**Settled 2026-08-27 evening, and the finding below is false.** Ten with-arm runs at
+`max_turns: 40` / `timeout_seconds: 900` against the same 171-record snapshot:
+
+| | runs | all scored |
+|---|---|---|
+| a skill fired | 7 of 9 completed | **1.00** |
+| no skill fired | 2 of 9 completed | **1.00** |
+| consulted the corpus before writing | 9/9 | |
+| record written to disk | 9/9 | |
+
+The tenth run was interrupted by hand, not a failure. **9 of 10 scored 1.00**, and firing a skill
+predicted nothing. The correlation recorded below — every skill-firing run failing to finish — was
+four observations under three DIFFERENT and progressively tighter budgets, and the budget was the
+variable the whole time.
+
+**The real finding, which is the useful one:** given a budget that fits it, the guided path matches
+the unguided path against a real corpus — 1.00, consulting the corpus before writing every time.
+`adr-write`'s preamble is EXPENSIVE, not broken. What a user should be told is the cost, not a
+warning about convergence.
+
+Kept rather than deleted because this case has now produced four numbers that did not survive
+re-measurement — Δ −0.40, Δ −1.00, Δ −0.60, and this correlation — and that record is worth more
+than the entry it corrects. Nothing from this case belongs in a record until it has been repeated.
+
+The original finding follows.
+
+## 32 (superseded). The runs where a skill fires are the runs that do not finish
 
 First measurement against a real corpus, 2026-08-27. `evals/templates/adr-against-a-real-corpus`
 run against a snapshot of a 171-record, 498-task corpus — the first time anything in this plugin has

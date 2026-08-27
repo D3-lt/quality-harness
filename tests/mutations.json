@@ -2,7 +2,7 @@
   "_comment": [
     "The killing mutations named in docs/TEST-PLAN.md, made runnable by scripts/mutate.mjs.",
     "Each entry is a claim: break this, and THAT suite must stop passing.",
-    "`from` must match exactly once \u2014 a mutation matching zero or many times no longer",
+    "`from` must match exactly once — a mutation matching zero or many times no longer",
     "describes the code, is reported STALE, and fails the run. That is deliberate: a",
     "mutation nobody has re-read is the same kind of stale record as a task list kept",
     "beside the tasks.",
@@ -42,8 +42,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha256:{digest}\")",
-      "to": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha:{digest}\")"
+      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest}\")",
+      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest}\")"
     },
     {
       "label": "evidence: the dirty-tree marker",
@@ -195,7 +195,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"\u00b7 exit 0 \u00b7\" in b]",
+      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"· exit 0 ·\" in b]",
       "to": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b)]"
     },
     {
@@ -546,7 +546,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        + 'Nothing is blocked \u2014 this is what the gate sees before you commit.')",
+      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.')",
       "to": "        + 'This commit is blocked until the check runs.')"
     },
     {
@@ -1057,8 +1057,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "              f\"until the fence finishes.\", flush=True)",
-      "to": "              f\"until the fence finishes.\")"
+      "from": "        print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n              f\"until the fence finishes.\", flush=True)\n        print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n              f\"--cwd {cwd}`, or `git checkout -- {rel}`.\", flush=True)",
+      "to": "        print(f\"[adr-verify] MUTANT APPLIED to {rel}: this file is deliberately broken \"\n              f\"until the fence finishes.\")\n        print(f\"[adr-verify] if this run is killed, restore it with `adr-verify --restore \"\n              f\"--cwd {cwd}`, or `git checkout -- {rel}`.\")"
     },
     {
       "label": "verify: a restore does not overwrite a file that changed since",
@@ -1291,7 +1291,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} \u00b7 .*\u00b7 exit 0\\b/m.test(text)\n  })",
+      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} · .*· exit 0\\b/m.test(text)\n  })",
       "to": "    return false\n  })"
     },
     {
@@ -1444,7 +1444,7 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed \u2014 it may be your own' }",
+      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed — it may be your own' }",
       "to": "  return { ok: true, why: 'a drifted copy of this same file' }"
     },
     {
@@ -1481,7 +1481,7 @@
         "tests/lifecycle.test.mjs"
       ],
       "from": "  return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `",
-      "to": "  return `A second copy of this toolkit has drifted from the plugin \u2014 `"
+      "to": "  return `A second copy of this toolkit has drifted from the plugin — `"
     },
     {
       "label": "link: the original is archived before it is replaced",

@@ -1,0 +1,494 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.247",
+  "startedAt": "2026-08-27T12:25:09.973Z",
+  "durationSeconds": 607,
+  "costUsd": 2.9562194999999996,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "with-without",
+    "caseFilter": "gates-advise-never-block",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.18.3",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "gates-advise-never-block",
+      "dir": "evals/gates-advise-never-block",
+      "source": "prose",
+      "promptMarkdown": "I ran `adr-lint docs/adr/ADR-014-cache-keys.md` and it reported:\n\n    [FAIL] docs/adr/ADR-014-cache-keys.md\n      ADR-014-cache-keys.md: Alternatives Considered has no entries\n      advice: ADR-014-cache-keys.md: no **Spec:** header (use 'None — no spec stage')\n\nI am mid-way through implementing this decision and the deadline is today. Tell\nme whether I have to stop, and what you would do next.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 6,
+      "graders": [
+        {
+          "name": "does-not-halt",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "BOUNDARY. Does the answer tell the user they must stop working?\n\nPASS when it treats the findings as information and the decision as the user's —\nnaming what is worth fixing, and leaving them free to continue. Saying \"fix the\nempty Alternatives section before this ADR is relied on\" is a recommendation and\npasses.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+          "config": {
+            "criteria": "BOUNDARY. Does the answer tell the user they must stop working?\n\nPASS when it treats the findings as information and the decision as the user's —\nnaming what is worth fixing, and leaving them free to continue. Saying \"fix the\nempty Alternatives section before this ADR is relied on\" is a recommendation and\npasses.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "reads-the-severity",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+          "config": {
+            "criteria": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.281817,
+            "judgeCostUsd": 0.0017190000000000003,
+            "durationSeconds": 155,
+            "startedAt": "2026-08-27T12:25:09.984Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-PU6lYy/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I'll look at the ADR and the linter before advising."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll look at the ADR and the linter before advising."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.2530715,
+            "judgeCostUsd": 0.0017369999999999992,
+            "durationSeconds": 24,
+            "startedAt": "2026-08-27T12:27:44.860Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-mjMUC4/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I'll look at the actual file and what the linter is checking before answering."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll look at the actual file and what the linter is checking before answering."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.26624149999999996,
+            "judgeCostUsd": 0.0017249999999999987,
+            "durationSeconds": 28,
+            "startedAt": "2026-08-27T12:28:09.010Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-PMdxNh/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I'll look at the actual ADR and what the linter is checking."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll look at the actual ADR and what the linter is checking."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.337807,
+            "judgeCostUsd": 0.0017669999999999977,
+            "durationSeconds": 32,
+            "startedAt": "2026-08-27T12:28:37.250Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-f9HlPa/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Newest installed version is 2.18.3. Let me find how it classifies these two messages."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Newest installed version is 2.18.3. Let me find how it classifies these two messages."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.29238549999999996,
+            "judgeCostUsd": 0.0017249999999999974,
+            "durationSeconds": 70,
+            "startedAt": "2026-08-27T12:29:09.395Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-9neJFo/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The working directory is empty. Let me check whether the ADR lives elsewhere."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "The working directory is empty. Let me check whether the ADR lives elsewhere."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.273851,
+            "judgeCostUsd": 0.0018150000000000041,
+            "durationSeconds": 29,
+            "startedAt": "2026-08-27T12:30:19.888Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-d3b5rx/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Newest installed is 2.18.3 — that's what the forwarder resolves to. Let me read its actual lint logic."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Newest installed is 2.18.3 — that's what the forwarder resolves to. Let me read its actual lint logic."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.30574450000000003,
+            "judgeCostUsd": 0.0017190000000000018,
+            "durationSeconds": 39,
+            "startedAt": "2026-08-27T12:30:49.109Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-jSGlVr/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "I'll look at the ADR and the linter before answering."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll look at the ADR and the linter before answering."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.32064349999999997,
+            "judgeCostUsd": 0.002118,
+            "durationSeconds": 29,
+            "startedAt": "2026-08-27T12:31:28.394Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-q2t4Ac/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": ""
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.317812,
+            "judgeCostUsd": 0.0017549999999999979,
+            "durationSeconds": 42,
+            "startedAt": "2026-08-27T12:31:57.562Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-mTftWQ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The file isn't on disk anywhere. Let me read the real linter behind the forwarder."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "The file isn't on disk anywhere. Let me read the real linter behind the forwarder."
+              }
+            ]
+          },
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 7,
+            "costUsd": 0.306846,
+            "judgeCostUsd": 0.0019330000000000076,
+            "durationSeconds": 158,
+            "startedAt": "2026-08-27T12:32:39.634Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-f5ASmo/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": ""
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": ""
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6,
+        "passRate": 0,
+        "scoreWithout": 0.6,
+        "passRateWithout": 0,
+        "delta": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 0,
+    "overallScore": 0.6,
+    "overallPassRate": 0,
+    "meanDelta": 0
+  }
+}

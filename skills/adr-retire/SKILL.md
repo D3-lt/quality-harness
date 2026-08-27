@@ -64,6 +64,24 @@ decision effect controls whether a choice still governs. Archive is not a synony
    Then lint every active ADR with the repository's current command. Verify the Git summary shows
    renames for the retired unit rather than delete-and-recreate or content rewrites.
 
+## Audit the class, not the instance
+
+A record you are retiring is rarely alone. The supersession that replaced it
+usually replaced siblings, and a corpus retired one record at a time ends up with
+the awkward half still active and still governing code.
+
+Before retiring, enumerate the class with a command rather than from the record
+in front of you:
+
+- `node ${CLAUDE_PLUGIN_ROOT}/scripts/adr-state.mjs` reports supersessions whose
+  replacement is missing, and decisions nothing points at the code — both are
+  retirement classes, already computed.
+- Grep the corpus for the same `Superseded by` target: one replacement usually
+  retires several records, and retiring one of them is a half-done migration
+  nothing will report.
+
+Members you keep active are a decision: say which and why in the archive entry.
+
 ## Existing Archives
 
 Do not add the lifecycle marker and claim conformance immediately. Start with:

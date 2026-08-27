@@ -22,6 +22,25 @@ not restate from memory. The executable gate is `spec-verify` (exit 0 = gate pas
 Skip for: single-file bug fixes, pure docs, dependency bumps, or work with an already-accepted
 spec/ADR.
 
+## Audit the class, not the instance
+
+A requirement discovered from one example is a rule about a class of inputs. A
+scenario written for the example passes for the example and says nothing about
+its siblings — which is exactly how a spec ships green and the bug reappears
+under a different name.
+
+For each Fact, before writing scenarios:
+
+1. **State the class the Fact governs.** "Any path the gate cannot read", not
+   "a missing file".
+2. **Enumerate the members** — the boundary values, the error shapes, the
+   platforms — with a query or a list, not from memory.
+3. **Write the scenario against the class**, and name the members it covers.
+   Where one member behaves differently, that is a second Fact, not a footnote.
+
+A Fact whose class you cannot state is not yet a requirement; it is one
+observation, and it should say so rather than pretending to generality.
+
 ## The Fact lifecycle
 
 Every behavioral decision becomes a Facts-table row: `F-n | assertion | test | tag`.

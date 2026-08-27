@@ -1473,6 +1473,51 @@
       ],
       "from": "if (selected.length === 0) {\n  process.stderr.write(`no mutation matches ${filter}\\n`)\n  process.exit(1)\n}",
       "to": "if (selected.length === 0) process.exit(1)"
+    },
+    {
+      "label": "skills: adr-write audits the class, not the instance",
+      "file": "skills/adr-write/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Audit the class, not the instance",
+      "to": "## Notes"
+    },
+    {
+      "label": "skills: spec-write audits the class, not the instance",
+      "file": "skills/spec-write/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Audit the class, not the instance",
+      "to": "## Notes"
+    },
+    {
+      "label": "skills: adr-execute audits the class, not the instance",
+      "file": "skills/adr-execute/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Audit the class, not the instance",
+      "to": "## Notes"
+    },
+    {
+      "label": "skills: adr-retire audits the class, not the instance",
+      "file": "skills/adr-retire/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "## Audit the class, not the instance",
+      "to": "## Notes"
+    },
+    {
+      "label": "skills: adr-write says what a left-out class member costs",
+      "file": "skills/adr-write/SKILL.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "Members you deliberately leave out are part of the decision: name them and say",
+      "to": "Members are"
     }
   ]
 }

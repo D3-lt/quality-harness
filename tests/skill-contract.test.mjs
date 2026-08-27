@@ -290,3 +290,30 @@ test('no skill tells the agent to stop on a gate verdict', () => {
   const spec = readFileSync(join(root, 'skills', 'spec-write', 'SKILL.md'), 'utf8')
   assert.match(spec, /paste both/)
 })
+
+test('the record skills audit the class, not the instance', () => {
+  // Asked for on 2026-08-27, and earned the same day: the same defect was fixed
+  // four times as if it were new — four mutation entries went STALE one at a
+  // time from one refactor, a forbidden path literal was fixed in three files
+  // across three commits, and an early exit that skipped recovery was fixed as a
+  // single instance while the class of early exits went unaudited and bit again.
+  //
+  // The rule is only worth writing down if it survives an edit that deletes it,
+  // and prose nothing asserts is exactly what mutation 135 proved does not.
+  for (const skill of ['adr-write', 'spec-write', 'adr-execute', 'adr-retire']) {
+    const text = readFileSync(join(root, 'skills', skill, 'SKILL.md'), 'utf8')
+    assert.match(text, /^## Audit the class, not the instance$/m,
+      `${skill}: the rule must be a section an agent can find, not a buried sentence`)
+
+    const section = text.split(/^## Audit the class, not the instance$/m)[1].split(/^## /m)[0]
+    // A slogan is not a procedure. Each one has to say to ENUMERATE, and to do it
+    // with something repeatable — recall is what produced the four separate
+    // fixes. `grep`, a glob, a named script: something the next reader can re-run.
+    assert.match(section, /\benumerate\b/i, `${skill}: the rule must say to enumerate the class`)
+    assert.match(section, /\b(command|grep|glob|query|adr-state|adr-context)\b/i,
+      `${skill}: enumeration must name a repeatable means, not memory`)
+    // And the half everyone drops: what you leave out is part of the decision.
+    assert.match(section, /(deliberately leave out|leave for later|keep active|second Fact|new tasks)/i,
+      `${skill}: the rule must say what to do with members left out`)
+  }
+})

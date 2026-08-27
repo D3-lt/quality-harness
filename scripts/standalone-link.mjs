@@ -28,8 +28,8 @@
 // calls it, and it reports unless asked to write.
 import { createHash } from 'node:crypto'
 import {
-  existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, symlinkSync,
-  writeFileSync,
+  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync,
+  symlinkSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -303,18 +303,51 @@ function currentState(entry, homeDirectory, platform) {
   return { state: points ? 'repointed' : existsSync(entry.to) ? 'replaced' : 'missing' }
 }
 
-export function write(entry) {
+/** Where a run's originals are kept. One directory per run, never reused. */
+export function backupRoot(stamp, homeDirectory = os.homedir()) {
+  return path.join(homeDirectory, '.claude', '.quality-harness-backup', stamp)
+}
+
+/**
+ * Copy what is about to be replaced, before replacing it.
+ *
+ * Asked for by the owner on 2026-08-27 — "i need to backup my original ones
+ * first then" — and the right answer is that they should not have had to.
+ * Every guarantee in this file is about not losing someone's work, and a
+ * backup you must remember is the same failure as a sync you must remember.
+ *
+ * Returns the path written, or null when there was nothing there to keep.
+ */
+export function archive(entry, stamp, homeDirectory = os.homedir()) {
+  let info
+  try { info = lstatSync(entry.to) } catch { return null }
+  const kept = path.join(backupRoot(stamp, homeDirectory), entry.relative)
+  mkdirSync(path.dirname(kept), { recursive: true })
+  // A symlink is copied as a symlink: dereferencing one would silently pull in
+  // whatever it points at, which for a skill linked out to another repository
+  // is that repository, not a backup of anything this run touched.
+  if (info.isSymbolicLink()) symlinkSync(readlinkSync(entry.to), kept)
+  else cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })
+  return kept
+}
+
+export function write(entry, stamp = null, homeDirectory = os.homedir()) {
+  // The archive happens first or it does not happen. `write` is the only path
+  // that removes anything, so putting the copy anywhere else leaves a caller
+  // able to skip it.
+  const kept = stamp ? archive(entry, stamp, homeDirectory) : null
   mkdirSync(path.dirname(entry.to), { recursive: true })
   if (entry.kind === 'forwarder') {
     rmSync(entry.to, { force: true })
     writeFileSync(entry.to, entry.contents, { mode: entry.mode })
-    return
+    return kept
   }
   if (entry.state === 'copy-only') {
     rmSync(entry.to, { force: true })
     writeFileSync(entry.to, readFileSync(entry.target))
-    return
+    return kept
   }
   rmSync(entry.to, { force: true, recursive: true })
   symlinkSync(entry.target, entry.to, entry.directory ? 'junction' : 'file')
+  return kept
 }

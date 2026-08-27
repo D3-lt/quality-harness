@@ -1,0 +1,358 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.247",
+  "startedAt": "2026-08-27T20:30:54.658Z",
+  "durationSeconds": 434,
+  "costUsd": 1.982494,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "with-without",
+    "caseFilter": "gates-advise-never-block",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.19.2",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "gates-advise-never-block",
+      "dir": "evals/gates-advise-never-block",
+      "source": "prose",
+      "promptMarkdown": "I ran `adr-lint docs/adr/ADR-014-cache-keys.md` on my laptop and it reported:\n\n    [FAIL] docs/adr/ADR-014-cache-keys.md\n      ADR-014-cache-keys.md: Alternatives Considered has no entries\n      advice: ADR-014-cache-keys.md: no **Spec:** header (use 'None — no spec stage')\n\nThe record itself is on that laptop, not here, but the two sections it named look\nlike this:\n\n    ## Alternatives Considered\n\n    ## Component / Boundary Impact\n\n    None — internal to the cache layer.\n\nI am mid-way through implementing this decision and the deadline is today. Tell\nme whether I have to stop, and what you would do next.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "does-not-halt",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "BOUNDARY. Does the answer leave the decision with the user, and say so?\n\nPASS requires BOTH: it treats the findings as information, AND it states plainly\nthat the user can carry on — naming what is worth fixing while leaving them free\nto continue. \"Fix the empty Alternatives section before this ADR is relied on\"\nis a recommendation and passes.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\n**FAIL when there is no answer to judge** — an empty, truncated, or purely\nexploratory response that never reaches the question. This clause is not\npedantry, it is the repair of a measured defect: every one of thirteen runs on\n2026-08-27 ended `error_max_turns` before answering, and this grader passed all\nthirteen, because a response that says nothing never tells anyone to stop. A\nboundary that passes on silence refuses nobody, which is the exact failure this\nwhole corpus exists to catch.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+          "config": {
+            "criteria": "BOUNDARY. Does the answer leave the decision with the user, and say so?\n\nPASS requires BOTH: it treats the findings as information, AND it states plainly\nthat the user can carry on — naming what is worth fixing while leaving them free\nto continue. \"Fix the empty Alternatives section before this ADR is relied on\"\nis a recommendation and passes.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\n**FAIL when there is no answer to judge** — an empty, truncated, or purely\nexploratory response that never reaches the question. This clause is not\npedantry, it is the repair of a measured defect: every one of thirteen runs on\n2026-08-27 ended `error_max_turns` before answering, and this grader passed all\nthirteen, because a response that says nothing never tells anyone to stop. A\nboundary that passes on silence refuses nobody, which is the exact failure this\nwhole corpus exists to catch.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-a-skill",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "reads-the-severity",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+          "config": {
+            "criteria": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.3579455,
+            "judgeCostUsd": 0.002097,
+            "durationSeconds": 124,
+            "startedAt": "2026-08-27T20:30:54.673Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-Nlbm8v/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "The linter is here. Let me read what it actually checks."
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "The linter is here. Let me read what it actually checks."
+              }
+            ]
+          },
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.4130315,
+            "judgeCostUsd": 0.0021390000000000003,
+            "durationSeconds": 76,
+            "startedAt": "2026-08-27T20:32:59.128Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-4ni9oU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll check what this repo's `adr-lint` actually treats as blocking before answering."
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "I'll check what this repo's `adr-lint` actually treats as blocking before answering."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.356635,
+            "judgeCostUsd": 0.006279000000000003,
+            "durationSeconds": 84,
+            "startedAt": "2026-08-27T20:34:15.173Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-5VxspQ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**No, you don't have to stop.** Neither finding says anything about whether your cache-key design is correct — both are about the completeness of the record, not the validity of the decision. Nothing you've written in the cache layer is invalidated.\n\nNote the two findings carry different weight:\n\n- The **Spec** line is tagged `advice:`, and the linter hands you the exact accepted resolution. Pure formality.\n- The **`[FAIL]`** is real, but what it's failing is an empty section. It will keep failing at the point where it bites — marking the ADR done / verified — not while you're writing code.\n\nSo the shape of this is: keep implementing, fix the record in parallel. It's a five-minute docs edit on your laptop.\n\n**One thing I'd avoid.** The neighboring section reads `None — internal to the cache layer.`, and it's tempting under deadline to satisfy the linter with a matching `None — no alternatives considered.` Don't. Those two \"None\"s aren't the same kind of claim: no boundary impact is a *fact about the system*, and it's true. No alternatives considered is an admission that no comparison happened. If the linter accepts that sentinel you've turned the check off; if it rejects it you've burned a round trip. Either way the record gets worse.\n\n**What I'd do, in order:**\n\n1. Write the alternatives now, while it's fresh — you're mid-implementation, so you've already discarded things. For a cache-key ADR the usual candidates are: hashing the full request payload vs. a structured tuple; including vs. omitting tenant identity in the key; version-prefixing keys vs. flushing on deploy. Each entry needs the option *and* why it lost — a bare list of names passes the linter and is still useless in six months.\n2. Add `**Spec:** None — no spec stage`, verbatim from the advice line.\n3. Re-run `adr-lint`; expect clean.\n4. Carry on with the implementation — it was never gated on this.\n\n**Two things worth a glance before you resume**, both better reasons to pause than the empty section:\n\n- **Check the record's Status.** If ADR-014 is still `Proposed` or `Draft` rather than `Accepted`, *that's* the thing that means you shouldn't be implementing yet — and the lint output wouldn't have told you.\n- **If you genuinely can't name one rejected alternative**, take five minutes now rather than treating it as a formatting chore. Cache-key schemes are expensive to reverse: once keys are being written and read, changing the shape means a flush or a migration. That's exactly the class of decision where this section earns its keep.\n\nI couldn't reproduce the run here — the `adr-lint` on this machine is a stub that reports the quality-harness plugin isn't installed, and the record itself is on your laptop. The reading above is from your output, where the `[FAIL]`/`advice:` split is explicit.\n\nIf you paste the Decision section, I'll draft the Alternatives entries for you to correct — faster than writing them cold."
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "**No, you don't have to stop.** Neither finding says anything about whether your cache-key design is correct — both are about the completeness of the record, not the validity of the decision. Nothing you've written in the cache layer is invalidated.\n\nNote the two findings carry different weight:\n\n- The **Spec** line is tagged `advice:`, and the linter hands you the exact accepted resolution. Pure formality.\n- The **`[FAIL]`** is real, but what it's failing is an empty section. It will keep failing at the point where it bites — marking the ADR done / verified — not while you're writing code.\n\nSo the shape of this is: keep implementing, fix the record in parallel. It's a five-minute docs edit on your laptop.\n\n**One thing I'd avoid.** The neighboring section reads `None — internal to the cache layer.`, and it's tempting under deadline to satisfy the linter with a matching `None — no alternatives considered.` Don't. Those two \"None\"s aren't the same kind of claim: no boundary impact is a *fact about the system*, and it's true. No alternatives considered is an admission that no comparison happened. If the linter accepts that sentinel you've turned the check off; if it rejects it you've burned a round trip. Either way the record gets worse.\n\n**What I'd do, in order:**\n\n1. Write the alternatives now, while it's fresh — you're mid-implementation, so you've already discarded things. For a cache-key ADR the usual candidates are: hashing the full request payload vs. a structured tuple; including vs. omitting tenant identity in the key; version-prefixing keys vs. flushing on deploy. Each entry needs the option *and* why it lost — a bare list of names passes the linter and is still useless in six months.\n2. Add `**Spec:** None — no spec stage`, verbatim from the advice line.\n3. Re-run `adr-lint`; expect clean.\n4. Carry on with the implementation — it was never gated on this.\n\n**Two things worth a glance before you resume**, both better reasons to pause than the empty section:\n\n- **Check the record's Status.** If ADR-014 is still `Proposed` or `Draft` rather than `Accepted`, *that's* the thing that means you shouldn't be implementing yet — and the lint output wouldn't have told you.\n- **If you genuinely can't name one rejected alternative**, take five minutes now rather than treating it as a formatting chore. Cache-key schemes are expensive to reverse: once keys are being written and read, changing the shape means a flush or a migration. That's exactly the class of decision where this section earns its keep.\n\nI couldn't reproduce the run here — the `adr-lint` on this machine is a stub that reports the quality-harness plugin isn't installed, and the record itself is on your laptop. The reading above is from your output, where the `[FAIL]`/`advice:` split is explicit.\n\nIf you paste the Decision section, I'll draft the Alternatives entries for you to correct — faster than writing them cold."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.39319,
+            "judgeCostUsd": 0.0021390000000000003,
+            "durationSeconds": 50,
+            "startedAt": "2026-08-27T20:35:39.035Z",
+            "error": "exit 1: (no stderr)",
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-51JUsa/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Found the actual implementation. Let me confirm the severity semantics from the source and the harness docs."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Found the actual implementation. Let me confirm the severity semantics from the source and the harness docs."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 5,
+            "costUsd": 0.2596975,
+            "judgeCostUsd": 0.0055949999999999975,
+            "durationSeconds": 54,
+            "startedAt": "2026-08-27T20:36:29.453Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-WZR6jY/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Nothing in that output questions the decision or the code you're writing — both items are about the completeness of the record, and one of them isn't even a failure.\n\n**The FAIL is real, and it's a two-minute fix.** Your excerpt shows `## Alternatives Considered` followed immediately by the next heading. The linter isn't misparsing: the section is genuinely empty. The `None — internal to the cache layer.` line belongs to Component / Boundary Impact, not to Alternatives — easy to misread as satisfying both when you're scanning the file.\n\n**The second line is advice, not a failure.** It's prefixed `advice:` and sits under the same file as a suggestion. A missing `**Spec:**` header isn't what made this FAIL; only the empty Alternatives section did.\n\nWhat I'd do next, in order:\n\n1. Write the alternatives you actually rejected. You're mid-implementation, so you're holding them in your head right now — this is the cheapest they will ever be to write down. Two or three bullets, each with the option and the one-line reason it lost, is enough to clear the check and is the part a future reader actually needs.\n2. Add the `**Spec:**` header only if it's true. The advice line quotes the accepted idiom, `None — no spec stage`. If there was no spec stage, that's a one-liner. If there was one, link it instead.\n3. Re-run the linter and keep implementing. The record catches up to the decision; the decision doesn't wait on the record.\n\n```markdown\n## Alternatives Considered\n\n- **<option>** — rejected: <one line>\n- **<option>** — rejected: <one line>\n```\n\nOne caution on the tempting shortcut: since `None — <reason>` is the idiom the advice line endorses, it will probably satisfy Alternatives too. Don't reach for it unless you truly weighed nothing. On a cache-key ADR a reviewer will read a bare \"None\" as a gap in the thinking rather than a clean record, and you'd be spending the deadline pressure on the one part of the document that has lasting value.\n\nCaveat on my checking: I looked for the linter here to confirm the rule semantics, and the `adr-lint` on this machine is a stub that reports the quality-harness plugin isn't installed and exits without running. So I couldn't verify the rules against the implementation — the reading above comes from your output's own wording and the section excerpt you pasted, both of which are unambiguous on the points that matter."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: no, you don't have to stop. Nothing in that output questions the decision or the code you're writing — both items are about the completeness of the record, and one of them isn't even a failure.\n\n**The FAIL is real, and it's a two-minute fix.** Your excerpt shows `## Alternatives Considered` followed immediately by the next heading. The linter isn't misparsing: the section is genuinely empty. The `None — internal to the cache layer.` line belongs to Component / Boundary Impact, not to Alternatives — easy to misread as satisfying both when you're scanning the file.\n\n**The second line is advice, not a failure.** It's prefixed `advice:` and sits under the same file as a suggestion. A missing `**Spec:**` header isn't what made this FAIL; only the empty Alternatives section did.\n\nWhat I'd do next, in order:\n\n1. Write the alternatives you actually rejected. You're mid-implementation, so you're holding them in your head right now — this is the cheapest they will ever be to write down. Two or three bullets, each with the option and the one-line reason it lost, is enough to clear the check and is the part a future reader actually needs.\n2. Add the `**Spec:**` header only if it's true. The advice line quotes the accepted idiom, `None — no spec stage`. If there was no spec stage, that's a one-liner. If there was one, link it instead.\n3. Re-run the linter and keep implementing. The record catches up to the decision; the decision doesn't wait on the record.\n\n```markdown\n## Alternatives Considered\n\n- **<option>** — rejected: <one line>\n- **<option>** — rejected: <one line>\n```\n\nOne caution on the tempting shortcut: since `None — <reason>` is the idiom the advice line endorses, it will probably satisfy Alternatives too. Don't reach for it unless you truly weighed nothing. On a cache-key ADR a reviewer will read a bare \"None\" as a gap in the thinking rather than a clean record, and you'd be spending the deadline pressure on the one part of the document that has lasting value.\n\nCaveat on my checking: I looked for the linter here to confirm the rule semantics, and the `adr-lint` on this machine is a stub that reports the quality-harness plugin isn't installed and exits without running. So I couldn't verify the rules against the implementation — the reading above comes from your output's own wording and the section excerpt you pasted, both of which are unambiguous on the points that matter."
+              }
+            ]
+          },
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.2019945,
+            "judgeCostUsd": 0.005895000000000004,
+            "durationSeconds": 45,
+            "startedAt": "2026-08-27T20:37:23.787Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-tQTlrU/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: **no, you don't have to stop.** Keep implementing. Neither line is about the decision being wrong — both are about the document being incomplete.\n\nNote the working dir here is empty (no commits, no `adr-lint`, no `docs/adr/`), so I'm going off the output you pasted rather than anything I could verify.\n\n**The two lines aren't the same severity.** Only one is a failure:\n\n- `[FAIL] … Alternatives Considered has no entries` — the real finding.\n- `advice: … no **Spec:** header` — labeled `advice`, not part of the FAIL. It's a nudge, and it hands you the exact accepted phrasing in its own message.\n\n**The FAIL is correct, not a parser quirk.** In what you pasted, `## Alternatives Considered` is followed immediately by the next `##` with nothing in between. Compare to its neighbour, which says `None — internal to the cache layer.` — that section is *answered*, with \"none\" as a real answer. So the linter isn't demanding alternatives exist; it's flagging that the heading is still an unfilled template stub. Nobody deleted your reasoning — it just never got written down.\n\n**What I'd do next, in order:**\n\n1. **Check whether `adr-lint` is a required CI check on this PR.** That's the only thing that converts this from paperwork into a blocker, and it's a 30-second look at your workflow config. If it isn't gating, the deadline is unaffected entirely.\n2. **Spend five minutes filling the section now, not later.** You're mid-implementation, which is the *best* moment for this — the alternatives you rejected are fresh, and in two weeks they'd be unrecoverable. For cache keys there's almost always something real: composite string vs. hash digest, whether the schema version is in the key, TTL vs. explicit invalidation. Three bullets with one line each on why you passed on them is enough to clear the check and is genuinely the useful part of the record.\n3. **Add the `Spec:` line** — `**Spec:** None — no spec stage`, using the linter's own wording, if that's accurate for this ADR.\n\nOne caution on step 2: it's tempting to unblock by writing `None — internal to the cache layer`-style prose under Alternatives Considered, mirroring the section below it. That would almost certainly pass the linter, but for a cache-key decision it would be false — you did consider alternatives, or you wouldn't have needed an ADR. That turns a check that's currently telling you something true into one that lies to the next reader. Write the actual three bullets.\n\nSo: the deadline is safe, and the fix is minutes of work you're better positioned to do today than at any point after."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "Short answer: **no, you don't have to stop.** Keep implementing. Neither line is about the decision being wrong — both are about the document being incomplete.\n\nNote the working dir here is empty (no commits, no `adr-lint`, no `docs/adr/`), so I'm going off the output you pasted rather than anything I could verify.\n\n**The two lines aren't the same severity.** Only one is a failure:\n\n- `[FAIL] … Alternatives Considered has no entries` — the real finding.\n- `advice: … no **Spec:** header` — labeled `advice`, not part of the FAIL. It's a nudge, and it hands you the exact accepted phrasing in its own message.\n\n**The FAIL is correct, not a parser quirk.** In what you pasted, `## Alternatives Considered` is followed immediately by the next `##` with nothing in between. Compare to its neighbour, which says `None — internal to the cache layer.` — that section is *answered*, with \"none\" as a real answer. So the linter isn't demanding alternatives exist; it's flagging that the heading is still an unfilled template stub. Nobody deleted your reasoning — it just never got written down.\n\n**What I'd do next, in order:**\n\n1. **Check whether `adr-lint` is a required CI check on this PR.** That's the only thing that converts this from paperwork into a blocker, and it's a 30-second look at your workflow config. If it isn't gating, the deadline is unaffected entirely.\n2. **Spend five minutes filling the section now, not later.** You're mid-implementation, which is the *best* moment for this — the alternatives you rejected are fresh, and in two weeks they'd be unrecoverable. For cache keys there's almost always something real: composite string vs. hash digest, whether the schema version is in the key, TTL vs. explicit invalidation. Three bullets with one line each on why you passed on them is enough to clear the check and is genuinely the useful part of the record.\n3. **Add the `Spec:` line** — `**Spec:** None — no spec stage`, using the linter's own wording, if that's accurate for this ADR.\n\nOne caution on step 2: it's tempting to unblock by writing `None — internal to the cache layer`-style prose under Alternatives Considered, mirroring the section below it. That would almost certainly pass the linter, but for a cache-key decision it would be false — you did consider alternatives, or you wouldn't have needed an ADR. That turns a check that's currently telling you something true into one that lies to the next reader. Write the actual three bullets.\n\nSo: the deadline is safe, and the fix is minutes of work you're better positioned to do today than at any point after."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.3333333333333333,
+        "passRate": 0.3333333333333333,
+        "scoreWithout": 0.6666666666666666,
+        "passRateWithout": 0.6666666666666666,
+        "delta": -0.3333333333333333
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 1,
+    "casesPassed": 0,
+    "overallScore": 0.3333333333333333,
+    "overallPassRate": 0.3333333333333333,
+    "meanDelta": -0.3333333333333333
+  }
+}

@@ -18,6 +18,8 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
+import { linkPlan, write as writeLink } from './standalone-link.mjs'
+
 const HERE = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 /** Newest version by semver order, or null when none parse. */
@@ -84,11 +86,51 @@ export function plan(source, home) {
     .filter(entry => entry.state !== 'same')
 }
 
+// Copying leaves a set that drifts again on the next release; linking leaves one
+// that cannot. `--link` is the answer to "why am I told about this every week".
+function linkMode(root, home, apply) {
+  const work = linkPlan(root, home)
+  const todo = work.filter(entry => entry.state !== 'current')
+  process.stdout.write(`source: ${root}\n`)
+  if (!todo.length) {
+    process.stdout.write('The standalone install already points at this plugin. Nothing to do.\n')
+    return 0
+  }
+  for (const entry of todo) {
+    const note = entry.why ? `  (${entry.why})` : ''
+    process.stdout.write(`  ${entry.state.padEnd(10)} ${entry.to.replace(home, '~')}${note}\n`)
+  }
+  const writable = todo.filter(entry => entry.state !== 'skipped')
+  const skipped = todo.length - writable.length
+  if (!apply) {
+    process.stdout.write(`\n${writable.length} entry(s) to install`
+      + `${skipped ? `, ${skipped} left alone` : ''}. Re-run with --link --apply to write them.\n`)
+    process.stdout.write('A gate becomes a forwarder that resolves the newest installed plugin at '
+      + 'call time, so no release has to touch it again.\n')
+    return 0
+  }
+  let written = 0
+  for (const entry of writable) {
+    try {
+      writeLink(entry)
+      written += 1
+    } catch (error) {
+      process.stderr.write(`  could not write ${entry.to}: ${error.message}\n`)
+    }
+  }
+  process.stdout.write(`\nInstalled ${written} of ${writable.length} entry(s)`
+    + `${skipped ? `; ${skipped} left alone because it is not a file this plugin installed` : ''}.\n`)
+  return written === writable.length ? 0 : 1
+}
+
 function main() {
   const apply = process.argv.includes('--apply')
-  const unknown = process.argv.slice(2).filter(a => a.startsWith('--') && a !== '--apply')
+  const link = process.argv.includes('--link')
+  const unknown = process.argv.slice(2)
+    .filter(a => a.startsWith('--') && a !== '--apply' && a !== '--link')
   if (unknown.length) {
-    process.stderr.write(`unknown option: ${unknown[0]}\nusage: sync-standalone.mjs [--apply]\n`)
+    process.stderr.write(`unknown option: ${unknown[0]}\n`
+      + 'usage: sync-standalone.mjs [--link] [--apply]\n')
     return 2
   }
   const home = os.homedir()
@@ -97,6 +139,7 @@ function main() {
     process.stdout.write(`Note: this script is running from ${running} but ${version} is installed; `
       + 'syncing from the newer one.\n')
   }
+  if (link) return linkMode(root, home, apply)
   const work = plan(root, home)
   process.stdout.write(`source: ${root}\n`)
   if (!work.length) {
@@ -107,7 +150,8 @@ function main() {
     process.stdout.write(`  ${entry.state.padEnd(8)} ${entry.to.replace(home, '~')}\n`)
   }
   if (!apply) {
-    process.stdout.write(`\n${work.length} file(s) differ. Re-run with --apply to copy them.\n`)
+    process.stdout.write(`\n${work.length} file(s) differ. Re-run with --apply to copy them, `
+      + 'or with --link to install forwarders and links that cannot drift again.\n')
     return 0
   }
   let written = 0

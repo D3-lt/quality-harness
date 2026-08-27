@@ -1320,6 +1320,96 @@
       ],
       "from": "    process.stdout.write(`${JSON.stringify({ mutations: catalogueEntries(chosen) }, null, 2)}\\n`)\n    return 0",
       "to": "    process.stdout.write(`${JSON.stringify({ mutations: catalogueEntries(chosen) }, null, 2)}\\n`)\n    return chosen.length ? 1 : 0"
+    },
+    {
+      "label": "link: the resolver orders versions numerically, not lexically",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "'v.sort((a,b)=>b.m[1]-a.m[1]||b.m[2]-a.m[2]||b.m[3]-a.m[3]);',",
+      "to": "'v.sort((a,b)=>b.n<a.n?-1:1);',"
+    },
+    {
+      "label": "link: a cached version with no gates is not a candidate",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "'.filter(x=>x.m&&f.existsSync(p.join(c,x.n,\"bin\")));',",
+      "to": "'.filter(x=>x.m);',"
+    },
+    {
+      "label": "link: a forwarder that cannot find the plugin still exits 0",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    '  exit 0',\n    'fi',",
+      "to": "    '  exit 1',\n    'fi',"
+    },
+    {
+      "label": "link: the Windows forwarder is written with CRLF",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  ].join('\\r\\n')\n}",
+      "to": "  ].join('\\n')\n}"
+    },
+    {
+      "label": "link: a symlink pointing outside this plugin is left alone",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    return points.startsWith(cacheDirectory(homeDirectory))",
+      "to": "    return true || points.startsWith(cacheDirectory(homeDirectory))"
+    },
+    {
+      "label": "link: a file this plugin never installed is left alone",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed \u2014 it may be your own' }",
+      "to": "  return { ok: true, why: 'a drifted copy of this same file' }"
+    },
+    {
+      "label": "link: a gate with no docstring subject is matched on its opening line",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    return subject(here) !== null || subject(there) !== null\n      ? subject(here) === subject(there)\n      : here === there",
+      "to": "    return subject(here) === subject(there)"
+    },
+    {
+      "label": "link: Windows falls back to a copy for a file symlink",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  if (platform === 'win32' && !entry.directory) {",
+      "to": "  if (false && platform === 'win32' && !entry.directory) {"
+    },
+    {
+      "label": "link: every gate gets a Windows shim beside it",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      contents: forwarderCmd(gate, homeDirectory),",
+      "to": "      contents: forwarderScript(gate, homeDirectory),"
+    },
+    {
+      "label": "notice: the drift notice says the plugin itself is current",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `",
+      "to": "  return `A second copy of this toolkit has drifted from the plugin \u2014 `"
     }
   ]
 }

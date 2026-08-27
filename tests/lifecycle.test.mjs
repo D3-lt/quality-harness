@@ -2098,7 +2098,7 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   await writeFile(path.join(home, '.claude', 'bin', 'adr-lint'), '#!/usr/bin/env python3\n# July\n')
   const notice = shadowInstallNotice(home, pluginDir)
   assert.match(notice, /~[\\/]\.claude[\\/]bin[\\/]adr-lint/)
-  assert.match(notice, /an old copy is answering/)
+  assert.match(notice, /the old copy is answering/)
   assert.match(notice, /adr-verify just wrote/)
 
   // Templates and skills drift too, and templates is the one that actually bit:
@@ -2116,6 +2116,16 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   await writeFile(path.join(home, '.claude', 'templates', 'adr-template.md'), '# ADR-NNN\n')
   assert.match(shadowInstallNotice(home, pluginDir), /templates[\\/]adr-template\.md/)
   assert.match(shadowInstallNotice(home, pluginDir), /missing headers the gates require/)
+  // The notice has to say the PLUGIN is fine before it says anything else. Its
+  // first version opened with "a second copy has drifted", which the owner read
+  // on 2026-08-27 as the plugin being behind — after updating and restarting
+  // twice. Sending someone to re-update a thing that is already correct is worse
+  // than saying nothing.
+  assert.match(shadowInstallNotice(home, pluginDir), /^Your plugin is up to date\./)
+  assert.match(shadowInstallNotice(home, pluginDir), /SEPARATE copy/)
+  // And why the stale copy is the one that answers, which is the fact that makes
+  // the whole notice actionable rather than trivia.
+  assert.match(shadowInstallNotice(home, pluginDir), /on PATH and the plugin cache is not/)
   await rm(path.join(home, '.claude', 'templates', 'adr-template.md'))
 
   // A skill is a directory, so the comparable file is one level down.

@@ -1134,6 +1134,54 @@ The narrow shape of the fix, for whoever takes it: join a bullet with the indent
 it before applying `REJECTION` and `ALTERNATIVE_CLAUSE`, then re-run against a real corpus and
 confirm nothing that used to fail now passes for the wrong reason.
 
+## 30. The eval suite has no working fixture mechanism
+
+This is finding C above, chased down 2026-08-27 and left unresolved on purpose.
+
+Every case runs in an empty sandbox, so a prompt naming `docs/adr/tasks/README.md` sends the model
+hunting for a file that is not there. On `gates-advise-never-block` that consumed the entire turn
+budget in 13 of 13 runs and the graders scored the silence (finding A). It is the single largest
+distortion in this suite.
+
+**What was tried.** `prompt.md` frontmatter rejects `scaffold_script` and names its own valid keys:
+`schema_version, name, description, tags, plugins, runs, expected_outcome, model, max_turns,
+timeout_seconds, allowed_tools, artifact_publish, growthbook_overrides, append_system_prompt, env`.
+The richer `case.yaml` format does accept `execution.scaffold_script` (alongside `add_dirs`,
+`baseline_file`, `tool_order`), and a probe case loaded and ran with `--scaffold`. **The scaffold
+did not populate the agent's working directory**: the kept sandbox's `home/cwd` was empty, the model
+reported `ls: docs/adr: No such file or directory`, and the file the script wrote could not be found
+anywhere in this repository either. Either it runs somewhere the agent never sees, or it did not run
+— and nothing in the output distinguished those.
+
+**What was done instead.** Both remaining cases now quote the corpus in the prompt rather than
+expecting it on disk, which is the approach measured to work: after the same change,
+`gates-advise-never-block` went from 13/13 timeouts to runs that answer and score 1.00. That is a
+workaround, not a fix — a case that quotes its corpus cannot measure whether a model would go and
+read one, which is exactly what `adr-write-consults-the-corpus` exists to measure.
+
+**`add_dirs` works, and cannot be committed.** Probed the same day, three ways:
+
+| `add_dirs` value | result |
+|---|---|
+| absolute path (`/Users/…/tests/fixtures/ok`) | **1.00** — the model read the real corpus |
+| relative path (`tests/fixtures/ok`) | 0.00 — not resolved |
+| `${CLAUDE_PLUGIN_ROOT}/tests/fixtures/ok` | 0.00 — no substitution in case.yaml |
+
+So a working fixture needs a literal absolute path, which is machine-specific and cannot ship in a
+committed case that another checkout or CI would run. That is the whole blocker, stated exactly.
+
+**Two ways out, neither taken yet.** Generate the `case.yaml` at run time from a template so the
+absolute path is materialised per machine — a small `scripts/eval.mjs` that writes the path and
+invokes the runner. Or find the scaffold incantation that lands in the agent's cwd, which would need
+no path at all.
+
+**Why it is worth the trouble.** A corpus-backed case can grade on a GATE rather than on prose:
+"does what the model wrote pass `adr-lint` with exit 0" is deterministic, exercises skills,
+templates and gates together, and cannot be satisfied by naming the right tool. That is ADR-003's
+rule applied to the eval suite itself, and it is the only shape here that would measure the half of
+this harness that demonstrably works. Every current grader asks whether an ANSWER mentions
+something.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

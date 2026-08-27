@@ -193,7 +193,11 @@ export function replaceable(entry, homeDirectory = os.homedir()) {
   try { info = lstatSync(target) } catch { return { ok: true, why: 'absent' } }
   if (info.isSymbolicLink()) {
     const points = (() => { try { return readlinkSync(target) } catch { return '' } })()
-    return points.startsWith(cacheDirectory(homeDirectory))
+    // Under the cache, or at exactly what this run would write. The second half
+    // matters because the source is whatever the caller resolved: syncing from a
+    // checkout rather than the cache produced a link this same function then
+    // called a stranger, so the tool could not recognise its own work.
+    return points.startsWith(cacheDirectory(homeDirectory)) || points === entry.target
       ? { ok: true, why: 'our link' }
       : { ok: false, why: 'a symlink to something outside this plugin' }
   }

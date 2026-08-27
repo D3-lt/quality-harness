@@ -2311,6 +2311,22 @@ test('the sync command reports before it writes, and syncs from the newest insta
   assert.equal(state(path.join('templates', 'adr-template.md')), 'missing')
   assert.equal(state(path.join('skills', 'adr-write', 'SKILL.md')), 'missing')
 
+  // A forwarder cannot byte-match the gate it forwards to — that is what it is
+  // for — so a digest comparison calls every one of them drifted, under a line
+  // telling the user to `--apply`, which copies version-pinned files over them
+  // and does not archive. Found 2026-08-27 on a machine where `--link` had
+  // already done its job: sixteen false `drifted` lines, and following the
+  // report's own advice would have destroyed the fix unrecoverably. Written
+  // with the real generator so the check cannot drift from what `--link` emits.
+  const { forwarderScript } = await import('../scripts/standalone-link.mjs')
+  await writeFile(path.join(home, '.claude', 'bin', 'adr-debt'), forwarderScript('adr-debt', home))
+  const withForwarder = plan(pluginDir, home)
+  const forwarded = withForwarder.find(entry => entry.to.endsWith(path.join('bin', 'adr-debt')))
+  assert.equal(forwarded, undefined, 'a forwarder is current by construction, not work')
+  // And nothing else is excused: a real copy that fell behind is still drifted.
+  assert.equal(withForwarder.find(entry => entry.to.endsWith(path.join('bin', 'adr-judge')))?.state,
+    'drifted', 'only forwarders are exempt from the byte comparison')
+
   // Reporting is the default; --apply is the only thing that writes.
   // The fake newest version needs real content, or the plan is trivially empty
   // and the assertion below would pass without exercising anything.

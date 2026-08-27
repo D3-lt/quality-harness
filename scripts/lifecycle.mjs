@@ -2517,8 +2517,10 @@ export function sessionOrientation(cwd) {
     if (shadow) {
       lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports `
         + 'what differs. `--apply` copies over it, which is the fix you have to remember again '
-        + 'next release; `--link` replaces each gate with a forwarder that resolves the newest '
-        + 'installed plugin at call time, which you never have to run twice.')
+        + 'next release; `--link` turns each gate into a forwarder that resolves the newest '
+        + 'installed plugin at call time, so no release touches a gate again. Skills and templates '
+        + 'become links, and a link names one version, so re-run `--link --apply` after an update '
+        + 'to repoint those.')
     }
   }
 

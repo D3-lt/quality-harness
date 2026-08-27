@@ -18,7 +18,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { backupRoot, linkPlan, write as writeLink } from './standalone-link.mjs'
+import { FORWARDER_MARK, backupRoot, linkPlan, write as writeLink } from './standalone-link.mjs'
 
 const HERE = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -79,11 +79,28 @@ function pairs(source, home) {
   return out
 }
 
+/**
+ * Whether the standalone entry is one of our forwarders rather than a copy.
+ *
+ * A forwarder CANNOT byte-match the gate it forwards to — that is the whole
+ * point of it — so a digest comparison calls every one of them drifted. Found
+ * 2026-08-27 on a machine where `--link` had already run: sixteen false
+ * `drifted` lines under one `Re-run with --apply`, which copies version-pinned
+ * files over the mechanism that fixed the drift. Copy mode does not archive, so
+ * following the report's own advice destroyed them with no recovery.
+ */
+const forwards = file => {
+  try { return readFileSync(file, 'utf8').includes(FORWARDER_MARK) } catch { return false }
+}
+
 export function plan(source, home) {
   return pairs(source, home)
     .map(pair => ({ ...pair, state: !existsSync(pair.to) ? 'missing'
+      : forwards(pair.to) ? 'forwarding'
       : digest(pair.from) === digest(pair.to) ? 'same' : 'drifted' }))
-    .filter(entry => entry.state !== 'same')
+    // `forwarding` is as current as `same` and is excluded for the same reason:
+    // naming it as work is what produced the advice that destroys it.
+    .filter(entry => entry.state !== 'same' && entry.state !== 'forwarding')
 }
 
 // Copying leaves a set that drifts again on the next release; linking leaves one
@@ -106,7 +123,9 @@ function linkMode(root, home, apply) {
     process.stdout.write(`\n${writable.length} entry(s) to install`
       + `${skipped ? `, ${skipped} left alone` : ''}. Re-run with --link --apply to write them.\n`)
     process.stdout.write('A gate becomes a forwarder that resolves the newest installed plugin at '
-      + 'call time, so no release has to touch it again.\n')
+      + 'call time, so no release has to touch it again. A skill or template becomes a link, and a '
+      + 'link names one version: an update leaves it pointing at the old one, so re-run this after '
+      + 'each release. Only the gates are release-proof.\n')
     return 0
   }
   // One archive directory per run, named for when it ran, never reused. The
@@ -159,7 +178,8 @@ function main() {
   }
   if (!apply) {
     process.stdout.write(`\n${work.length} file(s) differ. Re-run with --apply to copy them, `
-      + 'or with --link to install forwarders and links that cannot drift again.\n')
+      + 'or with --link, which makes the gates release-proof and leaves skills and templates as '
+      + 'links to update after each release.\n')
     return 0
   }
   let written = 0

@@ -1779,6 +1779,24 @@
       ],
       "from": "  Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })",
       "to": "  records.unreadable = unreadable"
+    },
+    {
+      "label": "judge: a wrapped alternative is read whole",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "            current += \" \" + line.strip()",
+      "to": "            pass"
+    },
+    {
+      "label": "judge: a blank line ends a bullet",
+      "file": "bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        elif not line.strip() or not CONTINUATION.match(line):",
+      "to": "        elif False:"
     }
   ]
 }

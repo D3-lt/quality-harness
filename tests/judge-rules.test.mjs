@@ -211,3 +211,34 @@ test('a record that passes every rule stays silent, and the gate never blocks', 
   assert.deepEqual(fired, [])
   assert.match(stdout, /evidence and clarity rules all pass/)
 })
+
+test('an alternative whose reason wraps is read whole, not judged on its first line', () => {
+  // `bullets()` kept only the lines that START a bullet, so every continuation
+  // was discarded before the E2 rejection check ran. An alternative stating its
+  // rejection perfectly well on line three reported "gives no reason it was not
+  // chosen". It fired on two records authored 2026-08-27 and was correct about
+  // neither; both were "fixed" by moving words onto line one, which is an author
+  // reshaping prose to suit a parser. A gate with false alarms is one people
+  // learn to skip, and then it protects nothing.
+  const wrapped = judge({
+    alternatives: '- **Clean up the orphaned children a killed run leaves behind:** raised in\n'
+      + '  the same report, alongside stranded containers and a network.\n'
+      + '  Rejected because a process cannot clean up from inside the kill that is\n'
+      + '  destroying it.',
+  })
+  assert.ok(!wrapped.fired.includes('E2'),
+    `a wrapped rejection is a rejection; fired ${wrapped.fired.join(', ')}`)
+
+  // The gate must not have been loosened into uselessness: a bare name with no
+  // reason anywhere in the bullet still fires, which is what E2 is for.
+  const bare = judge({ alternatives: '- Kafka\n- RabbitMQ' })
+  assert.ok(bare.fired.includes('E2'), 'a bare list of names is still not a set of choices')
+
+  // And a bullet must not swallow the paragraph after it. Blank lines and
+  // unindented lines end a bullet in Markdown, and they end one here.
+  const separated = judge({
+    alternatives: '- Kafka\n- RabbitMQ\n\nRejected because we already run Postgres.',
+  })
+  assert.ok(separated.fired.includes('E2'),
+    'prose after a blank line belongs to the section, not to the last bullet')
+})

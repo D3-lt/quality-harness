@@ -1644,6 +1644,15 @@
       ],
       "from": "    if environment and (Path(environment) / \"bin\").is_dir():\n        return Path(environment)",
       "to": "    if environment:\n        return Path(environment)"
+    },
+    {
+      "label": "mutate: an unknown option is named, not ignored",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))",
+      "to": "const unknown = []"
     }
   ]
 }

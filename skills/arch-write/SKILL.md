@@ -5,6 +5,11 @@ description: Create or audit a current-state architecture document. Use when the
 
 # Arch Write
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 Produce or audit a repo's standing architecture doc: the current-state integral that ADRs are
 deltas against. Writing the implicit architecture down finds real defects — orphaned artifacts,
 contract identity confusion, shared-file collisions, cross-repo re-derivation — that per-ADR

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+"""qh-root — print the newest installed quality-harness directory.
+
+Usage: qh-root
+
+Exists because `${CLAUDE_PLUGIN_ROOT}` resolves in a skill body only when the
+skill is loaded AS PART OF A PLUGIN. Claude Code also serves this project's
+skills under their bare names from the user's personal skills directory, and a
+personal skill is not a plugin: the placeholder stays literal there, and every
+path a skill instructs — six templates and five scripts — resolves to nothing.
+
+Measured 2026-08-27. The bare-name copies predating the plugin wrote home paths
+instead, which is why the placeholder had never been exercised outside plugin
+context, and why linking those copies to the plugin's own skills surfaced it.
+
+Deliberately Python and deliberately in `bin/`: every other file here is a
+Python gate with a `.cmd` shim beside it, `sync-standalone.mjs --link` forwards
+whatever `bin/` holds, and a helper that needed new shim machinery would be a
+second mechanism to keep working on Windows.
+
+Exit: 0 with the path on stdout, 1 with an explanation on stderr when no
+installed copy can be found. Never a partial answer — a wrong root is worse
+than none, because it resolves.
+"""
+from __future__ import annotations
+
+import os
+import re
+import sys
+from pathlib import Path
+
+VERSION = re.compile(r"^(\d+)\.(\d+)\.(\d+)$")
+
+
+def cache_directory(home: Path) -> Path:
+    """Where Claude Code unpacks each installed version of this plugin."""
+    return home / ".claude" / "plugins" / "cache" / "quality-harness" / "quality-harness"
+
+
+def newest(cache: Path) -> Path | None:
+    """Newest version directory that still holds gates, by numeric order.
+
+    Numeric per component, never lexical: a real cache holds 2.0.4 beside
+    2.0.10 and 2.9.0 beside 2.15.0, and string order picks last month's copy.
+    The forwarders `--link` installs sort the same way for the same reason.
+    """
+    candidates = []
+    try:
+        entries = list(cache.iterdir())
+    except OSError:
+        return None
+    for entry in entries:
+        found = VERSION.match(entry.name)
+        if found and (entry / "bin").is_dir():
+            candidates.append((tuple(int(part) for part in found.groups()), entry))
+    if not candidates:
+        return None
+    return max(candidates)[1]
+
+
+def resolve() -> Path | None:
+    """The plugin root to print.
+
+    `CLAUDE_PLUGIN_ROOT` first when the environment already carries one — a hook
+    or a plugin-context invocation knows better than this search does, and
+    disagreeing with it would answer a different question than the caller asked.
+    """
+    environment = os.environ.get("CLAUDE_PLUGIN_ROOT")
+    if environment and (Path(environment) / "bin").is_dir():
+        return Path(environment)
+    return newest(cache_directory(Path.home()))
+
+
+def main(argv: list[str]) -> int:
+    if argv:
+        # The house contract every other gate keeps: name the offending option.
+        # A flag the tool does not know is a typo, not an answer about anything.
+        sys.stderr.write(f"qh-root: unknown option: {argv[0]}\nusage: qh-root\n")
+        return 2
+    root = resolve()
+    if root is None:
+        sys.stderr.write(
+            "qh-root: no installed quality-harness found under "
+            f"{cache_directory(Path.home())}\n"
+            "qh-root: install or update the plugin, then try again.\n"
+        )
+        return 1
+    sys.stdout.write(f"{root}\n")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

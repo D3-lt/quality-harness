@@ -317,3 +317,29 @@ test('the record skills audit the class, not the instance', () => {
       `${skill}: the rule must say what to do with members left out`)
   }
 })
+
+test('a skill that names the plugin root says how to resolve it without one', () => {
+  // `${CLAUDE_PLUGIN_ROOT}` is substituted in a skill body only when the skill is
+  // loaded AS PART OF A PLUGIN. Claude Code also serves these skills under their
+  // bare names from the user's personal skills directory, and a personal skill is
+  // not a plugin — the placeholder stays literal there.
+  //
+  // It went unnoticed because the bare-name copies predated the plugin and wrote
+  // home paths instead. Linking those copies to the plugin's own skills on
+  // 2026-08-27 pointed sixteen instructions across eight skills at a placeholder
+  // nothing would substitute: six templates and five scripts, each resolving to
+  // nothing at the moment the skill told someone to read it.
+  for (const skill of skills) {
+    const text = readFileSync(join(root, 'skills', skill, 'SKILL.md'), 'utf8')
+    if (!text.includes('${CLAUDE_PLUGIN_ROOT}')) continue
+    assert.match(text, /Resolving `\$\{CLAUDE_PLUGIN_ROOT\}`/,
+      `${skill}: names the plugin root but never says what to do when it is not substituted`)
+    assert.match(text, /`qh-root`/,
+      `${skill}: the way out has to be a command, not an instruction to go and look`)
+    // Before anything that uses it, or the reader hits the broken path first.
+    const note = text.indexOf('Resolving `${CLAUDE_PLUGIN_ROOT}`')
+    const firstUse = text.indexOf('${CLAUDE_PLUGIN_ROOT}/')
+    assert.ok(firstUse === -1 || note < firstUse,
+      `${skill}: the resolution note must come before the first path that needs it`)
+  }
+})

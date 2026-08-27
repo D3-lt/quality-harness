@@ -5,6 +5,11 @@ description: Execute an active Accepted ADR task-by-task, and record the tool-wr
 
 # ADR Execute
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 Implement an accepted ADR task-by-task. Use the harness's built-in todo/task tracking (TodoWrite where available, otherwise TaskCreate/TaskUpdate) instead of writing heavy markdown artifacts to disk. Keep execution lean and direct; the executable gates (`adr-lint`, `spec-verify`, task acceptance commands) carry the rigor.
 
 ## Preconditions

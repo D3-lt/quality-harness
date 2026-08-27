@@ -15,7 +15,7 @@ const skills = [
 ]
 const gates = [
   'adr-debt', 'adr-judge', 'adr-lint', 'adr-next', 'adr-retire-check', 'adr-verify', 'arch-lint',
-  'postmortem-verify', 'spec-verify',
+  'postmortem-verify', 'qh-root', 'spec-verify',
 ]
 const templates = [
   'adr-archive-readme-template.md', 'adr-template.md', 'architecture-template.md',
@@ -90,7 +90,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.17.0')
+  assert.equal(manifest.version, '2.18.0')
   assert.equal(manifest.license, 'MIT')
   assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
 

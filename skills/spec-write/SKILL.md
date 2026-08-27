@@ -5,6 +5,11 @@ description: Discover and write verifiable requirements before design or impleme
 
 # Spec Write
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 Turn a fuzzy idea into a decision-ready, machine-verifiable spec: grill mints **facts** (falsifiable
 assertions bound to tests), not paragraphs. The most expensive failure is building the wrong thing
 well; the second most expensive is a decision that evaporates into prose a later model re-interprets.

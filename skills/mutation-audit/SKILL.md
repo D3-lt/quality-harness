@@ -5,6 +5,11 @@ description: Break a mechanism on purpose and check whether anything notices, to
 
 # Mutation Audit
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 A passing suite is a claim, and it is the one claim nobody checks. A test that stays
 green with its mechanism broken is asserting something else — usually that the code
 imports, or that a fixture still parses.

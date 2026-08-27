@@ -5,6 +5,11 @@ description: Create a proposed, executable decision record for a durable technic
 
 # ADR Write
 
+**Resolving `${CLAUDE_PLUGIN_ROOT}`.** Paths below use it. If it reaches you as
+literal text rather than a directory, this skill was loaded under its bare name
+from a personal skills directory — which is not a plugin, so the placeholder is
+never substituted there. Run `qh-root` and use what it prints in place of it.
+
 Create a short ADR that is reviewable first and executable later. Templates are source of truth; do not restate them from memory.
 
 ## When to use

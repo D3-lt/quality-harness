@@ -548,6 +548,7 @@ test('every gate refuses a flag it does not know', () => {
     ['arch-lint', ['architecture.md', '--bogus']],
     ['postmortem-verify', ['postmortem-selftest.md', '--bogus']],
     ['spec-verify', ['--spec', '--bogus', 'spec-selftest.md']],
+    ['qh-root', ['--bogus']],
   ]
   for (const [gate, args] of invocations) {
     const result = run(gate, args, dir)
@@ -742,5 +743,29 @@ test('the mutation runner refuses to run over an editor, or beside another runne
       'the dead owner\'s lock is cleared rather than inherited')
   } finally {
     rmSync(lock, { force: true })
+  }
+})
+
+test('qh-root answers with a plugin directory, or with nothing at all', () => {
+  // A wrong root is worse than none, because it resolves. This is the escape
+  // hatch for a skill loaded outside plugin context, so a confident wrong answer
+  // would send every template and script read to the wrong version silently.
+  const empty = mkdtempSync(join(os.tmpdir(), 'qh-root-'))
+  try {
+    // An explicit CLAUDE_PLUGIN_ROOT is the caller knowing better than a search.
+    const told = run('qh-root', [], root)
+    assert.equal(told.status, 0, told.stderr)
+    assert.ok(existsSync(join(told.stdout.trim(), 'bin')),
+      `qh-root printed ${told.stdout.trim()}, which holds no gates`)
+
+    // Nothing installed and nothing in the environment: say so, do not guess.
+    const nowhere = spawnSync(process.execPath === '' ? 'python3' : 'python3',
+      [join(bin, 'qh-root')],
+      { encoding: 'utf8', timeout: 60_000, env: { ...env, HOME: empty, CLAUDE_PLUGIN_ROOT: '' } })
+    assert.equal(nowhere.status, 1, nowhere.stdout)
+    assert.equal(nowhere.stdout, '', 'a failed lookup must print no path at all')
+    assert.match(nowhere.stderr, /no installed quality-harness found/)
+  } finally {
+    rmSync(empty, { recursive: true, force: true })
   }
 })

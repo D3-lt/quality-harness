@@ -1417,7 +1417,7 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  const kept = stamp ? archive(entry, stamp, homeDirectory) : null",
+      "from": "  const kept = stamp ? archive(entry, stamp, homeDirectory, makeLink) : null",
       "to": "  const kept = null"
     },
     {
@@ -1426,8 +1426,8 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  if (info.isSymbolicLink()) symlinkSync(readlinkSync(entry.to), kept)\n  else cpSync",
-      "to": "  if (false) symlinkSync(readlinkSync(entry.to), kept)\n  else cpSync"
+      "from": "  if (info.isSymbolicLink()) {\n    const points = readlinkSync(entry.to)",
+      "to": "  if (false) {\n    const points = readlinkSync(entry.to)"
     },
     {
       "label": "link: a skill directory is archived whole",
@@ -1435,8 +1435,8 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  else cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })",
-      "to": "  else cpSync(entry.to, kept, { recursive: false, preserveTimestamps: true, verbatimSymlinks: true })"
+      "from": "  cpSync(entry.to, kept, { recursive: true, preserveTimestamps: true, verbatimSymlinks: true })",
+      "to": "  cpSync(entry.to, kept, { recursive: false, preserveTimestamps: true, verbatimSymlinks: true })"
     },
     {
       "label": "notice: a forwarder or link is current, not drift",

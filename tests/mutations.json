@@ -1761,6 +1761,24 @@
       ],
       "from": "## Choosing what to gate at all",
       "to": "## Gates"
+    },
+    {
+      "label": "state: a record that cannot be read is reported",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      unreadable.push({ file, status: status || null })",
+      "to": "      void status"
+    },
+    {
+      "label": "state: the unreadable list does not change the corpus shape",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })",
+      "to": "  records.unreadable = unreadable"
     }
   ]
 }

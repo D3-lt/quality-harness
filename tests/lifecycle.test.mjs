@@ -2768,3 +2768,39 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
   assert.equal(spawnSync(process.execPath,
     [path.join(pluginDir, 'scripts', 'work-next.mjs'), '--nope'], { encoding: 'utf8' }).status, 2)
 })
+
+test('a record the corpus reader cannot read is reported, not silently dropped', async () => {
+  // Measured 2026-08-27 against a real 171-record corpus: `adr-state` printed
+  // "149 record(s) read" and said nothing about the twenty files it had opened
+  // and skipped. A count that omits what it could not read is a count that reads
+  // as coverage — the shape this whole harness exists to catch, in its own
+  // corpus reader.
+  const { adrCorpus } = await import('../scripts/lifecycle.mjs')
+  const root = await mkdtemp(path.join(testTmp, 'quality-unread-'))
+  const adr = path.join(root, 'docs', 'adr')
+  await mkdir(adr, { recursive: true })
+  await writeFile(path.join(adr, 'ADR-001-governing.md'), '# ADR-001: Governing\n\n**Status:** Accepted\n')
+  await writeFile(path.join(adr, 'ADR-002-proposed.md'), '# ADR-002: Proposed\n\n**Status:** Proposed\n')
+  await writeFile(path.join(adr, 'ADR-003-odd.md'), '# ADR-003: Odd\n\n**Status:** Implemented\n')
+  await writeFile(path.join(adr, 'ADR-004-nameless.md'), '# ADR-004: Nameless\n\nNo status here.\n')
+
+  const corpus = adrCorpus(root)
+  assert.equal(corpus.length, 1, 'only the Accepted record is a record this reader can apply')
+
+  const unreadable = corpus.unreadable ?? []
+  const byName = Object.fromEntries(unreadable.map(e => [path.basename(e.file), e.status]))
+  assert.deepEqual(Object.keys(byName).sort(),
+    ['ADR-002-proposed.md', 'ADR-003-odd.md', 'ADR-004-nameless.md'],
+    'every file opened and not read has to be reported')
+  // The STATUS travels with it, because "could not read this" and "could not
+  // read this, it says Implemented" are different amounts of help — the second
+  // tells a corpus owner exactly which word their records use.
+  assert.equal(byName['ADR-003-odd.md'], 'Implemented')
+  assert.equal(byName['ADR-004-nameless.md'], null, 'a missing status is null, not a guess')
+
+  // Non-enumerable on purpose: every existing consumer treats a corpus as a
+  // plain array of records, and anything that serialises one must not start
+  // emitting a second list.
+  assert.deepEqual(Object.keys(corpus), ['0'], 'the list must still look like an array of records')
+  assert.equal(JSON.parse(JSON.stringify(corpus)).length, 1)
+})

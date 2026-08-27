@@ -2203,6 +2203,10 @@ function readRecordFiles(root) {
  */
 export function adrCorpus(root) {
   const records = []
+  // Attached to the returned array rather than changing its shape: every caller
+  // treats this as a list of records, and widening the return type to report a
+  // second thing would break all of them to fix a message.
+  const unreadable = []
   const files = readRecordFiles(root)
   const recordsPerDirectory = new Map()
   for (const file of files) {
@@ -2215,8 +2219,19 @@ export function adrCorpus(root) {
       if (statSync(file).size > 512 * 1024) continue
       text = readFileSync(file, 'utf8')
     } catch { continue }
-    const kind = statusKind(recordStatus(text))
-    if (!kind) continue
+    const status = recordStatus(text)
+    const kind = statusKind(status)
+    if (!kind) {
+      // A file that looks like a record and carries no status this reader knows
+      // is DROPPED, and until 2026-08-27 dropped in silence. Measured against a
+      // real 171-record corpus that day: 149 were read and `adr-state` said
+      // "149 record(s) read" — never that 22 files it had opened were skipped,
+      // 25 of them carrying no `**Status:**` line at all and 12 carrying one it
+      // does not recognise, `Implemented` among them. A count that omits what it
+      // could not read is a count that reads as coverage.
+      unreadable.push({ file, status: status || null })
+      continue
+    }
     const declared = declaredGoverns(text)
     // Two different claims, deliberately kept apart. `declares` is a record
     // saying "I am authoritative over this"; `touches` is a task table saying
@@ -2259,7 +2274,6 @@ export function adrCorpus(root) {
     for (const taskText of (claimed.length ? claimed : (sole ? texts : []))) {
       for (const declaredPath of affectedFiles(taskText)) governs.add(declaredPath)
     }
-    const status = recordStatus(text)
     records.push({
       file,
       number,
@@ -2277,6 +2291,9 @@ export function adrCorpus(root) {
       unresolved: declared.unresolved,
     })
   }
+  // Non-enumerable so nothing that JSON-serialises a corpus starts emitting it,
+  // and every existing consumer keeps seeing a plain array of records.
+  Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
   return records
 }
 

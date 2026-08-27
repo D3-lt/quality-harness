@@ -1,5 +1,12 @@
 ---
-max_turns: 8
+# 8 made this case BIMODAL, not strict. Measured 2026-08-27 across six runs: a
+# run that answers directly takes 3-5 turns and scores 1.00; a run that wanders
+# first hits 9 and scores 0.00. Both happen in BOTH arms, so every Δ this case
+# produced — −0.40, −1.00, +0.20, −0.33 — was a small draw from a bimodal
+# distribution rather than a fact about the plugin. Narrowing `allowed_tools` did
+# not stop the wandering: a declaration is not a limit, and traces show Bash
+# called three times under `allowed_tools: [Skill]`.
+max_turns: 14
 runs: 1
 # Skill only, deliberately. The prompt quotes the record's relevant sections, so
 # there is nothing to look up — and every file-reading tool left here was spent

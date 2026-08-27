@@ -1182,7 +1182,41 @@ rule applied to the eval suite itself, and it is the only shape here that would 
 this harness that demonstrably works. Every current grader asks whether an ANSWER mentions
 something.
 
-## 31. The same case scores differently depending on how the suite is invoked
+## 31. FIXED — the case was bimodal, not invocation-dependent
+
+**Diagnosed and fixed 2026-08-27.** There was no suite-versus-isolated disagreement. The case was
+BIMODAL: a run that answers directly takes 3-5 turns and scores 1.00; a run that wanders first
+exhausts `max_turns: 8` and scores 0.00. Both happen in BOTH arms.
+
+Bisected by running the same case at `--runs 3` in isolation — the one variable the earlier
+comparisons had not held fixed:
+
+| | scores | turns |
+|---|---|---|
+| with | 0, 0, **1** | 9, 9, **5** |
+| without | 0, **1**, **1** | 9, **5**, **3** |
+
+Nine turns is the `max_turns: 8` ceiling; three to five is an answer. So every number this case ever
+produced — **−0.40, −1.00, +0.20, −0.33** — was a small draw from one bimodal distribution rather
+than a fact about the plugin. Four numbers, four walk-backs, one cause.
+
+**Fixed by raising `max_turns` to 14**, verified rather than asserted: four runs, **all exactly
+0.71**, with turns varying 17 / 9 / 6 / 3. A seventeen-turn wander now scores the same as a
+three-turn answer, which is what a stable case looks like.
+
+**The mistake worth keeping.** `allowed_tools` was narrowed to `[Skill]` believing that would stop
+the wandering. It did not — traces show Bash called three times under that declaration. **A
+declaration is not a limit**, which is the same lesson `--allow-tools` taught from the opposite
+direction the same evening (§30): a case declares what it wants and only an operator grant decides
+what it gets.
+
+**What the stable number now says.** 0.71 is five of seven: `does-not-halt` and
+`reads-the-severity` both pass, and `invokes-a-skill` reports Skill called 0x in 4 of 4. Under
+ablation that indicator is with-only and unscored, so it does not move Δ — but it is a stable
+observation that no skill claims this prompt, which is the Trigger question this case was rewritten
+to make visible.
+
+## 31 (superseded). The same case scores differently depending on how the suite is invoked
 
 Measured 2026-08-27, after the fixture and grader repairs in §30 had made every case answerable.
 

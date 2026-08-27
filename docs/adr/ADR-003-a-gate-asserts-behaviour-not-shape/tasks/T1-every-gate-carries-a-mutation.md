@@ -68,6 +68,11 @@ that this task closes a real gap rather than a hypothetical one.
 
 ## Mutation Log
 
+- 2026-08-27 · 51f76cc* · mutant survived · exit 0 · `tests/package.test.mjs` · removes the enumeration, so a gate shipping with no mutation passes unnamed · acceptance-sha256:228b65bb303f2ff70e37347620e8e7f0df34eaa6cb14f42c360fcf8558c7c958
+  ```
+  the fence passed with the mechanism broken
+  ```
+
 ## Invariants
 
 - The check reads `bin/` and the catalogue from disk; neither is a list kept beside the truth.
@@ -89,3 +94,4 @@ be a counterexample to the record rather than a task to force through.
 - Any complexity measurement. (deferred: docs/BACKLOG.md §28)
 
 ## Verification Log
+- 2026-08-27 · 51f76cc · exit 0 · `node --test tests/package.test.mjs 2>&1 | tee /tmp/adr003-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr003-t1.out` · acceptance-sha256:228b65bb303f2ff70e37347620e8e7f0df34eaa6cb14f42c360fcf8558c7c958

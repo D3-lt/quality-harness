@@ -1750,8 +1750,8 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "  const bare = gates.filter(gate => !covered.has(`bin/${gate}`))",
-      "to": "  const bare = []"
+      "from": "  const uncovered = (names, known) => names.filter(gate => !known.has(`bin/${gate}`))",
+      "to": "  const uncovered = () => []"
     },
     {
       "label": "skills: mutation-audit says which gates earn their place",

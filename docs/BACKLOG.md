@@ -1232,6 +1232,14 @@ tool calls:
 Every run that invoked a skill failed to finish. The run that did not invoke one behaved like the
 baseline. **n=4, and a perfect correlation across four runs is a reason to measure, not a finding.**
 
+**Counterexample, 2026-08-27 evening.** The ten-run experiment below was started and interrupted
+after its first run, which came back `score 1.00` with `invokes-a-skill: True` — a skill fired AND
+the case finished with a record on disk. So the correlation is already broken at n=5, and the
+earlier failures are better explained by the budgets they ran under (14 turns, then 30 turns, then
+300s) than by a skill having fired. Do not cite the table above as evidence that guidance prevents
+convergence; it is five observations with one clean counterexample, which is a reason to run the
+experiment rather than a conclusion to skip it.
+
 If it holds, the shape is not "the plugin is slow" but "when the guidance actually fires, the path
 does not converge inside budgets the unguided path clears with room to spare". The plausible cause is
 `adr-write`'s preamble, which instructs `adr-state`, `adr-context`, `adr-debt`, three templates, the

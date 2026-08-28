@@ -93,3 +93,4 @@ the unqualified path was not left alone, and the decision explicitly requires it
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · adb8a10 · exit 0 · `python3 tests/gate-regressions.py bin skills/postmortem/SKILL.md` · acceptance-sha256:f240c9781359a4cb9100ce8dbe392375912786c1dd0700620b156f0c97b4404f

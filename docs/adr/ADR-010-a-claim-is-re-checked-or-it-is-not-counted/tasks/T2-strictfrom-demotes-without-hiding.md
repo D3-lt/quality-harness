@@ -87,6 +87,7 @@ entry whatever the cutoff says. This task must not weaken that: the counts stay 
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 1f8aef0 · mutant killed · exit 1 · `plugin/bin/adr-verify` · the demotion removed: a record below the cutoff fails the sweep, which is the day-one red an adopting corpus turns the gate off over · acceptance-sha256:58682a5f05144b166f5d85e2930f5bbce30c38c64471e26cea4664e4edfc3bc5
 
 ## Invariants
 

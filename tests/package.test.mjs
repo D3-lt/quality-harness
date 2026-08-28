@@ -222,6 +222,16 @@ test('every catalogue entry still matches the source it mutates, exactly once', 
     [{ label: 'demo', file: 'x', matches: 0 }],
     'the check must be able to name a stale entry, or it asserts nothing',
   )
+  // The enumeration itself, not just the predicate over it. `mutate.mjs --case`
+  // reported GREEN on 2026-08-28 with the loop emptied: no entries read, so no
+  // stale entries found, so the assertion below passed with the check gutted.
+  // The guard above survived it too, because a hardcoded literal proves the
+  // FILTER can fire and says nothing about what was fed to it. Same shape as
+  // ADR-003 T1's first version, in the test written to enforce ADR-003.
+  assert.equal(counts.length, catalogue.mutations.length,
+    'every catalogue entry must be read, or this asserts something about a shorter list')
+  assert.ok(counts.length > 50, `expected the shipped catalogue, read ${counts.length}`)
+
   const stale = counts.filter(entry => entry.matches !== 1)
   assert.deepEqual(stale, [], `these mutations no longer target one place:\n${
     stale.map(e => `  ${e.label} — ${e.file} matches ${e.matches}x`).join('\n')}`)

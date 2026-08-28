@@ -38,7 +38,7 @@ bash docs/adr/ADR-008-the-plugin-is-not-the-repository/tasks/T1-probe.sh
 
 | Test name | File | Verifies | Covers |
 |-----------|------|----------|--------|
-| `T1-probe.sh` | `docs/adr/ADR-008-.../tasks/T1-probe.sh` | a probe plugin whose `source` is a subdirectory unpacks with that directory's contents at the plugin root, exiting non-zero if not | — |
+| the probe exits non-zero when the assumption fails | `docs/adr/ADR-008-the-plugin-is-not-the-repository/tasks/T1-probe.sh` | an installed plugin declaring a subdirectory `source` unpacks with that directory's CONTENTS at the plugin root; exit 1 when the subdirectory survives in the cache, exit 2 when no such plugin is installed | — |
 
 ## Reachability
 
@@ -99,10 +99,18 @@ pending the owner's word.
 
 ## Mutation Log
 
-Not applicable — this task ships no mechanism. It answers a question and records the answer; the
-probe is its own falsification, since it exits non-zero when the assumption does not hold. `adr-lint`
-requires a killed mutant only for a task that ships a mechanism, and the honest note here is that
-this task's evidence is the recorded observation, not a test.
+The authored note here said "not applicable — this task ships no mechanism". `adr-lint` refused the
+`done` row over it and was right: the MECHANISM is the probe, and its whole value is that it can say
+no. A probe that cannot report FAIL would have recorded "the assumption holds" whatever the cache
+looked like — which is the unfalsifiable evidence this corpus exists to prevent, in the task whose
+answer unblocks a repository-wide move.
+
+Also worth stating rather than leaving the log to imply otherwise: the ANSWER was established by
+reading two installed plugins first, and the probe was written afterwards to make that reading
+re-runnable. The Verification Log therefore shows no red-then-green cycle, because the observation
+came before the script.
+
+<!-- tool-written by adr-verify --mutant below -->
 
 ## Invariants
 

@@ -1858,8 +1858,8 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  if (!baselineOk) return { verdict: 'UNPROVEN', observed }",
-      "to": "  if (false) return { verdict: 'UNPROVEN', observed }"
+      "from": "  if (baseline.state !== 'pass') return { verdict: 'UNPROVEN', observed, baseline }",
+      "to": "  if (false) return { verdict: 'UNPROVEN', observed, baseline }"
     },
     {
       "label": "mutate: an unproven entry leaves the ratio's denominator alone",
@@ -1887,6 +1887,33 @@
       ],
       "from": "        regex_literals=suffix in (\".js\", \".jsx\", \".mjs\", \".cjs\", \".ts\", \".tsx\"),",
       "to": "        regex_literals=False,"
+    },
+    {
+      "label": "mutate: a baseline that never ran is not called a failing suite",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }",
+      "to": "  if (false) return { state: 'unrun', why: run.signal || 'no exit status' }"
+    },
+    {
+      "label": "spec-verify: a regex may follow the paren closing an if header",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return text[k + 1:end + 1] in CONTROL_HEADER",
+      "to": "        return False"
+    },
+    {
+      "label": "spec-verify: an unterminated quote cannot swallow the next line",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            stop_at_newline = line_bounded_quotes and quote != \"`\"",
+      "to": "            stop_at_newline = False"
     }
   ]
 }

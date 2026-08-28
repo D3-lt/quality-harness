@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { classify, renderLine, summarise, testSets } from '../scripts/mutate.mjs'
+import { baselineOf, classify, renderLine, summarise, testSets } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -15,19 +15,19 @@ test('a verdict taken against a failing baseline is UNPROVEN, not RED', () => {
   // already failing for an unrelated reason yields RED on every entry that names
   // it — and RED counts as noticed. The mutation proved nothing; the suite was
   // broken before it was applied.
-  const found = classify({ occurrences: 1, baselineOk: false, run: ran(1) })
+  const found = classify({ occurrences: 1, baseline: { state: 'fail' }, run: ran(1) })
   assert.equal(found.verdict, 'UNPROVEN')
   // And a passing run against a broken baseline is not GREEN either: "the tests
   // did not notice" is a claim about a working suite.
-  assert.equal(classify({ occurrences: 1, baselineOk: false, run: ran(0) }).verdict, 'UNPROVEN')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'fail' }, run: ran(0) }).verdict, 'UNPROVEN')
 })
 
 test('an UNPROVEN entry still reports the verdict the tests produced', () => {
   // F-9. Suppressing a verdict to make room for a warning is its own kind of
   // hiding, and this project removed a block for that exact reason.
-  assert.equal(classify({ occurrences: 1, baselineOk: false, run: ran(1) }).observed, 'RED')
-  assert.equal(classify({ occurrences: 1, baselineOk: false, run: ran(0) }).observed, 'GREEN')
-  assert.equal(classify({ occurrences: 1, baselineOk: false, run: killed() }).observed, 'HUNG')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'fail' }, run: ran(1) }).observed, 'RED')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'fail' }, run: ran(0) }).observed, 'GREEN')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'fail' }, run: killed() }).observed, 'HUNG')
 })
 
 test('a passing baseline leaves every existing verdict exactly as it was', () => {
@@ -36,15 +36,15 @@ test('a passing baseline leaves every existing verdict exactly as it was', () =>
   // VACUOUS mutation — one whose assertion could never have failed — is still
   // GREEN. Measured 2026-08-28: coverage reports 100% line and branch on exactly
   // that case, before and after, which is why coverage was rejected.
-  assert.equal(classify({ occurrences: 1, baselineOk: true, run: ran(1) }).verdict, 'RED')
-  assert.equal(classify({ occurrences: 1, baselineOk: true, run: ran(0) }).verdict, 'GREEN')
-  assert.equal(classify({ occurrences: 1, baselineOk: true, run: killed() }).verdict, 'HUNG')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'pass' }, run: ran(1) }).verdict, 'RED')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'pass' }, run: ran(0) }).verdict, 'GREEN')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'pass' }, run: killed() }).verdict, 'HUNG')
 })
 
 test('a stale entry is decided before any baseline, because nothing was applied', () => {
   // STALE is read off the tree: the `from` no longer describes the code, so no
   // mutation exists to prove anything about, baseline or not.
-  const found = classify({ occurrences: 0, baselineOk: false, run: null })
+  const found = classify({ occurrences: 0, baseline: { state: 'fail' }, run: null })
   assert.equal(found.verdict, 'STALE')
   assert.match(found.detail, /matches 0 times/)
 })
@@ -94,13 +94,47 @@ test('a baseline is taken once per distinct test-set, not once per mutation', ()
   assert.deepEqual(sets.map(s => s.tests), [['a.test.mjs'], ['a.test.mjs', 'b.test.mjs']])
 })
 
+test('a baseline that never ran is not reported as an already-failing suite', () => {
+  // Found 2026-08-28 by an independent review, in the code written that morning
+  // to fix this exact class. A baseline `spawnSync` that times out returns
+  // {status: null, signal: 'SIGTERM'} — no test verdict at all — and storing it
+  // as a plain `false` made every entry using that set print "already failed
+  // before this mutation was applied; repair that suite". Nothing failed. The
+  // suite was never executed, and "repair that suite" sends the reader to fix
+  // code that may be perfectly fine.
+  const timedOut = baselineOf({ status: null, signal: 'SIGTERM' })
+  assert.equal(timedOut.state, 'unrun')
+  const reallyFailed = baselineOf({ status: 1, signal: null })
+  assert.equal(reallyFailed.state, 'fail')
+  assert.equal(baselineOf({ status: 0, signal: null }).state, 'pass')
+
+  // Both still make the verdict UNPROVEN — neither is evidence — but they must
+  // not say the same thing about the suite.
+  for (const baseline of [timedOut, reallyFailed]) {
+    assert.equal(classify({ occurrences: 1, baseline, run: { status: 1, signal: null } }).verdict,
+      'UNPROVEN')
+  }
+  const unranLine = renderLine({
+    verdict: 'UNPROVEN', observed: 'RED', baseline: timedOut,
+    label: 'demo', tests: ['tests/demo.test.mjs'],
+  }, 8)
+  const failedLine = renderLine({
+    verdict: 'UNPROVEN', observed: 'RED', baseline: reallyFailed,
+    label: 'demo', tests: ['tests/demo.test.mjs'],
+  }, 8)
+  assert.doesNotMatch(unranLine, /already failed/,
+    'nothing failed — the baseline never produced a verdict')
+  assert.match(unranLine, /never (finished|ran)|did not (finish|run)/i)
+  assert.match(failedLine, /already failed/)
+})
+
 test('a run killed by signal is HUNG rather than GREEN', () => {
   // Spec F-2. A mutation can make an upward walk never terminate — removing
   // path_stack's relative_to guard did exactly that, because Path("/").parent is
   // Path("/"). A hang is not a pass and not an ordinary failure, and reading the
   // status alone would call a null status GREEN.
-  assert.equal(classify({ occurrences: 1, baselineOk: true, run: killed() }).verdict, 'HUNG')
-  assert.equal(classify({ occurrences: 1, baselineOk: true, run: { status: null, signal: null } })
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'pass' }, run: killed() }).verdict, 'HUNG')
+  assert.equal(classify({ occurrences: 1, baseline: { state: 'pass' }, run: { status: null, signal: null } })
     .verdict, 'HUNG', 'a null status with no signal is still not a pass')
 })
 

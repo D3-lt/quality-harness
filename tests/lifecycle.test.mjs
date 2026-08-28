@@ -2324,11 +2324,13 @@ test('adr-context answers which decisions govern a path, and which were killed t
   // than through a subprocess whose output is all the test can inspect.
   const { main } = await import('../scripts/adr-context.mjs')
   const dir = await mkdtemp(path.join(os.tmpdir(), 'adr-context-'))
-  const record = (n, status, governs) =>
-    `# ADR-${n}: decision ${n}\n\n**Status:** ${status}\n**Governs:** \`${governs}\`\n\n## Context\n\nx\n`
+  const record = (n, status, governs, enforcedBy = null) =>
+    `# ADR-${n}: decision ${n}\n\n**Status:** ${status}\n**Governs:** \`${governs}\`\n`
+    + (enforcedBy ? `**Enforced-by:** \`${enforcedBy}\`\n` : '')
+    + '\n## Context\n\nx\n'
   await mkdir(path.join(dir, 'docs', 'adr'), { recursive: true })
   await writeFile(path.join(dir, 'docs', 'adr', 'ADR-001-live.md'),
-    record('001', 'Accepted', 'src/pay.js'))
+    record('001', 'Accepted', 'src/pay.js', 'every catalogue entry still matches the source it mutates, exactly once'))
   await writeFile(path.join(dir, 'docs', 'adr', 'ADR-002-dead.md'),
     record('002', 'Withdrawn', 'src/pay.js'))
 
@@ -2361,6 +2363,26 @@ test('adr-context answers which decisions govern a path, and which were killed t
   assert.equal(emitted.governing.length, 1)
   assert.equal(emitted.graveyard.length, 1)
   assert.equal(emitted.read, 2)
+
+  // ADR-009 T2: what will CATCH you, at the moment you are about to edit the
+  // file. `Governs:` says which decisions own a path; on its own that tells an
+  // agent a rule exists and nothing about what happens if it breaks it.
+  assert.ok(line('GOVERNS').includes('every catalogue entry'),
+    `the enforcing check belongs on the line:\n${report}`)
+  // And SILENCE where a record has no header — most decisions are not
+  // mechanically enforced, and padding every line with `None` is noise at
+  // exactly the moment an agent is trying to act.
+  assert.ok(!line('DECIDED AGAINST').includes('None'),
+    `a record without the header adds nothing:\n${report}`)
+
+  // The HOOK renders from the same resolver, and must say the same thing. Two
+  // callers of one resolver is exactly where this project has drifted before.
+  const { decisionContext } = await import('../scripts/lifecycle.mjs')
+  const hook = decisionContext(['src/pay.js'], dir)
+  assert.match(hook, /caught by: every catalogue entry/,
+    `the hook must carry the enforcing check too:\n${hook}`)
+  assert.doesNotMatch(hook, /ADR-002[^\n]*caught by/,
+    'and stay silent for a record without the header')
 
   // A path nothing governs is an ANSWER, not a finding — exit 0 either way.
   cap = say()

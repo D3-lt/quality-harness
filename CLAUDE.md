@@ -144,8 +144,8 @@ This is a public repository and it publishes its own corpus.
   written the same day to test the redaction.
 - `adr-verify` redacts this machine's home from anything it writes into a task file — both separator
   spellings, case-insensitively where the filesystem is. Do not rely on it as the only line.
-- `plugin/evals/results/` is gitignored and stays that way. Do not commit eval results, transcripts,
-  or anything derived from another repository's corpus.
+- The results directory under `plugin/evals/` is gitignored and stays that way. Do not commit eval
+  results, transcripts, or anything derived from another repository's corpus.
 - `git status --short` before every push, and read it.
 
 ---
@@ -166,7 +166,21 @@ The `windows` CI job is blocking. Three classes have bitten:
 
 ---
 
-## 8. Tests must not touch the repository they are testing
+## 8. A check must not depend on what is on your disk
+
+`existsSync` over a repository path answers "is this on THIS machine", not "is this in the
+repository". On 2026-08-28 a new check passed here and failed four CI jobs on the same commit,
+because it named a gitignored directory that exists on the laptop that ran the evals and on no fresh
+checkout. Resolve repository paths against `git ls-files` (plus `--others --exclude-standard` for
+files being added in the same commit), never against the filesystem.
+
+The general form: **a gate whose answer depends on who is asking is not a gate.** Untracked build
+output, a cached directory, a local tool on `PATH` — each one makes a green run mean something
+different on every machine, and CI is where that gets discovered if you are lucky.
+
+---
+
+## 9. Tests must not touch the repository they are testing
 
 A test that spawns `git` in a directory it did not itself create is one typo away from committing to
 this repository. On 2026-08-28 a blanket rename bound two `git -C <temp repo>` helpers to the real
@@ -176,7 +190,7 @@ line unexamined.
 
 ---
 
-## 9. Working with the ADR corpus
+## 10. Working with the ADR corpus
 
 `docs/adr/` is the live corpus and its records are executable, not decorative.
 
@@ -196,7 +210,25 @@ python3 plugin/bin/adr-debt docs/adr          # deferred items and open follow-u
 
 ---
 
-## 10. Reviews
+## 11. Where the outside evidence is
+
+`docs/research/2026-08-28-verification-is-the-bottleneck.md` holds what the labs and the literature
+currently say about verification, silent failure, mutation, trajectory evaluation and measurement,
+with the numbers and the sources. Read it before arguing that one of the rules above is overkill —
+most of them have an external citation, and several have a measured effect size.
+
+The three findings that matter most here: **false success is the dominant agent failure mode**
+(75.8% among self-assessing coding agents); **LLM judges cannot detect it** (AUROC ≤ 0.65 — they
+grade the tone of the report) while cheap deterministic detectors reach 0.83–0.95; and **one in five
+"solved" patches on the SWE-bench leaderboard is semantically wrong**, passing only because the test
+suite was too weak. That last one is why the mutation campaign is worth its forty minutes.
+
+It also names where this project is behind the field, and the one place its instruct-never-block rule
+is in genuine tension with a measured result. Both are things to raise before somebody else does.
+
+---
+
+## 12. Reviews
 
 `/quality-harness:codex-review` runs a different-lineage read-only review. Two operational notes,
 both learned the hard way on 2026-08-28:
@@ -213,7 +245,7 @@ written the same day to fix the same class.
 
 ---
 
-## 11. Releasing
+## 13. Releasing
 
 1. `bash scripts/selftest.sh` green after the last edit.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`.

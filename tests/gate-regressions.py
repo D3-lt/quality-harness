@@ -843,6 +843,17 @@ def main():
         # A RELATIVE pointer, which is the only kind allowed now — an absolute
         # one is refused by the containment guard below, and that refusal is
         # itself asserted there.
+        # A registration at LINE START inside a block comment. The statement
+        # anchor cannot see the difference — this is the one case only the
+        # comment stripper catches, and without it the stripper's mutation came
+        # back GREEN because every other ghost was already excluded by the anchor.
+        (Path(jt) / "b.test.mjs").write_text(
+            "/*\ntest('ghost at line start in a block', () => {})\n*/\n"
+            "test('a real one below', () => {})\n")
+        assert lint.resolve_enforcement(
+            "b.test.mjs::ghost at line start in a block", Path(jt)) is None
+        assert lint.resolve_enforcement("b.test.mjs::a real one below", Path(jt)) == "test"
+
         for ghost in ("in a line comment", "in a block comment", "in a string"):
             assert lint.resolve_enforcement(f"p.test.mjs::{ghost}", Path(jt)) is None, ghost
         # `.skip` and `.only` ARE registrations and were being rejected as absent
@@ -852,6 +863,12 @@ def main():
 
     # A pointer may not leave the repository. `../README.md` and an absolute path
     # both resolved as gates, so a file outside the tree could satisfy a record.
+    # An ABSOLUTE test pointer is the case only the containment guard catches —
+    # the gate branch already refuses anything containing a slash, so the guard's
+    # mutation was GREEN until this line existed.
+    assert lint.resolve_enforcement(
+        f"{root / 'tests' / 'package.test.mjs'}::every shipped gate carries at least one mutation",
+        root) is None, "an absolute test pointer leaves the repository"
     assert lint.resolve_enforcement("../README.md", root) is None
     assert lint.resolve_enforcement(str(root / "README.md"), root) is None
     assert lint.resolve_enforcement("README.md", root) is None, "a repo file is not a gate"

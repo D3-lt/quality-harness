@@ -246,6 +246,30 @@ latent rather than live. It becomes live the day one is added.
 | 17 | Kimi K2 technical report | [arXiv 2507.20534](https://arxiv.org/pdf/2507.20534) |
 | 18 | Kimi K2.6 — benchmarks and independent commentary | [kili-technology.com](https://kili-technology.com/blog/data-story-kimi-k2-6) |
 
+## 9. A counterweight: the harness as a trainable artifact
+
+*JIT-Agent: Scaling Harness Intelligence via Just-in-Time Harness Evolution* (arXiv 2608.25593)
+argues that agent capability sits largely in the **harness** — memory, planning, actions, tool
+orchestration — and that harness design is therefore a *trainable* dimension separate from model
+choice. It generates task-adaptive harnesses on the fly, and reports generated harnesses matching
+mature runtimes such as Claude Code, with gains of **+9.1 on DeepSearchQA and +4.3 on OdysseyBench**
+for one base model and **up to +20.2** for another.
+
+The strong form of everything above: the harness is where the capability is. But it cuts against this
+project in one specific way worth stating rather than glossing.
+
+**A generated harness has no evidence chain.** Everything ADR-010 is about — a claim you can re-check,
+a digest binding evidence to the command it proved, a mutation showing a test can fail — presumes a
+harness a person can point at, read, and audit. A harness synthesized per task is optimized against a
+benchmark score, which §3 of this file shows is exactly the signal that inflates: one in five
+"solved" SWE-bench patches is semantically wrong. A harness *trained* on that signal inherits its
+blind spots and cannot be inspected for them afterwards.
+
+The two are not opposed so much as answering different questions — theirs is "how well does it do",
+ours is "how would you know". Read together, the honest position is that generated harnesses need
+exactly the kind of independent, deterministic verification this project builds, and that measuring
+them by the same benchmarks SWE-ABS discredited would repeat the error one level up.
+
 ### Leads not yet read
 
 Found while searching, relevant, not yet opened — pick these up before starting the next round
@@ -257,5 +281,6 @@ rather than re-searching:
 - *Terminal-Bench: Benchmarking Agents on Hard, Realistic CLI Tasks* — arXiv 2601.11868
 - *Towards More Standardized AI Evaluation: From Models to Agents* — arXiv 2602.18029
 - *Adoption and Impact of Command-Line AI Coding Agents: Microsoft's Early 2026 Rollout* — arXiv 2607.01418
+- *JIT-Agent* — arXiv 2608.25593, read 2026-08-28, summarized in §9
 - `yzhao062/awesome-auditable-ai` — curated list on failure attribution and decision records, which
   is this project's exact subject

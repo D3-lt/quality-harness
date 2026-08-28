@@ -2119,8 +2119,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if pointer.startswith(\"/\") or \"..\" in pointer.split(\"/\") or \":\\\\\" in pointer:",
-      "to": "    if False:"
+      "from": "    if root is None or leaves_the_tree(pointer):",
+      "to": "    if root is None:"
     },
     {
       "label": "lint: a commented-out registration is not a test",
@@ -2166,6 +2166,33 @@
       ],
       "from": "plugin/bin/* text eol=lf",
       "to": "bin/* text eol=lf"
+    },
+    {
+      "label": "lint: a Windows-spelled traversal still leaves the tree",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    normal = pointer.replace(\"\\\\\", \"/\")",
+      "to": "    normal = pointer"
+    },
+    {
+      "label": "verify: a home path is redacted in both separator spellings",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    spellings = {home, home.replace(\"\\\\\", \"/\"), home.replace(\"/\", \"\\\\\")}",
+      "to": "    spellings = {home}"
+    },
+    {
+      "label": "verify: redaction stops at the home directory, not at a sibling sharing its name",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return re.sub(f\"(?:{pattern})(?![A-Za-z0-9._-])\", \"~\", block, flags=flags)",
+      "to": "    return re.sub(f\"(?:{pattern})\", \"~\", block, flags=flags)"
     }
   ]
 }

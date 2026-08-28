@@ -95,6 +95,7 @@ and the fence's job is to prove each one names a test that exists. Breaking a bi
 turn the fence red, and if it does not, the fence is passing on the document rather than checking
 it. "It is only documentation" is exactly the reasoning that produces unfalsifiable evidence.
 - 2026-08-28 · f7f0101 · mutant killed · exit 2 · `docs/specs/2026-08-27-a-mutation-that-proves-nothing.md` · breaks one fact binding: the fence must reject a spec whose bound test does not exist, or it is passing on the document rather than checking it · acceptance-sha256:4e8961845d5e117c3eebf6da98d09554c110cc9a411f0f6ca2844ebda787025a
+- 2026-08-28 · 81c5cfb · mutant killed · exit 2 · `docs/specs/2026-08-27-a-mutation-that-proves-nothing.md` · breaks one fact binding: the fence must reject a spec whose bound test does not exist, or it is passing on the document rather than checking it · acceptance-sha256:c144d7c30761ac30a7dd89ad91f9bd3e90f99ec41b6c1ff7754359aead06af7d
 
 ## Invariants
 

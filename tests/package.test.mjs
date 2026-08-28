@@ -441,6 +441,39 @@ test('every catalogue entry still matches the source it mutates, exactly once', 
     stale.map(e => `  ${e.label} — ${e.file} matches ${e.matches}x`).join('\n')}`)
 })
 
+// Fourth instance of one class: a text literal that is secretly an assertion
+// about the operating system. A catalogue entry whose `from` embeds a newline
+// matches nothing on a CRLF checkout, so the campaign reports STALE — on
+// Windows only, where nobody develops. Found by CI on 2026-08-28 for a mutation
+// on `.gitignore`, which no rule in `.gitattributes` covered; every source file
+// was already covered by `*.sh`, `*.md`, `*.mjs` or `plugin/bin/*`, and the
+// dotfiles were the gap.
+//
+// Asked of git rather than read out of `.gitattributes`, so what is checked is
+// the answer git actually gives for the path.
+test('a mutation that matches across lines targets a file git checks out with LF', () => {
+  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8')).mutations
+  const eolOf = file => spawnSync('git', ['-C', repoRoot, 'check-attr', 'eol', '--', file],
+    { encoding: 'utf8' }).stdout.trim().split(': ').pop()
+
+  const risky = files => files.filter(file => eolOf(file) !== 'lf')
+
+  // Shown able to fire before it is trusted: with every file attributed, the
+  // assertion below is `[] === []` — the vacuity ADR-003 forbids. `LICENSE` has
+  // no eol rule and is not meant to.
+  assert.deepEqual(risky(['LICENSE']), ['LICENSE'],
+    'the check must be able to name an unattributed file, or it asserts nothing')
+
+  const multiline = [...new Set(catalogue
+    .filter(entry => entry.from.includes('\n') || entry.to.includes('\n'))
+    .map(entry => entry.file))]
+  assert.ok(multiline.length > 0, 'expected some catalogue entries to match across lines')
+  const exposed = risky(multiline)
+  assert.deepEqual(exposed, [],
+    `these files are mutated across a line boundary but git may check them out with CRLF, so the `
+    + `campaign goes STALE on Windows only: ${exposed.join(', ')}`)
+})
+
 test('every shipped gate carries at least one mutation', () => {
   // ADR-003: a gate asserts behaviour, not shape. The floor beneath that rule is
   // that somebody wrote a mutation for each gate at all — and until this test the

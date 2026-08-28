@@ -809,6 +809,50 @@ def main():
         assert not blocking, f"{good}: enforcement must never block: {blocking}"
         assert not advice, f"{good}: resolves, so nothing to advise: {advice}"
 
+    # Codex review, 2026-08-28. The containment guard splits on "/" only, so a
+    # Windows-spelled traversal reached neither branch: `..\\skills\\x.md` has no
+    # forward slash, so `".." in pointer.split("/")` is False AND the gate form's
+    # `"/" not in pointer` is True — and the pointer then resolved, from the
+    # gate's own directory, to an ordinary file that is not a gate at all. A
+    # record would read as enforced by a skill document.
+    for escape in ("..\\skills\\adr-write\\SKILL.md", "../skills/adr-write/SKILL.md",
+                   "C:\\Windows\\System32\\cmd.exe", "C:/Windows/System32/cmd.exe"):
+        assert lint.resolve_enforcement(escape, root) is None, (
+            f"a pointer leaving the tree must resolve as nothing: {escape}")
+    # The forms that SHOULD still resolve, so the guard is not merely refusing
+    # everything — which would pass the four assertions above and prove nothing.
+    assert lint.resolve_enforcement("adr-lint", root) == "gate", "a real gate still resolves"
+
+    # Codex review, 2026-08-28. redact_home kept a home path out of a task file
+    # only where the spelling matched byte for byte. A Node stack trace on
+    # Windows prints forward slashes while Path.home() returns backslashes, so
+    # the one platform CI runs and a laptop cannot was the one that leaked.
+    win = "C:\\Users\\Alice"
+    for spelling in ("C:\\Users\\Alice\\p\\x.mjs", "C:/Users/Alice/p/x.mjs",
+                     "c:\\users\\alice\\p\\x.mjs"):
+        out = verify.redact_home(spelling, home=win, platform="win32")
+        assert "Alice" not in out and "alice" not in out, f"leaked: {spelling} -> {out}"
+    # A sibling directory sharing the prefix is NOT this user's home and must
+    # survive intact — otherwise the redaction corrupts evidence it was not
+    # asked to touch.
+    # Assembled rather than written out: a literal home path in a tracked file is
+    # the leak this repository's own check exists to catch, and a fixture is not
+    # exempt from it.
+    posix = "/".join(("", "home", "alice"))
+    sibling = f"{posix}-two/x"
+    assert verify.redact_home(sibling, home=posix, platform="linux") == sibling, (
+        "a sibling sharing the home's name is not the home")
+    assert verify.redact_home(f"{posix}/x", home=posix, platform="linux") == "~/x"
+    # Case matters where the filesystem says it does, and only there.
+    upper = f"{posix.upper()}/x"
+    assert verify.redact_home(upper, home=posix, platform="linux") == upper
+    assert verify.redact_home(upper, home=posix, platform="darwin") == "~/x"
+    # A home that cannot be resolved, or that is a filesystem root, leaves the
+    # text alone rather than rewriting every path in it.
+    for useless in (None, "", "/", "\\", "C:\\"):
+        assert verify.redact_home(f"{posix}/x", home=useless, platform="linux") == f"{posix}/x", (
+            f"an unusable home must redact nothing: {useless!r}")
+
     # A pointer that resolves to nothing is the rot this exists to catch.
     blocking, advice = enforcement("`no-such-mutation-label-anywhere`")
     assert not blocking, f"still never blocking: {blocking}"

@@ -146,13 +146,23 @@ test('a fence the machine could not run is not a false success', () => {
 
 test('an assertion failure that merely mentions an environment string is still false', () => {
   const dir = corpus()
-  // The output CONTAINS an environment signature, but the fence failed on its own
-  // terms. environment_failure() exists never to downgrade a real failure, and
-  // this is the case where reusing it could launder one.
-  task(dir, 'T1', { fence: 'echo "command not found: something"; exit 1' })
+  // Both halves have to be true or this proves nothing, and the first version of
+  // it proved nothing: its fence started with `echo`, so environment_failure()
+  // never produced a diagnosis and the guard was never reached. A mutation
+  // removing the guard came back GREEN and said so.
+  //
+  // So: output that DOES match a signature (Docker unreachable), from a run that
+  // DID score tests. The suite ran and failed; the Docker line is incidental
+  // text. environment_failure() documents that it never downgrades a real
+  // failure, and this is the case where reusing it could launder one.
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', {
+    fence: 'echo "Cannot connect to the Docker daemon"; echo "3 failed"; exit 1',
+  })
   const run = sweep(dir)
   assert.notEqual(run.status, 0, 'a real failure must not escape into unrunnable')
-  assert.match(run.stdout, /T1/)
+  assert.match(run.stdout, /FALSE.*T1/, 'it is false, not unrunnable')
+  assert.match(run.stdout, /1\s*\/\s*2/, run.stdout)
 })
 
 test('a fence that invokes the sweep is reported unrunnable and never executed', () => {

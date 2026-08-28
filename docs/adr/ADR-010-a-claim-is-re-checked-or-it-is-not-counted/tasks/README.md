@@ -23,7 +23,7 @@ exists here today, so the hazard is latent rather than live; ordering costs noth
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | four buckets, and a claim you could not check is in neither half | pending | F-1..F-12 (except F-13), F-16, F-17, UC1-S1..UC1-S5 | `node --test tests/sweep.test.mjs …` |
+| T1 | four buckets, and a claim you could not check is in neither half | done | F-1..F-12 (except F-13), F-16, F-17, UC1-S1..UC1-S5 | `node --test tests/sweep.test.mjs …` |
 | T3 | repair the three claims that stopped being true | pending | none — repairs the corpus the spec measured | `bash …/tasks/T3-recheck.sh` |
 | T2 | strictFrom demotes a finding without changing the count | pending | F-13, F-14, F-15, UC2-S1, UC2-S2 | `node --test tests/sweep.test.mjs …` |
 

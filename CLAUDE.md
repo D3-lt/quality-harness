@@ -65,6 +65,11 @@ Log. Write `python3 plugin/bin/adr-lint`, `node plugin/scripts/lifecycle.mjs`.
 test in one command; a `for` loop's exit status is its last iteration's `echo`, so a printed FAIL
 sails into a commit. This has happened here more than once. Run the gate, read it, then commit.
 
+**Write commit messages with `git commit -F -` and a quoted heredoc**, never `-m "..."`. A backtick
+in a double-quoted message is command substitution: on 2026-08-28 a shell silently deleted the phrase
+`def enforcement_pointers(` from a commit message explaining a defect, and the commit still
+succeeded. Backticks are how this project writes about code, so this is not a rare case.
+
 ---
 
 ## 3. Gates instruct; they never block

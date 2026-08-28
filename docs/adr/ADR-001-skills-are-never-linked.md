@@ -4,7 +4,7 @@
 **Date:** 2026-08-27
 **Owner:** zy
 **Spec:** None — no spec stage
-**Cross-references:** docs/BACKLOG.md §25
+**Cross-references:** docs/BACKLOG.md §25, docs/adr/ADR-004-templates-are-not-linked.md (amends the template clause of the Decision below)
 **Governs:** `scripts/standalone-link.mjs`, `scripts/sync-standalone.mjs`, `tests/standalone-link.test.mjs`
 **Invalidates:** none — checked (this is the first record in this corpus; `adr-state.mjs` reports "No decision records found under this repository")
 **Served-path change:** A user who runs `sync-standalone.mjs --link` keeps all thirteen `quality-harness:<name>` skills instead of losing them; `--link` now installs gate forwarders and template links only.
@@ -187,4 +187,4 @@ plugin instead.
 
 ## Follow-ups
 
-- [ ] Decide whether the six `~/.claude/templates` links should be removed rather than repointed each release (docs/BACKLOG.md §25).
+- [x] Decide whether the six home template links should be removed rather than repointed each release (docs/BACKLOG.md §25). Answered 2026-08-28 by ADR-004: removed. Nothing reads them, and a link naming an evicted version dangles where a stale copy would at least be reported. That amends this record's Decision clause listing templates among what `--link` installs; the skills half stands.

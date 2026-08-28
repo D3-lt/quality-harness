@@ -17,7 +17,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | a qualified id parses, resolves, and never binds locally | pending | — | `python3 tests/gate-regressions.py …` |
+| T1 | a qualified id parses, resolves, and never binds locally | done | — | `python3 tests/gate-regressions.py …` |
 | T2 | an edge that cannot be evaluated is not ready | pending | — | `node --test tests/adr-next.test.mjs …` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.

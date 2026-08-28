@@ -243,6 +243,15 @@ def blockers(infos, corpus_dir=None):
                     state = foreign_state(part, corpus_dir)
                     if state != "done":
                         foreign[tid].append((part, state))
+                elif re.search(r"(?<![A-Za-z])ADR(?![A-Za-z])", part, re.I):
+                    # Names a record and does not parse. Left to the local scan
+                    # it is worse than dropped: TID_RE finds the trailing `T1`
+                    # inside `ADR-not-a-number-T1`, that resolves to the task
+                    # itself, self-edges are excluded, and the task prints READY.
+                    # A malformed pointer becoming a clean bill of health is the
+                    # exact shape this record exists to remove. adr-lint rejects
+                    # it at authoring; this refuses to route on it.
+                    foreign[tid].append((part, "unknown"))
                 else:
                     rest.append(part)
             for d in TID_RE.findall(" ".join(rest).upper()):

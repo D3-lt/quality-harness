@@ -2020,8 +2020,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if raw is None or raw.strip().lower().startswith(\"none\"):",
-      "to": "    if raw is None:"
+      "from": "    if not value or re.match(r\"none\\b\", value, re.I):",
+      "to": "    if not value or False:"
     },
     {
       "label": "lint: a node:test name is a string, not a function name",
@@ -2029,8 +2029,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if wanted and re.search(r\"(?:^|[^\\w.])(?:test|it)\\s*\\(\\s*(['\\\"`])\"",
-      "to": "            if False and re.search(r\"(?:^|[^\\w.])(?:test|it)\\s*\\(\\s*(['\\\"`])\""
+      "from": "                    r\"^[ \\t]*(?:await[ \\t]+)?(?:test|it)(?:\\.\\w+)*\\s*\\(\\s*(['\\\"`])\"",
+      "to": "                    r\"^[ \\t]*(?:await[ \\t]+)?(?:NEVERMATCHES)(?:\\.\\w+)*\\s*\\(\\s*(['\\\"`])\""
     },
     {
       "label": "context: the enforcing check reaches the edit boundary",
@@ -2112,6 +2112,33 @@
       ],
       "from": "                elif re.search(r\"(?<![A-Za-z])ADR(?![A-Za-z])\", part, re.I):",
       "to": "                elif False:"
+    },
+    {
+      "label": "lint: a pointer may not leave the repository",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if pointer.startswith(\"/\") or \"..\" in pointer.split(\"/\") or \":\\\\\" in pointer:",
+      "to": "    if False:"
+    },
+    {
+      "label": "lint: a commented-out registration is not a test",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                    strip_comments(f.read_text(errors=\"replace\", encoding=\"utf-8\")), re.M):",
+      "to": "                    f.read_text(errors=\"replace\", encoding=\"utf-8\"), re.M):"
+    },
+    {
+      "label": "context: the JSON renderer carries the enforcing check too",
+      "file": "scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    ...(record.enforcedBy?.length ? { enforcedBy: record.enforcedBy } : {}),",
+      "to": "    ...({}),"
     }
   ]
 }

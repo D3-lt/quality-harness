@@ -84,6 +84,7 @@ templates go here, and gates are the one kind whose indirection carries no versi
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
 - 2026-08-28 · 80fb77d · mutant killed · exit 1 · `scripts/sync-standalone.mjs` · the policy IS the rule: with templates created when absent, a deletion is undone by the next sync and reported as an update · acceptance-sha256:3250b9c8efc2ca27dc09f23f5d351134f54885f01da577eb3b2695110dec1cdb
+- 2026-08-28 · 930cfbf · mutant killed · exit 1 · `plugin/scripts/sync-standalone.mjs` · sync: a template the user does not have is not created · acceptance-sha256:e14814c5d526c4f0aa1e72651a5a237f3dc2285e7448b2b9da69e8a37b641928
 
 ## Invariants
 

@@ -2375,6 +2375,20 @@ test('adr-context answers which decisions govern a path, and which were killed t
   assert.ok(!line('DECIDED AGAINST').includes('None'),
     `a record without the header adds nothing:\n${report}`)
 
+  // `None — <reason>` is an ANSWER, and must not be reported as a check. The
+  // adr-lint parser has its own test for this; lifecycle.mjs has a SECOND
+  // parser feeding the hook, and its mutation was GREEN until this line existed
+  // — the escape was implemented twice and asserted once.
+  await writeFile(path.join(dir, 'docs', 'adr', 'ADR-003-unenforced.md'),
+    '# ADR-003: decision 003\n\n**Status:** Accepted\n**Governs:** `src/pay.js`\n'
+    + '**Enforced-by:** None — a naming convention, not a mechanism\n\n## Context\n\nx\n')
+  cap = say()
+  try { main(['src/pay.js'], dir) } finally { cap.done() }
+  const withNone = cap.written.join('')
+  assert.match(withNone, /ADR-003-unenforced/, 'the record is still governing')
+  assert.doesNotMatch(withNone, /caught by: None/,
+    `None is an answer, not a check:\n${withNone}`)
+
   // The HOOK renders from the same resolver, and must say the same thing. Two
   // callers of one resolver is exactly where this project has drifted before.
   const { decisionContext } = await import('../scripts/lifecycle.mjs')

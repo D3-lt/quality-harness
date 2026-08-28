@@ -171,7 +171,7 @@ test('a fence that invokes the sweep is reported unrunnable and never executed',
   // Without the guard this does not terminate: the sweep runs a fence that is a
   // sweep, forever. The test's own timeout is the backstop, not the assertion.
   task(dir, 'T1', { fence: `python3 ${JSON.stringify(verify)} --sweep ${JSON.stringify(dir)}` })
-  const run = sweep(dir)
+  const run = sweep(dir, ['--timeout', '5'])
   assert.equal(run.status, 0, run.stderr)
   assert.match(run.stdout, /unrunnable/i)
   assert.match(run.stdout, /recurse/i, 'the reason must name why it was refused')
@@ -974,8 +974,13 @@ test('a fence that spells --sweep around the guard still cannot recurse', () => 
   const dir = corpus()
   task(dir, 'T0-held', { fence: 'exit 0' })
   task(dir, 'T1', { fence: `python3 ${JSON.stringify(verify)} --swee''p ${JSON.stringify(dir)}` })
+  // An explicit SHORT timeout, and that is a safety property rather than a
+  // preference. With the guard mutated away this fixture genuinely recurses, and
+  // at the default 900s each level holds a process for fifteen minutes — on
+  // 2026-08-28 that killed a CI runner and left orphaned processes behind. A
+  // mutation must make a test fail, not make the machine unusable.
   const started = Date.now()
-  const run = sweep(dir, ['--json'])          // the DEFAULT timeout, deliberately
+  const run = sweep(dir, ['--json', '--timeout', '5'])
   assert.equal(JSON.parse(run.stdout).unrunnable, 1)
   assert.ok(Date.now() - started < 30_000, 'it must refuse, not recurse until a timeout')
 })
@@ -1004,7 +1009,7 @@ test('a fence sweeping the corpus being swept is still refused', () => {
   const dir = corpus()
   task(dir, 'T0-held', { fence: 'exit 0' })
   task(dir, 'T1', { fence: `python3 ${JSON.stringify(verify)} --sweep ${JSON.stringify(dir)}` })
-  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  const r = JSON.parse(sweep(dir, ['--json', '--timeout', '5']).stdout)
   assert.equal(r.unrunnable, 1, 'the same corpus is recursion whatever the spelling')
 })
 

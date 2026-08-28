@@ -80,6 +80,7 @@ import is not testable, which is why the verdict logic had no test in the first 
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 22bd877 · mutant killed · exit 1 · `scripts/mutate.mjs` · removes the baseline gate entirely: a verdict taken against a failing suite is counted as noticed again · acceptance-sha256:70195d7b8e7d64f7c8e6b891bc381c1aa365f4f576857a7b4ac09efe9353cb46
 
 ## Invariants
 

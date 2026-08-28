@@ -817,6 +817,9 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
         fence = acceptance_of(text)
         current = acceptance_digest(normalize_acceptance(fence)) if fence else None
         for digest in sorted(digests):
+            if fence is not None and not fence.strip():
+                superseded.append((task, "its Acceptance fence is empty, so it proves nothing"))
+                continue
             if digest != current:
                 # Nothing to compare against is the same answer as "does not
                 # match": either way this entry proved a command that is not the
@@ -836,9 +839,21 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 unrunnable.append((task, "no usable shell was found to run it"))
                 continue
             try:
-                r = subprocess.run([shell, "-c", fence], cwd=str(fence_cwd(task)),
-                                   capture_output=True, text=True,
-                                   encoding="utf-8", errors="replace", timeout=timeout)
+                # Output to FILES, not pipes. A fence that backgrounds anything —
+                # `(sleep 60 &)` — leaves a grandchild holding the inherited pipe,
+                # so capture_output waits for a process the fence itself finished
+                # with, and the run burns the whole timeout for nothing. Measured
+                # 2026-08-28: 15s for a fence that exited immediately. Files also
+                # bound memory when a fence prints a great deal.
+                with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
+                    r = subprocess.run([shell, "-c", fence], cwd=str(fence_cwd(task)),
+                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err,
+                                       timeout=timeout)
+                    out.seek(0); err.seek(0)
+                    r = subprocess.CompletedProcess(
+                        r.args, r.returncode,
+                        out.read().decode("utf-8", "replace"),
+                        err.read().decode("utf-8", "replace"))
             except subprocess.TimeoutExpired:
                 unrunnable.append((task, f"it did not finish within {timeout}s"))
                 continue
@@ -922,6 +937,20 @@ def acceptance_of(text):
 
 def main():
     args, task, cwd, human = sys.argv[1:], None, None, None
+
+    def value(i, flag):
+        """The operand after a flag, or a usage error rather than a traceback.
+
+        Every value-taking flag here indexed `args[i + 1]` directly, so eight of
+        them ended a missing operand with `IndexError: list index out of range`
+        and a Python traceback — which reads like the tool is broken rather than
+        like the command was. Found 2026-08-28 by a stress case on `--sweep`;
+        fixed for the class, because the other seven had the same line.
+        """
+        if i >= len(args):
+            fail(f"{flag} needs a value")
+        return args[i]
+
     mutant = frm = to = why = None
     restore = False
     sweep = None
@@ -931,25 +960,25 @@ def main():
     while i < len(args):
         if args[i] == "--cwd":
             i += 1
-            cwd = Path(args[i])
+            cwd = Path(value(i, "--cwd"))
         elif args[i] == "--human":
             i += 1
-            human = args[i]
+            human = value(i, "--human")
         elif args[i] == "--mutant":
             i += 1
-            mutant = args[i]
+            mutant = value(i, "--mutant")
         elif args[i] == "--from":
             i += 1
-            frm = args[i]
+            frm = value(i, "--from")
         elif args[i] == "--to":
             i += 1
-            to = args[i]
+            to = value(i, "--to")
         elif args[i] == "--why":
             i += 1
-            why = args[i]
+            why = value(i, "--why")
         elif args[i] == "--sweep":
             i += 1
-            sweep = args[i]
+            sweep = value(i, "--sweep")
         elif args[i] == "--timeout":
             i += 1
             # Validated, because the two ways this goes wrong are both silent:
@@ -957,7 +986,7 @@ def main():
             # negative means "no bound" to subprocess.run — so the guard against a
             # fence that never finishes would itself never finish.
             try:
-                timeout = int(args[i])
+                timeout = int(value(i, "--timeout"))
             except ValueError:
                 fail(f"--timeout wants a whole number of seconds, not {args[i]!r}")
             if timeout <= 0:

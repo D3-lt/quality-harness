@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
@@ -505,4 +505,451 @@ test('an absent config leaves every finding at full strength', () => {
   const run = sweep(dir)
   assert.notEqual(run.status, 0, 'strict is the default; opting out is explicit')
   assert.doesNotMatch(run.stdout, /strictFrom/, 'and it says nothing about a cutoff there is none of')
+})
+
+// ---------------------------------------------------------------------------
+// A population, not a happy path.
+//
+// The shapes below were taken from a real ADR corpus of 174 records and 424 task
+// files (surveyed 2026-08-28, read-only). It carries forms this repository does
+// not have a single instance of, and every one of them reaches the sweep:
+//
+//   * record numbers with a letter suffix — ADR-111a, ADR-111b, ADR-111c (3 of 174)
+//   * README.md files inside tasks/ directories (99 of 424)
+//   * acceptance that is human-observed prose with no bash fence (59 of 400 sampled)
+//   * Verification Log evidence written BY HAND before this tool existed, in a
+//     grammar of its own — `- 2026-06-30 \`cargo nextest run …\` → exit 0, 251 passed`
+//     — which is most of that corpus
+//
+// A gate that is only ever pointed at the corpus that grew up with it has been
+// tested against one population of one. These are the others.
+// ---------------------------------------------------------------------------
+
+/** A whole corpus in one call: [name, options] pairs laid out under docs/adr. */
+function population(dir, records) {
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' })
+  for (const [adr, name, opts] of records) {
+    const tasks = join(dir, 'docs', 'adr', adr, 'tasks')
+    mkdirSync(tasks, { recursive: true })
+    if (opts.raw !== undefined) rawTask(tasks, name, opts.raw)
+    else task(tasks, name, opts)
+  }
+  return dir
+}
+
+test('a population of real corpus shapes is classified without crashing or lying', () => {
+  const dir = corpus()
+  const d = digestOf('exit 0')
+  population(dir, [
+    // --- claims that hold -------------------------------------------------
+    ['ADR-001-first', 'T1', { fence: 'exit 0' }],
+    ['ADR-002-second', 'T1', { fence: 'exit 0' }],
+    ['ADR-002-second', 'T2', { fence: 'echo one\nexit 0' }],
+    // --- claims that no longer hold ---------------------------------------
+    ['ADR-003-broken', 'T1', { fence: 'exit 1' }],
+    ['ADR-003-broken', 'T2', { fence: 'exit 42' }],
+    // --- superseded: the fence moved on ------------------------------------
+    ['ADR-004-changed', 'T1', { fence: 'exit 0', digest: 'a'.repeat(64) }],
+    // --- superseded: human-observed acceptance, no bash fence at all --------
+    ['ADR-005-human', 'T1', { fence: 'exit 0', section: false }],
+    // --- unrunnable: the tool is not on this machine ------------------------
+    ['ADR-006-infra', 'T1', { fence: 'qh-no-such-tool-anywhere --daemon' }],
+    // --- not claims at all --------------------------------------------------
+    // hand-written evidence predating the tool: a real grammar, and not ours
+    ['ADR-007-legacy', 'T1', { raw: { fence: 'exit 1', lines: [
+      '- 2026-06-30 `cargo nextest run -p zeus-contracts` → exit 0, 251 passed',
+      '- 2026-07-15 (coordinator-verified, independent of the executing subagent):',
+    ] } }],
+    // a human-observed sign-off carries no digest, so there is nothing to check
+    ['ADR-008-signoff', 'T1', { fence: 'exit 1', entries: ['human'] }],
+    // TDD-red evidence is evidence, and it is not a claim
+    ['ADR-009-red', 'T1', { fence: 'exit 1', entries: ['exit-1'] }],
+    // a mutation log line carries exit 0 AND a digest, and is not a claim
+    ['ADR-010-mutants', 'T1', { raw: { fence: 'exit 1', lines: [
+      `- 2026-08-28 · abc1234 · mutant survived · exit 0 · \`x.mjs\` · why · acceptance-sha256:${d}`,
+    ] } }],
+    // a letter-suffixed record number, which our parser cannot read
+    ['ADR-011a-suffixed', 'T1', { fence: 'exit 0' }],
+    ['ADR-011b-suffixed', 'T1', { fence: 'exit 1' }],
+  ])
+  // 99 of 424 files in the real corpus are READMEs sitting beside the tasks.
+  writeFileSync(join(dir, 'docs', 'adr', 'ADR-001-first', 'tasks', 'README.md'),
+    '# Tasks\n\n| ID | Status |\n|----|--------|\n| T1 | done |\n', 'utf8')
+
+  const run = sweep(dir, ['--json'])
+  assert.equal(typeof run.status, 'number', 'the sweep must terminate on every shape')
+  assert.doesNotMatch(run.stderr, /Traceback/, `no shape may crash it:\n${run.stderr}`)
+
+  const r = JSON.parse(run.stdout)
+  assert.deepEqual(
+    { claims: r.claims, held: r.held, false: r.false, superseded: r.superseded, unrunnable: r.unrunnable },
+    // Counted from the fixture, and the first version of this line was wrong in a
+    // way worth keeping visible: it said 9 claims while its own buckets summed to
+    // 11. The sum assertion below is what makes that kind of arithmetic a failure
+    // rather than a plausible-looking number.
+    { claims: 10, held: 4, false: 3, superseded: 2, unrunnable: 1 },
+    `the population must classify exactly:\n${run.stdout}`)
+  assert.equal(r.held + r.false + r.superseded + r.unrunnable, r.claims,
+    'a claim in no bucket is a claim nobody can see')
+})
+
+test('the same unchanged corpus gives the same answer twice', () => {
+  // Not pedantry. Two sweeps of this repository's corpus disagreed on 2026-08-28
+  // — 7 false against 6 — because a mutation campaign was rewriting source files
+  // between them. The sweep has no idea it is standing on a moving tree, and a
+  // number that changes without the corpus changing is worse than no number.
+  const dir = corpus()
+  population(dir, [
+    ['ADR-001-a', 'T1', { fence: 'exit 0' }],
+    ['ADR-002-b', 'T1', { fence: 'exit 1' }],
+    ['ADR-003-c', 'T1', { fence: 'qh-no-such-tool-anywhere' }],
+  ])
+  const first = sweep(dir, ['--json']).stdout
+  const second = sweep(dir, ['--json']).stdout
+  assert.equal(first, second, 'an unchanged corpus must classify identically')
+})
+
+test('a corpus whose evidence predates the tool reports no claim, not a clean bill', () => {
+  // The single most likely first contact: a real corpus with years of hand-written
+  // evidence in a grammar of its own. None of it is a claim this tool can
+  // re-check, and the honest answer is to say so — reporting 0 false over 0
+  // checked as success would tell an adopting team their corpus is verified when
+  // nothing in it was read.
+  const dir = corpus()
+  population(dir, [
+    ['ADR-001-legacy', 'T1', { raw: { fence: 'cargo test', lines: [
+      '- 2026-06-29 `cargo nextest run -p zeus-orchestrator -E \'test(abort)\'` → 2 abort',
+      '- 2026-07-15 (coordinator): T7 acceptance GREEN',
+    ] } }],
+    ['ADR-002-legacy', 'T1', { raw: { fence: 'cargo test', lines: [
+      '- 2026-06-30 `cargo nextest run -p zeus-eval-harness` → exit 0',
+    ] } }],
+  ])
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0, 'nothing was checked, so nothing is verified')
+  assert.match(run.stdout, /no claim/i)
+})
+
+test('a record number our parser cannot read is never demoted', () => {
+  // ADR-111a/b/c exist in the wild. `record_number_of` returns None for them, and
+  // None must mean "checked in full" rather than "below the cutoff" — the second
+  // reading demotes a record silently and forever.
+  const dir = configured(corpus(), '{"strictFrom": "ADR-900"}')
+  record(dir, 'ADR-011a-suffixed', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0,
+    'a cutoff above every record must still not demote one whose number cannot be read')
+})
+
+test('a README beside the tasks is read and carries nothing', () => {
+  const dir = corpus()
+  const tasks = join(dir, 'docs', 'adr', 'ADR-001-x', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  task(tasks, 'T1', { fence: 'exit 0' })
+  writeFileSync(join(tasks, 'README.md'), '# Tasks\n\n| T1 | done |\n', 'utf8')
+  const run = sweep(dir, ['--json'])
+  assert.equal(JSON.parse(run.stdout).claims, 1, 'an index is not a claim')
+})
+
+test('an empty Acceptance fence is not a claim that held', () => {
+  // An empty fence exits 0, so a naive reader calls it held — a claim proved by a
+  // command that does nothing, which is the vacuity this whole record exists to
+  // refuse. adr-verify will not RECORD an empty fence, so this can only arrive by
+  // hand, which is exactly when it should not be believed.
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: '' })
+  task(dir, 'T2', { fence: '   ' })
+  const run = sweep(dir, ['--json'])
+  const r = JSON.parse(run.stdout)
+  assert.equal(r.held, 1, `only the real claim held:\n${run.stdout}`)
+})
+
+// ---------------------------------------------------------------------------
+// Stress. Six axes, and the point of each is a shape somebody will hand this
+// tool that nobody wrote it for. Where a case asserts a REFUSAL rather than an
+// answer, that is deliberate: a gate that guesses is worse than one that stops.
+// ---------------------------------------------------------------------------
+
+// --- A. invocation ----------------------------------------------------------
+
+test('--sweep with no directory after it is refused', () => {
+  const run = spawnSync('python3', [verify, '--sweep'], { encoding: 'utf8' })
+  assert.notEqual(run.status, 0)
+  assert.doesNotMatch(run.stderr, /Traceback/, 'a missing operand is a usage error, not a crash')
+})
+
+test('a corpus path that does not exist is refused, not swept as empty', () => {
+  const run = sweep(join(corpus(), 'no-such-directory'))
+  assert.notEqual(run.status, 0)
+  assert.match(run.stdout + run.stderr, /not a directory/i,
+    'an absent corpus must not read as a corpus with nothing wrong in it')
+})
+
+test('an unknown flag beside --sweep is refused', () => {
+  const dir = corpus()
+  task(dir, 'T1', { fence: 'exit 0' })
+  const run = sweep(dir, ['--not-a-flag'])
+  assert.notEqual(run.status, 0)
+  assert.match(run.stdout + run.stderr, /unknown option/i)
+})
+
+test('the json report and the printed report agree on every count', () => {
+  const dir = corpus()
+  task(dir, 'A', { fence: 'exit 0' })
+  task(dir, 'B', { fence: 'exit 1' })
+  task(dir, 'C', { fence: 'exit 0', digest: 'f'.repeat(64) })
+  task(dir, 'D', { fence: 'qh-no-such-tool-anywhere' })
+  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  const text = sweep(dir).stdout
+  assert.match(text, new RegExp(`${r.false}\\s*/\\s*${r.held + r.false}`),
+    `the printed rate must equal the json one:\n${text}`)
+  assert.match(text, new RegExp(`${r.superseded} superseded`))
+  assert.match(text, new RegExp(`${r.unrunnable} unrunnable`))
+})
+
+test('a corpus reached through a symlink is swept', () => {
+  const real = corpus()
+  task(real, 'T1', { fence: 'exit 0' })
+  const link = join(mkdtempSync(join(os.tmpdir(), 'qh-link-')), 'corpus')
+  symlinkSync(real, link, 'dir')
+  assert.equal(JSON.parse(sweep(link, ['--json']).stdout).claims, 1)
+})
+
+// --- B. corpus structure ----------------------------------------------------
+
+test('a task ten directories down is still found', () => {
+  const dir = corpus()
+  const deep = join(dir, ...Array.from({ length: 10 }, (_, i) => `level${i}`))
+  mkdirSync(deep, { recursive: true })
+  task(deep, 'T1', { fence: 'exit 0' })
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1)
+})
+
+test('a byte-order mark does not hide a claim', () => {
+  const dir = corpus()
+  const path = task(dir, 'T1', { fence: 'exit 0' })
+  writeFileSync(path, '﻿' + readFileSync(path, 'utf8'), 'utf8')
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1,
+    'a BOM is invisible to a reader and must be invisible here')
+})
+
+test('bytes that are not valid UTF-8 do not crash the sweep', () => {
+  const dir = corpus()
+  task(dir, 'T1', { fence: 'exit 0' })
+  writeFileSync(join(dir, 'T2.md'), Buffer.from([0xff, 0xfe, 0x00, 0x41, 0x0a]))
+  const run = sweep(dir, ['--json'])
+  assert.doesNotMatch(run.stderr, /Traceback|UnicodeDecodeError/, run.stderr)
+  assert.equal(JSON.parse(run.stdout).claims, 1)
+})
+
+test('an entry after the Verification Log section belongs to no claim', () => {
+  // A line that LOOKS like an entry but sits under a later heading is not in the
+  // log. Reading to end-of-file instead of end-of-section would count it.
+  const dir = corpus()
+  const d = digestOf('exit 1')
+  rawTask(dir, 'T1', { fence: 'exit 1', lines: [] })
+  const path = join(dir, 'T1.md')
+  writeFileSync(path, readFileSync(path, 'utf8')
+    + `\n## Notes\n\n- 2026-08-28 · abc1234 · exit 0 · \`exit 1\` · acceptance-sha256:${d}\n`, 'utf8')
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0, 'nothing in the log means no claim')
+  assert.match(run.stdout + run.stderr, /no claim/i)
+})
+
+test('a hundred tasks terminate and count correctly', () => {
+  const dir = corpus()
+  for (let i = 0; i < 100; i += 1) {
+    task(dir, `T${i}`, { fence: i % 10 === 0 ? 'exit 1' : 'exit 0' })
+  }
+  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  assert.deepEqual({ claims: r.claims, held: r.held, false: r.false }, { claims: 100, held: 90, false: 10 })
+})
+
+// --- C. entry grammar -------------------------------------------------------
+
+test('a forty-character sha is a claim and a six-character one is not', () => {
+  // The recording path writes a short sha; a repository configured for longer
+  // ones writes forty. Six is below anything git produces, and a reader that
+  // accepts it is accepting text rather than a sha.
+  const dir = corpus()
+  const d = digestOf('exit 0')
+  rawTask(dir, 'T1', { fence: 'exit 0', lines: [
+    `- 2026-08-28 · ${'a'.repeat(40)} · exit 0 · \`exit 0\` · acceptance-sha256:${d}`,
+  ] })
+  rawTask(dir, 'T2', { fence: 'exit 0', lines: [
+    `- 2026-08-28 · abcdef · exit 0 · \`exit 0\` · acceptance-sha256:${d}`,
+  ] })
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1)
+})
+
+test('an uppercase digest is not a claim', () => {
+  // The writer emits lowercase hex. Accepting either spelling means the same
+  // fence can be recorded under two digests that never compare equal.
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  rawTask(dir, 'T1', { fence: 'exit 0', lines: [
+    `- 2026-08-28 · abc1234 · exit 0 · \`exit 0\` · acceptance-sha256:${digestOf('exit 0').toUpperCase()}`,
+  ] })
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1)
+})
+
+test('exit 00 is not exit 0', () => {
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  rawTask(dir, 'T1', { fence: 'exit 0', lines: [
+    `- 2026-08-28 · abc1234 · exit 00 · \`exit 0\` · acceptance-sha256:${digestOf('exit 0')}`,
+  ] })
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1,
+    'the grammar is exact, and a near-miss is not a claim')
+})
+
+test('trailing whitespace after a digest does not lose the claim', () => {
+  const dir = corpus()
+  rawTask(dir, 'T1', { fence: 'exit 0', lines: [
+    `- 2026-08-28 · abc1234 · exit 0 · \`exit 0\` · acceptance-sha256:${digestOf('exit 0')}   `,
+  ] })
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1,
+    'an editor stripping or adding a space must not change the verdict')
+})
+
+test('two identical entries are one claim', () => {
+  const dir = corpus()
+  const line = `- 2026-08-28 · abc1234 · exit 0 · \`exit 0\` · acceptance-sha256:${digestOf('exit 0')}`
+  rawTask(dir, 'T1', { fence: 'exit 0', lines: [line, line] })
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1)
+})
+
+test('a date in the future is still a claim', () => {
+  // The sweep judges commands, not calendars. Refusing a dated entry would be a
+  // finding about the clock dressed up as one about the code.
+  const dir = corpus()
+  rawTask(dir, 'T1', { fence: 'exit 0', lines: [
+    `- 2099-01-01 · abc1234 · exit 0 · \`exit 0\` · acceptance-sha256:${digestOf('exit 0')}`,
+  ] })
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1)
+})
+
+// --- D. fence semantics -----------------------------------------------------
+
+test('a fence whose middle command fails under set -e is false', () => {
+  const dir = corpus()
+  task(dir, 'T1', { fence: 'set -e\nfalse\necho never printed' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0)
+})
+
+test('a runner reporting zero examples is false, whatever its exit code', () => {
+  // rspec's wording, not go's. The scored-nothing rule has to cover the runners
+  // a corpus actually uses, and a table with one entry in it is a table that
+  // works for one project.
+  const dir = corpus()
+  task(dir, 'T1', { fence: 'echo "0 examples, 0 failures"; exit 0' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0, 'nothing ran, so nothing was proved')
+})
+
+test('a fence that spawns a background process does not hang the sweep', () => {
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: '(sleep 60 &) ; exit 0' })
+  const started = Date.now()
+  const run = sweep(dir, ['--timeout', '20'])
+  assert.equal(run.status, 0, run.stdout)
+  assert.ok(Date.now() - started < 15_000,
+    'a detached child inherits the output pipes, so capturing through them holds '
+    + 'the sweep open until the timeout even though the fence itself exited')
+})
+
+test('a fence that reads stdin fails rather than waiting for input nobody will type', () => {
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: 'cat' })
+  const started = Date.now()
+  const run = sweep(dir, ['--timeout', '20'])
+  assert.equal(run.status, 0, 'it is unrunnable, not a verdict about the code')
+  assert.ok(Date.now() - started < 15_000,
+    'stdin must be closed, so this fails immediately instead of burning the timeout')
+})
+
+test('a fence mentioning --sweep inside a string is still refused', () => {
+  // An over-refusal, and the direction is chosen: refusing a fence that only
+  // TALKS about the sweep costs one honest claim, while running one that invokes
+  // it costs the machine. Asserted so the trade is visible rather than accidental.
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: 'echo "this mentions --sweep in prose"; exit 0' })
+  const run = sweep(dir)
+  assert.match(run.stdout, /unrunnable/i)
+})
+
+test('a fence using $PWD sees the git root', () => {
+  const dir = corpus()
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' })
+  writeFileSync(join(dir, 'marker.txt'), 'x\n', 'utf8')
+  const nested = join(dir, 'docs', 'adr', 'REC', 'tasks')
+  mkdirSync(nested, { recursive: true })
+  task(nested, 'T1', { fence: 'test -f "$PWD/marker.txt"' })
+  assert.equal(sweep(dir).status, 0)
+})
+
+test('an exit code above 128 is a failure like any other', () => {
+  const dir = corpus()
+  task(dir, 'T1', { fence: 'exit 130' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0)
+  assert.match(run.stdout, /exit 130/)
+})
+
+test('a very long single-line fence is handled', () => {
+  const dir = corpus()
+  task(dir, 'T1', { fence: `echo ${'x'.repeat(20000)} > /dev/null; exit 0` })
+  assert.equal(sweep(dir).status, 0)
+})
+
+// --- E. the strictFrom cutoff ----------------------------------------------
+
+test('a record exactly at the cutoff is not demoted', () => {
+  // "from" means inclusive. Off by one here silently exempts a whole record.
+  const dir = configured(corpus(), '{"strictFrom": "ADR-005"}')
+  record(dir, 'ADR-005-exactly', 'T1', { fence: 'exit 1' })
+  assert.notEqual(sweep(dir).status, 0, 'the cutoff record itself is in scope')
+})
+
+test('a bare number is a valid cutoff', () => {
+  const dir = configured(corpus(), '{"strictFrom": 12}')
+  record(dir, 'ADR-003-below', 'T1', { fence: 'exit 1' })
+  assert.equal(sweep(dir).status, 0, 'ADR-0012 and 12 name the same record')
+})
+
+test('strictFrom set to null is no cutoff at all', () => {
+  const dir = configured(corpus(), '{"strictFrom": null}')
+  record(dir, 'ADR-001-below', 'T1', { fence: 'exit 1' })
+  assert.notEqual(sweep(dir).status, 0, 'null is absence, not zero')
+})
+
+test('a config that is valid JSON but not an object does not demote', () => {
+  const dir = configured(corpus(), '["strictFrom", 5]')
+  record(dir, 'ADR-001-below', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0)
+  assert.doesNotMatch(run.stderr, /Traceback/, run.stderr)
+})
+
+test('a cutoff above every record demotes every finding and still counts them', () => {
+  const dir = configured(corpus(), '{"strictFrom": "ADR-900"}')
+  record(dir, 'ADR-001-a', 'T1', { fence: 'exit 1' })
+  record(dir, 'ADR-002-b', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir, ['--json'])
+  assert.equal(JSON.parse(run.stdout).false, 2, 'demotion never changes the count')
+  assert.equal(sweep(dir).status, 0, 'and it does change the exit code')
+})
+
+test('a corpus outside any git repository ignores strictFrom entirely', () => {
+  // The cutoff is read from the repository root. With no repository there is no
+  // root, and the honest answer is to check everything rather than to search
+  // upward into whatever directory happens to contain the temp folder.
+  const dir = corpus()
+  record(dir, 'ADR-001-below', 'T1', { fence: 'exit 1' })
+  assert.notEqual(sweep(dir).status, 0)
 })

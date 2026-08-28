@@ -744,6 +744,30 @@ test('every adr-judge rule has a case that makes it fire, and a record that pass
   assert.equal(run('adr-judge', [join(dir, 'absent.md')]).status, 2)
 })
 
+
+test('every shard slice covers the catalogue exactly once', () => {
+  // The campaign is the only check that measures whether the other checks detect
+  // anything, and it grew from 145 entries to 268 in two days — its CI job was
+  // killed at thirty minutes on 2026-08-28. Sharding is what keeps it running,
+  // so a slice that drops or repeats a mutation would silently shrink the one
+  // gate nothing else covers.
+  const runner = join(repoRoot, 'scripts', 'mutate.mjs')
+  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8')).mutations
+  const seen = []
+  for (let i = 1; i <= 4; i += 1) {
+    const out = spawnSync(process.execPath, [runner, '--shard', `${i}/4`, '--list'],
+      { encoding: 'utf8', timeout: 60_000 }).stdout
+    seen.push(...out.split('\n').filter(l => l && !l.startsWith(' ') && !l.startsWith('shard')))
+  }
+  assert.equal(seen.length, catalogue.length, 'every mutation runs in exactly one shard')
+  assert.equal(new Set(seen).size, catalogue.length, 'and none runs in two')
+
+  for (const bad of ['5/4', '0/4', 'bad', '1/0']) {
+    const run = spawnSync(process.execPath, [runner, '--shard', bad, '--list'],
+      { encoding: 'utf8', timeout: 60_000 })
+    assert.notEqual(run.status, 0, `--shard ${bad} must be refused`)
+  }
+})
 test('the mutation runner names an option it does not know, instead of running everything', () => {
   // Silently ignoring one selected nothing, so the filter stayed null and every
   // mutation in the catalogue ran — twenty minutes of campaign for a caller who

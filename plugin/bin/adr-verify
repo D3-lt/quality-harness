@@ -707,6 +707,7 @@ CLAIM_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · "
     r"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})\s*$", re.M)
 
+_UNSET = object()
 SWEEP_TIMEOUT_DEFAULT = 900
 
 # A nested sweep refuses ITSELF. The substring check on a fence is evadable —
@@ -820,7 +821,7 @@ def claims_in(task):
     return {m.group("digest") for m in CLAIM_RE.finditer(section.group(1))}
 
 
-def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
+def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSET):
     """Re-check every claim under `root` and report what stopped being true.
 
     Four buckets, and they are disjoint and total by construction — every claim
@@ -841,7 +842,13 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
     byte-identical afterwards rather than trusting this sentence.
     """
     tasks = sorted(q for q in Path(root).rglob("*.md") if q.is_file())
-    shell = resolve_bash()
+    # Injectable, and the reason is the tri-platform rule this project wrote down
+    # the same day it broke it: emptying PATH removes bash on POSIX and removes
+    # nothing on Windows, where resolve_bash() finds Git Bash by absolute path.
+    # A no-shell test built on PATH therefore asserts an operating system rather
+    # than a behaviour. The seam lets one test cover all three.
+    if shell is _UNSET:
+        shell = resolve_bash()
     cutoff, config_note = strict_from_number(Path(root))
     held, false, superseded, unrunnable = [], [], [], []
 

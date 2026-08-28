@@ -2427,6 +2427,24 @@
       ],
       "from": "                    (chain + os.pathsep if chain else \"\") + str(Path(root).resolve())})",
       "to": "                    \"/\"})"
+    },
+    {
+      "label": "mutate: every shard slice covers the catalogue exactly once",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    selected = selected.filter((_, i) => i % total === index - 1)",
+      "to": "    selected = selected.filter((_, i) => i % total === index % total)"
+    },
+    {
+      "label": "sweep: the shell is injectable, so no-shell is testable off POSIX",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if shell is _UNSET:\n        shell = resolve_bash()",
+      "to": "    shell = resolve_bash()"
     }
   ]
 }

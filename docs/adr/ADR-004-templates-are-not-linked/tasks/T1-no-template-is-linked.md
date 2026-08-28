@@ -113,3 +113,4 @@ root — that would make the templates reachable, which is the premise this reco
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
 - 2026-08-28 · 72fa5a3 · exit 0 · `node --test tests/standalone-link.test.mjs tests/lifecycle.test.mjs tests/package.test.mjs 2>&1 | tee /tmp/adr004-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr004-t1.out` · acceptance-sha256:3250b9c8efc2ca27dc09f23f5d351134f54885f01da577eb3b2695110dec1cdb
+- 2026-08-28 · 74fa265 · exit 0 · `set -o pipefail …` · acceptance-sha256:e14814c5d526c4f0aa1e72651a5a237f3dc2285e7448b2b9da69e8a37b641928

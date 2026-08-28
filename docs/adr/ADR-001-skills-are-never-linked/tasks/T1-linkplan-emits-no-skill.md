@@ -99,3 +99,4 @@ load-bearing for something other than skills.
 
 ## Verification Log
 - 2026-08-27 · dd9d952* · exit 0 · `node --test tests/standalone-link.test.mjs 2>&1 | tee /tmp/adr001-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t1.out` · acceptance-sha256:7ec98f05924877db2b979cbae1f582987268a59209043ee34d476c683d3ed32d
+- 2026-08-28 · f033ad5 · exit 0 · `set -o pipefail …` · acceptance-sha256:bc266c995e2534f27ac50f8969d7a6cb5d46e825dcb5745d72836ed8eb89a2de

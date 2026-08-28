@@ -94,15 +94,24 @@ allowlists, or business policy. It discovers and follows the active repository.
 This separation keeps context small, makes orchestration repeatable only where it earns its cost, and
 keeps correctness gates outside model discretion.
 
+## Repository layout
+
+The plugin is `plugin/`, and it is the only thing published: `.claude-plugin/marketplace.json`
+declares `"source": "./plugin"`, so an install carries 663 K rather than the repository's 1,619 K
+and none of the work that produces it. `tests/`, `docs/` and the three gates this repository runs on
+itself — `scripts/selftest.sh`, `scripts/coverage.sh`, `scripts/mutate.mjs` — stay above that
+boundary and are checked on every push without shipping. A file committed under `plugin/` that is
+not part of the plugin fails the suite (ADR-008).
+
 ## Test locally
 
-From the plugin's parent directory:
+From the repository's parent directory:
 
 ```bash
-claude --plugin-dir ./quality-harness
+claude --plugin-dir ./quality-harness/plugin
 ```
 
-Run the complete package verification:
+Run the complete package verification, from the repository root:
 
 ```bash
 ./quality-harness/scripts/selftest.sh
@@ -146,6 +155,10 @@ For local marketplace testing:
 /plugin marketplace add /absolute/path/to/quality-harness
 /plugin install quality-harness@quality-harness
 ```
+
+A marketplace added from a local PATH copies the working tree, ignored files included, so an install
+made that way is larger than the published one and is not a measurement of what a user downloads.
+Adding it by `OWNER/REPOSITORY` clones, and a clone has only what is tracked.
 
 Run `/reload-plugins` if Claude Code asks for it after installation or update.
 Claude's current plugin structure and distribution behavior are documented in

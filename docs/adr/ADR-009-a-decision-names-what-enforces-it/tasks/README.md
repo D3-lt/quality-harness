@@ -17,7 +17,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | parse Enforced-by and advise when it names nothing | pending | — | `python3 tests/gate-regressions.py …` |
+| T1 | parse Enforced-by and advise when it names nothing | done | — | `python3 tests/gate-regressions.py …` |
 | T2 | report it where an agent is about to edit the file | pending | — | `node --test tests/lifecycle.test.mjs …` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.

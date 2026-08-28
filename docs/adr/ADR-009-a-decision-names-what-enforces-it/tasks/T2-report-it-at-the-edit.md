@@ -75,6 +75,7 @@ oversight, since the sweep is the only place anyone would notice the difference.
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 8d0fc8a · mutant killed · exit 1 · `scripts/adr-context.mjs` · the enforcing check stops reaching the edit boundary, which is the only moment it is actionable · acceptance-sha256:5b01f04ad28c429e88c82b06deb3255c6a7f78b5cde4b16908a3b1c9b7c91563
 
 ## Invariants
 

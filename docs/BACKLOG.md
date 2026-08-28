@@ -1691,6 +1691,23 @@ was satisfied by the line-bound fix, so deleting it changed nothing observable. 
 load-bearing for exactly one shape — a regex and a test definition sharing a line — which is now the
 test. A defence-in-depth branch nobody can make fail is indistinguishable from a dead one.
 
+## 41. Two questions ADR-007 deferred about cross-record relationships
+
+**Ordering is not the only cross-record relation.** "Supersedes", "invalidates", "measured on the
+pipeline that" — the reporting team counted 41 of 94 task files (44%) mentioning a foreign ADR in
+prose across 44 distinct pairs, and not all of those are dependencies. ADR-007 makes `Depends-on`
+carry the ORDERING relation and leaves every other one as prose. Worth deciding, before adding a
+second field, whether this is one field or a small vocabulary — and worth noticing that the answer
+changes what `adr-context`'s graveyard can show, since "decided against" is exactly one of these
+relations already resolved by other means.
+
+**The 44% figure is theirs, not ours.** It was measured 2026-08-28 on a 94-task corpus this
+repository has never seen, and it is doing real work in ADR-007's Alternatives — it is the reason
+inferring edges from prose was rejected. A number carried into a decision should be re-measurable by
+whoever reads the decision later. This corpus has 11 task files, so it cannot confirm or refute it;
+if the harness is ever pointed at another corpus of that size, re-run the count and record it here
+either way. A figure that can only ever be cited is one nobody can check.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

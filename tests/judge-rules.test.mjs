@@ -21,7 +21,8 @@ const testDir = dirname(fileURLToPath(import.meta.url))
 const root = resolve(testDir, '..')
 const bin = join(root, 'bin')
 const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
-const GATE_NAMES = new Set(readdirSync(bin).filter(name => !name.includes('.')))
+const GATE_NAMES = new Set(readdirSync(bin, { withFileTypes: true })
+  .filter(e => e.isFile() && !e.name.includes('.')).map(e => e.name))
 
 const temps = []
 test.after(() => {

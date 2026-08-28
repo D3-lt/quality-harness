@@ -195,8 +195,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"\u00b7 exit 0 \u00b7\" in b]",
-      "to": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b)]"
+      "from": "        passing = [b for b in entries if \"\u00b7 exit 0 \u00b7\" in b]",
+      "to": "        passing = list(entries)"
     },
     {
       "label": "gates: a test that cannot go red is reported",
@@ -1959,6 +1959,33 @@
       ],
       "from": "    if (alsoDrifted.length) {",
       "to": "    if (false) {"
+    },
+    {
+      "label": "lint: a log that only ever passed is advised on",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if passing and entries and \"\u00b7 exit 0 \u00b7\" in entries[0] and not inf[\"human\"] and not killed:",
+      "to": "        if False:"
+    },
+    {
+      "label": "lint: a killed mutant exempts a task from the red-run advice",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        killed = any(\"mutant killed\" in b for b in inf.get(\"mlog\", []))",
+      "to": "        killed = False"
+    },
+    {
+      "label": "link: a directory in bin is not a gate",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      .filter(entry => entry.isFile() && !entry.name.includes('.'))",
+      "to": "      .filter(entry => !entry.name.includes('.'))"
     }
   ]
 }

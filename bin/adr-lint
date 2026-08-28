@@ -506,7 +506,32 @@ def check_verification(infos, readme_text, errors):
                 errors.append(f"README.md: {tid} marked done but its Verification Log has no "
                               f"'· human-observed ·' sign-off entry (adr-verify --human)")
             continue
-        passing = [b for b in inf["vlog"] if VLOG_RE.match(b) and "· exit 0 ·" in b]
+        entries = [b for b in inf["vlog"] if VLOG_RE.match(b)]
+        passing = [b for b in entries if "· exit 0 ·" in b]
+        # TRAJECTORY, not just outcome. Everything else here asks whether the
+        # check PASSED; this asks whether the sequence that produced the pass was
+        # the one the task claimed. Ordered Steps step 1 is required to say
+        # "establish the failing test", and that requirement has always been
+        # about the PROSE — a task could say TDD and show a log that only ever
+        # passed, which proves the fence runs and not that it can fail here.
+        #
+        # ADVICE, never blocking, for two reasons. Six records in this
+        # repository's own corpus were written after the code shipped and say so
+        # in their opening; failing them retroactively is the day-one gate people
+        # switch off. And the shape is legitimate for a task whose work was
+        # already done — what is wrong is leaving it unsaid, not the ordering.
+        # A KILLED MUTANT already shows the fence can fail — by breaking the
+        # mechanism rather than by running before the work. That is the same
+        # property from the other direction, and advising on top of it would be
+        # noise on a task that has already proved the thing. Measured on this
+        # corpus 2026-08-28: without this clause the check fires on nine tasks,
+        # six of which had killed a mutant.
+        killed = any("mutant killed" in b for b in inf.get("mlog", []))
+        if passing and entries and "· exit 0 ·" in entries[0] and not inf["human"] and not killed:
+            errors.advise(f"{tid}: every Verification Log entry passed, so nothing here shows the "
+                          f"fence could fail — the first entry should be the TDD red run. If the "
+                          f"work predated the record, say so in the task rather than leaving the "
+                          f"log to imply a red-green cycle that did not happen")
         if not passing:
             errors.append(f"README.md: {tid} marked done but its Verification Log has no "
                           f"exit-0 entry — run adr-verify, don't hand-declare")

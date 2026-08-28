@@ -1792,6 +1792,24 @@ opposite of this project's standing rule — and the reason here is better than 
 user with no next move. He concedes the tooling in that class is cloud-security rather than
 architecture boundaries, "a documented gap, not a ready solution".
 
+## 44. Three pointers nothing resolves
+
+**Deferred here by ADR-009** (`docs/adr/ADR-009-a-decision-names-what-enforces-it.md`, Out of Scope,
+and by both its tasks).
+
+**Backfilling `Enforced-by:` into the eight existing records.** Deliberately not part of ADR-009:
+writing the header is one commit, deciding what actually enforces each of eight decisions is eight
+judgements, and doing them under the momentum of shipping the mechanism is how a field gets filled in
+to satisfy a gate rather than to say something true. Worth doing one record at a time, and worth
+noticing which ones honestly answer `None`.
+
+**`Cross-references:` and `Invalidates:` resolve to nothing.** Found by ADR-009 T1's class sweep
+rather than reported: `Spec:` and `Governs:` are resolved by the lint today, and those two are not.
+A record can cite an ADR that does not exist, or claim to invalidate one, and no gate notices. That
+is the same rot `Enforced-by:` is being built to avoid, already present in two headers this corpus
+uses on every record. Cheap to close once T1's resolution machinery exists — which is the argument
+for closing it then rather than now.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

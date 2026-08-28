@@ -1,6 +1,6 @@
 # ADR-008: Ship the plugin, not the repository
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-28
 **Owner:** zy
 **Spec:** None — no spec stage
@@ -47,10 +47,32 @@ one-off cleanup does not hold; a boundary does.
 
 ## Decision
 
-Move the plugin's shipped surface — `bin`, `scripts`, `skills`, `templates`, `workflows`, `hooks`,
-`.claude-plugin/plugin.json`, `README.md`, `LICENSE` — under a single directory, and point
-`marketplace.json`'s `source` at it. `tests/`, `docs/`, `evals/` and CI stay at the repository root,
-where they are still checked on every push and no longer shipped.
+Move the plugin's shipped surface — `bin`, `skills`, `templates`, `workflows`, `hooks`, `evals`, the
+plugin-runtime half of `scripts`, and `.claude-plugin/plugin.json` — under `plugin/`, and point
+`marketplace.json`'s `source` at it. `tests/`, `docs/`, `.github/`, `README.md`, `LICENSE`,
+`.claude-plugin/marketplace.json` and the repository's own gates — `scripts/selftest.sh`,
+`scripts/coverage.sh`, `scripts/mutate.mjs` — stay at the repository root, where they are still
+checked on every push and no longer shipped.
+
+Three items in that list were wrong when this record was written. They are corrected here rather than
+executed past, because a Decision that says one thing while the tree does another is the drift this
+corpus exists to catch.
+
+- **`evals/` moves INSIDE.** `plugin.json` declares `"experimental": {"evals": "evals"}`, and that
+  path resolves from the plugin root. Leaving `evals/` at the repository root while `plugin.json`
+  moves would leave the declaration pointing at nothing. The Out of Scope entry and T2's invariant
+  both already said the case definitions ship; the sentence above them contradicted them. At 24 K
+  after `results/` was untracked, they are not what this record is about.
+- **`scripts/` is not homogeneous, and splits.** `selftest.sh`, `coverage.sh` and `mutate.mjs` are
+  the REPOSITORY's own gates: they read `tests/`, and `mutate.mjs` additionally reads
+  `tests/mutations.json`, runs `git -C <root>` and writes its lock there. They are not part of the
+  product, so they stay — which also leaves this task's acceptance fence and every CI invocation
+  spelled exactly as they are today. The remaining twelve resolve their own root as
+  `dirname(dirname(import.meta.url))` and are correct without edit once they move.
+- **`README.md` and `LICENSE` stay at the repository root, unshipped.** GitHub renders one and
+  detects the other from the root, and a second copy under `plugin/` is the two-copies-drift failure
+  that ADR-001 and ADR-004 each already decided against. The published Codex plugin resolves it the
+  same way: its unpacked cache carries `LICENSE` and no `README.md`.
 
 **This decision is contingent on one fact that has not been established, and T1 establishes it before
 anything moves.** If Claude Code unpacks a `source` subdirectory so that its contents are the plugin
@@ -63,6 +85,13 @@ a checkout where the paths still work.
 That asymmetry is the whole risk. **T1 must verify against a real installed cache, not by reading
 documentation**, and if the assumption is false this record is Withdrawn rather than executed — a
 40% saving is not worth breaking every skill's path resolution.
+
+**T1 answered it on 2026-08-28 and the assumption holds.** Claude Code 2.1.250 unpacks a `source`
+subdirectory so that its CONTENTS are the plugin root: `openai-codex/codex` declares
+`"source": "./plugins/codex"`, and its cache at `codex/1.0.6/` holds that subdirectory's own
+`.claude-plugin`, `scripts`, `skills` and hooks, with the repository's root-level `tests/` and
+`package.json` absent. Its hooks resolve `${CLAUDE_PLUGIN_ROOT}/scripts/...` from there. All 20
+references in this plugin are therefore untouched by the move, and this record proceeds.
 
 ## Alternatives Considered
 

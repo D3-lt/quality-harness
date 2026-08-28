@@ -17,7 +17,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | find out how a source subdirectory is unpacked | pending | — | `bash docs/adr/ADR-008-the-plugin-is-not-the-repository/tasks/T1-probe.sh` |
+| T1 | find out how a source subdirectory is unpacked | done | — | `bash docs/adr/ADR-008-the-plugin-is-not-the-repository/tasks/T1-probe.sh` |
 | T2 | move the plugin under it, and assert what ships | pending | — | `bash scripts/selftest.sh` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
@@ -32,18 +32,20 @@ resolve through `${CLAUDE_PLUGIN_ROOT}`, and if the move breaks them, no test in
 see it — they run from a checkout where the paths still work. A 40% download saving does not buy
 that risk.
 
-## Why T1 reads `pending` while its log holds evidence
+## Why T1 read `pending` while its log already held evidence
 
-`adr-lint` refused `done` here, and it was right: the record is `Proposed`, and a `done` row asserts
-that an unaccepted decision was executed. Both halves of that refusal are true at once —
+For one day it did, and the reason is worth keeping. `adr-lint` refused `done` here, and it was
+right: the record was `Proposed`, and a `done` row asserts that an unaccepted decision was executed.
+Both halves of that refusal were true at once —
 
-- T1's work is finished. Its answer is recorded in the task, its acceptance fence has a tool-written
+- T1's work was finished. Its answer is recorded in the task, its acceptance fence has a tool-written
   exit-0 entry, and its Mutation Log holds a killed mutant proving the probe can say no.
-- ADR-008 is not accepted. The owner held it deliberately, because T2 moves every file in the
+- ADR-008 was not accepted. The owner held it deliberately, because T2 moves every file in the
   repository.
 
-So the evidence stands and the index does not claim more than happened. Flipping this row is one
-edit once the decision is taken; the probe does not need re-running, and its digest will still match.
+The owner accepted the record on 2026-08-28 and the row flipped. The probe was not re-run and its
+digest still matches — which is the point: the evidence was always sound, and only the claim the
+index was allowed to make about it had to wait.
 
 ## Notes
 

@@ -1,6 +1,15 @@
 # Task <ADR-NNN>-<slug-or-id>: <One-line goal>
 
 **Depends-on:** <task-ids comma-separated, or "none">
+
+<An unqualified id names a SIBLING task in this ADR: `T2`. A QUALIFIED id names a task in another
+record and is written `ADR-003-T4` or `ADR-003/T4` — `adr-lint` resolves it against the corpus, and
+one naming no record, or a record with no such task, is an error for the same reason a cited ADR must
+resolve.
+
+Use the qualified form when your task must not start until another RECORD's task lands. Before this
+existed the constraint could only be written as prose, in whichever record noticed it — which is
+never the record that has to obey it.>
 **Covers:** <spec fact/scenario IDs this task implements (F-3, UC1-S2), or "none — no spec">
 **Estimated scope:** S (single file) | M (multi-file) | L (cross-boundary)
 **Owner:** <name | unassigned>

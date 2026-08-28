@@ -1941,6 +1941,15 @@
       ],
       "from": "        return \"unrun\", (f\"the {stack} collector could not be run ({e}). Install it, drop \"",
       "to": "        return False, (f\"the {stack} collector could not be run ({e}). Install it, drop \""
+    },
+    {
+      "label": "package: a real home path in a tracked file is named",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "    .map(hit => hit[1]).filter(name => !SYNTHETIC.has(name.toLowerCase()))",
+      "to": "    .map(hit => hit[1]).filter(() => false)"
     }
   ]
 }

@@ -84,6 +84,7 @@ The report named one member. Reading for the class found two more, and both are 
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
 - 2026-08-28 · a94338d · mutant killed · exit 1 · `bin/adr-next` · a foreign dependency that is not done stops blocking, and the task it gates prints READY again · acceptance-sha256:c3a0b32892e8155766a4a0ecf525bd154668961feefa15d8ad1b42941b94ac42
+- 2026-08-28 · 8f005a8 · mutant killed · exit 1 · `plugin/bin/adr-next` · next: a foreign dependency that is not done blocks · acceptance-sha256:692dc1197d59e0db453913ed0101b6a987c5a543f7039c147469a93923945076
 
 ## Invariants
 

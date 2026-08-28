@@ -31,7 +31,8 @@ being broken. They are different questions, and a task's Acceptance answers neit
 task got DONE, not that the decision still holds a year later, and a task's tests are freely rewritten
 once it is.
 
-Three forms, ordered by how much they prove. `adr-lint` resolves each and says which it matched:
+Three forms, ordered by how much they prove. `adr-lint` resolves each and reports the ones that
+resolve to nothing:
 
     **Enforced-by:** `link: no skill is ever linked`
     **Enforced-by:** `tests/package.test.mjs::every shipped gate carries at least one mutation`

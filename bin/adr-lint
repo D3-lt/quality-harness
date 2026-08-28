@@ -779,6 +779,29 @@ def evidenced_task_ids(infos, readme_text):
     return sorted(ids)
 
 
+def strip_comments(text):
+    """JavaScript with `//` and `/* */` removed and string contents intact.
+
+    `code_only` blanks string CONTENTS, which is right for finding a definition
+    and wrong here: a registration name is a string literal, so masking strings
+    hides every real test. What has to go is the comments, because a
+    commented-out registration is not one.
+    """
+    out, i, n = [], 0, len(text)
+    while i < n:
+        two = text[i:i + 2]
+        if two == "//":
+            end = text.find("\n", i)
+            i = n if end < 0 else end
+        elif two == "/*":
+            end = text.find("*/", i + 2)
+            i = n if end < 0 else end + 2
+        else:
+            out.append(text[i])
+            i += 1
+    return "".join(out)
+
+
 def enforcement_pointers(text):
     """The checks a record claims enforce it, or [] when it claims none.
 
@@ -787,11 +810,33 @@ def enforcement_pointers(text):
     says so is carrying information the corpus otherwise lacks.
     """
     raw = header_val(text, "Enforced-by")
-    if raw is None or raw.strip().lower().startswith("none"):
+    if raw is None:
         return []
-    inside = re.findall(r"`([^`]+)`", raw)
-    parts = inside if inside else [p.strip() for p in raw.split(",")]
-    return [p.strip() for p in parts if p.strip()]
+    value = raw.strip()
+    # WORD-BOUNDED. `startswith("none")` swallowed `nonetheless-a-real-pointer`,
+    # which the JavaScript parser did not — one rule, two implementations, three
+    # disagreements. The shared truth table in tests/gate-regressions.py is
+    # mirrored in the JS suite so the two cannot drift again unnoticed.
+    if not value or re.match(r"none\b", value, re.I):
+        return []
+    # A BACKTICKED span is one item, commas inside it included — a mutation
+    # label reads "…mutates, exactly once", and splitting on every comma tore it
+    # in half. Whatever is left outside the backticks is then comma-separated.
+    #
+    # The first fix here split on all commas, which fixed the dropped `two` from
+    # "`one`, two" and broke every label containing one. Both cases are in the
+    # shared truth table now.
+    parts = []
+    rest = []
+    position = 0
+    for span in re.finditer(r"`([^`]*)`", value):
+        rest.append(value[position:span.start()])
+        parts.append(span.group(1).strip())
+        position = span.end()
+    rest.append(value[position:])
+    parts += [p.strip() for p in ",".join(rest).split(",")]
+    # `<the check>` is the template placeholder, not a pointer to anything.
+    return [p for p in parts if p and not re.match(r"[<(]", p)]
 
 
 def resolve_enforcement(pointer, root):
@@ -810,6 +855,11 @@ def resolve_enforcement(pointer, root):
     followable, not to be re-proved on every lint.
     """
     if root is None:
+        return None
+    # A pointer may not leave the repository. `../README.md` and an absolute path
+    # both resolved as gates, so a file outside the tree — including one under a
+    # user's home directory — could satisfy a record's enforcement claim.
+    if pointer.startswith("/") or ".." in pointer.split("/") or ":\\" in pointer:
         return None
     catalogue = root / "tests" / "mutations.json"
     if catalogue.is_file():
@@ -833,7 +883,13 @@ def resolve_enforcement(pointer, root):
             # literal. Measured while writing this: the substring form resolved
             # the mutation and gate forms and silently failed every `path::name`.
             wanted = name.strip()
-            if wanted and test_body(source, wanted, python=f.suffix == ".py") is not None:
+            # `test_body` matches any FUNCTION with that name, which is right for
+            # Python and Go — where a test IS a function — and wrong everywhere a
+            # test is a registration call, because a production function then
+            # resolves. `lifecycle.mjs::shellWords` did.
+            javascript = f.suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx")
+            if wanted and not javascript and test_body(source, wanted,
+                                                       python=f.suffix == ".py") is not None:
                 return "test"
             # A `node:test` name is a STRING ARGUMENT, not a function name, so
             # test_body cannot see it — and code_only blanks string contents, so
@@ -841,13 +897,34 @@ def resolve_enforcement(pointer, root):
             # are all of that shape. Matched against the raw text, anchored to a
             # registration call so a name merely MENTIONED in a comment or a
             # table does not resolve.
-            raw = f.read_text(errors="replace", encoding="utf-8")
-            if wanted and re.search(r"(?:^|[^\w.])(?:test|it)\s*\(\s*(['\"`])"
-                                    + re.escape(wanted) + r"\1", raw, re.M):
+            # Comments stripped, string CONTENTS kept — a registration name IS a
+            # string literal, so masking strings would hide every real one, and
+            # not masking comments resolved `// test('ghost', ...)`. The comment
+            # that used to sit here claimed a mention in a comment did not
+            # resolve; it did. Second time this session a comment carried the bug.
+            #
+            # `.skip` and `.only` are registrations too, and were being rejected
+            # as absent while a commented-out ghost resolved — wrong in both
+            # directions at once.
+            # Anchored to STATEMENT POSITION — start of line after whitespace.
+            # A registration inside a string literal (`const s = "test('x')"`)
+            # is not one, and excluding it properly needs a lexer; requiring
+            # line-start costs a registration written mid-line, which node:test
+            # code does not do, and buys the string case for one anchor.
+            #
+            # The direction of the trade is deliberate: a false "not found"
+            # produces visible advice on a valid pointer, while a false "found"
+            # is silent and tells a reader a test backs a decision when none does.
+            if wanted and javascript and re.search(
+                    r"^[ \t]*(?:await[ \t]+)?(?:test|it)(?:\.\w+)*\s*\(\s*(['\"`])"
+                    + re.escape(wanted) + r"\1",
+                    strip_comments(f.read_text(errors="replace", encoding="utf-8")), re.M):
                 return "test"
         return None
+    # A DIRECT entry of bin/, not any path that happens to land inside it after
+    # resolution. `README.md` is a repository file, not a gate.
     gate = root / "bin" / pointer
-    if gate.is_file():
+    if "/" not in pointer and gate.is_file():
         return "gate"
     return None
 

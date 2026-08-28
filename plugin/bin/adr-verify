@@ -399,22 +399,47 @@ def file_newline(path):
         return "\n"
 
 
-def redact_home(block):
-    """Replace the user's home directory with `~` before it reaches a task file.
+def redact_home(block, home=None, platform=None):
+    """Replace this machine's home directory with `~` before it reaches a task file.
 
     A failing fence's output is quoted verbatim into the Verification Log, and a
     stack trace or an assertion diff names absolute paths. In a repository that
     publishes its own corpus that puts the author's home directory — and their
-    username — into a public commit. It happened on 2026-08-28: the very fence
-    proving ADR-008's boundary failed, and its excerpt carried the path into the
-    task file, where the repository's own leak check caught it.
+    username — into a public commit. It happened on 2026-08-28: the fence proving
+    ADR-008's boundary failed, and its excerpt carried the path into the task
+    file, where the repository's own leak check caught it.
 
-    Only this machine's home directory, and only where it appears: a path under
-    it is rewritten to start with `~`. Another user's home is not this machine's
-    to rewrite, and the repository's leak check still reports one.
+    BOTH SEPARATOR SPELLINGS, and case-insensitively where the filesystem is.
+    A literal `str.replace` covered only the exact bytes, which on the one
+    platform this cannot be developed on is the wrong spelling: Windows
+    `Path.home()` returns `C:\\Users\\Example` while a Node stack trace in the same
+    output prints it with forward slashes. Found by review, not a run.
+
+    ANCHORED, so a sibling that merely shares the prefix keeps its name — a home
+    of `/home/example` must not rewrite `/home/example-two` into `~-two`, which would
+    corrupt evidence this was never asked to touch.
+
+    A home that cannot be resolved, or that is a filesystem root, leaves the text
+    alone: rewriting `/` would redact every path in the block.
+
+    `home` and `platform` are injectable so the Windows spellings are testable
+    from anywhere; they default to this machine.
     """
-    home = str(Path.home())
-    return block.replace(home, "~") if home not in ("", "/") else block
+    if home is None:
+        try:
+            home = str(Path.home())
+        except (RuntimeError, OSError, KeyError):
+            return block
+    if not home or home in ("/", "\\") or re.fullmatch(r"[A-Za-z]:[/\\]?", home):
+        return block
+    if platform is None:
+        platform = sys.platform
+    spellings = {home, home.replace("\\", "/"), home.replace("/", "\\")}
+    pattern = "|".join(re.escape(s) for s in sorted(spellings, key=len, reverse=True))
+    # Not followed by another path-name character: `/home/example` ends before `/x`
+    # and before a quote, but `/home/example-two` does not end at all.
+    flags = re.IGNORECASE if platform.startswith(("win32", "cygwin", "darwin")) else 0
+    return re.sub(f"(?:{pattern})(?![A-Za-z0-9._-])", "~", block, flags=flags)
 
 
 def append_entry(task, text, block, section="Verification Log"):

@@ -839,6 +839,29 @@ def enforcement_pointers(text):
     return [p for p in parts if p and not re.match(r"[<(]", p)]
 
 
+def leaves_the_tree(pointer):
+    """True when a pointer names somewhere outside the repository being linted.
+
+    A pointer may not leave the tree. `../README.md` and an absolute path both
+    resolved as gates once, so a file outside the repository — including one
+    under a user's home directory — could satisfy a record's enforcement claim.
+
+    BOTH separators, on every platform, and that is the fix rather than a
+    nicety. The check split on "/" alone, so `..\\skills\\adr-write\\SKILL.md`
+    reached neither branch: no forward slash means no `..` segment to find, and
+    the gate form's own "contains no /" test then read it as a bare name. On
+    Windows it resolved from the gate directory to an ordinary Markdown file, so
+    a record would report as enforced by a skill document. Normalizing here also
+    makes the rule testable off Windows: a backslash is a legal filename
+    character on POSIX, so the resolution simply missed and the guard looked
+    correct while doing nothing.
+    """
+    normal = pointer.replace("\\", "/")
+    return (normal.startswith("/")
+            or ".." in normal.split("/")
+            or re.match(r"^[A-Za-z]:", pointer) is not None)
+
+
 def resolve_enforcement(pointer, root):
     """Which FORM a pointer resolved as, or None when it names nothing here.
 
@@ -854,12 +877,7 @@ def resolve_enforcement(pointer, root):
     different tool with a different cost, and the pointer's job is to be
     followable, not to be re-proved on every lint.
     """
-    if root is None:
-        return None
-    # A pointer may not leave the repository. `../README.md` and an absolute path
-    # both resolved as gates, so a file outside the tree — including one under a
-    # user's home directory — could satisfy a record's enforcement claim.
-    if pointer.startswith("/") or ".." in pointer.split("/") or ":\\" in pointer:
+    if root is None or leaves_the_tree(pointer):
         return None
     catalogue = root / "tests" / "mutations.json"
     if catalogue.is_file():
@@ -932,7 +950,7 @@ def resolve_enforcement(pointer, root):
     # holds nothing, and a valid pointer collected advice saying the check does
     # not exist. That is a gate reporting an observation it did not make, which
     # is exactly what ADR-005 forbids one tool over.
-    if "/" not in pointer:
+    if "/" not in pointer.replace("\\", "/"):
         here = Path(__file__).resolve().parent
         for gate in (root / "bin" / pointer, here / pointer):
             if gate.is_file():

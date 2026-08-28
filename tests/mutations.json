@@ -2211,6 +2211,15 @@
       ],
       "from": "            if wanted and not javascript and looks_like_a_test(f) and test_body(",
       "to": "            if wanted and not javascript and test_body("
+    },
+    {
+      "label": "package: a cross-line mutation is checked against the file's line endings",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "    .filter(entry => entry.from.includes('\\n') || entry.to.includes('\\n'))",
+      "to": "    .filter(() => false)"
     }
   ]
 }

@@ -1457,15 +1457,6 @@
       "to": "    return subject(here) === subject(there)"
     },
     {
-      "label": "link: Windows falls back to a copy for a file symlink",
-      "file": "scripts/standalone-link.mjs",
-      "tests": [
-        "tests/standalone-link.test.mjs"
-      ],
-      "from": "  if (platform === 'win32' && !entry.directory) {",
-      "to": "  if (false && platform === 'win32' && !entry.directory) {"
-    },
-    {
       "label": "link: every gate gets a Windows shim beside it",
       "file": "scripts/standalone-link.mjs",
       "tests": [
@@ -1833,6 +1824,15 @@
       ],
       "from": "['bin', 'create']",
       "to": "['bin', 'skip']"
+    },
+    {
+      "label": "package: a catalogue entry that matches nothing is named",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "  for (const mutation of catalogue.mutations) {",
+      "to": "  for (const mutation of []) {"
     }
   ]
 }

@@ -1004,17 +1004,33 @@ only as `quality-harness:<name>` — plugin context, where the placeholder resol
 harmless and still correct for anyone who keeps a hand-made bare-name copy. It reads as a
 pointer to a copy that, here, no longer exists.
 
-**Deferred here by ADR-001** (`docs/adr/ADR-001-skills-are-never-linked.md`, Out of Scope): making
-templates release-proof the way gates are, so they stop needing a `--link --apply` repoint after
-every release. That ADR's Follow-up asks the narrower question first — whether the six links should
-simply be removed, since nothing reads `~/.claude/templates` once the bare-name skills are gone.
+**Deferred here by ADR-001, and ANSWERED 2026-08-28 by ADR-004** (`docs/adr/ADR-004-templates-are-not-linked.md`):
+the six links were removed, not made release-proof. Release-proofing them is unbuildable — the
+indirection gates use is *executable*, so a forwarder resolves the newest install at call time, and
+a template is read as data, where no such moment exists. The narrower question ADR-001 asked first
+turned out to be the whole answer: nothing reads the home templates directory once the bare-name
+skills are gone, so there was nothing to make release-proof.
 
-**`archive()` copying a directory.** `linkPlan` now emits gates, shims and templates — all
-files. `write()` is handed nothing else, so the `recursive: true` in `archive`'s `cpSync` is
-reached, with a directory, only by the test written for it. That test constructs its own entry
-and says so. The pair is self-referential: the fixture is the only thing that reaches the code
-it tests, which is the exact shape `mutate-propose` exists to find. Kept because `write()` is
-the only function here that deletes, and the cost of the flag is one word.
+The measurement that settled it: of 61 releases in git history, 23 are already absent from this
+machine's plugin cache, including 2.18.1, 2.18.2 and 2.19.1 — the two releases either side of the
+one the links happened to name. A link naming an evicted version dangles, `digest()` returns null
+for it, and `standaloneDriftNotice` therefore says nothing at all. A stale copy is reported; a
+vanished link is not.
+
+**ADR-004 defers two things back here**, both live:
+
+- Removing the `qh-root` note from the eight skills that carry it — the first bullet above, unchanged.
+- `sameLineage()`'s `skill` and default arms, which `linkPlan` can no longer reach now that neither
+  skills nor templates are planned. Same class as the `skill` branch ADR-001 left, kept for the same
+  reason: they are the layer deciding whether to touch a user's file, not anything the planner emits.
+
+**`archive()` copying a directory — FIXED 2026-08-28 as a side effect of ADR-004.** `linkPlan` now
+emits only gate forwarders and their shims, all files, so the `recursive: true` in `archive`'s
+`cpSync` was reached with a directory only by a test that hand-built a `kind: 'link'` entry no
+planner produced — self-referential, the exact shape `mutate-propose` exists to find. The test now
+calls `archive` directly instead of routing through `write`. The guarantee belongs to the function
+that has the flag, and a home config directory really does hold directories (a hand-made bare-name
+skill is one), so the case is real even though no plan reaches it.
 
 Both are the same class as item 21 in reverse — not a check that fires on nothing, but a
 mechanism that nothing reaches. Neither costs anything until someone reads it and looks for
@@ -1518,6 +1534,22 @@ time.**
 Six of the eleven defects would not have been caught by any of the above — they were CI,
 invocation, and grader-calibration problems. This entry ranks what helps; it does not claim the list
 is complete, and the ranking comes from one session with one agent on one codebase.
+
+## 37. A disposition containing parentheses is silently unrecognised
+
+`adr-lint` requires every Out of Scope bullet to end with `(permanent[: why])` or
+`(deferred: <pointer>)`. Writing `(permanent: the `archive()` helper keeps originals...)` reports
+the bullet as having no disposition: the nested `()` in a function name is what the matcher latches
+onto, and it finds an empty parenthetical rather than the real one.
+
+Found 2026-08-28 while authoring ADR-004. Two other bullets in the same section, identical in shape
+but with no nested parens, passed. Worked around by writing "the `archive` helper" instead.
+
+Small, and advisory rather than blocking, so nothing was mis-gated. Worth fixing because the failure
+mode is an author reading "needs a disposition" over a bullet that visibly has one, and concluding
+the gate is wrong — which is how a gate stops being read. The fix is to match the LAST balanced
+parenthetical rather than the last `(...)` run, or simply to anchor on the `permanent:`/`deferred:`
+keyword.
 
 ## Verification claims worth re-running after any of the above
 

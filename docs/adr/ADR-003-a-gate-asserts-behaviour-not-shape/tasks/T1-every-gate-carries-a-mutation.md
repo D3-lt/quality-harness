@@ -74,6 +74,7 @@ that this task closes a real gap rather than a hypothetical one.
   the fence passed with the mechanism broken
   ```
 - 2026-08-27 · 674c720* · mutant killed · exit 1 · `tests/package.test.mjs` · removes the enumeration, so a gate shipping with no mutation passes unnamed · acceptance-sha256:228b65bb303f2ff70e37347620e8e7f0df34eaa6cb14f42c360fcf8558c7c958
+- 2026-08-28 · fdcda52 · mutant killed · exit 1 · `tests/package.test.mjs` · package: a gate with no mutation is named, not counted · acceptance-sha256:ed29e8d1d0bc47478d9d90c838b0c2356faac0069385edfeb0ddaa8868d7e2b8
 
 ## Invariants
 

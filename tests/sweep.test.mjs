@@ -419,3 +419,90 @@ test('a Verification Log with no entries is not a claim', () => {
   const run = sweep(dir, ['--json'])
   assert.equal(JSON.parse(run.stdout).claims, 1)
 })
+
+// ---------------------------------------------------------------------------
+// T2 — strictFrom demotes a finding without changing the count.
+// ---------------------------------------------------------------------------
+
+/** A corpus laid out the way a real one is, so a record number can be derived. */
+function record(dir, adr, taskName, opts) {
+  const tasks = join(dir, 'docs', 'adr', adr, 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  return task(tasks, taskName, opts)
+}
+
+function configured(dir, body) {
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' })
+  if (body !== undefined) writeFileSync(join(dir, '.quality-harness.json'), body, 'utf8')
+  return dir
+}
+
+test('a false success below the strictFrom cutoff is advice, not a failure', () => {
+  const dir = configured(corpus(), '{"strictFrom": "ADR-005"}')
+  record(dir, 'ADR-002-old', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.equal(run.status, 0, `a record below the cutoff must not fail the sweep:\n${run.stdout}`)
+  assert.match(run.stdout, /ADR-002-old/, 'and it is still reported')
+})
+
+test('a false success at or above the cutoff still fails', () => {
+  const dir = configured(corpus(), '{"strictFrom": "ADR-005"}')
+  record(dir, 'ADR-007-new', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0, 'the cutoff is a floor, not an amnesty')
+})
+
+test('the verdict line names strictFrom whenever it is in effect', () => {
+  const dir = configured(corpus(), '{"strictFrom": "ADR-005"}')
+  record(dir, 'ADR-002-old', 'T1', { fence: 'exit 1' })
+  assert.match(sweep(dir).stdout, /strictFrom/,
+    'a demoted run must never be mistaken for a clean one')
+})
+
+test('strictFrom changes the exit code and nothing else', () => {
+  const withCutoff = configured(corpus(), '{"strictFrom": "ADR-005"}')
+  record(withCutoff, 'ADR-002-old', 'T1', { fence: 'exit 1' })
+  record(withCutoff, 'ADR-007-new', 'T1', { fence: 'exit 0' })
+  const without = configured(corpus())
+  record(without, 'ADR-002-old', 'T1', { fence: 'exit 1' })
+  record(without, 'ADR-007-new', 'T1', { fence: 'exit 0' })
+
+  const a = JSON.parse(sweep(withCutoff, ['--json']).stdout)
+  const b = JSON.parse(sweep(without, ['--json']).stdout)
+  delete a.false_claims
+  delete b.false_claims
+  assert.deepEqual(a, b, 'the counts must be identical — the cutoff is not a way to hide one')
+})
+
+test('a malformed config advises and does not silently demote', () => {
+  const dir = configured(corpus(), '{ not json at all')
+  record(dir, 'ADR-002-old', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0, 'an unreadable config must not quietly become an amnesty')
+  assert.match(run.stdout + run.stderr, /could not be read|checked in full/i)
+})
+
+test('a strictFrom naming no number is refused, not guessed at', () => {
+  const dir = configured(corpus(), '{"strictFrom": "the newest one"}')
+  record(dir, 'ADR-002-old', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0)
+  assert.match(run.stdout + run.stderr, /names no ADR number|checked in full/i)
+})
+
+test('a record whose number cannot be parsed is never treated as below the cutoff', () => {
+  // A record named outside the ADR-NNN convention has no number to compare. It
+  // must be checked in full: demoting it would be silent and permanent.
+  const dir = configured(corpus(), '{"strictFrom": "ADR-005"}')
+  record(dir, 'a-record-with-no-number', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0, 'no number means no demotion')
+})
+
+test('an absent config leaves every finding at full strength', () => {
+  const dir = configured(corpus())
+  record(dir, 'ADR-002-old', 'T1', { fence: 'exit 1' })
+  const run = sweep(dir)
+  assert.notEqual(run.status, 0, 'strict is the default; opting out is explicit')
+  assert.doesNotMatch(run.stdout, /strictFrom/, 'and it says nothing about a cutoff there is none of')
+})

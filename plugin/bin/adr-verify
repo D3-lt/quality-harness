@@ -839,6 +839,12 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 unrunnable.append((task, "no usable shell was found to run it"))
                 continue
             try:
+                # stdin is /dev/null because a fence that reads it is waiting for
+                # input nobody will type. NOT provable by a test from here: the
+                # runner hands its children an empty stdin, so `cat` exits at once
+                # either way, and the catalogue carries no mutation for this line.
+                # It is defensive, and saying so beats implying a proof.
+                #
                 # Output to FILES, not pipes. A fence that backgrounds anything —
                 # `(sleep 60 &)` — leaves a grandchild holding the inherited pipe,
                 # so capture_output waits for a process the fence itself finished

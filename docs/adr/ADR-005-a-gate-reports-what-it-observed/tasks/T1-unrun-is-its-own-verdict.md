@@ -33,7 +33,8 @@ the condition its own verdict, exit code, status word and remedy message.
 ## Acceptance
 
 ```bash
-node --test tests/gate-rules.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/adr005-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr005-t1.out
+set -o pipefail
+node --test tests/gate-rules.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/adr005-t1.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr005-t1.out
 ```
 
 ## Tests

@@ -33,7 +33,8 @@ plugin's own skill directory.
 ## Acceptance
 
 ```bash
-node --test tests/standalone-link.test.mjs 2>&1 | tee /tmp/adr001-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t1.out
+set -o pipefail
+node --test tests/standalone-link.test.mjs 2>&1 | tee /tmp/adr001-t1.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t1.out
 ```
 
 ## Tests

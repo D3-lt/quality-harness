@@ -1,6 +1,6 @@
 # ADR-005: A gate reports what it observed, and "could not run" is not a failure
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-28
 **Owner:** zy
 **Spec:** None — no spec stage

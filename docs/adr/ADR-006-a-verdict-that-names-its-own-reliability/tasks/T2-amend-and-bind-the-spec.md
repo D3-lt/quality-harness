@@ -32,8 +32,16 @@ Ready-for-ADR under its own gate.
 ## Acceptance
 
 ```bash
-spec-verify --spec docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
+python3 bin/spec-verify --spec docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
 ```
+
+The WORKING-TREE gate, not the bare name. `spec-verify` on PATH is the forwarder
+`--link` installs, and it resolves to the newest INSTALLED plugin — which in this
+repository is the last release, not the change under test. Demonstrated
+2026-08-28: the bare name reported `bound test not found` for a binding the
+working-tree gate accepts, because the fix was three commits old and unreleased.
+A fence that tests the released gate proves nothing about the commit it is
+recorded against.
 
 ## Tests
 
@@ -41,6 +49,12 @@ spec-verify --spec docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
 |-----------|------|----------|--------|
 | `every catalogue entry still matches the source it mutates, exactly once` | `tests/package.test.mjs` | a `from` matching other than exactly once is caught before a campaign runs | F-1 |
 | `a run killed by signal is HUNG rather than GREEN` | `tests/mutate-runner.test.mjs` | a null status or a signal is its own verdict, not a pass | F-2 |
+| `a passing baseline leaves every existing verdict exactly as it was` | `tests/mutate-runner.test.mjs` | UC1-S1: a proven verdict is unchanged, and a vacuous mutation is still GREEN | UC1-S1 |
+| `UNPROVEN entries are in neither half of the noticed ratio` | `tests/mutate-runner.test.mjs` | UC1-S2 and F-4: only a passing baseline lets an entry into the ratio | F-4, UC1-S2 |
+| `a verdict taken against a failing baseline is UNPROVEN, not RED` | `tests/mutate-runner.test.mjs` | UC1-S3 and F-5 | F-5, UC1-S3 |
+| `an UNPROVEN entry names its test-set and the next action` | `tests/mutate-runner.test.mjs` | F-6 and F-8 | F-6, F-8 |
+| `an UNPROVEN entry still reports the verdict the tests produced` | `tests/mutate-runner.test.mjs` | F-9 | F-9 |
+| `a baseline is taken once per distinct test-set, not once per mutation` | `tests/mutate-runner.test.mjs` | F-7 | F-7 |
 | `GREEN and STALE both count as missed and exit 1` | `tests/mutate-runner.test.mjs` | the existing exit rule, asserted directly for the first time | F-3 |
 
 ## Reachability
@@ -60,9 +74,16 @@ spec-verify --spec docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
 grep -n "executed\|execution\|mutated line" docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
 ```
 
-To be run and recorded at execution. Known at authoring: F-4, F-5, F-6, UC-1 step 2 and its three
-failure paths, and UC1-S1/S2/S3's Given/Then lines. A reworded fact whose SCENARIO still says
-"execute the mutated line" is the same contradiction one layer down.
+Run 2026-08-28: eight hits. Five are historical and correct to keep — they describe the mechanism
+this record rejected and why, which is the point of amending rather than rewriting. Two were live
+contradictions the fact-by-fact edit had missed, both outside the Facts table and therefore outside
+what `spec-verify` can check: the **Domain** paragraph still defined "proven" as *the mutated line
+was executed*, and a **Risks** row still mitigated *measuring execution*. Both reworded to the
+baseline. The eighth is Grill Log row 2, a record of what was scouted, also correctly historical.
+
+This is the sweep earning its place: the facts were amended one at a time and the two prose sections
+that DEFINE the same vocabulary were not, so the spec would have carried a Domain section
+contradicting every fact above it, with the gate green.
 
 ## Mutation Log
 

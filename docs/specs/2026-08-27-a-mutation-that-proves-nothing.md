@@ -120,7 +120,8 @@ And the summary does not count it as noticed
 ## Domain
 
 A **verdict** is what a campaign says about one catalogue entry. A verdict is **proven** when the
-mutated line was executed by the named tests and **unproven** otherwise. `noticed` is a claim about
+named tests PASSED before the mutation was applied, and **unproven** otherwise. A proven verdict is
+still not a claim that the mutation was EXERCISED — see ADR-006 on the vacuous class. `noticed` is a claim about
 the suite; it is only meaningful for proven verdicts. Existing vocabulary — RED, GREEN, HUNG,
 STALE — is unchanged; this spec adds the proven/unproven axis beneath it.
 
@@ -141,7 +142,7 @@ STALE — is unchanged; this spec adds the proven/unproven axis beneath it.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Measuring execution changes what the tests do, so the campaign no longer measures the suite it claims to | Med | High | F-7 asserts the run is otherwise identical; a test compares exit code and test count with and without measurement |
+| Taking a baseline changes what the tests do, so the campaign no longer measures the suite it claims to | Med | High | F-7 asserts the baseline spawns the same files with the same arguments as the mutated run, once per distinct set |
 | The new axis makes every verdict noisier and people stop reading the output | Med | Med | Proven verdicts print as they do today; only unproven ones gain text |
 | Coverage instrumentation is unavailable on a platform, so every entry reads unproven | Low | High | F-5 requires "undeterminable" to be distinguishable from "unreached" so the failure is legible |
 

@@ -2245,8 +2245,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err,",
-      "to": "                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=str(task.parent),"
+      "from": "                                       env=child_env, stdin=subprocess.DEVNULL,",
+      "to": "                                       env=child_env, stdin=subprocess.DEVNULL, cwd=str(task.parent),"
     },
     {
       "label": "sweep: an environmental failure needs more than a matching string",
@@ -2335,7 +2335,7 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "            if fence is not None and not fence.strip():",
+      "from": "            if fence is not None and runs_nothing(fence):",
       "to": "            if False:"
     },
     {
@@ -2344,8 +2344,80 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err,",
-      "to": "                                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,"
+      "from": "                                       stdout=out, stderr=err, timeout=timeout)",
+      "to": "                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)"
+    },
+    {
+      "label": "sweep: a nested sweep refuses itself, whatever the fence is spelled like",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "        if os.environ.get(SWEEP_REENTRY_ENV):",
+      "to": "        if False:"
+    },
+    {
+      "label": "sweep: one Acceptance extractor, shared with the recording path",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    fence = re.search(r\"```bash\\s*\\n(.*?)```\", section.group(1), re.S)",
+      "to": "    fence = re.search(r\"^```bash\\n(.*?)```\", section.group(1), re.S)"
+    },
+    {
+      "label": "sweep: a fence of only comments runs nothing",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    return not any(line.strip() and not line.strip().startswith(\"#\")",
+      "to": "    return not any(line.strip()"
+    },
+    {
+      "label": "sweep: node's own failure output counts as tests having run",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    r\"^not ok [0-9]+\",                     # node --test TAP",
+      "to": "    r\"^never matches this [0-9]+\","
+    },
+    {
+      "label": "sweep: a git probe that cannot run does not end the sweep",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    except OSError:\n        return None\n    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None",
+      "to": "    except ValueError:\n        return None\n    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None"
+    },
+    {
+      "label": "sweep: a fence that cannot be launched is unrunnable, not a traceback",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            except OSError as exc:",
+      "to": "            except ValueError as exc:"
+    },
+    {
+      "label": "sweep: sweep-only flags are refused in the recording modes",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    if saw_timeout or as_json:",
+      "to": "    if False:"
+    },
+    {
+      "label": "sweep: --sweep refuses to be combined with a recording mode",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if given is not None:\n                fail(f\"{flag} cannot be combined with --sweep\")",
+      "to": "            if False:\n                fail(f\"{flag} cannot be combined with --sweep\")"
     }
   ]
 }

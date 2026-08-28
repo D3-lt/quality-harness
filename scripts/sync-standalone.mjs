@@ -134,8 +134,25 @@ function linkMode(root, home, apply) {
   const work = linkPlan(root, home)
   const todo = work.filter(entry => entry.state !== 'current')
   process.stdout.write(`source: ${root}\n`)
+  // `--link` only ever installs GATES. A drifted template or skill is invisible
+  // to it, and saying "Nothing to do" while copy mode has work is a report that
+  // is true about this mode and false about the install. Reported 2026-08-28
+  // from a Windows machine that still keeps the bare-name skills: `--link` said
+  // nothing to do while task-template.md was behind — and a stale task template
+  // has no `## Mutation Log`, so `adr-verify` cannot record a killed mutant into
+  // it. The user had to read the code to find that out.
+  const alsoDrifted = plan(root, home)
   if (!todo.length) {
-    process.stdout.write('The standalone install already points at this plugin. Nothing to do.\n')
+    process.stdout.write('Every gate already forwards to this plugin — nothing for --link to do.\n')
+    if (alsoDrifted.length) {
+      process.stdout.write(`\nBut ${alsoDrifted.length} file(s) that --link does NOT handle are behind. `
+        + 'Templates and skills are copied, never linked, and are refreshed only where you already '
+        + 'keep one:\n')
+      for (const entry of alsoDrifted) {
+        process.stdout.write(`  ${entry.state.padEnd(8)} ${entry.to.replace(home, '~')}\n`)
+      }
+      process.stdout.write('Run without --link, then with --apply, to copy those.\n')
+    }
     return 0
   }
   for (const entry of todo) {

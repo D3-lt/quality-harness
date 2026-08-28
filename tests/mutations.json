@@ -1950,6 +1950,15 @@
       ],
       "from": "    .map(hit => hit[1]).filter(name => !SYNTHETIC.has(name.toLowerCase()))",
       "to": "    .map(hit => hit[1]).filter(() => false)"
+    },
+    {
+      "label": "sync: --link names the drift it cannot fix",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (alsoDrifted.length) {",
+      "to": "    if (false) {"
     }
   ]
 }

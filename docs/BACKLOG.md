@@ -1068,7 +1068,22 @@ survives and skips its own EXIT trap, stranding `redis:8` / `postgres:16` contai
 clean up reliably from inside the kill — so if it is ever to be handled, it belongs to a different
 mechanism than `adr-verify`.
 
-## 27. A script that ends the process that imports it, and the three siblings still able to
+## 27. CLOSED 2026-08-28 — all four scripts are behind an import guard
+
+`adr-state.mjs`, `adr-context.mjs`, `verify.mjs` and `mutate.mjs` now run their CLI only when they
+are the entry point, and `tests/package.test.mjs::importing a script runs its CLI on nobody` imports
+all four for real and asserts they write nothing. A comment saying "guarded" is not a guard.
+
+`verify.mjs` was the sharp one — importing it SPAWNED whatever command the ambient `process.argv`
+named. `mutate.mjs` was the expensive one, and the cost had already been paid: its verdict logic had
+no test for its entire life because nothing could import it without starting a campaign. Guarding it
+was the enabling step for ADR-006, not a tidy-up.
+
+One bonus the refactor bought: `verify.mjs` has always rejected a `--cwd` containing a NUL byte, and
+`spawnSync` refuses such an argument first, so no invocation could ever reach that guard. `parse()`
+is pure now, and the case is asserted for the first time.
+
+## 27 (superseded). A script that ends the process that imports it, and the three siblings still able to
 
 Found 2026-08-27 while executing ADR-001 and ADR-002 — that is, by using this repository's own
 lifecycle on itself for the first time.
@@ -1581,7 +1596,19 @@ the gate is wrong — which is how a gate stops being read. The fix is to match 
 parenthetical rather than the last `(...)` run, or simply to anchor on the `permanent:`/`deferred:`
 keyword.
 
-## 38. Three things ADR-005 deferred about spec-verify
+## 38. One of three closed 2026-08-28; the two runner questions stay open
+
+**CLOSED — `--spec --collect` no longer reports a collector it could not run as an absent test.**
+`test_exists` returns `unrun` when the collector cannot start, and also when it exits nonzero having
+printed nothing at all, which is a collector falling over rather than one reporting an absence. The
+run path's tri-state made this cheap; ADR-005 deferred it only because that change was scoped to the
+run verdict.
+
+**STILL OPEN:** no `go test` in `cmds` and no Go branch in `detect_stack`, so Go corpora are told
+honestly that they cannot be adjudicated but still cannot be; and scenarios have no `Cmd` column, so
+a scenario binding has no authoring escape at all. Both below, unchanged.
+
+## 38 (superseded). Three things ADR-005 deferred about spec-verify
 
 ADR-005 gave "could not run" its own verdict, exit code and status word. Three related gaps stay
 open, all named rather than fixed, all cheap to reopen.

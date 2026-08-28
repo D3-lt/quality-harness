@@ -2220,6 +2220,78 @@
       ],
       "from": "    .filter(entry => entry.from.includes('\\n') || entry.to.includes('\\n'))",
       "to": "    .filter(() => false)"
+    },
+    {
+      "label": "sweep: a superseded claim is in neither half of the ratio",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if digest != current:",
+      "to": "            if False:"
+    },
+    {
+      "label": "sweep: a fence invoking the sweep is refused, so it cannot recurse",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if \"--sweep\" in fence:",
+      "to": "            if False:"
+    },
+    {
+      "label": "sweep: a fence runs where it was recorded, not where the task file sits",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "                                   capture_output=True, text=True,\n                                   encoding=\"utf-8\", errors=\"replace\", timeout=timeout)",
+      "to": "                                   capture_output=True, text=True,\n                                   encoding=\"utf-8\", errors=\"replace\", timeout=timeout) if False else subprocess.run([shell, \"-c\", fence], cwd=str(task.parent), capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\", timeout=timeout)"
+    },
+    {
+      "label": "sweep: an environmental failure needs more than a matching string",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if diagnosis and not scored_anything(r.stdout + r.stderr):",
+      "to": "            if diagnosis:"
+    },
+    {
+      "label": "sweep: a run that exits 0 having scored nothing is not a held claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if r.returncode == 0 and scored_nothing(r.stdout + r.stderr):",
+      "to": "            if False:"
+    },
+    {
+      "label": "sweep: a corpus with nothing re-checkable does not report success",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    if checked == 0:\n        return 1",
+      "to": "    if False:\n        return 1"
+    },
+    {
+      "label": "sweep: only an exit-0 entry carrying a digest is a claim",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    r\"`[^`]+` \u00b7 acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)",
+      "to": "    r\"`[^`]*`.*?acceptance-sha256:(?P<digest>[0-9a-f]+)\\s*$\", re.M)"
+    },
+    {
+      "label": "sweep: the timeout bound is validated, not taken on trust",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if timeout <= 0:",
+      "to": "            if False:"
     }
   ]
 }

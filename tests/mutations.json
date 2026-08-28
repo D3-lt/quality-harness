@@ -1534,8 +1534,8 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "if (selected.length === 0) {\n  process.stderr.write(`no mutation matches ${filter}\\n`)\n  process.exit(1)\n}",
-      "to": "if (selected.length === 0) process.exit(1)"
+      "from": "  if (selected.length === 0) {\n    process.stderr.write(`no mutation matches ${filter}\\n`)\n    return 1\n  }",
+      "to": "  if (selected.length === 0) return 1"
     },
     {
       "label": "skills: adr-write audits the class, not the instance",
@@ -1851,6 +1851,33 @@
       ],
       "from": "        elif unrun:\n            worst = max(worst, 4)",
       "to": "        elif unrun:\n            worst = max(worst, 0)"
+    },
+    {
+      "label": "mutate: a verdict against a failing baseline is not counted as noticed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (!baselineOk) return { verdict: 'UNPROVEN', observed }",
+      "to": "  if (false) return { verdict: 'UNPROVEN', observed }"
+    },
+    {
+      "label": "mutate: an unproven entry leaves the ratio's denominator alone",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const judged = results.filter(r => r.verdict !== 'UNPROVEN')",
+      "to": "  const judged = results"
+    },
+    {
+      "label": "mutate: a baseline is taken once per set, not once per mutation",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    const key = tests.join('\\0')",
+      "to": "    const key = Math.random().toString()"
     }
   ]
 }

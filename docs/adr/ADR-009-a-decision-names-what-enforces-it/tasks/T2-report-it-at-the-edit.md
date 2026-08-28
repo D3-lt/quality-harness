@@ -103,3 +103,4 @@ read-only over records by design, and resolving a test file would make it a diff
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
 - 2026-08-28 · 6793242 · exit 0 · `node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr009-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr009-t2.out` · acceptance-sha256:5b01f04ad28c429e88c82b06deb3255c6a7f78b5cde4b16908a3b1c9b7c91563
+- 2026-08-28 · 91948ed · exit 0 · `set -o pipefail …` · acceptance-sha256:52b78659b04eb33c8c2d81e7730634de7019b46e7dbcfb343562a8a719c2be5a

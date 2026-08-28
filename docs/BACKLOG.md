@@ -1847,6 +1847,23 @@ resolves when it matches at least one file.
 
 ## 46. An acceptance fence that passes when its runner never starts
 
+**CLOSED 2026-08-28.** The template now recommends `set -o pipefail` and `&&`; the ten fences that
+inherited the broken form are repaired, and each was re-recorded — a fresh killed mutant and a fresh
+exit-0 entry, twenty tool runs, because editing a fence invalidates the evidence taken under it.
+
+The gate that keeps it closed is two halves. A shape check over every fence, which this project
+normally refuses (ADR-003) and which earns the exception here: the property is about the shell's
+exit-status plumbing, and every fence in this corpus runs a suite that passes, so no behavioural test
+over this corpus can tell the two forms apart. And a behavioural half that runs both forms against an
+absent runner and asserts they differ.
+
+Two narrowings the gate needed, each a finding in itself. The Verification and Mutation Log sections
+are exempt, because an entry quotes the command it actually ran and the log is append-only — flagging
+recorded history would make the only correct response an edit nobody may make. And the prose rule
+applies to `plugin/templates/` alone, because text cannot be told apart from what it describes: a
+task explaining the defect matches the same pattern as one recommending it.
+
+
 **Found by a cold review of ADR-010, 2026-08-28, in the pattern this project's own task template
 recommends.** The template's suggested fence is
 

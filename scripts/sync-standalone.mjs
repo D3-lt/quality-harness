@@ -1,6 +1,10 @@
 #!/usr/bin/env node
-// Copy this plugin's gates, templates and skills over the standalone install
-// under the user's home, so the unnamespaced entrypoints stop drifting.
+// Refresh the standalone install under the user's home from this plugin, so the
+// unnamespaced entrypoints stop drifting.
+//
+// Gates are created wherever they are missing; templates and skills are only
+// refreshed where the user already has one, because a deletion has to stay
+// deleted.
 //
 // Two copies of this toolkit exist on machines that keep the compatibility
 // entrypoints: the plugin, which every update replaces, and a standalone set
@@ -62,12 +66,26 @@ function pairs(source, home) {
   const add = (from, to) => {
     if (existsSync(from)) out.push({ from, to })
   }
-  for (const [dir, target] of [['bin', 'bin'], ['templates', 'templates']]) {
+  // A GATE is created wherever it is missing: the standalone set exists so a
+  // bare-name gate resolves, and one that is absent resolves to nothing.
+  //
+  // A TEMPLATE is refreshed only where one already exists, the same rule skills
+  // follow below and for the same reason — a deletion has to stay deleted, or
+  // the next sync undoes the user's decision and calls it an update. Nothing
+  // reads the home templates directory once the bare-name skills are gone —
+  // every skill names its template under the plugin root, which is always the
+  // running version — so creating them is a chore that repoints every release.
+  // Refreshing one the user chose to keep is still worth doing, and on Windows
+  // those are real files rather than links, so this is the only thing serving
+  // them at all.
+  for (const [dir, whenAbsent] of [['bin', 'create'], ['templates', 'skip']]) {
     let entries = []
     try { entries = readdirSync(path.join(source, dir)) } catch { continue }
     for (const name of entries) {
       if (!statSync(path.join(source, dir, name)).isFile()) continue
-      add(path.join(source, dir, name), path.join(home, '.claude', target, name))
+      const to = path.join(home, '.claude', dir, name)
+      if (whenAbsent === 'skip' && !existsSync(to)) continue
+      add(path.join(source, dir, name), to)
     }
   }
   // A skill is refreshed only where one ALREADY exists. Creating one is what
@@ -130,10 +148,10 @@ function linkMode(root, home, apply) {
     process.stdout.write(`\n${writable.length} entry(s) to install`
       + `${skipped ? `, ${skipped} left alone` : ''}. Re-run with --link --apply to write them.\n`)
     process.stdout.write('A gate becomes a forwarder that resolves the newest installed plugin at '
-      + 'call time, so no release has to touch it again. A template becomes a link, and a link '
-      + 'names one version, so re-run this after each release to repoint those. Skills are never '
-      + 'linked: a personal skill resolving to the plugin own skill directory hides '
-      + '`quality-harness:<name>` entirely.\n')
+      + 'call time, so no release has to touch it again — nothing else is linked. Skills are not: '
+      + 'a personal skill resolving to the plugin own skill directory hides '
+      + '`quality-harness:<name>` entirely. Templates are not either: nothing reads them, and a '
+      + 'link names one version, which dangles silently once the cache evicts it.\n')
     return 0
   }
   // One archive directory per run, named for when it ran, never reused. The
@@ -186,8 +204,8 @@ function main() {
   }
   if (!apply) {
     process.stdout.write(`\n${work.length} file(s) differ. Re-run with --apply to copy them, `
-      + 'or with --link, which makes the gates release-proof and leaves templates as links to '
-      + 'repoint after each release.\n')
+      + 'or with --link, which turns every gate into a forwarder that no release can leave '
+      + 'behind.\n')
     return 0
   }
   let written = 0

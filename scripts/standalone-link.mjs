@@ -28,7 +28,7 @@
 // calls it, and it reports unless asked to write.
 import { createHash } from 'node:crypto'
 import {
-  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync,
+  cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync,
   symlinkSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
@@ -265,21 +265,28 @@ export function linkPlan(source, homeDirectory = os.homedir(), platform = proces
   // the one the plugin actually documents. A drifting copy is a worse answer
   // than a stale one; an entrypoint that is simply gone is worse than both.
   //
-  // Gates and templates have no such collision: nothing serves them by name
-  // from two places, so a link there only ever removes drift.
-
-  for (const name of (() => {
-    try { return readdirSync(path.join(source, 'templates')) } catch { return [] }
-  })()) {
-    work.push({
-      kind: 'link',
-      to: path.join(home, 'templates', name),
-      relative: path.join('templates', name),
-      target: path.join(source, 'templates', name),
-      lineage: 'template',
-      directory: false,
-    })
-  }
+  // A gate has no such collision: nothing serves it by name from two places, so
+  // a forwarder there only ever removes drift.
+  //
+  // TEMPLATES ARE NOT LINKED EITHER, for a different reason, decided 2026-08-28.
+  // They never hid anything — no path identity, no lost entrypoint — but nothing
+  // reads them: every skill names `${CLAUDE_PLUGIN_ROOT}/templates/...`, which is
+  // always the running version, and the bare-name skills that once read the home
+  // copies were deleted by ADR-001. What remained was a chore. A link names ONE
+  // version, so every release left six links pointing at the previous one and
+  // asked for a `--link --apply` to repoint them.
+  //
+  // Worse than stale: the cache evicts. Measured 2026-08-28 against this
+  // machine's own cache — 23 released versions absent, 2.18.1, 2.18.2 and 2.19.1
+  // among them, all three released within two days of the links being written.
+  // A link naming an evicted version dangles, and a dangling link reads as
+  // ABSENT rather than old: `digest()` returns null, so `standaloneDriftNotice`
+  // says nothing at all. A stale copy is reported; a vanished link is not.
+  //
+  // Copy mode still refreshes a template where the user already has one — see
+  // `pairs()` in sync-standalone.mjs. That is what serves Windows, where a file
+  // symlink needs a privilege an ordinary account lacks and these were always
+  // real files rather than links.
 
   return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))
 }
@@ -293,16 +300,13 @@ function currentState(entry, homeDirectory, platform) {
     const same = (() => { try { return readFileSync(entry.to, 'utf8') === entry.contents } catch { return false } })()
     return same ? { state: 'current' } : { state: permission.why === 'absent' ? 'missing' : 'replaced' }
   }
-  if (platform === 'win32' && !entry.directory) {
-    // A file symlink needs SeCreateSymbolicLinkPrivilege; a junction covers
-    // directories only. A template is a file, so Windows keeps a copy for those
-    // and says so rather than failing at the end of a long run.
-    return { state: 'copy-only', why: 'Windows has no unprivileged file symlink' }
-  }
-  let points = null
-  try { points = lstatSync(entry.to).isSymbolicLink() ? readlinkSync(entry.to) : null } catch {}
-  if (points === entry.target) return { state: 'current' }
-  return { state: points ? 'repointed' : existsSync(entry.to) ? 'replaced' : 'missing' }
+  // Nothing else is planned. Templates stopped being linked on 2026-08-28 and
+  // skills never were, so every entry is a forwarder — which is why the whole
+  // symlink/copy-only/repoint apparatus that used to live here is gone. A
+  // forwarder carries no version; there is nothing to repoint and nothing that
+  // can dangle. `platform` is kept because the SHIM is generated for every
+  // platform from any platform, and a caller still says which one it means.
+  throw new Error(`unplanned entry kind: ${entry.kind}`)
 }
 
 /** Where a run's originals are kept. One directory per run, never reused. */
@@ -359,17 +363,7 @@ export function write(entry, stamp = null, homeDirectory = os.homedir(), makeLin
   // able to skip it.
   const kept = stamp ? archive(entry, stamp, homeDirectory, makeLink) : null
   mkdirSync(path.dirname(entry.to), { recursive: true })
-  if (entry.kind === 'forwarder') {
-    rmSync(entry.to, { force: true })
-    writeFileSync(entry.to, entry.contents, { mode: entry.mode })
-    return kept
-  }
-  if (entry.state === 'copy-only') {
-    rmSync(entry.to, { force: true })
-    writeFileSync(entry.to, readFileSync(entry.target))
-    return kept
-  }
-  rmSync(entry.to, { force: true, recursive: true })
-  symlinkSync(entry.target, entry.to, entry.directory ? 'junction' : 'file')
+  rmSync(entry.to, { force: true })
+  writeFileSync(entry.to, entry.contents, { mode: entry.mode })
   return kept
 }

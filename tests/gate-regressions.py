@@ -55,9 +55,15 @@ def verification_errors(lint, acceptance, entries, mlog=()):
 
 
 def main():
-    if len(sys.argv) != 3:
-        raise SystemExit("usage: gate-regressions.py <payload-bin> <postmortem-skill>")
+    if len(sys.argv) != 4:
+        raise SystemExit(
+            "usage: gate-regressions.py <payload-bin> <postmortem-skill> <repo-root>")
     bin_dir = Path(sys.argv[1])
+    # ADR-008 moved the gates under `plugin/`, so bin/'s parent is no longer the
+    # repository. The two roots are different things now — the tree a record is
+    # linted IN, and the tree the gate ships in — and a script needing both is
+    # given both rather than deriving one from the other.
+    repo_root = Path(sys.argv[3]).resolve()
     lint = load_script("adr_lint_regressions", bin_dir / "adr-lint")
     verify = load_script("adr_verify_regressions", bin_dir / "adr-verify")
     spec_gate = load_script("spec_verify_regressions", bin_dir / "spec-verify")
@@ -789,7 +795,7 @@ def main():
     #
     # Resolved against the REAL tree, not a fixture, because the point is that a
     # pointer names something that exists here.
-    root = bin_dir.resolve().parent
+    root = repo_root
     def enforcement(value):
         errs = lint.Findings()
         lint.check_enforcement(f"**Enforced-by:** {value}\n", Path("ADR-999-probe.md"), errs, root)
@@ -905,7 +911,7 @@ def main():
     # against this repository's own records so the test fails if the corpus
     # shape it assumes ever changes, rather than passing against a fixture that
     # agrees with the code by construction.
-    corpus = bin_dir.resolve().parent / "docs" / "adr"
+    corpus = repo_root / "docs" / "adr"
     assert lint.resolve_qualified_dep("ADR-003-T1", corpus), "ADR-003 has a T1"
     assert not lint.resolve_qualified_dep("ADR-003-T9", corpus), "ADR-003 has no T9"
     assert not lint.resolve_qualified_dep("ADR-900-T1", corpus), "no ADR-900 exists"

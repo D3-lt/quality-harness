@@ -6,9 +6,9 @@ import { fileURLToPath } from 'node:url'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 const testDir = path.dirname(fileURLToPath(import.meta.url))
-const workflowDir = path.resolve(testDir, '../workflows')
+const workflowDir = path.resolve(testDir, '../plugin/workflows')
 const qualityCycle = path.join(workflowDir, 'quality-cycle.js')
-const bundledSkills = path.resolve(testDir, '../skills')
+const bundledSkills = path.resolve(testDir, '../plugin/skills')
 
 async function runWorkflow(file, args, agent) {
   const source = (await readFile(file, 'utf8')).replace('export const meta =', 'const meta =')

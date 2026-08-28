@@ -18,7 +18,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | find out how a source subdirectory is unpacked | done | — | `bash docs/adr/ADR-008-the-plugin-is-not-the-repository/tasks/T1-probe.sh` |
-| T2 | move the plugin under it, and assert what ships | pending | — | `bash scripts/selftest.sh` |
+| T2 | move the plugin under it, and assert what ships | done | — | `bash scripts/selftest.sh` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 

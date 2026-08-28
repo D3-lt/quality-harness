@@ -1715,7 +1715,9 @@ Scope, and by both its tasks): rewriting history to purge what has already been 
 
 `evals/results/` is untracked and the gate that missed it now reads everything git tracks. Neither
 touches what is already in the history of a PUBLIC repository: 18 `aggregate-result.json` files
-carrying `/Users/zy/CursorProjects/quality-harness`, committed 2026-08-26 through 2026-08-28.
+carrying the author's absolute home path to this checkout, committed 2026-08-26 through
+2026-08-28. (Not quoted here — writing it out would re-commit the very string this entry is
+about, and the new check refuses it. That refusal is the entry's own first demonstration.)
 
 **What is actually exposed, measured rather than feared:** a username and a directory layout. No
 credentials — the `sk-` match was the word "desk-checked" and `TOKEN` was `_TOKEN = re.compile(...)`

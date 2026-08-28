@@ -1914,6 +1914,33 @@
       ],
       "from": "            stop_at_newline = line_bounded_quotes and quote != \"`\"",
       "to": "            stop_at_newline = False"
+    },
+    {
+      "label": "verify: importing the wrapper spawns nothing",
+      "file": "scripts/verify.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  const code = main(process.argv.slice(2))\n  if (code !== null) process.exitCode = code\n}",
+      "to": "{\n  const code = main(process.argv.slice(2))\n  if (code !== null) process.exitCode = code\n}"
+    },
+    {
+      "label": "state: importing the reporter prints nothing",
+      "file": "scripts/adr-state.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {\n  process.exitCode = main(process.argv.slice(2))\n}",
+      "to": "{\n  process.exitCode = main(process.argv.slice(2))\n}"
+    },
+    {
+      "label": "spec-verify: a collector that cannot run is not an absent test",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return \"unrun\", (f\"the {stack} collector could not be run ({e}). Install it, drop \"",
+      "to": "        return False, (f\"the {stack} collector could not be run ({e}). Install it, drop \""
     }
   ]
 }

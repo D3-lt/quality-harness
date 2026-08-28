@@ -707,6 +707,17 @@ def main():
         (root / "molecule" / "smoke" / "molecule.yml").write_text("", encoding="utf-8")
         ok, _ = spec_gate.test_exists("smoke", root, "molecule", False)
         assert ok
+        # --collect runs a COLLECTOR, and a collector that cannot be run tells
+        # you nothing about whether the test exists. Reporting that as "bound
+        # test not found" is the same defect ADR-005 removed from the run path,
+        # one mode over: the author is sent to write a test that is already
+        # there. Deferred by ADR-005, closed here (docs/BACKLOG.md §38).
+        # `vendor/bin/pest` does not exist here, so the collector cannot START —
+        # a FileNotFoundError, not a verdict about the binding.
+        ok, why = spec_gate.test_exists("tests/X.php::test_login", root, "pest", True)
+        assert ok == "unrun", f"a collector that cannot run is not an absent test: {ok!r} {why}"
+        assert "could not be run" in why.lower(), why
+
         # A path-less binding on a stack that requires one is malformed, and says so.
         ok, why = spec_gate.test_exists("test_login", root, "pytest", False)
         assert not ok and "malformed binding" in why, why

@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
+import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -190,6 +191,34 @@ test('continuous integration runs the checks this repository owns', () => {
   const selftest = readFileSync(join(root, 'scripts', 'selftest.sh'), 'utf8')
   assert.match(selftest, /SKIPPED —/)
   assert.match(selftest, /PARTIAL —/)
+})
+
+test('importing a script runs its CLI on nobody', async () => {
+  // BACKLOG §27. Four scripts ran their whole CLI at module scope, so importing
+  // one — to test it, or from any tool walking the directory — executed it.
+  // scripts/verify.mjs was the sharp one: it SPAWNED whatever command the
+  // ambient process.argv named. mutate.mjs was the expensive one: its verdict
+  // logic had no test for its entire life precisely because nothing could import
+  // it without starting a campaign.
+  //
+  // Asserted by importing for real. A comment saying "guarded" is not a guard,
+  // and this is the check that fails if a fifth script is added without one.
+  const written = []
+  const stdout = process.stdout.write.bind(process.stdout)
+  const stderr = process.stderr.write.bind(process.stderr)
+  process.stdout.write = chunk => { written.push(String(chunk)); return true }
+  process.stderr.write = chunk => { written.push(String(chunk)); return true }
+  let modules
+  try {
+    modules = await Promise.all(['adr-state', 'adr-context', 'verify', 'mutate']
+      .map(name => import(pathToFileURL(join(root, 'scripts', `${name}.mjs`)).href)))
+  } finally {
+    process.stdout.write = stdout
+    process.stderr.write = stderr
+  }
+  assert.deepEqual(written, [], `importing a script wrote output:\n${written.join('')}`)
+  // And each one still offers the CLI it used to run — guarded, not deleted.
+  for (const module of modules) assert.equal(typeof module.main, 'function')
 })
 
 test('every catalogue entry still matches the source it mutates, exactly once', () => {

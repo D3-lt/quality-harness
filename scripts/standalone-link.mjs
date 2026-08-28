@@ -218,7 +218,14 @@ export function replaceable(entry, homeDirectory = os.homedir()) {
 /** The gates a forwarder is generated for, read from the plugin rather than listed. */
 export function gateNames(source) {
   try {
-    return readdirSync(path.join(source, 'bin')).filter(name => !name.includes('.')).sort()
+    // withFileTypes, because a dotless name is not the same as a gate. A stray
+    // DIRECTORY in bin/ — `__pycache__`, which any Python import of a gate
+    // creates unless it sets dont_write_bytecode — satisfies the name test and
+    // would get a forwarder generated for it. Found 2026-08-28 when an ad-hoc
+    // import during debugging made five suites fail at once.
+    return readdirSync(path.join(source, 'bin'), { withFileTypes: true })
+      .filter(entry => entry.isFile() && !entry.name.includes('.'))
+      .map(entry => entry.name).sort()
   } catch {
     return []
   }

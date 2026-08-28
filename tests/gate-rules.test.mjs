@@ -23,7 +23,13 @@ const bin = join(root, 'bin')
 const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
 // The gates are the extensionless executables; the .cmd files beside them
 // are Windows shims that invoke these.
-const GATE_NAMES = new Set(readdirSync(bin).filter(name => !name.includes('.')))
+/** Dotless FILES in bin/. A directory there is not a gate, whatever it is named. */
+function gateNamesIn(directory) {
+  return readdirSync(directory, { withFileTypes: true })
+    .filter(entry => entry.isFile() && !entry.name.includes('.')).map(entry => entry.name)
+}
+
+const GATE_NAMES = new Set(gateNamesIn(bin))
 
 function run(command, args, cwd = root) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)
@@ -634,7 +640,7 @@ test('every gate refuses a flag it does not know', () => {
   // Every gate in bin/ is covered, so a new gate cannot be added without one.
   assert.deepEqual(
     invocations.map(([gate]) => gate).sort(),
-    readdirSync(bin).filter(name => !name.includes('.')).sort(),
+    gateNamesIn(bin).sort(),
     'a bundled gate has no unknown-flag case here',
   )
 })

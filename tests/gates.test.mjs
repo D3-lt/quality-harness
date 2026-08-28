@@ -45,7 +45,8 @@ delete harnessEnv.PYTHONWARNINGS
 // shebang are both real and both stay under test.
 // The gates are the extensionless executables; the .cmd files beside them
 // are Windows shims that invoke these.
-const GATE_NAMES = new Set(readdirSync(bin).filter(name => !name.includes('.')))
+const GATE_NAMES = new Set(readdirSync(bin, { withFileTypes: true })
+  .filter(e => e.isFile() && !e.name.includes('.')).map(e => e.name))
 
 function run(command, args, cwd = fixture, input = undefined, spawnEnv = env) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)

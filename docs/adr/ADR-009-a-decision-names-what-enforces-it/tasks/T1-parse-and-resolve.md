@@ -79,6 +79,7 @@ in the headers it set out to enumerate.
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 0438fcd · mutant killed · exit 1 · `bin/adr-lint` · removes the resolution entirely: a pointer naming nothing is reported as fine · acceptance-sha256:f240c9781359a4cb9100ce8dbe392375912786c1dd0700620b156f0c97b4404f
 
 ## Invariants
 

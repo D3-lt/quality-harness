@@ -2319,6 +2319,33 @@
       ],
       "from": "        if config_note:\n            print(f\"[adr-verify] {config_note}\")",
       "to": "        if False:\n            print(f\"[adr-verify] {config_note}\")"
+    },
+    {
+      "label": "sweep: a value-taking flag with no operand is a usage error, not a traceback",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "        if i >= len(args):\n            fail(f\"{flag} needs a value\")",
+      "to": "        if False:\n            fail(f\"{flag} needs a value\")"
+    },
+    {
+      "label": "sweep: an empty Acceptance fence proves nothing and is not held",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "            if fence is not None and not fence.strip():",
+      "to": "            if False:"
+    },
+    {
+      "label": "sweep: a backgrounded child does not hold the sweep open",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err,",
+      "to": "                                       stdout=out, stderr=err,"
     }
   ]
 }

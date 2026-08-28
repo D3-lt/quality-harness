@@ -103,3 +103,4 @@ code would then be a breaking change needing its own migration rather than a bug
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · 85ec0a9 · exit 0 · `node --test tests/gate-rules.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/adr005-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr005-t1.out` · acceptance-sha256:827c34e6631883068a72195a633a25a150f20086955b0bb9ddc31b58320865a0

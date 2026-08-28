@@ -6,7 +6,7 @@
 **Spec:** docs/specs/2026-08-28-a-claim-that-stopped-being-true.md
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-006-a-verdict-that-names-its-own-reliability.md, docs/adr/ADR-008-the-plugin-is-not-the-repository.md, docs/research/2026-08-28-verification-is-the-bottleneck.md, docs/BACKLOG.md §45
 **Governs:** `plugin/bin/adr-verify`
-**Enforced-by:** None — the checks this record introduces do not exist until T1 ships; set in the Follow-up below once its mutation label exists.
+**Enforced-by:** `sweep: a corpus with nothing re-checkable does not report success`
 **Invalidates:** none — checked. ADR-002 governs `adr-verify`'s mutant-restore machinery and ADR-006 governs `mutate.mjs`'s baseline; this adds a reader beside both and changes neither. ADR-005 and ADR-006 are the precedents this follows rather than records it overturns.
 **Served-path change:** A maintainer runs one command and learns which of this corpus's recorded claims have silently stopped being true — three of fifteen, today. Nothing a plugin user's agent does changes.
 
@@ -171,5 +171,5 @@ rollback of the sweep itself.
 
 ## Follow-ups
 
-- [ ] Set this record's `Enforced-by:` to T1's catalogue mutation label once it exists.
-- [ ] Repair the acceptance-fence pattern in `templates/task-template.md` and the 12 fences using it (docs/BACKLOG.md §46).
+- [x] Set this record's `Enforced-by:` to T1's catalogue mutation label — done 2026-08-28.
+- [x] Repair the acceptance-fence pattern in `templates/task-template.md` and the fences using it (docs/BACKLOG.md §46) — done 2026-08-28: template corrected, ten fences repaired and re-recorded, gate added.

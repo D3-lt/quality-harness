@@ -1986,6 +1986,24 @@
       ],
       "from": "      .filter(entry => entry.isFile() && !entry.name.includes('.'))",
       "to": "      .filter(entry => !entry.name.includes('.'))"
+    },
+    {
+      "label": "next: a human sign-off that says stop is not done",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            if human_outcome(m.group(\"note\")) != \"stop\":",
+      "to": "            if True:"
+    },
+    {
+      "label": "next: a negative word outranks an affirmative one",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if NEGATIVE.search(note):\n        return \"stop\"",
+      "to": "    if False:\n        return \"stop\""
     }
   ]
 }

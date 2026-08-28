@@ -40,7 +40,48 @@ TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
-VLOG_HUMAN_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · human-observed · .+$")
+VLOG_HUMAN_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · human-observed · (?P<note>.+)$")
+
+# A human sign-off is the ONE route with no exit code and no fence digest, so the
+# only thing standing between its text and a `done` is how that text is read. It
+# used to be read as `.+` — any text at all, including text saying the opposite.
+#
+# Reported 2026-08-28: a task whose only sign-off was "decision BLOCKED — neither
+# ship nor withdraw" was printed done, and the task it gated printed READY. The
+# reader was one step from executing the sequence that sign-off forbade.
+#
+# So an affirmative outcome has to be STATED. Anything else — a stop, a refusal,
+# or a note this cannot classify — is NOT done, which is ADR-006's rule in the
+# one place the corpus had no verdict at all: a claim that was never observed is
+# not evidence, and the safe direction is to withhold `done` rather than grant it.
+AFFIRMATIVE = re.compile(r"(?<![a-z])(pass(?:ed|es)?|confirm(?:ed|s)?|observed|"
+                         r"verified|signed[- ]off|approved|ship(?:ped)?|done|ok)(?![a-z])", re.I)
+NEGATIVE = re.compile(r"(?<![a-z])(block(?:ed)?|stop(?:ped)?|fail(?:ed|s)?|refus(?:ed)?|"
+                      r"withdraw(?:n)?|reject(?:ed)?|not |never |cannot|abort(?:ed)?)(?![a-z])", re.I)
+
+
+def human_outcome(note):
+    """"stop", "pass", or None when the note states neither.
+
+    A NEGATIVE word anywhere wins over an affirmative one: "confirmed BLOCKED"
+    and "passed, but stop" both mean stop, and reading the first word only is how
+    a sign-off gets skimmed into the opposite of what it says.
+
+    An UNCLASSIFIABLE note is None and still counts as done, which is the
+    deliberate half. "Zy read it end to end" states no outcome and is a perfectly
+    good sign-off; a person looked, wrote a note, and the tool's inability to
+    parse English is not the same as nothing having been observed. Refusing every
+    note without a keyword would make the one human route unusable, and an
+    unusable gate is one people route around.
+
+    The harm reported 2026-08-28 was narrower and sharper than that: a note that
+    said the OPPOSITE of done was read as done. That is what this refuses.
+    """
+    if NEGATIVE.search(note):
+        return "stop"
+    if AFFIRMATIVE.search(note):
+        return "pass"
+    return None
 
 
 def header_val(text, name):
@@ -98,8 +139,12 @@ def is_done(text, digest, human):
     log = "\n".join(sections(text).get("Verification Log", []))
     for line in log.split("\n"):
         line = line.strip()
-        if human and VLOG_HUMAN_RE.match(line):
-            return True
+        if human and (m := VLOG_HUMAN_RE.match(line)):
+            # Only an affirmative sign-off is evidence. A stop, or a note this
+            # cannot classify, leaves the task not done — and `human_verdict`
+            # below carries the reason so the report says which it was.
+            if human_outcome(m.group("note")) != "stop":
+                return True
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0" and digest and m.group("digest") == digest:
             return True

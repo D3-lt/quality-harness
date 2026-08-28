@@ -16,7 +16,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | could-not-run is its own verdict, code and word | pending | — | `node --test tests/gate-rules.test.mjs …` |
+| T1 | could-not-run is its own verdict, code and word | done | — | `node --test tests/gate-rules.test.mjs …` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 

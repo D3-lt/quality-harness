@@ -2277,6 +2277,71 @@ test('reported: a session running a cached older plugin is told so', async () =>
   assert.equal(staleVersionNotice('/opt/quality-harness', home), '')
 })
 
+test('adr-context answers which decisions govern a path, and which were killed there', async () => {
+  // Called IN-PROCESS, not spawned. adr-state beside it is exercised by
+  // spawnSync, which parent-process coverage cannot see — and this resolver is
+  // what the edit-boundary hook calls, so it is worth asserting directly rather
+  // than through a subprocess whose output is all the test can inspect.
+  const { main } = await import('../scripts/adr-context.mjs')
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'adr-context-'))
+  const record = (n, status, governs) =>
+    `# ADR-${n}: decision ${n}\n\n**Status:** ${status}\n**Governs:** \`${governs}\`\n\n## Context\n\nx\n`
+  await mkdir(path.join(dir, 'docs', 'adr'), { recursive: true })
+  await writeFile(path.join(dir, 'docs', 'adr', 'ADR-001-live.md'),
+    record('001', 'Accepted', 'src/pay.js'))
+  await writeFile(path.join(dir, 'docs', 'adr', 'ADR-002-dead.md'),
+    record('002', 'Withdrawn', 'src/pay.js'))
+
+  const say = () => {
+    const written = []
+    const real = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => { written.push(String(chunk)); return true }
+    return { written, done: () => { process.stdout.write = real; return written.join('') } }
+  }
+
+  let cap = say()
+  let code
+  try { code = main(['src/pay.js'], dir) } finally { cap.done() }
+  const report = cap.written.join('')
+  assert.equal(code, 0, 'it answers; it never refuses')
+  assert.match(report, /GOVERNS\s+docs\/adr\/ADR-001-live\.md/)
+  // The graveyard is the half that saves work: re-proposing an approach the team
+  // already killed is invisible from the diff, and this is the only place it is
+  // written down.
+  assert.match(report, /DECIDED AGAINST\s+docs\/adr\/ADR-002-dead\.md/)
+
+  cap = say()
+  try { main(['--json', 'src/pay.js'], dir) } finally { cap.done() }
+  const emitted = JSON.parse(cap.written.join(''))
+  assert.equal(emitted.governing.length, 1)
+  assert.equal(emitted.graveyard.length, 1)
+  assert.equal(emitted.read, 2)
+
+  // A path nothing governs is an ANSWER, not a finding — exit 0 either way.
+  cap = say()
+  try { code = main(['src/unrelated.js'], dir) } finally { cap.done() }
+  assert.equal(code, 0)
+  assert.match(cap.written.join(''), /none governs/)
+
+  // A repository with no corpus at all says so rather than reporting emptiness
+  // as an absence of governance.
+  const bare = await mkdtemp(path.join(os.tmpdir(), 'adr-context-bare-'))
+  cap = say()
+  try { main(['src/pay.js'], bare) } finally { cap.done() }
+  assert.match(cap.written.join(''), /No decision records found/)
+
+  // Only a broken invocation is non-zero. Its usage line goes to stderr, and is
+  // captured so the suite's own output stays readable.
+  const realErr = process.stderr.write.bind(process.stderr)
+  const complaint = []
+  process.stderr.write = chunk => { complaint.push(String(chunk)); return true }
+  try { assert.equal(main(['--json'], dir), 2) } finally { process.stderr.write = realErr }
+  assert.match(complaint.join(''), /usage: adr-context/)
+
+  await rm(dir, { recursive: true, force: true })
+  await rm(bare, { recursive: true, force: true })
+})
+
 test('the sync command reports before it writes, and syncs from the newest install', async () => {
   const { newestVersion, newestInstalledRoot, plan } =
     await import('../scripts/sync-standalone.mjs')

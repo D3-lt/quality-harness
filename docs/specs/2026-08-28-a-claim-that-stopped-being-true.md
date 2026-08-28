@@ -154,9 +154,9 @@ And the sweep exits non-zero
 | F-10 | A fence that fails because the machine could not run it is UNRUNNABLE, counted in neither half, and never reported as a false success. | `tests/sweep.test.mjs::a fence the machine could not run is not a false success` | @implemented | |
 | F-11 | Every claim lands in exactly one of held, false, superseded, unrunnable, and the four sum to the distinct claim count. | `tests/sweep.test.mjs::every claim lands in exactly one bucket and the four sum to the total` | @implemented | |
 | F-12 | A corpus with no exit-0 claim reports that there is nothing to check, and does not print a rate or report success. | `tests/sweep.test.mjs::an empty corpus reports no claim rather than a clean sweep` | @implemented | |
-| F-13 | A false success fails the sweep with a non-zero exit. | `— to bind` | @draft | |
-| F-14 | A false success on a record below the configured `strictFrom` cutoff is reported as advice, the verdict line names `strictFrom`, and the exit code is zero. | `— to bind` | @draft | |
-| F-15 | `strictFrom` changes the exit code only. The reported counts are identical with and without it. | `— to bind` | @draft | |
+| F-13 | A false success fails the sweep with a non-zero exit. | `tests/sweep.test.mjs::a false success at or above the cutoff still fails` | @implemented | |
+| F-14 | A false success on a record below the configured `strictFrom` cutoff is reported as advice, the verdict line names `strictFrom`, and the exit code is zero. | `tests/sweep.test.mjs::a false success below the strictFrom cutoff is advice, not a failure` | @implemented | |
+| F-15 | `strictFrom` changes the exit code only. The reported counts are identical with and without it. | `tests/sweep.test.mjs::strictFrom changes the exit code and nothing else` | @implemented | |
 | F-16 | The sweep never blocks a user's or a skill's attempt: it reads the corpus and runs recorded fences, and alters no file. | `tests/sweep.test.mjs::a sweep leaves the corpus byte-identical` | @implemented | |
 | F-17 | Each of the four buckets is exercised by a fixture, not only by whatever the live corpus happens to contain — the corpus holds zero superseded and zero unrunnable claims today, so those branches would otherwise never fire. | `tests/sweep.test.mjs::a fence that invokes the sweep is reported unrunnable and never executed` | @implemented | |
 

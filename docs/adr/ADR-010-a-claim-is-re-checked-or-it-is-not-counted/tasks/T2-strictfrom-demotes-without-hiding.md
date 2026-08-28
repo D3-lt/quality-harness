@@ -69,7 +69,7 @@ form — docs/BACKLOG.md §46.>
 | 1 — exists | the tests above |
 | 2 — something selects it | the `.quality-harness.json` read; the mutation on it must go RED |
 | 3 — the caller can discover it | `strictFrom` is already documented in `adr-execute`'s skill body; this task adds the sweep to that sentence |
-| 4 — it is used | nothing measures this yet — no adopting corpus exists to observe. Recorded rather than guessed |
+| 4 — it is used | nothing measures this yet — this repository has no `.quality-harness.json`, so the cutoff is inert here and only the fixtures exercise it. Recorded rather than guessed |
 
 ## Class Sweep
 
@@ -80,9 +80,17 @@ than the finding.
 grep -rn "strictFrom\|strict_from" plugin/bin plugin/scripts docs/adr
 ```
 
-To be run and recorded at execution. Known at authoring: `adr-lint` is the only reader today, and its
-documented rule is that the evidence chain is never demoted — a `done` row still needs its exit-0
-entry whatever the cutoff says. This task must not weaken that: the counts stay whole.
+Run 2026-08-28: **two readers, `adr-lint` and `adr-verify`, and no third.**
+
+Both demote the same thing — the consequence, never the finding. `adr-lint`'s documented rule is that
+the evidence chain is never demoted: a `done` row still needs its exit-0 entry whatever the cutoff
+says. This task holds the same line one tool over: the counts, the rate, and the list of named claims
+are identical with and without the cutoff, and a mutation removing the demotion goes RED.
+
+The two resolutions are separate code by design, and the record calls that duplication rather than
+reuse. What keeps them honest is not a shared function but four parity cases asserted here: a
+malformed config, an absent config, a `strictFrom` naming no number, and a record whose own number
+cannot be parsed. All four check in full and say why — never silently demote.
 
 ## Mutation Log
 
@@ -126,3 +134,4 @@ would demote it forever and invisibly. Ask before choosing a default.
       diff: 'simple'
     }
   ```
+- 2026-08-28 · 76bbd85* · exit 0 · `set -o pipefail …` · acceptance-sha256:58682a5f05144b166f5d85e2930f5bbce30c38c64471e26cea4664e4edfc3bc5

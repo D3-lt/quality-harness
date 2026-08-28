@@ -59,9 +59,18 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr009-t2.out; ! grep -qE "
 grep -rln "decisionsGoverning\|adrCorpus" scripts/ hooks/ | head
 ```
 
-To be run and recorded at execution. Known at authoring: `adr-context.mjs`, `lifecycle.mjs`'s
-edit-boundary hook, and `adr-state.mjs`. The third reports corpus SHAPE rather than per-path
-governance and is deliberately left alone — the sweep is where that choice is recorded.
+Run 2026-08-28. FOUR consumers, not three: `adr-context.mjs`, `lifecycle.mjs`'s edit-boundary hook,
+`adr-state.mjs`, and **`work-next.mjs`**, which the authoring list missed.
+
+Two now report the enforcing check — the CLI and the hook — and they render it from one resolver,
+because two callers of one answer is where ADR-001 and ADR-004 both found drift. The equality is
+asserted rather than assumed.
+
+`adr-state.mjs` and `work-next.mjs` are deliberately left alone: both report corpus SHAPE — what
+governs what, which stage is waiting — rather than answering "I am about to edit this file". Adding
+the check there would be noise in a report nobody reads while editing, which is the delivery-mode
+distinction BACKLOG §35 and §36 measured. Recorded here so the omission is a decision rather than an
+oversight, since the sweep is the only place anyone would notice the difference.
 
 ## Mutation Log
 

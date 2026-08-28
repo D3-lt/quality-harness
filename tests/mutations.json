@@ -2031,6 +2031,33 @@
       ],
       "from": "            if wanted and re.search(r\"(?:^|[^\\w.])(?:test|it)\\s*\\(\\s*(['\\\"`])\"",
       "to": "            if False and re.search(r\"(?:^|[^\\w.])(?:test|it)\\s*\\(\\s*(['\\\"`])\""
+    },
+    {
+      "label": "context: the enforcing check reaches the edit boundary",
+      "file": "scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      const enforced = record.enforcedBy?.length",
+      "to": "      const enforced = false && record.enforcedBy?.length"
+    },
+    {
+      "label": "lifecycle: the hook says what the CLI says",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const caught = record => (record.enforcedBy?.length",
+      "to": "  const caught = record => (false && record.enforcedBy?.length"
+    },
+    {
+      "label": "lifecycle: None in Enforced-by is not a check",
+      "file": "scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!inline || /^none\\b/i.test(inline)) return []",
+      "to": "  if (!inline) return []"
     }
   ]
 }

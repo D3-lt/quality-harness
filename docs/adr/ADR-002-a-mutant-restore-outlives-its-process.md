@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-001-skills-are-never-linked.md
-**Governs:** `bin/adr-verify`, `scripts/mutate.mjs`, `tests/evidence-chain.test.mjs`
+**Governs:** `plugin/bin/adr-verify`, `scripts/mutate.mjs`, `tests/evidence-chain.test.mjs`
 **Invalidates:** none — checked (`adr-state.mjs` reports ADR-001 only, which governs the standalone-install tooling and shares no path with this record)
 **Served-path change:** A user whose acceptance fence outruns their agent's timeout no longer finds a deliberately broken file left in their working tree; the next `adr-verify` run, or `adr-verify --restore`, puts it back.
 

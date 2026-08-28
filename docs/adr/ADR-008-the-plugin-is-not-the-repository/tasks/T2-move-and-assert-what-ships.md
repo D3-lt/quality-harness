@@ -153,3 +153,4 @@ T1's assumption failing late, and the record is Withdrawn rather than patched ar
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · a8acd7b · exit 0 · `bash scripts/selftest.sh` · acceptance-sha256:f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256

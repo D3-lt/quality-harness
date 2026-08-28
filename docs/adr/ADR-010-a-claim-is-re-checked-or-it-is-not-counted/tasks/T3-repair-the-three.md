@@ -108,6 +108,7 @@ digests is two claims` appearing in real data rather than in a fixture.
      moved. Its digest then stops matching its recorded evidence, half one reports STALE, and the
      fence exits 1. That is the exact condition this task exists to detect, so a mutant that
      survived it would mean the check is decoration. -->
+- 2026-08-28 · 2a9ed3a · mutant killed · exit 1 · `docs/adr/ADR-007-a-dependency-that-crosses-records/tasks/T1-a-qualified-id-resolves.md` · one repaired fence put back to the moved path: its digest stops matching its evidence, which is the condition this task exists to detect · acceptance-sha256:59659ffa2b792d7a361330abc6607e5da50a74760cf83a0b88b884a4105d1077
 
 ## Invariants
 

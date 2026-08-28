@@ -116,3 +116,4 @@ than the fact softened to fit it.
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · 43848d6 · exit 0 · `python3 bin/spec-verify --spec docs/specs/2026-08-27-a-mutation-that-proves-nothing.md` · acceptance-sha256:4e8961845d5e117c3eebf6da98d09554c110cc9a411f0f6ca2844ebda787025a

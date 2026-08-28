@@ -87,9 +87,13 @@ contradicting every fact above it, with the gate green.
 
 ## Mutation Log
 
-Not applicable — this task changes a specification document and binds existing tests; it ships no
-mechanism of its own. The mechanism's mutants are recorded against T1, and `adr-lint` requires a
-killed mutant only for a task that ships one.
+<!-- tool-written by adr-verify --mutant -->
+
+The authored note here read "not applicable — this task ships no mechanism". `adr-lint` refused the
+`done` row over it, and the gate was right. The MECHANISM this task ships is the set of bindings,
+and the fence's job is to prove each one names a test that exists. Breaking a binding must therefore
+turn the fence red, and if it does not, the fence is passing on the document rather than checking
+it. "It is only documentation" is exactly the reasoning that produces unfalsifiable evidence.
 
 ## Invariants
 

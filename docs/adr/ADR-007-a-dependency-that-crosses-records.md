@@ -1,6 +1,6 @@
 # ADR-007: Let a task depend on another record's task, and never call an unevaluated edge ready
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-28
 **Owner:** zy
 **Spec:** None — no spec stage

@@ -1,6 +1,6 @@
 # ADR-009: A record names the check that fails when its decision is violated
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-28
 **Owner:** zy
 **Spec:** None — no spec stage

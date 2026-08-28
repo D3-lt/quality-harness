@@ -18,7 +18,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | a baseline per test-set, and the UNPROVEN verdict | done | UC1-S1, UC1-S2, UC1-S3, F-4, F-5, F-6, F-7, F-8, F-9 | `node --test tests/mutate-runner.test.mjs …` |
-| T2 | amend the spec to the chosen mechanism and bind every fact | pending | F-1, F-2, F-3 | `spec-verify --spec docs/specs/… ` |
+| T2 | amend the spec to the chosen mechanism and bind every fact | done | F-1, F-2, F-3 | `spec-verify --spec docs/specs/… ` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 

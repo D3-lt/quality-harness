@@ -866,6 +866,30 @@ def main():
         assert verify.redact_home(f"{posix}/x", home=useless, platform="linux") == f"{posix}/x", (
             f"an unusable home must redact nothing: {useless!r}")
 
+    # ADR-005's class, still open in adr-lint on 2026-08-28 and found by a test
+    # that happened to contain a regex. strip_comments knew `//` and `/* */` and
+    # nothing else, so a `/*` inside a REGEX LITERAL's character class opened a
+    # block comment that ran to the next `*/` anywhere in the file — in
+    # tests/package.test.mjs that swallowed everything after it, and a pointer
+    # naming a test that is plainly present reported as naming nothing.
+    js = (
+        "const re = /[a-z/*-]+/g\n"
+        "test('kept', () => {})\n"
+        "// test('commented out', () => {})\n"
+        "/* test('blocked', () => {}) */\n"
+        "const s = '/* not a comment */'\n"
+        "test('after a string', () => {})\n"
+    )
+    stripped = lint.strip_comments(js)
+    assert "'kept'" in stripped, f"a regex containing /* must not open a comment: {stripped!r}"
+    assert "'after a string'" in stripped, f"a string containing /* must not either: {stripped!r}"
+    assert "'commented out'" not in stripped, "a line comment must still be removed"
+    assert "'blocked'" not in stripped, "a block comment must still be removed"
+    # And end to end: the pointer form this repository actually uses.
+    live = "tests/package.test.mjs::every shipped gate carries at least one mutation"
+    assert lint.resolve_enforcement(live, repo_root) == "test", (
+        "a test that is present must resolve as present")
+
     # A pointer that resolves to nothing is the rot this exists to catch.
     blocking, advice = enforcement("`no-such-mutation-label-anywhere`")
     assert not blocking, f"still never blocking: {blocking}"
@@ -889,6 +913,18 @@ def main():
     # reader would conclude a test backs the decision when none does.
     assert lint.resolve_enforcement("scripts/lifecycle.mjs::shellWords", root) is None
     assert lint.resolve_enforcement("bin/adr-lint::enforcement_pointers", root) is None
+    # ...and it must hold for a REASON. That assertion passed by accident until
+    # 2026-08-28: a gate has no extension, so its Python source was masked under
+    # JavaScript comment rules, and whether the `def` survived depended on where
+    # the `/*` sequences in its own docstrings fell. Editing an unrelated comment
+    # flipped it. The path decides now, and both directions are asserted.
+    assert not lint.looks_like_a_test(Path("plugin/bin/adr-lint"))
+    assert not lint.looks_like_a_test(Path("plugin/scripts/lifecycle.mjs"))
+    for real in ("tests/package.test.mjs", "spec/models/user_spec.rb", "internal/x/foo_test.go",
+                 "src/__tests__/a.js"):
+        assert lint.looks_like_a_test(Path(real)), f"this is a test file: {real}"
+    # A test that IS present still resolves, so the guard is not refusing everything.
+    assert lint.resolve_enforcement("tests/gate-regressions.py::main", root) == "test"
 
     # A registration inside a COMMENT or a STRING is not a definition either. The
     # comment beside the regex claimed this already held; it did not, which is

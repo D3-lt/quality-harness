@@ -687,6 +687,30 @@ def check_status_allows_execution(adr_path, readme_text, errors):
                       f"record was never updated, and both are wrong to leave standing")
 
 
+def looks_like_a_test(path):
+    """Whether a resolved file is plausibly a test file at all.
+
+    `test_body` matches any FUNCTION with the wanted name, which is right where a
+    test IS a function (Python, Go) and says nothing about whether the file is a
+    test. `bin/adr-lint::enforcement_pointers` names a production function in a
+    gate, and it resolved as a test — so a record would read as backed by a check
+    that is really the thing being checked.
+
+    That assertion was passing for the wrong reason until 2026-08-28: a gate has
+    no file extension, so it was parsed under JavaScript comment rules, and
+    whether `def enforcement_pointers(` survived masking depended on where the
+    `/*` sequences in its own docstrings happened to fall. Editing an unrelated
+    comment flipped it. Now it is decided by the path.
+
+    Biased toward NOT finding: a false "not found" is visible advice on a valid
+    pointer, while a false "found" tells a reader a test backs a decision when
+    none does, and says nothing at all.
+    """
+    parts = [part.lower() for part in path.parts]
+    return (any(part in ("test", "tests", "spec", "specs", "__tests__") for part in parts)
+            or "test" in path.name.lower() or "spec" in path.name.lower())
+
+
 def resolve_test_file(root, rel):
     """Find the file a Tests-table row names, or None.
 
@@ -779,6 +803,61 @@ def evidenced_task_ids(infos, readme_text):
     return sorted(ids)
 
 
+# What may precede a `/` that opens a regex rather than dividing. Duplicated
+# from bin/spec-verify rather than shared: these gates are standalone scripts by
+# design, with no import path between them, for the same reason adr-verify
+# carries its own copy of normalize_acceptance. The duplication is the price and
+# it is named here so a fix to one is knowingly applied to the other.
+REGEX_MAY_FOLLOW = set("(,=:[!&|?{};+-*~^%")
+REGEX_MAY_FOLLOW_WORD = {"return", "typeof", "case", "in", "of", "delete", "void", "instanceof",
+                         "do", "else", "yield", "await"}
+CONTROL_HEADER = {"if", "while", "for", "with"}
+
+
+def starts_regex(text, i):
+    """Whether the `/` at `i` opens a regex literal rather than dividing.
+
+    JavaScript decides from the previous significant token: after a VALUE it is
+    division, after an operator or an opening bracket it is a regex. Guessing
+    toward division is the safe direction — a `/` misread as a regex blanks at
+    most to the end of a line, while one misread as division leaves a real regex
+    unmasked and its `/*` then opens a comment that runs to the next `*/`
+    anywhere in the file.
+    """
+    j = i - 1
+    while j >= 0 and text[j] in " \t\r\n":
+        j -= 1
+    if j < 0:
+        return True
+    if text[j] in REGEX_MAY_FOLLOW:
+        return True
+    # `)` is the ambiguous one: closing a CALL it is a value and `/` divides;
+    # closing an `if`/`while`/`for` header a regex may follow.
+    if text[j] == ")":
+        depth, k = 0, j
+        while k >= 0:
+            if text[k] == ")":
+                depth += 1
+            elif text[k] == "(":
+                depth -= 1
+                if depth == 0:
+                    break
+            k -= 1
+        if k < 0:
+            return False
+        k -= 1
+        while k >= 0 and text[k] in " \t\r\n":
+            k -= 1
+        end = k
+        while k >= 0 and (text[k].isalnum() or text[k] == "_"):
+            k -= 1
+        return text[k + 1:end + 1] in CONTROL_HEADER
+    k = j
+    while k >= 0 and (text[k].isalnum() or text[k] == "_"):
+        k -= 1
+    return text[k + 1:j + 1] in REGEX_MAY_FOLLOW_WORD
+
+
 def strip_comments(text):
     """JavaScript with `//` and `/* */` removed and string contents intact.
 
@@ -786,18 +865,60 @@ def strip_comments(text):
     and wrong here: a registration name is a string literal, so masking strings
     hides every real test. What has to go is the comments, because a
     commented-out registration is not one.
+
+    STRINGS AND REGEX LITERALS ARE SKIPPED WHOLE, and that is the whole fix.
+    This knew `//` and `/* */` and no other JavaScript construct, so a `/*`
+    inside a regex's character class — `/[a-z/*-]+/g` — opened a block comment
+    that ran to the next `*/` anywhere in the file. Measured 2026-08-28 on
+    tests/package.test.mjs: everything after the regex vanished, and a pointer
+    naming a test plainly present in that file reported as naming nothing. Same
+    class as the defect ADR-005 fixed in spec-verify's mask_noncode, one tool
+    over and still open, which is why the sweep now covers both.
+
+    Quotes are LINE-BOUNDED except for backticks, so an apostrophe in prose
+    cannot swallow the rest of the file either.
     """
     out, i, n = [], 0, len(text)
     while i < n:
-        two = text[i:i + 2]
-        if two == "//":
+        char, two = text[i], text[i:i + 2]
+        if char in "'\"`":
+            j = i + 1
+            while j < n:
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == char:
+                    j += 1
+                    break
+                if text[j] == "\n" and char != "`":
+                    break
+                j += 1
+            out.append(text[i:j])
+            i = j
+        elif two == "//":
             end = text.find("\n", i)
             i = n if end < 0 else end
         elif two == "/*":
             end = text.find("*/", i + 2)
             i = n if end < 0 else end + 2
+        elif char == "/" and starts_regex(text, i):
+            j, in_class = i + 1, False
+            while j < n and text[j] != "\n":
+                if text[j] == "\\":
+                    j += 2
+                    continue
+                if text[j] == "[":
+                    in_class = True
+                elif text[j] == "]":
+                    in_class = False
+                elif text[j] == "/" and not in_class:
+                    j += 1
+                    break
+                j += 1
+            out.append(text[i:j])
+            i = j
         else:
-            out.append(text[i])
+            out.append(char)
             i += 1
     return "".join(out)
 
@@ -906,8 +1027,8 @@ def resolve_enforcement(pointer, root):
             # test is a registration call, because a production function then
             # resolves. `lifecycle.mjs::shellWords` did.
             javascript = f.suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx")
-            if wanted and not javascript and test_body(source, wanted,
-                                                       python=f.suffix == ".py") is not None:
+            if wanted and not javascript and looks_like_a_test(f) and test_body(
+                    source, wanted, python=f.suffix == ".py") is not None:
                 return "test"
             # A `node:test` name is a STRING ARGUMENT, not a function name, so
             # test_body cannot see it — and code_only blanks string contents, so

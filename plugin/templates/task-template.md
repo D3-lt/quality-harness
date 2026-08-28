@@ -55,7 +55,18 @@ write it. `go test -run <no match>`, `phpunit --filter <no match>` and `cargo te
 summary and exit 0 — so the gate passes with nothing built. `adr-verify` now records a run that
 scored no tests as a failure, but write the fence so it is obviously red first. A portable guard:
 
-    <runner> <args> 2>&1 | tee /tmp/acc.out; ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/acc.out
+    set -o pipefail
+    <runner> <args> 2>&1 | tee /tmp/acc.out && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/acc.out
+
+`set -o pipefail` and `&&`, not `;`, and this is a correction rather than a style note. Without
+pipefail the pipeline's exit status is `tee`'s, and `;` then discards even that — so the ONLY thing
+tested is the grep, and a runner that never starts prints nothing the grep matches. Measured
+2026-08-28: `nosuchrunner --test x` exits 0 through the `;` form and 127 through this one. This
+template recommended the broken form until then, and ten task fences in its own corpus inherited it.
+
+`adr-verify` does not save you here: `scored_nothing()` recognises only a runner's own "nothing to
+run" vocabulary, and `environment_failure()` is consulted only when the exit code is already
+non-zero — so the run is recorded as a tool-written exit-0 claim.
 
 `^FAIL` is needed as well as `^--- FAIL`: a build failure prints `FAIL <pkg> [build failed]` with no
 `--- FAIL` line, so a check counting only those reads a package that does not compile as a pass.>

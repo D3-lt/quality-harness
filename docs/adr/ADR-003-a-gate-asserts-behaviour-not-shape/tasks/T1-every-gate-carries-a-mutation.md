@@ -31,7 +31,8 @@ gate added without one cannot pass silently.
 ## Acceptance
 
 ```bash
-node --test tests/package.test.mjs 2>&1 | tee /tmp/adr003-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr003-t1.out
+set -o pipefail
+node --test tests/package.test.mjs 2>&1 | tee /tmp/adr003-t1.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr003-t1.out
 ```
 
 ## Tests

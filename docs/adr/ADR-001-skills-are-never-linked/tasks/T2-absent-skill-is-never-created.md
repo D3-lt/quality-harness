@@ -30,7 +30,8 @@ keeps it deleted instead of having the next sync restore it and call it an updat
 ## Acceptance
 
 ```bash
-node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr001-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t2.out
+set -o pipefail
+node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr001-t2.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t2.out
 ```
 
 ## Tests

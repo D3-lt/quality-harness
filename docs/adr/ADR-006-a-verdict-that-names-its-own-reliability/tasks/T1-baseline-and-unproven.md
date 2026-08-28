@@ -34,7 +34,8 @@ the tests produced, never instead of it.
 ## Acceptance
 
 ```bash
-node --test tests/mutate-runner.test.mjs tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr006-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr006-t1.out
+set -o pipefail
+node --test tests/mutate-runner.test.mjs tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr006-t1.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr006-t1.out
 ```
 
 ## Tests

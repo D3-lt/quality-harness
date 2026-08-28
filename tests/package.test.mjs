@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
@@ -157,6 +158,86 @@ test('the instruction files name paths that exist', () => {
   const gone = [...missing(readFileSync(join(repoRoot, 'CLAUDE.md'), 'utf8'), 'CLAUDE.md'),
                 ...missing(agents, 'AGENTS.md')]
   assert.deepEqual(gone, [], `an instruction file names a path that no longer exists:\n  ${gone.join('\n  ')}`)
+})
+
+// BACKLOG §46. An acceptance fence must fail when its runner never starts, and
+// the `… | tee X; ! grep …` form does not: the pipeline's exit status is tee's,
+// `;` discards it, and the absent runner's message matches none of the grep
+// patterns. Measured 2026-08-28 — `nosuchrunner --test x` exits 0 through that
+// form and 127 through `set -o pipefail` and `&&`.
+//
+// adr-verify does not catch it either: scored_nothing() knows only a runner's
+// own "nothing to run" vocabulary, and environment_failure() is consulted only
+// when the exit code is already non-zero. So such a fence is recorded as a
+// tool-written exit-0 claim, which is a hole in the anti-fabrication chain.
+//
+// This is a check on SHAPE, and this project normally rejects those (ADR-003).
+// It earns the exception because the property is about the shell's exit-status
+// plumbing rather than about behaviour: the fences here run real suites that
+// pass, so no behavioural test over this corpus can distinguish the two forms.
+// The behavioural half lives in `a fence whose runner never starts must fail`
+// below, which runs both forms and asserts they differ.
+test('no acceptance fence discards its runner exit status', () => {
+  const offenders = []
+  const check = (file, text) => {
+    for (const fence of text.matchAll(/```bash\n([\s\S]*?)```/g)) {
+      const body = fence[1]
+      if (!body.includes('| tee ')) continue
+      // `set -o pipefail` plus `&&` keeps the runner's status; `;` throws it away.
+      if (!/set -o pipefail/.test(body) || /\|\s*tee\s+\S+\s*;/.test(body)) {
+        offenders.push(file)
+      }
+    }
+  }
+  for (const file of tracked()) {
+    if (!file.endsWith('.md')) continue
+    if (!/docs\/adr\/.*\/tasks\/|templates\//.test(file)) continue
+    const text = readFileSync(join(repoRoot, file), 'utf8')
+    check(file, text)
+    // And the RECOMMENDED form, wherever it is written. The template taught this
+    // defect from an indented block rather than a ```bash fence, so the check
+    // above could not see the one file that spread it to ten others.
+    //
+    // The log sections are EXEMPT, and that is not a loophole. A Verification or
+    // Mutation Log entry quotes the command it actually ran; when a fence is
+    // repaired the old entries keep naming the old command, because the log is
+    // append-only and rewriting it is the fabrication this corpus exists to
+    // prevent. Flagging recorded history would make the only correct response
+    // an edit nobody is allowed to make.
+    // TEMPLATES ONLY, and the narrowing is the finding. Prose cannot be told
+    // apart from what it describes: a task file explaining "the `| tee X; !grep`
+    // form returns 0" matches the same pattern as one recommending it, and a
+    // Verification Log entry quotes the command it actually ran — append-only,
+    // so the only way to satisfy a check over it is an edit nobody may make.
+    // What must not teach the defect is the template every user receives.
+    if (!file.startsWith('plugin/templates/')) continue
+    for (const line of text.split('\n')) {
+      if (/\|\s*tee\s+\S+\s*;/.test(line)) offenders.push(`${file} (recommends it)`)
+    }
+  }
+
+  // Shown able to fire before it is trusted.
+  const probe = []
+  ;(() => {
+    const saved = offenders.length
+    check('probe', '```bash\nnode --test x 2>&1 | tee /tmp/o; ! grep -q FAIL /tmp/o\n```')
+    probe.push(...offenders.splice(saved))
+  })()
+  assert.deepEqual(probe, ['probe'],
+    'the check must be able to name a fence that discards its status, or it asserts nothing')
+
+  assert.deepEqual(offenders, [],
+    `these fences pass when their runner never starts (BACKLOG §46):\n  ${offenders.join('\n  ')}`)
+})
+
+test('a fence whose runner never starts must fail', () => {
+  // The behavioural half: run both forms against a runner that does not exist.
+  const out = join(mkdtempSync(join(tmpdir(), 'qh-fence-')), 'o')
+  const broken = `nosuchrunner --test x 2>&1 | tee ${out}; ! grep -qE "no tests to run|^FAIL" ${out}`
+  const fixed = `set -o pipefail\nnosuchrunner --test x 2>&1 | tee ${out} && ! grep -qE "no tests to run|^FAIL" ${out}`
+  const run = f => spawnSync('bash', ['-c', f], { encoding: 'utf8' }).status
+  assert.equal(run(broken), 0, 'the old form passes with the runner absent — that is the defect')
+  assert.notEqual(run(fixed), 0, 'the form this project now uses does not')
 })
 
 test('the plugin contains the complete reusable decision lifecycle', () => {

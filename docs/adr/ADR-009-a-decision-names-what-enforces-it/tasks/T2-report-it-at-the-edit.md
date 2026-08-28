@@ -32,7 +32,8 @@ governed file learns what will catch it at the moment that matters.
 ## Acceptance
 
 ```bash
-node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr009-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr009-t2.out
+set -o pipefail
+node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr009-t2.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr009-t2.out
 ```
 
 ## Tests

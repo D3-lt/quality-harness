@@ -2304,11 +2304,16 @@ test('adr-context answers which decisions govern a path, and which were killed t
   try { code = main(['src/pay.js'], dir) } finally { cap.done() }
   const report = cap.written.join('')
   assert.equal(code, 0, 'it answers; it never refuses')
-  assert.match(report, /GOVERNS\s+docs\/adr\/ADR-001-live\.md/)
+  // Assert the VERDICT and the record, not the path separator. `path.relative`
+  // yields `docs\adr\...` on Windows, so a hardcoded `/` failed there while
+  // passing on both POSIX runners — the third time this session a path literal
+  // in a test turned out to be an assertion about the operating system.
+  const line = word => report.split('\n').find(l => l.startsWith(word)) ?? ''
+  assert.ok(line('GOVERNS').includes('ADR-001-live.md'), report)
   // The graveyard is the half that saves work: re-proposing an approach the team
   // already killed is invisible from the diff, and this is the only place it is
   // written down.
-  assert.match(report, /DECIDED AGAINST\s+docs\/adr\/ADR-002-dead\.md/)
+  assert.ok(line('DECIDED AGAINST').includes('ADR-002-dead.md'), report)
 
   cap = say()
   try { main(['--json', 'src/pay.js'], dir) } finally { cap.done() }

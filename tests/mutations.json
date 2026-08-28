@@ -2058,6 +2058,24 @@
       ],
       "from": "  if (!inline || /^none\\b/i.test(inline)) return []",
       "to": "  if (!inline) return []"
+    },
+    {
+      "label": "lint: a qualified dependency is consumed whole, not scanned for a local id",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        (qualified if QUALIFIED_DEP.match(part) else local).append(part)",
+      "to": "        local.append(part)"
+    },
+    {
+      "label": "lint: a cross-record dependency must resolve to a real task",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return any(id_matches(task, f.stem) for f in tasks.glob(\"*.md\")",
+      "to": "        return True or any(id_matches(task, f.stem) for f in tasks.glob(\"*.md\")"
     }
   ]
 }

@@ -804,6 +804,37 @@ def main():
     lint.check_enforcement("# ADR-999: no such header\n", Path("ADR-999-probe.md"), errs, root)
     assert not list(errs) and not errs.advice, "a record without the header must be untouched"
 
+    # ADR-007 T1. `Depends-on` could only name a SIBLING: adr-lint rejected
+    # anything else with a blocking error, so the field designed to carry
+    # "this must not start before that" could not express a cross-record edge
+    # at all. Reported 2026-08-28 from a corpus one step from executing on it.
+    #
+    # The trap that decides the parser's shape, measured: TID_RE is
+    # (?<!\w)T\d+(?!\w), so "ADR-003-T4" yields ['T4'] — the hyphen is not a
+    # word character. A qualified id must be consumed WHOLE before any local
+    # scan, or it binds to a same-numbered LOCAL task. A wrong edge is worse
+    # than a missing one, because the DAG then looks answered.
+    qualified, local = lint.split_dependencies("ADR-003-T4, T2, ADR-004/T1")
+    assert qualified == ["ADR-003-T4", "ADR-004/T1"], qualified
+    assert local == ["T2"], local
+    # The whole point: no local T4 may be produced from the qualified id.
+    assert "T4" not in local, "a qualified id bound to a local task"
+
+    # An unqualified id is untouched — no existing record may change verdict.
+    assert lint.split_dependencies("T1, T2") == ([], ["T1", "T2"])
+    assert lint.split_dependencies("none") == ([], [])
+
+    # And it must RESOLVE against the corpus, not the sibling set. Checked
+    # against this repository's own records so the test fails if the corpus
+    # shape it assumes ever changes, rather than passing against a fixture that
+    # agrees with the code by construction.
+    corpus = bin_dir.resolve().parent / "docs" / "adr"
+    assert lint.resolve_qualified_dep("ADR-003-T1", corpus), "ADR-003 has a T1"
+    assert not lint.resolve_qualified_dep("ADR-003-T9", corpus), "ADR-003 has no T9"
+    assert not lint.resolve_qualified_dep("ADR-900-T1", corpus), "no ADR-900 exists"
+    # Zero-padding and the slash form are the same pointer.
+    assert lint.resolve_qualified_dep("ADR-0003/T1", corpus)
+
     with tempfile.TemporaryDirectory() as js_tmp:
         # A JavaScript REGEX LITERAL is neither a comment nor a string, and the
         # masker knew about neither case. An apostrophe inside one — `/it's/` —

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
 import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -190,6 +190,41 @@ test('continuous integration runs the checks this repository owns', () => {
   const selftest = readFileSync(join(root, 'scripts', 'selftest.sh'), 'utf8')
   assert.match(selftest, /SKIPPED —/)
   assert.match(selftest, /PARTIAL —/)
+})
+
+test('every catalogue entry still matches the source it mutates, exactly once', () => {
+  // A mutation whose `from` no longer appears replaces nothing, the suite passes,
+  // and the runner reports STALE — a verdict that is NOT a kill but sits in a
+  // campaign summary next to 201 that are. Found 2026-08-28: refactoring away a
+  // branch left `link: Windows falls back to a copy for a file symlink` matching
+  // zero times, and the only signal was "201/202 mutations were noticed" at the
+  // end of a 37-minute run whose per-case lines had already scrolled past.
+  //
+  // The runner cannot answer this any sooner — it learns the count by applying
+  // each mutation in turn. Reading it off the tree costs milliseconds, so the
+  // same defect surfaces in the suite instead of at the end of the campaign.
+  const catalogue = JSON.parse(readFileSync(join(root, 'tests', 'mutations.json'), 'utf8'))
+  const counts = []
+  for (const mutation of catalogue.mutations) {
+    const path = join(root, mutation.file)
+    const text = existsSync(path) ? readFileSync(path, 'utf8') : null
+    counts.push({
+      label: mutation.label,
+      file: mutation.file,
+      matches: text === null ? 'file missing' : text.split(mutation.from).length - 1,
+    })
+  }
+  // Shown capable of firing before it is trusted, the way ADR-003's own gate had
+  // to be: with a fully-matching catalogue, a predicate that returns nothing is
+  // indistinguishable from one that finds nothing wrong.
+  assert.deepEqual(
+    [{ label: 'demo', file: 'x', matches: 0 }].filter(entry => entry.matches !== 1),
+    [{ label: 'demo', file: 'x', matches: 0 }],
+    'the check must be able to name a stale entry, or it asserts nothing',
+  )
+  const stale = counts.filter(entry => entry.matches !== 1)
+  assert.deepEqual(stale, [], `these mutations no longer target one place:\n${
+    stale.map(e => `  ${e.label} — ${e.file} matches ${e.matches}x`).join('\n')}`)
 })
 
 test('every shipped gate carries at least one mutation', () => {

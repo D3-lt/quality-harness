@@ -46,13 +46,14 @@ const digestOf = fence => createHash('sha256').update(fence, 'utf8').digest('hex
  * tool-written exit-0 entry whose digest matches the fence it claims to prove.
  */
 function task({ id, goal = `do ${id}`, dependsOn = 'none', consumes = 'none',
-                produces = 'none', fence = `printf ${id}`, human = false, evidence = false }) {
+                produces = 'none', fence = `printf ${id}`, human = false, evidence = false,
+                signoff = null }) {
   const acceptance = human
     ? 'Acceptance is human-observed: a person confirms it.'
     : `\`\`\`bash\n${fence}\n\`\`\``
   const log = evidence
     ? (human
-      ? '- 2026-08-26 · human-observed · Zy confirmed it\n'
+      ? `${signoff ?? '- 2026-08-26 · human-observed · PASS — Zy confirmed it'}\n`
       : `- 2026-08-26 · no-git · exit 0 · \`${fence}\` · acceptance-sha256:${digestOf(fence)}\n`)
     : ''
   return `# Task ${id}: ${goal}\n\n`
@@ -119,6 +120,42 @@ test('a contract edge orders tasks that name no dependency at all', () => {
     { id: 'T2', consumes: '`other.sql`' },
   ])
   assert.match(next([unrelated, '--all'], root).stdout, /^READY\s+T2/m)
+})
+
+test('a human sign-off that reports a STOP is not counted as done', () => {
+  // Reported 2026-08-28 from another corpus, one step from executing on it. A
+  // task's only sign-off read "decision BLOCKED — neither ship nor withdraw",
+  // its Stop Condition said "stop the ADR, not just this task" — and adr-next
+  // printed it done and the next task READY.
+  //
+  // VLOG_HUMAN_RE was `date · human-observed · .+`, and is_done returned True on
+  // the first match. Every OTHER route requires exit 0 AND a digest matching the
+  // current fence. The human route required neither, so any text after the
+  // marker read as success — including text saying the opposite.
+  const { tasksDir } = corpus([
+    { id: 'T1', human: true, evidence: true,
+      signoff: '- 2026-08-26 · human-observed · decision BLOCKED — neither ship nor withdraw' },
+    { id: 'T2', dependsOn: 'T1' },
+  ])
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.doesNotMatch(out, /^done\s+T1/m, `a stop was counted as done:\n${out}`)
+  assert.match(out, /T1/, 'and it must still name the task')
+  // The reason, not just the refusal — a bare "not done" sends the reader back
+  // to the log to guess which of the two the tool could not read.
+  assert.match(out, /outcome|blocked|could not/i, `say why:\n${out}`)
+  // And the task that depended on it must not be offered.
+  assert.doesNotMatch(out, /READY\s+T2/, `T2 was offered anyway:\n${out}`)
+})
+
+test('a human sign-off that reports a PASS is still done', () => {
+  // The other direction, or the fix is just a refusal. `passed`, `confirmed`,
+  // `observed` and `signed off` are the words a real sign-off uses.
+  const { tasksDir } = corpus([
+    { id: 'T1', human: true, evidence: true,
+      signoff: '- 2026-08-26 · human-observed · PASS — Zy watched the migration run clean' },
+  ])
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.match(out, /^done\s+T1/m, `an affirmative sign-off is evidence:\n${out}`)
 })
 
 test('a human-observed task is told how to sign itself off', () => {

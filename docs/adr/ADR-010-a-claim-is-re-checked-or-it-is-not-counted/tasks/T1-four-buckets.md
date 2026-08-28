@@ -104,6 +104,7 @@ one added later without the same discipline becomes visible.
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 142df7f · mutant killed · exit 1 · `plugin/bin/adr-verify` · the recursion guard removed: a fence that is a sweep would re-enter the sweep, unbounded · acceptance-sha256:208b4d2a1d0a21e48142bde103f58a426d8320a96ff7a19d46fb3af6335644c7
 
 ## Invariants
 

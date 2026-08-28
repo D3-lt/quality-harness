@@ -6,8 +6,9 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-004-templates-are-not-linked.md, docs/BACKLOG.md §42
 **Governs:** `.claude-plugin/marketplace.json`
+**Enforced-by:** `package: the boundary between the plugin and the repository holds`
 **Invalidates:** none — checked. ADR-004 decided what this plugin installs into a user's home; this decides what reaches their machine in the first place, and neither touches the other's mechanism.
-**Served-path change:** A user installing this plugin downloads roughly 660 K instead of 1,491 K, and stops receiving this repository's tests, its ADR corpus and its backlog.
+**Served-path change:** A user installing this plugin downloads 663 K instead of 1,619 K — measured 2026-08-28 after the move — and stops receiving this repository's tests, its ADR corpus and its backlog.
 
 ## Context
 

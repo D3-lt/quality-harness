@@ -51,7 +51,7 @@ bash scripts/selftest.sh
 | 1 — exists | the tests above |
 | 2 — something selects it | `scripts/selftest.sh` and CI; the shipped-set check reads the manifest, so it fails when the two drift |
 | 3 — the caller can discover it | a contributor adding a file learns from the failing check which side of the boundary it belongs on |
-| 4 — it is used | to be recorded at execution: the installed cache size before and after, measured on a real install |
+| 4 — it is used | recorded below: installed from a local marketplace into an isolated config, `bin/qh-root` run from the unpacked cache |
 
 ## Class Sweep
 
@@ -61,14 +61,73 @@ bash scripts/selftest.sh
 grep -rn "resolve(testDir, '\.\.')\|join(root, 'bin')\|join(root, 'scripts')" tests/ scripts/ | head -20
 ```
 
-To be run and recorded at execution. Known at authoring: ten test files reach for `bin/` or
-`scripts/` from a root computed as the checkout root, five CI references, and `selftest.sh`. The
-sweep is how a path missed by the move is found before a user finds it, since a test computing its
-own root will keep passing from a checkout whatever the manifest says.
+Run 2026-08-28. The authoring command only finds the test files, so three more were run beside it;
+each is repeatable and each is reported with what it returned.
+
+1. The command above — 15 hits, all of them the deliberate split: `repoRoot` for the repository,
+   `join(root, 'bin')` where `root` is now the plugin. No hit is a path still assuming the two are
+   one directory.
+2. Every repository-root-relative mention of a moved directory in the scripts, the CI workflow and
+   the dotfiles:
+
+   ```
+   grep -rnE "(^|[^a-zA-Z/._-])(bin|skills|templates|workflows|hooks|evals)/" \
+     scripts/*.sh scripts/*.mjs .github/workflows/*.yml .gitignore .gitattributes \
+     .claude-plugin/*.json | grep -vE "plugin/(bin|skills|templates|workflows|hooks|evals)/"
+   ```
+
+   6 hits, every one of them inside a comment describing the gates rather than resolving a path.
+3. Catalogue entries still naming a moved file without the prefix — `none`. 225 of 237 entries
+   gained it; `tests/*` and `scripts/mutate.mjs` correctly did not.
+4. Every gate still has its Windows shim beside it after the move — 10 gates, 10 shims.
+
+**Siblings left for later, named rather than noticed:** nothing from this sweep. The one thing the
+sweep cannot see is a path inside a SKILL body, which resolves through `${CLAUDE_PLUGIN_ROOT}` and
+is covered by the install probe below instead.
+
+## Execution Notes
+
+**The install probe (Ordered Step 5), 2026-08-28, Claude Code 2.1.250.** A checkout cannot answer
+this, which is the same gap T1 exists for: the tests run from a tree where the paths work whatever
+the manifest says. Installed from the local marketplace into a throwaway `CLAUDE_CONFIG_DIR` so the
+session's own plugin configuration was never touched.
+
+The unpacked cache root holds `.claude-plugin bin evals hooks scripts skills templates workflows`
+— the contents of `plugin/`, with `tests`, `docs`, `.github`, `README.md` and `LICENSE` all absent.
+`bin/qh-root` run with `CLAUDE_PLUGIN_ROOT` set to that root exits 0 and prints it. `hooks.json`
+resolves `${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs` and `run-shell-hook.mjs`, and both are
+present and parse. T1's answer holds against this repository's own moved tree, not only against
+another project's.
+
+**Measured saving.** 663 K tracked under `plugin/` against 1619 K tracked in the repository: a user
+receives 41% of what they did. The record predicted ~660 K of ~1,491 K; the denominator grew because
+the corpus did.
+
+**A finding the probe turned up, which is NOT this repository's problem to fix.** A marketplace
+added from a LOCAL PATH copies the working tree, gitignored files included — the isolated install
+carried 1,488 K of `evals/results` and 220 K of `evals/generated` that no published install can
+contain, because the real marketplace is the GitHub repository and a clone has neither. Worth
+knowing before anyone measures a download by installing from a path: that number is not the number
+a user gets.
+
+**Deviation from Ordered Step 2, recorded rather than done quietly.** One commit for the move, not
+one per directory. `source` and the paths have to move together, so a per-directory sequence
+guarantees commits in which the suite is red — and never committing while a gate is red is the
+stronger rule here. Rename detection keeps the diff readable, which is what the bisect rationale
+was really after.
+
+**A defect this task introduced and caught.** The first pass renamed the tests' repository-root
+constant with a blanket text replacement, which also rewrote `git -C <temp repo>` helpers inside two
+lifecycle tests. The suite then ran `git add -A` and `git commit` against the REAL repository and
+created two commits and a branch on `main`. Reset and deleted; the working tree was untouched. The
+rule that follows: a test that spawns `git` in a directory it did not create is one typo away from
+committing to the repository it is testing, and a blanket rename over a name as common as `repo` is
+how that typo gets made.
 
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 9c15ebe · mutant killed · exit 1 · `.claude-plugin/marketplace.json` · source back at the repository root: the boundary is gone and tests/ and docs/ ship again · acceptance-sha256:f7e251b503caefecba11221ad2cc2227706140573bea20d61d9987da7b605256
 
 ## Invariants
 

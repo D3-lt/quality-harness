@@ -32,7 +32,8 @@ evaluate ready, and run the cycle check over the union of records rather than on
 ## Acceptance
 
 ```bash
-node --test tests/adr-next.test.mjs tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr007-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr007-t2.out
+set -o pipefail
+node --test tests/adr-next.test.mjs tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr007-t2.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr007-t2.out
 ```
 
 ## Tests

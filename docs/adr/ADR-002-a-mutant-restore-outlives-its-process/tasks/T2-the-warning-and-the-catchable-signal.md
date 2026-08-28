@@ -33,7 +33,8 @@ instead of being trusted.
 ## Acceptance
 
 ```bash
-node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t2a.out && node scripts/mutate.mjs --case 'verify:' 2>&1 | tee /tmp/adr002-t2b.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr002-t2a.out && ! grep -qE "^GREEN|^STALE|^HUNG" /tmp/adr002-t2b.out
+set -o pipefail
+node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t2a.out && node scripts/mutate.mjs --case 'verify:' 2>&1 | tee /tmp/adr002-t2b.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr002-t2a.out && ! grep -qE "^GREEN|^STALE|^HUNG" /tmp/adr002-t2b.out
 ```
 
 ## Tests

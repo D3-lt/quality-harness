@@ -35,7 +35,8 @@ mutation — so a kill of any kind is recoverable by the next run.
 ## Acceptance
 
 ```bash
-node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr002-t1.out
+set -o pipefail
+node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t1.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr002-t1.out
 ```
 
 ## Tests

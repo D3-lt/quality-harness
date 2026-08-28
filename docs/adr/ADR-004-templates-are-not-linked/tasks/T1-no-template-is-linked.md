@@ -38,7 +38,8 @@ refreshed, which is the only thing serving Windows, where these were never links
 ## Acceptance
 
 ```bash
-node --test tests/standalone-link.test.mjs tests/lifecycle.test.mjs tests/package.test.mjs 2>&1 | tee /tmp/adr004-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr004-t1.out
+set -o pipefail
+node --test tests/standalone-link.test.mjs tests/lifecycle.test.mjs tests/package.test.mjs 2>&1 | tee /tmp/adr004-t1.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr004-t1.out
 ```
 
 ## Tests

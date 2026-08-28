@@ -732,9 +732,46 @@ def main():
             found, why = spec_gate.test_definition_exists(js_probe, js_name, None)
             assert found is True, f"{js_name}: {why}"
 
+        # A regex may also follow the `)` that closes an `if`/`while`/`for`
+        # header, and the first fix did not know that: `if (ready) /it's/.test(v)`
+        # read the `/` as division, so the apostrophe opened a phantom string
+        # again and the file's tests vanished. Found 2026-08-28 by an independent
+        # review, in the fix for the same defect one shape over.
+        js_probe.write_text(
+            "if (ready) /it's/.test(v)\n"
+            "test('after a regex that follows a control header', () => {})\n"
+        )
+        found, why = spec_gate.test_definition_exists(
+            js_probe, "after a regex that follows a control header", None)
+        assert found is True, why
+
+        # THE GENERAL GUARD, which is what actually closes the class: a `'` or
+        # `"` string cannot span a line in JavaScript, so an unterminated one is
+        # not a string. Without this, every construct the lexer does not know
+        # about — today's regex, tomorrow's something else — can swallow the
+        # rest of the FILE. With it, the damage of any future mis-detection is
+        # bounded to one line.
+        js_probe.write_text(
+            "const oops = 'unterminated because this line ends\n"
+            "test('survives an unterminated quote', () => {})\n"
+        )
+        found, why = spec_gate.test_definition_exists(
+            js_probe, "survives an unterminated quote", None)
+        assert found is True, why
+
+        # A template literal DOES span lines, so it must stay unbounded.
+        js_probe.write_text(
+            "const t = `line one\ntest('hidden inside a template literal', () => {})\nline three`\n"
+            "test('after the template literal', () => {})\n"
+        )
+        found, _ = spec_gate.test_definition_exists(js_probe, "after the template literal", None)
+        assert found is True
+        found, _ = spec_gate.test_definition_exists(
+            js_probe, "hidden inside a template literal", None)
+        assert found is False, "a test name inside a template literal is not a definition"
+
         # Division must still read as division. Masking from a `/` that opens no
-        # regex would blank real code and lose definitions the other way round,
-        # so the detector guesses toward division whenever it is unsure.
+        # regex blanks real code, so the detector stays conservative there too.
         js_probe.write_text(
             "test('divides', () => { const r = a / b; const s = c / d })\n"
             "test('after the division', () => {})\n"

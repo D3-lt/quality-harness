@@ -118,14 +118,22 @@ REGEX_MAY_FOLLOW_WORD = {"return", "typeof", "case", "in", "of", "delete", "void
                          "do", "else", "yield", "await"}
 
 
+CONTROL_HEADER = {"if", "while", "for", "with"}
+
+
 def starts_regex(text, i):
     """Whether the `/` at `i` opens a regex literal rather than dividing.
 
     JavaScript decides this from the previous significant token: after a VALUE it
-    is division, after an operator or an opening bracket it is a regex. This is
-    the conservative half — everything it is unsure about reads as division,
-    which leaves the text unmasked and is the safe direction. Masking code that
-    is not a regex would blank real definitions.
+    is division, after an operator or an opening bracket it is a regex.
+
+    Getting it wrong in the DIVISION direction is the expensive one, which the
+    first version of this function had backwards. A `/` misread as division
+    leaves a real regex unmasked, and an apostrophe inside it — `/it's/` — then
+    opens a string that runs on until the next apostrophe ANYWHERE in the file.
+    A `/` misread as a regex only blanks to the end of one line. The quote
+    scanner is line-bounded for the same reason, so neither mistake can reach
+    past the line any more; this function still tries to be right.
     """
     j = i - 1
     while j >= 0 and text[j] in " \t\r\n":
@@ -134,6 +142,30 @@ def starts_regex(text, i):
         return True
     if text[j] in REGEX_MAY_FOLLOW:
         return True
+    # `)` is the ambiguous one. Closing a CALL or a grouping it is a value, so
+    # `/` divides; closing an `if`/`while`/`for` header it is not, and a regex
+    # may follow — `if (ready) /it's/.test(v)` is valid JavaScript. Found
+    # 2026-08-28 by an independent review, in the fix for this same defect one
+    # shape over. Walk back to the matching `(` and read the word before it.
+    if text[j] == ")":
+        depth, k = 0, j
+        while k >= 0:
+            if text[k] == ")":
+                depth += 1
+            elif text[k] == "(":
+                depth -= 1
+                if depth == 0:
+                    break
+            k -= 1
+        if k < 0:
+            return False
+        k -= 1
+        while k >= 0 and text[k] in " \t\r\n":
+            k -= 1
+        end = k
+        while k >= 0 and (text[k].isalnum() or text[k] == "_"):
+            k -= 1
+        return text[k + 1:end + 1] in CONTROL_HEADER
     k = j
     while k >= 0 and (text[k].isalnum() or text[k] == "_"):
         k -= 1
@@ -141,7 +173,7 @@ def starts_regex(text, i):
 
 
 def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False,
-                 regex_literals=False):
+                 regex_literals=False, line_bounded_quotes=False):
     """Mask comments and string contents while preserving positions and quotes.
 
     Definition regexes run on this view, so words inside comments or strings
@@ -225,7 +257,17 @@ def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False,
                 i += 1
         elif text[i] in ("'", '"', "`"):
             quote, end = text[i], i + 1
+            # A `'` or `"` string CANNOT span a line in JavaScript, so one that
+            # reaches the end of a line without closing is not a string at all —
+            # it is a lexical construct this masker does not know about. Stopping
+            # there is what bounds the damage of ANY mis-detection, today's regex
+            # literal and whatever is found next, to a single line instead of the
+            # rest of the file. Backticks are exempt: a template literal spans
+            # lines by design.
+            stop_at_newline = line_bounded_quotes and quote != "`"
             while end < n:
+                if stop_at_newline and text[end] == "\n":
+                    break
                 if text[end] == "\\":
                     end += 2
                     continue
@@ -313,9 +355,11 @@ def test_definition_exists(path, name, stack):
         hash_comments=suffix in (".php", ".rb", ".sh", ".bash"),
         heredocs=suffix == ".php",
         ruby_blocks=suffix == ".rb",
-        # Only where `/` can open a regex. In Python and PHP it is division, and
-        # a masker that guessed otherwise would blank real definitions.
+        # Both are JavaScript lexical facts and neither holds elsewhere: in
+        # Python and PHP `/` is division, and their single-quoted strings really
+        # do span lines.
         regex_literals=suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"),
+        line_bounded_quotes=suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"),
     )
     if suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"):
         names = registered_test_names(text, masked, ("test", "it"))

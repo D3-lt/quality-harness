@@ -138,7 +138,23 @@ function dirtyTargets(selected) {
  * case: 100% line and 100% branch, before and after, with the test passing and
  * the mechanism broken. See ADR-006.
  */
-export function classify({ occurrences, baselineOk, run }) {
+/**
+ * What one unmutated baseline run proved, and why.
+ *
+ * `false` was not enough. A `spawnSync` that times out returns
+ * `{ status: null, signal: 'SIGTERM' }` — no test verdict at all — and storing
+ * that as "did not pass" made the report say the suite had ALREADY FAILED and
+ * tell the reader to repair it. Nothing failed; nothing ran. Found 2026-08-28
+ * by an independent review, in the code written that morning to remove exactly
+ * this class from the mutated run. The baseline had inherited the defect it was
+ * introduced to fix.
+ */
+export function baselineOf(run) {
+  if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }
+  return run.status === 0 ? { state: 'pass' } : { state: 'fail' }
+}
+
+export function classify({ occurrences, baseline, run }) {
   if (occurrences !== 1) {
     // Decided off the tree, before anything is applied: the `from` no longer
     // describes the code, so there is no mutation to be right or wrong about.
@@ -147,8 +163,8 @@ export function classify({ occurrences, baselineOk, run }) {
   const observed = (run.signal || run.status === null)
     ? 'HUNG'
     : run.status === 0 ? 'GREEN' : 'RED'
-  if (!baselineOk) return { verdict: 'UNPROVEN', observed }
-  return { verdict: observed, observed }
+  if (baseline.state !== 'pass') return { verdict: 'UNPROVEN', observed, baseline }
+  return { verdict: observed, observed, baseline }
 }
 
 /**
@@ -179,8 +195,16 @@ export function renderLine(result, width) {
     // line says what to CHANGE rather than only what is wrong — the lesson
     // ADR-005 applied to spec-verify, one tool over.
     : result.verdict === 'UNPROVEN'
-      ? `  <- ${result.observed}, but ${result.tests.join(', ')} already failed before this `
-        + 'mutation was applied; repair that suite and re-run — nothing here is evidence yet'
+      // Two different things, and saying the same words about both is the defect
+      // this whole verdict exists to remove. A suite that FAILED needs repairing;
+      // a baseline that never finished needs re-running, or a longer timeout, and
+      // telling its author to repair a suite sends them after code that is fine.
+      ? result.baseline?.state === 'unrun'
+        ? `  <- ${result.observed}, but the baseline for ${result.tests.join(', ')} never finished `
+          + `(${result.baseline.why}), so nothing was measured against it — re-run, or raise the `
+          + 'timeout, before reading any verdict from this set'
+        : `  <- ${result.observed}, but ${result.tests.join(', ')} already failed before this `
+          + 'mutation was applied; repair that suite and re-run — nothing here is evidence yet'
       : ''
   return `${result.verdict.padEnd(8)} ${result.label.padEnd(width)}${note}`
 }
@@ -260,14 +284,14 @@ export function main(argv) {
   // journal — so this adds no window in which a crash could leave the tree
   // broken (ADR-002). One spawn per distinct set, memoised by it.
   const sets = testSets(selected)
-  const baselineOf = new Map()
+  const baselines = new Map()
   for (const set of sets) {
     // The same files and the same arguments as the mutated run below, or this
     // would be measuring a different thing than the one it licenses.
     const run = spawnSync(process.execPath,
       ['--test', ...set.tests.map(t => path.join(root, t))],
       { cwd: root, encoding: 'utf8', timeout: timeoutMs })
-    baselineOf.set(set.tests.join('\0'), run.status === 0 && !run.signal)
+    baselines.set(set.tests.join('\0'), baselineOf(run))
   }
 
   const results = []
@@ -275,10 +299,11 @@ export function main(argv) {
     const file = path.join(root, mutation.file)
     const original = readFileSync(file, 'utf8')
     const occurrences = original.split(mutation.from).length - 1
-    const baselineOk = baselineOf.get([...mutation.tests].sort().join('\0')) === true
+    const baseline = baselines.get([...mutation.tests].sort().join('\0'))
+      ?? { state: 'unrun', why: 'no baseline was taken' }
 
     if (occurrences !== 1) {
-      results.push({ ...mutation, ...classify({ occurrences, baselineOk, run: null }) })
+      results.push({ ...mutation, ...classify({ occurrences, baseline, run: null }) })
       continue
     }
 
@@ -289,7 +314,7 @@ export function main(argv) {
       { cwd: root, encoding: 'utf8', timeout: timeoutMs })
     finish(file, original)
 
-    results.push({ ...mutation, ...classify({ occurrences, baselineOk, run }) })
+    results.push({ ...mutation, ...classify({ occurrences, baseline, run }) })
   }
 
   const width = Math.max(...results.map(r => r.label.length))
@@ -298,8 +323,9 @@ export function main(argv) {
   const counts = summarise(results)
   console.log(`\n${counts.noticed}/${counts.total} mutations were noticed.`)
   if (counts.unproven) {
-    console.log(`${counts.unproven} could not be judged: their tests were already failing before `
-      + 'the mutation was applied, so neither verdict is evidence. Repair those suites and re-run.')
+    console.log(`${counts.unproven} could not be judged: their test-set did not pass at baseline, `
+      + 'so neither verdict is evidence. The line above each says whether that suite FAILED or '
+      + 'never finished — they need different things done to them.')
   }
   if (counts.failing) {
     console.log('A test that stays green with its mechanism broken is asserting something else.')

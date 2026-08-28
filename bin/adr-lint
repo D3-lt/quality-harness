@@ -679,6 +679,100 @@ def evidenced_task_ids(infos, readme_text):
     return sorted(ids)
 
 
+def enforcement_pointers(text):
+    """The checks a record claims enforce it, or [] when it claims none.
+
+    `None — <reason>` is a first-class answer and yields no pointers: most
+    durable decisions have no cheap mechanical enforcement, and a record that
+    says so is carrying information the corpus otherwise lacks.
+    """
+    raw = header_val(text, "Enforced-by")
+    if raw is None or raw.strip().lower().startswith("none"):
+        return []
+    inside = re.findall(r"`([^`]+)`", raw)
+    parts = inside if inside else [p.strip() for p in raw.split(",")]
+    return [p.strip() for p in parts if p.strip()]
+
+
+def resolve_enforcement(pointer, root):
+    """Which FORM a pointer resolved as, or None when it names nothing here.
+
+    Three forms, deliberately ordered by how much they prove:
+
+      "mutation"  a catalogue label — the campaign grades it RED or GREEN on
+                  every run, so the claim is MEASURED rather than asserted.
+      "test"      a `path::name` id — proves the check exists, not that it can
+                  fail. That is ADR-003's rule and mutate.mjs's job.
+      "gate"      an executable in bin/.
+
+    This never runs anything. A linter that executed a check would be a
+    different tool with a different cost, and the pointer's job is to be
+    followable, not to be re-proved on every lint.
+    """
+    if root is None:
+        return None
+    catalogue = root / "tests" / "mutations.json"
+    if catalogue.is_file():
+        try:
+            labels = {m.get("label") for m
+                      in json.loads(catalogue.read_text(encoding="utf-8", errors="replace"))
+                      .get("mutations", [])}
+            if pointer in labels:
+                return "mutation"
+        except (ValueError, OSError):
+            pass
+    if "::" in pointer:
+        rel, name = pointer.split("::", 1)
+        f = resolve_test_file(root, rel.strip())
+        if f is not None and f.is_file():
+            source = code_only(f.read_text(errors="replace", encoding="utf-8"),
+                               python=f.suffix == ".py")
+            # `test_body`, the same resolver check_tests_exist uses — NOT a
+            # substring search over `code_only`, which blanks string contents and
+            # so cannot see a JavaScript test name, since that name IS a string
+            # literal. Measured while writing this: the substring form resolved
+            # the mutation and gate forms and silently failed every `path::name`.
+            wanted = name.strip()
+            if wanted and test_body(source, wanted, python=f.suffix == ".py") is not None:
+                return "test"
+            # A `node:test` name is a STRING ARGUMENT, not a function name, so
+            # test_body cannot see it — and code_only blanks string contents, so
+            # a substring search cannot either. This repository's own JS tests
+            # are all of that shape. Matched against the raw text, anchored to a
+            # registration call so a name merely MENTIONED in a comment or a
+            # table does not resolve.
+            raw = f.read_text(errors="replace", encoding="utf-8")
+            if wanted and re.search(r"(?:^|[^\w.])(?:test|it)\s*\(\s*(['\"`])"
+                                    + re.escape(wanted) + r"\1", raw, re.M):
+                return "test"
+        return None
+    gate = root / "bin" / pointer
+    if gate.is_file():
+        return "gate"
+    return None
+
+
+def check_enforcement(text, path, errors, root):
+    """Advise when a record names a check that does not exist.
+
+    ADVICE, never blocking, and it stays that way. Most decisions in most
+    corpora are not mechanically enforced, six of the eight records here predate
+    the header entirely, and a gate that fails a record for being honest about
+    that is the day-one gate people switch off.
+
+    What it is for: `Governs:` says which paths a decision owns, and nothing said
+    what FAILS when the decision is violated. A task's Acceptance proves the task
+    got DONE, which is a different question from whether the decision still holds
+    a year later — and the task's tests are freely rewritten once it is.
+    """
+    for pointer in enforcement_pointers(text):
+        if resolve_enforcement(pointer, root) is None:
+            errors.advise(f"{path.name}: Enforced-by names `{pointer}`, which is not a mutation "
+                          f"label in tests/mutations.json, a `path::name` test that exists, or a "
+                          f"gate in bin/ — a pointer to nothing is the rot this header exists to "
+                          f"avoid. Name the check, or say `None — <reason>`")
+
+
 def check_tests_exist(infos, readme_text, errors, root):
     """A `done` task's Tests table must name tests that exist in the files it names.
 
@@ -1213,6 +1307,12 @@ def main():
             check_named_tests_are_run(infos, readme_text, errors)
         check_file_collisions(infos, errors)
         check_contract_table(adr, stems, errors)
+
+    # Deliberately OUTSIDE `protected()` and outside the tasks branch: it applies
+    # to every record whether or not it has tasks, and it is advice — a pointer
+    # to nothing is worth saying and is never worth blocking a record over.
+    check_enforcement(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
+                      git_root(adr.parent))
 
     if spec_file is not None:
         # inline-task ADRs carry **Covers:** lines in the ADR body itself

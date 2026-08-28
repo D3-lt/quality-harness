@@ -1739,6 +1739,59 @@ history — and the way to find out is to scan it, which nothing has yet done sy
 **Worth doing either way:** run the new personal-path check over history, not just the working tree,
 so the claim "only a username" is measured rather than assumed.
 
+## 43. Two outside papers, read 2026-08-28 — what they had that we did not
+
+Read against this corpus rather than summarised. Most of both was already here under other
+names; three things were not, and one of them contradicts the other paper.
+
+**TRAJECTORY vs OUTCOME (Google's SDLC guide, via Özel).** "Output evaluation asks whether the
+function produced the right result; trajectory evaluation asks whether the agent understood the
+problem before generating it." That named a gap we could point at: `adr-lint` required Ordered Steps
+step 1 to SAY "establish the failing test", and accepted a task as done if ANY log entry said exit 0.
+Nothing checked the red run came first. Fixed the same day as advice — with a killed mutant as an
+exemption, because that proves the same property from the other side. The concept was already in the
+EVAL suite as `tool_order` graders and had never reached the evidence chain.
+
+**ENFORCEMENT LINKAGE (Wasowski, ADR-as-spec).** "Every ADR points to the mechanism that enforces it;
+every mechanism points to the code it governs." We have the second half — `Governs:` plus
+`adr-context`. We have no first half: a record names the files it owns and never the check that fails
+when someone violates the decision. Task `Acceptance` proves the task got DONE, which is a different
+question from whether the decision still HOLDS a year later. ADR-009 proposes `Enforced-by:`.
+
+**The two papers contradict each other, and we can settle it.** Wasowski wants accepted ADRs loaded
+into an "architectural constitution" at the start of every agent session. Google's guide says static
+context "wastes tokens, dilutes signal, and can actively degrade agent performance by burying
+critical rules under noise". §35 measured exactly that here: three instructions, ablated, all three
+inert. Our evidence backs the second, which is why `adr-context` fires on the first edit to a
+governed file rather than at load time. Worth writing down, because a reader of the first paper would
+think we had missed something.
+
+**Already ours, under their vocabulary** — useful for talking to people who have read them:
+`strictFrom` is their **freeze baseline** ("freeze existing violations as accepted debt, block only
+new ones; skip it and the team mutes the tests within a week"); the `work` skill's risk table is
+their **exception-driven review board** and **three response tiers**; skills-that-load-on-demand is
+their **dynamic context**; §36's thesis is Wasowski's "a rule an agent never reads is operationally
+dead".
+
+**Numbers worth keeping, and the caveat that goes with them.** A 2023 study of 900+ open-source
+repositories found roughly half the projects with ADRs have only ONE TO FIVE — tried once, never
+maintained. We have eight, all from one day, which is precisely where those projects stopped. A
+documented rollout across 802 developers doubled throughput while human review coverage fell 89% to
+68% — the sharp framing is whether the freed capacity was replaced by an invariant or by nothing.
+And "Agent = Model + Harness": one team moved from outside the Top 30 to Top 5 on Terminal Bench 2.0
+by changing only the harness, and LangChain raised a score 13.7 points through prompt, tools and
+middleware on a fixed model.
+
+**Every one of those figures is second-hand**, from a Medium summary of a Google whitepaper and from
+a Medium essay. This project's own rule is to date a number and name what it was measured against,
+so none of them should enter a skill, a README or an ADR until read at the primary source. They are
+recorded here as leads, not as evidence.
+
+**What to reject.** Wasowski's policy-as-code layer BLOCKS the operation outright, which is the
+opposite of this project's standing rule — and the reason here is better than his: a block leaves the
+user with no next move. He concedes the tooling in that class is cloud-security rather than
+architecture boundaries, "a documented gap, not a ready solution".
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

@@ -199,4 +199,4 @@ which `main()` reports by name rather than misreading as a task path.
 ## Follow-ups
 
 - [x] Close the untested `SIGTERM` handler (T2). Done 2026-08-27; the test asserts the journal is empty afterwards, which is what separates an in-process restore from a later recovery.
-- [ ] Decide whether `adr-verify` should offer a detached or resumable mode for fences that outrun an agent's tool timeout (docs/BACKLOG.md §26).
+- [x] Decide whether `adr-verify` should offer a detached or resumable mode for fences that outrun an agent's tool timeout (docs/BACKLOG.md §26). Answered 2026-08-28: NO. The guarantee is that the tool which ran the command wrote the entry; a mode recording a result obtained elsewhere reintroduces the hand-pasted evidence this log exists to eliminate. The pattern is documented as the fourth fence trap in `templates/task-template.md` instead.

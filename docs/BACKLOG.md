@@ -1036,7 +1036,16 @@ Both are the same class as item 21 in reverse — not a check that fires on noth
 mechanism that nothing reaches. Neither costs anything until someone reads it and looks for
 the thing it describes.
 
-## 26. No answer for a fence that outruns the agent's tool timeout
+## 26. DECIDED 2026-08-28 — no detached mode; the pattern is documented instead
+
+`adr-verify` will NOT offer a detached or resumable mode. The whole guarantee of the Verification
+Log is that the tool which RAN the command is the tool that wrote the entry; a mode that records a
+result someone else obtained reintroduces the hand-pasted evidence the log exists to eliminate. The
+Windows report is real and the answer is to shape the fence: run it detached and poll, then verify
+on a tree where it completes quickly, or narrow the fence to what the task actually proves. Written
+as the fourth fence trap in `templates/task-template.md`; ADR-002's follow-up is closed.
+
+## 26 (superseded). No answer for a fence that outruns the agent's tool timeout
 
 **Deferred here by ADR-002** (`docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md`, Out of
 Scope and Follow-ups).
@@ -1102,7 +1111,16 @@ The general rule, which is the part worth keeping: **a module with a CLI half mu
 import**, and the test for that has to spawn rather than import, because the failure being tested
 is the test process dying.
 
-## 28. Complexity as a conversation trigger, if anywhere
+## 28. DECIDED 2026-08-28 — it belongs in the review skill, as a question and never a score
+
+Placed in `skills/review/SKILL.md` Pass 2: name the branch you could not follow and what a caller
+would get wrong; do not compute or cite a score. ADR-003's prohibition on shipping it as a GATE is
+unchanged — the metric moves under pure extraction, so it rewards splitting one hard function into
+three easy ones that are harder to read together. This is the delivery mode §36 measured as the one
+that works: guidance at the moment it applies, to a reader who can see what the number cannot.
+ADR-003's follow-up is closed.
+
+## 28 (superseded). Complexity as a conversation trigger, if anywhere
 
 **Deferred here by ADR-003** (`docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md`, Out of Scope
 and Alternatives).
@@ -1127,7 +1145,19 @@ If it is ever built, the shape that fits the harness is not a new gate but a lin
 report — the same place the session notice already says what changed — and it should carry the
 number, the threshold, and nothing resembling a verdict.
 
-## 29. adr-judge reads a multi-line bullet as its first line only
+## 29. FIXED 2026-08-27 — this entry was stale and is kept for the mechanism
+
+`bullets()` in `bin/adr-judge` was rewritten the same day it was reported: a `CONTINUATION` pattern
+now folds wrapped lines into the bullet they belong to, and a blank line or an unindented line ends
+it. Validated against the zeus corpus — E2 rate 24/171 before and after, so the fix changed how
+bullets are READ without moving a single verdict. Two mutations cover it: `judge: a wrapped
+alternative is read whole` and `judge: a blank line ends a bullet`, both RED.
+
+Noticed 2026-08-28 only because the backlog was read aloud: the entry still described the defect in
+the present tense a day after it was fixed. A backlog that records fixes as open is the same class
+of wrong as a gate that reports a failure it did not observe.
+
+## 29 (superseded). adr-judge reads a multi-line bullet as its first line only
 
 Found 2026-08-27 while authoring ADR-003, twice in one session.
 

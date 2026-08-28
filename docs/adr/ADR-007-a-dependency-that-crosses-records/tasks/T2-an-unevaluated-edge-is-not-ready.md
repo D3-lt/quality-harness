@@ -61,10 +61,23 @@ evaluate.
 grep -n "ready\|blocked\|done" bin/adr-next
 ```
 
-To be run and recorded at execution. The report named one member — a foreign `Depends-on`. The sweep
-is there because `Consumes` scavenges T-ids through the same filter on the adjacent line, and a fix
-that closes one while the other still drops silently would leave the class open with the gate looking
-answered.
+Run 2026-08-28. Every readiness answer flows through ONE place — `main`'s classification loop at
+`adr-next:329-340` — and three renderers read it (`--json` 343, `--all` 349-353, the default 358+).
+Widening the loop therefore widened all three at once, which is why no renderer needed touching.
+
+Two members the authoring list did not have:
+
+- **A malformed cross-record pointer.** `ADR-not-a-number-T1` parses as no qualified id, fell to the
+  local scan, and `TID_RE` found the trailing `T1` inside it — which resolves to the task itself,
+  self-edges are excluded, and the task printed READY. A pointer nobody can read became a clean bill
+  of health, one layer below the case this task was written for. Fixed here; `adr-lint` already
+  rejected it at authoring, so the two now agree.
+- **`Consumes` (`adr-next:196`)** scavenges T-ids through the identical filter on the adjacent line.
+  Out of scope by the parent record so a regression in one edge source can be attributed, and now
+  named in docs/BACKLOG.md §41 rather than left implied — an author writing a qualified id there
+  still gets a silent local edge.
+
+The report named one member. Reading for the class found two more, and both are reachable.
 
 ## Mutation Log
 
@@ -94,3 +107,4 @@ dependency — that would mean the local path was altered, which this task must 
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · 74f790f · exit 0 · `node --test tests/adr-next.test.mjs tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr007-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr007-t2.out` · acceptance-sha256:c3a0b32892e8155766a4a0ecf525bd154668961feefa15d8ad1b42941b94ac42

@@ -1693,6 +1693,13 @@ test. A defence-in-depth branch nobody can make fail is indistinguishable from a
 
 ## 41. Two questions ADR-007 deferred about cross-record relationships
 
+**`Consumes` still scavenges T-ids, and a qualified id there binds locally.** Found by ADR-007 T1's
+class sweep, which turned up NINE sites using the same `(?<!\w)T\d+(?!\w)` scavenge where the task
+had listed two. `Depends-on` is fixed; `Consumes` is the one other place an author could plausibly
+write `ADR-003-T4`, and today it would produce a silent local `T4` edge. ADR-007 puts `Consumes` out
+of scope so that a regression in one edge source can be attributed, which is the right call for one
+change and leaves this open. The other six sites scan content that is local by construction.
+
 **Ordering is not the only cross-record relation.** "Supersedes", "invalidates", "measured on the
 pipeline that" — the reporting team counted 41 of 94 task files (44%) mentioning a foreign ADR in
 prose across 44 distinct pairs, and not all of those are dependencies. ADR-007 makes `Depends-on`

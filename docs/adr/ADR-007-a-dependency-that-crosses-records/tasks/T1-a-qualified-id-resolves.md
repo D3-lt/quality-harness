@@ -61,13 +61,29 @@ python3 tests/gate-regressions.py bin skills/postmortem/SKILL.md
 grep -n "TID_RE\|T\\\\d" bin/adr-lint bin/adr-next
 ```
 
-To be run and recorded at execution. Known at authoring: `adr-next:145` and `:150` scavenge T-ids
-from `Depends-on` and from `Consumes`. This task changes `Depends-on`; `Consumes` is deliberately out
-of scope, and the sweep is how the decision to leave it is recorded rather than forgotten.
+Run 2026-08-28. **NINE sites**, not the two the authoring list named — the same
+`(?<!\w)T\d+(?!\w)` scavenge appears at `adr-lint:389, 454, 501, 506, 544, 1140, 1328, 1344` and
+`adr-next:39`. Every one is a place a qualified id could bind to a same-numbered local task.
+
+Sorted by whether a qualified id can actually reach them:
+
+- **`Depends-on` — fixed here.** The only site an author is now told to write a qualified id into.
+- **`Consumes` (454, 501, 506) — deliberately out of scope**, and this is where that decision costs
+  something real: an author who writes `ADR-003-T4` in `Consumes` today gets a silent local `T4`
+  edge. The parent record puts `Consumes` out of scope so a regression in one edge source can be
+  attributed, and that reasoning stands — but the gap is now named rather than implied. Deferred to
+  docs/BACKLOG.md §41.
+- **The remaining five** scan content that is local by construction — a tasks README's `done` rows,
+  a task file's own stem, a wave table. A qualified id cannot appear there without someone writing
+  one into a file that has no such field.
+
+The authoring list said two. Reading for the class rather than the reported instance found seven
+more, and one of them is reachable.
 
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 537564e* · mutant killed · exit 1 · `bin/adr-lint` · a qualified id falls into the local scan, where TID_RE binds it to a same-numbered sibling · acceptance-sha256:f240c9781359a4cb9100ce8dbe392375912786c1dd0700620b156f0c97b4404f
 
 ## Invariants
 

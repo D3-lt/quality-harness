@@ -100,6 +100,56 @@ def sections_of(text):
     return out
 
 
+QUALIFIED_DEP = re.compile(r"^ADR[-\s]?0*(?P<number>\d{1,4})[-/](?P<task>T\d+)$", re.I)
+
+
+def split_dependencies(value):
+    r"""A `Depends-on` value as (qualified, local) ids.
+
+    A QUALIFIED id names a task in another record — `ADR-003-T4` or
+    `ADR-003/T4`. It is matched and consumed WHOLE, and that is the whole point
+    of this function rather than a regex at each call site.
+
+    Measured 2026-08-28: `TID_RE` is `(?<!\w)T\d+(?!\w)`, so scanning
+    "ADR-003-T4" for local task ids yields `['T4']` — the hyphen is not a word
+    character. If the writing record happens to have its own T4, the foreign
+    dependency does not vanish, it binds to the LOCAL task with that number. A
+    wrong edge is worse than a missing one, because the DAG then looks answered.
+    """
+    if not value or value.strip().lower() in ("none", '"none"'):
+        return [], []
+    qualified, local = [], []
+    for part in (p.strip() for p in value.split(",")):
+        if not part:
+            continue
+        (qualified if QUALIFIED_DEP.match(part) else local).append(part)
+    return qualified, local
+
+
+def resolve_qualified_dep(pointer, corpus_dir):
+    """Whether `ADR-003-T4` names a record in this corpus that has that task.
+
+    Resolved against the CORPUS rather than the sibling set — that is the whole
+    change. The same argument that requires every cited ADR to resolve: a
+    dependency naming a record that does not exist, or a task that record does
+    not have, is a pointer to nothing.
+    """
+    found = QUALIFIED_DEP.match(pointer)
+    if not found or corpus_dir is None:
+        return False
+    number, task = int(found.group("number")), found.group("task")
+    for candidate in sorted(corpus_dir.glob("ADR-*.md")):
+        digits = re.match(r"ADR-0*(\d{1,4})", candidate.name, re.I)
+        if not digits or int(digits.group(1)) != number:
+            continue
+        tasks = candidate.with_suffix("") / "tasks"
+        if not tasks.is_dir():
+            return False
+        return any(id_matches(task, f.stem) for f in tasks.glob("*.md")
+                   if f.name.lower() != "readme.md")
+    return False
+
+
 def id_matches(tid, stem):
     """Anchored task-ID match: 'T1' matches 'T1-db-index' but never 'T10-foo'."""
     return re.search(rf"(?<!\w){re.escape(tid)}(?!\w)", stem, re.I) is not None
@@ -270,10 +320,17 @@ def check_task(path, all_stems, errors):
         errors.advise(f"{path.name}: Ordered Steps step 1 must establish the failing test "
                       f"(TDD red) — currently: {steps[0].strip()[:80]}")
     dep = header_val(text, "Depends-on") or ""
-    if dep and dep.lower() not in ("none", '"none"'):
-        for d in [d.strip() for d in dep.split(",") if d.strip()]:
-            if not any(id_matches(d, s) for s in all_stems):
-                errors.append(f"{path.name}: Depends-on '{d}' matches no sibling task file")
+    # Qualified ids are taken out FIRST and whole. Left in the local scan they
+    # would bind to a same-numbered sibling — see split_dependencies.
+    qualified, local = split_dependencies(dep)
+    for d in local:
+        if not any(id_matches(d, s) for s in all_stems):
+            errors.append(f"{path.name}: Depends-on '{d}' matches no sibling task file")
+    for d in qualified:
+        if not resolve_qualified_dep(d, path.parent.parent.parent):
+            errors.append(f"{path.name}: Depends-on '{d}' names no record in this corpus, or a "
+                          f"record with no such task — a cross-record dependency must resolve, "
+                          f"for the same reason a cited ADR must")
     vlog = [ln.strip() for ln in secs.get("Verification Log", [])
             if ln.strip().startswith("- ")]
     for b in vlog:

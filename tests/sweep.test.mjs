@@ -834,9 +834,13 @@ test('a date in the future is still a claim', () => {
 
 test('a fence whose middle command fails under set -e is false', () => {
   const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
   task(dir, 'T1', { fence: 'set -e\nfalse\necho never printed' })
-  const run = sweep(dir)
-  assert.notEqual(run.status, 0)
+  // Exact buckets, not merely a non-zero exit: a crash, a wrong bucket and a
+  // correct classification all exit non-zero, and only one of them is right.
+  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  assert.deepEqual({ held: r.held, false: r.false, unrunnable: r.unrunnable },
+    { held: 1, false: 1, unrunnable: 0 })
 })
 
 test('a runner reporting zero examples is false, whatever its exit code', () => {
@@ -854,22 +858,28 @@ test('a fence that spawns a background process does not hang the sweep', () => {
   task(dir, 'T0-held', { fence: 'exit 0' })
   task(dir, 'T1', { fence: '(sleep 60 &) ; exit 0' })
   const started = Date.now()
-  const run = sweep(dir, ['--timeout', '20'])
-  assert.equal(run.status, 0, run.stdout)
+  const run = sweep(dir, ['--timeout', '20', '--json'])
+  const r = JSON.parse(run.stdout)
+  assert.deepEqual({ held: r.held, unrunnable: r.unrunnable }, { held: 2, unrunnable: 0 },
+    'the fence exited 0, so it held — a timeout would have made it unrunnable')
   assert.ok(Date.now() - started < 15_000,
     'a detached child inherits the output pipes, so capturing through them holds '
     + 'the sweep open until the timeout even though the fence itself exited')
 })
 
 test('a fence that reads stdin fails rather than waiting for input nobody will type', () => {
+  // The first version of this asserted only an exit code and a stopwatch, and it
+  // passed with stdin=DEVNULL removed — the runner already hands its children a
+  // closed stdin, so `cat` ended either way. A child that holds its OWN stdin
+  // open is the shape that actually distinguishes them.
   const dir = corpus()
   task(dir, 'T0-held', { fence: 'exit 0' })
-  task(dir, 'T1', { fence: 'cat' })
+  task(dir, 'T1', { fence: 'read -r line < /dev/stdin; echo "$line"' })
   const started = Date.now()
-  const run = sweep(dir, ['--timeout', '20'])
-  assert.equal(run.status, 0, 'it is unrunnable, not a verdict about the code')
-  assert.ok(Date.now() - started < 15_000,
-    'stdin must be closed, so this fails immediately instead of burning the timeout')
+  const run = sweep(dir, ['--timeout', '20', '--json'])
+  const r = JSON.parse(run.stdout)
+  assert.equal(r.unrunnable, 0, 'stdin is closed, so the read ends rather than waiting')
+  assert.ok(Date.now() - started < 15_000, 'and it ends at once, not at the timeout')
 })
 
 test('a fence mentioning --sweep inside a string is still refused', () => {
@@ -952,4 +962,102 @@ test('a corpus outside any git repository ignores strictFrom entirely', () => {
   const dir = corpus()
   record(dir, 'ADR-001-below', 'T1', { fence: 'exit 1' })
   assert.notEqual(sweep(dir).status, 0)
+})
+
+// --- what a cold review found, and the fixtures that hold it closed ---------
+
+test('a fence that spells --sweep around the guard still cannot recurse', () => {
+  // Bash turns --swee''p into --sweep, so the fence text contains no literal
+  // --sweep and the substring check does not fire. Measured 2026-08-28: the run
+  // recursed and only the timeout ended it. The environment sentinel is what
+  // closes this, because the nested process refuses itself.
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: `python3 ${JSON.stringify(verify)} --swee''p ${JSON.stringify(dir)}` })
+  const started = Date.now()
+  const run = sweep(dir, ['--json'])          // the DEFAULT timeout, deliberately
+  assert.equal(JSON.parse(run.stdout).unrunnable, 1)
+  assert.ok(Date.now() - started < 30_000, 'it must refuse, not recurse until a timeout')
+})
+
+test('a claim this tool can write is a claim it can read back', () => {
+  // The sweep demanded the fence immediately after the heading; the recording
+  // path takes the whole section and finds the fence inside it. So a task with a
+  // sentence of prose before its fence could be RECORDED and then read back as
+  // having no fence — superseded, and gone from the denominator, which makes the
+  // rate look better.
+  const dir = corpus()
+  const fence = 'exit 0'
+  const path = join(dir, 'T1.md')
+  writeFileSync(path, [
+    '# Task T1', '', '## Acceptance', '',
+    'Some prose the author wrote before the fence.', '',
+    '```bash  ', fence, '```', '',
+    '## Verification Log',
+    `- 2026-08-28 · abc1234 · exit 0 · \`${fence}\` · acceptance-sha256:${digestOf(fence)}`,
+    '',
+  ].join('\n'), 'utf8')
+  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  assert.deepEqual({ claims: r.claims, held: r.held, superseded: r.superseded },
+    { claims: 1, held: 1, superseded: 0 })
+})
+
+test('a fence of only comments proves nothing and is not held', () => {
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: '# nothing here\n  # nor here' })
+  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  assert.equal(r.held, 1, 'a fence that runs nothing exits 0 and proves nothing')
+})
+
+test('a real node failure mentioning an environment string is still false', () => {
+  // The laundering path a review found: environment_failure() matched while
+  // nothing in SOMETHING_RAN recognised node:test, so a genuine failing suite
+  // was reclassified as a machine problem. Every fence in this repository is
+  // node --test, which is how the gap survived.
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: 'echo "Cannot connect to the Docker daemon"; echo "not ok 1 - a real assertion"; echo "\u2139 fail 1"; exit 1' })
+  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  assert.deepEqual({ false: r.false, unrunnable: r.unrunnable }, { false: 1, unrunnable: 0 })
+})
+
+test('a fence that cannot be launched is unrunnable, not a traceback', () => {
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: 'exit 0' })
+  // python must stay findable while bash does not — a PATH of '/nonexistent'
+  // takes the interpreter with it and tests nothing. resolve_bash() returns a
+  // bare 'bash' on POSIX without checking it exists, so this is the real path to
+  // a FileNotFoundError from launching.
+  const python = spawnSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8' }).stdout.trim()
+  const run = spawnSync(python, [verify, '--sweep', dir, '--json'],
+    { encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' }, timeout: 60_000 })
+  assert.doesNotMatch(run.stderr ?? '', /Traceback/,
+    `an OSError from launching must not end the whole sweep:\n${run.stderr}`)
+  const r = JSON.parse(run.stdout)
+  assert.equal(r.unrunnable, 2, 'no shell means every claim is unchecked, not failed')
+  assert.equal(r.false, 0, 'and none of them is a verdict about the code')
+})
+
+test('sweep-only flags are refused in the recording modes rather than ignored', () => {
+  // Both were unknown options before --sweep existed, so a command carrying one
+  // was refused. Accepting and ignoring them is worse than either: a recording
+  // run with --timeout 1 would have had no timeout and looked like it did.
+  const dir = corpus()
+  const path = task(dir, 'T1', { fence: 'exit 0' })
+  for (const flag of [['--timeout', '1'], ['--json']]) {
+    const run = spawnSync('python3', [verify, path, ...flag], { encoding: 'utf8' })
+    assert.notEqual(run.status, 0, `${flag[0]} must not be silently ignored`)
+  }
+})
+
+test('--sweep refuses to be combined with a recording mode', () => {
+  const dir = corpus()
+  task(dir, 'T1', { fence: 'exit 0' })
+  for (const extra of [['--human', 'someone watched'], ['--restore']]) {
+    const run = sweep(dir, extra)
+    assert.notEqual(run.status, 0, `--sweep with ${extra[0]} must be refused`)
+    assert.match(run.stdout + run.stderr, /cannot be combined/i)
+  }
 })

@@ -101,9 +101,13 @@ digests is two claims` appearing in real data rather than in a fixture.
 
 ## Mutation Log
 
-<!-- tool-written by adr-verify --mutant; empty at authoring. This task adds no mechanism, so it
-     carries no mutant of its own — T1's mutations cover the sweep that judges it. Recorded here
-     rather than left blank so the absence is a decision instead of an omission. -->
+<!-- tool-written by adr-verify --mutant; empty at authoring.
+
+     The mechanism this task adds is `T3-recheck.sh`, and the mutant that proves it is not a change
+     to the script but a change to what it checks: put one repaired fence back to the path ADR-008
+     moved. Its digest then stops matching its recorded evidence, half one reports STALE, and the
+     fence exits 1. That is the exact condition this task exists to detect, so a mutant that
+     survived it would mean the check is decoration. -->
 
 ## Invariants
 
@@ -140,3 +144,4 @@ is the owner's decision, not this task's.
   
   T3 is not done: a claim is stale or its fence fails.
   ```
+- 2026-08-28 · acdeb03 · exit 0 · `bash docs/adr/ADR-010-a-claim-is-re-checked-or-it-is-not-counted/tasks/T3-recheck.sh` · acceptance-sha256:59659ffa2b792d7a361330abc6607e5da50a74760cf83a0b88b884a4105d1077

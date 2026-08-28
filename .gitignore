@@ -7,3 +7,10 @@ evals/generated/
 # beside them, and 660K of a plugin every user downloads. The JSON stays: it is
 # the evidence behind the measurements recorded in docs/BACKLOG.md.
 evals/results/**/report.html
+
+# Eval results are a local measurement artefact. `marketplace.json` says
+# `"source": "."`, so anything tracked here ships to every user — 603K of
+# aggregate JSON, 29% of the whole download, that nobody runs. They also carried
+# the author's home path into a public repo for two days. The numbers that
+# matter are written into docs/BACKLOG.md in prose, where they are actually read.
+evals/results/

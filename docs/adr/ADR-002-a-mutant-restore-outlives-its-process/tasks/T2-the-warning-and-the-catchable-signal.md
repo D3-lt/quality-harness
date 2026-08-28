@@ -56,6 +56,7 @@ node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t2a.out && node
 ## Mutation Log
 
 - 2026-08-27 · 1f444f9* · mutant killed · exit 1 · `bin/adr-verify` · removes the SIGTERM handler, so a catchable kill no longer unwinds into the finally restore · acceptance-sha256:687cfcd58ddf8c134deecbe39fc47a34471b8f7cef72f64f6370da2bed6c6ad1
+- 2026-08-28 · 8e7465c · mutant killed · exit 1 · `plugin/bin/adr-verify` · verify: a catchable kill restores in-process, not only via the journal · acceptance-sha256:51007622a264914df871ab4b3adb9a96ab56399e3d9e966b90be2558ebc66722
 
 ## Class Sweep
 

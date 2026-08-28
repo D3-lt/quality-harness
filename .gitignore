@@ -18,3 +18,6 @@ plugin/evals/results/
 # Any Python import of a gate writes this unless it sets dont_write_bytecode,
 # and a dotless DIRECTORY in bin/ used to read as a gate.
 __pycache__/
+
+# macOS writes this into any directory Finder touches.
+.DS_Store

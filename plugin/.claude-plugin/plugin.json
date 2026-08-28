@@ -1,6 +1,6 @@
 {
   "name": "quality-harness",
-  "version": "2.28.0",
+  "version": "2.29.0",
   "description": "Project-neutral development, ADR, verification, retirement, and risk-routed review workflows for Claude Code.",
   "author": {
     "name": "zy"

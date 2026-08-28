@@ -241,7 +241,12 @@ test('the publishable plugin has no dependency on a personal install or retired 
 test('manifest and hook configuration expose the bundled components', () => {
   const manifest = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8'))
   assert.equal(manifest.name, 'quality-harness')
-  assert.equal(manifest.version, '2.28.0')
+  // The SHAPE, not the number. A literal here is a second place to edit at every
+  // release that asserts nothing the manifest does not already say — the exact
+  // "list kept beside the truth" this project rejects everywhere else, and it
+  // made 2.29.0 fail its own suite for no reason. Semver is what actually has to
+  // hold: the installer orders cached versions with it.
+  assert.match(manifest.version, /^\d+\.\d+\.\d+$/, 'the plugin version must be semver')
   assert.equal(manifest.license, 'MIT')
   assert.ok(statSync(join(repoRoot, 'tests', 'classify.test.mjs')).isFile())
 

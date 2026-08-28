@@ -1878,6 +1878,15 @@
       ],
       "from": "    const key = tests.join('\\0')",
       "to": "    const key = Math.random().toString()"
+    },
+    {
+      "label": "spec-verify: a regex literal is not read as a string",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        regex_literals=suffix in (\".js\", \".jsx\", \".mjs\", \".cjs\", \".ts\", \".tsx\"),",
+      "to": "        regex_literals=False,"
     }
   ]
 }

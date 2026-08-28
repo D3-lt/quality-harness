@@ -711,6 +711,38 @@ def main():
         ok, why = spec_gate.test_exists("test_login", root, "pytest", False)
         assert not ok and "malformed binding" in why, why
 
+    with tempfile.TemporaryDirectory() as js_tmp:
+        # A JavaScript REGEX LITERAL is neither a comment nor a string, and the
+        # masker knew about neither case. An apostrophe inside one — `/it's/` —
+        # opened a phantom string that ran to the next apostrophe anywhere in the
+        # file, blanking every test defined in between.
+        #
+        # Found 2026-08-28 binding a spec fact to a real, present test in
+        # tests/package.test.mjs: the detector saw 3 of its 6 tests and answered
+        # "bound test not found". Same class as ADR-005 — a gate stating an
+        # observation it never made — and the worst shape of it, because the
+        # author is told the test they are looking at does not exist.
+        js_probe = Path(js_tmp) / "probe.test.mjs"
+        js_probe.write_text(
+            "test('before the regex', () => {})\n"
+            "test('holds the regex', () => { assert.match(x, /it's here/) })\n"
+            "test('after the regex', () => {})\n"
+        )
+        for js_name in ("before the regex", "holds the regex", "after the regex"):
+            found, why = spec_gate.test_definition_exists(js_probe, js_name, None)
+            assert found is True, f"{js_name}: {why}"
+
+        # Division must still read as division. Masking from a `/` that opens no
+        # regex would blank real code and lose definitions the other way round,
+        # so the detector guesses toward division whenever it is unsure.
+        js_probe.write_text(
+            "test('divides', () => { const r = a / b; const s = c / d })\n"
+            "test('after the division', () => {})\n"
+        )
+        for js_name in ("divides", "after the division"):
+            found, why = spec_gate.test_definition_exists(js_probe, js_name, None)
+            assert found is True, f"{js_name}: {why}"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

@@ -113,7 +113,35 @@ def split_binding(test):
     return None, test.strip()
 
 
-def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False):
+REGEX_MAY_FOLLOW = set("(,=:[!&|?{};+-*~^%")
+REGEX_MAY_FOLLOW_WORD = {"return", "typeof", "case", "in", "of", "delete", "void", "instanceof",
+                         "do", "else", "yield", "await"}
+
+
+def starts_regex(text, i):
+    """Whether the `/` at `i` opens a regex literal rather than dividing.
+
+    JavaScript decides this from the previous significant token: after a VALUE it
+    is division, after an operator or an opening bracket it is a regex. This is
+    the conservative half — everything it is unsure about reads as division,
+    which leaves the text unmasked and is the safe direction. Masking code that
+    is not a regex would blank real definitions.
+    """
+    j = i - 1
+    while j >= 0 and text[j] in " \t\r\n":
+        j -= 1
+    if j < 0:
+        return True
+    if text[j] in REGEX_MAY_FOLLOW:
+        return True
+    k = j
+    while k >= 0 and (text[k].isalnum() or text[k] == "_"):
+        k -= 1
+    return text[k + 1:j + 1] in REGEX_MAY_FOLLOW_WORD
+
+
+def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False,
+                 regex_literals=False):
     """Mask comments and string contents while preserving positions and quotes.
 
     Definition regexes run on this view, so words inside comments or strings
@@ -162,6 +190,39 @@ def mask_noncode(text, hash_comments=False, heredocs=False, ruby_blocks=False):
             end = n if end < 0 else end
             blank(i, end)
             i = end
+        elif regex_literals and text[i] == "/" and starts_regex(text, i):
+            # A regex literal is neither a comment nor a string, and this masker
+            # knew about neither case. An apostrophe inside one — `/it's/` —
+            # opened a phantom string that ran to the next apostrophe anywhere in
+            # the file and blanked every definition in between. Found 2026-08-28:
+            # tests/package.test.mjs has six tests and the detector saw three, so
+            # a spec fact bound to a real, present test was reported "bound test
+            # not found". A gate stating an observation it never made (ADR-005),
+            # and the worst shape of it — the author is told their test is absent.
+            #
+            # A regex cannot span a line, and `/` inside a character class is
+            # literal. If no closing `/` is found on the line it was division
+            # after all, so nothing is masked.
+            end, in_class, closed = i + 1, False, False
+            while end < n and text[end] != "\n":
+                char = text[end]
+                if char == "\\":
+                    end += 2
+                    continue
+                if char == "[":
+                    in_class = True
+                elif char == "]":
+                    in_class = False
+                elif char == "/" and not in_class:
+                    end += 1
+                    closed = True
+                    break
+                end += 1
+            if closed:
+                blank(i, end)
+                i = end
+            else:
+                i += 1
         elif text[i] in ("'", '"', "`"):
             quote, end = text[i], i + 1
             while end < n:
@@ -252,6 +313,9 @@ def test_definition_exists(path, name, stack):
         hash_comments=suffix in (".php", ".rb", ".sh", ".bash"),
         heredocs=suffix == ".php",
         ruby_blocks=suffix == ".rb",
+        # Only where `/` can open a regex. In Python and PHP it is division, and
+        # a masker that guessed otherwise would blank real definitions.
+        regex_literals=suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"),
     )
     if suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx"):
         names = registered_test_names(text, masked, ("test", "it"))

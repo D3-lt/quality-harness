@@ -1875,6 +1875,31 @@ needs re-recording with `adr-verify` on a clean tree. That is the cost, and it i
 rather than done inside ADR-010: it is a corpus-wide repair with its own evidence to regenerate, and
 ADR-010's own fences already use the corrected form.
 
+## 47. Two evidence-grammar divergences between adr-lint and adr-verify
+
+**Found by a cold review of the sweep, 2026-08-28, and deliberately not fixed there** — both are
+pre-existing in `adr-lint`'s own grammar, and changing one side alone would make the writer and the
+reader disagree, which is the failure the sweep exists to detect.
+
+**The sha range is narrower than git's.** Both tools accept `[0-9a-f]{7,40}` in a Verification Log
+entry. `git rev-parse --short` honours `core.abbrev`, which git allows down to 4, and a repository on
+SHA-256 emits up to 64. So `adr-verify` can WRITE an entry that `adr-lint` rejects and the sweep
+cannot read — and a claim the sweep cannot read silently leaves the denominator, which makes the
+false-success rate look better. Fix both grammars together, with a boundary case at each end.
+
+**Record-number resolution differs.** `adr-lint::adr_number()` reads the record's own title
+(`# ADR-014: …`) or its filename; `adr-verify::record_number_of()` scans the resolved path
+components in reverse. They diverge on: a numeric filename with no `ADR-` prefix, `ADR-000` (where
+`(record_number_of(t) or cutoff)` treats zero as absent), and a task under an ancestor directory that
+merely looks like a record. Either tool can therefore demote under `strictFrom` where the other checks
+in full. Fix by giving `adr-verify` the owning-record semantics `adr-lint` already has, with parity
+cases for all three.
+
+Both are about the same property: **the writer and the reader of the evidence chain must agree on what
+an entry is.** A third implementation would make it worse; the right shape is one grammar with two
+call sites, and the standing reason they are separate — the gates are standalone scripts with no
+import path — is what makes this cost real rather than theoretical.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

@@ -58,6 +58,7 @@ node --test tests/standalone-link.test.mjs 2>&1 | tee /tmp/adr001-t1.out && ! gr
 ## Mutation Log
 
 - 2026-08-27 · dd9d952* · mutant killed · exit 1 · `scripts/standalone-link.mjs` · re-adds the skill loop the decision removed; the plan must never name a skill · acceptance-sha256:7ec98f05924877db2b979cbae1f582987268a59209043ee34d476c683d3ed32d
+- 2026-08-28 · 952d658* · mutant killed · exit 1 · `plugin/scripts/standalone-link.mjs` · link: no skill is ever linked · acceptance-sha256:bc266c995e2534f27ac50f8969d7a6cb5d46e825dcb5745d72836ed8eb89a2de
 
 ## Class Sweep
 

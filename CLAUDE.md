@@ -150,19 +150,69 @@ This is a public repository and it publishes its own corpus.
 
 ---
 
-## 7. Windows is a first-class target and you cannot test it here
+## 7. Three platforms, and paths are where they differ
 
-The `windows` CI job is blocking. Three classes have bitten:
+**This project ships to Windows, macOS and Linux, and CI blocks on all three.** You develop on one
+of them. Every rule below was paid for by a defect that was invisible on the developer's machine and
+red on somebody else's — and the single largest class, five times over, is **a path literal that was
+secretly an assertion about the operating system.**
 
-- **Path spelling.** `Path.home()` returns `C:\Users\Name` while a Node stack trace in the same
-  output prints forward slashes. Any code comparing or rewriting paths must handle both separators,
-  and case-insensitively on Windows and macOS. A guard that splits on `/` alone is blind to
-  `..\dir\file` — which is how a traversal check passed while doing nothing.
-- **Spawning.** The gates are `#!/usr/bin/env python3` scripts; Windows cannot exec them, and a
-  direct spawn returns status `null`. Spawn through the interpreter.
-- **Testability.** A rule you cannot exercise off Windows is a rule with no test. Make the platform
-  and the home directory injectable parameters (`redact_home(block, home=..., platform=...)`,
-  `resolve_bash(platform=...)`) so the Windows branch is reachable from any machine.
+### The five that actually happened
+
+| what was written | why it was wrong | where it broke |
+|---|---|---|
+| `docs\/adr\/` in a test regex | `/` is not the separator everywhere | Windows |
+| a mutation whose `from` ended in `\n` | the file had no `text eol=lf` attribute, so it was checked out CRLF and matched **0 times** | Windows |
+| `PATH: '/nonexistent'` in a test env | means nothing on Windows; the interpreter never started and the test died on `JSON.parse(undefined)` rather than on its property | Windows |
+| `".." in pointer.split("/")` | a traversal spelled `..\dir\file` reached neither branch, so a guard **passed while doing nothing** | Windows |
+| `block.replace(str(Path.home()), "~")` | `Path.home()` returns `C:\Users\Name` while a Node stack trace in the same output prints forward slashes — so the redaction missed on the one platform CI runs and a laptop cannot | Windows |
+
+### Paths and traversal — the rules
+
+- **Normalize both separators before ANY structural test on a path.** `split("/")` is blind to
+  `..\dir`. Convert first, then split; a containment or traversal guard that skips this is a guard
+  that reports safety it never checked.
+- **Reject a drive prefix as well as a leading slash.** `C:\x`, `C:/x` and `/x` are all absolute;
+  a check for one of the three is a check for none of them.
+- **Never write a separator into a literal you will compare.** Build with `path.join` / `Path`, and
+  where a test needs the repository-relative form, derive it (`relative(a, b).split(sep).join('/')`)
+  rather than typing it.
+- **Case matters where the filesystem says it does.** Windows and macOS are case-insensitive by
+  default; Linux is not. A path comparison that must hold on all three is case-insensitive on the
+  first two and exact on the third — make it a parameter, not an assumption.
+- **`/tmp` is a symlink to `/private/tmp` on macOS.** A temp path you created and a temp path the OS
+  hands back can compare unequal. Resolve before comparing.
+
+### Line endings are a path problem in disguise
+
+`.gitattributes` decides what git puts on disk. Any file whose CONTENT you match across a line
+boundary needs `text eol=lf`, or the match silently finds nothing on Windows only. The gates need it
+because the Windows job executes them; `.gitignore` and `.gitattributes` need it because mutations
+match across their lines. **A test asserts this by asking `git check-attr`**, never by reading the
+file — what matters is the answer git gives for the path.
+
+### Executing things
+
+- The gates are `#!/usr/bin/env python3` scripts. **Windows cannot exec them**: a direct spawn returns
+  status `null`, which is not an error and not a failure. Spawn through the interpreter.
+- Git Bash resolution must exclude the `System32` WSL stub and the WindowsApps launcher — both are
+  named `bash` and neither is one. `resolve_bash()` does this; do not reimplement it.
+- **`PATH` differs in separator (`:` vs `;`), in resolution (`which` vs `where`), and in what an
+  invalid value does.** To test "the tool is absent", empty `PATH` rather than pointing it somewhere
+  that only looks absent on your machine.
+- A Git for Windows checkout has **no POSIX permission bits** — `statSync` reports `0644` for
+  everything. What actually ships is the mode in git's index, so ask `git ls-files -s`.
+
+### The rule that makes all of this testable
+
+**Make the platform a parameter.** `resolve_bash(platform=…)`, `redact_home(block, home=…,
+platform=…)`, `leaves_the_tree(pointer)` normalizing both separators on every platform — each one
+turns "reachable only on Windows" into "reachable from anywhere". A Windows-only branch with no
+injectable seam is a branch with no test, and you will find out in CI at best.
+
+You cannot run Windows locally: `windows-latest` is a VM, not a container, and Docker Desktop on
+macOS is a Linux VM with no Windows container mode. So the seam is not a nicety — it is the only way
+this code gets tested before it is pushed.
 
 ---
 

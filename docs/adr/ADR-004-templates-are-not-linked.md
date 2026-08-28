@@ -1,6 +1,6 @@
 # ADR-004: Stop installing home copies of an artifact nothing reads
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-28
 **Owner:** zy
 **Spec:** None — no spec stage

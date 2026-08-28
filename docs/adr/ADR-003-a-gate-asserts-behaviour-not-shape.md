@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/BACKLOG.md §25, §27
-**Governs:** `bin/**`, `tests/mutations.json`
+**Governs:** `plugin/bin/**`, `tests/mutations.json`
 **Invalidates:** none — checked. ADR-002 governs `bin/adr-verify` as a single mechanism; this record governs what KIND of check any gate under `bin/` may be. Both can hold: ADR-002 says that gate must restore a file it broke, this one says every gate must assert something a deleted line breaks.
 **Served-path change:** Someone proposing a new gate is handed this record by `adr-context bin/<new-gate>` before they write it, and a gate added with no mutation makes the suite go red.
 

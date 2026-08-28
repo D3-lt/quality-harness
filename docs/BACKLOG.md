@@ -1817,6 +1817,26 @@ is the same rot `Enforced-by:` is being built to avoid, already present in two h
 uses on every record. Cheap to close once T1's resolution machinery exists — which is the argument
 for closing it then rather than now.
 
+## 45. A `Governs:` path that names nothing is not reported
+
+**Found while executing ADR-008 T2, 2026-08-28, and it is §44's third pointer wearing a different
+hat.** Moving the plugin under `plugin/` re-anchored every path in the repository — and silently
+un-governed the whole corpus. Seven of nine records carried a `Governs:` line naming `bin/adr-lint`,
+`templates/task-template.md` and so on; after the move none of those paths existed, so
+`adr-context plugin/bin/adr-lint` answered `none governs` and every accepted decision about the gates
+stopped reaching the session that edits them. `adr-lint` passed throughout. Nothing was wrong with
+any record; nothing said the pointers had rotted.
+
+The paths were re-anchored in the same commit, so the corpus governs again. What is left is the
+gate: `Governs:` is resolved for SHAPE but never against the tree, so a path that names nothing reads
+exactly like a path that names something. §44 already carries `Cross-references:` and `Invalidates:`,
+which have the same hole; this is the third, and it is the one with live consequences rather than
+documentary ones — the other two mislead a reader, this one turns off a mechanism.
+
+Advice, never blocking, for the reason ADR-009 gives: a corpus adopting this on a tree it did not
+write will light up, and a gate that fails on day one is a gate people switch off. A glob (`bin/**`)
+resolves when it matches at least one file.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

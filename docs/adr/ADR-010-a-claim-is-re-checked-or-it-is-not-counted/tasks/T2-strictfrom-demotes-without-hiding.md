@@ -112,3 +112,16 @@ would demote it forever and invisibly. Ask before choosing a default.
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · b446577 · exit 1 · `set -o pipefail …` · acceptance-sha256:58682a5f05144b166f5d85e2930f5bbce30c38c64471e26cea4664e4edfc3bc5
+  ```
+        at Test.postRun (node:internal/test_runner/test:1537:19)
+        at Test.run (node:internal/test_runner/test:1462:12)
+        at async Test.processPendingSubtests (node:internal/test_runner/test:969:7) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: 'FALSE      exit 1 · /var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/qh-sweep-E8zEnb/docs/adr/ADR-002-old/tasks/T1.md\n\n1/1 recorded claims no longer hold (0 superseded, 0 unrunnable, neither counted).\n',
+      expected: /names no ADR number|checked in full/i,
+      operator: 'match',
+      diff: 'simple'
+    }
+  ```

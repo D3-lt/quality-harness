@@ -1,11 +1,16 @@
 # Task ADR-010-T2: strictFrom demotes a finding without changing the count
 
-**Depends-on:** T1
+**Depends-on:** T1, T3
 **Covers:** F-13, F-14, F-15, UC2-S1, UC2-S2
 **Estimated scope:** M (multi-file)
 **Owner:** zy
 **Produces:** none
 **Consumes:** `adr-verify --sweep` and its exit code (T1)
+
+<**Depends-on names T3 as well, and that is a real edge rather than bookkeeping.** If this task lands
+first and a `strictFrom` cutoff covers ADR-006/007/009, the three false successes become advice and
+the sweep exits 0 — which is exactly the red state T3 needs to prove its repair. Ordering removes the
+coupling; a review found it before it could waste an execution.>
 **Data dependency:** hermetic
 
 ## Goal
@@ -34,8 +39,16 @@ without it.
 ## Acceptance
 
 ```bash
-node --test tests/sweep.test.mjs 2>&1 | tee /tmp/adr010-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr010-t2.out
+set -o pipefail
+node --test tests/sweep.test.mjs 2>&1 | tee /tmp/adr010-t2.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr010-t2.out
 ```
+
+<`set -o pipefail` and `&&`, not `;` — and that is a correction, not a style choice. The
+`… | tee X; ! grep …` form this project's own task template recommends returns **0 when the runner
+never started**: the pipeline's status is `tee`'s, `;` discards it, and the absent runner's error
+matches none of the grep patterns. Measured 2026-08-28: `nosuchrunner --test x` through the old form
+exits 0, through this one exits 127. Twelve existing fences and the template still carry the old
+form — docs/BACKLOG.md §46.>
 
 ## Tests
 
@@ -45,6 +58,9 @@ node --test tests/sweep.test.mjs 2>&1 | tee /tmp/adr010-t2.out; ! grep -qE "^not
 | `a false success at or above the cutoff still fails` | `tests/sweep.test.mjs` | exit non-zero | UC2-S2, F-13 |
 | `the verdict line names strictFrom whenever it is in effect` | `tests/sweep.test.mjs` | a demoted run is never mistaken for a clean one | F-14 |
 | `strictFrom changes the exit code and nothing else` | `tests/sweep.test.mjs` | same corpus, two runs, identical counts and identical named claims | F-15 |
+| `a malformed .quality-harness.json advises and does not silently demote` | `tests/sweep.test.mjs` | parity with `adr-lint`'s handling — two copies that disagree are worse than one | F-14 |
+| `an unparseable record number is never treated as below the cutoff` | `tests/sweep.test.mjs` | a record named outside `ADR-NNN` must not be demoted forever and invisibly | F-14 |
+| `an absent config leaves every finding at full strength` | `tests/sweep.test.mjs` | the default is strict; opting out is explicit | F-13 |
 
 ## Reachability
 

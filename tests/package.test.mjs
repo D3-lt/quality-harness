@@ -7,6 +7,12 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
+/** Every file git tracks — the exact set `source: "."` publishes. */
+function tracked() {
+  return spawnSync('git', ['-C', root, 'ls-files'], { encoding: 'utf8' })
+    .stdout.split('\n').filter(Boolean)
+}
+
 const root = resolve(testDir, '..')
 
 const skills = [
@@ -62,6 +68,53 @@ test('the plugin contains the complete reusable decision lifecycle', () => {
   for (const workflow of workflows) {
     assert.ok(statSync(join(root, 'workflows', workflow)).isFile(), workflow)
   }
+})
+
+test('nothing tracked in this repository names a personal filesystem path', () => {
+  // Everything here SHIPS. `marketplace.json` says `"source": "."`, so the
+  // plugin is the whole repository and every tracked file lands in every user's
+  // plugin cache. A path under someone's home directory is a leak into a public
+  // repo, and it is never legitimate anywhere — not in code, not in prose, and
+  // not in a measurement artefact.
+  //
+  // Found 2026-08-28: 18 committed eval results carried the author's home path,
+  // and the gate below — written for exactly this string — could not see them,
+  // because its roots list does not include `evals`. A gate for a leak that
+  // cannot look where the leak is.
+  //
+  // Deliberately SEPARATE from the dependency check below, and deliberately
+  // wider. The two forbid different things for different reasons: the home
+  // config directory is a DEPENDENCY concern, and it is legitimately discussed
+  // in docs/ — five ADR and backlog lines describe the defects it caused, which
+  // is why that check keeps its narrow roots. A personal path is never
+  // discussed, only leaked.
+  // A FIXTURE path is not a leak. `/Users/dev/` in a test is the point of the
+  // test; `/Users/<a real person>/` in a measurement artefact is the defect.
+  // The allowlist is short and obvious on purpose — anything not on it is
+  // treated as somebody's real home directory, which is the safe direction here
+  // (a false alarm costs one rename; a miss ships to every user).
+  const SYNTHETIC = new Set(['dev', 'someone', 'example', 'user', 'test', 'you', 'me', 'alice', 'bob'])
+  const personal = /\/(?:Users|home)\/([A-Za-z][A-Za-z0-9._-]*)\//g
+  const named = text => [...text.matchAll(personal)]
+    .map(hit => hit[1]).filter(name => !SYNTHETIC.has(name.toLowerCase()))
+  const offenders = []
+  for (const file of tracked()) {
+    if (/\.(png|jpg|jpeg|gif|ico|pdf|zip|woff2?)$/i.test(file)) continue
+    let text
+    try { text = readFileSync(join(root, file), 'utf8') } catch { continue }
+    for (const name of new Set(named(text))) offenders.push(`${file}: /Users/${name}/`)
+  }
+  // Shown able to fire before it is trusted: with a clean tree the assertion
+  // below is `[] === []`, which is exactly the vacuity ADR-003 forbids.
+  // Both directions, assembled at runtime so this probe is not itself a tracked
+  // personal path. Without the first line the check passes on a clean tree AND
+  // on a broken pattern — the vacuity ADR-003 forbids; without the second it
+  // would fail forever on the repository's own fixtures.
+  const home = name => `const p = "/${'Users'}/${name}/x"`
+  assert.deepEqual(named(home('zaphod')), ['zaphod'],
+    'the check must be able to name a real home path, or it asserts nothing')
+  assert.deepEqual(named(home('dev')), [], 'a synthetic fixture path is not a leak')
+  assert.deepEqual(offenders, [], `a personal path ships to every user:\n  ${offenders.join('\n  ')}`)
 })
 
 test('the publishable plugin has no dependency on a personal install or retired package', () => {

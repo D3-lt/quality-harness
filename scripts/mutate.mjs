@@ -268,6 +268,8 @@ export function main(argv) {
     console.log(`shard ${index}/${total}: ${selected.length} of ${catalogue.mutations.length} mutations`)
   }
 
+  const width = Math.max(0, ...selected.map(m => m.label.length))
+
   if (argv.includes('--list')) {
     for (const m of selected) console.log(`${m.label}\n  ${m.file} -> ${m.tests.join(', ')}`)
     return 0
@@ -337,11 +339,17 @@ export function main(argv) {
       { cwd: root, encoding: 'utf8', timeout: timeoutMs })
     finish(file, original)
 
-    results.push({ ...mutation, ...classify({ occurrences, baseline, run }) })
+    const result = { ...mutation, ...classify({ occurrences, baseline, run }) }
+    results.push(result)
+    console.log(renderLine(result, width))
   }
 
-  const width = Math.max(...results.map(r => r.label.length))
-  for (const r of results) console.log(renderLine(r, width))
+  // Verdicts are printed AS THEY ARE DECIDED, above. Collecting them and
+  // printing at the end meant a campaign killed mid-run said nothing whatever —
+  // on 2026-08-28 a shard was SIGTERMed at nine minutes and its log held no
+  // verdict lines, so three CI runs reported only exit 143 and the actual cause
+  // took a fourth to find. A long gate that cannot be watched is a gate whose
+  // failures are indistinguishable from infrastructure.
 
   const counts = summarise(results)
   console.log(`\n${counts.noticed}/${counts.total} mutations were noticed.`)

@@ -2435,7 +2435,7 @@
         "tests/gate-rules.test.mjs"
       ],
       "from": "    selected = selected.filter((_, i) => i % total === index - 1)",
-      "to": "    selected = selected.filter((_, i) => i % total === index % total)"
+      "to": "    selected = selected.filter((_, i) => i % (total + 1) === index - 1)"
     },
     {
       "label": "sweep: the shell is injectable, so no-shell is testable off POSIX",

@@ -2086,6 +2086,17 @@ export function pathMatchesDeclaration(candidate, declaration) {
 // recorded rather than silently matching nothing — a matcher that matches
 // nothing reads as coverage while covering nothing, which is the vacuous pass
 // this project's own arch-write skill warns about.
+/** The checks a record says enforce it, or [] for absent or `None — <reason>`. */
+function declaredEnforcement(text) {
+  const header = text.match(/^[ \t]*\*{0,2}Enforced-by:?\*{0,2}[ \t]*:?[ \t]*(.*)$/im)
+  if (!header) return []
+  const inline = header[1].trim()
+  if (!inline || /^none\b/i.test(inline)) return []
+  const quoted = [...inline.matchAll(/`([^`]+)`/g)].map(m => m[1].trim())
+  return (quoted.length ? quoted : inline.split(',').map(part => part.trim()))
+    .filter(value => value && !/^[<(]/.test(value))
+}
+
 function declaredGoverns(text) {
   const paths = []
   const unresolved = []
@@ -2287,6 +2298,12 @@ export function adrCorpus(root) {
         ? (/(\d{1,4})/.exec(status)?.[1] ?? null) && String(Number(/(\d{1,4})/.exec(status)[1]))
         : null,
       governs: [...governs],
+      // What FAILS when this decision is violated, or null. `Governs:` on its
+      // own tells an agent a rule exists and nothing about what happens if it
+      // breaks it — ADR-009. Read here rather than at each caller so the hook
+      // and the CLI cannot disagree about what a header means, which is the
+      // drift ADR-001 and ADR-004 were both about.
+      enforcedBy: declaredEnforcement(text),
       declares: [...declares],
       unresolved: declared.unresolved,
     })
@@ -2340,9 +2357,15 @@ export function decisionContext(paths, root) {
   if (!governing.length && !graveyard.length) return ''
   const lines = []
   const name = record => `${path.relative(root, record.file) || record.file} — ${record.title}`
+  // The hook and `adr-context` render the SAME answer from the same resolver.
+  // Two callers of one resolver is where this project has drifted before
+  // (ADR-001, ADR-004), so the enforcing check appears in both or neither.
+  const caught = record => (record.enforcedBy?.length
+    ? `  [caught by: ${record.enforcedBy.join(', ')}]`
+    : '')
   if (governing.length) {
     lines.push('Decisions that govern what you are about to change:')
-    for (const record of governing.slice(0, 5)) lines.push(`  ${name(record)}`)
+    for (const record of governing.slice(0, 5)) lines.push(`  ${name(record)}${caught(record)}`)
     if (governing.length > 5) lines.push(`  (+${governing.length - 5} more)`)
   }
   if (graveyard.length) {

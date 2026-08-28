@@ -46,7 +46,15 @@ export function main(argv, root = process.cwd()) {
     process.stdout.write(`Read ${corpus.length} record(s); none governs ${targets.join(', ')}.\n`)
   } else {
     for (const record of governing) {
-      process.stdout.write(`GOVERNS   ${shape(record).file} — ${record.title}\n`)
+      // The enforcing check goes on the SAME line, because this arrives at the
+      // moment an agent is about to edit the file and a second line is a second
+      // thing to read. Silence where a record has no header: most decisions are
+      // not mechanically enforced, and padding every line with `None` is noise
+      // exactly where attention is scarcest.
+      const enforced = record.enforcedBy?.length
+        ? `  [caught by: ${record.enforcedBy.join(', ')}]`
+        : ''
+      process.stdout.write(`GOVERNS   ${shape(record).file} — ${record.title}${enforced}\n`)
     }
     for (const record of graveyard) {
       process.stdout.write(`DECIDED AGAINST  ${shape(record).file} — ${record.title} [${record.status}]\n`)

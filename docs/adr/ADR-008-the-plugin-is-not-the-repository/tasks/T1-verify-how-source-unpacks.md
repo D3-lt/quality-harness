@@ -127,3 +127,4 @@ configuration in a way the script cannot undo — the answer is not worth leavin
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · 7914035 · exit 0 · `bash docs/adr/ADR-008-the-plugin-is-not-the-repository/tasks/T1-probe.sh` · acceptance-sha256:46ecbafff0d757ee9af22b8e3efcfed34eeaa2a3d400fb4c0bd5b5c095094704

@@ -1710,6 +1710,9 @@ either way. A figure that can only ever be cited is one nobody can check.
 
 ## 42. The published history still holds what was already published
 
+**Deferred here by ADR-008** (`docs/adr/ADR-008-the-plugin-is-not-the-repository.md`, Out of
+Scope, and by both its tasks): rewriting history to purge what has already been published.
+
 `evals/results/` is untracked and the gate that missed it now reads everything git tracks. Neither
 touches what is already in the history of a PUBLIC repository: 18 `aggregate-result.json` files
 carrying `/Users/zy/CursorProjects/quality-harness`, committed 2026-08-26 through 2026-08-28.

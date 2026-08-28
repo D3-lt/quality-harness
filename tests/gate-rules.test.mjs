@@ -462,6 +462,46 @@ test('spec-verify --implemented runs the bound tests and separates RED from brok
   assert.equal(untagged.status, 0, untagged.stdout)
 })
 
+test('spec-verify says it could not run a test, rather than that the test failed', () => {
+  // Reported 2026-08-28 from a Go corpus: every fact came back
+  // `RED  F-n: test failing — no stack detected and no Cmd override`, exit 3,
+  // with the tests all passing. Go is in no branch of detect_stack and in no key
+  // of cmds, so nothing ran — and the gate reported the one outcome it had not
+  // observed. `survived` sends you to fix a test; a failure that was never
+  // executed sends you to fix code that is not broken.
+  //
+  // The fixture root carries no stack marker at all, which is exactly the
+  // condition: no composer.json, no pyproject.toml, no Cargo.toml, no
+  // package.json, no molecule/.
+  const dir = scratch('spec-unrun')
+  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  const spec = join(dir, 'spec-selftest.md')
+  const good = readFileSync(spec, 'utf8')
+
+  // @implemented and NO Cmd override — the only two things that make the runner
+  // reach for a stack it cannot detect.
+  writeFileSync(spec, good.replace(
+    '| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | `test_selftest_fixture.py::test_gates_run` | @spec | |',
+    '| F-1 | A conforming ADR + task pair makes adr-lint exit 0 | `test_selftest_fixture.py::test_gates_run` | @implemented | |'))
+  const unrun = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+
+  assert.notEqual(unrun.status, 3,
+    `exit 3 is "@implemented test failing", and no test was run\n${unrun.stdout}`)
+  assert.equal(unrun.status, 4, `could-not-run has its own code\n${unrun.stdout}`)
+  assert.doesNotMatch(unrun.stdout, /RED/,
+    'RED is a verdict about a test that ran')
+  assert.doesNotMatch(unrun.stdout, /test failing/,
+    'the gate must not report an outcome it did not observe')
+  assert.match(unrun.stdout, /UNRUN/)
+  assert.match(unrun.stdout, /F-1/, 'name which fact could not be adjudicated')
+  // Not PASS either: unproved and proved are different, and the status word is
+  // what a reader skims. PARTIAL is the word coverage.sh already uses for it.
+  assert.match(unrun.stdout, /\[PARTIAL\]/)
+  // And the remedy, because "no stack detected" tells an author nothing about
+  // what to do next.
+  assert.match(unrun.stdout, /Cmd/, 'say how to make it adjudicable')
+})
+
 // --- arch-lint: the two detections that stop a rule row citing nothing -------
 
 test('arch-lint rejects a gate that cannot fail and a symbol that is not there', () => {

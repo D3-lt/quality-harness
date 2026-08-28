@@ -1833,6 +1833,24 @@
       ],
       "from": "  for (const mutation of catalogue.mutations) {",
       "to": "  for (const mutation of []) {"
+    },
+    {
+      "label": "spec-verify: a test that never ran is not reported as failing",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        return \"unrun\", (f\"no runner detected for this repository, and {test} has no Cmd \"",
+      "to": "        return \"fail\", (f\"no runner detected for this repository, and {test} has no Cmd \""
+    },
+    {
+      "label": "spec-verify: a fact nothing could adjudicate is not a pass",
+      "file": "bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        elif unrun:\n            worst = max(worst, 4)",
+      "to": "        elif unrun:\n            worst = max(worst, 0)"
     }
   ]
 }

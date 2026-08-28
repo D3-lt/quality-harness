@@ -424,6 +424,18 @@ def test_definition_exists(path, name, stack):
 
 
 def test_exists(test, root, stack, collect):
+    """Whether a binding names a real test: True, False, or "unrun".
+
+    `"unrun"` is truthy on purpose only in the sense that it is not `False`; every
+    caller must compare against it explicitly. It means the COLLECTOR could not
+    be started or did not finish, which says nothing about whether the test is
+    there — reporting that as `bound test not found` sends the author to write a
+    test that already exists.
+
+    Deferred by ADR-005 when the run path got the same treatment, and closed
+    2026-08-28: it is the identical defect one mode over, and the run path's fix
+    made this one cheap.
+    """
     path, name = split_binding(test)
     if not collect or stack is None:
         # Dependency-free default: inspect a real language-level definition. A
@@ -461,7 +473,14 @@ def test_exists(test, root, stack, collect):
         r = subprocess.run(cmds[stack], cwd=root, capture_output=True, text=True, timeout=300,
                            encoding="utf-8", errors="replace")
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
-        return False, f"collect command failed to run: {e}"
+        return "unrun", (f"the {stack} collector could not be run ({e}). Install it, drop "
+                         "--collect to inspect the source instead, or give the fact a Cmd "
+                         "override; nothing here says whether the test exists.")
+    if r.returncode != 0 and not r.stdout.strip() and not r.stderr.strip():
+        # Exited nonzero and said nothing at all. That is a collector that fell
+        # over, not a collector reporting an absent test — the same distinction,
+        # one layer in.
+        return "unrun", f"the {stack} collector exited {r.returncode} with no output"
     ok = r.returncode == 0 and (name in r.stdout or stack == "pytest")
     return ok, (r.stdout + r.stderr)[-300:] if not ok else ""
 
@@ -675,7 +694,9 @@ def check_spec(path, mode, root_override, collect):
                              for sc in scenarios]:
             if item["tag"] in ("spec", "implemented") and not is_unbound(item["test"]):
                 ok, why = test_exists(item["test"], root, stack, collect)
-                if not ok:
+                if ok == "unrun":
+                    unrun.append(f"{item['id']}: not checked — {why}")
+                elif not ok:
                     missing.append(f"{item['id']}: bound test not found — {why}")
 
     if mode == "implemented":

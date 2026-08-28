@@ -13,6 +13,8 @@ import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, 
 import os from 'node:os'
 import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
+
+import { parse } from '../scripts/verify.mjs'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -262,9 +264,14 @@ test('the verification wrapper reports what the command it ran actually did', ()
   // otherwise spawn `undefined` as a command.
   assert.equal(call('--cwd', root, '--').status, 2)
   assert.equal(call('--', 'true', '--cwd', root).status, 2)
-  // The NUL-byte guard in verify.mjs is deliberately NOT tested here: Node's own
-  // spawnSync refuses an argument containing one, so the guard is unreachable
-  // through any normal invocation and a test would only prove Node's validation.
+  // The NUL-byte guard used to be untestable: spawnSync refuses an argument
+  // containing one, so no invocation could reach it and a test would only have
+  // proved Node's validation. Guarding the module's CLI behind an import check
+  // (BACKLOG §27) made `parse` importable and pure, so the guard this file has
+  // always carried can finally be exercised for the first time.
+  assert.match(parse(['--cwd', `${root}\0`, '--', 'true']).error, /NUL/)
+  assert.match(parse(['--cwd', 'relative/path', '--', 'true']).error, /absolute/)
+  assert.equal(parse(['--cwd', root, '--', 'true', 'x']).error, undefined)
 
   // A command KILLED by a signal is not a command that returned a code. Without
   // this branch the wrapper reports `code ?? 1` for a process that never exited

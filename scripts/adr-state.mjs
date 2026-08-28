@@ -15,53 +15,58 @@
 import path from 'node:path'
 import { adrCorpus } from './lifecycle.mjs'
 
-const argv = process.argv.slice(2)
-const json = argv.includes('--json')
-const unknown = argv.filter(a => a.startsWith('--') && a !== '--json')
-if (unknown.length) {
-  process.stderr.write(`unknown option: ${unknown[0]}\nusage: adr-state.mjs [--json] [<root>]\n`)
-  process.exit(2)
-}
-const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
-const corpus = adrCorpus(root)
-const relative = record => path.relative(root, record.file) || record.file
-const label = record => `ADR-${String(record.number ?? '?').padStart(3, '0')}`
+import { pathToFileURL } from 'node:url'
 
-const governing = corpus.filter(record => record.kind === 'governing')
-const byNumber = new Map(corpus.filter(record => record.number !== null)
+// The CLI is behind an import guard (BACKLOG §27). It used to run at module
+// scope, so importing this file read the whole corpus and printed a report as a
+// side effect of the import.
+export function main(argv) {
+  const json = argv.includes('--json')
+  const unknown = argv.filter(a => a.startsWith('--') && a !== '--json')
+  if (unknown.length) {
+  process.stderr.write(`unknown option: ${unknown[0]}\nusage: adr-state.mjs [--json] [<root>]\n`)
+  return 2
+  }
+  const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
+  const corpus = adrCorpus(root)
+  const relative = record => path.relative(root, record.file) || record.file
+  const label = record => `ADR-${String(record.number ?? '?').padStart(3, '0')}`
+
+  const governing = corpus.filter(record => record.kind === 'governing')
+  const byNumber = new Map(corpus.filter(record => record.number !== null)
   .map(record => [String(record.number), record]))
 
-// One entry per governed path, naming the accepted record that holds it and
-// whatever it replaced. A path claimed by two accepted records is contested:
-// the corpus says two things about the same code and cannot say which wins.
-const areas = new Map()
-for (const record of governing) {
+  // One entry per governed path, naming the accepted record that holds it and
+  // whatever it replaced. A path claimed by two accepted records is contested:
+  // the corpus says two things about the same code and cannot say which wins.
+  const areas = new Map()
+  for (const record of governing) {
   for (const declared of record.declares) {
     if (!areas.has(declared)) areas.set(declared, [])
     areas.get(declared).push(record)
   }
-}
-// What the corpus has TOUCHED, counted rather than listed. On a real corpus this
-// is a thousand paths, and printing them buries the answer; `adr-context <path>`
-// is where the per-file question belongs.
-const touched = new Set(governing.flatMap(record => record.governs))
+  }
+  // What the corpus has TOUCHED, counted rather than listed. On a real corpus this
+  // is a thousand paths, and printing them buries the answer; `adr-context <path>`
+  // is where the per-file question belongs.
+  const touched = new Set(governing.flatMap(record => record.governs))
 
-// What each accepted record replaced, followed back through the chain.
-const replaced = new Map()
-for (const record of corpus) {
+  // What each accepted record replaced, followed back through the chain.
+  const replaced = new Map()
+  for (const record of corpus) {
   if (!record.supersededBy) continue
   const target = byNumber.get(record.supersededBy)
   if (!target) continue
   if (!replaced.has(target.file)) replaced.set(target.file, [])
   replaced.get(target.file).push(record)
-}
+  }
 
-const contested = [...areas].filter(([, records]) => records.length > 1)
-const orphans = governing.filter(record => record.governs.length === 0)
-const SHOWN = 12
-const dangling = corpus.filter(record => record.supersededBy && !byNumber.has(record.supersededBy))
+  const contested = [...areas].filter(([, records]) => records.length > 1)
+  const orphans = governing.filter(record => record.governs.length === 0)
+  const SHOWN = 12
+  const dangling = corpus.filter(record => record.supersededBy && !byNumber.has(record.supersededBy))
 
-if (json) {
+  if (json) {
   process.stdout.write(`${JSON.stringify({
     read: corpus.length,
     governing: governing.length,
@@ -78,22 +83,22 @@ if (json) {
     governingNothing: orphans.map(record => ({ id: label(record), file: relative(record) })),
     danglingSupersession: dangling.map(record => ({ id: label(record), status: record.status })),
   }, null, 2)}\n`)
-  process.exit(0)
-}
+  return 0
+  }
 
-if (!corpus.length) {
+  if (!corpus.length) {
   process.stdout.write('No decision records found under this repository.\n')
-  process.exit(0)
-}
+  return 0
+  }
 
-const unreadable = corpus.unreadable ?? []
-process.stdout.write(`${corpus.length} record(s) read; ${governing.length} governing; `
+  const unreadable = corpus.unreadable ?? []
+  process.stdout.write(`${corpus.length} record(s) read; ${governing.length} governing; `
   + `${touched.size} path(s) touched by their tasks.\n`)
 
-// Said immediately, and before anything else this tool has to say. A corpus
-// reader that reports what it read and stays quiet about what it could not is
-// the shape this whole harness exists to catch: the number looks like coverage.
-if (unreadable.length) {
+  // Said immediately, and before anything else this tool has to say. A corpus
+  // reader that reports what it read and stays quiet about what it could not is
+  // the shape this whole harness exists to catch: the number looks like coverage.
+  if (unreadable.length) {
   // Split three ways, because lumping them together overstates the problem and a
   // reader who is told 20 records are unreadable will stop believing the tool.
   // Most are proposals, which govern nothing BY DESIGN. Measured against a real
@@ -123,13 +128,13 @@ if (unreadable.length) {
         + 'so here.\n')
     }
   }
-}
-if (!areas.size && touched.size) {
+  }
+  if (!areas.size && touched.size) {
   process.stdout.write('\nNo record declares a `Governs:` scope, so authority is inferred from what\n'
     + 'tasks touched. Ask about one path with `adr-context <path>`, or add `Governs:`\n'
     + 'to the records whose scope is broader than the files that first implemented them.\n')
-}
-if (areas.size) {
+  }
+  if (areas.size) {
   process.stdout.write('\nWhat governs what, as it stands now:\n')
   for (const [declared, records] of [...areas].sort().slice(0, SHOWN)) {
     const holder = records[0]
@@ -141,14 +146,14 @@ if (areas.size) {
   if (areas.size > SHOWN) {
     process.stdout.write(`  (+${areas.size - SHOWN} more; --json for all)\n`)
   }
-}
-if (contested.length) {
+  }
+  if (contested.length) {
   process.stdout.write('\nContested — the corpus says two things about the same code:\n')
   for (const [declared, records] of contested) {
     process.stdout.write(`  ${declared}: ${records.map(label).join(' and ')}\n`)
   }
-}
-if (orphans.length) {
+  }
+  if (orphans.length) {
   process.stdout.write('\nGoverning nothing this tool can locate — no `Governs:` header and no task\n'
     + '`Affected Files`, so nothing points these decisions at the code:\n')
   for (const record of orphans.slice(0, SHOWN)) {
@@ -157,10 +162,17 @@ if (orphans.length) {
   if (orphans.length > SHOWN) {
     process.stdout.write(`  (+${orphans.length - SHOWN} more; --json for all)\n`)
   }
-}
-if (dangling.length) {
+  }
+  if (dangling.length) {
   process.stdout.write('\nSuperseded by a record that is not in this corpus:\n')
   for (const record of dangling) {
     process.stdout.write(`  ${label(record)}  ${record.status}\n`)
   }
+  }
+
+  return 0
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = main(process.argv.slice(2))
 }

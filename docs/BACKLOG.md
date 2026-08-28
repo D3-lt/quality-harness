@@ -1603,6 +1603,32 @@ of which the `-run` fence trap in the task template already shows is easy to get
 for a scenario binding there is no authoring escape at all. Noted in the file since 2026-08-23 and
 still true. It is the reason "just use a Cmd override" is not a complete answer to the item above.
 
+## 39. The vacuous mutation, still unsolved, and a baseline that trusts a flaky suite
+
+Both deferred by ADR-006, which chose a baseline over coverage and says plainly which class that
+does NOT cover.
+
+**A vacuous assertion is invisible to every mechanism considered.** Measured 2026-08-28 with a
+six-line fixture: `assert.deepEqual(uncovered(...), [])` against a subject mutated to return `[]`
+passes with the mechanism broken, at 100% line AND 100% branch coverage, before and after. Coverage
+cannot see it, because the line really does execute. A differential cannot either, because a vacuous
+assertion produces no difference. Four instances in this repository so far — ADR-003 T1's first
+version, `judge: a blank line ends a bullet`, `verify: the mutant warning is flushed`, and the
+staleness check shipped 2026-08-28, which was written to enforce ADR-003 and violated it.
+
+What works today is the discipline ADR-003 already requires: feed the predicate a synthetic input
+that MUST produce a finding, before trusting it. Applied by hand three times, caught the fourth. The
+open question is whether it can be automated at all — a checker would have to know what the
+assertion is FOR, which is close to knowing the specification. Worth an experiment before an ADR:
+take the four known instances and see whether any mechanical property separates them from healthy
+assertions. If none does, that is a finding worth writing down rather than a gap to keep open.
+
+**A baseline is only as good as the suite under it.** If a test-set is flaky, its baseline pass is
+luck, and every verdict beneath it inherits that luck. The campaign already depends on this — today
+silently, since it takes no baseline at all — and ADR-006 makes the dependency visible by naming the
+set rather than fixing it. §34 is the precedent for what fixing it looks like: the coverage jitter
+was cured by finding the mechanism (`--test-concurrency=1`), not by widening a threshold.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

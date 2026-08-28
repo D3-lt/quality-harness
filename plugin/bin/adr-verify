@@ -4,6 +4,7 @@
 Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --human "<who observed what>"
        adr-verify <task.md> --mutant <file> --from <text> --to <text> --why <text>
+       adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
 Extracts the ```bash fence under ## Acceptance and runs it with bash
 (cwd: --cwd, else git root of the task file, else the task file's directory).
@@ -686,10 +687,182 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
     sys.exit(0 if verdict == "killed" else 1)
 
 
+
+# --- --sweep: re-check the corpus's own claims (ADR-010) ---------------------
+
+# A claim is one distinct (task file, acceptance digest) pair carrying an exit-0
+# Verification Log entry. Only the digest is read from the line: the command is
+# NOT recorded — the entry keeps the fence's first line and a hash of the whole
+# thing — so re-running a claim means running the task's CURRENT fence, and the
+# digest is what says whether that is the same command the entry proved.
+CLAIM_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · "
+    r"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})\s*$", re.M)
+
+SWEEP_TIMEOUT_DEFAULT = 900
+
+
+def fence_cwd(task):
+    """Where a recorded fence must run: the git root of the task file, else its directory.
+
+    THE SAME resolution the recording path uses, and it has to be. A fence is
+    written against the tree it was recorded in — `bash scripts/selftest.sh`,
+    `node --test tests/x.test.mjs` — so running it from the task's own directory
+    measures a command nobody ever ran. Measured 2026-08-28 on this repository's
+    corpus before the fix: two claims reported FALSE with exit 127, purely because
+    the sweep stood in the wrong directory, and 127 is exactly the shape a real
+    regression does not have.
+    """
+    r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    return Path(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else task.parent
+
+
+def claims_in(task):
+    """The distinct digests this task file records an exit-0 entry for.
+
+    A `human-observed` entry is not a claim: it carries no digest, so there is
+    nothing to re-check and nothing to be right or wrong about. A non-zero entry
+    is not a claim either — it is TDD-red evidence, and this project keeps it on
+    purpose.
+    """
+    section = re.search(r"^## Verification Log\s*\n(.*?)(?=^## |\Z)",
+                        task.read_text(errors="replace", encoding="utf-8"), re.M | re.S)
+    if not section:
+        return set()
+    return {m.group("digest") for m in CLAIM_RE.finditer(section.group(1))}
+
+
+def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
+    """Re-check every claim under `root` and report what stopped being true.
+
+    Four buckets, and they are disjoint and total by construction — every claim
+    takes exactly one branch below, so a claim can never be invisible:
+
+      held         the digest matches the current fence and it exits 0
+      false        the digest matches and it fails on its OWN terms
+      superseded   the digest does not match — including when there is no fence
+      unrunnable   it could not be checked: no shell, refused, timed out, or the
+                   failure was environmental
+
+    Superseded and unrunnable are in NEITHER half of the ratio, which is ADR-006's
+    UNPROVEN and ADR-005's UNRUN wearing a third name. A claim that could not be
+    re-checked is never counted as a claim that held.
+
+    This writes nothing. It is the read-only half of a tool whose other half
+    appends evidence, and `tests/sweep.test.mjs` asserts the corpus is
+    byte-identical afterwards rather than trusting this sentence.
+    """
+    tasks = sorted(q for q in Path(root).rglob("*.md") if q.is_file())
+    shell = resolve_bash()
+    held, false, superseded, unrunnable = [], [], [], []
+
+    for task in tasks:
+        digests = claims_in(task)
+        if not digests:
+            continue
+        text = task.read_text(errors="replace", encoding="utf-8")
+        fence = acceptance_of(text)
+        current = acceptance_digest(normalize_acceptance(fence)) if fence else None
+        for digest in sorted(digests):
+            if digest != current:
+                # Nothing to compare against is the same answer as "does not
+                # match": either way this entry proved a command that is not the
+                # one in front of us, and re-running the current fence would
+                # measure something the entry never claimed.
+                superseded.append((task, "the fence has changed since" if fence
+                                   else "the task has no Acceptance fence"))
+                continue
+            if "--sweep" in fence:
+                # Without this the sweep is unbounded: a task whose acceptance IS
+                # a sweep becomes a claim, and every later sweep re-enters itself.
+                # Found by review before it was written, and it is a property any
+                # corpus needs, not a workaround for one task.
+                unrunnable.append((task, "its fence invokes --sweep; running it would recurse"))
+                continue
+            if shell is None:
+                unrunnable.append((task, "no usable shell was found to run it"))
+                continue
+            try:
+                r = subprocess.run([shell, "-c", fence], cwd=str(fence_cwd(task)),
+                                   capture_output=True, text=True,
+                                   encoding="utf-8", errors="replace", timeout=timeout)
+            except subprocess.TimeoutExpired:
+                unrunnable.append((task, f"it did not finish within {timeout}s"))
+                continue
+            if r.returncode == 0 and scored_nothing(r.stdout + r.stderr):
+                # The same rule the recording path applies: a filter that matches
+                # nothing is not a passing gate. Without this, deleting the tests
+                # a claim was about turns it from held into... still held.
+                false.append((task, "exit 0, scored no tests"))
+                continue
+            if r.returncode == 0:
+                held.append(task)
+                continue
+            diagnosis = environment_failure(r.stdout + r.stderr, fence)
+            if diagnosis and not scored_anything(r.stdout + r.stderr):
+                # environment_failure() alone is not enough, and the difference
+                # matters: it exists never to downgrade a failure, and here it
+                # downgrades one. A suite that RAN and failed is a verdict about
+                # the code however its output reads, so a real failure whose text
+                # merely contains an environment string must not escape.
+                unrunnable.append((task, diagnosis))
+            else:
+                false.append((task, r.returncode))
+
+    checked = len(held) + len(false)
+    if as_json:
+        print(json.dumps({
+            "claims": checked + len(superseded) + len(unrunnable),
+            "held": len(held), "false": len(false),
+            "superseded": len(superseded), "unrunnable": len(unrunnable),
+            "false_claims": [str(t) for t, _ in false],
+        }, indent=2))
+    else:
+        for task, code in false:
+            print(f"FALSE      exit {code} · {task}")
+        for task, why in superseded:
+            print(f"superseded {task} — {why}")
+        for task, why in unrunnable:
+            print(f"unrunnable {task} — {why}")
+        if checked == 0:
+            # 0/0 is not a clean bill of health. A corpus this tool could not
+            # find a single re-checkable claim in has told us nothing, and saying
+            # "0 false" would be the vacuity ADR-003 forbids.
+            print(f"\nNo claim in {root} could be re-checked "
+                  f"({len(superseded)} superseded, {len(unrunnable)} unrunnable). "
+                  f"There is no rate to report.")
+        else:
+            print(f"\n{len(false)}/{checked} recorded claims no longer hold "
+                  f"({len(superseded)} superseded, {len(unrunnable)} unrunnable, "
+                  f"neither counted).")
+    if checked == 0:
+        return 1
+    return 1 if false else 0
+
+
+def scored_anything(output):
+    """Whether the run reports having actually executed tests.
+
+    The inverse of `scored_nothing`'s second half, reused so the two answers
+    cannot drift: if a runner says it ran something, the failure is the code's.
+    """
+    return any(re.search(p, output, re.M) for p in SOMETHING_RAN)
+
+
+def acceptance_of(text):
+    """The ```bash fence under ## Acceptance, or None."""
+    m = re.search(r"^## Acceptance\s*\n+```bash\n(.*?)```", text, re.M | re.S)
+    return m.group(1) if m else None
+
+
 def main():
     args, task, cwd, human = sys.argv[1:], None, None, None
     mutant = frm = to = why = None
     restore = False
+    sweep = None
+    timeout = SWEEP_TIMEOUT_DEFAULT
+    as_json = False
     i = 0
     while i < len(args):
         if args[i] == "--cwd":
@@ -710,6 +883,23 @@ def main():
         elif args[i] == "--why":
             i += 1
             why = args[i]
+        elif args[i] == "--sweep":
+            i += 1
+            sweep = args[i]
+        elif args[i] == "--timeout":
+            i += 1
+            # Validated, because the two ways this goes wrong are both silent:
+            # a non-number raises a traceback that reads like a crash, and 0 or a
+            # negative means "no bound" to subprocess.run — so the guard against a
+            # fence that never finishes would itself never finish.
+            try:
+                timeout = int(args[i])
+            except ValueError:
+                fail(f"--timeout wants a whole number of seconds, not {args[i]!r}")
+            if timeout <= 0:
+                fail(f"--timeout must be a positive number of seconds, not {timeout}")
+        elif args[i] == "--json":
+            as_json = True
         elif args[i] == "--restore":
             restore = True
         elif args[i].startswith("--"):
@@ -724,6 +914,11 @@ def main():
     # Recovery needs no task file: the run that needs recovering is the one that
     # did not get far enough to finish, and asking for its paperwork first would
     # make the repair harder than the damage.
+    if sweep is not None:
+        if not Path(sweep).is_dir():
+            fail(f"not a directory: {sweep}")
+        sys.exit(sweep_corpus(sweep, timeout=timeout, as_json=as_json))
+
     if restore:
         where = cwd if cwd is not None else Path.cwd()
         if not recover_mutant(where):

@@ -2345,7 +2345,7 @@
         "tests/sweep.test.mjs"
       ],
       "from": "                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err,",
-      "to": "                                       stdout=out, stderr=err,"
+      "to": "                                       stdin=subprocess.DEVNULL, stdout=subprocess.PIPE, stderr=subprocess.PIPE,"
     }
   ]
 }

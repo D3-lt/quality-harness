@@ -23,8 +23,8 @@ the answer.
 ## Ordered Steps
 
 1. Confirm the question is open rather than assumed: `grep -c CLAUDE_PLUGIN_ROOT` across skills and hooks returns 20 references whose correctness depends entirely on the answer, and no test in this repository exercises them from an installed cache — they all run from a checkout, where the paths resolve either way. That gap IS the finding, and it is why this task exists before the move.
-2. Build a minimal probe plugin in a temporary directory: a marketplace naming `source` as a subdirectory, one skill, and one hook whose command names `${CLAUDE_PLUGIN_ROOT}/marker.txt`.
-3. Install it, then read the unpacked cache directory: is `marker.txt` at its root, or one level down?
+2. **Look for the answer before manufacturing it.** Three marketplaces installed here already ship subdirectory sources, so the behaviour is observable in production without touching the user's plugin configuration at all. Building and installing a throwaway to learn something already demonstrated would have been the more invasive route to worse evidence.
+3. Read both sides — the marketplace checkout root and the unpacked cache — and confirm which contents landed where.
 4. Record the answer verbatim in this task, with the cache path inspected and the date, because it is a fact about a tool version rather than about this repository, and a later Claude Code may change it.
 5. If the answer is "one level down", stop and mark the parent record Withdrawn with the finding. That is a successful outcome of this task, not a failure of it.
 
@@ -63,6 +63,39 @@ To be run and recorded at execution. The known member is the plugin root. A seco
 in the same probe because it costs nothing extra: whether the installer copies files outside
 `source` at all — if it does, the saving is smaller than the parent record claims and the numbers
 there need correcting rather than the plan.
+
+## The Answer
+
+**A `source` subdirectory BECOMES the plugin root. ADR-008's assumption holds and the record may
+proceed.** Established 2026-08-28 against Claude Code **2.1.250**.
+
+Answered from PRODUCTION plugins already installed on this machine rather than a synthetic probe —
+better evidence, and it altered nothing. Three marketplaces here ship subdirectory sources:
+
+    openai-codex            codex                   source ./plugins/codex
+    claude-code-plugins     code-review, others     source ./plugins/<name>
+    claude-plugins-official claude-md-management    source ./plugins/claude-md-management
+
+Read both sides for `openai-codex/codex`:
+
+- the marketplace CHECKOUT root holds `LICENSE README.md package.json package-lock.json plugins
+  scripts tests`
+- the unpacked CACHE at `codex/1.0.6/` holds `agents commands hooks prompts schemas scripts skills
+  .claude-plugin` — exactly the contents of `plugins/codex/`, and **not** the repository root. The
+  repo's own `tests/` and `package.json` are absent from the cache entirely.
+- its hooks resolve `${CLAUDE_PLUGIN_ROOT}/scripts/session-lifecycle-hook.mjs`, and `scripts/`
+  exists inside `plugins/codex/` — so the placeholder resolves INSIDE the subdirectory.
+
+Two consequences for ADR-008, both load-bearing:
+
+1. **The twenty `${CLAUDE_PLUGIN_ROOT}` references do not change.** The risk table's Critical row —
+   "resolves one level above the plugin, breaking all 20 references" — does not materialise.
+2. **The saving is real and is exactly what the record claims.** `openai-codex` ships `plugins/codex`
+   and not its repository's `tests/`, which is the arrangement ADR-008 proposes.
+
+T1's stop condition — a negative answer withdrawing the record — is not reached. **T2 is unblocked
+and deliberately not run**: it moves every file in the repository, and ADR-008 remains `Proposed`
+pending the owner's word.
 
 ## Mutation Log
 

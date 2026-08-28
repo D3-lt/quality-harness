@@ -22,7 +22,16 @@ Five rules are repeated here because the cost of missing one is not a wasted hou
    Never write an absolute home path into a commit message, a record, a comment or a fixture —
    describe it or assemble it at runtime. `git status --short` before every push, and read it.
 
-5. **Evidence is tool-written.** `## Verification Log` and `## Mutation Log` are written by
+5. **Three platforms, and paths are where they break.** This ships to Windows, macOS and Linux and
+   CI blocks on all three. Normalize both separators before any structural test on a path — a
+   traversal spelled `..\dir\file` is invisible to `split("/")`, and a guard that misses it reports
+   safety it never checked. Never write a separator into a literal you will compare. Any file matched
+   across a line boundary needs `text eol=lf` in `.gitattributes`, asserted by asking `git
+   check-attr`. Make the platform a parameter (`resolve_bash(platform=…)`) — a Windows-only branch
+   with no injectable seam has no test, and you cannot run Windows locally. `CLAUDE.md` §7 lists the
+   five real defects this rule is made of.
+
+6. **Evidence is tool-written.** `## Verification Log` and `## Mutation Log` are written by
    `adr-verify` and never by hand. A GREEN mutation is a finding about the test, not an invitation to
    choose an easier mutant.
 

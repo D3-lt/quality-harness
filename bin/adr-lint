@@ -476,6 +476,49 @@ def check_dag(infos, readme_text, errors):
                           f"— {a} must land in a strictly earlier {mode}")
 
 
+def check_cross_record_cycles(corpus_dir, errors):
+    """A dependency cycle that exists only in the UNION of records.
+
+    Per-record `check_dag` cannot see one by construction: each record's graph is
+    acyclic on its own, and the cycle exists only once the qualified edges are
+    laid over it. Making cross-record dependencies real without widening the
+    check would move the blindness rather than remove it — ADR-007 says so, and
+    two records in the reporting corpus already referenced each other in prose.
+
+    Nodes are `NNN-TN`. Only CROSS-record edges are added: a local cycle is
+    already `check_dag`'s finding, and reporting it twice from two tools is how a
+    reader learns to skim one of them.
+    """
+    if corpus_dir is None or not corpus_dir.is_dir():
+        return
+    edges, nodes = [], set()
+    for record in sorted(corpus_dir.glob("ADR-*.md")):
+        digits = re.match(r"ADR-0*(\d{1,4})", record.name, re.I)
+        tasks = record.with_suffix("") / "tasks"
+        if not digits or not tasks.is_dir():
+            continue
+        here = digits.group(1).zfill(3)
+        for f in sorted(tasks.glob("*.md")):
+            if f.name.lower() == "readme.md":
+                continue
+            local = re.search(r"(?<!\w)T\d+(?!\w)", f.stem, re.I)
+            if not local:
+                continue
+            node = f"{here}-{local.group(0).upper()}"
+            nodes.add(node)
+            text = f.read_text(encoding="utf-8", errors="replace")
+            qualified, _ = split_dependencies(header_val(text, "Depends-on") or "")
+            for pointer in qualified:
+                found = QUALIFIED_DEP.match(pointer)
+                target = f"{found.group('number').zfill(3)}-{found.group('task').upper()}"
+                nodes.add(target)
+                edges.append((node, target, f"{node} depends on {target}"))
+    cycle = find_cycle(edges, nodes)
+    if cycle:
+        errors.append("cross-record dependency cycle: "
+                      + " → ".join(f"ADR-{n}" for n in cycle))
+
+
 def check_file_collisions(infos, errors):
     """A file `add`ed by two tasks is a collision — one task owns creation."""
     owners = {}
@@ -1370,6 +1413,7 @@ def main():
     # to nothing is worth saying and is never worth blocking a record over.
     check_enforcement(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
                       git_root(adr.parent))
+    check_cross_record_cycles(adr.parent, errors)
 
     if spec_file is not None:
         # inline-task ADRs carry **Covers:** lines in the ADR body itself

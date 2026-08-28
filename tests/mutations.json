@@ -2076,6 +2076,33 @@
       ],
       "from": "        return any(id_matches(task, f.stem) for f in tasks.glob(\"*.md\")",
       "to": "        return True or any(id_matches(task, f.stem) for f in tasks.glob(\"*.md\")"
+    },
+    {
+      "label": "next: a foreign dependency that is not done blocks",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                    if state != \"done\":",
+      "to": "                    if False:"
+    },
+    {
+      "label": "next: an edge that cannot be evaluated is not ready",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        return \"unknown\"\n    number, want = int(found.group(\"number\")), found.group(\"task\").upper()",
+      "to": "        return \"done\"\n    number, want = int(found.group(\"number\")), found.group(\"task\").upper()"
+    },
+    {
+      "label": "lint: a cycle across two records is caught",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    cycle = find_cycle(edges, nodes)\n    if cycle:",
+      "to": "    cycle = None\n    if cycle:"
     }
   ]
 }

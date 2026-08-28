@@ -1837,6 +1837,36 @@ Advice, never blocking, for the reason ADR-009 gives: a corpus adopting this on 
 write will light up, and a gate that fails on day one is a gate people switch off. A glob (`bin/**`)
 resolves when it matches at least one file.
 
+## 46. An acceptance fence that passes when its runner never starts
+
+**Found by a cold review of ADR-010, 2026-08-28, in the pattern this project's own task template
+recommends.** The template's suggested fence is
+
+    <runner> <args> 2>&1 | tee /tmp/acc.out; ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/acc.out
+
+and the pipeline's exit status is `tee`'s, which `;` then discards. The only thing tested is the
+`grep`. When the runner never starts — `node: command not found`, a killed process, an early runner
+error — its message matches none of the patterns, so `! grep` succeeds and **the fence exits 0**.
+Measured: `nosuchrunner --test x` through that form exits 0; through `set -o pipefail` and `&&` it
+exits 127.
+
+`adr-verify` does not catch it either. `scored_nothing()` only fires on a runner's own
+"nothing to run" vocabulary, and `environment_failure()` is consulted only when the exit code is
+already non-zero — so a fence whose runner is absent is recorded as a tool-written exit-0 claim.
+That is the anti-fabrication chain's own hole, and it is the reason this entry is not merely tidy-up.
+
+**Scope: 12 task fences across the corpus, plus `templates/task-template.md` itself**, which ships to
+every user. The correct form, measured against four cases (runner absent, real passing suite, missing
+test file, a command that exits 0 having scored nothing):
+
+    set -o pipefail
+    <runner> <args> 2>&1 | tee /tmp/acc.out && ! grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/acc.out
+
+Repairing a fence invalidates the evidence recorded under it — the digest changes — so each of the 12
+needs re-recording with `adr-verify` on a clean tree. That is the cost, and it is why this is filed
+rather than done inside ADR-010: it is a corpus-wide repair with its own evidence to regenerate, and
+ADR-010's own fences already use the corrected form.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

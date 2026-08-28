@@ -1,6 +1,6 @@
 # ADR-010: Re-check the corpus's own claims, and count only the ones you could check
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-28
 **Owner:** zy
 **Spec:** docs/specs/2026-08-28-a-claim-that-stopped-being-true.md
@@ -43,9 +43,9 @@ Enumerated 2026-08-28 with
 files. Of those, the four that matter here:
 
 - **`adr-verify::acceptance_digest()` / `normalize_acceptance()`** — the digest this decision turns on. **Reused unchanged.**
-- **`adr-verify::environment_failure()`** — already classifies a fence that could not reach its tools and already says *"a machine problem, not a verdict about the code"*. **Reused unchanged**; it is the entire UNRUNNABLE bucket, and re-deriving its classifier table elsewhere is the single most expensive thing to get wrong here.
-- **`adr-verify::bash_or_exit()`** — Windows Git Bash resolution, excluding the System32 WSL stub. **Reused unchanged.** A second implementation would be a second Windows bug.
-- **`adr-lint`'s Verification Log grammar (lines 66–80) and `strict_from_number()`** — **reshaped:** a small entry-line reader and a `strictFrom` read are added to `adr-verify`. This repository already duplicates `normalize_acceptance` across three gates by explicit design, for the stated reason that the gates are standalone with no import path; this is that same trade, named rather than incurred quietly.
+- **`adr-verify::environment_failure()`** — classifies a fence that could not reach its tools. Its **signature table is reused; its contract is RESHAPED, and the record said "unchanged" until a review caught it.** Its docstring is explicit that it *"does not change the exit code, downgrade a failure, or suppress the entry — an environment excuse that could turn red into green would be far worse than the confusion it set out to fix"*. In `--sweep` it does exactly that: it moves a claim out of `false`. The two uses are reconcilable because they answer different questions — recording asks *did this run pass*, the sweep asks *did I manage to check this claim* — but the difference is a decision, not a detail, and T1 must not let an assertion failure that merely mentions an environment string escape into `unrunnable`.
+- **`adr-verify::bash_or_exit()`** — Windows Git Bash resolution, excluding the System32 WSL stub. **Reused for resolution, RESHAPED for failure:** it calls `sys.exit(2)` when Bash is absent, which is right for a single recorded run and wrong for a sweep, where an absent shell makes every claim unrunnable rather than killing the report. `resolve_bash()` beneath it returns `None` and is the right seam.
+- **`adr-lint`'s Verification Log grammar (lines 66–80) and `strict_from_number()`** — **DUPLICATED, and the word matters.** Not "a small reader": `strict_from_number()` also resolves the git root, advises on a malformed config, and parses a record number that may not be numeric, and the log grammar sits behind section parsing. Calling that a reshape understates what can drift. This repository already duplicates `normalize_acceptance` across three gates by explicit design — the gates are standalone with no import path — so the trade is accepted, but T2 carries parity fixtures (malformed config, absent config, unparseable record number, root resolution) rather than an assumption that two copies agree.
 
 `adr-debt` already sweeps a corpus directory and reports what it owes — considered as the host and rejected below.
 
@@ -71,6 +71,20 @@ Each claim lands in exactly one of four buckets, and they sum to the claim count
 The rate is `false ÷ (held + false)`. Superseded and unrunnable sit beside it, exactly as `UNPROVEN`
 sits beside the mutation campaign's ratio (ADR-006) and `UNRUN` beside `spec-verify`'s (ADR-005). A
 claim that could not be re-checked is never counted as a claim that held.
+
+**The partition must be total, and three inputs a review found do not fall out of it by themselves:**
+
+- **A task with an exit-0 entry and no `## Acceptance` fence at all** is `superseded` — there is no
+  current digest for the entry's digest to equal, and "does not match" is the correct reading of
+  "there is nothing to match".
+- **A fence that does not finish** is `unrunnable`, under an explicit timeout. Without one the sweep
+  hangs and the claim reaches no bucket at all; `mutate.mjs` already treats a timed-out mutant as
+  `HUNG` rather than as a verdict, and this is the same call.
+- **A fence that itself invokes `--sweep`** is `unrunnable`, named as such, and **is not run**.
+  Without this the sweep is unbounded: T3's own acceptance is a sweep, so the moment T3 earns an
+  exit-0 entry it becomes a claim, and every later sweep re-runs it, which sweeps again. Found by
+  review before it was written; the guard is a property of the sweep and not a workaround for T3,
+  because any corpus can record a claim whose fence invokes the tool checking it.
 
 **What would make this fail, and whether such data exists.** A false success is a fence that exits
 non-zero on its own terms; the criterion is falsifiable today, and it fails today — 3 of 15, listed
@@ -135,6 +149,7 @@ Inherited from docs/specs/2026-08-28-a-claim-that-stopped-being-true.md §Non-Go
 - Wiring the sweep into `scripts/selftest.sh`. (permanent: selftest is the fast per-commit gate and must stay fast; the sweep belongs in CI and in a maintainer's hands.)
 - Resolving `Governs:`, `Cross-references:` or `Invalidates:` against the tree. (deferred: docs/BACKLOG.md §45)
 - Re-recording evidence for records whose fences are correct but whose digests predate a fence edit. (permanent: there are none — 0 superseded today — and `adr-lint` already refuses `done` on that state.)
+- Repairing the 12 existing task fences whose `\| tee`-and-`grep` form can pass with the runner absent, and the task template that recommends it. (deferred: docs/BACKLOG.md §46)
 
 ## Risks
 
@@ -144,6 +159,9 @@ Inherited from docs/specs/2026-08-28-a-claim-that-stopped-being-true.md §Risks;
 |------|------------|--------|------------|
 | `--sweep` shares a process with the mode that WRITES evidence, and a future edit lets it append | Med | High | T1's Tests table carries a check that the corpus is byte-identical after a sweep, and a mutation that removes the guard must go RED |
 | A CI job running the sweep outruns its timeout as the corpus grows | Med | Med | 15 claims over 14 fences today; the job reports its own wall time so the trend is visible before it bites |
+| A recorded claim's fence invokes the sweep, so the sweep recurses without bound | Med | **Critical** | A fence naming `--sweep` is reported unrunnable and never executed; T1 carries the fixture and a mutation on the guard that must go RED |
+| A claim's fence is repaired but not re-recorded, so its stale entry becomes superseded and the sweep reads clean | Med | High | T3's acceptance asserts a fresh exit-0 entry carrying the CURRENT digest for each repaired task, not merely a clean sweep |
+| An acceptance fence passes because its runner never started | **High** | **High** | The `\| tee …; ! grep` form this project's own task template recommends returns 0 when the runner is absent — measured 2026-08-28, exit 0 with `nosuchrunner`. Every fence in this record uses `set -o pipefail` and `&&` instead. The 12 existing fences and the template itself are a separate defect: docs/BACKLOG.md §46 |
 
 ## Rollback
 
@@ -154,3 +172,4 @@ rollback of the sweep itself.
 ## Follow-ups
 
 - [ ] Set this record's `Enforced-by:` to T1's catalogue mutation label once it exists.
+- [ ] Repair the acceptance-fence pattern in `templates/task-template.md` and the 12 fences using it (docs/BACKLOG.md §46).

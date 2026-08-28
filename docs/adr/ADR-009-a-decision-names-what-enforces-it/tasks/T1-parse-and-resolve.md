@@ -61,10 +61,20 @@ python3 tests/gate-regressions.py bin skills/postmortem/SKILL.md
 grep -nE '^\*\*(Governs|Spec|Cross-references|Invalidates|Enforced-by):' docs/adr/ADR-00*.md | head -20
 ```
 
-To be run and recorded at execution. Known at authoring: `Spec:` and `Governs:` are resolved today,
-`Cross-references:` and `Invalidates:` are not. The sweep is how the decision to leave those two
-unresolved is recorded rather than forgotten — a pointer nothing checks is the rot this task is about,
-and there are two more of them already.
+Run 2026-08-28 over the nine records. Five headers point outside the record: `Spec:` and `Governs:`
+are resolved by the lint today, `Enforced-by:` is resolved by this task, and **`Cross-references:` and
+`Invalidates:` are resolved by nothing**. A record can cite an ADR that does not exist or claim to
+invalidate one, and no gate notices — the same rot this task is about, already present in two headers
+every record here carries. Left deliberately and filed as docs/BACKLOG.md §44: closing them is cheap
+once this task's resolution machinery exists, which is the argument for closing them next rather than
+now, in a change whose regression can be attributed.
+
+A second member the authoring list did not have, found while implementing: `test_body` — the resolver
+`check_tests_exist` uses — matches a FUNCTION name, and a `node:test` name is a string ARGUMENT.
+`code_only` blanks string contents, so neither it nor a substring search can see one. Every JS test in
+this repository is that shape, and `check_tests_exist` never surfaced it because its own guard skips
+any name containing a space. So the sweep found a live gap in the resolver it was reusing, not only
+in the headers it set out to enumerate.
 
 ## Mutation Log
 

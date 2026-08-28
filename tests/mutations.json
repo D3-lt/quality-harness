@@ -2004,6 +2004,33 @@
       ],
       "from": "    if NEGATIVE.search(note):\n        return \"stop\"",
       "to": "    if False:\n        return \"stop\""
+    },
+    {
+      "label": "lint: Enforced-by naming nothing is reported",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if resolve_enforcement(pointer, root) is None:",
+      "to": "        if False:"
+    },
+    {
+      "label": "lint: None is an answer, not an unresolvable pointer",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if raw is None or raw.strip().lower().startswith(\"none\"):",
+      "to": "    if raw is None:"
+    },
+    {
+      "label": "lint: a node:test name is a string, not a function name",
+      "file": "bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if wanted and re.search(r\"(?:^|[^\\w.])(?:test|it)\\s*\\(\\s*(['\\\"`])\"",
+      "to": "            if False and re.search(r\"(?:^|[^\\w.])(?:test|it)\\s*\\(\\s*(['\\\"`])\""
     }
   ]
 }

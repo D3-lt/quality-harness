@@ -16,7 +16,7 @@ This README is a derived index — when it disagrees with a task file, the task 
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | no template is linked, and a deletion stays deleted | pending | — | `node --test tests/standalone-link.test.mjs tests/lifecycle.test.mjs …` |
+| T1 | no template is linked, and a deletion stays deleted | done | — | `node --test tests/standalone-link.test.mjs tests/lifecycle.test.mjs …` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 

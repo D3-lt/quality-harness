@@ -32,34 +32,13 @@
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const catalogue = JSON.parse(readFileSync(path.join(root, 'tests', 'mutations.json'), 'utf8'))
 
-const argv = process.argv.slice(2)
-// An unknown option used to be ignored in silence, and the run it produced looked
-// exactly like the run that was asked for. Measured 2026-08-27: `--filter 'sync:'`
-// — the flag is `--case` — selected nothing, so the filter stayed null and all
-// 181 mutations ran for twenty minutes while the caller waited on three. Every
-// gate in this project names the offending option; this is the one place that
-// did not.
-const KNOWN = new Set(['--case', '--list', '--force'])
-const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
-if (unknown.length) {
-  process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-    + 'usage: mutate.mjs [--case <substring of a label>] [--list] [--force]\n')
-  process.exit(2)
-}
-const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
-const listOnly = argv.includes('--list')
 const timeoutMs = 180_000
 
-const selected = catalogue.mutations.filter(m => !filter || m.label.includes(filter))
-if (listOnly) {
-  for (const m of selected) console.log(`${m.label}\n  ${m.file} -> ${m.tests.join(', ')}`)
-  process.exit(0)
-}
 // A mutation left applied is worse than a mutation not run.
 //
 // In-process handlers are not enough, and this script proved it on its own first
@@ -132,7 +111,7 @@ function releaseTheRun() {
 }
 
 /** Files this run will rewrite, so an edit in flight is refused rather than lost. */
-function dirtyTargets() {
+function dirtyTargets(selected) {
   const targets = [...new Set(selected.map(mutation => mutation.file))]
   const status = spawnSync('git', ['-C', root, 'status', '--porcelain', '--', ...targets],
     { encoding: 'utf8' })
@@ -140,75 +119,195 @@ function dirtyTargets() {
   return status.stdout.split('\n').map(line => line.slice(3).trim()).filter(Boolean)
 }
 
-process.on('exit', () => { releaseTheRun() })
-process.on('SIGINT', () => { recover(); process.exit(130) })
-process.on('SIGTERM', () => { recover(); process.exit(143) })
-process.on('exit', () => { recover() })
 
-// The lock BEFORE the repair, not after. recover() restores whatever the journal
-// names, so a second invocation was un-mutating a live campaign's file and
-// deleting its journal — the outer run then measured an unmutated source and
-// reported the mutation unnoticed. Found on 2026-08-26 by a test that spawns
-// this runner: the guard it was written for could never fail, because this ran
-// first and quietly repaired the thing under test.
-if (!claimTheRun()) process.exit(2)
-recover()
-// AFTER the repair, not before. `--case` with no match used to exit here-ish and
-// leave a killed run's mutation applied — the same class of bug as recover()
-// running before claimTheRun(), which was fixed on 2026-08-26 as a single
-// instance. One early exit was fixed; the class of early exits was not audited.
-// Every path that a campaign can take now repairs before it can refuse.
-if (selected.length === 0) {
-  process.stderr.write(`no mutation matches ${filter}\n`)
-  process.exit(1)
-}
-const dirty = dirtyTargets()
-if (dirty.length && !argv.includes('--force')) {
-  process.stderr.write(`mutate: ${dirty.join(', ')} ${dirty.length === 1 ? 'has' : 'have'} `
-    + 'uncommitted changes, and this run rewrites and restores exactly those files — an edit '
-    + 'made while it runs is silently rolled back. Commit or stash first, or pass --force if '
-    + 'you accept losing them.\n')
-  process.exit(2)
-}
-
-const results = []
-for (const mutation of selected) {
-  const file = path.join(root, mutation.file)
-  const original = readFileSync(file, 'utf8')
-  const occurrences = original.split(mutation.from).length - 1
-
+/**
+ * The verdict for one catalogue entry, from what was actually observed.
+ *
+ * Pure so it can be asserted without spawning a campaign. Until ADR-006 this
+ * logic lived inline in the loop and had no test of its own — the runner was
+ * exercised only by another suite spawning it whole.
+ *
+ * `baselineOk` is whether the entry's named tests PASSED BEFORE the mutation was
+ * applied. Without it a suite already failing for an unrelated reason returns a
+ * nonzero exit on every entry that names it, and every one is counted RED —
+ * noticed. Nothing was proved: the tests were broken to begin with.
+ *
+ * What a baseline does NOT prove is that the mutation was EXERCISED. A vacuous
+ * assertion — one that could not have failed either way — still reports GREEN,
+ * and that is correct here. Coverage was measured 2026-08-28 and cannot see that
+ * case: 100% line and 100% branch, before and after, with the test passing and
+ * the mechanism broken. See ADR-006.
+ */
+export function classify({ occurrences, baselineOk, run }) {
   if (occurrences !== 1) {
-    // Neither a pass nor a failure of the tests: the mutation no longer
-    // describes the code, so it asserts nothing and has to be rewritten.
-    results.push({ ...mutation, verdict: 'STALE', detail: `matches ${occurrences} times` })
-    continue
+    // Decided off the tree, before anything is applied: the `from` no longer
+    // describes the code, so there is no mutation to be right or wrong about.
+    return { verdict: 'STALE', detail: `matches ${occurrences} times` }
   }
-
-  begin(file, original)
-  writeFileSync(file, original.replace(mutation.from, mutation.to))
-  const run = spawnSync(process.execPath,
-    ['--test', ...mutation.tests.map(t => path.join(root, t))],
-    { cwd: root, encoding: 'utf8', timeout: timeoutMs })
-  finish(file, original)
-
-  const verdict = (run.signal || run.status === null)
+  const observed = (run.signal || run.status === null)
     ? 'HUNG'
     : run.status === 0 ? 'GREEN' : 'RED'
-  results.push({ ...mutation, verdict })
+  if (!baselineOk) return { verdict: 'UNPROVEN', observed }
+  return { verdict: observed, observed }
 }
 
-const width = Math.max(...results.map(r => r.label.length))
-for (const r of results) {
-  const note = r.verdict === 'GREEN' ? '  <- the tests did not notice'
-    : r.verdict === 'STALE' ? `  <- ${r.detail}`
-    : r.verdict === 'HUNG' ? '  <- noticed, but by hanging rather than failing'
-    : ''
-  console.log(`${r.verdict.padEnd(5)} ${r.label.padEnd(width)}${note}`)
+/**
+ * The distinct test-sets a catalogue names, each with the entries that use it.
+ *
+ * One baseline per SET, not per mutation. Measured 2026-08-28: 204 mutations over
+ * 13 distinct sets, so this costs 13 extra spawns — about 6% of a campaign, where
+ * a baseline per mutation would roughly double it. Sorted, so two entries naming
+ * the same files in a different order share one baseline.
+ */
+export function testSets(mutations) {
+  const byKey = new Map()
+  for (const mutation of mutations) {
+    const tests = [...mutation.tests].sort()
+    const key = tests.join('\0')
+    if (!byKey.has(key)) byKey.set(key, { tests, mutations: [] })
+    byKey.get(key).mutations.push(mutation)
+  }
+  return [...byKey.values()]
 }
 
-const missed = results.filter(r => r.verdict === 'GREEN' || r.verdict === 'STALE')
-console.log(`\n${results.length - missed.length}/${results.length} mutations were noticed.`)
-if (missed.length) {
-  console.log('A test that stays green with its mechanism broken is asserting something else.')
-  process.exit(1)
+/** One report line. UNPROVEN names the failing set and what to do about it. */
+export function renderLine(result, width) {
+  const note = result.verdict === 'GREEN' ? '  <- the tests did not notice'
+    : result.verdict === 'STALE' ? `  <- ${result.detail}`
+    : result.verdict === 'HUNG' ? '  <- noticed, but by hanging rather than failing'
+    // The verdict the tests produced stays visible beside the warning, and the
+    // line says what to CHANGE rather than only what is wrong — the lesson
+    // ADR-005 applied to spec-verify, one tool over.
+    : result.verdict === 'UNPROVEN'
+      ? `  <- ${result.observed}, but ${result.tests.join(', ')} already failed before this `
+        + 'mutation was applied; repair that suite and re-run — nothing here is evidence yet'
+      : ''
+  return `${result.verdict.padEnd(8)} ${result.label.padEnd(width)}${note}`
+}
+
+/**
+ * The campaign's counts. An UNPROVEN entry is in NEITHER half of the ratio:
+ * counting it in the denominator would make a broken suite read as a campaign
+ * with poor coverage, which is a different problem with a different fix.
+ */
+export function summarise(results) {
+  const unproven = results.filter(r => r.verdict === 'UNPROVEN')
+  const judged = results.filter(r => r.verdict !== 'UNPROVEN')
+  const missed = judged.filter(r => r.verdict === 'GREEN' || r.verdict === 'STALE')
+  return {
+    total: judged.length,
+    noticed: judged.length - missed.length,
+    unproven: unproven.length,
+    // Unchanged by ADR-006: GREEN and STALE fail the run. An UNPROVEN entry
+    // instructs and does not block — a block leaves the user with no next move,
+    // and the line above has just told them what theirs is.
+    failing: missed.length > 0,
+  }
+}
+
+export function main(argv) {
+  // An unknown option used to be ignored in silence, and the run it produced
+  // looked exactly like the run that was asked for. Measured 2026-08-27:
+  // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
+  // stayed null and all 181 mutations ran for twenty minutes while the caller
+  // waited on three. Every gate in this project names the offending option.
+  const KNOWN = new Set(['--case', '--list', '--force'])
+  const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
+  if (unknown.length) {
+    process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
+      + 'usage: mutate.mjs [--case <substring of a label>] [--list] [--force]\n')
+    return 2
+  }
+  const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
+  const selected = catalogue.mutations.filter(m => !filter || m.label.includes(filter))
+
+  if (argv.includes('--list')) {
+    for (const m of selected) console.log(`${m.label}\n  ${m.file} -> ${m.tests.join(', ')}`)
+    return 0
+  }
+
+  process.on('exit', () => { releaseTheRun() })
+  process.on('SIGINT', () => { recover(); process.exit(130) })
+  process.on('SIGTERM', () => { recover(); process.exit(143) })
+
+  // The lock BEFORE the repair, not after. recover() restores whatever the
+  // journal names, so a second invocation was un-mutating a live campaign's file
+  // and deleting its journal — the outer run then measured an unmutated source
+  // and reported the mutation unnoticed. Found on 2026-08-26 by a test that
+  // spawns this runner: the guard it was written for could never fail, because
+  // this ran first and quietly repaired the thing under test.
+  if (!claimTheRun()) return 2
+  recover()
+  // AFTER the repair, not before. `--case` with no match used to exit here-ish
+  // and leave a killed run's mutation applied — the same class of bug as
+  // recover() running before claimTheRun(), which was fixed on 2026-08-26 as a
+  // single instance. One early exit was fixed; the class was not audited.
+  // Every path a campaign can take now repairs before it can refuse.
+  if (selected.length === 0) {
+    process.stderr.write(`no mutation matches ${filter}\n`)
+    return 1
+  }
+  const dirty = dirtyTargets(selected)
+  if (dirty.length && !argv.includes('--force')) {
+    process.stderr.write(`mutate: ${dirty.join(', ')} ${dirty.length === 1 ? 'has' : 'have'} `
+      + 'uncommitted changes, and this run rewrites and restores exactly those files — an edit '
+      + 'made while it runs is silently rolled back. Commit or stash first, or pass --force if '
+      + 'you accept losing them.\n')
+    return 2
+  }
+
+  // The baselines FIRST, on an unmutated tree, before begin() has anything to
+  // journal — so this adds no window in which a crash could leave the tree
+  // broken (ADR-002). One spawn per distinct set, memoised by it.
+  const sets = testSets(selected)
+  const baselineOf = new Map()
+  for (const set of sets) {
+    // The same files and the same arguments as the mutated run below, or this
+    // would be measuring a different thing than the one it licenses.
+    const run = spawnSync(process.execPath,
+      ['--test', ...set.tests.map(t => path.join(root, t))],
+      { cwd: root, encoding: 'utf8', timeout: timeoutMs })
+    baselineOf.set(set.tests.join('\0'), run.status === 0 && !run.signal)
+  }
+
+  const results = []
+  for (const mutation of selected) {
+    const file = path.join(root, mutation.file)
+    const original = readFileSync(file, 'utf8')
+    const occurrences = original.split(mutation.from).length - 1
+    const baselineOk = baselineOf.get([...mutation.tests].sort().join('\0')) === true
+
+    if (occurrences !== 1) {
+      results.push({ ...mutation, ...classify({ occurrences, baselineOk, run: null }) })
+      continue
+    }
+
+    begin(file, original)
+    writeFileSync(file, original.replace(mutation.from, mutation.to))
+    const run = spawnSync(process.execPath,
+      ['--test', ...mutation.tests.map(t => path.join(root, t))],
+      { cwd: root, encoding: 'utf8', timeout: timeoutMs })
+    finish(file, original)
+
+    results.push({ ...mutation, ...classify({ occurrences, baselineOk, run }) })
+  }
+
+  const width = Math.max(...results.map(r => r.label.length))
+  for (const r of results) console.log(renderLine(r, width))
+
+  const counts = summarise(results)
+  console.log(`\n${counts.noticed}/${counts.total} mutations were noticed.`)
+  if (counts.unproven) {
+    console.log(`${counts.unproven} could not be judged: their tests were already failing before `
+      + 'the mutation was applied, so neither verdict is evidence. Repair those suites and re-run.')
+  }
+  if (counts.failing) {
+    console.log('A test that stays green with its mechanism broken is asserting something else.')
+    return 1
+  }
+  return 0
+}
+
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  process.exitCode = main(process.argv.slice(2))
 }

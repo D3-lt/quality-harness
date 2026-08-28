@@ -2292,6 +2292,33 @@
       ],
       "from": "            if timeout <= 0:",
       "to": "            if False:"
+    },
+    {
+      "label": "sweep: a record below the strictFrom cutoff is advised, not failed",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    return 1 if [t for t, _ in false if t not in demoted] else 0",
+      "to": "    return 1 if false else 0"
+    },
+    {
+      "label": "sweep: a record whose number cannot be parsed is never demoted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "               and (record_number_of(t) or cutoff) < cutoff]",
+      "to": "               and (record_number_of(t) or 0) < cutoff]"
+    },
+    {
+      "label": "sweep: an unreadable strictFrom config is said out loud, not silently ignored",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "        if config_note:\n            print(f\"[adr-verify] {config_note}\")",
+      "to": "        if False:\n            print(f\"[adr-verify] {config_note}\")"
     }
   ]
 }

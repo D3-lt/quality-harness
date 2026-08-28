@@ -52,6 +52,7 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr001-t2.out && ! grep -qE
 ## Mutation Log
 
 - 2026-08-27 · dd9d952* · mutant killed · exit 1 · `scripts/sync-standalone.mjs` · removes the guard, so a skill the user deleted is reported missing and recreated by --apply · acceptance-sha256:cda47fde00c08e89c17b20ba1c04cc83d45c728c5a395df23738d7e4701f3063
+- 2026-08-28 · 2a90e3d · mutant killed · exit 1 · `plugin/scripts/sync-standalone.mjs` · sync: a skill the user does not have is not created · acceptance-sha256:b34ffbeffd431945f2fc1ad0817fd392b5f629ecaa764b070799cd4fbc917f2a
 
 ## Class Sweep
 

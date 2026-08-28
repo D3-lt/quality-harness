@@ -1015,11 +1015,18 @@ test('a real node failure mentioning an environment string is still false', () =
   // nothing in SOMETHING_RAN recognised node:test, so a genuine failing suite
   // was reclassified as a machine problem. Every fence in this repository is
   // node --test, which is how the gap survived.
-  const dir = corpus()
-  task(dir, 'T0-held', { fence: 'exit 0' })
-  task(dir, 'T1', { fence: 'echo "Cannot connect to the Docker daemon"; echo "not ok 1 - a real assertion"; echo "\u2139 fail 1"; exit 1' })
-  const r = JSON.parse(sweep(dir, ['--json']).stdout)
-  assert.deepEqual({ false: r.false, unrunnable: r.unrunnable }, { false: 1, unrunnable: 0 })
+  // ONE node shape per fixture. The first version printed both TAP and the
+  // summary line, so removing either pattern left the other matching and the
+  // mutation came back GREEN — the test asserted the right outcome through a
+  // path that did not depend on the line under test.
+  for (const [name, shape] of [['tap', 'not ok 1 - a real assertion'], ['summary', '\u2139 fail 1']]) {
+    const dir = corpus()
+    task(dir, 'T0-held', { fence: 'exit 0' })
+    task(dir, 'T1', { fence: `echo "Cannot connect to the Docker daemon"; echo "${shape}"; exit 1` })
+    const r = JSON.parse(sweep(dir, ['--json']).stdout)
+    assert.deepEqual({ false: r.false, unrunnable: r.unrunnable }, { false: 1, unrunnable: 0 },
+      `node's ${name} output alone must show the tests ran`)
+  }
 })
 
 test('a fence that cannot be launched is unrunnable, not a traceback', () => {

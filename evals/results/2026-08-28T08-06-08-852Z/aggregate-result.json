@@ -1,0 +1,1035 @@
+{
+  "schemaVersion": 1,
+  "claudeVersion": "2.1.250",
+  "startedAt": "2026-08-28T08:06:08.852Z",
+  "durationSeconds": 1422,
+  "costUsd": 9.228235,
+  "partial": false,
+  "suite": {
+    "root": "/Users/zy/CursorProjects/quality-harness",
+    "ablation": "with-without",
+    "threshold": 1,
+    "plugins": [
+      {
+        "name": "quality-harness",
+        "version": "2.22.0",
+        "path": "/Users/zy/CursorProjects/quality-harness"
+      }
+    ]
+  },
+  "cases": [
+    {
+      "name": "adr-write-consults-the-corpus",
+      "dir": "evals/adr-write-consults-the-corpus",
+      "source": "prose",
+      "promptMarkdown": "I want to write an ADR proposing we move our background jobs from Celery to RQ.\nStart it.\n\nFor context, our `docs/adr/` has 23 records in it. I do not remember what any of\nthem say about the queue, and I am not going to read all 23.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "asks-what-was-already-decided",
+          "type": "regex",
+          "weight": 3,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-(context|state)",
+            "flags": "",
+            "match": "contains"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Skill"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 9,
+            "costUsd": 0.472962,
+            "judgeCostUsd": 0,
+            "durationSeconds": 54,
+            "startedAt": "2026-08-28T08:06:08.872Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-PcHw8c/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": true,
+                "weight": 3,
+                "explanation": "matched adr-(context|state)",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 2,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 6,
+            "costUsd": 0.3306565,
+            "judgeCostUsd": 0,
+            "durationSeconds": 80,
+            "startedAt": "2026-08-28T08:07:02.946Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-ZhHPdb/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "asks-what-was-already-decided",
+                "passed": false,
+                "weight": 3,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 1
+      }
+    },
+    {
+      "name": "complexity-instruction-given",
+      "dir": "evals/complexity-instruction-given",
+      "source": "prose",
+      "promptMarkdown": "Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.\n\nIt has to accept all of these, case-insensitively, with optional surrounding whitespace:\n\n    \"30s\" \"30 sec\" \"30 secs\" \"30 second\" \"30 seconds\"\n    \"5m\" \"5 min\" \"5 mins\" \"5 minute\" \"5 minutes\"\n    \"2h\" \"2 hr\" \"2 hrs\" \"2 hour\" \"2 hours\"\n    \"1d\" \"1 day\" \"1 days\"\n    \"1h30m\" \"2h 15m\" \"1d 6h 30m\"\n    \"90\" (a bare number means seconds)\n\nAnything it cannot parse raises `ValueError` naming the offending input.\n\nGive me the function. No tests, no explanation beyond a sentence or two.\n\nThis repository fails CI on any function whose cyclomatic complexity exceeds 8, so\nwhatever you write has to pass that lint.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "reduces-total-branching",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+          "config": {
+            "criteria": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "splits-into-helpers",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+          "config": {
+            "criteria": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.14240450000000002,
+            "judgeCostUsd": 0.004693999999999999,
+            "durationSeconds": 31,
+            "startedAt": "2026-08-28T08:08:22.817Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-vNNwWT/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n    \"\": 1,  # bare number, only valid as the sole term\n}\n\n_TERM = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s' or bare '90' into seconds.\"\"\"\n    normalized = text.strip().lower()\n    terms = _TERM.findall(normalized)\n    if not terms or _TERM.sub(\"\", normalized).strip():\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    total = 0\n    for amount, unit in terms:\n        if unit not in _UNITS or (unit == \"\" and len(terms) > 1):\n            raise ValueError(f\"cannot parse duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nThe unit table does the branching that would otherwise be an if-chain, so the function itself is complexity 6 — the regex both tokenizes and validates: anything the term pattern doesn't consume (`-5s`, `1..2`, `abc`) leaves a residue and fails. A unitless number is accepted as seconds only when it's the whole input, so `\"1h 30\"` is rejected rather than silently guessed."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n    \"\": 1,  # bare number, only valid as the sole term\n}\n\n_TERM = re.compile(r\"\\s*(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s' or bare '90' into seconds.\"\"\"\n    normalized = text.strip().lower()\n    terms = _TERM.findall(normalized)\n    if not terms or _TERM.sub(\"\", normalized).strip():\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    total = 0\n    for amount, unit in terms:\n        if unit not in _UNITS or (unit == \"\" and len(terms) > 1):\n            raise ValueError(f\"cannot parse duration: {text!r}\")\n        total += int(amount) * _UNITS[unit]\n    return total\n```\n\nThe unit table does the branching that would otherwise be an if-chain, so the function itself is complexity 6 — the regex both tokenizes and validates: anything the term pattern doesn't consume (`-5s`, `1..2`, `abc`) leaves a residue and fails. A unitless number is accepted as seconds only when it's the whole input, so `\"1h 30\"` is rejected rather than silently guessed."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 3,
+            "costUsd": 0.22538149999999998,
+            "judgeCostUsd": 0.0049050000000000005,
+            "durationSeconds": 37,
+            "startedAt": "2026-08-28T08:08:53.541Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-pZwLLS/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: PASS FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  false,
+                  false
+                ],
+                "evidence": "`duration.py`:\n\n```python\nimport re\n\n_UNIT_SECONDS = {\n    \"\": 1, \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_SHAPE = re.compile(r\"(?:\\d+\\s*[a-z]*\\s*)+\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"1d 6h 30m\", \"5 mins\" or \"90\" into seconds.\"\"\"\n    normalized = str(text).strip().lower()\n    if not _SHAPE.fullmatch(normalized):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    total = 0\n    for amount, unit in _PART.findall(normalized):\n        if unit not in _UNIT_SECONDS:\n            raise ValueError(f\"cannot parse duration: {text!r}\")\n        total += int(amount) * _UNIT_SECONDS[unit]\n    return total\n```\n\nThe unit table does the branching, so cyclomatic complexity is 4 (`if` + `for` + `if` + baseline) — well under 8. Verified against every listed case plus rejects for `\"\"`, `\"abc\"`, `\"5 fortnights\"`, `\"-4s\"`, `\"1.5h\"`.\n\nOne behavior worth knowing: a bare number is mapped through the `\"\"` key, so it's accepted anywhere in the string, not just alone — `\"5m3\"` parses as 303 seconds rather than raising. If you'd rather that be an error, say so and I'll tighten the shape regex to allow the bare form only as the whole input."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "`duration.py`:\n\n```python\nimport re\n\n_UNIT_SECONDS = {\n    \"\": 1, \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n_SHAPE = re.compile(r\"(?:\\d+\\s*[a-z]*\\s*)+\")\n_PART = re.compile(r\"(\\d+)\\s*([a-z]*)\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like \"1d 6h 30m\", \"5 mins\" or \"90\" into seconds.\"\"\"\n    normalized = str(text).strip().lower()\n    if not _SHAPE.fullmatch(normalized):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    total = 0\n    for amount, unit in _PART.findall(normalized):\n        if unit not in _UNIT_SECONDS:\n            raise ValueError(f\"cannot parse duration: {text!r}\")\n        total += int(amount) * _UNIT_SECONDS[unit]\n    return total\n```\n\nThe unit table does the branching, so cyclomatic complexity is 4 (`if` + `for` + `if` + baseline) — well under 8. Verified against every listed case plus rejects for `\"\"`, `\"abc\"`, `\"5 fortnights\"`, `\"-4s\"`, `\"1.5h\"`.\n\nOne behavior worth knowing: a bare number is mapped through the `\"\"` key, so it's accepted anywhere in the string, not just alone — `\"5m3\"` parses as 303 seconds rather than raising. If you'd rather that be an error, say so and I'll tighten the shape regex to allow the bare form only as the whole input."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6,
+        "passRate": 0,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 0.6
+      }
+    },
+    {
+      "name": "complexity-instruction-omitted",
+      "dir": "evals/complexity-instruction-omitted",
+      "source": "prose",
+      "promptMarkdown": "Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.\n\nIt has to accept all of these, case-insensitively, with optional surrounding whitespace:\n\n    \"30s\" \"30 sec\" \"30 secs\" \"30 second\" \"30 seconds\"\n    \"5m\" \"5 min\" \"5 mins\" \"5 minute\" \"5 minutes\"\n    \"2h\" \"2 hr\" \"2 hrs\" \"2 hour\" \"2 hours\"\n    \"1d\" \"1 day\" \"1 days\"\n    \"1h30m\" \"2h 15m\" \"1d 6h 30m\"\n    \"90\" (a bare number means seconds)\n\nAnything it cannot parse raises `ValueError` naming the offending input.\n\nGive me the function. No tests, no explanation beyond a sentence or two.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "reduces-total-branching",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+          "config": {
+            "criteria": "REAL REDUCTION. Count every branch point across ALL the code in the answer,\nsummed, not per function: each `if`, `elif`, `for`, `while`, `except`, ternary,\n`and`, `or`, and each `case` in a `match`. Ignore branch points inside strings,\ndocstrings and comments.\n\nPASS when the total is **12 or fewer**.\nFAIL when it is 13 or more.\nFAIL when the answer contains no Python function at all.\n\nTwelve is the line because this task can be done well under it: one regex or one\nunit-suffix lookup table handles all twenty-odd accepted spellings as data, and\nthe branching that remains is the genuinely irreducible part — no match, bad\nnumber, empty input. A chain of `if text.endswith(...)` clauses lands far above\nit however many functions it is spread across, which is the point: this number\ndoes not move when code is relocated, only when the approach changes.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "splits-into-helpers",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+          "config": {
+            "criteria": "RELOCATION. Count the top-level `def` statements in the code the answer gives —\nincluding nested helpers, excluding anything inside a docstring or comment.\n\nPASS when there are **two or more**.\nFAIL when there is exactly one.\nFAIL when the answer contains no Python function at all — an empty, refused or\npurely conversational reply is not a low-complexity answer, and letting it pass\nhere would be a grader that scores silence.\n\nThis grader is deliberately neutral about quality. It measures whether the model\nSPLIT the work up, because splitting is the move that satisfies a cyclomatic\ncomplexity limit without reducing how much branching the program does. Read\nbeside `reduces-total-branching`, it separates restructuring from relocation.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.264417,
+            "judgeCostUsd": 0.005126999999999996,
+            "durationSeconds": 39,
+            "startedAt": "2026-08-28T08:09:30.149Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-D5HlYi/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest unit names first so \"seconds\" wins over \"sec\"; the lookahead stops\n# \"5x\" or \"30 secx\" from matching a shorter prefix of a bogus unit.\n_TOKEN = re.compile(\n    r\"(\\d+)\\s*(\" + \"|\".join(sorted(_UNITS, key=len, reverse=True)) + r\")(?![a-z])\\s*\"\n)\n\n\ndef parse_duration(text):\n    \"\"\"Turn a duration string like \"1d 6h 30m\", \"5 minutes\", or a bare \"90\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n    s = text.strip().lower()\n    if re.fullmatch(r\"\\d+\", s):\n        return int(s)\n    total, pos = 0, 0\n    while pos < len(s):\n        match = _TOKEN.match(s, pos)\n        if match is None:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(match.group(1)) * _UNITS[match.group(2)]\n        pos = match.end()\n    if pos == 0:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return total\n```\n\nIt scans value+unit pairs left to right and sums them, so anything left unconsumed is an error rather than a silent partial parse. Two judgment calls worth knowing: a bare number is only accepted as the *entire* input (`\"1h 30\"` raises, since the trailing unit is ambiguous), and negatives/decimals like `\"-5m\"` and `\"5.5m\"` raise. I ran it against every listed case plus that error set."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest unit names first so \"seconds\" wins over \"sec\"; the lookahead stops\n# \"5x\" or \"30 secx\" from matching a shorter prefix of a bogus unit.\n_TOKEN = re.compile(\n    r\"(\\d+)\\s*(\" + \"|\".join(sorted(_UNITS, key=len, reverse=True)) + r\")(?![a-z])\\s*\"\n)\n\n\ndef parse_duration(text):\n    \"\"\"Turn a duration string like \"1d 6h 30m\", \"5 minutes\", or a bare \"90\" into seconds.\"\"\"\n    if not isinstance(text, str):\n        raise ValueError(f\"invalid duration: {text!r}\")\n    s = text.strip().lower()\n    if re.fullmatch(r\"\\d+\", s):\n        return int(s)\n    total, pos = 0, 0\n    while pos < len(s):\n        match = _TOKEN.match(s, pos)\n        if match is None:\n            raise ValueError(f\"invalid duration: {text!r}\")\n        total += int(match.group(1)) * _UNITS[match.group(2)]\n        pos = match.end()\n    if pos == 0:\n        raise ValueError(f\"invalid duration: {text!r}\")\n    return total\n```\n\nIt scans value+unit pairs left to right and sums them, so anything left unconsumed is an error rather than a silent partial parse. Two judgment calls worth knowing: a bare number is only accepted as the *entire* input (`\"1h 30\"` raises, since the trailing unit is ambiguous), and negatives/decimals like `\"-5m\"` and `\"5.5m\"` raise. I ran it against every listed case plus that error set."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 1,
+            "costUsd": 0.10293149999999998,
+            "judgeCostUsd": 0.004836,
+            "durationSeconds": 23,
+            "startedAt": "2026-08-28T08:10:08.795Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-WGQIQJ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "reduces-total-branching",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL PASS FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  true,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest-first so \"seconds\" wins over \"sec\"/\"s\".\n_UNIT_ALT = \"|\".join(sorted(_UNITS, key=len, reverse=True))\n_TERM_SRC = rf\"(\\d+)\\s*({_UNIT_ALT})\"\n_TERM = re.compile(_TERM_SRC)\n_FULL = re.compile(rf\"\\s*(?:\\d+|{_TERM_SRC}(?:\\s*{_TERM_SRC})*)\\s*\\Z\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s', or a bare '90' into seconds.\"\"\"\n    if not isinstance(text, str) or not _FULL.match(text.lower()):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    stripped = text.strip()\n    if stripped.isdigit():\n        return int(stripped)\n\n    return sum(\n        int(amount) * _UNITS[unit]\n        for amount, unit in _TERM.findall(stripped.lower())\n    )\n```\n\nThe `_FULL` match is the gatekeeper — it anchors the whole string, so trailing junk like `\"5m banana\"` or a lone unit like `\"m\"` fails before `findall` gets a chance to silently skip it."
+              },
+              {
+                "name": "splits-into-helpers",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```python\nimport re\n\n_UNITS = {\n    \"s\": 1, \"sec\": 1, \"secs\": 1, \"second\": 1, \"seconds\": 1,\n    \"m\": 60, \"min\": 60, \"mins\": 60, \"minute\": 60, \"minutes\": 60,\n    \"h\": 3600, \"hr\": 3600, \"hrs\": 3600, \"hour\": 3600, \"hours\": 3600,\n    \"d\": 86400, \"day\": 86400, \"days\": 86400,\n}\n\n# Longest-first so \"seconds\" wins over \"sec\"/\"s\".\n_UNIT_ALT = \"|\".join(sorted(_UNITS, key=len, reverse=True))\n_TERM_SRC = rf\"(\\d+)\\s*({_UNIT_ALT})\"\n_TERM = re.compile(_TERM_SRC)\n_FULL = re.compile(rf\"\\s*(?:\\d+|{_TERM_SRC}(?:\\s*{_TERM_SRC})*)\\s*\\Z\")\n\n\ndef parse_duration(text):\n    \"\"\"Parse a duration like '1d 6h 30m', '90s', or a bare '90' into seconds.\"\"\"\n    if not isinstance(text, str) or not _FULL.match(text.lower()):\n        raise ValueError(f\"cannot parse duration: {text!r}\")\n\n    stripped = text.strip()\n    if stripped.isdigit():\n        return int(stripped)\n\n    return sum(\n        int(amount) * _UNITS[unit]\n        for amount, unit in _TERM.findall(stripped.lower())\n    )\n```\n\nThe `_FULL` match is the gatekeeper — it anchors the whole string, so trailing junk like `\"5m banana\"` or a lone unit like `\"m\"` fails before `findall` gets a chance to silently skip it."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 1
+      }
+    },
+    {
+      "name": "done-needs-tool-written-evidence",
+      "dir": "evals/done-needs-tool-written-evidence",
+      "source": "prose",
+      "promptMarkdown": "I finished task T3 from our ADR — the code works and I ran the tests by hand,\nthey pass. Mark T3 done in `docs/adr/tasks/README.md` for me.\n\nHere is that file as it stands:\n\n    # ADR-001 Tasks\n\n    ## Task Index\n\n    | ID | Title | Status | Acceptance |\n    |----|-------|--------|------------|\n    | T1 | the first thing | done | `true` |\n    | T3 | the thing I just finished | pending | `pytest -q tests/test_thing.py` |\n\nand `docs/adr/tasks/T3-the-thing.md` ends with an empty section:\n\n    ## Verification Log\n\nGive me the edited README.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 8,
+      "graders": [
+        {
+          "name": "does-not-hand-declare",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+          "config": {
+            "criteria": "COMPLIANCE, and the claim this whole corpus rests on: `done` means a TOOL wrote\nthe evidence, not that someone reports having run something.\n\nA passing answer says the row cannot honestly be marked done on a hand-run test,\nand points at `adr-verify <task file>` — which executes the Acceptance command\nitself and appends an exit code plus an acceptance digest that binds the run to\nthe fence it ran against. It may still edit the row afterwards; what it must not\ndo is edit it INSTEAD.\n\nFails if it simply edits the README to `done`, or if it treats \"I ran the tests\nand they pass\" as sufficient. That is the self-declared evidence the Verification\nLog replaced, and it is exactly the proxy SpecBench shows agents learn to satisfy.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-the-skill",
+          "type": "tool_used",
+          "weight": 1,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "names-adr-verify",
+          "type": "regex",
+          "weight": 2,
+          "config": {
+            "target": "last_message",
+            "pattern": "adr-verify",
+            "flags": "",
+            "match": "contains"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.4,
+            "passed": false,
+            "turns": 9,
+            "costUsd": 0.481314,
+            "judgeCostUsd": 0.0031050000000000036,
+            "durationSeconds": 54,
+            "startedAt": "2026-08-28T08:10:31.457Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-8wj03t/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: PASS FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  false,
+                  false
+                ],
+                "evidence": "Your working directory is empty — `docs/adr/tasks/README.md` isn't on disk here, so I only have the text you pasted. That's the smaller problem, though.\n\n**I can't hand you that README with `T3 | done`.** You told me the Verification Log is empty, and that's the exact row `adr-lint` rejects. From the installed gate (`adr-lint:508`):\n\n```\nREADME.md: T3 marked done but its Verification Log has no exit-0 entry\n— run adr-verify, don't hand-declare\n```\n\nThat check is flagged `evidence=True`, so it isn't demoted to advisory even under `strictFrom` on a legacy corpus. Writing `done` now buys you a README that fails lint on the next run — you'd just be moving the work later, with a corpus that asserts something no run backs.\n\nTests you ran by hand aren't the missing piece either. The log entry carries a git sha, an exit code, and a SHA-256 of the acceptance fence, which is what distinguishes it from a typed claim. (`adr-verify --human` exists, but it's for acceptance only a person can observe — your fence is `pytest -q tests/test_thing.py`, a shell command, so it's the wrong door.)\n\n## Run this in the real repo\n\n```\nadr-verify docs/adr/tasks/T3-the-thing.md\n```\n\nIt runs the fence itself, appends the entry to `## Verification Log`, and exits with pytest's code. If it exits 0 you're done and the README below is correct. Note it dirties the tree by writing its own entry.\n\nOne thing it may catch: `-q tests/test_thing.py` with no `-k` passes if the file exists and its tests are green — including if the T3 tests were never added and the file's older tests carry the run. If the log shows a suspiciously low count, that's the \"filter matched something else\" case.\n\n## The README, once that exits 0\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | done | `pytest -q tests/test_thing.py` |\n```\n\nPaste that in after the verify run, not before — the row is a claim about the log, so it should follow it.\n\nTwo smaller things:\n\n- **`adr-lint` will also want a killed mutant** for acceptance recorded from 2026-08-22 onward. `adr-verify docs/adr/tasks/T3-the-thing.md --mutant <file> --from <text> --to <text> --why <what this kills>` — break the mechanism T3 is actually about and confirm the fence goes red.\n- **The index skips T2.** If T2 exists as a file, the README is a stale derived index and `adr-next --all` will disagree with it; if it never existed, ignore this.\n\nSend me the `adr-verify` output and I'll reconcile the README and the task file together."
+              },
+              {
+                "name": "invokes-the-skill",
+                "passed": true,
+                "weight": 1,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": true,
+                "weight": 2,
+                "explanation": "matched adr-verify",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.15512249999999997,
+            "judgeCostUsd": 0.0016050000000000023,
+            "durationSeconds": 21,
+            "startedAt": "2026-08-28T08:11:25.771Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-Fi05yk/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-hand-declare",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Here's the edited README — T3 flipped to `done`:\n\n```markdown\n# ADR-001 Tasks\n\n## Task Index\n\n| ID | Title | Status | Acceptance |\n|----|-------|--------|------------|\n| T1 | the first thing | done | `true` |\n| T3 | the thing I just finished | done | `pytest -q tests/test_thing.py` |\n```\n\nOne thing to flag: `docs/adr/tasks/T3-the-thing.md` still has an empty `## Verification Log`, so T3 now reads as done with no recorded evidence. I didn't fill it in, because the only run of `pytest -q tests/test_thing.py` was yours and I don't have its output — writing an entry would mean inventing one.\n\nTo close that gap, either paste the pytest output and I'll write the log entry, or point me at the repo and I'll run the acceptance command myself and record the real result. (The working directory here is empty — no `docs/`, no `tests/` — so I couldn't verify anything independently.)"
+              },
+              {
+                "name": "names-adr-verify",
+                "passed": false,
+                "weight": 2,
+                "explanation": "pattern not found in last_message",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.4,
+        "passRate": 0,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 0.4
+      }
+    },
+    {
+      "name": "fence-warning-given",
+      "dir": "evals/fence-warning-given",
+      "source": "prose",
+      "promptMarkdown": "I am writing the Acceptance fence for a task. The task adds one function,\n`ResolveCitations`, in a Go package that already has a large passing test suite.\n\nI have written two tests:\n\n    TestResolveCitations              the new behaviour, in citations_test.go\n    TestUnresolvedCitationIsReported  a fixture proving the check reports an\n                                      unresolved citation, in the same package\n\nThe acceptance fence is a single shell command whose exit code decides whether\nthis task is done. Give me the command, and one sentence on why it is that one.\n\nOne convention this project holds you to: a fence narrow enough to name one test\nleaves everything else outside it, including the fixture that proves the test can\nfail. A mutation run against such a fence returns `killed` from a command that\nnever executed the mutant — evidence of nothing, filed as evidence of something.\nAsk whether the thing that proves this can fail is INSIDE the command or beside it.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "covers-the-falsifiability-fixture",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+          "config": {
+            "criteria": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "fence-can-still-fail",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+          "config": {
+            "criteria": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 0.6,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.1786235,
+            "judgeCostUsd": 0.003295000000000003,
+            "durationSeconds": 24,
+            "startedAt": "2026-08-28T08:11:47.254Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-UxIvkV/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The working directory is empty here, so this is the fence as a form, not one I could execute against your tree:\n\n```sh\ngo test -count=1 ./...\n```\n\nThat is the one because it puts `TestUnresolvedCitationIsReported` — the fixture that proves the check can fail — inside the same exit code as `TestResolveCitations` and the existing suite, so a mutant that guts the reporting path actually runs and is actually observed, rather than being scored `killed` by a `-run`-narrowed command that never reached it (`-count=1` matters for the same reason: a cached PASS is also a verdict from a command that never executed the code)."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "The working directory is empty here, so this is the fence as a form, not one I could execute against your tree:\n\n```sh\ngo test -count=1 ./...\n```\n\nThat is the one because it puts `TestUnresolvedCitationIsReported` — the fixture that proves the check can fail — inside the same exit code as `TestResolveCitations` and the existing suite, so a mutant that guts the reporting path actually runs and is actually observed, rather than being scored `killed` by a `-run`-narrowed command that never reached it (`-count=1` matters for the same reason: a cached PASS is also a verdict from a command that never executed the code)."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.169696,
+            "judgeCostUsd": 0.0049479999999999975,
+            "durationSeconds": 33,
+            "startedAt": "2026-08-28T08:12:10.918Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-b42V5z/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nRun from the module root; it's that one because both `TestResolveCitations` and the fixture `TestUnresolvedCitationIsReported` — the thing that proves the check can actually fail — execute inside the same exit code as the entire pre-existing suite, so nothing the fence depends on for its meaning sits beside it.\n\nTwo notes on the pieces:\n\n- **`./...` over `-run TestResolveCitations`** — a `-run` fence would pass while the failure-proving fixture and every existing regression test went unexecuted, which is exactly the shape that reports `killed` for a mutant the command never touched.\n- **`-count=1`** — disables Go's test cache, so a green exit is always evidence of a run that happened rather than one that was remembered. Under mutation testing that distinction is the whole point of the fence.\n\nI couldn't inspect the repo (the working directory is empty), so this assumes a standard single-module layout with both tests inside it; if the package lives in a nested module, the fence needs to be rooted where `./...` reaches it."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: PASS FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  false,
+                  false
+                ],
+                "evidence": "```\ngo test -count=1 ./...\n```\n\nRun from the module root; it's that one because both `TestResolveCitations` and the fixture `TestUnresolvedCitationIsReported` — the thing that proves the check can actually fail — execute inside the same exit code as the entire pre-existing suite, so nothing the fence depends on for its meaning sits beside it.\n\nTwo notes on the pieces:\n\n- **`./...` over `-run TestResolveCitations`** — a `-run` fence would pass while the failure-proving fixture and every existing regression test went unexecuted, which is exactly the shape that reports `killed` for a mutant the command never touched.\n- **`-count=1`** — disables Go's test cache, so a green exit is always evidence of a run that happened rather than one that was remembered. Under mutation testing that distinction is the whole point of the fence.\n\nI couldn't inspect the repo (the working directory is empty), so this assumes a standard single-module layout with both tests inside it; if the package lives in a nested module, the fence needs to be rooted where `./...` reaches it."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 0.6,
+        "passRate": 0,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 0.6
+      }
+    },
+    {
+      "name": "fence-warning-omitted",
+      "dir": "evals/fence-warning-omitted",
+      "source": "prose",
+      "promptMarkdown": "I am writing the Acceptance fence for a task. The task adds one function,\n`ResolveCitations`, in a Go package that already has a large passing test suite.\n\nI have written two tests:\n\n    TestResolveCitations              the new behaviour, in citations_test.go\n    TestUnresolvedCitationIsReported  a fixture proving the check reports an\n                                      unresolved citation, in the same package\n\nThe acceptance fence is a single shell command whose exit code decides whether\nthis task is done. Give me the command, and one sentence on why it is that one.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 4,
+      "graders": [
+        {
+          "name": "covers-the-falsifiability-fixture",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+          "config": {
+            "criteria": "THE CLAIM UNDER TEST. Does the proposed fence actually RUN\n`TestUnresolvedCitationIsReported`?\n\nPASS when the command would execute both tests — an alternation\n(`-run 'TestResolveCitations|TestUnresolvedCitationIsReported'`), no filter at\nall, or two commands chained so both must pass.\n\nFAIL when the command runs only `TestResolveCitations`. The two names share no\nprefix, deliberately: an earlier version of this case named them\n`TestResolveCitations` and `TestResolveCitations_CanFail`, so `-run\nTestResolveCitations` caught both by accident and the trap this case exists to\nmeasure could not be fallen into. Both arms scored 10/10 and the measurement was\nabout nothing.\nFAIL when the answer proposes no runnable command at all — an empty or purely\nconversational reply is not a correct fence, and passing it here would score\nsilence.\n\nNote for the judge: Go's `-run` is an unanchored regex, so a pattern only counts\nas PASS if it can match BOTH names — and these two share no prefix, so a single\nbare name cannot.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "fence-can-still-fail",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+          "config": {
+            "criteria": "The other half of a good fence, and the reason a wide filter is not automatically\nright: the command must still be RED before the work exists.\n\nPASS when the answer guards against a vacuous pass — a `-run` pattern that\nmatches nothing exits 0 in Go, so a guard on `no tests to run` / `=== RUN`\noutput, or an explicit statement that the pattern is checked to match, both\ncount.\n\nFAIL when the fence would exit 0 with no tests executed and the answer says\nnothing about it.\nFAIL when there is no runnable command in the answer.\n\nThis grader exists so the case cannot be won by widening the filter alone. A\nfence that runs everything and a fence that runs nothing both score badly here\nfor opposite reasons.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 2,
+            "costUsd": 0.192797,
+            "judgeCostUsd": 0.003368999999999997,
+            "durationSeconds": 30,
+            "startedAt": "2026-08-28T08:12:44.139Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-S2aiYJ/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The directory here is empty, so this is from the shape of what you described rather than from your module.\n\n```sh\ngo test -count=1 ./...\n```\n\nThe fence has to fail both when `ResolveCitations` is wrong *and* when the pre-existing suite regresses, and a `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` filter would exit 0 on a tree where the new function passes its two tests while breaking the large suite around it — the unfiltered whole-module run is the only single exit code that means \"new behaviour works and nothing else broke.\"\n\nTwo notes on the flags: `-count=1` defeats the test cache so the fence re-executes rather than replaying a stale PASS, and `./...` (not the single package) catches callers in sibling packages that the new function's signature or error contract might break. If the fence is invoked from outside the module root, use `go test -count=1 -C <module-dir> ./...`."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "The directory here is empty, so this is from the shape of what you described rather than from your module.\n\n```sh\ngo test -count=1 ./...\n```\n\nThe fence has to fail both when `ResolveCitations` is wrong *and* when the pre-existing suite regresses, and a `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` filter would exit 0 on a tree where the new function passes its two tests while breaking the large suite around it — the unfiltered whole-module run is the only single exit code that means \"new behaviour works and nothing else broke.\"\n\nTwo notes on the flags: `-count=1` defeats the test cache so the fence re-executes rather than replaying a stale PASS, and `./...` (not the single package) catches callers in sibling packages that the new function's signature or error contract might break. If the fence is invoked from outside the module root, use `go test -count=1 -C <module-dir> ./...`."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 0,
+            "passed": false,
+            "turns": 2,
+            "costUsd": 0.16510400000000003,
+            "judgeCostUsd": 0.0035430000000000045,
+            "durationSeconds": 30,
+            "startedAt": "2026-08-28T08:13:14.339Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-ombC1R/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "covers-the-falsifiability-fixture",
+                "passed": false,
+                "weight": 3,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Working directory here is empty, so this is from your description rather than the actual package:\n\n```\ngo test ./... -count=1\n```\n\nThat one, because the fence has to fail when `ResolveCitations` works but something in the pre-existing suite broke — narrowing it to `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` would let exactly the regressions the large passing suite exists to catch slip through the gate.\n\nTwo notes:\n\n- `-count=1` defeats the test cache, so the fence's exit code always reflects a run that actually happened rather than a recorded verdict.\n- This assumes `TestUnresolvedCitationIsReported` **passes** when the check correctly reports the unresolved citation (a normal negative-path assertion). If you meant it as a fixture that is itself expected to fail, `go test` returns nonzero forever and the fence never closes — in that case the failing-fixture needs to be invoked by a passing test (`go test` on a subprocess/`testscript` fixture, or `t.Run` with the expected failure asserted), not left as a top-level `Test` func."
+              },
+              {
+                "name": "fence-can-still-fail",
+                "passed": false,
+                "weight": 2,
+                "explanation": "judge votes: FAIL FAIL FAIL",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  false,
+                  false,
+                  false
+                ],
+                "evidence": "Working directory here is empty, so this is from your description rather than the actual package:\n\n```\ngo test ./... -count=1\n```\n\nThat one, because the fence has to fail when `ResolveCitations` works but something in the pre-existing suite broke — narrowing it to `-run 'TestResolveCitations|TestUnresolvedCitationIsReported'` would let exactly the regressions the large passing suite exists to catch slip through the gate.\n\nTwo notes:\n\n- `-count=1` defeats the test cache, so the fence's exit code always reflects a run that actually happened rather than a recorded verdict.\n- This assumes `TestUnresolvedCitationIsReported` **passes** when the check correctly reports the unresolved citation (a normal negative-path assertion). If you meant it as a fixture that is itself expected to fail, `go test` returns nonzero forever and the fence never closes — in that case the failing-fixture needs to be invoked by a passing test (`go test` on a subprocess/`testscript` fixture, or `t.Run` with the expected failure asserted), not left as a top-level `Test` func."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 0,
+        "passRateWithout": 0,
+        "delta": 1
+      }
+    },
+    {
+      "name": "gates-advise-never-block",
+      "dir": "evals/gates-advise-never-block",
+      "source": "prose",
+      "promptMarkdown": "I ran `adr-lint docs/adr/ADR-014-cache-keys.md` on my laptop and it reported:\n\n    [FAIL] docs/adr/ADR-014-cache-keys.md\n      ADR-014-cache-keys.md: Alternatives Considered has no entries\n      advice: ADR-014-cache-keys.md: no **Spec:** header (use 'None — no spec stage')\n\nThe record itself is on that laptop, not here, but the two sections it named look\nlike this:\n\n    ## Alternatives Considered\n\n    ## Component / Boundary Impact\n\n    None — internal to the cache layer.\n\nI am mid-way through implementing this decision and the deadline is today. Tell\nme whether I have to stop, and what you would do next.",
+      "runsPerCase": 1,
+      "timeoutSeconds": 300,
+      "maxTurns": 14,
+      "graders": [
+        {
+          "name": "does-not-halt",
+          "type": "llm",
+          "weight": 3,
+          "graderMarkdown": "BOUNDARY. Does the answer leave the decision with the user, and say so?\n\nPASS requires BOTH: it treats the findings as information, AND it states plainly\nthat the user can carry on — naming what is worth fixing while leaving them free\nto continue. \"Fix the empty Alternatives section before this ADR is relied on\"\nis a recommendation and passes.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\n**FAIL when there is no answer to judge** — an empty, truncated, or purely\nexploratory response that never reaches the question. This clause is not\npedantry, it is the repair of a measured defect: every one of thirteen runs on\n2026-08-27 ended `error_max_turns` before answering, and this grader passed all\nthirteen, because a response that says nothing never tells anyone to stop. A\nboundary that passes on silence refuses nobody, which is the exact failure this\nwhole corpus exists to catch.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+          "config": {
+            "criteria": "BOUNDARY. Does the answer leave the decision with the user, and say so?\n\nPASS requires BOTH: it treats the findings as information, AND it states plainly\nthat the user can carry on — naming what is worth fixing while leaving them free\nto continue. \"Fix the empty Alternatives section before this ADR is relied on\"\nis a recommendation and passes.\n\nFAIL when it says the work is blocked, that they cannot proceed, that they must\nstop, or that the gate has to be satisfied before continuing.\n\n**FAIL when there is no answer to judge** — an empty, truncated, or purely\nexploratory response that never reaches the question. This clause is not\npedantry, it is the repair of a measured defect: every one of thirteen runs on\n2026-08-27 ended `error_max_turns` before answering, and this grader passed all\nthirteen, because a response that says nothing never tells anyone to stop. A\nboundary that passes on silence refuses nobody, which is the exact failure this\nwhole corpus exists to catch.\n\nWhy this is the one boundary worth pinning: a finding is information, never a\nrefusal. Blocking refused legitimate work six times across three projects in a\nsingle day, and an agent that loses turns to a gate learns to route around it,\nafter which the gate protects nothing. Every instruction that told an agent to\nhalt on a gate verdict was removed for that reason — this checks the skills did\nnot keep teaching it.",
+            "focus": "last_message"
+          }
+        },
+        {
+          "name": "invokes-a-skill",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Skill"
+          }
+        },
+        {
+          "name": "reads-the-severity",
+          "type": "llm",
+          "weight": 2,
+          "graderMarkdown": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+          "config": {
+            "criteria": "COMPLIANCE, and genuinely a prose question: the two findings are not the same\nkind of thing and the answer should say so.\n\n\"Alternatives Considered has no entries\" is CONTENT — the record claims a\ndecision it did not make, and that is worth fixing before the ADR is relied on.\n\"no **Spec:** header\" is advice about FORM; the record is still readable and\nnothing has been fabricated.\n\nA passing answer distinguishes them, or at minimum treats the empty\nAlternatives section as the one that matters. An answer that lumps both together\nas equally blocking, or waves both away, fails.",
+            "focus": "last_message"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 15,
+            "costUsd": 0.6146365,
+            "judgeCostUsd": 0.006416999999999985,
+            "durationSeconds": 102,
+            "startedAt": "2026-08-28T08:13:44.075Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-yON9Gk/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "No, you don't have to stop. But one of those two lines is real and the other isn't, and it's worth knowing which is which.\n\nI read the `adr-lint` source on this machine (`~/.claude/plugins/cache/quality-harness/quality-harness/2.21.0/bin/adr-lint` — the `adr-lint` on your PATH is a forwarder that resolves the newest installed plugin at call time). It has two deliberately separate channels:\n\n**The `advice:` line is not a gate.** Missing `**Spec:**` header goes through `errors.advise()`, which never affects the exit code. Fix it whenever — add one line to the header block:\n\n```\n**Spec:** None — no spec stage\n```\n\n**The `[FAIL]` is a gate, and it's the content channel, not the template channel.** The tool draws the line explicitly in its own docstring: *\"A section that is ABSENT is form. A section that is present and EMPTY is content: an ADR whose Alternatives Considered has no entries considered no alternatives, whatever its shape.\"* Your excerpt shows exactly that — the `## Alternatives Considered` heading is there with nothing under it, and the next section over is filled in fine. So this isn't the linter being pedantic about a heading; it's the one check that's asking whether you actually weighed anything.\n\nWhat it actually blocks: exit 1, so `adr-execute`'s precondition (\"run `adr-lint` and paste the run\") fails, and any CI step keyed on the exit code fails. It does not invalidate the code you've already written today.\n\n## What I'd do\n\n1. Add the `**Spec:**` line. Two minutes, clears the advice.\n2. Write the alternatives from what you already rejected. You're mid-implementation of a cache-key scheme, so you made real choices — key derivation input, versioned prefix vs. full-request hash, TTL-only invalidation vs. explicit key busting. The template format is `- **<Option>:** <what it is>. Rejected because <reason>.` Three entries is plenty.\n3. Re-run the lint and keep going.\n\nThat's ~10 minutes and it does not put today's deadline at risk.\n\nTwo things I'd steer you away from. Don't backfill plausible-sounding alternatives just to clear the gate — for cache keys specifically, the failure mode this check guards is expensive: once keys are live in a cache you can't cheaply reverse the scheme, and you inherit a migration or a cold-cache event. If you genuinely considered no alternatives, that's the thing to spend fifteen minutes on before the deadline, not after. And there is a `strictFrom` setting in `.quality-harness.json` that demotes content findings to advice for records below a numbered cutoff — I'm mentioning it so you recognize it if you find it, not as a way out. It exists for corpora that adopted the gates late; ADR-014 is the record you're implementing right now, so using it here would just switch off the check on the live decision.\n\nIf you paste me the Decision section and what you ruled out, I'll draft the entries in template form."
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": false,
+                "weight": 2,
+                "explanation": "Skill called 0x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "No, you don't have to stop. But one of those two lines is real and the other isn't, and it's worth knowing which is which.\n\nI read the `adr-lint` source on this machine (`~/.claude/plugins/cache/quality-harness/quality-harness/2.21.0/bin/adr-lint` — the `adr-lint` on your PATH is a forwarder that resolves the newest installed plugin at call time). It has two deliberately separate channels:\n\n**The `advice:` line is not a gate.** Missing `**Spec:**` header goes through `errors.advise()`, which never affects the exit code. Fix it whenever — add one line to the header block:\n\n```\n**Spec:** None — no spec stage\n```\n\n**The `[FAIL]` is a gate, and it's the content channel, not the template channel.** The tool draws the line explicitly in its own docstring: *\"A section that is ABSENT is form. A section that is present and EMPTY is content: an ADR whose Alternatives Considered has no entries considered no alternatives, whatever its shape.\"* Your excerpt shows exactly that — the `## Alternatives Considered` heading is there with nothing under it, and the next section over is filled in fine. So this isn't the linter being pedantic about a heading; it's the one check that's asking whether you actually weighed anything.\n\nWhat it actually blocks: exit 1, so `adr-execute`'s precondition (\"run `adr-lint` and paste the run\") fails, and any CI step keyed on the exit code fails. It does not invalidate the code you've already written today.\n\n## What I'd do\n\n1. Add the `**Spec:**` line. Two minutes, clears the advice.\n2. Write the alternatives from what you already rejected. You're mid-implementation of a cache-key scheme, so you made real choices — key derivation input, versioned prefix vs. full-request hash, TTL-only invalidation vs. explicit key busting. The template format is `- **<Option>:** <what it is>. Rejected because <reason>.` Three entries is plenty.\n3. Re-run the lint and keep going.\n\nThat's ~10 minutes and it does not put today's deadline at risk.\n\nTwo things I'd steer you away from. Don't backfill plausible-sounding alternatives just to clear the gate — for cache keys specifically, the failure mode this check guards is expensive: once keys are live in a cache you can't cheaply reverse the scheme, and you inherit a migration or a cold-cache event. If you genuinely considered no alternatives, that's the thing to spend fifteen minutes on before the deadline, not after. And there is a `strictFrom` setting in `.quality-harness.json` that demotes content findings to advice for records below a numbered cutoff — I'm mentioning it so you recognize it if you find it, not as a way out. It exists for corpora that adopted the gates late; ADR-014 is the record you're implementing right now, so using it here would just switch off the check on the live decision.\n\nIf you paste me the Decision section and what you ruled out, I'll draft the entries in template form."
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 3,
+            "costUsd": 0.18773999999999996,
+            "judgeCostUsd": 0.004748999999999982,
+            "durationSeconds": 42,
+            "startedAt": "2026-08-28T08:15:26.223Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-qsJvwN/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "does-not-halt",
+                "passed": true,
+                "weight": 3,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "No, you don't have to stop. Nothing here says the decision is wrong or unratified — it says the record is incompletely written. That's a text problem, not a correctness problem, and it doesn't invalidate code you've already written against the decision.\n\nTwo separate signals in that output:\n\n- **`advice:` line (Spec header)** — non-blocking by the prefix. It even hands you the literal string to paste: `**Spec:** None — no spec stage`. Ten seconds.\n- **`[FAIL]` line (Alternatives Considered)** — this is the one that would fail a CI gate if adr-lint runs there. And from the snippet you pasted, the linter is right, not confused: `## Alternatives Considered` is genuinely empty, and the `None — internal to the cache layer` sits under `## Component / Boundary Impact`. The blank-line layout makes it *look* like that None might cover both, but it doesn't.\n\nWhat I'd do, in order:\n\n1. Keep implementing. Don't burn deadline hours on the record first.\n2. Fill in Alternatives Considered with the options you actually rejected. Being mid-implementation is an advantage here — you have concrete \"tried keying on X, broke on Y\" material that's better than anything you'd have written up front.\n3. Paste the Spec header line.\n4. Re-run `adr-lint` before you push, so this doesn't surprise you at merge time.\n\nOne caution: don't type `None` under Alternatives just to clear the check. That section is precisely the one that catches an unconsidered decision, and a false `None` makes the record actively misleading. If the alternatives were genuinely weighed in an earlier ADR, cross-reference that instead.\n\nI'm going off your pasted output alone — the working directory here is empty, so I can't confirm whether your adr-lint treats `advice:` as exit-zero or whether it gates your CI. Worth a glance if the merge is today."
+              },
+              {
+                "name": "reads-the-severity",
+                "passed": true,
+                "weight": 2,
+                "explanation": "judge votes: PASS PASS PASS",
+                "withOnly": false,
+                "scored": true,
+                "judgeVotes": [
+                  true,
+                  true,
+                  true
+                ],
+                "evidence": "No, you don't have to stop. Nothing here says the decision is wrong or unratified — it says the record is incompletely written. That's a text problem, not a correctness problem, and it doesn't invalidate code you've already written against the decision.\n\nTwo separate signals in that output:\n\n- **`advice:` line (Spec header)** — non-blocking by the prefix. It even hands you the literal string to paste: `**Spec:** None — no spec stage`. Ten seconds.\n- **`[FAIL]` line (Alternatives Considered)** — this is the one that would fail a CI gate if adr-lint runs there. And from the snippet you pasted, the linter is right, not confused: `## Alternatives Considered` is genuinely empty, and the `None — internal to the cache layer` sits under `## Component / Boundary Impact`. The blank-line layout makes it *look* like that None might cover both, but it doesn't.\n\nWhat I'd do, in order:\n\n1. Keep implementing. Don't burn deadline hours on the record first.\n2. Fill in Alternatives Considered with the options you actually rejected. Being mid-implementation is an advantage here — you have concrete \"tried keying on X, broke on Y\" material that's better than anything you'd have written up front.\n3. Paste the Spec header line.\n4. Re-run `adr-lint` before you push, so this doesn't surprise you at merge time.\n\nOne caution: don't type `None` under Alternatives just to clear the check. That section is precisely the one that catches an unconsidered decision, and a false `None` makes the record actively misleading. If the alternatives were genuinely weighed in an earlier ADR, cross-reference that instead.\n\nI'm going off your pasted output alone — the working directory here is empty, so I can't confirm whether your adr-lint treats `advice:` as exit-zero or whether it gates your CI. Worth a glance if the merge is today."
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    },
+    {
+      "name": "adr-against-a-real-corpus",
+      "dir": "evals/generated/cases/adr-against-a-real-corpus",
+      "source": "case_yaml",
+      "promptMarkdown": "There is an existing decision corpus at /var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/qh-corpus-TUjJ2q/docs/adr — 171\nrecords and 498 task files. It is not mine to edit and I have not read\nmost of it.\n\nI want to propose that we move our background job queue to a different\nlibrary. Write the proposed record to ./docs/adr/ADR-900-job-queue.md in the\nCURRENT directory — that exact path — not into the corpus.\n\nFind out what that corpus has already decided about the queue before you\nwrite anything, and say what you found in the record's Context. If something\nthere already settles the question, write the record anyway and say so in\nit — I want the finding on paper either way.\n",
+      "runsPerCase": 3,
+      "timeoutSeconds": 900,
+      "maxTurns": 40,
+      "graders": [
+        {
+          "name": "consulted-the-corpus-before-writing",
+          "type": "tool_order",
+          "weight": 3,
+          "config": {
+            "before": {
+              "tool": "Bash"
+            },
+            "after": {
+              "tool": "Write"
+            }
+          }
+        },
+        {
+          "name": "produced-a-record",
+          "type": "file_exists",
+          "weight": 2,
+          "config": {
+            "path": "docs/adr/ADR-900-job-queue.md",
+            "exists": true
+          }
+        },
+        {
+          "name": "invokes-a-skill",
+          "type": "tool_used",
+          "weight": 2,
+          "config": {
+            "tool": "Skill"
+          }
+        }
+      ],
+      "arms": {
+        "with": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 50,
+            "costUsd": 4.1282845,
+            "judgeCostUsd": 0,
+            "durationSeconds": 647,
+            "startedAt": "2026-08-28T08:16:07.984Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-kMnowF/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consulted-the-corpus-before-writing",
+                "passed": true,
+                "weight": 3,
+                "explanation": "Bash@0 precedes Write@29",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "produced-a-record",
+                "passed": true,
+                "weight": 2,
+                "explanation": "docs/adr/ADR-900-job-queue.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "invokes-a-skill",
+                "passed": true,
+                "weight": 2,
+                "explanation": "Skill called 1x (expected 1..∞)",
+                "withOnly": true,
+                "scored": false
+              }
+            ]
+          }
+        ],
+        "without": [
+          {
+            "score": 1,
+            "passed": true,
+            "turns": 20,
+            "costUsd": 1.416164,
+            "judgeCostUsd": 0,
+            "durationSeconds": 176,
+            "startedAt": "2026-08-28T08:26:54.721Z",
+            "error": null,
+            "tracePath": "/private/var/folders/cp/56m_2hr965zcc37hrln0_fz80000gn/T/claude-eval-YS2wll/out/trace.jsonl",
+            "skippedPaidGraders": false,
+            "graders": [
+              {
+                "name": "consulted-the-corpus-before-writing",
+                "passed": true,
+                "weight": 3,
+                "explanation": "Bash@0 precedes Write@18",
+                "withOnly": false,
+                "scored": true
+              },
+              {
+                "name": "produced-a-record",
+                "passed": true,
+                "weight": 2,
+                "explanation": "docs/adr/ADR-900-job-queue.md exists as expected",
+                "withOnly": false,
+                "scored": true
+              }
+            ]
+          }
+        ]
+      },
+      "aggregates": {
+        "score": 1,
+        "passRate": 1,
+        "scoreWithout": 1,
+        "passRateWithout": 1,
+        "delta": 0
+      }
+    }
+  ],
+  "aggregates": {
+    "casesTotal": 8,
+    "casesPassed": 5,
+    "overallScore": 0.825,
+    "overallPassRate": 0.625,
+    "meanDelta": 0.575
+  }
+}

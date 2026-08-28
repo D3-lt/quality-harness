@@ -1,0 +1,98 @@
+# Task ADR-010-T2: strictFrom demotes a finding without changing the count
+
+**Depends-on:** T1
+**Covers:** F-13, F-14, F-15, UC2-S1, UC2-S2
+**Estimated scope:** M (multi-file)
+**Owner:** zy
+**Produces:** none
+**Consumes:** `adr-verify --sweep` and its exit code (T1)
+**Data dependency:** hermetic
+
+## Goal
+
+A false success on a record below the configured `strictFrom` cutoff is reported as advice and does
+not fail the sweep; the verdict line names `strictFrom`; and the counts are identical with and
+without it.
+
+## Affected Files
+
+| File | Change | Why |
+|------|--------|-----|
+| `plugin/bin/adr-verify` | edit | read `strictFrom`, demote the exit code, name it in the verdict line |
+| `tests/sweep.test.mjs` | edit | both directions of the cutoff, and the counts-unchanged assertion |
+| `tests/mutations.json` | edit | one entry for the demotion, one for the counts-unchanged guarantee |
+
+## Ordered Steps
+
+1. **Confirm the failing tests first.** Add the two cutoff cases to `tests/sweep.test.mjs` and watch them go red: T1 fails on any false success regardless of record number, so the below-cutoff case fails on the exit code and the verdict-line case fails on the missing `[strictFrom]` marker. Confirm the below-cutoff case is red for the exit code, not because the fixture's record number was misparsed.
+2. Read `strictFrom` from `.quality-harness.json` at the corpus's repository root, using the same resolution `adr-lint::strict_from_number()` uses — a corpus configuring it once must not need to configure it twice.
+3. Demote: a false success on a record numbered below the cutoff is printed as advice; it stays in the numerator and in the printed list.
+4. Name it: the verdict line carries `[strictFrom]` whenever the cutoff is in effect, so a demoted result is never mistaken for a clean one.
+5. Assert the counts are byte-identical with and without the cutoff — only the exit code differs.
+6. Record both mechanisms with `adr-verify --mutant`; both must be RED.
+
+## Acceptance
+
+```bash
+node --test tests/sweep.test.mjs 2>&1 | tee /tmp/adr010-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr010-t2.out
+```
+
+## Tests
+
+| Test name | File | Verifies | Covers |
+|-----------|------|----------|--------|
+| `a false success below the strictFrom cutoff is advice, not a failure` | `tests/sweep.test.mjs` | exit 0; the finding is still printed | UC2-S1, F-14 |
+| `a false success at or above the cutoff still fails` | `tests/sweep.test.mjs` | exit non-zero | UC2-S2, F-13 |
+| `the verdict line names strictFrom whenever it is in effect` | `tests/sweep.test.mjs` | a demoted run is never mistaken for a clean one | F-14 |
+| `strictFrom changes the exit code and nothing else` | `tests/sweep.test.mjs` | same corpus, two runs, identical counts and identical named claims | F-15 |
+
+## Reachability
+
+| Rung | How this task shows it |
+|------|------------------------|
+| 1 — exists | the tests above |
+| 2 — something selects it | the `.quality-harness.json` read; the mutation on it must go RED |
+| 3 — the caller can discover it | `strictFrom` is already documented in `adr-execute`'s skill body; this task adds the sweep to that sentence |
+| 4 — it is used | nothing measures this yet — no adopting corpus exists to observe. Recorded rather than guessed |
+
+## Class Sweep
+
+**Class:** every gate that reads `strictFrom`, and whether each demotes only the exit code rather
+than the finding.
+
+```bash
+grep -rn "strictFrom\|strict_from" plugin/bin plugin/scripts docs/adr
+```
+
+To be run and recorded at execution. Known at authoring: `adr-lint` is the only reader today, and its
+documented rule is that the evidence chain is never demoted — a `done` row still needs its exit-0
+entry whatever the cutoff says. This task must not weaken that: the counts stay whole.
+
+## Mutation Log
+
+<!-- tool-written by adr-verify --mutant; empty at authoring -->
+
+## Invariants
+
+- `strictFrom` changes the exit code only. Counts, the rate, and the list of named claims are identical with and without it.
+- A demoted run always says `[strictFrom]`.
+- A corpus with no `.quality-harness.json`, or one with no `strictFrom` key, behaves exactly as T1 left it.
+
+## Risks
+
+- `strictFrom` becomes the way a real false success is made to disappear. Mitigated by the counts-unchanged assertion and its mutation: the finding is still counted and still printed.
+- Two gates resolve the config differently and a corpus is demoted by one and not the other. Mitigated by the Class Sweep and by reusing `adr-lint`'s resolution rather than writing a second one.
+
+## Stop Condition
+
+Stop if the cutoff cannot be resolved for a record whose id does not parse as a number — a record
+named outside the `ADR-NNN` convention must not be silently treated as below the cutoff, because that
+would demote it forever and invisibly. Ask before choosing a default.
+
+## Out of Scope
+
+- Changing what `strictFrom` means for `adr-lint`.
+- Any new configuration key. This reuses the one that exists.
+
+## Verification Log
+<!-- tool-written by adr-verify; empty at authoring -->

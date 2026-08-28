@@ -93,3 +93,23 @@ test('a baseline is taken once per distinct test-set, not once per mutation', ()
   assert.equal(sets.length, 2, 'order within a set does not make it a different set')
   assert.deepEqual(sets.map(s => s.tests), [['a.test.mjs'], ['a.test.mjs', 'b.test.mjs']])
 })
+
+test('a run killed by signal is HUNG rather than GREEN', () => {
+  // Spec F-2. A mutation can make an upward walk never terminate — removing
+  // path_stack's relative_to guard did exactly that, because Path("/").parent is
+  // Path("/"). A hang is not a pass and not an ordinary failure, and reading the
+  // status alone would call a null status GREEN.
+  assert.equal(classify({ occurrences: 1, baselineOk: true, run: killed() }).verdict, 'HUNG')
+  assert.equal(classify({ occurrences: 1, baselineOk: true, run: { status: null, signal: null } })
+    .verdict, 'HUNG', 'a null status with no signal is still not a pass')
+})
+
+test('GREEN and STALE both count as missed and exit 1', () => {
+  // Spec F-3, existing behaviour asserted directly for the first time. Both mean
+  // the mutation proved nothing about the suite, for different reasons: GREEN
+  // because nothing noticed, STALE because nothing was applied.
+  assert.equal(summarise([{ verdict: 'GREEN' }]).failing, true)
+  assert.equal(summarise([{ verdict: 'STALE' }]).failing, true)
+  assert.equal(summarise([{ verdict: 'RED' }, { verdict: 'HUNG' }]).failing, false,
+    'a mutation the tests noticed, by either route, is not a failure of the campaign')
+})

@@ -73,6 +73,19 @@ decoration and you go and fix it; a `killed` verdict from a fence that never exe
 is evidence of nothing, filed as evidence of something. Ask of every fence: is the thing that proves
 this can fail INSIDE the command, or beside it?
 
+A fourth, which is about the RUNNER rather than the fence: a fence can outrun the agent's tool
+timeout. Reported 2026-08-27 from a Windows session, where `./verify.sh` under Docker took about
+twelve minutes against a ten-minute limit — the command is killed, no entry is written, and the
+work looks unverified when it was merely unfinished. Run such a fence detached and poll for it
+(`nohup <fence> > out 2>&1 &`, then check), then invoke `adr-verify` on a tree where the fence
+completes quickly, or narrow the fence to the subset this task actually proves and say in the task
+what the wider run covers.
+
+`adr-verify` deliberately offers no detached mode of its own, decided 2026-08-28 (ADR-002
+follow-up). The whole guarantee is that the tool which RAN the command is the tool that wrote the
+entry; a mode that records a result someone else obtained reintroduces the hand-pasted evidence the
+Verification Log exists to eliminate. A slow fence is a fence problem, and it is yours to shape.
+
 If automated proof is impossible: `Acceptance is human-observed: <exact sign-off step>.`
 
 ## Tests

@@ -921,11 +921,22 @@ def resolve_enforcement(pointer, root):
                     strip_comments(f.read_text(errors="replace", encoding="utf-8")), re.M):
                 return "test"
         return None
-    # A DIRECT entry of bin/, not any path that happens to land inside it after
-    # resolution. `README.md` is a repository file, not a gate.
-    gate = root / "bin" / pointer
-    if "/" not in pointer and gate.is_file():
-        return "gate"
+    # A DIRECT entry of a bin/, not any path that happens to land inside one
+    # after resolution. `README.md` is a repository file, not a gate.
+    #
+    # Two directories, and the second is the one that matters outside this
+    # repository. A record naming `adr-lint` means THIS gate — the harness's —
+    # and until ADR-008 that resolved only because quality-harness's own gates
+    # sat at its repository root. In any other project it never did: the gates
+    # are invoked by name through PATH from the plugin, so `<their repo>/bin`
+    # holds nothing, and a valid pointer collected advice saying the check does
+    # not exist. That is a gate reporting an observation it did not make, which
+    # is exactly what ADR-005 forbids one tool over.
+    if "/" not in pointer:
+        here = Path(__file__).resolve().parent
+        for gate in (root / "bin" / pointer, here / pointer):
+            if gate.is_file():
+                return "gate"
     return None
 
 

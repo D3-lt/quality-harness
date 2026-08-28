@@ -13,7 +13,7 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
-import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot, yamlPath } from '../scripts/eval-fixture.mjs'
+import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot, yamlPath } from '../plugin/scripts/eval-fixture.mjs'
 
 function corpus(files) {
   const root = mkdtempSync(path.join(tmpdir(), 'qh-fixture-test-'))

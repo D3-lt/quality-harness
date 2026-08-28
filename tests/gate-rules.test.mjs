@@ -14,11 +14,12 @@ import os from 'node:os'
 import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 
-import { parse } from '../scripts/verify.mjs'
+import { parse } from '../plugin/scripts/verify.mjs'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
-const root = resolve(testDir, '..')
+const repoRoot = resolve(testDir, '..')
+const root = join(repoRoot, 'plugin')
 const bin = join(root, 'bin')
 const env = { ...process.env, PATH: `${bin}${delimiter}${process.env.PATH ?? ''}` }
 // The gates are the extensionless executables; the .cmd files beside them
@@ -162,7 +163,7 @@ function runner(scriptName, payload, extraEnv = {}) {
 }
 
 test('the shell-hook runner reports every way a gate can not report, and blocks on none', async () => {
-  const payload = { hook_event_name: 'PreToolUse', tool_input: { file_path: join(root, 'README.md') } }
+  const payload = { hook_event_name: 'PreToolUse', tool_input: { file_path: join(repoRoot, 'README.md') } }
 
   // The harness failing to RUN is not a finding about the edit, and it used to
   // exit 2 — which blocks the tool call. A Windows machine without Git Bash had
@@ -213,7 +214,7 @@ test('the timeout mechanism itself kills the child and says it timed out', async
   // command that would outlive its budget is killed and REPORTED as timed out,
   // because a hook that silently returns whatever a half-run gate printed is the
   // fail-open this whole file exists to prevent.
-  const { runWithTimeout } = await import('../scripts/run-shell-hook.mjs')
+  const { runWithTimeout } = await import('../plugin/scripts/run-shell-hook.mjs')
 
   const start = Date.now()
   const killed = await runWithTimeout(process.execPath, ['-e', 'setTimeout(() => {}, 30_000)'],
@@ -231,7 +232,7 @@ test('a shell that aborted before judging is a failure, not a clean pass', async
   // The MSYS runtime prints `*** fatal error -` and still exits 0. Measured on
   // Windows: four PostToolUse hooks died in add_item and every one was recorded
   // as clean, so ADR files were edited with the gate never having run.
-  const { shellRuntimeCrashed } = await import('../scripts/run-shell-hook.mjs')
+  const { shellRuntimeCrashed } = await import('../plugin/scripts/run-shell-hook.mjs')
 
   assert.equal(shellRuntimeCrashed(
     '      2 [main] bash (46688) child_info_fork::abort: *** fatal error - cannot fork\n'), true)
@@ -303,7 +304,7 @@ test('the verification wrapper reports what the command it ran actually did', ()
 test('every adr-retire-check row rule has a case that makes it fire', () => {
   const dir = scratch('archive')
   const archive = join(dir, 'adr-archive')
-  const source = join(root, 'tests', 'fixtures', 'ok')
+  const source = join(repoRoot, 'tests', 'fixtures', 'ok')
   cpSync(join(source, 'adr-archive'), archive, { recursive: true })
   cpSync(join(source, 'adr'), join(dir, 'adr'), { recursive: true })
 
@@ -422,7 +423,7 @@ test('adr-debt resolves the pointers it can, and reports the ones it cannot', ()
 
 test('spec-verify --implemented runs the bound tests and separates RED from broken', () => {
   const dir = scratch('spec')
-  const source = join(root, 'tests', 'fixtures', 'ok')
+  const source = join(repoRoot, 'tests', 'fixtures', 'ok')
   cpSync(source, dir, { recursive: true })
   const spec = join(dir, 'spec-selftest.md')
   const good = readFileSync(spec, 'utf8')
@@ -487,7 +488,7 @@ test('spec-verify says it could not run a test, rather than that the test failed
   // condition: no composer.json, no pyproject.toml, no Cargo.toml, no
   // package.json, no molecule/.
   const dir = scratch('spec-unrun')
-  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
   const spec = join(dir, 'spec-selftest.md')
   const good = readFileSync(spec, 'utf8')
 
@@ -616,7 +617,7 @@ test('every gate refuses a flag it does not know', () => {
   // have made session orientation silently empty at exit 0 — the same fail-open,
   // by another route, as the `#!` spawn in BACKLOG item 17.
   const dir = scratch('unknown-flag')
-  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
 
   const invocations = [
     ['adr-judge', ['ADR-001-selftest.md', '--bogus']],
@@ -651,7 +652,7 @@ test('on Windows the shim runs the gate the documented invocation names', { skip
   // got a file-open dialog, because an extensionless `#!` script has no
   // association. The shim exists so the invocation the skills document works.
   const dir = scratch('windows-shim')
-  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
   const shim = join(bin, 'adr-lint.cmd')
   const result = spawnSync(shim, ['ADR-001-selftest.md', 'tasks'],
     { cwd: dir, env, encoding: 'utf8', timeout: 60_000, shell: true })
@@ -668,7 +669,7 @@ test('on Windows a bare gate name resolves under PowerShell', { skip: process.pl
   // bare name the skills document has to reach the shim — and a bare name is
   // what a skill writes, never an explicit `.cmd`.
   const dir = scratch('powershell-shim')
-  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
   // Windows environment names are case-insensitive but a spread object is not,
   // so a lone PATH key leaves the inherited Path winning and bin off the list.
   const shellEnv = { ...env, Path: env.PATH }
@@ -683,7 +684,7 @@ test('the machine-readable output lifecycle.mjs depends on is machine-readable',
   // readyTaskLines parses this and swallows a parse failure with `continue`, so
   // nothing downstream would report that the contract broke.
   const dir = scratch('json-contract')
-  cpSync(join(root, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
 
   const result = run('adr-next', ['tasks', '--json'], dir)
   assert.equal(result.status, 0, result.stderr)
@@ -700,7 +701,7 @@ test('the machine-readable output lifecycle.mjs depends on is machine-readable',
 
 // --- adr-judge: the two axes a schema cannot check -------------------------
 
-const JUDGE_CLEAN = readFileSync(join(root, 'tests', 'fixtures', 'judge', 'ADR-050-clean.md'), 'utf8')
+const JUDGE_CLEAN = readFileSync(join(repoRoot, 'tests', 'fixtures', 'judge', 'ADR-050-clean.md'), 'utf8')
 
 test('every adr-judge rule has a case that makes it fire, and a record that passes them all', () => {
   const dir = scratch('judge')
@@ -748,10 +749,10 @@ test('the mutation runner names an option it does not know, instead of running e
   // mutation in the catalogue ran — twenty minutes of campaign for a caller who
   // asked for three, with output that looked exactly like what was requested.
   // Measured 2026-08-27 with `--filter`, which is spelled `--case`.
-  const runner = join(root, 'scripts', 'mutate.mjs')
+  const runner = join(repoRoot, 'scripts', 'mutate.mjs')
   const isolated = join(mkdtempSync(join(os.tmpdir(), 'qh-mutate-flag-')), 'lock')
   const call = args => spawnSync(process.execPath, [runner, ...args],
-    { cwd: root, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: isolated }, encoding: 'utf8', timeout: 60_000 })
+    { cwd: repoRoot, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: isolated }, encoding: 'utf8', timeout: 60_000 })
 
   const wrong = call(['--filter', 'sync:'])
   assert.equal(wrong.status, 2, wrong.stdout + wrong.stderr)
@@ -771,7 +772,7 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   // back by that restore: the work looked applied, the tests ran against the old
   // code, and the only clue was a failure that made no sense. A second runner
   // started the same way. Both cost more than the guards do.
-  const runner = join(root, 'scripts', 'mutate.mjs')
+  const runner = join(repoRoot, 'scripts', 'mutate.mjs')
   // Its own lock file, so exercising these guards cannot collide with a real
   // campaign running in the same checkout.
   const isolated = join(mkdtempSync(join(os.tmpdir(), 'qh-mutate-')), 'lock')
@@ -821,7 +822,7 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   writeFileSync(journal, JSON.stringify({ file: victim, original: untouched }))
   try {
     const refused = spawnSync(process.execPath, [runner, '--case', 'no-such-mutation-exists'],
-      { cwd: root, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: isolated }, encoding: 'utf8', timeout: 60_000 })
+      { cwd: repoRoot, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: isolated }, encoding: 'utf8', timeout: 60_000 })
     assert.equal(refused.status, 1, refused.stdout + refused.stderr)
     assert.match(refused.stderr, /no mutation matches/)
     assert.equal(readFileSync(victim, 'utf8'), untouched,

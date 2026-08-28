@@ -7,7 +7,7 @@ import test from 'node:test'
 import {
   catalogueEntries, coverageOf, descriptionClauses, documentedFlags, main, proposals, report,
   scalar,
-} from '../scripts/mutate-propose.mjs'
+} from '../plugin/scripts/mutate-propose.mjs'
 
 /** A small tree shaped like a plugin, so the proposer is measured on structure. */
 function fixture(files) {

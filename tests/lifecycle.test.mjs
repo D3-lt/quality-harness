@@ -31,7 +31,7 @@ import {
   isValidationCommand,
   runArtifactGates,
   shellSegments,
-} from '../scripts/lifecycle.mjs'
+} from '../plugin/scripts/lifecycle.mjs'
 import {
   HOOK_SCRIPTS,
   hookArguments,
@@ -41,9 +41,10 @@ import {
   runWithTimeout,
   shellHookTimeoutMs,
   shellRuntimeCrashed,
-} from '../scripts/run-shell-hook.mjs'
+} from '../plugin/scripts/run-shell-hook.mjs'
 
-const pluginDir = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const pluginDir = path.join(repoRoot, 'plugin')
 const testTmp = process.platform === 'darwin' ? '/private/tmp' : os.tmpdir()
 
 function transcript(entries) {
@@ -920,7 +921,7 @@ test('an unresolved Bash deletion is answered by the repository, not held agains
   // The sentinel comes from the public classifier so the test cannot drift from it.
   const [sentinel] = bashDeletionMutationPaths('rm -rf "$ARCHIVE"', testTmp)
   const repo = await mkdtemp(path.join(testTmp, 'quality-unresolved-rm-'))
-  const fixtures = path.join(pluginDir, 'tests', 'fixtures', 'ok')
+  const fixtures = path.join(repoRoot, 'tests', 'fixtures', 'ok')
   await cp(path.join(fixtures, 'adr-archive'), path.join(repo, 'docs', 'adr-archive'), { recursive: true })
   await cp(path.join(fixtures, 'adr'), path.join(repo, 'docs', 'adr'), { recursive: true })
   spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
@@ -944,7 +945,7 @@ test('an unresolved Bash deletion is answered by the repository, not held agains
 
 test('every record gate advises, at the edit and at the boundary alike', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-adr-set-'))
-  const fixtures = path.join(pluginDir, 'tests', 'fixtures', 'ok')
+  const fixtures = path.join(repoRoot, 'tests', 'fixtures', 'ok')
   const docs = path.join(repo, 'docs')
   await mkdir(docs, { recursive: true })
   await cp(path.join(fixtures, 'ADR-001-selftest.md'), path.join(docs, 'ADR-001-selftest.md'))
@@ -1113,10 +1114,10 @@ test('scratch writes under the temp root are not the repository\'s edits', async
   await symlink(pluginDir, directoryLink)
   assert.equal(mutatesOnlyTempPaths(`printf x > "${directoryLink}/smuggled.txt"`, pluginDir), false)
   const fileLink = path.join(linkDir, 'file-link')
-  await symlink(path.join(pluginDir, 'README.md'), fileLink)
+  await symlink(path.join(repoRoot, 'README.md'), fileLink)
   assert.equal(mutatesOnlyTempPaths(`printf x > "${fileLink}"`, pluginDir), false)
   const danglingLink = path.join(linkDir, 'dangling-link')
-  await symlink(path.join(pluginDir, 'does-not-exist-yet.md'), danglingLink)
+  await symlink(path.join(repoRoot, 'does-not-exist-yet.md'), danglingLink)
   assert.equal(mutatesOnlyTempPaths(`printf x > "${danglingLink}"`, pluginDir), false)
 
   // A scratch write is invisible to the evidence gate; a repo write is not.
@@ -1457,7 +1458,7 @@ test('a bin/ gate is spawned in a way Windows can actually run', async () => {
   // by asking for it explicitly — the interpreter it names works on this platform
   // too, so the branch is testable without a Windows box.
   const repo = await mkdtemp(path.join(testTmp, 'quality-spawn-gate-'))
-  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks'),
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks'),
     path.join(repo, 'tasks'), { recursive: true })
   const tool = path.join(pluginDir, 'bin', 'adr-next')
   const options = { encoding: 'utf8', timeout: 10_000 }
@@ -1486,8 +1487,8 @@ test('a bin/ gate is spawned in a way Windows can actually run', async () => {
 test('adr-next reads the task files, not the index that describes them', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-adr-next-'))
   const tasks = path.join(repo, 'tasks')
-  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks'), tasks, { recursive: true })
-  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md'),
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks'), tasks, { recursive: true })
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md'),
     path.join(repo, 'ADR-001-selftest.md'))
 
   const next = (...args) => runGate(path.join(pluginDir, 'bin', 'adr-next'), args)
@@ -1823,7 +1824,7 @@ test('session orientation states this project, and only this project', async () 
   // codebase must never be offered to a session that was not opened on it.
   const loose = await mkdtemp(path.join(testTmp, 'quality-orientation-loose-'))
   await mkdir(path.join(loose, 'docs', 'tasks'), { recursive: true })
-  await cp(path.join(pluginDir, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
     path.join(loose, 'docs', 'tasks', 'T1-fixture.md'))
   assert.doesNotMatch(sessionOrientation(loose), /ADR tasks in flight/)
 
@@ -2071,7 +2072,7 @@ test('the decision context is delivered once per path per session, and never as 
   // An ungoverned file costs the edit nothing at all.
   const quiet = runLifecycleHook({
     hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: root, session_id: 'session-three',
-    tool_input: { file_path: path.join(root, 'README.md') },
+    tool_input: { file_path: path.join(repoRoot, 'README.md') },
   })
   assert.equal(quiet.status, 0)
   assert.equal(`${quiet.stdout}${quiet.stderr}`.trim(), '')
@@ -2284,7 +2285,7 @@ test('--link says what it does NOT handle, instead of "nothing to do"', async ()
   // `## Mutation Log`, so `adr-verify` cannot record a killed mutant into it.
   // True about the MODE, false about the install, and the user had to read the
   // source to find that out.
-  const { forwarderScript, forwarderCmd } = await import('../scripts/standalone-link.mjs')
+  const { forwarderScript, forwarderCmd } = await import('../plugin/scripts/standalone-link.mjs')
   const home = await mkdtemp(path.join(os.tmpdir(), 'linkmode-'))
   const cache = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness', 'quality-harness')
   // NOT `pluginDir` — that is this suite's own checkout root, and shadowing it
@@ -2322,7 +2323,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
   // spawnSync, which parent-process coverage cannot see — and this resolver is
   // what the edit-boundary hook calls, so it is worth asserting directly rather
   // than through a subprocess whose output is all the test can inspect.
-  const { main } = await import('../scripts/adr-context.mjs')
+  const { main } = await import('../plugin/scripts/adr-context.mjs')
   const dir = await mkdtemp(path.join(os.tmpdir(), 'adr-context-'))
   const record = (n, status, governs, enforcedBy = null) =>
     `# ADR-${n}: decision ${n}\n\n**Status:** ${status}\n**Governs:** \`${governs}\`\n`
@@ -2393,7 +2394,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
   // disagreed on three of these seven, which is the drift ADR-009 exists to
   // prevent appearing inside ADR-009. A rule with two implementations is only
   // shared if something compares them.
-  const { __declaredEnforcementForTest } = await import('../scripts/lifecycle.mjs')
+  const { __declaredEnforcementForTest } = await import('../plugin/scripts/lifecycle.mjs')
   for (const [value, want] of [
     ['`a`, `b`', ['a', 'b']],
     ['a, b', ['a', 'b']],
@@ -2418,7 +2419,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
 
   // The HOOK renders from the same resolver, and must say the same thing. Two
   // callers of one resolver is exactly where this project has drifted before.
-  const { decisionContext } = await import('../scripts/lifecycle.mjs')
+  const { decisionContext } = await import('../plugin/scripts/lifecycle.mjs')
   const hook = decisionContext(['src/pay.js'], dir)
   assert.match(hook, /caught by: every catalogue entry/,
     `the hook must carry the enforcing check too:\n${hook}`)
@@ -2452,7 +2453,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
 
 test('the sync command reports before it writes, and syncs from the newest install', async () => {
   const { newestVersion, newestInstalledRoot, plan } =
-    await import('../scripts/sync-standalone.mjs')
+    await import('../plugin/scripts/sync-standalone.mjs')
 
   // Semver order, not string order.
   assert.equal(newestVersion(['2.9.0', '2.10.0', '2.0.0']), '2.10.0')
@@ -2524,7 +2525,7 @@ test('the sync command reports before it writes, and syncs from the newest insta
   // already done its job: sixteen false `drifted` lines, and following the
   // report's own advice would have destroyed the fix unrecoverably. Written
   // with the real generator so the check cannot drift from what `--link` emits.
-  const { forwarderScript } = await import('../scripts/standalone-link.mjs')
+  const { forwarderScript } = await import('../plugin/scripts/standalone-link.mjs')
   await writeFile(path.join(home, '.claude', 'bin', 'adr-debt'), forwarderScript('adr-debt', home))
   const withForwarder = plan(pluginDir, home)
   const forwarded = withForwarder.find(entry => entry.to.endsWith(path.join('bin', 'adr-debt')))
@@ -2856,7 +2857,7 @@ test('importing the router does not end the process that imported it', async () 
   await writeFile(path.join(settledTasks, 'T1.md'),
     '# Task ADR-001-T1\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
     + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n')
-  const { nextStage: stageOf, observe: observeAt } = await import('../scripts/work-next.mjs')
+  const { nextStage: stageOf, observe: observeAt } = await import('../plugin/scripts/work-next.mjs')
   assert.equal(stageOf(observeAt(settled)), null,
     'the fixture must be in the nothing-waiting state, or the branch under test is never reached')
 
@@ -2897,7 +2898,7 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
   // recalled. An eval measured the cost: "mark T3 done in tasks/README.md" fired
   // NO skill at all, because recording evidence for finished work was claimed by
   // no description. The edges are static now; only the state is derived.
-  const { observe, nextStage } = await import('../scripts/work-next.mjs')
+  const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
   const root = await mkdtemp(path.join(testTmp, 'quality-router-'))
   const tasks = path.join(root, 'docs', 'adr', 'tasks')
   await mkdir(tasks, { recursive: true })
@@ -2975,7 +2976,7 @@ test('a record the corpus reader cannot read is reported, not silently dropped',
   // and skipped. A count that omits what it could not read is a count that reads
   // as coverage — the shape this whole harness exists to catch, in its own
   // corpus reader.
-  const { adrCorpus } = await import('../scripts/lifecycle.mjs')
+  const { adrCorpus } = await import('../plugin/scripts/lifecycle.mjs')
   const root = await mkdtemp(path.join(testTmp, 'quality-unread-'))
   const adr = path.join(root, 'docs', 'adr')
   await mkdir(adr, { recursive: true })

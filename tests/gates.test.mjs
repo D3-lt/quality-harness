@@ -15,7 +15,8 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
-const root = resolve(testDir, '..')
+const repoRoot = resolve(testDir, '..')
+const root = join(repoRoot, 'plugin')
 const bin = join(root, 'bin')
 const fixture = join(testDir, 'fixtures', 'ok')
 // Gates run with implicit-encoding use promoted to a hard error. They decode
@@ -474,6 +475,7 @@ test('focused false-green regressions remain closed', () => {
     join(testDir, 'gate-regressions.py'),
     bin,
     join(root, 'skills', 'postmortem', 'SKILL.md'),
+    repoRoot,
   ], fixture, undefined, harnessEnv)
   expectExit(result, 0, 'gate regressions')
 })

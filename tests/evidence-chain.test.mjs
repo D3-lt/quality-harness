@@ -20,7 +20,8 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
-const root = resolve(testDir, '..')
+const repoRoot = resolve(testDir, '..')
+const root = join(repoRoot, 'plugin')
 const bin = join(root, 'bin')
 const fixture = join(testDir, 'fixtures', 'ok')
 

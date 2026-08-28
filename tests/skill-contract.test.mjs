@@ -22,7 +22,8 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
-const root = resolve(testDir, '..')
+const repoRoot = resolve(testDir, '..')
+const root = join(repoRoot, 'plugin')
 const bin = join(root, 'bin')
 // Extensionless only: a bin/*.cmd is a Windows shim for a gate, not a gate.
 const gates = readdirSync(bin).filter(name => !name.includes('.'))

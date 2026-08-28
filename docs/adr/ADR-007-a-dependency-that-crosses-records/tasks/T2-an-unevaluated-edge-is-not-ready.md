@@ -111,3 +111,4 @@ dependency — that would mean the local path was altered, which this task must 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
 - 2026-08-28 · 74f790f · exit 0 · `node --test tests/adr-next.test.mjs tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr007-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr007-t2.out` · acceptance-sha256:c3a0b32892e8155766a4a0ecf525bd154668961feefa15d8ad1b42941b94ac42
+- 2026-08-28 · 509ed0d · exit 0 · `set -o pipefail …` · acceptance-sha256:692dc1197d59e0db453913ed0101b6a987c5a543f7039c147469a93923945076

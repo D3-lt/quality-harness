@@ -129,8 +129,24 @@ test('the instruction files name paths that exist', () => {
   const named = text => [...text.matchAll(/`([A-Za-z0-9_.][A-Za-z0-9_./-]*\/[A-Za-z0-9_./*-]*)`/g)]
     .map(hit => hit[1])
     .filter(path => !path.includes('://') && !path.includes('<'))
-  const missing = (text, label) => named(text)
-    .filter(path => !existsSync(join(repoRoot, path.replace(/\/?\*+$/, '').replace(/\/$/, ''))))
+  // Resolved against what git TRACKS, not against this working tree. The first
+  // version used existsSync and passed here while failing on CI: it named
+  // `plugin/evals/results/`, which is gitignored, so it exists on the machine
+  // that ran the evals and on no fresh checkout. A gate that reads the working
+  // tree is a gate whose answer depends on who is asking — and the claim worth
+  // making is about the repository anyway. A directory counts when it is the
+  // prefix of a tracked file.
+  // Tracked, plus untracked-but-not-ignored, which is what git would carry: a
+  // file added in the same commit as the sentence naming it is legitimate, and a
+  // gitignored one never is.
+  const pending = spawnSync('git', ['-C', repoRoot, 'ls-files', '--others', '--exclude-standard'],
+    { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
+  const inRepo = new Set([...tracked(), ...pending])
+  const exists = path => {
+    const clean = path.replace(/\/?\*+$/, '').replace(/\/$/, '')
+    return inRepo.has(clean) || [...inRepo].some(file => file.startsWith(`${clean}/`))
+  }
+  const missing = (text, label) => named(text).filter(path => !exists(path))
     .map(path => `${label}: ${path}`)
 
   // Shown able to fire first: with both files correct the assertion below is

@@ -443,6 +443,26 @@ test('a directory where a file belongs is reported, not clobbered', () => {
   }
 })
 
+test('a directory in bin/ is not a gate, whatever it is named', () => {
+  // Any Python import of a gate creates bin/__pycache__ unless it sets
+  // dont_write_bytecode, and every enumeration here tested the NAME — dotless —
+  // rather than asking whether it is a file. Found 2026-08-28 when an ad-hoc
+  // import during debugging made five suites fail at once, and `--link` would
+  // have generated a forwarder pointing at a directory.
+  const source = home({ 'bin/real-gate': '#!/usr/bin/env python3\n"""real-gate — a gate.\n' })
+  mkdirSync(path.join(source, 'bin', '__pycache__'), { recursive: true })
+  const directory = home()
+  try {
+    const named = linkPlan(source, directory).map(entry => path.basename(entry.to))
+    assert.ok(named.includes('real-gate'), named.join(','))
+    assert.ok(!named.some(name => name.startsWith('__pycache__')),
+      `a directory got a forwarder: ${named.join(',')}`)
+  } finally {
+    rmSync(source, { recursive: true, force: true })
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('a plugin with no gates yields no forwarders rather than throwing', () => {
   const empty = home()
   const directory = home()

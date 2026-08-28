@@ -24,6 +24,26 @@ The typed form from adrkit is also read:
 
 Only `type: path` is resolved against files. Anything else is recorded and reported as unresolved —
 a matcher that quietly matches nothing reads as coverage while covering nothing.>
+**Enforced-by:** <the check that FAILS when this decision is violated, or `None — <reason>`>
+
+<Optional and advisory. `Governs:` above says which paths this decision owns; this says what stops it
+being broken. They are different questions, and a task's Acceptance answers neither — that proves the
+task got DONE, not that the decision still holds a year later, and a task's tests are freely rewritten
+once it is.
+
+Three forms, ordered by how much they prove. `adr-lint` resolves each and says which it matched:
+
+    **Enforced-by:** `link: no skill is ever linked`
+    **Enforced-by:** `tests/package.test.mjs::every shipped gate carries at least one mutation`
+    **Enforced-by:** `adr-lint`
+
+A MUTATION LABEL is the strongest: `mutate.mjs` grades it RED or GREEN on every campaign, so the
+claim is measured rather than asserted. A TEST ID proves the check exists, not that it can fail —
+that is ADR-003's rule and the campaign's job. A GATE NAME is the weakest and the broadest.
+
+`None — <reason>` is a first-class answer, not a failure to fill something in. Most durable decisions
+have no cheap mechanical enforcement, and a record that says so is carrying information the corpus
+otherwise lacks. Naming a check that cannot fail is worse than naming none.>
 **Invalidates:** <accepted ADRs whose tasks this decision changes, or `none — checked`>
 **Served-path change:** <what a user or agent experiences differently once this ships — one sentence naming the code path — or `None — this ADR changes only measurement or tooling`>
 

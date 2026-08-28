@@ -6,6 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/BACKLOG.md §43, §44
 **Governs:** `templates/adr-template.md`, `bin/adr-lint`
+**Enforced-by:** `lint: Enforced-by naming nothing is reported`
 **Invalidates:** none — checked. ADR-003 requires a gate to assert behaviour rather than shape, and this leans on it: the check a record names must be shown able to fail. Nothing else is changed.
 **Served-path change:** `adr-context` over a governed path returns not only which decisions own it but the check that fails when one is violated — so an agent about to edit that file learns what will catch it.
 

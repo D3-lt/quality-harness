@@ -768,6 +768,42 @@ def main():
     assert not any("TDD red run" in a for a in advice), (
         f"a killed mutant already shows the fence can fail: {advice}")
 
+    # ADR-009 T1. `Governs:` says which paths a decision owns; nothing said what
+    # FAILS when the decision is violated. Task Acceptance proves the task got
+    # DONE — a different question from whether the decision still holds.
+    #
+    # Resolved against the REAL tree, not a fixture, because the point is that a
+    # pointer names something that exists here.
+    root = bin_dir.resolve().parent
+    def enforcement(value):
+        errs = lint.Findings()
+        lint.check_enforcement(f"**Enforced-by:** {value}\n", Path("ADR-999-probe.md"), errs, root)
+        return list(errs), [str(a) for a in errs.advice]
+
+    # Each of the three forms, all naming something real in this repository.
+    for good in ("`link: no skill is ever linked`",
+                 "`adr-lint`",
+                 "`tests/package.test.mjs::every shipped gate carries at least one mutation`"):
+        blocking, advice = enforcement(good)
+        assert not blocking, f"{good}: enforcement must never block: {blocking}"
+        assert not advice, f"{good}: resolves, so nothing to advise: {advice}"
+
+    # A pointer that resolves to nothing is the rot this exists to catch.
+    blocking, advice = enforcement("`no-such-mutation-label-anywhere`")
+    assert not blocking, f"still never blocking: {blocking}"
+    assert any("no-such-mutation-label-anywhere" in a for a in advice), (
+        f"an unresolvable pointer must be named: {advice}")
+
+    # `None — <reason>` is a first-class answer: most decisions are not
+    # mechanically enforceable, and saying so is information the corpus lacked.
+    _, advice = enforcement("None — this is a naming convention, not a mechanism")
+    assert not advice, f"None is an answer, not a gap: {advice}"
+
+    # A record without the header is unchanged — six of the eight here predate it.
+    errs = lint.Findings()
+    lint.check_enforcement("# ADR-999: no such header\n", Path("ADR-999-probe.md"), errs, root)
+    assert not list(errs) and not errs.advice, "a record without the header must be untouched"
+
     with tempfile.TemporaryDirectory() as js_tmp:
         # A JavaScript REGEX LITERAL is neither a comment nor a string, and the
         # masker knew about neither case. An apostrophe inside one — `/it's/` —

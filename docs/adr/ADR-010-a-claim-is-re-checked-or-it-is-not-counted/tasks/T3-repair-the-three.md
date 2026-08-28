@@ -67,9 +67,9 @@ else, which is why it can be red today and cannot go green by a shortcut.
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the three repaired fences |
-| 2 — something selects it | the sweep runs them; that is the Acceptance |
+| 2 — something selects it | `T3-recheck.sh` runs each one, and adr-lint refuses their `done` rows until the evidence matches |
 | 3 — the caller can discover it | n/a: no declared interface — this is data repair |
-| 4 — it is used | to be recorded at execution: the sweep's output before and after, with both counts |
+| 4 — it is used | recorded above: 3 false → 0, measured by the sweep before and after |
 
 ## Class Sweep
 
@@ -79,10 +79,25 @@ else, which is why it can be red today and cannot go green by a shortcut.
 grep -rn "^\(python3\|node\|bash\) .*\(^\|[^a-zA-Z/._-]\)\(bin\|skills\|templates\|workflows\|hooks\)/" docs/adr/*/tasks/*.md | grep -v 'plugin/'
 ```
 
-To be run and recorded at execution. Known at authoring: three tasks, found by re-running every
-re-checkable fence rather than by grep — which is the point, since a fence can break for reasons a
-grep cannot see. Any sibling this command finds that the sweep did not name is a fence that is stale
-but still passing, and it should be repaired here too and said so.
+Run 2026-08-28 after the repair: **none**. No recorded fence names a relocated path any more.
+
+The grep and the sweep agreed on the same three, which is worth recording because they could not
+have: a grep sees a path that looks wrong, the sweep sees a command that no longer passes, and the
+second is the larger class. Had they disagreed, the difference would be the interesting part — a
+fence that is stale but still passing, or one that fails for a reason no path explains.
+
+**The sweep's own answer, before and after:**
+
+| | false | superseded | claims |
+|---|---|---|---|
+| before | 3 | 0 | 15 |
+| after | **0** | 3 | 19 |
+
+The three superseded entries are the pre-repair ones, and they are supposed to be there: the log is
+append-only, and those entries did prove the command they name — a command that no longer exists.
+That is precisely the state `superseded` was invented for, and this is the first time the live corpus
+has exhibited it. Each repaired task now carries two claims, which is `one task with two different
+digests is two claims` appearing in real data rather than in a fixture.
 
 ## Mutation Log
 

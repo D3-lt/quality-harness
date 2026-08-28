@@ -2231,15 +2231,6 @@
       "to": "            if False:"
     },
     {
-      "label": "sweep: a fence invoking the sweep is refused, so it cannot recurse",
-      "file": "plugin/bin/adr-verify",
-      "tests": [
-        "tests/sweep.test.mjs"
-      ],
-      "from": "            if \"--sweep\" in fence:",
-      "to": "            if False:"
-    },
-    {
       "label": "sweep: a fence runs where it was recorded, not where the task file sits",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -2353,7 +2344,7 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "        if os.environ.get(SWEEP_REENTRY_ENV):",
+      "from": "        if any(here == a or a in here.parents or here in a.parents for a in ancestors):",
       "to": "        if False:"
     },
     {
@@ -2427,6 +2418,15 @@
       ],
       "from": "    r\"^\\u2139 (pass|fail) [0-9]+\",         # node --test summary",
       "to": "    r\"^never matches this either [0-9]+\","
+    },
+    {
+      "label": "sweep: the reentry sentinel names the corpus, not merely the mode",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "                    (chain + os.pathsep if chain else \"\") + str(Path(root).resolve())})",
+      "to": "                    \"/\"})"
     }
   ]
 }

@@ -2087,14 +2087,28 @@ export function pathMatchesDeclaration(candidate, declaration) {
 // nothing reads as coverage while covering nothing, which is the vacuous pass
 // this project's own arch-write skill warns about.
 /** The checks a record says enforce it, or [] for absent or `None — <reason>`. */
+export const __declaredEnforcementForTest = text => declaredEnforcement(text)
+
 function declaredEnforcement(text) {
   const header = text.match(/^[ \t]*\*{0,2}Enforced-by:?\*{0,2}[ \t]*:?[ \t]*(.*)$/im)
   if (!header) return []
   const inline = header[1].trim()
   if (!inline || /^none\b/i.test(inline)) return []
-  const quoted = [...inline.matchAll(/`([^`]+)`/g)].map(m => m[1].trim())
-  return (quoted.length ? quoted : inline.split(',').map(part => part.trim()))
-    .filter(value => value && !/^[<(]/.test(value))
+  // A BACKTICKED span is one item, commas inside it included — a mutation label
+  // reads "…mutates, exactly once" and splitting on every comma tears it in
+  // half. Whatever is left outside the backticks is then comma-separated. Both
+  // cases are in the truth table mirrored from tests/gate-regressions.py.
+  const parts = []
+  const rest = []
+  let position = 0
+  for (const span of inline.matchAll(/`([^`]*)`/g)) {
+    rest.push(inline.slice(position, span.index))
+    parts.push(span[1].trim())
+    position = span.index + span[0].length
+  }
+  rest.push(inline.slice(position))
+  parts.push(...rest.join(',').split(',').map(part => part.trim()))
+  return parts.filter(value => value && !/^[<(]/.test(value))
 }
 
 function declaredGoverns(text) {

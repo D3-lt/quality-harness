@@ -32,6 +32,12 @@ export function main(argv, root = process.cwd()) {
     title: record.title,
     status: record.status,
     governs: record.governs,
+    // Present only when there is one, so a machine consumer can tell "no
+    // enforcement declared" from "this tool does not report it". Omitted
+    // entirely at first: prose readers saw `[caught by: …]` and JSON readers
+    // saw nothing. Found by review, not by a test — the prose renderer had one
+    // and the JSON renderer beside it had none.
+    ...(record.enforcedBy?.length ? { enforcedBy: record.enforcedBy } : {}),
   })
 
   if (json) {

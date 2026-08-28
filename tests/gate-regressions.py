@@ -21,6 +21,21 @@ def load_script(name, path):
     return module
 
 
+# The one grammar both `Enforced-by:` parsers must implement. Mirrored verbatim
+# in tests/lifecycle.test.mjs — a rule with two implementations is only shared if
+# something compares them, and these two disagreed on three of these seven.
+ENFORCEMENT_GRAMMAR = [
+    ("`a`, `b`", ["a", "b"]),
+    ("a, b", ["a", "b"]),
+    ("adr-lint", ["adr-lint"]),
+    ("None — a naming convention", []),
+    ("nonetheless-a-real-pointer", ["nonetheless-a-real-pointer"]),
+    ("<the check>", []),
+    ("`one`, two", ["one", "two"]),
+    ("`a label, with a comma`", ["a label, with a comma"]),
+]
+
+
 def verification_errors(lint, acceptance, entries, mlog=()):
     infos = {
         "T1": {
@@ -803,6 +818,51 @@ def main():
     errs = lint.Findings()
     lint.check_enforcement("# ADR-999: no such header\n", Path("ADR-999-probe.md"), errs, root)
     assert not list(errs) and not errs.advice, "a record without the header must be untouched"
+
+    # Codex review, 2026-08-28. Five findings, all reproduced before being fixed.
+    #
+    # A PRODUCTION FUNCTION is not a test. `test_body` matches any function
+    # definition with that name, so `lifecycle.mjs::shellWords` resolved — and a
+    # reader would conclude a test backs the decision when none does.
+    assert lint.resolve_enforcement("scripts/lifecycle.mjs::shellWords", root) is None
+    assert lint.resolve_enforcement("bin/adr-lint::enforcement_pointers", root) is None
+
+    # A registration inside a COMMENT or a STRING is not a definition either. The
+    # comment beside the regex claimed this already held; it did not, which is
+    # the second time in this session a comment carried the bug.
+    with tempfile.TemporaryDirectory() as jt:
+        probe = Path(jt) / "p.test.mjs"
+        probe.write_text(
+            "// test('in a line comment', () => {})\n"
+            "/* test('in a block comment', () => {}) */\n"
+            "const s = \"test('in a string', () => {})\"\n"
+            "test.skip('a real skip', () => {})\n"
+            "test.only('a real only', () => {})\n"
+            "it('a real it', () => {})\n"
+            "test('a real test', () => {})\n")
+        # A RELATIVE pointer, which is the only kind allowed now — an absolute
+        # one is refused by the containment guard below, and that refusal is
+        # itself asserted there.
+        for ghost in ("in a line comment", "in a block comment", "in a string"):
+            assert lint.resolve_enforcement(f"p.test.mjs::{ghost}", Path(jt)) is None, ghost
+        # `.skip` and `.only` ARE registrations and were being rejected as absent
+        # while a commented-out ghost resolved — wrong in both directions at once.
+        for real in ("a real skip", "a real only", "a real it", "a real test"):
+            assert lint.resolve_enforcement(f"p.test.mjs::{real}", Path(jt)) == "test", real
+
+    # A pointer may not leave the repository. `../README.md` and an absolute path
+    # both resolved as gates, so a file outside the tree could satisfy a record.
+    assert lint.resolve_enforcement("../README.md", root) is None
+    assert lint.resolve_enforcement(str(root / "README.md"), root) is None
+    assert lint.resolve_enforcement("README.md", root) is None, "a repo file is not a gate"
+    assert lint.resolve_enforcement("adr-lint", root) == "gate"
+
+    # ONE GRAMMAR. The two parsers disagreed on three inputs; the truth table is
+    # asserted here and mirrored in the JS suite, because a shared rule with two
+    # implementations is only shared if something compares them.
+    for value, want in ENFORCEMENT_GRAMMAR:
+        got = lint.enforcement_pointers(f"**Enforced-by:** {value}\n")
+        assert got == want, f"{value!r}: python said {got}, the shared grammar says {want}"
 
     # ADR-007 T1. `Depends-on` could only name a SIBLING: adr-lint rejected
     # anything else with a blocking error, so the field designed to carry

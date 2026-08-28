@@ -2389,6 +2389,33 @@ test('adr-context answers which decisions govern a path, and which were killed t
   assert.doesNotMatch(withNone, /caught by: None/,
     `None is an answer, not a check:\n${withNone}`)
 
+  // ONE GRAMMAR, mirrored from tests/gate-regressions.py. The two parsers
+  // disagreed on three of these seven, which is the drift ADR-009 exists to
+  // prevent appearing inside ADR-009. A rule with two implementations is only
+  // shared if something compares them.
+  const { __declaredEnforcementForTest } = await import('../scripts/lifecycle.mjs')
+  for (const [value, want] of [
+    ['`a`, `b`', ['a', 'b']],
+    ['a, b', ['a', 'b']],
+    ['adr-lint', ['adr-lint']],
+    ['None — a naming convention', []],
+    ['nonetheless-a-real-pointer', ['nonetheless-a-real-pointer']],
+    ['<the check>', []],
+    ['`one`, two', ['one', 'two']],
+    ['`a label, with a comma`', ['a label, with a comma']],
+  ]) {
+    assert.deepEqual(__declaredEnforcementForTest(`**Enforced-by:** ${value}\n`), want,
+      `the shared grammar disagrees on ${value}`)
+  }
+
+  // The JSON renderer must carry it too — prose readers saw `[caught by: …]`
+  // and machine consumers saw nothing at all.
+  cap = say()
+  try { main(['--json', 'src/pay.js'], dir) } finally { cap.done() }
+  const emittedWithEnforcement = JSON.parse(cap.written.join(''))
+  assert.deepEqual(emittedWithEnforcement.governing[0].enforcedBy,
+    ['every catalogue entry still matches the source it mutates, exactly once'])
+
   // The HOOK renders from the same resolver, and must say the same thing. Two
   // callers of one resolver is exactly where this project has drifted before.
   const { decisionContext } = await import('../scripts/lifecycle.mjs')

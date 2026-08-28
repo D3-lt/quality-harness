@@ -2092,8 +2092,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        return \"unknown\"\n    number, want = int(found.group(\"number\")), found.group(\"task\").upper()",
-      "to": "        return \"done\"\n    number, want = int(found.group(\"number\")), found.group(\"task\").upper()"
+      "from": "        return \"unknown\"\n    return \"unknown\"",
+      "to": "        return \"unknown\"\n    return \"done\""
     },
     {
       "label": "lint: a cycle across two records is caught",
@@ -2103,6 +2103,15 @@
       ],
       "from": "    cycle = find_cycle(edges, nodes)\n    if cycle:",
       "to": "    cycle = None\n    if cycle:"
+    },
+    {
+      "label": "next: a malformed cross-record pointer is not routed on",
+      "file": "bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                elif re.search(r\"(?<![A-Za-z])ADR(?![A-Za-z])\", part, re.I):",
+      "to": "                elif False:"
     }
   ]
 }

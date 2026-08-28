@@ -173,6 +173,17 @@ test('a foreign record that cannot be read is not readiness', () => {
   assert.match(out, /ADR-404-T1/, `and name the id:\n${out}`)
 })
 
+test('a malformed foreign pointer is unevaluated, not ignored', () => {
+  // The OTHER unknown path: the pointer does not parse at all. Its mutation was
+  // GREEN until this case existed, because the test above reaches the
+  // no-such-record return and never the guard. Two returns, one word, one test.
+  const { tasksDir } = corpus([{ id: 'T1', dependsOn: 'ADR-not-a-number-T1' }])
+  const out = next([tasksDir, '--all'], root).stdout
+  // It parses as neither qualified nor a local T-id, so it must not silently
+  // vanish into a ready verdict.
+  assert.doesNotMatch(out, /^READY\s+T1/m, `a pointer nobody can read was ignored:\n${out}`)
+})
+
 test('a human sign-off that reports a STOP is not counted as done', () => {
   // Reported 2026-08-28 from another corpus, one step from executing on it. A
   // task's only sign-off read "decision BLOCKED — neither ship nor withdraw",

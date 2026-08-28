@@ -2277,6 +2277,46 @@ test('reported: a session running a cached older plugin is told so', async () =>
   assert.equal(staleVersionNotice('/opt/quality-harness', home), '')
 })
 
+test('--link says what it does NOT handle, instead of "nothing to do"', async () => {
+  // Reported 2026-08-28 from a Windows machine that still keeps the bare-name
+  // skills. `--link` printed "already points at this plugin. Nothing to do."
+  // while task-template.md was behind — and a stale task template has no
+  // `## Mutation Log`, so `adr-verify` cannot record a killed mutant into it.
+  // True about the MODE, false about the install, and the user had to read the
+  // source to find that out.
+  const { forwarderScript, forwarderCmd } = await import('../scripts/standalone-link.mjs')
+  const home = await mkdtemp(path.join(os.tmpdir(), 'linkmode-'))
+  const cache = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness', 'quality-harness')
+  // NOT `pluginDir` — that is this suite's own checkout root, and shadowing it
+  // made the fixture copy bin/ onto itself.
+  const installed = path.join(cache, '9.9.9')
+  await cp(path.join(pluginDir, 'bin'), path.join(installed, 'bin'), { recursive: true })
+  await mkdir(path.join(installed, 'templates'), { recursive: true })
+  await writeFile(path.join(installed, 'templates', 'task-template.md'), '# current\n')
+
+  // Every gate already a forwarder — the state that produced "nothing to do".
+  await mkdir(path.join(home, '.claude', 'bin'), { recursive: true })
+  for (const gate of await readdir(path.join(installed, 'bin'))) {
+    const write = gate.endsWith('.cmd') ? forwarderCmd : forwarderScript
+    await writeFile(path.join(home, '.claude', 'bin', gate),
+      write(gate.replace(/\.cmd$/, ''), home))
+  }
+  // And a template the user keeps, which has fallen behind.
+  await mkdir(path.join(home, '.claude', 'templates'), { recursive: true })
+  await writeFile(path.join(home, '.claude', 'templates', 'task-template.md'), '# stale\n')
+
+  const run = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'sync-standalone.mjs'), '--link'],
+    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+  assert.equal(run.status ?? 0, 0, run.stderr)
+  assert.match(run.stdout, /nothing for --link to do/)
+  // The half that was missing: it must name the file it cannot fix.
+  assert.match(run.stdout, /task-template\.md/,
+    `--link must name what it does not handle:\n${run.stdout}`)
+  assert.match(run.stdout, /without --link/, 'and say what to run instead')
+  await rm(home, { recursive: true, force: true })
+})
+
 test('adr-context answers which decisions govern a path, and which were killed there', async () => {
   // Called IN-PROCESS, not spawned. adr-state beside it is exercised by
   // spawnSync, which parent-process coverage cannot see — and this resolver is

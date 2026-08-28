@@ -111,6 +111,7 @@ re-runnable. The Verification Log therefore shows no red-then-green cycle, becau
 came before the script.
 
 <!-- tool-written by adr-verify --mutant below -->
+- 2026-08-28 · 9429ff1 · mutant killed · exit 1 · `docs/adr/ADR-008-the-plugin-is-not-the-repository/tasks/T1-probe.sh` · inverts the test the probe exists to make: it would report the assumption holds whatever the cache contains · acceptance-sha256:46ecbafff0d757ee9af22b8e3efcfed34eeaa2a3d400fb4c0bd5b5c095094704
 
 ## Invariants
 

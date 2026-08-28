@@ -2245,8 +2245,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "                                   capture_output=True, text=True,\n                                   encoding=\"utf-8\", errors=\"replace\", timeout=timeout)",
-      "to": "                                   capture_output=True, text=True,\n                                   encoding=\"utf-8\", errors=\"replace\", timeout=timeout) if False else subprocess.run([shell, \"-c\", fence], cwd=str(task.parent), capture_output=True, text=True, encoding=\"utf-8\", errors=\"replace\", timeout=timeout)"
+      "from": "                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err,",
+      "to": "                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err, cwd=str(task.parent),"
     },
     {
       "label": "sweep: an environmental failure needs more than a matching string",

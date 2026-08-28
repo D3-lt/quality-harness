@@ -2148,6 +2148,24 @@
       ],
       "from": "\"source\": \"./plugin\"",
       "to": "\"source\": \".\""
+    },
+    {
+      "label": "package: the ignore rule follows the eval results when they move",
+      "file": ".gitignore",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "plugin/evals/results/\n",
+      "to": "evals/results/\n"
+    },
+    {
+      "label": "package: the LF attribute follows the gates when they move",
+      "file": ".gitattributes",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "plugin/bin/* text eol=lf",
+      "to": "bin/* text eol=lf"
     }
   ]
 }

@@ -235,15 +235,38 @@ export function main(argv) {
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--case', '--list', '--force'])
+  const KNOWN = new Set(['--case', '--list', '--force', '--shard'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring of a label>] [--list] [--force]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--shard i/n] [--list] [--force]\n')
     return 2
   }
   const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
-  const selected = catalogue.mutations.filter(m => !filter || m.label.includes(filter))
+  let selected = catalogue.mutations.filter(m => !filter || m.label.includes(filter))
+
+  // `--shard i/n` runs the i-th of n equal slices, 1-based. The campaign is the
+  // most valuable check here and the slowest: it is the only one that measures
+  // whether the other checks detect anything, and it grew from 145 entries to
+  // 268 in two days. On 2026-08-28 its CI job was killed at thirty minutes with
+  // exit 143, which reads as an infrastructure hiccup rather than as "this gate
+  // no longer fits", and a gate people cannot tell apart from a flake is a gate
+  // they learn to re-run rather than read.
+  //
+  // Sliced by INDEX, not grouped by test-set, so every shard carries a mix and
+  // no single one inherits the slowest suite. Baselines are memoised per set
+  // within a shard, so slicing costs a few extra baseline runs and nothing else.
+  if (argv.includes('--shard')) {
+    const spec = argv[argv.indexOf('--shard') + 1] ?? ''
+    const [index, total] = spec.split('/').map(Number)
+    if (!Number.isInteger(index) || !Number.isInteger(total) || total < 1
+        || index < 1 || index > total) {
+      process.stderr.write(`mutate: --shard wants i/n with 1 <= i <= n, not ${JSON.stringify(spec)}\n`)
+      return 2
+    }
+    selected = selected.filter((_, i) => i % total === index - 1)
+    console.log(`shard ${index}/${total}: ${selected.length} of ${catalogue.mutations.length} mutations`)
+  }
 
   if (argv.includes('--list')) {
     for (const m of selected) console.log(`${m.label}\n  ${m.file} -> ${m.tests.join(', ')}`)

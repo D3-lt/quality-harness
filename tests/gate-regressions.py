@@ -3,6 +3,8 @@
 
 import importlib.machinery
 import importlib.util
+import contextlib
+import io
 import io
 import subprocess
 import sys
@@ -889,6 +891,26 @@ def main():
     live = "tests/package.test.mjs::every shipped gate carries at least one mutation"
     assert lint.resolve_enforcement(live, repo_root) == "test", (
         "a test that is present must resolve as present")
+
+    # ADR-010. With no shell there is nothing to run, so every claim is
+    # UNCHECKED rather than failed — and this is asserted through the seam
+    # rather than through PATH, because emptying PATH removes bash on POSIX and
+    # removes nothing on Windows, where resolve_bash() finds Git Bash by
+    # absolute path. One injected value covers all three platforms.
+    with tempfile.TemporaryDirectory() as sd:
+        fence = "exit 0"
+        digest = verify.acceptance_digest(verify.normalize_acceptance(fence))
+        (Path(sd) / "T1.md").write_text(
+            f"# T1\n\n## Acceptance\n\n```bash\n{fence}\n```\n\n## Verification Log\n"
+            f"- 2026-08-28 \u00b7 abc1234 \u00b7 exit 0 \u00b7 `{fence}` \u00b7 "
+            f"acceptance-sha256:{digest}\n", encoding="utf-8")
+        buf = io.StringIO()
+        with contextlib.redirect_stdout(buf):
+            code = verify.sweep_corpus(sd, shell=None)
+        out = buf.getvalue()
+        assert "unrunnable" in out, f"no shell means unchecked, not failed: {out}"
+        assert "FALSE" not in out, f"and never a verdict about the code: {out}"
+        assert code == 1, "nothing was checked, so nothing is verified"
 
     # A pointer that resolves to nothing is the rot this exists to catch.
     blocking, advice = enforcement("`no-such-mutation-label-anywhere`")

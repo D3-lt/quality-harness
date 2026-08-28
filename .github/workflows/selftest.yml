@@ -101,8 +101,18 @@ jobs:
         run: bash scripts/selftest.sh
 
   mutations:
-    name: mutations
+    name: mutations ${{ matrix.shard }}/4
     runs-on: ubuntu-latest
+    # Sharded, and timed out on purpose. The campaign went from 145 entries to
+    # 268 in two days and its job was killed at thirty minutes on 2026-08-28
+    # with exit 143 — which reads as infrastructure noise rather than as "this
+    # gate outgrew its slot". An explicit timeout makes the difference legible,
+    # and four shards keep each one well inside it.
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
     # 145 catalogue entries that had never run anywhere but a laptop, in the
     # project whose own thesis is that a suite nobody runs is a claim. It is the
     # highest-value check here — it is the only one that measures whether the
@@ -122,7 +132,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Break each mechanism and check the tests notice
-        run: node scripts/mutate.mjs
+        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/4
 
   plugin-validate:
     name: plugin validate

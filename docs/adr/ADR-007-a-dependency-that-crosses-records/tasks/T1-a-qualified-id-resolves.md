@@ -84,6 +84,7 @@ more, and one of them is reachable.
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
 - 2026-08-28 · 537564e* · mutant killed · exit 1 · `bin/adr-lint` · a qualified id falls into the local scan, where TID_RE binds it to a same-numbered sibling · acceptance-sha256:f240c9781359a4cb9100ce8dbe392375912786c1dd0700620b156f0c97b4404f
+- 2026-08-28 · bf94fe6 · mutant killed · exit 1 · `plugin/bin/adr-lint` · a qualified id falls into the local scan, where TID_RE binds it to a same-numbered sibling · acceptance-sha256:b3245ec602c75d77450e2628ea3ec612ff7a784b9851ef20fbdeea8f6b3ad5f0
 
 ## Invariants
 

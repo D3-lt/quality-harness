@@ -5,7 +5,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 
 const testDir = dirname(fileURLToPath(import.meta.url));
-const skillsRoot = resolve(testDir, "../skills");
+const skillsRoot = resolve(testDir, "../plugin/skills");
 
 function frontmatterOf(path) {
   const text = readFileSync(path, "utf8");

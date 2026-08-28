@@ -12,9 +12,10 @@ import { fileURLToPath } from 'node:url'
 import {
   FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, forwarderCmd, forwarderScript,
   knownDigests, linkPlan, replaceable, sameLineage, write,
-} from '../scripts/standalone-link.mjs'
+} from '../plugin/scripts/standalone-link.mjs'
 
-const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const root = path.join(repoRoot, 'plugin')
 
 // Exactly two cases below are POSIX-only, and only because a `#!/bin/sh`
 // forwarder cannot be executed on Windows — measured there on 2026-08-27, where
@@ -122,7 +123,7 @@ test('a real forwarder resolves and runs the gate it names', { skip: process.pla
   symlinkSync(root, cache, 'dir')
   try {
     const run = spawnSync(script, ['ADR-001-selftest.md', 'tasks'], {
-      cwd: path.join(root, 'tests', 'fixtures', 'ok'),
+      cwd: path.join(repoRoot, 'tests', 'fixtures', 'ok'),
       encoding: 'utf8',
       env: { ...process.env, HOME: directory },
     })

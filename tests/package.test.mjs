@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
-import { dirname, join, relative, resolve } from 'node:path'
+import { dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -9,11 +9,13 @@ import { fileURLToPath } from 'node:url'
 const testDir = dirname(fileURLToPath(import.meta.url))
 /** Every file git tracks — the exact set `source: "."` publishes. */
 function tracked() {
-  return spawnSync('git', ['-C', root, 'ls-files'], { encoding: 'utf8' })
+  return spawnSync('git', ['-C', repoRoot, 'ls-files'], { encoding: 'utf8' })
     .stdout.split('\n').filter(Boolean)
 }
 
-const root = resolve(testDir, '..')
+/** The repository. `root` is the PLUGIN, which ADR-008 moved below it. */
+const repoRoot = resolve(testDir, '..')
+const root = join(repoRoot, 'plugin')
 
 const skills = [
   'adr-execute', 'adr-retire', 'adr-write', 'arch-write', 'codex-advise',
@@ -37,7 +39,7 @@ const workflows = ['consensus.js', 'quality-cycle.js', 'review-ring.js']
 // substance — a gate that is not executable where it matters still fails.
 function isExecutable(path) {
   if (process.platform !== 'win32') return (statSync(path).mode & 0o111) !== 0
-  const entry = spawnSync('git', ['-C', root, 'ls-files', '-s', '--', relative(root, path)], {
+  const entry = spawnSync('git', ['-C', repoRoot, 'ls-files', '-s', '--', relative(repoRoot, path)], {
     encoding: 'utf8',
   })
   return /^100755 /.test(entry.stdout)
@@ -52,6 +54,62 @@ function filesBelow(directory) {
   }
   return files
 }
+
+// ADR-008. `marketplace.json`'s `source` is the single thing that decides what a
+// user downloads, so the shipped file set is read FROM it rather than from a list
+// kept beside it — a list is what e95b0f9 pruned by hand, and 603 K of it grew
+// back within two days because nothing checked.
+//
+// Both ends are named independently on purpose. Deriving the expected set from
+// the manifest as well would pass against any tree at all, which is this
+// repository's own signature defect (ADR-003, ADR-006).
+test('what ships is the plugin and nothing else', () => {
+  const marketplace = JSON.parse(readFileSync(join(repoRoot, '.claude-plugin', 'marketplace.json'), 'utf8'))
+  const source = marketplace.plugins.find(entry => entry.name === 'quality-harness').source
+  const shipRoot = resolve(repoRoot, source)
+
+  assert.notEqual(shipRoot, repoRoot,
+    'source names the repository root, so tests/ and docs/ ship to every user')
+
+  const shipped = [
+    '.claude-plugin/plugin.json', 'bin', 'evals', 'hooks', 'scripts', 'skills',
+    'templates', 'workflows',
+  ]
+  for (const entry of shipped) assert.ok(existsSync(join(shipRoot, entry)), `${entry} must ship`)
+
+  const withheld = ['tests', 'docs', '.github', 'README.md', 'LICENSE', '.claude-plugin/marketplace.json']
+  for (const entry of withheld) assert.ok(!existsSync(join(shipRoot, entry)), `${entry} must not ship`)
+
+  // Nothing may leak IN either: a test file committed under the plugin directory
+  // fails here rather than reaching every user, which is the part a one-off
+  // cleanup cannot do.
+  const prefix = `${relative(repoRoot, shipRoot).split(sep).join('/')}/`
+  for (const file of tracked()) {
+    if (!file.startsWith(prefix)) continue
+    const rest = file.slice(prefix.length)
+    assert.ok(shipped.some(entry => rest === entry || rest.startsWith(`${entry}/`)),
+      `${file} ships but is not part of the plugin`)
+  }
+
+  // The repository's own gates stay outside it: all three read tests/, which
+  // does not ship, so shipping them would ship a command that cannot run.
+  for (const gate of ['selftest.sh', 'coverage.sh', 'mutate.mjs']) {
+    assert.ok(existsSync(join(repoRoot, 'scripts', gate)), `${gate} belongs to the repository`)
+    assert.ok(!existsSync(join(shipRoot, 'scripts', gate)), `${gate} must not ship`)
+  }
+
+  // Two anchors that the move breaks silently. Asked of git rather than read out
+  // of the files, because what matters is the answer git gives for the path as it
+  // now stands: `evals/results/` was untracked this session after it carried a
+  // personal home path into a public repository, and the Windows job depends on
+  // the gates arriving with LF endings.
+  const ignored = spawnSync('git', ['-C', repoRoot, 'check-ignore', '-q',
+    join(shipRoot, 'evals', 'results', 'probe.json')])
+  assert.equal(ignored.status, 0, 'eval results must stay ignored from their new path')
+  const eol = spawnSync('git', ['-C', repoRoot, 'check-attr', 'eol', '--',
+    join(shipRoot, 'bin', 'adr-lint')], { encoding: 'utf8' })
+  assert.match(eol.stdout, /eol: lf$/m, 'the gates must keep LF endings from their new path')
+})
 
 test('the plugin contains the complete reusable decision lifecycle', () => {
   for (const skill of skills) {
@@ -101,7 +159,7 @@ test('nothing tracked in this repository names a personal filesystem path', () =
   for (const file of tracked()) {
     if (/\.(png|jpg|jpeg|gif|ico|pdf|zip|woff2?)$/i.test(file)) continue
     let text
-    try { text = readFileSync(join(root, file), 'utf8') } catch { continue }
+    try { text = readFileSync(join(repoRoot, file), 'utf8') } catch { continue }
     for (const name of new Set(named(text))) offenders.push(`${file}: /Users/${name}/`)
   }
   // Shown able to fire before it is trusted: with a clean tree the assertion
@@ -118,7 +176,14 @@ test('nothing tracked in this repository names a personal filesystem path', () =
 })
 
 test('the publishable plugin has no dependency on a personal install or retired package', () => {
-  const textRoots = ['.claude-plugin', 'bin', 'hooks', 'scripts', 'skills', 'templates', 'tests', 'workflows']
+  // ADR-008 put the product under `plugin/` and left the repository's own gates
+  // and tests above it. Both sides are swept: the rule is about what this
+  // project may depend on, not only about what it publishes.
+  const textRoots = [
+    ...['.claude-plugin', 'bin', 'hooks', 'scripts', 'skills', 'templates', 'workflows']
+      .map(name => join(root, name)),
+    ...['scripts', 'tests'].map(name => join(repoRoot, name)),
+  ]
   const forbidden = new RegExp([
     String.raw`~\/\.claude`,
     String.raw`\/Users\/zy`,
@@ -132,7 +197,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
   // writing one down, and the second assertion holds the line that matters:
   // nothing is ever EXECUTED from there.
   for (const directory of textRoots) {
-    for (const path of filesBelow(join(root, directory))) {
+    for (const path of filesBelow(directory)) {
       const text = readFileSync(path, 'utf8')
       assert.doesNotMatch(text, forbidden, path)
       // Never EXECUTED from there, only compared.
@@ -146,7 +211,7 @@ test('manifest and hook configuration expose the bundled components', () => {
   assert.equal(manifest.name, 'quality-harness')
   assert.equal(manifest.version, '2.28.0')
   assert.equal(manifest.license, 'MIT')
-  assert.ok(statSync(join(root, 'tests', 'classify.test.mjs')).isFile())
+  assert.ok(statSync(join(repoRoot, 'tests', 'classify.test.mjs')).isFile())
 
   const hooks = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8'))
   const post = hooks.hooks.PostToolUse.flatMap(group => group.hooks)
@@ -182,10 +247,10 @@ test('manifest and hook configuration expose the bundled components', () => {
     assert.match(text, /\r\n/, `${gate}.cmd must use CRLF`)
   }
 
-  const attributes = readFileSync(join(root, '.gitattributes'), 'utf8')
+  const attributes = readFileSync(join(repoRoot, '.gitattributes'), 'utf8')
   assert.match(attributes, /^\*\.sh text eol=lf$/m)
   assert.match(attributes, /^\*\.mjs text eol=lf$/m)
-  assert.match(attributes, /^bin\/\* text eol=lf$/m)
+  assert.match(attributes, /^plugin\/bin\/\* text eol=lf$/m)
   // The skills and templates are parsed by the gates and asserted on by this
   // suite; a CRLF checkout on Windows broke a multi-line regex in a SKILL.md.
   assert.match(attributes, /^\*\.md text eol=lf$/m)
@@ -201,7 +266,7 @@ test('continuous integration runs the checks this repository owns', () => {
   // A CI file that drifts away from the project's own gate is decoration. These
   // assertions bind the workflow to the scripts a human runs, so deleting or
   // renaming either breaks the suite rather than quietly un-gating the branch.
-  const workflow = readFileSync(join(root, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
   assert.match(workflow, /bash scripts\/selftest\.sh/)
   assert.match(workflow, /bash scripts\/coverage\.sh/)
   // The mutation campaign is what measures whether the rest of these detect
@@ -234,14 +299,14 @@ test('continuous integration runs the checks this repository owns', () => {
   }
 
   for (const script of ['selftest.sh', 'coverage.sh']) {
-    const path = join(root, 'scripts', script)
+    const path = join(repoRoot, 'scripts', script)
     assert.ok(statSync(path).isFile(), script)
     assert.ok(isExecutable(path), `${script} must be executable`)
   }
 
   // The self-test must not report a clean run when a check it names was
   // skipped — the verdict line carries the distinction.
-  const selftest = readFileSync(join(root, 'scripts', 'selftest.sh'), 'utf8')
+  const selftest = readFileSync(join(repoRoot, 'scripts', 'selftest.sh'), 'utf8')
   assert.match(selftest, /SKIPPED —/)
   assert.match(selftest, /PARTIAL —/)
 })
@@ -263,8 +328,12 @@ test('importing a script runs its CLI on nobody', async () => {
   process.stderr.write = chunk => { written.push(String(chunk)); return true }
   let modules
   try {
-    modules = await Promise.all(['adr-state', 'adr-context', 'verify', 'mutate']
-      .map(name => import(pathToFileURL(join(root, 'scripts', `${name}.mjs`)).href)))
+    // mutate.mjs stayed at the repository root when ADR-008 moved the product:
+    // it reads tests/mutations.json, which does not ship.
+    modules = await Promise.all([
+      ...['adr-state', 'adr-context', 'verify'].map(name => join(root, 'scripts', `${name}.mjs`)),
+      join(repoRoot, 'scripts', 'mutate.mjs'),
+    ].map(file => import(pathToFileURL(file).href)))
   } finally {
     process.stdout.write = stdout
     process.stderr.write = stderr
@@ -285,10 +354,10 @@ test('every catalogue entry still matches the source it mutates, exactly once', 
   // The runner cannot answer this any sooner — it learns the count by applying
   // each mutation in turn. Reading it off the tree costs milliseconds, so the
   // same defect surfaces in the suite instead of at the end of the campaign.
-  const catalogue = JSON.parse(readFileSync(join(root, 'tests', 'mutations.json'), 'utf8'))
+  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8'))
   const counts = []
   for (const mutation of catalogue.mutations) {
-    const path = join(root, mutation.file)
+    const path = join(repoRoot, mutation.file)
     const text = existsSync(path) ? readFileSync(path, 'utf8') : null
     counts.push({
       label: mutation.label,
@@ -330,7 +399,7 @@ test('every shipped gate carries at least one mutation', () => {
   // "somebody wrote a mutation for this gate"; whether it is noticed is what
   // `scripts/mutate.mjs` answers by reporting RED or GREEN, and that campaign is
   // the real assertion. Claiming more here would be the swap ADR-003 forbids.
-  const catalogue = JSON.parse(readFileSync(join(root, 'tests', 'mutations.json'), 'utf8')).mutations
+  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8')).mutations
   // Read from disk, both sides. A list kept beside the truth is a thing somebody
   // has to remember, which is how the standalone copies drifted for three weeks.
   // A dotless NAME is not a gate; a dotless FILE is. A stray directory in
@@ -340,7 +409,11 @@ test('every shipped gate carries at least one mutation', () => {
   assert.ok(gates.length >= 8, `expected the shipped gates, found ${gates.length}`)
 
   const covered = new Set(catalogue.map(entry => entry.file))
-  const uncovered = (names, known) => names.filter(gate => !known.has(`bin/${gate}`))
+  // Catalogue paths are repository-relative, and ADR-008 moved bin/ under the
+  // plugin. Derived rather than written down, so the prefix cannot be the thing
+  // that rots the next time the boundary moves.
+  const binPrefix = `${relative(repoRoot, join(root, 'bin')).split(sep).join('/')}/`
+  const uncovered = (names, known) => names.filter(gate => !known.has(`${binPrefix}${gate}`))
 
   // The detector has to be shown capable of firing. Without this the check is
   // satisfied by a complete catalogue and by a predicate that returns nothing at
@@ -348,7 +421,7 @@ test('every shipped gate carries at least one mutation', () => {
   // the fence GREEN, because an empty list equals an empty list. A gate that
   // cannot fail is the thing ADR-003 forbids, and it appeared in the task that
   // introduces the rule.
-  assert.deepEqual(uncovered(['ghost-gate'], new Set(['bin/real-gate'])), ['ghost-gate'],
+  assert.deepEqual(uncovered(['ghost-gate'], new Set([`${binPrefix}real-gate`])), ['ghost-gate'],
     'the check must be able to name an uncovered gate, or it asserts nothing')
 
   const bare = uncovered(gates, covered)
@@ -361,5 +434,5 @@ test('every shipped gate carries at least one mutation', () => {
 
   // The `.cmd` shims are excluded deliberately: they forward and carry no logic,
   // and tests/standalone-link.test.mjs already asserts every gate has one.
-  assert.ok(!covered.has('bin/adr-lint.cmd'), 'shims carry no logic and are not in this class')
+  assert.ok(!covered.has(`${binPrefix}adr-lint.cmd`), 'shims carry no logic and are not in this class')
 })

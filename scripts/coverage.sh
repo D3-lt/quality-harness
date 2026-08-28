@@ -14,7 +14,9 @@
 #       1 = a floor was breached, or a required measurement could not run
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# ADR-008: the tests are the repository's, the measured surface is the plugin's.
+ROOT="$REPO/plugin"
 MODE=${1-}
 
 # Floors. Measured 2026-08-25 (Wave 3): js 94.92 line / 85.43 branch / 95.59 funcs,
@@ -85,7 +87,7 @@ printf '== JavaScript hooks ==\n'
 # code a tenth of the time, which teaches an agent that re-running is a valid
 # response to red. Serial, ten runs: 94.83-94.85, spread 0.02, no failures.
 # The cost is about 20s against 8s, which is nothing next to a flapping verdict.
-node --test --test-concurrency=1 --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$ROOT"/tests/*.test.mjs \
+node --test --test-concurrency=1 --experimental-test-coverage ${js_flags[@]+"${js_flags[@]}"} "$REPO"/tests/*.test.mjs \
   > "$WORK/js.log" 2>&1 || js_status=$?
 js_status=${js_status:-0}
 sed -n '/start of coverage report/,/end of coverage report/p' "$WORK/js.log" \
@@ -141,10 +143,10 @@ source = $ROOT/bin
 CFG
 
 (
-  cd "$ROOT"
+  cd "$REPO"
   PYTHONPATH="$WORK/hook${PYTHONPATH:+:$PYTHONPATH}" \
   COVERAGE_PROCESS_START="$WORK/coverage.cfg" \
-    node --test "$ROOT"/tests/*.test.mjs > "$WORK/py-suite.log" 2>&1
+    node --test "$REPO"/tests/*.test.mjs > "$WORK/py-suite.log" 2>&1
 ) || {
   printf 'FAIL — the suite did not pass while measuring the gates.\n'
   tail -20 "$WORK/py-suite.log"

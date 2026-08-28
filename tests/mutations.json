@@ -11,7 +11,7 @@
   "mutations": [
     {
       "label": "evidence: done status is checked at all",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -20,7 +20,7 @@
     },
     {
       "label": "evidence: exit-0-but-scored-nothing is a failure",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -29,7 +29,7 @@
     },
     {
       "label": "evidence: a real result outranks an empty one",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -38,7 +38,7 @@
     },
     {
       "label": "evidence: the digest label the readers parse",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -47,7 +47,7 @@
     },
     {
       "label": "evidence: the dirty-tree marker",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -56,7 +56,7 @@
     },
     {
       "label": "evidence: the failure fence",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -65,7 +65,7 @@
     },
     {
       "label": "evidence: cwd defaults to the repository root",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -74,7 +74,7 @@
     },
     {
       "label": "evidence: the append keeps line endings",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -83,7 +83,7 @@
     },
     {
       "label": "evidence: a refused mutant restores byte-for-byte",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -92,7 +92,7 @@
     },
     {
       "label": "evidence: the seal survives a CRLF checkout",
-      "file": "bin/adr-retire-check",
+      "file": "plugin/bin/adr-retire-check",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -101,7 +101,7 @@
     },
     {
       "label": "hooks: a bin/ gate is spawned so Windows can run it",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -110,7 +110,7 @@
     },
     {
       "label": "hooks: EVIDENCE-LIMITED needs a stated reason",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -119,7 +119,7 @@
     },
     {
       "label": "hooks: EVIDENCE-LIMITED does not release code",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -128,7 +128,7 @@
     },
     {
       "label": "hooks: an interim answer is Stop-only",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -137,7 +137,7 @@
     },
     {
       "label": "hooks: SubagentStart names its own event",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -146,7 +146,7 @@
     },
     {
       "label": "hooks: a read-only role is told it is read-only",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -155,7 +155,7 @@
     },
     {
       "label": "hooks: both ways the budget runs out say so",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -164,7 +164,7 @@
     },
     {
       "label": "hooks: the runner fails closed on a timeout",
-      "file": "scripts/run-shell-hook.mjs",
+      "file": "plugin/scripts/run-shell-hook.mjs",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -173,7 +173,7 @@
     },
     {
       "label": "hooks: the wrapper propagates a child's exit code",
-      "file": "scripts/verify.mjs",
+      "file": "plugin/scripts/verify.mjs",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -182,7 +182,7 @@
     },
     {
       "label": "gates: a dependency cycle is detected",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -191,7 +191,7 @@
     },
     {
       "label": "gates: a done task needs an exit-0 entry",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -200,7 +200,7 @@
     },
     {
       "label": "gates: a test that cannot go red is reported",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -209,7 +209,7 @@
     },
     {
       "label": "gates: postmortem dates are YYYY-MM-DD",
-      "file": "bin/postmortem-verify",
+      "file": "plugin/bin/postmortem-verify",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -218,7 +218,7 @@
     },
     {
       "label": "gates: a markdown-escaped pipe is a vacuous gate",
-      "file": "bin/arch-lint",
+      "file": "plugin/bin/arch-lint",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -227,7 +227,7 @@
     },
     {
       "label": "gates: a deferred pointer must resolve",
-      "file": "bin/adr-debt",
+      "file": "plugin/bin/adr-debt",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -236,7 +236,7 @@
     },
     {
       "label": "gates: a Cmd override is not command substitution",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -245,7 +245,7 @@
     },
     {
       "label": "gates: path_stack stays inside the repository",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -254,7 +254,7 @@
     },
     {
       "label": "gates: an unknown flag is refused",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -263,7 +263,7 @@
     },
     {
       "label": "gates: a README is not a task",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
@@ -272,7 +272,7 @@
     },
     {
       "label": "gates: a contract edge orders two tasks",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
@@ -281,7 +281,7 @@
     },
     {
       "label": "skills: a documented flag must be parsed",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -290,7 +290,7 @@
     },
     {
       "label": "skills: --all changes what adr-next prints",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -299,7 +299,7 @@
     },
     {
       "label": "hooks: an unresolvable Bash write is one readable line",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -308,7 +308,7 @@
     },
     {
       "label": "hooks: a commit gates only what it publishes",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -317,7 +317,7 @@
     },
     {
       "label": "hooks: a deletion path the command set is resolved",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -326,7 +326,7 @@
     },
     {
       "label": "hooks: a deletion never trusts the ambient environment",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -335,7 +335,7 @@
     },
     {
       "label": "hooks: deletion+commit in one command is refused",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -344,7 +344,7 @@
     },
     {
       "label": "hooks: a Windows path is a path, not an escape",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -353,7 +353,7 @@
     },
     {
       "label": "gates: the edit boundary advises rather than blocks",
-      "file": "scripts/facts-gate-dispatch.sh",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -362,7 +362,7 @@
     },
     {
       "label": "gates: the advice carries the gate's own words",
-      "file": "scripts/facts-gate-dispatch.sh",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -371,7 +371,7 @@
     },
     {
       "label": "gates: the boundary still names the finding",
-      "file": "scripts/facts-gate-dispatch.sh",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -380,7 +380,7 @@
     },
     {
       "label": "severity: advice does not block",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -389,7 +389,7 @@
     },
     {
       "label": "severity: a placeholder still blocks",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -398,7 +398,7 @@
     },
     {
       "label": "severity: an empty section still blocks",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -407,7 +407,7 @@
     },
     {
       "label": "severity: advice is reported, not swallowed",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -416,7 +416,7 @@
     },
     {
       "label": "severity: postmortem frontmatter is identity",
-      "file": "bin/postmortem-verify",
+      "file": "plugin/bin/postmortem-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -425,7 +425,7 @@
     },
     {
       "label": "severity: postmortem advice is reported",
-      "file": "bin/postmortem-verify",
+      "file": "plugin/bin/postmortem-verify",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -434,7 +434,7 @@
     },
     {
       "label": "severity: an arch placeholder still blocks",
-      "file": "bin/arch-lint",
+      "file": "plugin/bin/arch-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -443,7 +443,7 @@
     },
     {
       "label": "severity: the seal still blocks",
-      "file": "bin/adr-retire-check",
+      "file": "plugin/bin/adr-retire-check",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -452,7 +452,7 @@
     },
     {
       "label": "severity: a retirement date advises",
-      "file": "bin/adr-retire-check",
+      "file": "plugin/bin/adr-retire-check",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -461,7 +461,7 @@
     },
     {
       "label": "inline: a done claim with nowhere to prove it is named",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -470,7 +470,7 @@
     },
     {
       "label": "inline: the advice does not fire on layout alone",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -479,7 +479,7 @@
     },
     {
       "label": "advisory: a finding is never hidden",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -488,7 +488,7 @@
     },
     {
       "label": "advisory: a wrapper does not launder a mutation",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -497,7 +497,7 @@
     },
     {
       "label": "advisory: --rm is a flag, not the rm command",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -506,7 +506,7 @@
     },
     {
       "label": "advisory: php artisan test is validation",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -515,7 +515,7 @@
     },
     {
       "label": "advisory: the marker names the write, not the cd that preceded it",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -524,7 +524,7 @@
     },
     {
       "label": "advisory: cd arguments stop at the newline",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -533,7 +533,7 @@
     },
     {
       "label": "advisory: the changed-path list is distinct",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -542,7 +542,7 @@
     },
     {
       "label": "advisory: no advisory calls itself a block",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -551,7 +551,7 @@
     },
     {
       "label": "advisory: a commit is not unverified work for the next commit",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -560,7 +560,7 @@
     },
     {
       "label": "advisory: a project that names no check hears nothing",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -569,7 +569,7 @@
     },
     {
       "label": "advisory: finding the repo root does not disqualify the check",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -578,7 +578,7 @@
     },
     {
       "label": "advisory: an env prefix does not hide the command",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -587,7 +587,7 @@
     },
     {
       "label": "advisory: a substitution still fails the guard",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -596,7 +596,7 @@
     },
     {
       "label": "advisory: a git revision is not a changed path",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -605,7 +605,7 @@
     },
     {
       "label": "advisory: cp is accounted by its destination",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -614,7 +614,7 @@
     },
     {
       "label": "advisory: the harness never blocks over its own breakage",
-      "file": "scripts/run-shell-hook.mjs",
+      "file": "plugin/scripts/run-shell-hook.mjs",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -623,7 +623,7 @@
     },
     {
       "label": "advisory: the turn does not re-ask about what was published",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -632,7 +632,7 @@
     },
     {
       "label": "advisory: a verify script is the project's named check",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -641,7 +641,7 @@
     },
     {
       "label": "advisory: mktemp -d is a temp directory",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -650,7 +650,7 @@
     },
     {
       "label": "advisory: mktemp -d -p names somewhere else",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -659,7 +659,7 @@
     },
     {
       "label": "advisory: an assignment can hold a substitution",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -668,7 +668,7 @@
     },
     {
       "label": "advisory: naming adr-verify is not running it",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -677,7 +677,7 @@
     },
     {
       "label": "advisory: introspection is not authorship",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -686,7 +686,7 @@
     },
     {
       "label": "advisory: a Windows venv interpreter is an interpreter",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -695,7 +695,7 @@
     },
     {
       "label": "advisory: the harness has no opinion about branches",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -704,7 +704,7 @@
     },
     {
       "label": "skills: no skill halts on a gate verdict",
-      "file": "skills/adr-execute/SKILL.md",
+      "file": "plugin/skills/adr-execute/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -713,7 +713,7 @@
     },
     {
       "label": "skills: the guidance still names the gate to run",
-      "file": "skills/arch-write/SKILL.md",
+      "file": "plugin/skills/arch-write/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -722,7 +722,7 @@
     },
     {
       "label": "context: the archive is part of the corpus",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -731,7 +731,7 @@
     },
     {
       "label": "context: a section is read without a JS \\Z anchor",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -740,7 +740,7 @@
     },
     {
       "label": "context: a shared tasks directory is attributed, not assumed",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -749,7 +749,7 @@
     },
     {
       "label": "context: a symlinked root still resolves",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -758,7 +758,7 @@
     },
     {
       "label": "context: said once per path per session",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -767,7 +767,7 @@
     },
     {
       "label": "context: only type path is resolved",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -776,7 +776,7 @@
     },
     {
       "label": "context: * does not cross a separator",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -785,7 +785,7 @@
     },
     {
       "label": "context: a drifted standalone copy is named",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -794,7 +794,7 @@
     },
     {
       "label": "context: scratch corpora are not the project's records",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -803,7 +803,7 @@
     },
     {
       "label": "strictFrom: demotes, and only downward",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -812,7 +812,7 @@
     },
     {
       "label": "strictFrom: the evidence chain is never demoted",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -821,7 +821,7 @@
     },
     {
       "label": "strictFrom: a record at the cutoff is checked in full",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -830,7 +830,7 @@
     },
     {
       "label": "strictFrom: an unreadable config loosens nothing",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -839,7 +839,7 @@
     },
     {
       "label": "strictFrom: a demoted PASS is not a clean PASS",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -848,7 +848,7 @@
     },
     {
       "label": "judge: Context must cite something observable",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
@@ -858,7 +858,7 @@
     },
     {
       "label": "judge: an alternative names why it lost",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
@@ -868,7 +868,7 @@
     },
     {
       "label": "judge: a comparative claim carries evidence in its own section",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
@@ -878,7 +878,7 @@
     },
     {
       "label": "judge: the Decision commits",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
@@ -888,7 +888,7 @@
     },
     {
       "label": "judge: an authoring marker is not a template placeholder",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
@@ -898,7 +898,7 @@
     },
     {
       "label": "judge: Consequences state a cost",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
@@ -908,7 +908,7 @@
     },
     {
       "label": "judge: prose judgement never blocks",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs",
         "tests/gate-rules.test.mjs"
@@ -918,7 +918,7 @@
     },
     {
       "label": "judge: a Context may cite a ticket, version, standard or commit",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
@@ -927,7 +927,7 @@
     },
     {
       "label": "judge: prose alternatives are judged too",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
@@ -936,7 +936,7 @@
     },
     {
       "label": "judge: a bare name has no clause after a separator",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
@@ -945,7 +945,7 @@
     },
     {
       "label": "judge: a marker inside a fence is not this record's",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
@@ -954,7 +954,7 @@
     },
     {
       "label": "judge: a cost may be worded any way a record words it",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
@@ -963,7 +963,7 @@
     },
     {
       "label": "context: a drifted template is named too",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -972,7 +972,7 @@
     },
     {
       "label": "context: a drifted skill is named too",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -981,7 +981,7 @@
     },
     {
       "label": "sync: a cached newer version outranks the running one",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -990,7 +990,7 @@
     },
     {
       "label": "sync: versions are ordered as semver, not as strings",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -999,7 +999,7 @@
     },
     {
       "label": "sync: it syncs from the newest install, not the running one",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1008,7 +1008,7 @@
     },
     {
       "label": "sync: reporting is the default and writes nothing",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1017,7 +1017,7 @@
     },
     {
       "label": "sync: an identical file is not work",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1026,7 +1026,7 @@
     },
     {
       "label": "sync: a skill the user does not have is not created",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1035,7 +1035,7 @@
     },
     {
       "label": "link: no skill is ever linked",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1044,7 +1044,7 @@
     },
     {
       "label": "verify: a killed mutant run is journalled so the next one restores it",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -1053,7 +1053,7 @@
     },
     {
       "label": "verify: the mutant warning is flushed, not left in the buffer",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -1062,7 +1062,7 @@
     },
     {
       "label": "verify: a restore does not overwrite a file that changed since",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -1071,7 +1071,7 @@
     },
     {
       "label": "verify: an ordinary run recovers before it measures anything",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -1080,7 +1080,7 @@
     },
     {
       "label": "sync: a forwarder is not reported as drifted",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1089,7 +1089,7 @@
     },
     {
       "label": "sync: a forwarder is recognised by the mark it carries",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1098,7 +1098,7 @@
     },
     {
       "label": "state: a supersession chain is followed",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1107,7 +1107,7 @@
     },
     {
       "label": "state: two accepted records over one path is contested",
-      "file": "scripts/adr-state.mjs",
+      "file": "plugin/scripts/adr-state.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1116,7 +1116,7 @@
     },
     {
       "label": "state: a decision pointing at no code is named",
-      "file": "scripts/adr-state.mjs",
+      "file": "plugin/scripts/adr-state.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1125,7 +1125,7 @@
     },
     {
       "label": "state: a supersession with no replacement is named",
-      "file": "scripts/adr-state.mjs",
+      "file": "plugin/scripts/adr-state.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1134,7 +1134,7 @@
     },
     {
       "label": "corpus: tasks resolve from the directory named for the record",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1143,7 +1143,7 @@
     },
     {
       "label": "corpus: a named directory is attribution in itself",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1152,7 +1152,7 @@
     },
     {
       "label": "corpus: an Affected Files cell is a path, not prose",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1161,7 +1161,7 @@
     },
     {
       "label": "corpus: an ISO-dated file is not a decision record",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1170,7 +1170,7 @@
     },
     {
       "label": "corpus: a status may carry a date after the word",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1179,7 +1179,7 @@
     },
     {
       "label": "state: history is not a contradiction",
-      "file": "scripts/adr-state.mjs",
+      "file": "plugin/scripts/adr-state.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1188,7 +1188,7 @@
     },
     {
       "label": "verdict: a command that never started is not a failure",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1197,7 +1197,7 @@
     },
     {
       "label": "verdict: a killed run is not a failure either",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1206,7 +1206,7 @@
     },
     {
       "label": "verdict: the environment is checked before the exit code",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1215,7 +1215,7 @@
     },
     {
       "label": "verdict: only a pass is evidence",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1224,7 +1224,7 @@
     },
     {
       "label": "verdict: an environment problem says so instead of asking again",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1233,7 +1233,7 @@
     },
     {
       "label": "verdict: Windows says none of what POSIX says",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1242,7 +1242,7 @@
     },
     {
       "label": "verdict: cmd.exe reports 9009, not 127",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1251,7 +1251,7 @@
     },
     {
       "label": "verdict: an explicit exit 0 is authoritative",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1278,7 +1278,7 @@
     },
     {
       "label": "router: a corpus with no Verification Log is not behind on evidence",
-      "file": "scripts/work-next.mjs",
+      "file": "plugin/scripts/work-next.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1287,7 +1287,7 @@
     },
     {
       "label": "router: a done claim with no exit-0 entry routes to adr-verify",
-      "file": "scripts/work-next.mjs",
+      "file": "plugin/scripts/work-next.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1296,7 +1296,7 @@
     },
     {
       "label": "skills: adr-execute claims the stage that records evidence",
-      "file": "skills/adr-execute/SKILL.md",
+      "file": "plugin/skills/adr-execute/SKILL.md",
       "tests": [
         "tests/skill-metadata.test.mjs"
       ],
@@ -1305,7 +1305,7 @@
     },
     {
       "label": "propose: the catalogue is not counted as coverage",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1314,7 +1314,7 @@
     },
     {
       "label": "propose: a catalogue hit outranks nothing and stays 'catalogued'",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1323,7 +1323,7 @@
     },
     {
       "label": "propose: a clause the runner cannot target uniquely is dropped",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1332,7 +1332,7 @@
     },
     {
       "label": "propose: a root given without --tests survives argument parsing",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1341,7 +1341,7 @@
     },
     {
       "label": "propose: a clause too short to identify one place is not a claim",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1350,7 +1350,7 @@
     },
     {
       "label": "propose: a tool name is matched word-bounded, not as a substring",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1359,7 +1359,7 @@
     },
     {
       "label": "propose: a flag no script declares is another command's contract",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1368,7 +1368,7 @@
     },
     {
       "label": "propose: catalogue output carries the runner schema only",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1377,7 +1377,7 @@
     },
     {
       "label": "propose: a leading conjunction is punctuation, not part of the claim",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1386,7 +1386,7 @@
     },
     {
       "label": "propose: this tool reports and never refuses",
-      "file": "scripts/mutate-propose.mjs",
+      "file": "plugin/scripts/mutate-propose.mjs",
       "tests": [
         "tests/mutate-propose.test.mjs"
       ],
@@ -1395,7 +1395,7 @@
     },
     {
       "label": "link: the resolver orders versions numerically, not lexically",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1404,7 +1404,7 @@
     },
     {
       "label": "link: a cached version with no gates is not a candidate",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1413,7 +1413,7 @@
     },
     {
       "label": "link: a forwarder that cannot find the plugin still exits 0",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1422,7 +1422,7 @@
     },
     {
       "label": "link: the Windows forwarder is written with CRLF",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1431,7 +1431,7 @@
     },
     {
       "label": "link: a symlink pointing outside this plugin is left alone",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1440,7 +1440,7 @@
     },
     {
       "label": "link: a file this plugin never installed is left alone",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1449,7 +1449,7 @@
     },
     {
       "label": "link: a gate with no docstring subject is matched on its opening line",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1458,7 +1458,7 @@
     },
     {
       "label": "link: every gate gets a Windows shim beside it",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1467,7 +1467,7 @@
     },
     {
       "label": "notice: the drift notice says the plugin itself is current",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1476,7 +1476,7 @@
     },
     {
       "label": "link: the original is archived before it is replaced",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1485,7 +1485,7 @@
     },
     {
       "label": "link: a symlink is archived as a symlink, not dereferenced",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1494,7 +1494,7 @@
     },
     {
       "label": "link: a skill directory is archived whole",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1503,7 +1503,7 @@
     },
     {
       "label": "notice: a forwarder or link is current, not drift",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1512,7 +1512,7 @@
     },
     {
       "label": "notice: a hook nothing wires cannot answer",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1521,7 +1521,7 @@
     },
     {
       "label": "link: an archive that cannot link records the target instead",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1539,7 +1539,7 @@
     },
     {
       "label": "skills: adr-write audits the class, not the instance",
-      "file": "skills/adr-write/SKILL.md",
+      "file": "plugin/skills/adr-write/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1548,7 +1548,7 @@
     },
     {
       "label": "skills: spec-write audits the class, not the instance",
-      "file": "skills/spec-write/SKILL.md",
+      "file": "plugin/skills/spec-write/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1557,7 +1557,7 @@
     },
     {
       "label": "skills: adr-execute audits the class, not the instance",
-      "file": "skills/adr-execute/SKILL.md",
+      "file": "plugin/skills/adr-execute/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1566,7 +1566,7 @@
     },
     {
       "label": "skills: adr-retire audits the class, not the instance",
-      "file": "skills/adr-retire/SKILL.md",
+      "file": "plugin/skills/adr-retire/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1575,7 +1575,7 @@
     },
     {
       "label": "skills: adr-write says what a left-out class member costs",
-      "file": "skills/adr-write/SKILL.md",
+      "file": "plugin/skills/adr-write/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1584,7 +1584,7 @@
     },
     {
       "label": "qh-root: versions are ordered numerically, not lexically",
-      "file": "bin/qh-root",
+      "file": "plugin/bin/qh-root",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -1593,7 +1593,7 @@
     },
     {
       "label": "qh-root: a version directory with no gates is not a candidate",
-      "file": "bin/qh-root",
+      "file": "plugin/bin/qh-root",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -1602,7 +1602,7 @@
     },
     {
       "label": "qh-root: a failed lookup prints no path at all",
-      "file": "bin/qh-root",
+      "file": "plugin/bin/qh-root",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -1611,7 +1611,7 @@
     },
     {
       "label": "skills: a skill naming the plugin root says how to resolve it",
-      "file": "skills/adr-write/SKILL.md",
+      "file": "plugin/skills/adr-write/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1620,7 +1620,7 @@
     },
     {
       "label": "skills: the way out of an unsubstituted plugin root is a command",
-      "file": "skills/work/SKILL.md",
+      "file": "plugin/skills/work/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1629,7 +1629,7 @@
     },
     {
       "label": "qh-root: a named plugin root outranks the search",
-      "file": "bin/qh-root",
+      "file": "plugin/bin/qh-root",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -1647,7 +1647,7 @@
     },
     {
       "label": "verify: a catchable kill restores in-process, not only via the journal",
-      "file": "bin/adr-verify",
+      "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
@@ -1656,7 +1656,7 @@
     },
     {
       "label": "router: importing the CLI half does not run it",
-      "file": "scripts/work-next.mjs",
+      "file": "plugin/scripts/work-next.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1665,7 +1665,7 @@
     },
     {
       "label": "router: the CLI half returns a code instead of taking the process",
-      "file": "scripts/work-next.mjs",
+      "file": "plugin/scripts/work-next.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1674,7 +1674,7 @@
     },
     {
       "label": "fixture: the corpus is copied, not linked to",
-      "file": "scripts/eval-fixture.mjs",
+      "file": "plugin/scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -1683,7 +1683,7 @@
     },
     {
       "label": "fixture: only the corpus parts are copied, not the source tree",
-      "file": "scripts/eval-fixture.mjs",
+      "file": "plugin/scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -1692,7 +1692,7 @@
     },
     {
       "label": "fixture: an unresolved placeholder is left visible",
-      "file": "scripts/eval-fixture.mjs",
+      "file": "plugin/scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -1701,7 +1701,7 @@
     },
     {
       "label": "fixture: an unknown option is named, not ignored",
-      "file": "scripts/eval-fixture.mjs",
+      "file": "plugin/scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -1710,7 +1710,7 @@
     },
     {
       "label": "skills: mutation-audit names the control that refuses nobody",
-      "file": "skills/mutation-audit/SKILL.md",
+      "file": "plugin/skills/mutation-audit/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1719,7 +1719,7 @@
     },
     {
       "label": "skills: mutation-audit says to break the control, not the guarded code",
-      "file": "skills/mutation-audit/SKILL.md",
+      "file": "plugin/skills/mutation-audit/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1728,7 +1728,7 @@
     },
     {
       "label": "fixture: the printed command grants what the cases declare",
-      "file": "scripts/eval-fixture.mjs",
+      "file": "plugin/scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -1741,12 +1741,12 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "  const uncovered = (names, known) => names.filter(gate => !known.has(`bin/${gate}`))",
+      "from": "  const uncovered = (names, known) => names.filter(gate => !known.has(`${binPrefix}${gate}`))",
       "to": "  const uncovered = () => []"
     },
     {
       "label": "skills: mutation-audit says which gates earn their place",
-      "file": "skills/mutation-audit/SKILL.md",
+      "file": "plugin/skills/mutation-audit/SKILL.md",
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
@@ -1755,7 +1755,7 @@
     },
     {
       "label": "state: a record that cannot be read is reported",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1764,7 +1764,7 @@
     },
     {
       "label": "state: the unreadable list does not change the corpus shape",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1773,7 +1773,7 @@
     },
     {
       "label": "judge: a wrapped alternative is read whole",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
@@ -1782,7 +1782,7 @@
     },
     {
       "label": "judge: a blank line ends a bullet",
-      "file": "bin/adr-judge",
+      "file": "plugin/bin/adr-judge",
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
@@ -1791,7 +1791,7 @@
     },
     {
       "label": "fixture: a Windows path is made YAML-safe",
-      "file": "scripts/eval-fixture.mjs",
+      "file": "plugin/scripts/eval-fixture.mjs",
       "tests": [
         "tests/eval-fixture.test.mjs"
       ],
@@ -1800,7 +1800,7 @@
     },
     {
       "label": "link: no template is linked either",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1809,7 +1809,7 @@
     },
     {
       "label": "sync: a template the user does not have is not created",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1818,7 +1818,7 @@
     },
     {
       "label": "sync: a gate the user does not have IS created",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1836,7 +1836,7 @@
     },
     {
       "label": "spec-verify: a test that never ran is not reported as failing",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -1845,7 +1845,7 @@
     },
     {
       "label": "spec-verify: a fact nothing could adjudicate is not a pass",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
@@ -1881,7 +1881,7 @@
     },
     {
       "label": "spec-verify: a regex literal is not read as a string",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -1899,7 +1899,7 @@
     },
     {
       "label": "spec-verify: a regex may follow the paren closing an if header",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -1908,7 +1908,7 @@
     },
     {
       "label": "spec-verify: an unterminated quote cannot swallow the next line",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -1917,7 +1917,7 @@
     },
     {
       "label": "verify: importing the wrapper spawns nothing",
-      "file": "scripts/verify.mjs",
+      "file": "plugin/scripts/verify.mjs",
       "tests": [
         "tests/package.test.mjs"
       ],
@@ -1926,7 +1926,7 @@
     },
     {
       "label": "state: importing the reporter prints nothing",
-      "file": "scripts/adr-state.mjs",
+      "file": "plugin/scripts/adr-state.mjs",
       "tests": [
         "tests/package.test.mjs"
       ],
@@ -1935,7 +1935,7 @@
     },
     {
       "label": "spec-verify: a collector that cannot run is not an absent test",
-      "file": "bin/spec-verify",
+      "file": "plugin/bin/spec-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -1953,7 +1953,7 @@
     },
     {
       "label": "sync: --link names the drift it cannot fix",
-      "file": "scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/sync-standalone.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -1962,7 +1962,7 @@
     },
     {
       "label": "lint: a log that only ever passed is advised on",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -1971,7 +1971,7 @@
     },
     {
       "label": "lint: a killed mutant exempts a task from the red-run advice",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -1980,7 +1980,7 @@
     },
     {
       "label": "link: a directory in bin is not a gate",
-      "file": "scripts/standalone-link.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
@@ -1989,7 +1989,7 @@
     },
     {
       "label": "next: a human sign-off that says stop is not done",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
@@ -1998,7 +1998,7 @@
     },
     {
       "label": "next: a negative word outranks an affirmative one",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
@@ -2007,7 +2007,7 @@
     },
     {
       "label": "lint: Enforced-by naming nothing is reported",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2016,7 +2016,7 @@
     },
     {
       "label": "lint: None is an answer, not an unresolvable pointer",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2025,7 +2025,7 @@
     },
     {
       "label": "lint: a node:test name is a string, not a function name",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2034,7 +2034,7 @@
     },
     {
       "label": "context: the enforcing check reaches the edit boundary",
-      "file": "scripts/adr-context.mjs",
+      "file": "plugin/scripts/adr-context.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -2043,7 +2043,7 @@
     },
     {
       "label": "lifecycle: the hook says what the CLI says",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -2052,7 +2052,7 @@
     },
     {
       "label": "lifecycle: None in Enforced-by is not a check",
-      "file": "scripts/lifecycle.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
@@ -2061,7 +2061,7 @@
     },
     {
       "label": "lint: a qualified dependency is consumed whole, not scanned for a local id",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2070,7 +2070,7 @@
     },
     {
       "label": "lint: a cross-record dependency must resolve to a real task",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2079,7 +2079,7 @@
     },
     {
       "label": "next: a foreign dependency that is not done blocks",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
@@ -2088,7 +2088,7 @@
     },
     {
       "label": "next: an edge that cannot be evaluated is not ready",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
@@ -2097,7 +2097,7 @@
     },
     {
       "label": "lint: a cycle across two records is caught",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2106,7 +2106,7 @@
     },
     {
       "label": "next: a malformed cross-record pointer is not routed on",
-      "file": "bin/adr-next",
+      "file": "plugin/bin/adr-next",
       "tests": [
         "tests/adr-next.test.mjs"
       ],
@@ -2115,7 +2115,7 @@
     },
     {
       "label": "lint: a pointer may not leave the repository",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2124,7 +2124,7 @@
     },
     {
       "label": "lint: a commented-out registration is not a test",
-      "file": "bin/adr-lint",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
@@ -2133,12 +2133,21 @@
     },
     {
       "label": "context: the JSON renderer carries the enforcing check too",
-      "file": "scripts/adr-context.mjs",
+      "file": "plugin/scripts/adr-context.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
       "from": "    ...(record.enforcedBy?.length ? { enforcedBy: record.enforcedBy } : {}),",
       "to": "    ...({}),"
+    },
+    {
+      "label": "package: the boundary between the plugin and the repository holds",
+      "file": ".claude-plugin/marketplace.json",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "\"source\": \"./plugin\"",
+      "to": "\"source\": \".\""
     }
   ]
 }

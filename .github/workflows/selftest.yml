@@ -141,5 +141,5 @@ jobs:
       - name: Validate the manifest and skills
         run: |
           claude plugin validate --strict .
-          claude plugin validate --strict .claude-plugin/plugin.json
-          claude plugin validate --strict skills
+          claude plugin validate --strict plugin/.claude-plugin/plugin.json
+          claude plugin validate --strict plugin/skills

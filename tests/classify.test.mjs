@@ -1,5 +1,5 @@
 import { isPotentialMutationCommand, isValidationCommand }
-  from '../scripts/lifecycle.mjs'
+  from '../plugin/scripts/lifecycle.mjs'
 
 const RO_HEREDOC = `python3 - <<'PYEOF'
 import json

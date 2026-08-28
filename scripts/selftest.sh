@@ -1,7 +1,12 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
+# ADR-008 split the two: the tests live in the repository, the thing they
+# check lives under it. `source` in marketplace.json names this directory,
+# and the shipped-set test in tests/package.test.mjs is what keeps the two
+# from disagreeing.
+ROOT="$REPO/plugin"
 
 # The manifest/skill validation needs the Claude Code CLI. Where it is absent
 # the run says so and the final line downgrades to PARTIAL — a check that
@@ -10,7 +15,7 @@ ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # is installed on purpose.
 verdict="PASS — quality-harness is self-contained and verified."
 if command -v claude >/dev/null 2>&1; then
-  claude plugin validate --strict "$ROOT"
+  claude plugin validate --strict "$REPO"
   claude plugin validate --strict "$ROOT/.claude-plugin/plugin.json"
   claude plugin validate --strict "$ROOT/skills"
 elif [ "${QUALITY_HARNESS_REQUIRE_CLI:-0}" = "1" ]; then
@@ -21,7 +26,7 @@ else
   verdict="PARTIAL — tests and syntax checks passed; plugin validation was skipped."
 fi
 
-node --test "$ROOT"/tests/*.test.mjs
+node --test "$REPO"/tests/*.test.mjs
 
 # The gates are the extensionless files; bin/*.cmd are Windows shims.
 for file in "$ROOT"/bin/*; do

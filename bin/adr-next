@@ -177,17 +177,75 @@ def load(tasks_dir):
     return infos
 
 
-def blockers(infos):
+QUALIFIED_DEP = re.compile(r"^ADR[-\s]?0*(?P<number>\d{1,4})[-/](?P<task>T\d+)$", re.I)
+
+
+def foreign_state(pointer, corpus_dir):
+    """"done", "pending", or "unknown" for a task in another record.
+
+    "unknown" is the state this tool did not have. A foreign id used to be
+    DROPPED — filtered out because it was not in this record's own tasks — and an
+    unseen edge reads as no edge, so the task printed READY. Reported 2026-08-28
+    by a session one step from executing the sequence that dependency forbade.
+
+    ADR-005's and ADR-006's rule in a third tool: readiness is an OBSERVATION,
+    and an edge that could not be evaluated is not one. Withholding `ready` is
+    the safe direction; granting it is what causes the work.
+    """
+    found = QUALIFIED_DEP.match(pointer)
+    if not found or corpus_dir is None or not corpus_dir.is_dir():
+        return "unknown"
+    number, want = int(found.group("number")), found.group("task").upper()
+    for candidate in sorted(corpus_dir.glob("ADR-*.md")):
+        digits = re.match(r"ADR-0*(\d{1,4})", candidate.name, re.I)
+        if not digits or int(digits.group(1)) != number:
+            continue
+        tasks = candidate.with_suffix("") / "tasks"
+        if not tasks.is_dir():
+            return "unknown"
+        for f in sorted(tasks.glob("*.md")):
+            if f.name.lower() == "readme.md":
+                continue
+            if TID_RE.search(f.stem.upper()) and TID_RE.search(f.stem.upper()).group(0) == want:
+                text = f.read_text(encoding="utf-8", errors="replace")
+                # The SAME reader `load` uses, so a foreign task is judged done
+                # by exactly the evidence a local one needs — a matching fence
+                # digest, or an affirmative human sign-off. A second definition
+                # of "done" is how two tools come to disagree about one corpus.
+                _, first, digest = acceptance(text)
+                return ("done" if is_done(text, digest, first == "human-observed")
+                        else "pending")
+        return "unknown"
+    return "unknown"
+
+
+def blockers(infos, corpus_dir=None):
     """Ordering edges from Depends-on plus Consumes/Produces contract tokens.
 
     Same edge set as adr-lint's DAG, so readiness here cannot disagree with the
     ordering the split gate already enforced.
+
+    A QUALIFIED id — `ADR-003-T4` — leaves this record, and is taken out whole
+    BEFORE the local scan: TID_RE matches `T4` inside it, so left in, a foreign
+    dependency binds to a same-numbered local task. A wrong edge is worse than a
+    missing one, because the DAG then looks answered.
     """
     out = {tid: set() for tid in infos}
+    foreign = {tid: [] for tid in infos}
     for tid, inf in infos.items():
         dep = inf["depends_on"]
         if dep and not dep.lower().startswith("none"):
-            for d in TID_RE.findall(dep.upper()):
+            rest = []
+            for part in (p.strip() for p in dep.split(",")):
+                if not part:
+                    continue
+                if QUALIFIED_DEP.match(part):
+                    state = foreign_state(part, corpus_dir)
+                    if state != "done":
+                        foreign[tid].append((part, state))
+                else:
+                    rest.append(part)
+            for d in TID_RE.findall(" ".join(rest).upper()):
                 if d in infos and d != tid:
                     out[tid].add(d)
         cons = inf["consumes"]
@@ -202,7 +260,7 @@ def blockers(infos):
                 produced = {t.lower() for t in re.findall(r"`([^`]+)`", oinf["produces"])}
                 if tokens & produced:
                     out[tid].add(other)
-    return out
+    return out, foreign
 
 
 def resolve_tasks_dir(target):
@@ -250,7 +308,11 @@ def main():
         print(f"adr-next: no task files in {tasks_dir}", file=sys.stderr)
         return 1
 
-    blocked_by = blockers(infos)
+    # The corpus directory: the parent of the record's own folder, which is where
+    # a sibling ADR lives. None when the layout is not that shape, and then every
+    # foreign edge reads "unknown" — which withholds `ready`, the safe direction.
+    corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
+    blocked_by, foreign = blockers(infos, corpus_dir)
     ready, done, blocked = [], [], []
     for tid in sorted(infos, key=lambda t: int(t[1:])):
         inf = infos[tid]
@@ -258,6 +320,11 @@ def main():
             done.append(inf)
             continue
         open_deps = sorted(d for d in blocked_by[tid] if not infos[d]["done"])
+        # A foreign dependency that is not done blocks, and one this could not
+        # evaluate blocks too — saying which, because "blocked" and "I could not
+        # tell" send a reader to different places.
+        open_deps += [f"{pointer} (cannot evaluate)" if state == "unknown" else pointer
+                      for pointer, state in foreign[tid]]
         if open_deps:
             blocked.append({**inf, "blocked_by": open_deps})
         else:

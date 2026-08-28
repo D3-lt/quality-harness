@@ -61,6 +61,31 @@ function task({ id, goal = `do ${id}`, dependsOn = 'none', consumes = 'none',
     + `## Acceptance\n\n${acceptance}\n\n## Verification Log\n${log}`
 }
 
+/**
+ * A corpus with two records: ADR-003 whose T1 is INCOMPLETE, and ADR-007 whose
+ * T1 depends on whatever `pointer` names. Returns ADR-007's tasks directory.
+ *
+ * The single-record `corpus` helper cannot express this, and that is the point —
+ * a cross-record edge has no meaning inside one record, which is why the gap
+ * survived: every fixture the suite had was a single record.
+ */
+function twoRecords(pointer) {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-cross-'))
+  temps.push(dir)
+  for (const [name, spec] of [
+    ['ADR-003-target', { id: 'T1' }],
+    ['ADR-007-source', { id: 'T1', dependsOn: pointer }],
+  ]) {
+    const tasksDir = join(dir, name, 'tasks')
+    mkdirSync(tasksDir, { recursive: true })
+    writeFileSync(join(dir, `${name}.md`), `# ${name.slice(0, 7)}: probe\n\n**Status:** Accepted\n`)
+    writeFileSync(join(tasksDir, `${spec.id}-t.md`), task(spec))
+    writeFileSync(join(tasksDir, 'README.md'),
+      `# Tasks\n\n| Order | Task | Status |\n| 1 | ${spec.id} | pending |\n`)
+  }
+  return { dir, tasksDir: join(dir, 'ADR-007-source', 'tasks') }
+}
+
 function corpus(tasks, { adr = false } = {}) {
   const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-next-'))
   temps.push(dir)
@@ -120,6 +145,32 @@ test('a contract edge orders tasks that name no dependency at all', () => {
     { id: 'T2', consumes: '`other.sql`' },
   ])
   assert.match(next([unrelated, '--all'], root).stdout, /^READY\s+T2/m)
+})
+
+test('a task waiting on another record\'s incomplete task is blocked, and says which', () => {
+  // The falsifying fixture the report asked for, and the order matters: assert
+  // BLOCKED first. A test that only checks the ready case passes today, before
+  // any change — which is how this gap survived.
+  //
+  // Two records, B's task depending on A's incomplete one. adr-next filtered
+  // edges to the record's own tasks, so a foreign id was DROPPED in silence —
+  // and an unseen edge reads as no edge, so the task printed READY. Confidently
+  // wrong in the direction that causes work.
+  const { tasksDir: b } = twoRecords('ADR-003-T1')
+  const out = next([b, '--all'], root).stdout
+  assert.doesNotMatch(out, /READY\s+T1/, `a foreign edge was dropped:\n${out}`)
+  assert.match(out, /ADR-003-T1/, `and it must name what it is waiting on:\n${out}`)
+})
+
+test('a foreign record that cannot be read is not readiness', () => {
+  // The half the record exists for. An edge this cannot evaluate must print
+  // `cannot evaluate`, never `ready` and never silently complete — ADR-005's
+  // and ADR-006's rule in a third tool.
+  const { tasksDir } = twoRecords('ADR-404-T1')
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.doesNotMatch(out, /READY\s+T1/, `an unevaluatable edge was called ready:\n${out}`)
+  assert.match(out, /cannot evaluate/i, `say so plainly:\n${out}`)
+  assert.match(out, /ADR-404-T1/, `and name the id:\n${out}`)
 })
 
 test('a human sign-off that reports a STOP is not counted as done', () => {

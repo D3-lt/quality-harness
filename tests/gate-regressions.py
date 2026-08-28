@@ -835,6 +835,30 @@ def main():
     # Zero-padding and the slash form are the same pointer.
     assert lint.resolve_qualified_dep("ADR-0003/T1", corpus)
 
+    # A cycle ACROSS records. Per-record DAG checks cannot see one by
+    # construction: each record's graph is acyclic on its own, and the cycle
+    # only exists in the union. Making cross-record edges real without widening
+    # the check would move the blindness rather than remove it.
+    with tempfile.TemporaryDirectory() as cyc:
+        cyc_dir = Path(cyc)
+        for name, tid, dep in (("ADR-010-a", "T1", "ADR-011-T1"),
+                               ("ADR-011-b", "T1", "ADR-010-T1")):
+            tasks = cyc_dir / name / "tasks"
+            tasks.mkdir(parents=True)
+            (cyc_dir / f"{name}.md").write_text("# probe\n")
+            (tasks / f"{tid}-t.md").write_text(f"# Task {tid}: probe\n\n**Depends-on:** {dep}\n")
+        found = []
+        errs = lint.Findings()
+        lint.check_cross_record_cycles(cyc_dir, errs)
+        found = [str(e) for e in errs] + [str(a) for a in errs.advice]
+        assert any("cycle" in f.lower() for f in found), f"a two-record cycle must be caught: {found}"
+        assert any("010" in f and "011" in f for f in found), f"and must name both: {found}"
+
+    # And the real corpus, which has cross-record edges and no cycle, stays quiet.
+    errs = lint.Findings()
+    lint.check_cross_record_cycles(corpus, errs)
+    assert not list(errs) and not errs.advice, f"a healthy corpus must be silent: {list(errs)}"
+
     with tempfile.TemporaryDirectory() as js_tmp:
         # A JavaScript REGEX LITERAL is neither a comment nor a string, and the
         # masker knew about neither case. An apostrophe inside one — `/it's/` —

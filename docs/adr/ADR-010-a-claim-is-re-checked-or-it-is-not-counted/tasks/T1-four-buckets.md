@@ -29,18 +29,28 @@ non-zero when any claim is false.
 1. **Confirm the failing tests first.** Write `tests/sweep.test.mjs` against a temp fixture corpus and watch every case go red — there is no `--sweep`, so the spawn fails and each assertion fails for that reason. Confirm the reason is the missing flag, not a fixture typo, by running the same spawn by hand once.
 2. Build the fixture corpus in the test: task files with a `## Acceptance` fence and a `## Verification Log`, covering one claim per bucket — a fence that passes, one that fails on its own terms, one whose recorded digest does not match its fence, one whose fence calls a command that is not on `PATH`, plus a task with no exit-0 entry at all.
 3. Add the entry reader: parse exit-0 Verification Log lines for `(task, digest)`, reusing `adr-lint`'s grammar shape. Dedupe on the pair.
-4. Partition: compare each entry's digest against `acceptance_digest(normalize_acceptance(fence))` for the task's current fence. Non-matching → superseded, no execution.
-5. Run each re-checkable fence through `bash_or_exit()`. Non-zero → pass the output to `environment_failure()`; a classification → unrunnable, otherwise false.
-6. Report: the rate over held + false; superseded and unrunnable on their own lines; every false claim named with its record, task and exit code. A corpus with no claim says so and does not print a rate.
-7. Exit non-zero when any claim is false, zero otherwise.
-8. Add the usage/`--help` line, and a test that fails if it is deleted.
-9. Record each mechanism with `adr-verify --mutant`; every one must be RED before this task is done.
+4. Partition: compare each entry's digest against `acceptance_digest(normalize_acceptance(fence))` for the task's current fence. Non-matching → superseded, no execution. **A task with no `## Acceptance` fence at all is superseded too** — there is nothing for the digest to equal.
+5. **Refuse to recurse before running anything.** A fence whose text invokes `--sweep` is reported unrunnable, named as such, and never executed. Without this the sweep is unbounded — T3's own acceptance would make every later sweep re-enter itself.
+6. Run each remaining re-checkable fence **under an explicit timeout**, resolving the shell with `resolve_bash()` rather than `bash_or_exit()`: an absent shell makes every claim unrunnable, and must not `sys.exit(2)` out of the report. A run that does not finish is unrunnable, never a verdict.
+7. Classify a non-zero exit: `environment_failure()` matching → unrunnable, otherwise false. **Its contract is being reshaped here** — it exists never to downgrade a failure, and this downgrades one — so an assertion failure whose output merely mentions an environment string must not escape into unrunnable. The fixture carries that case.
+8. Report: the rate over held + false; superseded and unrunnable on their own lines; every false claim named with its record, task and exit code. A corpus with no claim says so and does not print a rate.
+9. Exit non-zero when any claim is false, zero otherwise.
+10. Add the usage/`--help` line, and a test that fails if it is deleted.
+11. Record each mechanism with `adr-verify --mutant`; every one must be RED before this task is done.
 
 ## Acceptance
 
 ```bash
-node --test tests/sweep.test.mjs 2>&1 | tee /tmp/adr010-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr010-t1.out
+set -o pipefail
+node --test tests/sweep.test.mjs 2>&1 | tee /tmp/adr010-t1.out && ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr010-t1.out
 ```
+
+<`set -o pipefail` and `&&`, not `;` — and that is a correction, not a style choice. The
+`… | tee X; ! grep …` form this project's own task template recommends returns **0 when the runner
+never started**: the pipeline's status is `tee`'s, `;` discards it, and the absent runner's error
+matches none of the grep patterns. Measured 2026-08-28: `nosuchrunner --test x` through the old form
+exits 0, through this one exits 127. Twelve existing fences and the template still carry the old
+form — docs/BACKLOG.md §46.>
 
 ## Tests
 
@@ -55,6 +65,13 @@ node --test tests/sweep.test.mjs 2>&1 | tee /tmp/adr010-t1.out; ! grep -qE "^not
 | `every claim lands in exactly one bucket and the four sum to the total` | `tests/sweep.test.mjs` | the partition is total and disjoint | F-11 |
 | `a sweep leaves the corpus byte-identical` | `tests/sweep.test.mjs` | the read-only mode writes nothing — hashes every file before and after | F-16 |
 | `--sweep is named in the usage text` | `tests/sweep.test.mjs` | rung 3: the mode is discoverable without reading the source | — |
+| `a fence that invokes the sweep is reported unrunnable and never executed` | `tests/sweep.test.mjs` | the recursion guard — the fixture would not terminate without it | F-10, F-11 |
+| `a fence that does not finish is unrunnable, not a verdict` | `tests/sweep.test.mjs` | the timeout; a hung fence reaches a bucket | F-10, F-11 |
+| `a task with an exit-0 entry and no Acceptance fence is superseded` | `tests/sweep.test.mjs` | totality: this input had no bucket before review | F-8, F-11 |
+| `an assertion failure that merely mentions an environment string is still false` | `tests/sweep.test.mjs` | the reshaped `environment_failure()` contract cannot launder a real failure | F-10 |
+| `a human-observed entry is not a claim` | `tests/sweep.test.mjs` | it carries no digest, so it cannot be re-checked or counted | F-5 |
+| `a multi-line fence is re-checked whole, not by its first line` | `tests/sweep.test.mjs` | the entry shows line one; the digest covers all of it | F-6 |
+| `superseded and unrunnable are printed even when zero` | `tests/sweep.test.mjs` | a bucket that vanishes when empty reads as a bucket that does not exist | F-11 |
 
 **Shapes the fixture must carry, enumerated rather than recalled**, because each is a state the
 recording path can already produce: a task with several exit-0 entries; a task whose only entries are
@@ -91,6 +108,9 @@ one added later without the same discipline becomes visible.
 ## Invariants
 
 - A sweep writes nothing. The corpus is byte-identical afterwards.
+- A fence naming `--sweep` is never executed. The sweep cannot re-enter itself.
+- Every fence runs under a timeout; a run that does not finish is unrunnable.
+- `environment_failure()` may move a claim to unrunnable only when the fence's own failure is environmental — never because its output happens to contain a matching string.
 - Superseded and unrunnable are in neither half of the ratio, and both are printed even when zero.
 - The four buckets are disjoint and sum to the distinct claim count.
 - `environment_failure()` and `bash_or_exit()` are reused, never re-implemented.

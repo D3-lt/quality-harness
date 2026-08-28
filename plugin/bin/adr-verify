@@ -702,6 +702,57 @@ CLAIM_RE = re.compile(
 SWEEP_TIMEOUT_DEFAULT = 900
 
 
+CONFIG_NAME = ".quality-harness.json"
+
+
+def strict_from_number(start):
+    """The ADR number at which a false success starts failing, and why not.
+
+    Returns `(number|None, note|None)`. THE SAME resolution `adr-lint` uses, and
+    duplicated for the same stated reason `normalize_acceptance` is: these gates
+    are standalone scripts with no import path between them. The record names
+    that duplication rather than calling it a reshape, and the parity cases —
+    malformed config, absent config, a value naming no number — are tested here
+    because two copies that disagree are worse than one.
+
+    Every failure to resolve is a NOTE, never a silent demotion. A config this
+    tool cannot read must not quietly become an amnesty.
+    """
+    r = subprocess.run(["git", "-C", str(start), "rev-parse", "--show-toplevel"],
+                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+    if r.returncode != 0 or not r.stdout.strip():
+        return None, None
+    config = Path(r.stdout.strip()) / CONFIG_NAME
+    if not config.exists():
+        return None, None
+    try:
+        declared = json.loads(config.read_text(encoding="utf-8", errors="replace")).get("strictFrom")
+    except Exception as exc:
+        return None, (f"{CONFIG_NAME} could not be read ({exc.__class__.__name__}); "
+                      f"every record is checked in full")
+    if declared is None:
+        return None, None
+    m = re.search(r"(\d+)", str(declared))
+    if not m:
+        return None, (f"{CONFIG_NAME}: strictFrom={declared!r} names no ADR number; "
+                      f"write it as `ADR-0012` or `12`. Every record is checked in full")
+    return int(m.group(1)), None
+
+
+def record_number_of(task):
+    """The ADR number a task file belongs to, or None when its path does not say.
+
+    None is NOT "below the cutoff". A record named outside the ADR-NNN convention
+    has no number to compare, and demoting it would be silent and permanent —
+    the direction of that mistake is the one nobody ever notices.
+    """
+    for part in reversed(task.resolve().parts):
+        m = re.match(r"(?:adr[-_ ]?)(\d{1,4})\b", part, re.I)
+        if m:
+            return int(m.group(1))
+    return None
+
+
 def fence_cwd(task):
     """Where a recorded fence must run: the git root of the task file, else its directory.
 
@@ -755,6 +806,7 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
     """
     tasks = sorted(q for q in Path(root).rglob("*.md") if q.is_file())
     shell = resolve_bash()
+    cutoff, config_note = strict_from_number(Path(root))
     held, false, superseded, unrunnable = [], [], [], []
 
     for task in tasks:
@@ -811,6 +863,11 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 false.append((task, r.returncode))
 
     checked = len(held) + len(false)
+    # The cutoff decides the EXIT CODE and nothing else. Every false success is
+    # still counted and still printed, so a corpus cannot use strictFrom to make
+    # one disappear — only to say "not mine to fix today".
+    demoted = [t for t, _ in false if cutoff is not None
+               and (record_number_of(t) or cutoff) < cutoff]
     if as_json:
         print(json.dumps({
             "claims": checked + len(superseded) + len(unrunnable),
@@ -819,8 +876,11 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
             "false_claims": [str(t) for t, _ in false],
         }, indent=2))
     else:
+        if config_note:
+            print(f"[adr-verify] {config_note}")
         for task, code in false:
-            print(f"FALSE      exit {code} · {task}")
+            mark = " [strictFrom]" if task in demoted else ""
+            print(f"FALSE      exit {code} · {task}{mark}")
         for task, why in superseded:
             print(f"superseded {task} — {why}")
         for task, why in unrunnable:
@@ -833,12 +893,16 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                   f"({len(superseded)} superseded, {len(unrunnable)} unrunnable). "
                   f"There is no rate to report.")
         else:
+            demotion = (f" {len(demoted)} of them are below the strictFrom cutoff "
+                        f"(ADR-{cutoff:03d}) and are reported as advice."
+                        if demoted else "")
             print(f"\n{len(false)}/{checked} recorded claims no longer hold "
                   f"({len(superseded)} superseded, {len(unrunnable)} unrunnable, "
-                  f"neither counted).")
+                  f"neither counted).{demotion}")
     if checked == 0:
         return 1
-    return 1 if false else 0
+    # Only findings the cutoff does not cover can fail the run.
+    return 1 if [t for t, _ in false if t not in demoted] else 0
 
 
 def scored_anything(output):

@@ -2,7 +2,7 @@
   "_comment": [
     "The killing mutations named in docs/TEST-PLAN.md, made runnable by scripts/mutate.mjs.",
     "Each entry is a claim: break this, and THAT suite must stop passing.",
-    "`from` must match exactly once — a mutation matching zero or many times no longer",
+    "`from` must match exactly once \u2014 a mutation matching zero or many times no longer",
     "describes the code, is reported STALE, and fails the run. That is deliberate: a",
     "mutation nobody has re-read is the same kind of stale record as a task list kept",
     "beside the tasks.",
@@ -42,8 +42,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest}\")",
-      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest}\")"
+      "from": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha256:{digest}\")",
+      "to": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha:{digest}\")"
     },
     {
       "label": "evidence: the dirty-tree marker",
@@ -195,7 +195,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"· exit 0 ·\" in b]",
+      "from": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b) and \"\u00b7 exit 0 \u00b7\" in b]",
       "to": "        passing = [b for b in inf[\"vlog\"] if VLOG_RE.match(b)]"
     },
     {
@@ -546,7 +546,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.')",
+      "from": "        + 'Nothing is blocked \u2014 this is what the gate sees before you commit.')",
       "to": "        + 'This commit is blocked until the check runs.')"
     },
     {
@@ -1039,8 +1039,8 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'templates')) } catch { return [] }\n  })()) {",
-      "to": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'skills')) } catch { return [] }\n  })()) {"
+      "from": "  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))",
+      "to": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'skills')) } catch { return [] }\n  })()) {\n    work.push({ kind: 'link', to: path.join(home, 'skills', name),\n      relative: path.join('skills', name), target: path.join(source, 'skills', name),\n      lineage: 'skill', directory: true })\n  }\n  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))"
     },
     {
       "label": "verify: a killed mutant run is journalled so the next one restores it",
@@ -1291,7 +1291,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} · .*· exit 0\\b/m.test(text)\n  })",
+      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} \u00b7 .*\u00b7 exit 0\\b/m.test(text)\n  })",
       "to": "    return false\n  })"
     },
     {
@@ -1444,7 +1444,7 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed — it may be your own' }",
+      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed \u2014 it may be your own' }",
       "to": "  return { ok: true, why: 'a drifted copy of this same file' }"
     },
     {
@@ -1481,7 +1481,7 @@
         "tests/lifecycle.test.mjs"
       ],
       "from": "  return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `",
-      "to": "  return `A second copy of this toolkit has drifted from the plugin — `"
+      "to": "  return `A second copy of this toolkit has drifted from the plugin \u2014 `"
     },
     {
       "label": "link: the original is archived before it is replaced",
@@ -1723,8 +1723,8 @@
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
-      "from": "- **A control that refuses nobody** — an authorization check, a healthcheck, an engine",
-      "to": "- **A control** — an authorization check, a healthcheck, an engine"
+      "from": "- **A control that refuses nobody** \u2014 an authorization check, a healthcheck, an engine",
+      "to": "- **A control** \u2014 an authorization check, a healthcheck, an engine"
     },
     {
       "label": "skills: mutation-audit says to break the control, not the guarded code",
@@ -1806,6 +1806,33 @@
       ],
       "from": "  return String(value).split('\\\\').join('/')",
       "to": "  return String(value)"
+    },
+    {
+      "label": "link: no template is linked either",
+      "file": "scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))",
+      "to": "  for (const name of (() => {\n    try { return readdirSync(path.join(source, 'templates')) } catch { return [] }\n  })()) {\n    work.push({ kind: 'link', to: path.join(home, 'templates', name),\n      relative: path.join('templates', name), target: path.join(source, 'templates', name),\n      lineage: 'template', directory: false })\n  }\n  return work.map(entry => ({ ...entry, ...currentState(entry, homeDirectory, platform) }))"
+    },
+    {
+      "label": "sync: a template the user does not have is not created",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "['templates', 'skip']",
+      "to": "['templates', 'create']"
+    },
+    {
+      "label": "sync: a gate the user does not have IS created",
+      "file": "scripts/sync-standalone.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "['bin', 'create']",
+      "to": "['bin', 'skip']"
     }
   ]
 }

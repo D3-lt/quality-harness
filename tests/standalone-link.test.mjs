@@ -232,24 +232,34 @@ test('no skill is ever linked, because a link would hide the namespaced skill', 
         .filter(entry => entry.to.includes(`${path.sep}skills${path.sep}`))
       assert.deepEqual(skills, [], `${platform} planned a skill link`)
     }
-    // Gates and templates have no such collision and are still planned.
+    // Gates have no such collision and are still planned.
     const rest = linkPlan(root, directory).map(entry => entry.lineage)
-    assert.ok(rest.includes('gate') && rest.includes('template'), rest.join(','))
+    assert.ok(rest.includes('gate') && rest.includes('shim'), rest.join(','))
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
 })
 
-test('on Windows a template falls back to a copy rather than failing late', () => {
-  // A file symlink needs a privilege an ordinary account does not have, and a
-  // junction covers directories only. Saying so up front beats a run that
-  // reports thirty successes and then throws on the templates.
-  const directory = home()
+test('no template is linked either, so nothing this plans can dangle', () => {
+  // Templates never hid anything — no path identity, no lost entrypoint — but
+  // nothing reads the home templates directory once the bare-name skills are
+  // gone — every skill names its template under the plugin root — and
+  // a link names ONE version. Measured 2026-08-28 against this machine's cache:
+  // 23 released versions already evicted, including the two either side of the
+  // release the six links were written against. A link naming an evicted version
+  // dangles, and a dangle reads as ABSENT rather than old — `digest()` returns
+  // null and the drift notice says nothing at all. A stale copy gets reported.
+  const directory = home({ '.claude/templates/adr-template.md': 'a copy kept by hand\n' })
   try {
-    const entry = linkPlan(root, directory, 'win32')
-      .find(e => e.to.endsWith(`templates${path.sep}adr-template.md`))
-    assert.equal(entry.state, 'copy-only')
-    assert.match(entry.why, /Windows/)
+    for (const platform of ['darwin', 'linux', 'win32']) {
+      const planned = linkPlan(root, directory, platform)
+      assert.deepEqual(planned.filter(e => e.lineage === 'template'), [],
+        `${platform} planned a template link`)
+      // Nothing at all is linked now; every entry is a forwarder that carries no
+      // version and so cannot fall behind or point at a directory that is gone.
+      assert.deepEqual([...new Set(planned.map(e => e.kind))], ['forwarder'],
+        `${platform} planned something that names a version`)
+    }
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -298,25 +308,24 @@ test('the original is kept before it is replaced', () => {
 })
 
 test('a directory is kept whole, not just the one file that named it', () => {
-  // No shipped plan produces a directory entry since skills stopped being
-  // linked, so this constructs one. The branch stays because `write` is the ONLY
-  // function here that deletes: an archive that cannot keep a directory would
-  // remove one without keeping it, and that is the failure worth guarding even
-  // when nothing currently reaches it.
+  // `archive` is asked to keep whatever is at a path before anything replaces
+  // it, and a home config directory holds directories — a hand-made bare-name
+  // skill is one. Losing everything but the file that named it would be a silent
+  // data loss at the moment the backup matters most.
+  //
+  // This calls `archive` rather than `write`: the guarantee belongs to the
+  // function that has the `recursive` flag, and routing through `write` meant
+  // hand-building a plan entry no planner produces, which is the shape
+  // `mutate-propose` exists to find.
   const directory = home({
     '.claude/skills/adr-write/SKILL.md': '---\nname: adr-write\n---\nold\n',
     '.claude/skills/adr-write/references/notes.md': 'a reference nothing else records\n',
   })
   try {
-    const entry = {
-      kind: 'link',
+    const kept = archive({
       to: path.join(directory, '.claude', 'skills', 'adr-write'),
       relative: path.join('skills', 'adr-write'),
-      target: path.join(root, 'skills', 'adr-write'),
-      lineage: 'skill',
-      directory: true,
-    }
-    const kept = write(entry, 'stamp', directory)
+    }, 'stamp', directory)
     assert.equal(readFileSync(path.join(kept, 'references', 'notes.md'), 'utf8'),
       'a reference nothing else records\n')
   } finally {
@@ -420,51 +429,15 @@ test('a template is recognised by its title, which survives edits to the body', 
 })
 
 test('a directory where a file belongs is reported, not clobbered', () => {
-  // Someone made the home templates entry a directory. Whatever that
-  // is, it is not the file this plugin installed, and removing it recursively
-  // to put a symlink there is exactly the kind of write this refuses.
-  const directory = home({ '.claude/templates/adr-template.md/inside': 'a file within\n' })
+  // Someone made the home entry for a gate a directory. Whatever that is, it is
+  // not the file this plugin installed, and removing it recursively to put a
+  // forwarder there is exactly the kind of write this refuses.
+  const directory = home({ '.claude/bin/adr-verify/inside': 'a file within\n' })
   try {
     const entry = linkPlan(root, directory)
-      .find(e => e.to.endsWith(`templates${path.sep}adr-template.md`))
+      .find(e => e.to.endsWith(`bin${path.sep}adr-verify`))
     assert.equal(entry.state, 'skipped')
     assert.match(entry.why, /directory where a file belongs/)
-  } finally {
-    rmSync(directory, { recursive: true, force: true })
-  }
-})
-
-test('a link left pointing at an older version is repointed', {
-  skip: process.platform === 'win32' ? 'no unprivileged file symlink' : false,
-}, () => {
-  const directory = home()
-  const old = path.join(cacheDirectory(directory), '1.0.0', 'templates')
-  mkdirSync(old, { recursive: true })
-  writeFileSync(path.join(old, 'adr-template.md'), 'last release\n')
-  mkdirSync(path.join(directory, '.claude', 'templates'), { recursive: true })
-  const at = name => e => e.to.endsWith(`templates${path.sep}${name}`)
-  symlinkSync(path.join(old, 'adr-template.md'),
-    path.join(directory, '.claude', 'templates', 'adr-template.md'))
-  try {
-    const entry = linkPlan(root, directory).find(at('adr-template.md'))
-    assert.equal(entry.state, 'repointed')
-    // And a link already on target reads as current — the tool has to recognise
-    // its own work, including when the source is a checkout rather than a cache.
-    write(entry, null, directory)
-    assert.equal(linkPlan(root, directory).find(at('adr-template.md')).state, 'current')
-  } finally {
-    rmSync(directory, { recursive: true, force: true })
-  }
-})
-
-test('the Windows copy fallback writes the file, not a broken link', () => {
-  const directory = home()
-  try {
-    const entry = linkPlan(root, directory, 'win32')
-      .find(e => e.to.endsWith(`templates${path.sep}adr-template.md`))
-    write(entry, null, directory)
-    assert.ok(!lstatSync(entry.to).isSymbolicLink())
-    assert.equal(readFileSync(entry.to, 'utf8'), readFileSync(entry.target, 'utf8'))
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -501,27 +474,28 @@ test('an archive that cannot create a symlink records its target instead', () =>
   }
 })
 
-test('a repoint still happens when the archive cannot make a link', {
+test('the write still happens when the archive cannot make a link', {
   skip: process.platform === 'win32' ? 'no unprivileged file symlink' : false,
 }, () => {
   // The failure that mattered: archive threw, so write threw, so the entry was
-  // never repointed. Thirteen of nineteen links stayed on the previous release
-  // and the run reported "6 of 19 installed".
+  // never installed. Thirteen of nineteen entries stayed on the previous release
+  // and the run reported "6 of 19 installed". A gate left as a symlink by an
+  // older version of this tool is the case that still reaches it.
   const directory = home()
-  const old = path.join(cacheDirectory(directory), '1.0.0', 'templates')
+  const old = path.join(cacheDirectory(directory), '1.0.0', 'bin')
   mkdirSync(old, { recursive: true })
-  writeFileSync(path.join(old, 'adr-template.md'), 'last release\n')
-  mkdirSync(path.join(directory, '.claude', 'templates'), { recursive: true })
-  const link = path.join(directory, '.claude', 'templates', 'adr-template.md')
-  symlinkSync(path.join(old, 'adr-template.md'), link)
+  writeFileSync(path.join(old, 'adr-verify'), 'last release\n')
+  mkdirSync(path.join(directory, '.claude', 'bin'), { recursive: true })
+  const link = path.join(directory, '.claude', 'bin', 'adr-verify')
+  symlinkSync(path.join(old, 'adr-verify'), link)
   const refuse = () => { const error = new Error('EPERM'); error.code = 'EPERM'; throw error }
   try {
-    const entry = linkPlan(root, directory)
-      .find(e => e.to.endsWith(`templates${path.sep}adr-template.md`))
-    assert.equal(entry.state, 'repointed')
-    // Only the ARCHIVE's link creation is refused; the repoint itself must land.
+    const entry = linkPlan(root, directory).find(e => e.to.endsWith(`bin${path.sep}adr-verify`))
+    assert.equal(entry.state, 'replaced')
+    // Only the ARCHIVE's link creation is refused; the forwarder itself must land.
     write(entry, 'stamp', directory, refuse)
-    assert.equal(readlinkSync(link), entry.target)
+    assert.ok(!lstatSync(link).isSymbolicLink(), 'the link was left in place')
+    assert.equal(readFileSync(link, 'utf8'), entry.contents)
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

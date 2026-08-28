@@ -714,6 +714,12 @@ SWEEP_TIMEOUT_DEFAULT = 900
 # containing it — and no amount of reading the fence fixes that, because the
 # shell decides what the words are. An inherited environment variable is decided
 # by the process, not by its spelling.
+# It carries the CORPUS being swept, not a boolean. A boolean was inherited by
+# the whole process tree, so a fence running a test suite that legitimately
+# exercises --sweep over its own temp fixtures was refused as recursive — three
+# real claims in this repository left the denominator that way, which is the
+# direction that flatters the rate. Recursion is a sweep of a corpus an ancestor
+# is ALREADY sweeping; a sweep of somewhere else is just a nested tool call.
 SWEEP_REENTRY_ENV = "QUALITY_HARNESS_SWEEPING"
 SWEEP_REENTRY_MARKER = "[adr-verify] refusing to sweep from inside a sweep"
 
@@ -858,19 +864,13 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 superseded.append((task, "the fence has changed since" if fence
                                    else "the task has no Acceptance fence"))
                 continue
-            # The substring check is the cheap half and it is EVADABLE: bash turns
-            # `--swee''p` into `--sweep`, so a fence can invoke this mode with no
-            # literal `--sweep` in its text. Measured 2026-08-28 — the run
-            # recursed and only the timeout stopped it. The environment sentinel
-            # below is the half that cannot be spelled around, because the nested
-            # process refuses on its own rather than being recognized from outside.
-            if "--sweep" in fence:
-                # Without this the sweep is unbounded: a task whose acceptance IS
-                # a sweep becomes a claim, and every later sweep re-enters itself.
-                # Found by review before it was written, and it is a property any
-                # corpus needs, not a workaround for one task.
-                unrunnable.append((task, "its fence invokes --sweep; running it would recurse"))
-                continue
+            # No substring check on the fence. There was one, and it was both
+            # evadable and wrong in the other direction: bash turns --swee''p
+            # into --sweep so it missed the real case, and it refused a fence
+            # that legitimately sweeps a DIFFERENT corpus — a test suite over its
+            # own fixtures — which cost three real claims their place in the
+            # denominator. The corpus-scoped sentinel above answers both, because
+            # it is decided by the process rather than by the spelling.
             if shell is None:
                 unrunnable.append((task, "no usable shell was found to run it"))
                 continue
@@ -887,7 +887,9 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 # with, and the run burns the whole timeout for nothing. Measured
                 # 2026-08-28: 15s for a fence that exited immediately. Files also
                 # bound memory when a fence prints a great deal.
-                child_env = dict(os.environ, QUALITY_HARNESS_SWEEPING="1")
+                chain = os.environ.get(SWEEP_REENTRY_ENV, "")
+                child_env = dict(os.environ, **{SWEEP_REENTRY_ENV:
+                    (chain + os.pathsep if chain else "") + str(Path(root).resolve())})
                 with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
                     r = subprocess.run([shell, "-c", fence], cwd=str(fence_cwd(task)),
                                        env=child_env, stdin=subprocess.DEVNULL,
@@ -1088,7 +1090,9 @@ def main():
     # did not get far enough to finish, and asking for its paperwork first would
     # make the repair harder than the damage.
     if sweep is not None:
-        if os.environ.get(SWEEP_REENTRY_ENV):
+        here = Path(sweep).resolve()
+        ancestors = [Path(p) for p in os.environ.get(SWEEP_REENTRY_ENV, "").split(os.pathsep) if p]
+        if any(here == a or a in here.parents or here in a.parents for a in ancestors):
             # Exit 2 (usage), not 1: this is not a verdict about the corpus.
             print(f"{SWEEP_REENTRY_MARKER} — a task's Acceptance fence invoked "
                   f"--sweep, which would recurse without bound.", file=sys.stderr)

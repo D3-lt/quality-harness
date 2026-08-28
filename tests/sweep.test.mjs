@@ -980,6 +980,34 @@ test('a fence that spells --sweep around the guard still cannot recurse', () => 
   assert.ok(Date.now() - started < 30_000, 'it must refuse, not recurse until a timeout')
 })
 
+test('a fence running a suite that itself sweeps elsewhere is not recursion', () => {
+  // Found by running the sweep on this repository's own corpus after a repair.
+  // The sentinel was a boolean, inherited by the whole process tree, so a fence
+  // running a test suite that legitimately exercises --sweep over its own temp
+  // fixtures was refused as recursive — three real claims left the denominator
+  // that way, and a claim leaving the denominator flatters the rate.
+  //
+  // Recursion is a sweep of a corpus an ancestor is ALREADY sweeping. A sweep of
+  // somewhere else is a nested tool call, and those are ordinary.
+  const outer = corpus()
+  const inner = corpus()
+  task(inner, 'X', { fence: 'exit 0' })
+  task(outer, 'T1', {
+    fence: `python3 ${JSON.stringify(verify)} --sweep ${JSON.stringify(inner)}`,
+  })
+  const r = JSON.parse(sweep(outer, ['--json']).stdout)
+  assert.deepEqual({ held: r.held, unrunnable: r.unrunnable }, { held: 1, unrunnable: 0 },
+    'sweeping a DIFFERENT corpus from inside a fence is legitimate')
+})
+
+test('a fence sweeping the corpus being swept is still refused', () => {
+  const dir = corpus()
+  task(dir, 'T0-held', { fence: 'exit 0' })
+  task(dir, 'T1', { fence: `python3 ${JSON.stringify(verify)} --sweep ${JSON.stringify(dir)}` })
+  const r = JSON.parse(sweep(dir, ['--json']).stdout)
+  assert.equal(r.unrunnable, 1, 'the same corpus is recursion whatever the spelling')
+})
+
 test('a claim this tool can write is a claim it can read back', () => {
   // The sweep demanded the fence immediately after the heading; the recording
   // path takes the whole section and finds the fence inside it. So a task with a

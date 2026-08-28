@@ -136,6 +136,14 @@ SOMETHING_RAN = [
     r"OK \([1-9]",                        # phpunit
     r"Tests: [1-9]",                      # phpunit / jest summary
     r"^[1-9]\d* (examples?|tests?),",     # rspec / minitest
+    # node:test, in both its shapes. Its absence was a laundering path: a real
+    # failing node suite whose output happened to contain an environment string
+    # matched environment_failure() while nothing here said tests had run, so a
+    # genuine failure was reclassified as a machine problem. Every acceptance
+    # fence in this repository is `node --test`, which is how the gap survived.
+    r"^\u2139 (pass|fail) [0-9]+",         # node --test summary
+    r"^not ok [0-9]+",                     # node --test TAP
+    r"^# (pass|fail) [0-9]+",              # node --test TAP summary
 ]
 
 
@@ -701,8 +709,32 @@ CLAIM_RE = re.compile(
 
 SWEEP_TIMEOUT_DEFAULT = 900
 
+# A nested sweep refuses ITSELF. The substring check on a fence is evadable —
+# bash turns `--swee''p` into `--sweep`, so the text can invoke this mode without
+# containing it — and no amount of reading the fence fixes that, because the
+# shell decides what the words are. An inherited environment variable is decided
+# by the process, not by its spelling.
+SWEEP_REENTRY_ENV = "QUALITY_HARNESS_SWEEPING"
+SWEEP_REENTRY_MARKER = "[adr-verify] refusing to sweep from inside a sweep"
+
 
 CONFIG_NAME = ".quality-harness.json"
+
+
+def git_says(args, cwd):
+    """`git <args>` in cwd, or None when git cannot be run or has nothing to say.
+
+    Every git probe the sweep makes goes through here. Without it a machine with
+    no git on PATH ended the whole run in a traceback before a single claim was
+    classified — and the sweep's job is to say what it could not check, not to
+    fall over when the answer is "all of it".
+    """
+    try:
+        r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True,
+                           text=True, encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None
 
 
 def strict_from_number(start):
@@ -718,11 +750,10 @@ def strict_from_number(start):
     Every failure to resolve is a NOTE, never a silent demotion. A config this
     tool cannot read must not quietly become an amnesty.
     """
-    r = subprocess.run(["git", "-C", str(start), "rev-parse", "--show-toplevel"],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace")
-    if r.returncode != 0 or not r.stdout.strip():
+    root = git_says(["rev-parse", "--show-toplevel"], start)
+    if root is None:
         return None, None
-    config = Path(r.stdout.strip()) / CONFIG_NAME
+    config = Path(root) / CONFIG_NAME
     if not config.exists():
         return None, None
     try:
@@ -764,9 +795,8 @@ def fence_cwd(task):
     the sweep stood in the wrong directory, and 127 is exactly the shape a real
     regression does not have.
     """
-    r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace")
-    return Path(r.stdout.strip()) if r.returncode == 0 and r.stdout.strip() else task.parent
+    root = git_says(["rev-parse", "--show-toplevel"], task.parent)
+    return Path(root) if root else task.parent
 
 
 def claims_in(task):
@@ -817,8 +847,8 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
         fence = acceptance_of(text)
         current = acceptance_digest(normalize_acceptance(fence)) if fence else None
         for digest in sorted(digests):
-            if fence is not None and not fence.strip():
-                superseded.append((task, "its Acceptance fence is empty, so it proves nothing"))
+            if fence is not None and runs_nothing(fence):
+                superseded.append((task, "its Acceptance fence runs nothing, so it proves nothing"))
                 continue
             if digest != current:
                 # Nothing to compare against is the same answer as "does not
@@ -828,6 +858,12 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 superseded.append((task, "the fence has changed since" if fence
                                    else "the task has no Acceptance fence"))
                 continue
+            # The substring check is the cheap half and it is EVADABLE: bash turns
+            # `--swee''p` into `--sweep`, so a fence can invoke this mode with no
+            # literal `--sweep` in its text. Measured 2026-08-28 — the run
+            # recursed and only the timeout stopped it. The environment sentinel
+            # below is the half that cannot be spelled around, because the nested
+            # process refuses on its own rather than being recognized from outside.
             if "--sweep" in fence:
                 # Without this the sweep is unbounded: a task whose acceptance IS
                 # a sweep becomes a claim, and every later sweep re-enters itself.
@@ -851,10 +887,11 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 # with, and the run burns the whole timeout for nothing. Measured
                 # 2026-08-28: 15s for a fence that exited immediately. Files also
                 # bound memory when a fence prints a great deal.
+                child_env = dict(os.environ, QUALITY_HARNESS_SWEEPING="1")
                 with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
                     r = subprocess.run([shell, "-c", fence], cwd=str(fence_cwd(task)),
-                                       stdin=subprocess.DEVNULL, stdout=out, stderr=err,
-                                       timeout=timeout)
+                                       env=child_env, stdin=subprocess.DEVNULL,
+                                       stdout=out, stderr=err, timeout=timeout)
                     out.seek(0); err.seek(0)
                     r = subprocess.CompletedProcess(
                         r.args, r.returncode,
@@ -862,6 +899,14 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                         err.read().decode("utf-8", "replace"))
             except subprocess.TimeoutExpired:
                 unrunnable.append((task, f"it did not finish within {timeout}s"))
+                continue
+            except OSError as exc:
+                # resolve_bash() returns a bare "bash" on POSIX without checking
+                # that it exists, so launching can raise FileNotFoundError — and
+                # an uncaught OSError ended the whole sweep in a traceback with
+                # every remaining claim unclassified. A claim we could not launch
+                # is one we could not check.
+                unrunnable.append((task, f"it could not be launched ({exc.__class__.__name__})"))
                 continue
             if r.returncode == 0 and scored_nothing(r.stdout + r.stderr):
                 # The same rule the recording path applies: a filter that matches
@@ -871,6 +916,9 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False):
                 continue
             if r.returncode == 0:
                 held.append(task)
+                continue
+            if SWEEP_REENTRY_MARKER in (r.stdout + r.stderr):
+                unrunnable.append((task, "its fence invoked the sweep; running it would recurse"))
                 continue
             diagnosis = environment_failure(r.stdout + r.stderr, fence)
             if diagnosis and not scored_anything(r.stdout + r.stderr):
@@ -936,9 +984,33 @@ def scored_anything(output):
 
 
 def acceptance_of(text):
-    """The ```bash fence under ## Acceptance, or None."""
-    m = re.search(r"^## Acceptance\s*\n+```bash\n(.*?)```", text, re.M | re.S)
-    return m.group(1) if m else None
+    """The ```bash fence under ## Acceptance, or None.
+
+    THE SAME two-step the recording path uses, and it has to be. This was one
+    regex demanding the fence immediately after the heading, while the writer
+    takes the whole section and then finds the fence inside it — so a task with a
+    sentence of prose before its fence, or a space after ```bash, could be
+    RECORDED by this tool and then read back as having no fence at all, which the
+    sweep calls superseded. A claim disappearing from the denominator makes the
+    rate look better, which is the direction that matters.
+    """
+    section = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+    if not section:
+        return None
+    fence = re.search(r"```bash\s*\n(.*?)```", section.group(1), re.S)
+    return fence.group(1) if fence else None
+
+
+def runs_nothing(fence):
+    """True when a fence has no executable content at all.
+
+    Empty, whitespace, or only comments. All of them exit 0, so a reader trusting
+    the exit code calls the claim held — a claim proved by a command that does
+    nothing, which is the vacuity this whole mode exists to refuse. adr-verify
+    will not RECORD such a fence, so it can only arrive by hand.
+    """
+    return not any(line.strip() and not line.strip().startswith("#")
+                   for line in (fence or "").splitlines())
 
 
 def main():
@@ -962,6 +1034,7 @@ def main():
     sweep = None
     timeout = SWEEP_TIMEOUT_DEFAULT
     as_json = False
+    saw_timeout = False
     i = 0
     while i < len(args):
         if args[i] == "--cwd":
@@ -993,6 +1066,7 @@ def main():
             # fence that never finishes would itself never finish.
             try:
                 timeout = int(value(i, "--timeout"))
+                saw_timeout = True
             except ValueError:
                 fail(f"--timeout wants a whole number of seconds, not {args[i]!r}")
             if timeout <= 0:
@@ -1014,8 +1088,18 @@ def main():
     # did not get far enough to finish, and asking for its paperwork first would
     # make the repair harder than the damage.
     if sweep is not None:
+        if os.environ.get(SWEEP_REENTRY_ENV):
+            # Exit 2 (usage), not 1: this is not a verdict about the corpus.
+            print(f"{SWEEP_REENTRY_MARKER} — a task's Acceptance fence invoked "
+                  f"--sweep, which would recurse without bound.", file=sys.stderr)
+            sys.exit(2)
         if not Path(sweep).is_dir():
             fail(f"not a directory: {sweep}")
+        for flag, given in (("--human", human), ("--mutant", mutant), ("--cwd", cwd)):
+            if given is not None:
+                fail(f"{flag} cannot be combined with --sweep")
+        if restore:
+            fail("--restore cannot be combined with --sweep")
         sys.exit(sweep_corpus(sweep, timeout=timeout, as_json=as_json))
 
     if restore:
@@ -1024,6 +1108,13 @@ def main():
             print(f"[adr-verify] no mutant is recorded for {Path(where).resolve()} — "
                   f"nothing to restore.")
         sys.exit(0)
+
+    if saw_timeout or as_json:
+        # Both were unknown options before --sweep existed, so a command carrying
+        # one was refused. Accepting and ignoring them is worse than either:
+        # `adr-verify task.md --timeout 1` would have run with no timeout at all,
+        # and looked like it had one.
+        fail("--timeout and --json apply to --sweep only")
 
     if task is None:
         fail(__doc__)

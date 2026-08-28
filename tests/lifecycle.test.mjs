@@ -2308,7 +2308,26 @@ test('the sync command reports before it writes, and syncs from the newest insta
   const state = name => work.find(entry => entry.to.endsWith(name))?.state
   assert.equal(state(path.join('bin', 'adr-lint')), undefined, 'an identical file is not work')
   assert.equal(state(path.join('bin', 'adr-judge')), 'drifted')
-  assert.equal(state(path.join('templates', 'adr-template.md')), 'missing')
+  // A gate the user does not have IS created — that is what the standalone set
+  // is for, and a bare-name gate that is absent resolves to nothing. This is the
+  // half that must NOT follow the skill and template rule.
+  assert.equal(state(path.join('bin', 'adr-next')), 'missing',
+    'a gate the user does not have is created')
+  // A template the user does not have stays absent, for the same reason a skill
+  // does. Nothing reads the home templates directory once the bare-name skills
+  // are gone: every skill names its template under the plugin root, which is
+  // always the running version. Decided 2026-08-28; creating them made a chore
+  // that asked to be repointed after every release.
+  assert.equal(state(path.join('templates', 'adr-template.md')), undefined,
+    'a template the user does not have is not work')
+
+  // One that DOES exist is still kept in step, because that user chose to keep
+  // it — and on Windows these are real files rather than links, so copy mode is
+  // the only thing serving them at all.
+  await mkdir(path.join(home, '.claude', 'templates'), { recursive: true })
+  await writeFile(path.join(home, '.claude', 'templates', 'adr-template.md'), '# stale\n')
+  assert.equal(plan(pluginDir, home)
+    .find(e => e.to.endsWith(path.join('templates', 'adr-template.md')))?.state, 'drifted')
   // A skill absent from the home directory stays absent. Creating one puts a
   // second copy of a skill the plugin already serves beside it, and a personal
   // skill shadows the namespaced `quality-harness:<name>` it duplicates — by
@@ -2351,8 +2370,16 @@ test('the sync command reports before it writes, and syncs from the newest insta
     { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
   assert.equal(dry.status ?? 0, 0)
   assert.match(dry.stdout, /Re-run with --apply/)
-  assert.equal(existsSync(path.join(home, '.claude', 'templates', 'adr-template.md')), false,
-    'a report must not write anything')
+  // The canary has to be something a WRITE would actually change. It used to be
+  // a template that did not exist, and templates are no longer created at all —
+  // so the check would have passed with `--apply` semantics on every run. A gate
+  // absent from this home is created by copy mode; a drifted template is
+  // rewritten by it. Neither may move on a report.
+  assert.equal(existsSync(path.join(home, '.claude', 'bin', 'adr-next')), false,
+    'a report must not create a missing gate')
+  assert.equal(
+    await readFile(path.join(home, '.claude', 'templates', 'adr-template.md'), 'utf8'),
+    '# stale\n', 'a report must not overwrite a drifted file')
 
   const broken = spawnSync(process.execPath,
     [path.join(pluginDir, 'scripts', 'sync-standalone.mjs'), '--nope'],

@@ -111,3 +111,4 @@ run time, the cost argument changes and the decision should be re-taken rather t
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
 - 2026-08-28 · 23ae252 · exit 0 · `node --test tests/mutate-runner.test.mjs tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr006-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr006-t1.out` · acceptance-sha256:70195d7b8e7d64f7c8e6b891bc381c1aa365f4f576857a7b4ac09efe9353cb46
+- 2026-08-28 · 22d11dc · exit 0 · `set -o pipefail …` · acceptance-sha256:f4403b66ffe2a967f7c4f00edcc0797168d6cda63a31751fbbcc95d4431643df

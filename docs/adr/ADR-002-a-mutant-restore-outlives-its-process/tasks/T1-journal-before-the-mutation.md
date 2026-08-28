@@ -102,3 +102,4 @@ guarantee would then have to be stated differently rather than degraded quietly.
 
 ## Verification Log
 - 2026-08-27 · 1f444f9 · exit 0 · `node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr002-t1.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr002-t1.out` · acceptance-sha256:5e0c2311b46be1ed1aceb693dd9ac9cbb988a24f6a410ec2715414a5be989e1f
+- 2026-08-28 · 6f26985 · exit 0 · `set -o pipefail …` · acceptance-sha256:55eb50b3be32a1346ee62a2ecb1b00b8cc2080f4ca394e6b6cf745b5b37a7213

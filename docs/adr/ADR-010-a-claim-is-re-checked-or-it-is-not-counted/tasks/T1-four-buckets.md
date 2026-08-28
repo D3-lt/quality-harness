@@ -97,9 +97,23 @@ case is kept out of the ratio.
 grep -rn "UNPROVEN\|UNRUN\|PARTIAL\|superseded\|unrunnable" plugin/bin plugin/scripts scripts | grep -v '^Binary'
 ```
 
-To be run and recorded at execution. Known at authoring: `mutate.mjs` has `UNPROVEN` (ADR-006),
-`spec-verify` has `UNRUN`/`PARTIAL` (ADR-005), and this task adds two more. The sweep is how a fourth
-one added later without the same discipline becomes visible.
+Run 2026-08-28. Five verdict surfaces in this repository have a "could not determine" case, and
+**all five keep it out of the clean answer** — none reports an unknown as a pass:
+
+| surface | the unknown case | where it goes |
+|---|---|---|
+| `scripts/mutate.mjs` | `UNPROVEN` — the baseline itself failed | neither half of the ratio (ADR-006) |
+| `plugin/bin/spec-verify` | `UNRUN` — no runner for that stack | `[PARTIAL]`, exit 4 (ADR-005) |
+| `plugin/bin/adr-verify --sweep` | `superseded`, `unrunnable` | neither half (this task) |
+| `scripts/selftest.sh` | the Claude CLI is absent | verdict downgrades to `PARTIAL` |
+| `scripts/coverage.sh` | coverage.py is not importable | `PARTIAL`, and `STRICT=1` makes it a failure |
+
+`adr-lint` and `adr-retire-check` have no such case — every finding they make is about something they
+read. The `superseded` hits in `adr-state.mjs` and `lifecycle.mjs` are the ADR status of that name,
+not a verdict, and are correctly outside this class.
+
+**Nothing left for later.** The sweep exists so a sixth surface added without this discipline becomes
+visible; today there is no sixth.
 
 ## Mutation Log
 
@@ -152,3 +166,4 @@ fixture's unrunnable fence must be one that would otherwise PASS.
       diff: 'simple'
     }
   ```
+- 2026-08-28 · 9601897 · exit 0 · `set -o pipefail …` · acceptance-sha256:208b4d2a1d0a21e48142bde103f58a426d8320a96ff7a19d46fb3af6335644c7

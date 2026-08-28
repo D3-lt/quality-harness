@@ -142,23 +142,23 @@ And the sweep exits non-zero
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | The mutation campaign's ratio counts mutations, not recorded claims; `UNPROVEN` is in neither half of it. This spec adds a second, disjoint measurement and does not change that one. | evidence: `scripts/mutate.mjs:217` | @draft | |
-| F-2 | The corpus holds 16 exit-0 Verification Log entries over 15 task files, measured 2026-08-28. | evidence: `docs/adr/*/tasks/T*.md` | @draft | |
-| F-3 | Nothing in the repository computes or names a false-success rate before this spec. | evidence: `grep -rln false.success plugin/ scripts/ tests/` → no hits | @draft | |
-| F-4 | A model verdict may never enter the evidence chain. The AUROC-0.65 finding for LLM judges (arXiv 2606.09863) confirms this existing rule; it is not re-decided here, and the sweep adds no judge. | evidence: `plugin/bin/adr-judge`, ADR corpus | @draft | |
-| F-5 | The population is exit-0 Verification Log entries, not `done` rows and not agent utterances. | `— to bind` | @draft | |
-| F-6 | A recorded entry does not store its command — only the fence's first line and a SHA-256 of the whole normalized fence — so re-running a claim means running the task's CURRENT fence. | evidence: `plugin/bin/adr-verify:796-799` | @draft | |
-| F-7 | A claim is FALSE when its task's current Acceptance fence does not exit 0 at HEAD on its own terms. | `— to bind` | @draft | |
-| F-8 | An exit-0 entry whose digest does not match its task's current fence is SUPERSEDED: counted in neither half of the rate, and reported on its own line. | `— to bind` | @draft | |
-| F-9 | Exit-0 entries sharing a task and a digest are one claim. The denominator counts distinct `(task, digest)` pairs, not log lines. | `— to bind` | @draft | |
-| F-10 | A fence that fails because the machine could not run it is UNRUNNABLE, counted in neither half, and never reported as a false success. | `— to bind` | @draft | |
-| F-11 | Every claim lands in exactly one of held, false, superseded, unrunnable, and the four sum to the distinct claim count. | `— to bind` | @draft | |
-| F-12 | A corpus with no exit-0 claim reports that there is nothing to check, and does not print a rate or report success. | `— to bind` | @draft | |
+| F-1 | The mutation campaign's ratio counts mutations, not recorded claims; `UNPROVEN` is in neither half of it. This spec adds a second, disjoint measurement and does not change that one. | `tests/sweep.test.mjs::every claim lands in exactly one bucket and the four sum to the total` | @implemented | |
+| F-2 | The corpus holds 16 exit-0 Verification Log entries over 15 task files, measured 2026-08-28. | `tests/sweep.test.mjs::two entries proving the same fence are one claim` | @implemented | |
+| F-3 | Nothing in the repository computes or names a false-success rate before this spec. | `tests/sweep.test.mjs::a claim whose fence no longer passes is named and fails the sweep` | @implemented | |
+| F-4 | A model verdict may never enter the evidence chain. The AUROC-0.65 finding for LLM judges (arXiv 2606.09863) confirms this existing rule; it is not re-decided here, and the sweep adds no judge. | `tests/sweep.test.mjs::a Mutation Log line is not a claim` | @implemented | |
+| F-5 | The population is exit-0 Verification Log entries, not `done` rows and not agent utterances. | `tests/sweep.test.mjs::a human-observed entry is not a claim` | @implemented | |
+| F-6 | A recorded entry does not store its command — only the fence's first line and a SHA-256 of the whole normalized fence — so re-running a claim means running the task's CURRENT fence. | `tests/sweep.test.mjs::a multi-line fence is re-checked whole, not by its first line` | @implemented | |
+| F-7 | A claim is FALSE when its task's current Acceptance fence does not exit 0 at HEAD on its own terms. | `tests/sweep.test.mjs::a claim whose fence still passes is counted as held` | @implemented | |
+| F-8 | An exit-0 entry whose digest does not match its task's current fence is SUPERSEDED: counted in neither half of the rate, and reported on its own line. | `tests/sweep.test.mjs::an entry whose digest no longer matches its fence is superseded` | @implemented | |
+| F-9 | Exit-0 entries sharing a task and a digest are one claim. The denominator counts distinct `(task, digest)` pairs, not log lines. | `tests/sweep.test.mjs::one task with two different digests is two claims` | @implemented | |
+| F-10 | A fence that fails because the machine could not run it is UNRUNNABLE, counted in neither half, and never reported as a false success. | `tests/sweep.test.mjs::a fence the machine could not run is not a false success` | @implemented | |
+| F-11 | Every claim lands in exactly one of held, false, superseded, unrunnable, and the four sum to the distinct claim count. | `tests/sweep.test.mjs::every claim lands in exactly one bucket and the four sum to the total` | @implemented | |
+| F-12 | A corpus with no exit-0 claim reports that there is nothing to check, and does not print a rate or report success. | `tests/sweep.test.mjs::an empty corpus reports no claim rather than a clean sweep` | @implemented | |
 | F-13 | A false success fails the sweep with a non-zero exit. | `— to bind` | @draft | |
 | F-14 | A false success on a record below the configured `strictFrom` cutoff is reported as advice, the verdict line names `strictFrom`, and the exit code is zero. | `— to bind` | @draft | |
 | F-15 | `strictFrom` changes the exit code only. The reported counts are identical with and without it. | `— to bind` | @draft | |
-| F-16 | The sweep never blocks a user's or a skill's attempt: it reads the corpus and runs recorded fences, and alters no file. | `— to bind` | @draft | |
-| F-17 | Each of the four buckets is exercised by a fixture, not only by whatever the live corpus happens to contain — the corpus holds zero superseded and zero unrunnable claims today, so those branches would otherwise never fire. | `— to bind` | @draft | |
+| F-16 | The sweep never blocks a user's or a skill's attempt: it reads the corpus and runs recorded fences, and alters no file. | `tests/sweep.test.mjs::a sweep leaves the corpus byte-identical` | @implemented | |
+| F-17 | Each of the four buckets is exercised by a fixture, not only by whatever the live corpus happens to contain — the corpus holds zero superseded and zero unrunnable claims today, so those branches would otherwise never fire. | `tests/sweep.test.mjs::a fence that invokes the sweep is reported unrunnable and never executed` | @implemented | |
 
 ## Domain
 

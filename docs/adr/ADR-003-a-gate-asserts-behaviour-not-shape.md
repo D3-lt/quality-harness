@@ -220,4 +220,4 @@ untouched either way.
 ## Follow-ups
 
 - [x] Fold in the `complexity-instruction-given` / `complexity-instruction-omitted` A/B result. Done 2026-08-27; it is in Alternatives, and it moved this record from argued to measured.
-- [ ] Decide whether a complexity conversation-trigger belongs anywhere (docs/BACKLOG.md §28).
+- [x] Decide whether a complexity conversation-trigger belongs anywhere (docs/BACKLOG.md §28). Answered 2026-08-28: yes, in `skills/review/SKILL.md` Pass 2 — as a question about the specific confusion, never a score. That is the one delivery mode §36 measured as working: guidance at the moment it applies, to a reader who can see what the number cannot. The prohibition on shipping it as a gate is unchanged.

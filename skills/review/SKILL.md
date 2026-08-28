@@ -71,6 +71,15 @@ stale caches, mismatched request/reply behavior, changed contract not reflected 
 "hot apply" claims without real application, orphan tools/events/traits.
 Gate: issues stop; after fixes rerun Pass 1 then 2.
 
+**Complexity is a question to ask here, never a number to enforce.** When a function's branching
+makes you re-read it to answer "what selects this?", say so as a finding about the specific
+confusion — which branch you could not follow, and what a caller would get wrong. Do NOT compute or
+cite a complexity score: measured 2026-08-27, the metric counts branches per function and moves
+under pure extraction, so it rewards splitting one hard function into three easy ones that are
+harder to read together. ADR-003 forbids shipping it as a gate for that reason; this is the same
+judgement delivered where it is actually actionable, at the diff, by a reader who can see what the
+number cannot.
+
 ### Pass 3: Regression, UX, Operability
 
 Even with correct logic, can users or operators get misled, lose work, or hit unclear failures?

@@ -1581,6 +1581,28 @@ the gate is wrong — which is how a gate stops being read. The fix is to match 
 parenthetical rather than the last `(...)` run, or simply to anchor on the `permanent:`/`deferred:`
 keyword.
 
+## 38. Three things ADR-005 deferred about spec-verify
+
+ADR-005 gave "could not run" its own verdict, exit code and status word. Three related gaps stay
+open, all named rather than fixed, all cheap to reopen.
+
+**`--spec --collect` has the same defect one mode over.** `test_exists()` at `bin/spec-verify:356`
+returns `False` when the COLLECTOR could not be run, and line 571 renders that as `bound test not
+found`, exit 2 — a command that did not run, reported as an observation about the repository. Found
+by ADR-005 T1's own class sweep, not by the report. Not fixed there because the owner scoped that
+change to the run verdict, and fixing it threads the same tri-state through a second mode. The other
+returns in `test_exists()` are honest: they really did look, and really did not find it.
+
+**No `go test` in `cmds`, and no Go branch in `detect_stack`.** This is what produced the report:
+Go corpora cannot be adjudicated at all. They are now told so honestly, which is the whole of
+ADR-005, but told-so is not the same as supported. Adding a runner is its own decision — binding
+grammar (`pkg::TestName`? `./...`?), how `-run` anchors, and what a passing-but-empty run means, all
+of which the `-run` fence trap in the task template already shows is easy to get wrong.
+
+**Scenarios have no `Cmd` column.** A fact can override its runner per row; a scenario cannot, so
+for a scenario binding there is no authoring escape at all. Noted in the file since 2026-08-23 and
+still true. It is the reason "just use a Cmd override" is not a complete answer to the item above.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

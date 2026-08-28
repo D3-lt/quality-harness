@@ -815,10 +815,23 @@ def main():
     # `"/" not in pointer` is True — and the pointer then resolved, from the
     # gate's own directory, to an ordinary file that is not a gate at all. A
     # record would read as enforced by a skill document.
+    # Asserted on the GUARD, not through resolve_enforcement. Going through the
+    # caller passed with the guard broken, because the gate form's own "contains
+    # no /" test catches the same input once the separator has been normalized —
+    # so the mutation on the normalization came back GREEN and the test was
+    # proving something other than what it named. The defect is only reachable
+    # on Windows; the guard is reachable everywhere.
     for escape in ("..\\skills\\adr-write\\SKILL.md", "../skills/adr-write/SKILL.md",
+                   "..\\..\\etc\\passwd", "/etc/passwd",
                    "C:\\Windows\\System32\\cmd.exe", "C:/Windows/System32/cmd.exe"):
+        assert lint.leaves_the_tree(escape), f"this pointer leaves the tree: {escape}"
         assert lint.resolve_enforcement(escape, root) is None, (
-            f"a pointer leaving the tree must resolve as nothing: {escape}")
+            f"and so it must resolve as nothing: {escape}")
+    # The guard is not merely refusing everything, which would satisfy every
+    # assertion above and prove nothing.
+    for kept in ("adr-lint", "link: no skill is ever linked",
+                 "tests/package.test.mjs::every shipped gate carries at least one mutation"):
+        assert not lint.leaves_the_tree(kept), f"this pointer stays in the tree: {kept}"
     # The forms that SHOULD still resolve, so the guard is not merely refusing
     # everything — which would pass the four assertions above and prove nothing.
     assert lint.resolve_enforcement("adr-lint", root) == "gate", "a real gate still resolves"

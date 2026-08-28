@@ -55,7 +55,7 @@ node --test tests/mutate-runner.test.mjs tests/lifecycle.test.mjs 2>&1 | tee /tm
 | 1 — exists | the tests above |
 | 2 — something selects it | `scripts/selftest.sh` runs `node --test tests/*.test.mjs`; the `mutations` CI job runs the real campaign, which now takes 13 baselines |
 | 3 — the caller can discover it | the UNPROVEN line names the failing test-set and the action; `node scripts/mutate.mjs --list` is unaffected |
-| 4 — it is used | to be recorded at execution: the count of distinct test-sets taken on the shipped catalogue, and one real campaign's UNPROVEN count |
+| 4 — it is used | measured 2026-08-28 on the shipped catalogue: 207 mutations over **14** distinct test-sets, so a campaign takes 14 baselines rather than 207 — the cost the decision rests on, re-measured after the catalogue grew |
 
 ## Class Sweep
 
@@ -65,10 +65,17 @@ node --test tests/mutate-runner.test.mjs tests/lifecycle.test.mjs 2>&1 | tee /tm
 grep -n "verdict\|noticed\|missed" scripts/mutate.mjs
 ```
 
-To be run and recorded at execution. The known members at authoring are the verdict assignment
-(`mutate.mjs:194-196`), the per-line note block (200-208), and the summary ratio (210-215) — the
-report and the ratio are separate claims and both have to stop counting an unproven entry, or the
-line and the total disagree.
+Run 2026-08-28. Three members, all now routed through one place each: the verdict assignment
+(`classify`, `mutate.mjs:145-151`), the per-line note (`renderLine`, 175-185) and the summary ratio
+(`summarise`, 194-204). The report and the ratio were separate claims about the same entry and both
+had to stop counting an unproven one, or the line and the total would disagree — the sweep is why
+`summarise` excludes UNPROVEN from the denominator as well as the numerator, which reading only the
+verdict assignment would have missed.
+
+A fourth member surfaced that the authoring list did not have: the runner ran its whole CLI at
+import, so none of the three could be asserted without spawning a campaign. That is BACKLOG §27 for
+this file, and it was the enabling step rather than a separate change — a pure function nothing can
+import is not testable, which is why the verdict logic had no test in the first place.
 
 ## Mutation Log
 

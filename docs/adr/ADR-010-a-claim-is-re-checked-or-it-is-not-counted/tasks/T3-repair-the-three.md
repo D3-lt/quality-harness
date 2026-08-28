@@ -117,3 +117,11 @@ is the owner's decision, not this task's.
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-28 · ea9443f · exit 1 · `bash docs/adr/ADR-010-a-claim-is-re-checked-or-it-is-not-counted/tasks/T3-recheck.sh` · acceptance-sha256:59659ffa2b792d7a361330abc6607e5da50a74760cf83a0b88b884a4105d1077
+  ```
+  FAILS    docs/adr/ADR-006-a-verdict-that-names-its-own-reliability/tasks/T2-amend-and-bind-the-spec.md — its fence does not pass at HEAD
+  FAILS    docs/adr/ADR-007-a-dependency-that-crosses-records/tasks/T1-a-qualified-id-resolves.md — its fence does not pass at HEAD
+  FAILS    docs/adr/ADR-009-a-decision-names-what-enforces-it/tasks/T1-parse-and-resolve.md — its fence does not pass at HEAD
+  
+  T3 is not done: a claim is stale or its fence fails.
+  ```

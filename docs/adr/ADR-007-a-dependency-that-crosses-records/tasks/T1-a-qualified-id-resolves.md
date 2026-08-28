@@ -33,7 +33,7 @@ set, and make sure a qualified id can never be mistaken for a same-numbered loca
 ## Acceptance
 
 ```bash
-python3 tests/gate-regressions.py bin skills/postmortem/SKILL.md
+python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 ```
 
 ## Tests

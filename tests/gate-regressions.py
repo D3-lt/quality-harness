@@ -745,6 +745,19 @@ def main():
             js_probe, "after a regex that follows a control header", None)
         assert found is True, why
 
+        # And on the SAME LINE, which is what makes the control-header case
+        # load-bearing rather than belt-and-braces. The line bound below already
+        # rescues the next line; only knowing that a regex may follow `)` rescues
+        # a definition sharing the line with it. Measured 2026-08-28: with the
+        # CONTROL_HEADER branch the name is found, without it the probe returns
+        # nothing at all — the mutation for it was GREEN until this case existed.
+        js_probe.write_text(
+            "if (ready) /it's/.test(v); test('sharing the line with a regex', () => {})\n"
+        )
+        found, why = spec_gate.test_definition_exists(
+            js_probe, "sharing the line with a regex", None)
+        assert found is True, why
+
         # THE GENERAL GUARD, which is what actually closes the class: a `'` or
         # `"` string cannot span a line in JavaScript, so an unterminated one is
         # not a string. Without this, every construct the lexer does not know

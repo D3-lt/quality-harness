@@ -90,3 +90,4 @@ nothing, since that workflow would no longer produce skills.
 
 ## Verification Log
 - 2026-08-27 · dd9d952* · exit 0 · `node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr001-t2.out; ! grep -qE "^not ok|ℹ fail [1-9]|no tests to run" /tmp/adr001-t2.out` · acceptance-sha256:cda47fde00c08e89c17b20ba1c04cc83d45c728c5a395df23738d7e4701f3063
+- 2026-08-28 · 5ca5f76 · exit 0 · `set -o pipefail …` · acceptance-sha256:b34ffbeffd431945f2fc1ad0817fd392b5f629ecaa764b070799cd4fbc917f2a

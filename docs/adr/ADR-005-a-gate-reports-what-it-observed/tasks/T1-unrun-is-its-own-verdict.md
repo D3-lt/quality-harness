@@ -78,6 +78,7 @@ really did not find it.
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-28 · 3d5b5eb · mutant killed · exit 1 · `bin/spec-verify` · restores the reported defect: a test that never ran, reported as a failing test · acceptance-sha256:827c34e6631883068a72195a633a25a150f20086955b0bb9ddc31b58320865a0
 
 ## Invariants
 

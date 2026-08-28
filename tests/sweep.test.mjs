@@ -1065,9 +1065,17 @@ test('a fence that cannot be launched is unrunnable, not a traceback', () => {
   // takes the interpreter with it and tests nothing. resolve_bash() returns a
   // bare 'bash' on POSIX without checking it exists, so this is the real path to
   // a FileNotFoundError from launching.
-  const python = spawnSync('sh', ['-c', 'command -v python3'], { encoding: 'utf8' }).stdout.trim()
+  // Resolved portably and emptied rather than pointed at a POSIX path that does
+  // not exist. `PATH: '/nonexistent'` is meaningless on Windows — python never
+  // started there, and the test died on JSON.parse(undefined) rather than on the
+  // property. Fourth time in this repository that a path literal turned out to
+  // be an assertion about the operating system.
+  const python = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['python3'],
+    { encoding: 'utf8' }).stdout.trim().split(/\r?\n/)[0]
+  assert.ok(python, 'the interpreter must be resolvable before this can say anything')
   const run = spawnSync(python, [verify, '--sweep', dir, '--json'],
-    { encoding: 'utf8', env: { ...process.env, PATH: '/nonexistent' }, timeout: 60_000 })
+    { encoding: 'utf8', env: { ...process.env, PATH: '' }, timeout: 60_000 })
+  assert.ok(run.stdout, `the sweep must still report:\n${run.stderr}`)
   assert.doesNotMatch(run.stderr ?? '', /Traceback/,
     `an OSError from launching must not end the whole sweep:\n${run.stderr}`)
   const r = JSON.parse(run.stdout)

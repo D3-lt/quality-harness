@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-001-skills-are-never-linked.md, docs/BACKLOG.md §25
-**Governs:** `scripts/standalone-link.mjs`, `scripts/sync-standalone.mjs`, `tests/standalone-link.test.mjs`
+**Governs:** `plugin/scripts/standalone-link.mjs`, `plugin/scripts/sync-standalone.mjs`, `tests/standalone-link.test.mjs`
 **Invalidates:** ADR-001 — the clause of its Decision reading "`--link` installs **gates** (as forwarders) and **templates** (as symlinks)". Its skills half is untouched and still governing; ADR-001's tasks and their evidence are unaffected, because both tasks were about skills.
 **Served-path change:** A user who runs `sync-standalone.mjs --link --apply` no longer gets six template symlinks that need repointing after every release, and one who deletes theirs keeps them deleted; every skill already reads its template from the plugin root, which is always the running version.
 

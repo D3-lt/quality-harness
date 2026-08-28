@@ -2193,6 +2193,24 @@
       ],
       "from": "    return re.sub(f\"(?:{pattern})(?![A-Za-z0-9._-])\", \"~\", block, flags=flags)",
       "to": "    return re.sub(f\"(?:{pattern})\", \"~\", block, flags=flags)"
+    },
+    {
+      "label": "lint: the comment stripper knows a regex literal from a comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif char == \"/\" and starts_regex(text, i):",
+      "to": "        elif char == \"/\" and False:"
+    },
+    {
+      "label": "lint: a path::name pointer names a test file, not a production function",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if wanted and not javascript and looks_like_a_test(f) and test_body(",
+      "to": "            if wanted and not javascript and test_body("
     }
   ]
 }

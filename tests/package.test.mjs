@@ -111,6 +111,38 @@ test('what ships is the plugin and nothing else', () => {
   assert.match(eol.stdout, /eol: lf$/m, 'the gates must keep LF endings from their new path')
 })
 
+// CLAUDE.md and AGENTS.md tell the next agent — and the next team — how to work
+// here. Both are at the repository root and neither ships; they are about
+// working IN this repository, not about using the plugin.
+//
+// Every repository path they name is checked, because an instruction file rots
+// exactly the way a `Governs:` header does: silently, and only where somebody
+// followed it. AGENTS.md is deliberately a pointer rather than a second copy —
+// two copies drift, which this project has two accepted decisions about.
+test('the instruction files name paths that exist', () => {
+  const agents = readFileSync(join(repoRoot, 'AGENTS.md'), 'utf8')
+  assert.match(agents, /\(CLAUDE\.md\)/, 'AGENTS.md must point at CLAUDE.md rather than copy it')
+
+  // A backticked token that looks like a repository path: has a slash, no
+  // spaces, and is not a URL or a command line. Deliberately narrow — this
+  // checks the paths, and a false alarm here is a check people delete.
+  const named = text => [...text.matchAll(/`([A-Za-z0-9_.][A-Za-z0-9_./-]*\/[A-Za-z0-9_./*-]*)`/g)]
+    .map(hit => hit[1])
+    .filter(path => !path.includes('://') && !path.includes('<'))
+  const missing = (text, label) => named(text)
+    .filter(path => !existsSync(join(repoRoot, path.replace(/\/?\*+$/, '').replace(/\/$/, ''))))
+    .map(path => `${label}: ${path}`)
+
+  // Shown able to fire first: with both files correct the assertion below is
+  // `[] === []`, which is the vacuity ADR-003 forbids.
+  assert.deepEqual(missing('see `no/such/path.md` here', 'probe'), ['probe: no/such/path.md'],
+    'the check must be able to name a path that does not exist, or it asserts nothing')
+
+  const gone = [...missing(readFileSync(join(repoRoot, 'CLAUDE.md'), 'utf8'), 'CLAUDE.md'),
+                ...missing(agents, 'AGENTS.md')]
+  assert.deepEqual(gone, [], `an instruction file names a path that no longer exists:\n  ${gone.join('\n  ')}`)
+})
+
 test('the plugin contains the complete reusable decision lifecycle', () => {
   for (const skill of skills) {
     assert.ok(statSync(join(root, 'skills', skill, 'SKILL.md')).isFile(), skill)

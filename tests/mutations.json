@@ -2375,7 +2375,7 @@
       "to": "    return not any(line.strip()"
     },
     {
-      "label": "sweep: node's own failure output counts as tests having run",
+      "label": "sweep: node's TAP failure output counts as tests having run",
       "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/sweep.test.mjs"
@@ -2418,6 +2418,15 @@
       ],
       "from": "            if given is not None:\n                fail(f\"{flag} cannot be combined with --sweep\")",
       "to": "            if False:\n                fail(f\"{flag} cannot be combined with --sweep\")"
+    },
+    {
+      "label": "sweep: node's summary line counts as tests having run",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    r\"^\\u2139 (pass|fail) [0-9]+\",         # node --test summary",
+      "to": "    r\"^never matches this either [0-9]+\","
     }
   ]
 }

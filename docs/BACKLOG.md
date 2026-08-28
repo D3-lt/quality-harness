@@ -1629,6 +1629,41 @@ silently, since it takes no baseline at all — and ADR-006 makes the dependency
 set rather than fixing it. §34 is the precedent for what fixing it looks like: the coverage jitter
 was cured by finding the mechanism (`--test-concurrency=1`), not by widening a threshold.
 
+## 40. Two fixes that inherited the defect they were fixing
+
+Found 2026-08-28 by an independent review (Codex gpt-5.6-sol, xhigh, read-only) over the ten gates
+and an eighteen-commit diff. Both findings were in code written that same morning to remove exactly
+this class — a gate reporting an observation it did not make.
+
+**The regex fix narrowed the bug instead of removing it.** `starts_regex` treated every `)` as a
+value, so `if (ready) /it's/.test(v)` read the `/` as division, the apostrophe opened a phantom
+string, and the file's tests vanished again. Reproduced, and worse than the original: the probe
+returned nothing rather than a subset.
+
+The comment that left the hole said division is "the safe direction". That was backwards, and being
+backwards in a comment is how it survived review — mine. Guessing regex blanks to end of line;
+guessing division lets an apostrophe run to the next one **anywhere in the file**. The lesson
+generalises past this file: when a heuristic can err either way, work out which error is BOUNDED
+before deciding which way to lean, and write that reasoning down rather than the conclusion. The
+real fix was not the `)` case at all — a `'` or `"` string cannot span a line in JavaScript, so an
+unterminated one is not a string, and that bounds every future mis-detection to one line.
+
+**The baseline inherited it too.** ADR-006's baseline stored a timed-out `spawnSync` as a plain
+`false`, so the report said the suite had "already failed — repair that suite". Nothing failed;
+`{status: null, signal: SIGTERM}` is no verdict at all. The mechanism written that morning to stop a
+runner claiming an unobserved outcome claimed one itself, one layer up. Now `pass | fail | unrun`
+with a cause, and the two cases say different things because they need different actions.
+
+**What to take from it:** a fix for a class is not evidence that the class is gone from the fix.
+Both were found by a reviewer with no stake in the fix being right, after two of my own sweeps came
+back clean — and both of my sweeps were grep-shaped while the defect is prose-shaped. Reach for an
+independent read when the thing being audited is your own reasoning.
+
+**One mutation was GREEN and stayed unnoticed until the campaign ran it.** The control-header branch
+was satisfied by the line-bound fix, so deleting it changed nothing observable. It turned out to be
+load-bearing for exactly one shape — a regex and a test definition sharing a line — which is now the
+test. A defence-in-depth branch nobody can make fail is indistinguishable from a dead one.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

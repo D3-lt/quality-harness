@@ -1598,6 +1598,14 @@ keyword.
 
 ## 38. One of three closed 2026-08-28; the two runner questions stay open
 
+**Met again 2026-08-28, by ADR-010's spec.** All 17 facts and all 7 scenarios are bound and passing;
+`spec-verify --implemented` still reports `[PARTIAL]`. The facts resolve through a `Cmd` override —
+the scenarios have no such column, and this repository declares no `package.json`, so no runner is
+detected for `tests/`. The gate is right to say UNRUN rather than green, and the spec's status stays
+Draft rather than being talked up. Two candidate closes, in order of honesty: give scenarios a `Cmd`
+column, or let spec-verify accept a repository-level runner declaration. Adding a `package.json` this
+project does not otherwise need would be shaping the repository to satisfy the gate.
+
 **CLOSED — `--spec --collect` no longer reports a collector it could not run as an absent test.**
 `test_exists` returns `unrun` when the collector cannot start, and also when it exits nonzero having
 printed nothing at all, which is a collector falling over rather than one reporting an absence. The

@@ -32,7 +32,7 @@ Ready-for-ADR under its own gate.
 ## Acceptance
 
 ```bash
-python3 bin/spec-verify --spec docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
+python3 plugin/bin/spec-verify --spec docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
 ```
 
 The WORKING-TREE gate, not the bare name. `spec-verify` on PATH is the forwarder

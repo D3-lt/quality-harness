@@ -33,7 +33,7 @@ the tree, and advise when one names nothing that exists.
 ## Acceptance
 
 ```bash
-python3 tests/gate-regressions.py bin skills/postmortem/SKILL.md
+python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 ```
 
 ## Tests

@@ -1708,6 +1708,32 @@ whoever reads the decision later. This corpus has 11 task files, so it cannot co
 if the harness is ever pointed at another corpus of that size, re-run the count and record it here
 either way. A figure that can only ever be cited is one nobody can check.
 
+## 42. The published history still holds what was already published
+
+`evals/results/` is untracked and the gate that missed it now reads everything git tracks. Neither
+touches what is already in the history of a PUBLIC repository: 18 `aggregate-result.json` files
+carrying `/Users/zy/CursorProjects/quality-harness`, committed 2026-08-26 through 2026-08-28.
+
+**What is actually exposed, measured rather than feared:** a username and a directory layout. No
+credentials — the `sk-` match was the word "desk-checked" and `TOKEN` was `_TOKEN = re.compile(...)`
+in a model's answer about parsing durations. No corpus content: the one case that ran against a
+171-record snapshot stores 2,844 bytes of scores and grader explanations, because its graders are
+`tool_order` and `file_exists` rather than LLM judges. The model transcripts that ARE stored belong
+to this repository's own synthetic prompts, which are public in `evals/*/prompt.md` anyway.
+
+**The decision left open:** purging it needs a history rewrite and a force-push on a public
+repository, which breaks every existing clone and every commit SHA quoted in this backlog, in eight
+ADRs, and in their Verification Logs. That last part matters more here than in most repositories —
+the evidence chain records `git-sha` per verification entry, so a rewrite invalidates the corpus's
+own provenance while removing a username.
+
+Recommendation, unless the owner disagrees: **do not rewrite.** The exposure is a home path;
+the cost is every recorded SHA in the decision corpus. Revisit only if something worse is found in
+history — and the way to find out is to scan it, which nothing has yet done systematically.
+
+**Worth doing either way:** run the new personal-path check over history, not just the working tree,
+so the claim "only a username" is measured rather than assumed.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

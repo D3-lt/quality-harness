@@ -333,7 +333,10 @@ test('every shipped gate carries at least one mutation', () => {
   const catalogue = JSON.parse(readFileSync(join(root, 'tests', 'mutations.json'), 'utf8')).mutations
   // Read from disk, both sides. A list kept beside the truth is a thing somebody
   // has to remember, which is how the standalone copies drifted for three weeks.
-  const gates = readdirSync(join(root, 'bin')).filter(name => !name.includes('.')).sort()
+  // A dotless NAME is not a gate; a dotless FILE is. A stray directory in
+  // bin/ satisfied the old test and made this fail on something nobody shipped.
+  const gates = readdirSync(join(root, 'bin'), { withFileTypes: true })
+    .filter(e => e.isFile() && !e.name.includes('.')).map(e => e.name).sort()
   assert.ok(gates.length >= 8, `expected the shipped gates, found ${gates.length}`)
 
   const covered = new Set(catalogue.map(entry => entry.file))

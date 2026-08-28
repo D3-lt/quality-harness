@@ -14,3 +14,7 @@ evals/results/**/report.html
 # the author's home path into a public repo for two days. The numbers that
 # matter are written into docs/BACKLOG.md in prose, where they are actually read.
 evals/results/
+
+# Any Python import of a gate writes this unless it sets dont_write_bytecode,
+# and a dotless DIRECTORY in bin/ used to read as a gate.
+__pycache__/

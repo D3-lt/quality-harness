@@ -34,7 +34,8 @@ const env = {
 // without it `run('python3', …)` rewrites itself into `python3 bin/python3 …`.
 // The gates are the extensionless executables; the .cmd files beside them
 // are Windows shims that invoke these.
-const GATE_NAMES = new Set(readdirSync(bin).filter(name => !name.includes('.')))
+const GATE_NAMES = new Set(readdirSync(bin, { withFileTypes: true })
+  .filter(e => e.isFile() && !e.name.includes('.')).map(e => e.name))
 
 function run(command, args, cwd, input = undefined) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)

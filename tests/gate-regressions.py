@@ -21,16 +21,20 @@ def load_script(name, path):
     return module
 
 
-def verification_errors(lint, acceptance, entries):
+def verification_errors(lint, acceptance, entries, mlog=()):
     infos = {
         "T1": {
             "human": False,
             "vlog": entries,
+            "mlog": list(mlog),
             "acc_all": acceptance,
             "acc_first": acceptance.splitlines()[0],
         }
     }
-    errors = []
+    # The REAL findings type, not a bare list: `.advise` is a second channel and
+    # a plain list silently has no such method, so a check that advises would
+    # raise here rather than be measured.
+    errors = lint.Findings()
     lint.check_verification(infos, "| T1 | probe | done |", errors)
     return errors
 
@@ -721,6 +725,48 @@ def main():
         # A path-less binding on a stack that requires one is malformed, and says so.
         ok, why = spec_gate.test_exists("test_login", root, "pytest", False)
         assert not ok and "malformed binding" in why, why
+
+    # TRAJECTORY, not just output. The pipeline checks that Ordered Steps step 1
+    # SAYS "establish the failing test", and that some entry SAYS exit 0. It has
+    # never checked that the failing run came first — so a task can claim TDD in
+    # its prose and show a log that only ever passed, which is the difference
+    # between "did the check pass" and "was the check ever able to fail here".
+    #
+    # Named from Google's SDLC guide 2026-08-28: output evaluation asks whether
+    # the result is right; trajectory evaluation asks whether the sequence that
+    # produced it was. This corpus already grades trajectory in its eval suite
+    # (`tool_order`) and never did in its evidence chain.
+    #
+    # ADVICE, never blocking. Six of this repository's own records were written
+    # after the code shipped and say so; failing them retroactively is the
+    # day-one gate nobody keeps.
+    green_only = ["- 2026-08-28 · abc1234 · exit 0 · `go test ./...` · acceptance-sha256:" + "0" * 64]
+    advice = [str(a) for a in getattr(
+        verification_errors(lint, "```bash\ngo test ./...\n```", green_only), "advice", [])]
+    assert any("TDD red run" in a and "T1" in a for a in advice), (
+        f"a log that only ever passed should be advised on: {advice}")
+
+    red_then_green = [
+        "- 2026-08-28 · abc1234 · exit 1 · `go test ./...` · acceptance-sha256:" + "0" * 64,
+        "- 2026-08-28 · def5678 · exit 0 · `go test ./...` · acceptance-sha256:" + "0" * 64,
+    ]
+    advice = [str(a) for a in getattr(
+        verification_errors(lint, "```bash\ngo test ./...\n```", red_then_green), "advice", [])]
+    assert not any("TDD red run" in a for a in advice), f"red-then-green is the shape we want: {advice}"
+
+    # A KILLED MUTANT proves the same property from the other side — the fence
+    # went red when the mechanism broke. Advising there would be noise on a task
+    # that has already shown it. Measured on this repository's own corpus: this
+    # clause takes the check from nine firings to zero, and every one of those
+    # nine had killed a mutant. That is also why the two cases above matter — a
+    # check that fires on nothing in the only corpus available is indistinguishable
+    # from one that cannot fire at all.
+    advice = [str(a) for a in verification_errors(
+        lint, "```bash\ngo test ./...\n```", green_only,
+        mlog=["- 2026-08-28 · abc1234 · mutant killed · exit 1 · `x.go` · why · acceptance-sha256:"
+              + "0" * 64]).advice]
+    assert not any("TDD red run" in a for a in advice), (
+        f"a killed mutant already shows the fence can fail: {advice}")
 
     with tempfile.TemporaryDirectory() as js_tmp:
         # A JavaScript REGEX LITERAL is neither a comment nor a string, and the

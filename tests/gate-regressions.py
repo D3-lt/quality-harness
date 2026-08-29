@@ -1564,6 +1564,45 @@ def main():
             found, why = spec_gate.test_definition_exists(js_probe, js_name, None)
             assert found is True, f"{js_name}: {why}"
 
+    # BACKLOG §52. Step 1 of a task must ESTABLISH RED. The check asked whether
+    # the word "test" appeared in it — a shape test, on a step whose behaviour
+    # was already correct. ADR-006 T2 opens "Confirm the gate is red first:
+    # `spec-verify --spec ...`", which establishes red and never says "test", so
+    # a correct task was advised at and a step saying "update the tests later"
+    # was not. Found 2026-08-29 by Claude Desktop running qh_adr_lint over this
+    # corpus through the MCP server (ADR-012 T4) — the gate's own rule, ADR-003:
+    # a gate asserts behaviour, not shape.
+    def step_one_advice(step):
+        with tempfile.TemporaryDirectory() as td:
+            probe = Path(td) / "T9-probe.md"
+            probe.write_text(
+                "# Task X-T9: probe\n\n"
+                "**Depends-on:** none\n**Covers:** none\n**Produces:** none\n"
+                "**Consumes:** none\n\n"
+                "## Goal\n\ng\n\n"
+                "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+                "| `x.py` | edit | w |\n\n"
+                "## Ordered Steps\n\n" + step + "\n2. Then the rest.\n\n"
+                "## Acceptance\n\n```bash\ntrue\n```\n\n"
+                "## Tests\n\n| Test name | File | Verifies | Covers |\n|---|---|---|---|\n"
+                "| t | f | v | — |\n\n"
+                "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                "## Verification Log\n", encoding="utf-8")
+            errs = lint.Findings()
+            lint.check_task(probe, set(), errs)
+            return [a for a in errs.advice if "TDD red" in a]
+
+    assert step_one_advice("1. Confirm the gate is red first: `spec-verify --spec x`") == [], \
+        "a step that establishes red without saying 'test' is the shape we want"
+    assert step_one_advice("1. Write the failing test first, and confirm it is red.") == [], \
+        "the canonical wording must keep passing"
+    # The must-fail direction, without which accepting everything would satisfy
+    # both cases above (CLAUDE.md §4): a step 1 that establishes nothing is still
+    # advised at.
+    assert step_one_advice("1. Update the documentation and the changelog."), \
+        "a step 1 that establishes no failing state must still be advised at"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

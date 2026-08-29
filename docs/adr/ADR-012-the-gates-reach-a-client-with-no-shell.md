@@ -203,7 +203,10 @@ See `tasks/README.md`. Four tasks.
 - Porting any skill, hook, or slash command. (permanent: Desktop has no mechanism for any of them;
   this decision is about the enforcement half precisely because that is the portable one.)
 - Relying on `server.WithInstructions` to deliver anything load-bearing. (deferred: docs/BACKLOG.md §33 —
-  it is populated but unproven on Desktop, and the measurement that would settle it is T4's.)
+  it is populated but unproven on Desktop, and the measurement that would settle it is T4's. MEASURED
+  2026-08-29 by T4 on Desktop 1.40609.0: the client does not render it at all, so the refusal above
+  stands on evidence rather than caution. The line is kept as written because it was this record's
+  state when accepted.)
 
 ## Risks
 
@@ -223,5 +226,8 @@ and every answer is a gate's answer computed on demand.
 
 ## Follow-ups
 
-- [ ] Take ADR-021 T3's pending measurement (does Desktop surface `WithInstructions`?) and report it
-      back to the agentsmemory corpus, which has the same task open.
+- [x] Take **agentsmemory's** ADR-021 T3 (another repository — there is no ADR-021 in this corpus)
+      pending measurement (does Desktop surface `WithInstructions`?) and report it
+      back to the agentsmemory corpus, which has the same task open. — done 2026-08-29: it does NOT,
+      on Desktop 1.40609.0; the probe, the answer and what rules out the alternatives are in T4's
+      Status block, and the finding is filed to that corpus.

@@ -1441,6 +1441,26 @@ Three items are deferred BACK here by that record, receipted below so the sweep 
   into the model's context, and at what length, is not. So ADR-012 puts everything load-bearing in
   tool DESCRIPTIONS, which provably arrive because they are how the model learns a tool exists.
   ADR-012 T4 takes the measurement and reports it back to that corpus, which has the same task open.
+
+  **MEASURED 2026-08-29 — Desktop does not render it, and the deferral was right.** Claude Desktop
+  1.40609.0, macOS, with `MCP_DOCKER` and `agentsmemory` also registered. Asked before any tool call
+  what the server's instructions say about its error channel — the one sentence unique to the
+  instructions string and absent from all five tool descriptions — the session answered *"I don't
+  have a separate server-instructions block for quality-harness — what loaded is the five tool
+  descriptions."* It then reconstructed the finding/error split from the descriptions alone and got
+  it differently, grounding "an error is a broken call" in `qh_adr_judge`'s description rather than
+  in the server sentence, and never produced the could-not-run/found-nothing distinction.
+
+  What makes this a null with evidence rather than a silence: the DESCRIPTIONS demonstrably arrived
+  in the same session — all five summarised accurately, including `qh_adr_debt` exiting 1 on a
+  dangling pointer — so the transport worked and the client dropped one field. Tool-choice crowding
+  cannot explain it either, because an instructions block is not chosen by the model at all.
+
+  Consequence: everything a Desktop user must know has to live in a tool description. Nothing here
+  depends on the instructions string, so nothing changes — but the channel is confirmed unusable on
+  this client, not merely unproven. One client, one version, one machine, one date: re-measure with
+  the same probe rather than assuming it holds. Full write-up and probe design in ADR-012 T4's
+  Status block; reported to the agentsmemory corpus as ADR-021 T3's answer.
 - **`adr-state`, `adr-context` and `work-next` over MCP.** Deferred by ADR-012 T2. They are
   `plugin/scripts/*.mjs` rather than `plugin/bin/` gates, so they need a second spawn path and a
   second argument grammar; worth doing, and not worth folding into the record that establishes the
@@ -2716,6 +2736,62 @@ the variable set, and the ordinary run unchanged without it.
 **This does not make the flake reproducible and it is not evidence about the cause.** It only means
 the next occurrence arrives with something to read. Record that occurrence here with its run id and
 attach what the transcript said.
+
+## 52. CLOSED 2026-08-29 — a step-1 check that read the sentence instead of the step, found by Desktop
+
+**Found by pointing the gates at their own corpus from a client that had never seen it.** ADR-012 T4
+registered `qh-mcp` in Claude Desktop; asked to lint `docs/adr`, the session called `qh_adr_lint`
+across all twelve records and reported 12/12 exit 0 with one advisory, on ADR-006's
+`T2-amend-and-bind-the-spec.md`:
+
+> Ordered Steps step 1 must establish the failing test (TDD red) — currently starts with
+> "Confirm the gate is red first: `spec-verify …`"
+
+That step DOES establish red. The check was `"test" not in steps[0].lower()` — a test on the
+sentence, not on what the step does, and wrong in both directions: it advised at a correct task, and
+would have stayed silent on *"1. Update the tests later"*, which establishes nothing. This is
+ADR-003's own rule — a gate asserts behaviour, not shape — broken inside a gate, which is why it is
+worth an entry rather than a one-line edit.
+
+**Fixed** by matching what step 1 must accomplish: a step establishing red names a test, or names red
+or failure. Enforced by `tests/gate-regressions.py`, which asserts the ADR-006 wording passes, the
+canonical *"write the failing test first"* wording still passes, and — the case without which
+accepting everything would satisfy the first two (CLAUDE.md §4) — that a step 1 which establishes no
+failing state is still advised at. Catalogue entry `lint: step 1 is judged by whether it establishes
+RED, not by the word 'test'`.
+
+**The finding about the finding.** A gate that has run over this corpus hundreds of times produced a
+false positive that nobody had looked at, because the corpus is the authors' own and the advisory
+line had become furniture. It took a reader with no history here to treat it as a claim. That is an
+argument for running the gates from a foreign client periodically, not only in CI.
+
+## 53. OPEN — a task can cite a gate whose universe does not contain the thing it claims is enforced
+
+**Reported 2026-08-29 by the agentsmemory session**, from its own ADR-044 T5, and filed here because
+the shape is about ADR task files in general rather than about that repository. A task file asserted
+that omitting a new wire key from a tool description would fail a named gate. It does not: the key is
+a conditional `map[string]any` entry set inside an `if`, and that gate's universe is struct tags —
+its own doc comment predicts the gap. Deleting the word left the gate green.
+
+**The class:** a Reachability rung or an `Enforced-by:` header that names a real, passing, correctly
+written check which nevertheless cannot see the artifact in question. Every existing gate here
+verifies that a named check EXISTS and CAN FAIL — `arch-lint` does exactly this for architecture rule
+rows — and none of them asks whether it can fail *for this artifact*. A named check that cannot reach
+the case reads as enforcement and is decoration, which is the same defect class as an acceptance
+fence that passes with its runner absent (§46), one level up.
+
+**Not obviously a gate.** Deciding whether a check's universe contains an artifact is close to
+undecidable in general, and the cheap approximations (does the artifact appear in the check's inputs?
+does mutating it turn the check red?) are the mutation campaign, which this repository already runs
+for its own gates but cannot run inside a user's corpus. The tractable form is probably a QUESTION in
+the task template and in `adr-judge`'s rubric — *does the named gate's universe actually contain this
+artifact, and what would prove it?* — rather than an automated check. agentsmemory recorded their
+instance as a deviation rather than widening the gate, which is the conservative call and the right
+one for a single case.
+
+**Before acting on this, mutate one:** take an `Enforced-by:` claim in this corpus, break the thing
+it governs, and see whether the named check goes red. If they all do, this is a foreign finding that
+does not reproduce here and the entry says so.
 
 ## Verification claims worth re-running after any of the above
 

@@ -298,13 +298,44 @@ def failure_tail(stdout, stderr, keep=10):
         lines = (raw or "").strip().splitlines()
         if not lines:
             continue
-        shown = lines[-keep:]
-        head = f"--- last {len(shown)} line(s) of {label}"
-        if len(lines) > len(shown):
+        shown = collapse_repeats(lines[-keep:])
+        head = f"--- last {min(len(lines), keep)} line(s) of {label}"
+        if len(lines) > keep:
             head += f" (of {len(lines)})"
         parts.append(head)
         parts.extend(shown)
     return parts
+
+
+def collapse_repeats(lines):
+    """Consecutive identical lines, folded into one with a count.
+
+    The per-stream tail stopped the verdict being EVICTED and did not stop it
+    being BURIED: measured 2026-08-29 on a real fence, fourteen recorded lines of
+    which two carried the verdict and ten were the same deprecation warning
+    repeated. A reader whose eye lands mid-block concludes the task failed on a
+    deprecation. Repeated-identical is the overwhelmingly common shape for build
+    and ansible stderr, which is exactly why the tail fills with it.
+
+    Collapsing loses nothing — the count says how many there were — and it is
+    preferred over weighting the budget toward stdout, which would be guessing
+    which stream carries the answer. Suggested by the session that reported §54
+    after reading its own fix in place (docs/BACKLOG.md §70).
+    """
+    folded = []
+    for line in lines:
+        if folded and folded[-1][0] == line:
+            folded[-1][1] += 1
+        else:
+            folded.append([line, 1])
+    return [text if n == 1 else f"{text}  (x{n})" for text, n in folded]
+
+
+# The Acceptance fence, whatever the author spelled the language. `sh` and
+# `shell` are reasonable things to type and the fence runs through bash either
+# way; refusing them bought nothing and cost a reader a minute of guessing
+# (docs/BACKLOG.md §70). `bash` stays first because it is what the template says.
+ACCEPTANCE_FENCE = re.compile(r"```(?:bash|sh|shell)\s*\n(.*?)```", re.S)
 
 
 def bash_or_exit():
@@ -507,7 +538,14 @@ def append_entry(task, text, block, section="Verification Log"):
     block = redact_home(block)
     m = re.search(rf"(^## {re.escape(section)}\s*\n)(.*?)(?=^## |\Z)", text, re.M | re.S)
     if not m:
-        fail(f"{task.name}: no ## {section} section")
+        # Say what to DO. "no ## Verification Log section" is accurate and left a
+        # first-time reader guessing whether their file was malformed; the fix is
+        # one empty heading, and the tool will not add it because writing a
+        # section it was not asked for is how a tool starts editing documents
+        # (docs/BACKLOG.md §70).
+        fail(f"{task.name}: no ## {section} section — add an empty `## {section}` heading to the "
+             f"task file and re-run. This tool appends entries; it does not create the section, "
+             f"because a task file's shape is the author's.")
     sec = re.sub(r"^<Filled during execution:[^\n]*>\s*$", "", m.group(2), flags=re.M)
     # multi-line template placeholder: from '<Tool-written by' to the line ending in '>'
     sec = re.sub(r"^<Tool-written by.*?>\s*$", "", sec, flags=re.M | re.S)
@@ -1207,7 +1245,7 @@ def acceptance_of(text):
     section = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
     if not section:
         return None
-    fence = re.search(r"```bash\s*\n(.*?)```", section.group(1), re.S)
+    fence = ACCEPTANCE_FENCE.search(section.group(1))
     return fence.group(1) if fence else None
 
 
@@ -1345,14 +1383,16 @@ def main():
     m = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
     if not m:
         fail(f"{task.name}: no ## Acceptance section")
-    fm = re.search(r"```bash\s*\n(.*?)```", m.group(1), re.S)
+    fm = ACCEPTANCE_FENCE.search(m.group(1))
     if not fm:
         fail(f"{task.name}: no non-empty ```bash fence under ## Acceptance "
-             f'(human-observed task? use --human "<sign-off>")')
+             f'(```sh and ```shell are read too; human-observed task? '
+             f'use --human "<sign-off>")')
     cmd = normalize_acceptance(fm.group(1))
     if not cmd:
         fail(f"{task.name}: no non-empty ```bash fence under ## Acceptance "
-             f'(human-observed task? use --human "<sign-off>")')
+             f'(```sh and ```shell are read too; human-observed task? '
+             f'use --human "<sign-off>")')
 
     if cwd is None:
         r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],

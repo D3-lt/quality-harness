@@ -2416,8 +2416,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    fence = re.search(r\"```bash\\s*\\n(.*?)```\", section.group(1), re.S)",
-      "to": "    fence = re.search(r\"^```bash\\n(.*?)```\", section.group(1), re.S)"
+      "from": "    fence = ACCEPTANCE_FENCE.search(section.group(1))",
+      "to": "    fence = re.search(r'^```bash\\n(.*?)```', section.group(1), re.S)"
     },
     {
       "label": "sweep: a fence of only comments runs nothing",
@@ -2983,8 +2983,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        shown = lines[-keep:]",
-      "to": "        shown = lines[-keep:] if label == 'stderr' else []"
+      "from": "        shown = collapse_repeats(lines[-keep:])",
+      "to": "        shown = collapse_repeats(lines[-keep:]) if label == 'stderr' else []"
     },
     {
       "label": "verify: a fence that never returned is UNRUN, not a verdict",
@@ -3030,6 +3030,24 @@
       ],
       "from": "                or \"· human-observed ·\" in ln)",
       "to": "                or False)"
+    },
+    {
+      "label": "verify: repeated output lines are folded with a count, distinct ones are not",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if folded and folded[-1][0] == line:",
+      "to": "        if False:"
+    },
+    {
+      "label": "verify: an Acceptance fence may be spelled sh or shell",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash|sh|shell)\\s*\\n(.*?)```\", re.S)",
+      "to": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash)\\s*\\n(.*?)```\", re.S)"
     }
   ]
 }

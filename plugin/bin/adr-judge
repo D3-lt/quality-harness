@@ -154,6 +154,33 @@ def bullets(body):
     return found
 
 
+def vacuous_rules(text):
+    """(rule, why) for every rule that had NOTHING TO JUDGE in this record.
+
+    A rule whose section is absent cannot fire, and "no findings" then reports a
+    reasoning check that never ran as one that passed. Reported 2026-08-29 from an
+    adopting corpus: a record with no `## Alternatives Considered` section at all
+    got `adr-lint` exit 1 (`Alternatives Considered has no entries`) and `adr-judge`
+    exit 0 (`evidence and clarity rules all pass`). Both verdicts were defensible
+    and the second was unreadable — "all pass" says the reasoning was examined and
+    holds, when the rule that examines it had nothing to run on. A maintainer who
+    runs judge and not lint concludes the record is sound.
+
+    This is ADR-005 inside the judge: vacuous truth reported as a verdict. The
+    remedy is the cheap one the reporter proposed — NAME THE VACUUM — rather than
+    refusing to pass, because it generalises to every prose rule added later.
+    """
+    empty = []
+    for rule, heading, what in (
+            ("E1", "Context", "no Context section to check for observable evidence"),
+            ("E2", "Alternatives Considered", "no Alternatives Considered section to check for rejections"),
+            ("C1", "Decision", "no Decision section to check for a commitment"),
+            ("C3", "Consequences", "no Consequences section to check for a stated cost")):
+        if not prose(section(text, heading)).strip():
+            empty.append((rule, what))
+    return empty
+
+
 def judge(text):
     """(id, axis, finding) for every rule that fires. Deterministic, order fixed."""
     findings = []
@@ -223,10 +250,21 @@ def main():
         print(f"record not found: {path}", file=sys.stderr)
         return 2
 
-    findings = judge(path.read_text(encoding="utf-8", errors="replace"))
-    print(f"[JUDGE] {path}" + ("" if findings else " — evidence and clarity rules all pass"))
+    body = path.read_text(encoding="utf-8", errors="replace")
+    findings = judge(body)
+    empty = vacuous_rules(body)
+    if findings:
+        headline = ""
+    elif empty:
+        # NOT "all pass". A rule that could not run is not a rule that passed.
+        headline = (f" — evidence and clarity rules pass; {len(empty)} rule(s) had nothing to judge")
+    else:
+        headline = " — evidence and clarity rules all pass"
+    print(f"[JUDGE] {path}{headline}")
     for rule, axis, finding in findings:
         print(f"  {axis} {rule}: {finding}")
+    for rule, what in empty:
+        print(f"  UNJUDGED {rule}: {what}")
     if findings:
         print("  Nothing is blocked — these are the two axes a schema cannot check. "
               "Fix what is real, or say in the record why it stands. "

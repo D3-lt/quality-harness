@@ -367,8 +367,16 @@ def check_adr(adr_path, errors):
                       f"(write 'None — implementation-internal only' if true)")
     for s in scope_bullets(secs.get("Out of Scope", [])):
         if not _carries_a_disposition(s):
-            errors.advise(f"{adr_path.name}: Out of Scope entry needs a disposition — "
-                          f"'(permanent[: why])' or '(deferred: <pointer>)': {s[:70]}")
+            # "needs a disposition" reads as "you gave no reason", and the reason is
+            # very often right there in prose — the entry is missing the machine
+            # -readable FORM, not the thinking. Reported 2026-08-29 by a reader on
+            # an adopting corpus whose bullets carry their reasons in sentences.
+            # What a reader has to realise is *reason present, grammar absent*, and
+            # the old sentence let them read *reason absent*.
+            errors.advise(f"{adr_path.name}: Out of Scope entry ends with no machine-readable "
+                          f"disposition — a reason in prose is not one, and `adr-debt` cannot "
+                          f"sweep it. End the entry with '(permanent[: why])' or "
+                          f"'(deferred: <pointer>)': {s[:70]}")
     spec = header_val(text, "Spec")
     if spec is None:
         errors.advise(f"{adr_path.name}: no **Spec:** header (use 'None — no spec stage')")

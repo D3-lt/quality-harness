@@ -1790,6 +1790,24 @@
       "to": "        elif False:"
     },
     {
+      "label": "adr-judge: a rule whose section is absent is named, not counted as a pass",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        if not prose(section(text, heading)).strip():",
+      "to": "        if False:"
+    },
+    {
+      "label": "adr-judge: a record with a vacuous rule does not report all pass",
+      "file": "plugin/bin/adr-judge",
+      "tests": [
+        "tests/judge-rules.test.mjs"
+      ],
+      "from": "        headline = (f\" — evidence and clarity rules pass; {len(empty)} rule(s) had nothing to judge\")",
+      "to": "        headline = \" — evidence and clarity rules all pass\""
+    },
+    {
       "label": "fixture: a Windows path is made YAML-safe",
       "file": "plugin/scripts/eval-fixture.mjs",
       "tests": [

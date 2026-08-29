@@ -63,7 +63,8 @@ legible.
   it matches at least one; `plugin/bin/**` is the corpus's own case and must stay silent.
 - **`Cross-references:`** — each item that looks like a repository path must be tracked, and each
   item that looks like a record id must resolve to a record in the corpus. A `§NN` fragment is not
-  resolved (see Out of Scope).
+  resolved (see Out of Scope). *Closed 2026-08-29 outside this record — `section_fragments` and
+  `has_section` now resolve it; see docs/BACKLOG.md §44.*
 - **`Invalidates:`** — the LEADING token only. `none\b` yields nothing to resolve; anything else is
   taken as a record id and resolved against the corpus, and the prose after it is ignored rather
   than split.
@@ -152,7 +153,7 @@ Two tasks, in `tasks/`. See `tasks/README.md`.
 
 - Backfilling `Enforced-by:` into the seven records that lack it. (deferred: docs/BACKLOG.md §44)
 - The `adr-lint` / `adr-verify` evidence-grammar divergences, sha range and record-number resolution. (deferred: docs/BACKLOG.md §47)
-- Resolving a `§NN` fragment in `Cross-references:` to a heading in the file it names. (deferred: docs/BACKLOG.md §44)
+- Resolving a `§NN` fragment in `Cross-references:` to a heading in the file it names. (deferred: docs/BACKLOG.md §44 — CLOSED there 2026-08-29; the deferral is kept as written because it was this record's scope at the time)
 - Making `Governs:` blocking, here or later. (permanent: a corpus adopting this on a tree it did not write lights up on day one, and this repository's own two-day un-governed window is what a blocking version would have failed for no fault of any record.)
 - Proving that a resolved pointer was HONOURED rather than merely resolvable. (permanent: that is a different question with a different mechanism — `adr-debt`'s `UNRECEIPTED` answers it for deferrals — and folding it in would make one check mean two things.)
 

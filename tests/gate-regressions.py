@@ -1176,6 +1176,35 @@ def main():
         "**Cross-references:** docs/adr/ADR-009-a-decision-names-what-enforces-it.md, "
         "docs/BACKLOG.md §44, §45\n")
     assert not advice, f"every one of these resolves: {advice}"
+
+    # ADR-011's deferred half, closed. A `§NN` fragment is resolved to a heading
+    # in the file cited beside it — the bare `§45` above inherits `docs/BACKLOG.md`
+    # from the item before it, which is how every multi-section citation in this
+    # corpus is written.
+    assert lint.section_fragments(["docs/BACKLOG.md §44", "§45"]) == [
+        ("docs/BACKLOG.md", 44), ("docs/BACKLOG.md", 45)]
+    assert lint.section_fragments(["§45"]) == [], (
+        "a fragment with no path ahead of it names nothing this gate can resolve")
+    # THE DIRTY ANSWER, and it is advice like every other pointer finding.
+    blocking, advice = pointers("**Cross-references:** docs/BACKLOG.md §9999\n")
+    assert not blocking, f"an unresolvable fragment never blocks: {blocking}"
+    assert any("§9999" in a for a in advice), (
+        f"a cited section that does not exist must be named: {advice}")
+    # A PREFIX IS NOT A MATCH. `§4` against a file whose only heading is `## 44`
+    # resolves happily and wrongly under a prefix test, and the citation it would
+    # bless is the one most likely to be a typo for the section beside it.
+    assert lint.has_section("## 44. Forty-four\n", 44) is True
+    assert lint.has_section("## 44. Forty-four\n", 4) is False, "§4 is not `## 44`"
+    assert lint.has_section("## 34 (superseded). No period after the digits\n", 34) is True
+    assert lint.has_section("Section 44 mentioned in prose, not a heading\n", 44) is False
+    # COULD NOT LOOK, again, and distinguishable from a missing section: a tracked
+    # file this process cannot read is not a file without that heading (ADR-005).
+    errs = lint.Findings()
+    lint.check_pointers("**Cross-references:** docs/BACKLOG.md §44\n", Path("ADR-999-probe.md"),
+                        errs, None, corpus_dir, tracked=["docs/BACKLOG.md"])
+    assert not list(errs), "could-not-read never blocks"
+    assert any("could not be read" in str(a) for a in errs.advice), (
+        f"an unreadable file must not be reported as a missing section: {list(errs.advice)}")
     _, advice = pointers("**Cross-references:** docs/adr/ADR-404-nothing-here.md\n")
     assert any("ADR-404" in a for a in advice), f"a cited record that does not exist: {advice}"
     _, advice = pointers("**Cross-references:** docs/no-such-file.md\n")

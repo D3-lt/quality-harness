@@ -545,6 +545,20 @@ test('an evidenced task whose Affected Files git ignores is reported, with the p
   const clean = run('adr-lint', [adr, tasks], repo)
   assert.doesNotMatch(clean.stdout, /git IGNORES it/,
     `a tracked path is not a finding:\n${clean.stdout}`)
+
+  // AND WHEN IT COULD NOT ASK, IT SAYS SO. Outside a repository there is no
+  // answer to be had, and reporting silence would be "I could not look" wearing
+  // the words of "there is nothing" (ADR-005). This case is why the probe
+  // returns None rather than {}: with both spelled {} the guard had no
+  // observable effect, and the campaign proved it by removing the guard and
+  // killing nothing.
+  const bare = agedCorpus('quality-harness-noрepo-', null)
+  rmSync(join(bare.repo, '.git'), { recursive: true, force: true })
+  const bareTask = join(bare.tasks, readdirSync(bare.tasks).find(n => /^T\d/.test(n)))
+  writeFileSync(bareTask, withRows(['cmd/thing/main.go']))
+  const unasked = run('adr-lint', [bare.adr, bare.tasks], bare.repo)
+  assert.match(unasked.stdout, /could not ask git/,
+    `a check that did not run must say so:\n${unasked.stdout}`)
 })
 
 test('strictFrom lets a corpus adopt these gates without failing on its own history', () => {

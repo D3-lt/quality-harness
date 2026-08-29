@@ -240,9 +240,7 @@ def blockers(infos, corpus_dir=None):
                 if not part:
                     continue
                 if QUALIFIED_DEP.match(part):
-                    state = foreign_state(part, corpus_dir)
-                    if state != "done":
-                        foreign[tid].append((part, state))
+                    note_foreign(part, corpus_dir, foreign, tid)
                 elif re.search(r"(?<![A-Za-z])ADR(?![A-Za-z])", part, re.I):
                     # Names a record and does not parse. Left to the local scan
                     # it is worse than dropped: TID_RE finds the trailing `T1`
@@ -259,9 +257,21 @@ def blockers(infos, corpus_dir=None):
                     out[tid].add(d)
         cons = inf["consumes"]
         if cons and not cons.lower().startswith("none"):
-            for d in TID_RE.findall(cons.upper()):
-                if d in infos and d != tid:
-                    out[tid].add(d)
+            # Qualified ids come out of Consumes for the same reason they come
+            # out of Depends-on, and they were not: TID_RE finds `T4` inside
+            # `ADR-003-T4`, so a task consuming a FOREIGN record's output printed
+            # `waiting on T4` — a local sibling it has nothing to do with.
+            # Reproduced 2026-08-29 (docs/BACKLOG.md §41). Recorded as foreign so
+            # the edge is reported unevaluated rather than silently invented.
+            for part in (p.strip() for p in cons.split(",")):
+                if not part:
+                    continue
+                if QUALIFIED_DEP.match(part):
+                    note_foreign(part, corpus_dir, foreign, tid)
+                    continue
+                for d in TID_RE.findall(part.upper()):
+                    if d in infos and d != tid:
+                        out[tid].add(d)
             tokens = {t.lower() for t in re.findall(r"`([^`]+)`", cons)} - {"none"}
             for other, oinf in infos.items():
                 if other == tid:
@@ -270,6 +280,21 @@ def blockers(infos, corpus_dir=None):
                 if tokens & produced:
                     out[tid].add(other)
     return out, foreign
+
+
+def note_foreign(part, corpus_dir, foreign, tid):
+    """Record a qualified cross-record pointer as an edge this tool cannot evaluate.
+
+    Shared by `Depends-on` and `Consumes` rather than written twice. They are one
+    rule — a foreign id is taken out WHOLE and reported, never scavenged for a
+    local T-id — and two copies of that rule is precisely how `Consumes` came to
+    be missing it (docs/BACKLOG.md §41). A second copy also silently duplicated
+    this gate's mutation anchor, so the campaign stopped being able to say which
+    branch it was killing.
+    """
+    state = foreign_state(part, corpus_dir)
+    if state != "done":
+        foreign[tid].append((part, state))
 
 
 def resolve_tasks_dir(target):

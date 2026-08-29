@@ -163,6 +163,34 @@ test('a task waiting on another record\'s incomplete task is blocked, and says w
   assert.match(out, /ADR-003-T1/, `and it must name what it is waiting on:\n${out}`)
 })
 
+test('a qualified id in Consumes leaves the record rather than binding locally', () => {
+  // BACKLOG §41, reproduced 2026-08-29. `Depends-on` took a qualified id out
+  // WHOLE; `Consumes` did not, and TID_RE finds `T4` inside `ADR-003-T4`. So a
+  // task consuming a FOREIGN record's output printed `waiting on T4` — a local
+  // sibling it has nothing to do with. A wrong edge is worse than a missing one,
+  // because the DAG then looks answered rather than incomplete.
+  const { tasksDir } = corpus([
+    { id: 'T4', consumes: 'none' },
+    { id: 'T9', consumes: 'ADR-003-T4' },
+  ])
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.doesNotMatch(out, /waiting on T4\b/,
+    `a foreign id must not bind to the same-numbered local task:\n${out}`)
+  assert.match(out, /ADR-003-T4/, `and the foreign id must be named:\n${out}`)
+  assert.match(out, /cannot evaluate/i, `an edge this cannot resolve is unevaluated:\n${out}`)
+
+  // THE CLEAN ANSWER, in the same test. A check that only ever refuses to bind
+  // is indistinguishable from one that has stopped reading Consumes at all —
+  // a LOCAL T-id must still produce its edge (CLAUDE.md §4).
+  const { tasksDir: local } = corpus([
+    { id: 'T4', consumes: 'none' },
+    { id: 'T9', consumes: 'T4' },
+  ])
+  const localOut = next([local, '--all'], root).stdout
+  assert.match(localOut, /^blocked\s+T9\s+.*\(waiting on T4\)/m,
+    `a local Consumes id still binds:\n${localOut}`)
+})
+
 test('a foreign record that cannot be read is not readiness', () => {
   // The half the record exists for. An edge this cannot evaluate must print
   // `cannot evaluate`, never `ready` and never silently complete — ADR-005's

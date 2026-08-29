@@ -2096,7 +2096,21 @@ def main():
     # and must not look like one. Reported 2026-08-29 by two sessions
     # independently (docs/BACKLOG.md §56, §57).
     if adr.is_dir():
+        # The record is the directory's SIBLING, and its filename usually carries
+        # a slug the directory does not repeat — `ADR-002/` beside
+        # `ADR-002-carrier-registry-single-availability-source.md`. Matching on
+        # the stem alone reported a dead end for the commonest layout there is;
+        # the number is what ties them together, as it does in `adr-next`.
+        # Reported 2026-08-29 after the first version of this message shipped.
         sibling = adr.with_suffix(".md")
+        if not sibling.exists():
+            mine = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", adr.name, re.I)
+            if mine:
+                for candidate in sorted(adr.parent.glob("*.md")):
+                    theirs = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", candidate.name, re.I)
+                    if theirs and int(theirs.group(1)) == int(mine.group(1)):
+                        sibling = candidate
+                        break
         records = sorted(str(f) for f in adr.glob("*.md") if f.name.lower() != "readme.md")
         print(f"expected a record FILE, got a directory: {adr}")
         if sibling.exists():

@@ -365,6 +365,45 @@ test('a mutant that did not land, or landed twice, is refused instead of scored'
   assert.equal(readTask(copy).split('## Mutation Log')[1].trim(), '')
 })
 
+test('a toolchain directive is not a comment-only mutant', () => {
+  // BACKLOG §67, asserted THROUGH THE GUARD rather than against the pattern it
+  // uses. `# type: ignore` is lexically a comment and semantically an
+  // instruction to a type checker; `//go:build` removes whole functions from
+  // compilation, and a session hand-verified `go test -run …` exiting 0 over a
+  // suite that executed nothing.
+  //
+  // The first version of this assertion tested the DIRECTIVE_COMMENT regex
+  // directly, and the mutation campaign caught it: breaking the guard to
+  // `if False:` left the suite GREEN, because nothing exercised the path the
+  // mutation broke. That is §57's defect one day later — the mechanism asserted,
+  // the caller not — and it is why this test drives the gate.
+  const copy = corpus()
+  addMutationLog(copy)
+  addBlindSpot(copy)
+  const directive = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', '# a helper nothing under test imports',
+    '--to', '# type: ignore',
+    '--why', 'a type-checker directive is not prose',
+  ])
+  assert.doesNotMatch(directive.stdout, /COMMENT-ONLY MUTANT/,
+    `a toolchain directive must reach the fence:\n${directive.stdout}`)
+
+  // The must-fail direction, in the same test: ordinary prose is STILL refused,
+  // without which "exempt everything" would satisfy the assertion above.
+  const fresh = corpus()
+  addMutationLog(fresh)
+  addBlindSpot(fresh)
+  const prose = verify(fresh, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', '# a helper nothing under test imports',
+    '--to', '# a helper that nothing under test imports',
+    '--why', 'probe',
+  ])
+  expectExit(prose, 2, 'a comment edit changes nothing the program does')
+  assert.match(prose.stdout, /COMMENT-ONLY MUTANT/)
+})
+
 test('a mutant that does not parse is skipped, and the file is put back', () => {
   const copy = corpus()
   addMutationLog(copy)

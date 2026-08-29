@@ -247,6 +247,49 @@ def spec_ids(spec_path):
     return ids
 
 
+SCOPE_BULLET = re.compile(r"^\s*(?:[-*]|\d+\.)\s+\S")
+SCOPE_CONTINUATION = re.compile(r"^\s+\S")
+
+
+def scope_bullets(lines):
+    """Each Out of Scope bullet WITH the indented lines that continue it.
+
+    A DISPOSITION MAY WRAP, and reading these line by line said it did not.
+    `- **Every improvement surfaced in the same session** (deferred: each\n
+    needs its own issue).` shows `(deferred: each` with no closing paren on the
+    line that starts the bullet, so adr-lint advised "needs a disposition" and
+    adr-debt reported BROKEN [malformed] with an EMPTY pointer — about a bullet
+    that is well-formed Markdown.
+
+    THE RULE WAS ALREADY DECIDED HERE, one gate over. `adr-judge::bullets` does
+    exactly this and its docstring says why, dated 2026-08-27: two well-formed
+    records were flagged and "both were 'fixed' by moving words onto line one,
+    which is an author reshaping prose to suit a parser. A gate with false alarms
+    is one people learn to skip, and then it protects nothing." That reasoning was
+    never carried to the Out of Scope readers. Reported 2026-08-29 from an
+    adopting corpus, and it flagged this project's own ADR-012 the same hour.
+
+    A blank line or an unindented line ends the bullet — the two ways Markdown
+    itself ends one, so nothing swallows the paragraph that follows.
+    """
+    found, current = [], None
+    for line in lines:
+        if SCOPE_BULLET.match(line):
+            if current is not None:
+                found.append(current)
+            current = line.strip()
+        elif current is None:
+            continue
+        elif not line.strip() or not SCOPE_CONTINUATION.match(line):
+            found.append(current)
+            current = None
+        else:
+            current += " " + line.strip()
+    if current is not None:
+        found.append(current)
+    return found
+
+
 def closes_the_line(text, end):
     """Whether a parenthetical ending at `end` is the last thing on the line.
 
@@ -295,9 +338,8 @@ def check_adr(adr_path, errors):
     if not wiring:
         errors.append(f"{adr_path.name}: Wiring & Contract Changes empty "
                       f"(write 'None — implementation-internal only' if true)")
-    for ln in secs.get("Out of Scope", []):
-        s = ln.strip()
-        if s.startswith("- ") and not _carries_a_disposition(s):
+    for s in scope_bullets(secs.get("Out of Scope", [])):
+        if not _carries_a_disposition(s):
             errors.advise(f"{adr_path.name}: Out of Scope entry needs a disposition — "
                           f"'(permanent[: why])' or '(deferred: <pointer>)': {s[:70]}")
     spec = header_val(text, "Spec")

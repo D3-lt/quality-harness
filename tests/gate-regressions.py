@@ -1305,21 +1305,49 @@ def main():
     # nested paren is accepted, a bullet with no disposition is still named, and
     # a balanced parenthetical that does not END the bullet is not a disposition.
     def dispositions(*bullets):
-        errs = lint.Findings()
-        text = "## Out of Scope\n\n" + "\n".join(bullets) + "\n"
-        for ln in lint.sections_of(text).get("Out of Scope", []):
-            stripped = ln.strip()
-            if stripped.startswith("- ") and not lint._carries_a_disposition(stripped):
-                errs.advise(stripped)
-        return [str(a) for a in errs.advice]
+        """Out of Scope findings from the REAL gate, not a reimplementation of it.
+
+        This used to mirror check_adr's loop here, which is how a test comes to
+        assert something the gate does not do: the mirrored copy read raw lines,
+        so a wrapped bullet was judged on its first line in the test exactly as it
+        was in the gate, and both agreed while both were wrong.
+        """
+        body = ("# ADR-999: probe\n\n**Status:** Proposed\n\n"
+                "## Alternatives Considered\n\n- A: rejected because b.\n\n"
+                "## Wiring & Contract Changes\n\nNone — implementation-internal only.\n\n"
+                "## Out of Scope\n\n" + "\n".join(bullets) + "\n")
+        with tempfile.TemporaryDirectory() as probe_dir:
+            probe = Path(probe_dir) / "ADR-999-probe.md"
+            probe.write_text(body, encoding="utf-8")
+            errs = lint.Findings()
+            lint.check_adr(probe, errs)
+        return [str(a) for a in errs.advice if "disposition" in str(a)]
 
     assert dispositions("- Renaming it (permanent: the `archive()` helper keeps originals)") == [], (
         "a nested paren inside a disposition is still a disposition")
-    assert dispositions("- Renaming it") == ["- Renaming it"], (
-        "and a bullet with no disposition is still named")
-    assert dispositions("- Renaming it (permanent: why) (see also)") == [
-        "- Renaming it (permanent: why) (see also)"], (
-        "a disposition that does not end the bullet is not one, and never was")
+    named = dispositions("- Renaming it")
+    assert any("Renaming it" in a for a in named), (
+        f"and a bullet with no disposition is still named: {named}")
+    named = dispositions("- Renaming it (permanent: why) (see also)")
+    assert any("see also" in a for a in named), (
+        f"a disposition that does not end the bullet is not one, and never was: {named}")
+
+    # A DISPOSITION MAY WRAP. Reported 2026-08-29 from an adopting corpus and
+    # confirmed the same hour on this project's own ADR-012, whose Out of Scope
+    # bullets wrap: reading these line by line saw `(deferred: each` with no
+    # closing paren and reported "needs a disposition" about well-formed Markdown.
+    # The rule was already decided one gate over — `adr-judge::bullets` does this
+    # and its docstring says why, dated 2026-08-27 — and was never carried here.
+    assert lint.scope_bullets(["- A (deferred:", "  notes.md)"]) == ["- A (deferred: notes.md)"]
+    assert lint.scope_bullets(["- A (permanent: why)", "", "Loose prose after a blank line."]) == [
+        "- A (permanent: why)"], "a blank line ends the bullet, as Markdown says it does"
+    assert lint.scope_bullets(["- A (permanent: why)", "Unindented prose."]) == [
+        "- A (permanent: why)"], "and so does an unindented line"
+    assert lint.scope_bullets(["- one", "- two"]) == ["- one", "- two"], "two bullets stay two"
+    assert dispositions("- A wrapped one (deferred:", "  docs/BACKLOG.md)") == [], (
+        "a disposition split across a wrap is still a disposition")
+    assert dispositions("- A wrapped one with no disposition", "  and more of it"), (
+        "and a wrapped bullet that really has none is still named")
 
     # `Invalidates:` takes the LEADING token and ignores the prose after it.
     # Every real value in this corpus is either `none — checked. ADR-003 governs

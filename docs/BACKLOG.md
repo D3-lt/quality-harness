@@ -2045,8 +2045,24 @@ is a fact about this corpus rather than a general one. Every decision in it is a
 campaign already mutates. A corpus of "we chose Postgres" decisions would answer `None` far more
 often, and ADR-009 is explicit that this is a first-class answer.
 
-**Still open:** resolving a `§NN` fragment in `Cross-references:` to a heading in the file it names.
-ADR-011 resolves the file and leaves the fragment alone rather than guessing at it.
+**CLOSED 2026-08-29 — the fragment resolves too.** `section_fragments` pairs each `§NN` with the
+path cited beside it (a bare `§45` inherits the file from the item before it, which is how every
+multi-section citation in this corpus is written) and `has_section` looks for a heading numbering it.
+A fragment with no path ahead of it resolves to nothing and is dropped rather than guessed at.
+
+Two distinctions were kept rather than assumed, and both are asserted:
+
+- **`§4` must not match `## 44`.** A prefix test blesses exactly the citation most likely to be a
+  typo for the section beside it. `has_section` requires a word boundary after the digits, and
+  `## 34 (superseded).` is why the punctuation after them is not required.
+- **A tracked file this process cannot read is COULD NOT LOOK, not a missing section** (ADR-005).
+  The advice says so in those words, and the two branches are asserted separately.
+
+Advice throughout, like every other pointer finding. Enforced-by: `tests/gates.test.mjs::focused
+false-green regressions remain closed` (which runs `tests/gate-regressions.py`), and three catalogue
+entries — `adr-lint: a section number is a whole number, not a prefix`, `adr-lint: a cited section
+that does not exist is named`, `adr-lint: a bare fragment inherits the file cited beside it` — all
+RED. **§44 is now closed in full.**
 
 ## 45. CLOSED 2026-08-29 — a `Governs:` path that names nothing is now reported
 

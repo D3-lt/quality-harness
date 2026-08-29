@@ -1412,15 +1412,6 @@
       "to": "'.filter(x=>x.m);',"
     },
     {
-      "label": "link: a forwarder that cannot find the plugin still exits 0",
-      "file": "plugin/scripts/standalone-link.mjs",
-      "tests": [
-        "tests/standalone-link.test.mjs"
-      ],
-      "from": "    '  exit 0',\n    'fi',",
-      "to": "    '  exit 1',\n    'fi',"
-    },
-    {
       "label": "link: the Windows forwarder is written with CRLF",
       "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
@@ -2013,6 +2004,15 @@
       ],
       "from": "      .filter(entry => entry.isFile() && !entry.name.includes('.'))",
       "to": "      .filter(entry => !entry.name.includes('.'))"
+    },
+    {
+      "label": "link: a forwarder that could not run the gate does not exit 0",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    '  exit 4',",
+      "to": "    '  exit 0',"
     },
     {
       "label": "next: a human sign-off that says stop is not done",

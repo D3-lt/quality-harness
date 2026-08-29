@@ -87,18 +87,45 @@ test('a forwarder pins no version, which is the whole point of it', () => {
   }
 })
 
-test('a forwarder reports a missing plugin and still exits 0', { skip: process.platform === 'win32' }, () => {
-  // The harness failing to run is never a finding about the user's file. A
-  // non-zero here would make a project's own gate fail because a tool is
-  // absent, which is the block this harness spent a release removing.
+test('a forwarder that could not run the gate does not report a pass', { skip: process.platform === 'win32' }, () => {
+  // THIS TEST USED TO ASSERT THE DEFECT, and its comment carried the reasoning
+  // that produced it: "the harness failing to run is never a finding about the
+  // user's file. A non-zero here would make a project's own gate fail because a
+  // tool is absent, which is the block this harness spent a release removing."
+  //
+  // That is CLAUDE.md §3 applied one level too far. §3 is about a gate that RAN
+  // and found problems — it advises rather than refusing. A gate that could not
+  // run has made NO observation, and in a shell `exit 0` is an observation.
+  // Reported 2026-08-29 by a session running these gates elsewhere, with a
+  // fixture: `adr-lint <record> && <the rest>` — the shape this project's own
+  // task template encourages — sees success and CONTINUES, `adr-verify` records
+  // exit 0 against the task, and the diagnostics went to stderr where nothing
+  // reads them back. A tool-written false PASS in a Verification Log, from the
+  // layer that exists to prevent exactly that.
+  //
+  // 4 is this repository's own "could not check" code, set by ADR-005 in
+  // spec-verify. adr-verify already answered the same question one file over:
+  // a zero exit that scored no tests is recorded as exit 1, because a filter
+  // matching nothing is not a passing gate.
   const directory = home()
   const script = path.join(directory, 'adr-lint')
   writeFileSync(script, forwarderScript('adr-lint', path.join(directory, 'empty')))
   chmodSync(script, 0o755)
   try {
-    const run = spawnSync(script, [], { encoding: 'utf8', env: { ...process.env, HOME: directory } })
-    assert.equal(run.status, 0, run.stderr)
-    assert.match(run.stderr, /nothing is blocked/)
+    const env = { ...process.env, HOME: directory }
+    const run = spawnSync(script, [], { encoding: 'utf8', env })
+    assert.equal(run.status, 4, `could-not-run has its own code, not 0:\n${run.stderr}`)
+    assert.match(run.stderr, /did NOT run/, run.stderr)
+    assert.match(run.stderr, /not a pass/, run.stderr)
+    assert.doesNotMatch(run.stderr, /nothing is blocked/,
+      '"nothing is blocked" is a decision, not a description — the gate not running IS the condition')
+
+    // THE CONSEQUENCE, asserted rather than inferred from the exit code. This is
+    // the shape that fabricated the evidence, and it is what has to stop working.
+    const fence = spawnSync('sh', ['-c', `"${script}" && echo CONTINUED`], { encoding: 'utf8', env })
+    assert.doesNotMatch(fence.stdout, /CONTINUED/,
+      `an acceptance fence must not continue past a gate that never ran:\n${fence.stdout}`)
+    assert.notEqual(fence.status, 0, 'and the fence itself must not exit 0')
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }

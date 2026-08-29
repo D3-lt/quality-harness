@@ -72,12 +72,29 @@ export function forwarderScript(gate, homeDirectory = os.homedir()) {
     `cache="${cache}"`,
     `root=$(node -e '${RESOLVER}' "$cache" 2>/dev/null)`,
     'if [ -z "$root" ]; then',
-    '  echo "quality-harness: no installed plugin under $cache, so this gate did not run." >&2',
-    '  echo "quality-harness: nothing is blocked; install or update the plugin." >&2',
-    // A missing plugin is the harness failing to run, never a finding about the
-    // user's file. Exiting non-zero here would make a project's own gate fail
-    // because a tool is absent, which is the block this harness removed.
-    '  exit 0',
+    '  echo "quality-harness: no installed plugin under $cache, so this gate did NOT run." >&2',
+    '  echo "quality-harness: this is not a pass - an absent checker certifies nothing." >&2',
+    '  echo "quality-harness: install or update the plugin, then re-run." >&2',
+    // EXIT 4, NOT 0, AND THE COMMENT THAT USED TO SIT HERE WAS WRONG. It read:
+    // "a missing plugin is the harness failing to run, never a finding about the
+    // user's file. Exiting non-zero would make a project's own gate fail because
+    // a tool is absent, which is the block this harness removed." That is
+    // CLAUDE.md §3 applied one level too far. §3 is about a gate that RAN and
+    // found problems — it advises rather than refusing. A gate that could not run
+    // has made no observation at all, and in a shell `exit 0` IS an observation:
+    // reported 2026-08-29 with a fixture, `adr-lint <record> && go test ./...`
+    // — the shape this project's own task template encourages — sees success and
+    // CONTINUES. `adr-verify` then records exit 0 against the task, and the two
+    // diagnostic lines went to stderr, which nothing reads back. A tool-written
+    // false PASS in a Verification Log, produced by the layer that exists to
+    // prevent exactly that.
+    //
+    // 4 is this repository's own code for "could not check", set by ADR-005 in
+    // spec-verify: "4 is reached only when nothing observed failed - as far as I
+    // could check, and I could not check everything." The precedent one file over
+    // already answered this: adr-verify records a zero exit that scored no tests
+    // as exit 1, because a filter matching nothing is not a passing gate.
+    '  exit 4',
     'fi',
     `exec "$root/bin/${gate}" "$@"`,
     '',
@@ -96,9 +113,12 @@ export function forwarderCmd(gate, homeDirectory = os.homedir()) {
     'set "QH_ROOT="',
     `for /f "usebackq delims=" %%r in (\`node -e "${RESOLVER.replaceAll('"', '\\"')}" "%QH_CACHE%"\`) do set "QH_ROOT=%%r"`,
     'if not defined QH_ROOT (',
-    '  echo quality-harness: no installed plugin under %QH_CACHE%, so this gate did not run.>&2',
-    '  echo quality-harness: nothing is blocked; install or update the plugin.>&2',
-    '  exit /b 0',
+    '  echo quality-harness: no installed plugin under %QH_CACHE%, so this gate did NOT run.>&2',
+    '  echo quality-harness: this is not a pass - an absent checker certifies nothing.>&2',
+    '  echo quality-harness: install or update the plugin, then re-run.>&2',
+    // Same code as the sh forwarder, for the same reason. A Windows fence chains
+    // with `&&` exactly as a POSIX one does.
+    '  exit /b 4',
     ')',
     // The py launcher first: a Windows Python is `python.exe`, so `python3` —
     // the name the gate's shebang asks for — often does not exist there.

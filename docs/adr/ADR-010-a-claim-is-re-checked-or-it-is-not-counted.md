@@ -32,6 +32,9 @@ world in which it still passes.
 Same shape as BACKLOG §45, found the same day: a `Governs:` path that stopped resolving, with every
 gate green. §45 stays open and is **re-deferred** below — it is about a pointer that names nothing,
 this is about a command that no longer passes, and one does not close the other.
+(§45 CLOSED 2026-08-29 by ADR-011, which resolves declared paths against `git ls-files`. The
+sentence above is kept as written because it is what was true when this record was accepted, and
+the distinction it draws still holds: closing §45 did not close this record's claim.)
 
 The corpus holds **0 superseded and 0 unrunnable claims today**, which is why F-17 exists: two of the
 four buckets would never fire on real input and would ship as decoration.
@@ -147,7 +150,7 @@ Three tasks in `tasks/`. See `tasks/README.md`.
 Inherited from docs/specs/2026-08-28-a-claim-that-stopped-being-true.md §Non-Goals; delta:
 
 - Wiring the sweep into `scripts/selftest.sh`. (permanent: selftest is the fast per-commit gate and must stay fast; the sweep belongs in CI and in a maintainer's hands.)
-- Resolving `Governs:`, `Cross-references:` or `Invalidates:` against the tree. (deferred: docs/BACKLOG.md §45)
+- Resolving `Governs:`, `Cross-references:` or `Invalidates:` against the tree. (deferred: docs/BACKLOG.md §45 — CLOSED there 2026-08-29 by ADR-011; the deferral is kept as written because it was this record's scope at the time)
 - Re-recording evidence for records whose fences are correct but whose digests predate a fence edit. (permanent: there are none — 0 superseded today — and `adr-lint` already refuses `done` on that state.)
 - Repairing the 12 existing task fences whose `\| tee`-and-`grep` form can pass with the runner absent, and the task template that recommends it. (deferred: docs/BACKLOG.md §46)
 

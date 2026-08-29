@@ -2358,6 +2358,41 @@ for the reason this entry gives and one ADR-011 adds — a blocking version woul
 entire corpus for the two days after ADR-008 moved the tree, during which nothing was wrong with any
 record.
 
+### 2026-08-29 — the receipt, and the class of pointer nobody was resolving
+
+Closing an entry does not update the sentences elsewhere that describe it as open. `CLAUDE.md` §1
+still read "BACKLOG §45 carries the gate that would have caught it" — present tense, pointing a
+reader at a gap that had been filled the same day. §41 already names why that matters: an entry
+nobody receipts decays into a to-do list that re-proposes finished work, and this is the same decay
+one level out, in the file that tells a new session how this repository works.
+
+The class is **a live pointer to a backlog section whose heading now says CLOSED, FIXED, DECIDED or
+WITHDRAWN**, and it was enumerated with a command rather than from memory: for every `§NN` in every
+tracked file outside `docs/BACKLOG.md`, resolve `NN` to its `## NN.` heading and print the pair when
+the heading carries one of those four words (or resolves to no section at all).
+
+It returned 102 references across 36 files (counted after the three repairs below, which left
+their pointers in place and only changed what they claim). Almost all are correct by construction — a test named
+for the defect it pins, a gate comment citing the entry that produced it, a record's
+`Cross-references:`. A pointer to a closed entry is only wrong when it asserts, in the present
+tense, that the work is outstanding. Three did:
+
+- `CLAUDE.md` §1 — rewritten to say the gate exists and what closed it.
+- `ADR-010`'s Context — "§45 stays open and is re-deferred below". Kept as written, because it was
+  true when the record was accepted, with a bracketed note recording the close and confirming the
+  distinction it draws still holds.
+- The three `(deferred: docs/BACKLOG.md §45)` dispositions in ADR-010 and its T1/T3 — annotated
+  `CLOSED there 2026-08-29 by ADR-011`, the convention ADR-011 already established for its own §44
+  deferral.
+
+Two references resolve to `§9999`, which is `tests/gate-regressions.py` asserting the *absent*-section
+behaviour on a fixture. Those are the check working, not a rot.
+
+**Not turned into a gate, deliberately.** A check would have to distinguish "asserts this is still
+open" from "cites the entry that closed it", and that is a judgement about a sentence, not about a
+pointer — the same reason §45's own check resolves paths and says nothing about prose. The sweep
+above is cheap, it is written down here, and re-running it is a maintainer's job at release time.
+
 ## 46. CLOSED 2026-08-28 — an acceptance fence that passed when its runner never started
 
 **CLOSED 2026-08-28.** The template now recommends `set -o pipefail` and `&&`; the ten fences that

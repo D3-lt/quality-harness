@@ -133,7 +133,7 @@ is the owner's decision, not this task's.
 ## Out of Scope
 
 - Repairing anything the sweep does not name. A fence that still passes is not this task's business, even if it looks fragile.
-- Adding a check that fences stay in step with moved paths. (deferred: docs/BACKLOG.md §45)
+- Adding a check that fences stay in step with moved paths. (deferred: docs/BACKLOG.md §45 — CLOSED there 2026-08-29 by ADR-011; the deferral is kept as written because it was this record's scope at the time)
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->

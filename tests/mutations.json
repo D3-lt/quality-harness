@@ -2,7 +2,7 @@
   "_comment": [
     "The killing mutations named in docs/TEST-PLAN.md, made runnable by scripts/mutate.mjs.",
     "Each entry is a claim: break this, and THAT suite must stop passing.",
-    "`from` must match exactly once \u2014 a mutation matching zero or many times no longer",
+    "`from` must match exactly once — a mutation matching zero or many times no longer",
     "describes the code, is reported STALE, and fails the run. That is deliberate: a",
     "mutation nobody has re-read is the same kind of stale record as a task list kept",
     "beside the tasks.",
@@ -42,8 +42,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha256:{digest}\")",
-      "to": "    entry = (f\"- {today} \u00b7 {sha} \u00b7 exit {code} \u00b7 `{first}` \u00b7 \"\n             f\"acceptance-sha:{digest}\")"
+      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest}\")",
+      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest}\")"
     },
     {
       "label": "evidence: the dirty-tree marker",
@@ -195,7 +195,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        passing = [b for b in entries if \"\u00b7 exit 0 \u00b7\" in b]",
+      "from": "        passing = [b for b in entries if \"· exit 0 ·\" in b]",
       "to": "        passing = list(entries)"
     },
     {
@@ -546,7 +546,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        + 'Nothing is blocked \u2014 this is what the gate sees before you commit.')",
+      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.')",
       "to": "        + 'This commit is blocked until the check runs.')"
     },
     {
@@ -1291,7 +1291,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} \u00b7 .*\u00b7 exit 0\\b/m.test(text)\n  })",
+      "from": "    return !/^- \\d{4}-\\d{2}-\\d{2} · .*· exit 0\\b/m.test(text)\n  })",
       "to": "    return false\n  })"
     },
     {
@@ -1435,7 +1435,7 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed \u2014 it may be your own' }",
+      "from": "  return sameLineage(target, entry.source ?? entry.target, lineage)\n    ? { ok: true, why: 'a drifted copy of this same file' }\n    : { ok: false, why: 'not a file this plugin installed — it may be your own' }",
       "to": "  return { ok: true, why: 'a drifted copy of this same file' }"
     },
     {
@@ -1463,7 +1463,7 @@
         "tests/lifecycle.test.mjs"
       ],
       "from": "  return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `",
-      "to": "  return `A second copy of this toolkit has drifted from the plugin \u2014 `"
+      "to": "  return `A second copy of this toolkit has drifted from the plugin — `"
     },
     {
       "label": "link: the original is archived before it is replaced",
@@ -1705,8 +1705,8 @@
       "tests": [
         "tests/skill-contract.test.mjs"
       ],
-      "from": "- **A control that refuses nobody** \u2014 an authorization check, a healthcheck, an engine",
-      "to": "- **A control** \u2014 an authorization check, a healthcheck, an engine"
+      "from": "- **A control that refuses nobody** — an authorization check, a healthcheck, an engine",
+      "to": "- **A control** — an authorization check, a healthcheck, an engine"
     },
     {
       "label": "skills: mutation-audit says to break the control, not the guarded code",
@@ -1795,8 +1795,8 @@
       "tests": [
         "tests/judge-rules.test.mjs"
       ],
-      "from": "        headline = (f\" \u2014 evidence and clarity rules pass; {len(empty)} rule(s) had nothing to judge\")",
-      "to": "        headline = \" \u2014 evidence and clarity rules all pass\""
+      "from": "        headline = (f\" — evidence and clarity rules pass; {len(empty)} rule(s) had nothing to judge\")",
+      "to": "        headline = \" — evidence and clarity rules all pass\""
     },
     {
       "label": "fixture: a Windows path is made YAML-safe",
@@ -1957,8 +1957,8 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "                     r\" (?:\u2192|->) `([^`]+)`(?: +cmd:`([^`]+)`)?\\s*$\")",
-      "to": "                     r\" (?:\u2192|->) `([^`]+)`()\\s*$\")"
+      "from": "                     r\" (?:→|->) `([^`]+)`(?: +cmd:`([^`]+)`)?\\s*$\")",
+      "to": "                     r\" (?:→|->) `([^`]+)`()\\s*$\")"
     },
     {
       "label": "package: a real home path in a tracked file is named",
@@ -1984,7 +1984,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if passing and entries and \"\u00b7 exit 0 \u00b7\" in entries[0] and not inf[\"human\"] and not killed:",
+      "from": "        if passing and entries and \"· exit 0 ·\" in entries[0] and not inf[\"human\"] and not killed:",
       "to": "        if False:"
     },
     {
@@ -2335,7 +2335,7 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    r\"`[^`]+` \u00b7 acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)",
+      "from": "    r\"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})\\s*$\", re.M)",
       "to": "    r\"`[^`]*`.*?acceptance-sha256:(?P<digest>[0-9a-f]+)\\s*$\", re.M)"
     },
     {
@@ -2832,6 +2832,15 @@
       ],
       "from": "        if not os.path.exists(path):\n            raise GateDidNotRun(\"could not run: no such path {}\".format(path))",
       "to": "        if False:\n            raise GateDidNotRun(\"could not run: no such path {}\".format(path))"
+    },
+    {
+      "label": "lint: step 1 is judged by whether it establishes RED, not by the word 'test'",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    elif not re.search(r\"\\b(tests?|red|fail(s|ed|ing|ure)?)\\b\", steps[0], re.I):",
+      "to": "    elif \"test\" not in steps[0].lower():"
     }
   ]
 }

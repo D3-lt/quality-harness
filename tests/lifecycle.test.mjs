@@ -2507,6 +2507,83 @@ test('a Proposed record has no ready tasks, and the router says why it stopped c
   assert.equal(withDraft.records, 2, 'and `records` still means what it meant')
 })
 
+test('a date-named record is read, and a docs/adr that yields nothing says so', async () => {
+  // docs/BACKLOG.md §55, reported 2026-08-29 by the infrastructure-06 session
+  // against a corpus of 56 date-named records, and reproduced here: the same
+  // bytes are a record as `0001-thing.md` and invisible as `2026-08-17-thing.md`,
+  // because ADR_FILE's negative lookahead excluded every ISO-dated filename. That
+  // lookahead was added for a real defect — `2026-03-08-retrospective.md` read as
+  // ADR-2026 — so the fix is a CONTENT probe, not a wider pattern.
+  //
+  // The worse half is what the reader then SAID: "Nothing in the corpus is
+  // waiting on a lifecycle stage" over 24 unfinished task files. `unreadable`
+  // could not catch it, because a file must be opened before it can be classed
+  // unopenable — the safety net sat downstream of the miss (ADR-005: a filter
+  // that matched nothing is "I could not look", never "the thing is absent").
+  const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
+  const { adrCorpus } = await import('../plugin/scripts/lifecycle.mjs')
+  const root = await mkdtemp(path.join(testTmp, 'quality-dated-'))
+  const record = title => `# ${title}\n\n**Status:** Accepted\n\n## Context\n\nx\n`
+  const task = '# Task T1\n\n**Depends-on:** none\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n'
+
+  await mkdir(path.join(root, 'docs', 'adr', '2026-08-17-dated', 'tasks'), { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', '2026-08-17-dated.md'), record('A dated decision'))
+  await writeFile(path.join(root, 'docs', 'adr', '2026-08-17-dated', 'tasks', 'T1.md'), task)
+  // Without one exit-0 row somewhere the reader treats the corpus as recording
+  // evidence some other way and skips every execution stage — which would make
+  // the assertions below pass for a reason unrelated to discovery.
+  await writeFile(path.join(root, 'docs', 'adr', '2026-08-17-dated', 'tasks', 'T9.md'),
+    '# Task T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n\n'
+    + '- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n')
+
+  assert.deepEqual(adrCorpus(root).map(r => path.basename(r.file)), ['2026-08-17-dated.md'],
+    'a record named by date is still a record')
+  const dated = observe(root)
+  assert.deepEqual(dated.ready.map(file => path.basename(file)), ['T1.md'],
+    `its task is ready:\n${JSON.stringify(dated.ready)}`)
+  assert.equal(nextStage(dated).id, 'adr-execute')
+
+  // The must-fail direction (CLAUDE.md §4), in both of its forms. Accepting every
+  // .md under docs/adr would satisfy the assertions above and re-open the defect
+  // the lookahead was added for. Neither of these is a record: one carries no
+  // status, and the second carries `**Status:** Accepted` while being the exact
+  // journal entry that became "ADR-2026" on 2026-08-26 — a status line alone
+  // cannot be the test.
+  await writeFile(path.join(root, 'docs', 'adr', '2026-03-08-retrospective.md'),
+    '# Retrospective\n\nWhat we learned.\n')
+  await writeFile(path.join(root, 'docs', 'adr', '2026-03-09-journal.md'),
+    '# Journal\n\n**Status:** Accepted\n\nNotes from the week.\n')
+  assert.deepEqual(adrCorpus(root).map(r => path.basename(r.file)), ['2026-08-17-dated.md'],
+    'a dated document is a record only when it also says what was decided')
+
+  // And the sentence that makes the next instance self-diagnosing. A corpus the
+  // record walker cannot read at all must SAY so: two walkers over one corpus
+  // disagreeing (tasks found, records zero) is provable from the numbers alone,
+  // without knowing which rule missed.
+  const blind = await mkdtemp(path.join(testTmp, 'quality-blind-'))
+  await mkdir(path.join(blind, 'docs', 'adr', 'thing', 'tasks'), { recursive: true })
+  await writeFile(path.join(blind, 'docs', 'adr', 'thing', 'tasks', 'T1.md'), task)
+  const { main: workNextMain } = await import('../plugin/scripts/work-next.mjs')
+  const capture = fn => {
+    const written = []
+    const real = process.stdout.write.bind(process.stdout)
+    process.stdout.write = chunk => { written.push(String(chunk)); return true }
+    try { fn() } finally { process.stdout.write = real }
+    return written.join('')
+  }
+  const said = capture(() => workNextMain([blind]))
+  assert.match(said, /discovery failure rather than an empty corpus/,
+    `a corpus with tasks and no records must say it could not read them:\n${said}`)
+  assert.doesNotMatch(said, /Nothing in the corpus is waiting/,
+    'and must not also call it finished')
+  // Must-fail direction: the sentence is about a corpus with tasks, not every
+  // corpus. An empty tree still reads as empty.
+  const empty = await mkdtemp(path.join(testTmp, 'quality-empty-'))
+  assert.doesNotMatch(capture(() => workNextMain([empty])), /discovery failure/,
+    'an actually empty corpus is not reported as a discovery failure')
+})
+
 test('adr-context answers which decisions govern a path, and which were killed there', async () => {
   // Called IN-PROCESS, not spawned. adr-state beside it is exercised by
   // spawnSync, which parent-process coverage cannot see — and this resolver is

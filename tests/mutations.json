@@ -1138,7 +1138,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (owns && Number(owns[1]) === number) {",
+      "from": "    if ((owns && Number(owns[1]) === number) || entry.name === stem) {",
       "to": "    if (false) {"
     },
     {
@@ -2850,6 +2850,15 @@
       ],
       "from": "    .filter(name => !/[\\\\/]|\\.(mjs|js|py|cjs)$/.test(name))",
       "to": "    .filter(() => true)"
+    },
+    {
+      "label": "corpus: a record is found by content when its filename does not announce it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory))) {",
+      "to": "          && ADR_FILE.test(entry.name)) {"
     }
   ]
 }

@@ -2895,15 +2895,83 @@ either is present; and give the two paths the timeout the sweep already has, rep
 rather than as a failing check (ADR-005 — a gate that could not run has not found anything). That is
 a decision about evidence grammar, which is ADR territory rather than a patch.
 
-**Also reported and NOT reproduced — recorded so the next reader does not chase it.** The same
-session reported `work-next` promoting a `Proposed` record's tasks. That is docs/BACKLOG.md §48,
-closed 2026-08-29 and shipped in v2.31.0: `plugin/scripts/work-next.mjs` joins each task to its
+**Also reported, and the first half of this paragraph was WRONG — see §55.** The same session
+reported `work-next` promoting a `Proposed` record's tasks. The §48 machinery is indeed shipped and
+correct, but it is INERT on their corpus: the reader never opened those records at all, so on 2.34.1
+the false-positive banner became a false ALL-CLEAR. They caught my error by re-running both versions
+and I confirmed it here. What follows is what was written before that, kept because the §48 half of
+it is accurate: that is docs/BACKLOG.md §48, closed 2026-08-29 and shipped in v2.31.0: `plugin/scripts/work-next.mjs` joins each task to its
 owning record and treats only `Accepted` as executable. Their run predates the fix or resolves an
 older installed copy — CLAUDE.md §2's two staleness traps. Their second item, `work-next` re-offering
 work finished in July, is **working as contracted**: `unfinished()` asks whether the task file
 carries a tool-written exit-0 evidence row, so a task completed without `adr-verify` evidence is
 invisible as completed. That is the contract this project exists to enforce, and the honest answer
 to them is that the corpus never recorded the completion, not that the reader is wrong.
+
+## 55. CLOSED 2026-08-29 — a corpus the reader could not open, reported as a corpus with nothing in it
+
+**Reported by the infrastructure-06 session** against a 56-record ansible corpus, and **reproduced
+here on identical bytes under two filenames** before anything was changed:
+
+    docs/adr/0001-thing.md        → 1 record(s), 1 accepted, its task is ready
+    docs/adr/2026-08-17-thing.md  → 0 record(s), 0 accepted, 1 task file(s) — "Next: /spec-write"
+
+Same content, same `**Status:** Accepted`. `ADR_FILE`'s negative lookahead excludes every ISO-dated
+filename, so a corpus that names its records by date produced zero records — and the reader then
+routed the session to **write a spec for work already decided**, over two dozen unfinished task
+files. The reporting session measured 0 of 56 basenames matching.
+
+**The regex is the trigger; the reported sentence is the defect.** `unreadable` — the list that names
+records whose STATUS this reader cannot act on — structurally cannot catch this, because a file must
+be OPENED before it can be classed unopenable. The safety net sat downstream of the miss. That is
+ADR-005's rule broken in this project's own router: a filter that matched nothing said "there is
+nothing" when the honest answer was "I could not look".
+
+**Two discovery rules over one corpus is what let it happen silently.** `taskFiles()` finds tasks by
+PATH (anything under a `tasks/` directory) and found 24; records were found by FILENAME and found 0.
+Nothing compared the two, so "0 records, 24 task files" printed as a coherent reading.
+
+### Fixed in three parts, and the third is the one that generalises
+
+1. **Discovery gained a content probe.** Inside an `adr` directory a file is a record if it carries a
+   Status line AND a `## Context` or `## Decision` section, whatever it is called; the filename
+   pattern stays as the fast path. Both conditions are needed: this repository's own fixture
+   `2026-03-08-retrospective.md` carries `**Status:** Accepted` and is the exact journal-read-as-
+   ADR-2026 defect the lookahead was added for on 2026-08-26, so a status-only probe would have
+   re-opened it. Task files are excluded by PATH, because a `tasks/README.md` may well acquire a
+   status line and is never a decision.
+2. **Task ownership gained the stem.** A record found by content still reported zero tasks:
+   `taskDirectoriesFor` matched a sibling directory by ADR NUMBER only, so `2026-08-17-thing.md`
+   beside `2026-08-17-thing/tasks/` owned nothing. An exact stem match cannot bind the wrong
+   directory the way a loose numeric prefix could.
+3. **A corpus with tasks and no records now says so, before any stage is named.** Two walkers over
+   one corpus disagreeing is provable from the numbers alone without knowing which rule missed —
+   tasks > 0 with records = 0 is a discovery failure, not an empty corpus. Printed regardless of the
+   stage, which is the part that matters: the reporting corpus WAS given a stage (`/spec-write`), so
+   a message that only fired when the router went quiet would have stayed silent on the very case it
+   exists for.
+
+**Verified against the reporter's data rather than against a guess.** They enumerated their corpus at
+my request: 0 of 56 postmortems, 0 of 3 runbooks and 0 of 1 spec carry a Status line; inside
+`docs/adr`, 31 of 56 `.md` files carry none and every one is a non-record (24 task files, 3
+`tasks/README.md`, an index, a research note, a `.queries.md` evidence companion); the 25 that do are
+18 Accepted, 5 Proposed, 2 Superseded. They also flagged the fragility that made part 1 take two
+conditions instead of one: those three record-SHAPED non-records self-exclude today only because
+nobody happened to give them a Status line.
+
+Enforced by `tests/lifecycle.test.mjs::a date-named record is read, and a docs/adr that yields
+nothing says so`, which asserts the dated record IS read, its task IS ready, a dated document with no
+status is NOT a record, a dated document with a status but no Context/Decision is NOT a record, the
+discovery-failure sentence fires, and — the must-fail direction — an actually empty corpus is not
+reported as a discovery failure. Catalogue entries `corpus: a record is found by content when its
+filename does not announce it` and the repaired `corpus: tasks resolve from the directory named for
+the record`.
+
+**What this cost to find, and it is the entry's real lesson.** The defect shipped 2026-08-26 and was
+invisible here for three days because this repository names every record `ADR-NNN-…`. A dogfood
+corpus tests the conventions its authors already use. The reporting session ran the same tool over a
+corpus shaped differently and the defect was immediate — which is the second time in one day that a
+foreign reader found something CI could not (docs/BACKLOG.md §52 was the first).
 
 ## Verification claims worth re-running after any of the above
 

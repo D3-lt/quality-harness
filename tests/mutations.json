@@ -2454,6 +2454,15 @@
       ],
       "from": "        elif not any(path_matches_declaration(f, declaration) for f in tracked):",
       "to": "        elif False:"
+    },
+    {
+      "label": "state: a Governs declaration that matches nothing is reported unresolved",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "            .filter(declaration => !tracked.some(file => pathMatchesDeclaration(file, declaration)))",
+      "to": "            .filter(() => false)"
     }
   ]
 }

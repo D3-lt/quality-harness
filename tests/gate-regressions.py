@@ -1832,6 +1832,17 @@ def main():
     # An empty or placeholder cell is not a claim, so it is not a finding either.
     for blank in ("", "—", "-"):
         assert not status_advice(blank), f"{blank!r} claims nothing"
+    # A REAL README writes `**done** (2026-07-29) — prose about what happened`,
+    # not a bare token. The first version compared the whole cell and would have
+    # fired on every row of a corpus that writes them that way — caught before
+    # release by a session reporting its README shape while reporting a clean
+    # negative on something else. A check that fires on every row is one people
+    # switch off (docs/BACKLOG.md §73).
+    for dressed in ("**done** (2026-07-29) — sshd drop-in split off to T3b (deferred)",
+                    "`blocked` waiting on prod", "_pending_"):
+        assert not status_advice(dressed), f"a dressed status is still its word: {dressed!r}"
+    # And the emphasis must not hide an unrecognised one either.
+    assert status_advice("**partial** — two of thirteen steps"), "emphasis is not an exemption"
     # And a task the reader has no file for is not reported: the status belongs
     # to a row this corpus cannot resolve, which is a different finding.
     errs = lint.Findings()

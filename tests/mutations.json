@@ -3021,6 +3021,15 @@
       ],
       "from": "        target = Path(args[0])",
       "to": "        target = Path('/nonexistent-probe')"
+    },
+    {
+      "label": "lint: a human-observed row is passing evidence for the ignored-path check",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                or \"· human-observed ·\" in ln)",
+      "to": "                or False)"
     }
   ]
 }

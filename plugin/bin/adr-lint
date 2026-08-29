@@ -484,7 +484,18 @@ def check_task(path, all_stems, errors):
     # what it measured, and about a file that ships to nobody (docs/BACKLOG.md
     # §65). Only for an evidenced task, and only for IGNORED — a path that merely
     # does not exist yet is the normal state of a task being written.
-    if any(VLOG_RE.match(ln.strip()) and "· exit 0 ·" in ln
+    # PASSING EVIDENCE, spelled the way the other checks in this gate spell it. A
+    # `· human-observed ·` row is evidence here too: a HUMAN ran the fence against
+    # the same worktree, and this check's whole reasoning is about the worktree —
+    # arguably more so, since a hand-run fence leaves no tool-written record of
+    # what it touched. Reported 2026-08-29 by a session that built a synthetic
+    # positive and found three checks in this file disagreeing about the same
+    # concept: tests-exist and the mutation-log check counted a human-observed row
+    # and this one did not, so relabelling a task to human-observed silently
+    # bought exemption from one check and not the others (docs/BACKLOG.md §69).
+    if any(ln.strip().startswith("- ")
+           and (("· exit 0 ·" in ln and VLOG_RE.match(ln.strip()))
+                or "· human-observed ·" in ln)
            for ln in secs.get("Verification Log", [])):
         named = set()
         for ln in aff:

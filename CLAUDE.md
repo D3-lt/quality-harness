@@ -40,7 +40,8 @@ direction.
 4. **Every `Governs:` header in `docs/adr/`.** On 2026-08-28 the move un-governed the entire corpus:
    seven records named paths that no longer existed, `adr-context` answered "none governs", and
    `adr-lint` passed throughout because `Governs:` is checked for shape and never against the tree.
-   BACKLOG §45 carries the gate that would have caught it.
+   BACKLOG §45 is that gate, and it closed 2026-08-29 with ADR-011: `adr-lint` and `adr-state`
+   now resolve every declared path against `git ls-files` and advise when one matches nothing.
 
 ---
 

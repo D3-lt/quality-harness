@@ -73,6 +73,9 @@ boundary assertion while providing no boundary — the vacuous class CLAUDE.md �
 
 ## Mutation Log
 
+- 2026-08-29 · 46ce66b* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · a gate spawned as a bare path returns status null on Windows, which is neither an error nor a failure · acceptance-sha256:39cf2d0261d6d1649ef582f954211de5203f36da10267da9a0b4e67eb80ffc78
+- 2026-08-29 · 46ce66b* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · each gate reaches tools/list only through its own reading_tool call · acceptance-sha256:39cf2d0261d6d1649ef582f954211de5203f36da10267da9a0b4e67eb80ffc78
+
 ## Invariants
 
 - `tools/list` names exactly five tools.
@@ -90,6 +93,13 @@ Stop and ask if any of the five turns out to spawn something other than `git` wi
 Context table was enumerated 2026-08-29 and a gate that has changed since invalidates the boundary
 this whole record rests on.
 
+**Re-checked before registering anything, 2026-08-29**, with
+`grep -n 'subprocess\.\(run\|Popen\|call\|check_output\)' plugin/bin/adr-lint plugin/bin/adr-debt
+plugin/bin/arch-lint plugin/bin/adr-next plugin/bin/adr-judge`: four call sites across three gates,
+every one a literal `["git", "-C", …]` list (`rev-parse --show-toplevel`, and `ls-files` with and
+without `--others --exclude-standard`); `adr-next` and `adr-judge` spawn nothing at all. The
+boundary the record rests on holds.
+
 ## Out of Scope
 
 - The result vocabulary — that is T3.
@@ -97,3 +107,4 @@ this whole record rests on.
   (deferred: docs/BACKLOG.md §33)
 
 ## Verification Log
+- 2026-08-29 · 46ce66b · exit 0 · `set -o pipefail …` · acceptance-sha256:39cf2d0261d6d1649ef582f954211de5203f36da10267da9a0b4e67eb80ffc78

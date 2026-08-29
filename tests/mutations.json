@@ -2877,6 +2877,15 @@
       ],
       "from": "  const composed = composerScriptCommand(root)",
       "to": "  const composed = null && composerScriptCommand(root)"
+    },
+    {
+      "label": "lint: a BDD test named by a string is found",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        r\"\"\"(['\"`])\"\"\" + re.escape(name) + r\"\"\"\\1\\s*,\"\"\",",
+      "to": "        r\"\"\"(['\"`])\"\"\" + re.escape(name) + r\"\"\"\\1\\s*,ZZZ\"\"\","
     }
   ]
 }

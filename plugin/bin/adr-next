@@ -41,6 +41,16 @@ VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
 VLOG_HUMAN_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · human-observed · (?P<note>.+)$")
+# An entry written before acceptance digests existed. `adr-lint` has always
+# accepted these under a narrow allowance its own help text documents, and
+# `work-next` honours them too; this reader accepted only digest rows, so one
+# corpus answered two ways depending on which tool you asked. Measured on three
+# independent corpora, most precisely at 40/40 correlation with the digest
+# cutover date, with the honest alternative (an Acceptance edited after its
+# evidence) ruled out by git log (docs/BACKLOG.md §58).
+VLOG_LEGACY_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"`(?P<command>[^`]+)`$")
 
 # A human sign-off is the ONE route with no exit code and no fence digest, so the
 # only thing standing between its text and a `done` is how that text is read. It
@@ -146,9 +156,37 @@ def acceptance(text):
     return fence, first, digest
 
 
-def is_done(text, digest, human):
-    """Tool-written evidence only: a typed 'done' is not evidence."""
+def is_done(text, digest, human, fence=None, first=None):
+    """Tool-written evidence only: a typed 'done' is not evidence.
+
+    THREE READERS, ONE GRAMMAR. `adr-lint` accepts a pre-digest row under a
+    narrow allowance it documents in its own help; `work-next` honours the same
+    shape; this reader took digest rows only. So a corpus whose evidence predates
+    digests read as fully executed to two tools and as ENTIRELY UNSTARTED to this
+    one — not "some tasks unverified", but every task ready or blocked behind the
+    first, forever, with no way to clear it. Reported by three independent
+    corpora on 2026-08-29 (docs/BACKLOG.md §58).
+
+    The allowance is deliberately narrow and is copied here condition for
+    condition rather than loosened: the fence must be SINGLE-LINE (a legacy row
+    records only the displayed command, so it cannot prove a multi-line fence),
+    the recorded command must not be the truncated ` …` form, and it must equal
+    the fence's own first line with backticks written as quotes — which is
+    exactly what `adr-verify` displays.
+
+    A BACKFILL WAS THE ALTERNATIVE AND IT IS WORSE. Stamping a digest onto an
+    August row means computing sha256 of TODAY's fence and asserting it is what
+    ran then — manufacturing the provenance the digest exists to prove. One
+    corpus checked five files by hand and found it true there; no tool can know
+    it in general. Where the fences still pass, re-running `adr-verify` is the
+    migration and it is self-healing; where they no longer pass, this allowance
+    is the only reading that does not require a tool to assert what it cannot
+    observe.
+    """
     log = "\n".join(sections(text).get("Verification Log", []))
+    want_legacy = None
+    if fence is not None and first is not None and "\n" not in fence:
+        want_legacy = first.replace("`", "'")
     for line in log.split("\n"):
         line = line.strip()
         if human and (m := VLOG_HUMAN_RE.match(line)):
@@ -159,6 +197,11 @@ def is_done(text, digest, human):
                 return True
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0" and digest and m.group("digest") == digest:
+            return True
+        if want_legacy is not None and (m := VLOG_LEGACY_RE.match(line)) \
+                and m.group("exit") == "0" \
+                and not m.group("command").rstrip().endswith(" …") \
+                and m.group("command").strip() == want_legacy:
             return True
     return False
 
@@ -184,7 +227,7 @@ def load(tasks_dir):
             "produces": header_val(text, "Produces") or "",
             "acceptance": None if human else first,
             "human_observed": human,
-            "done": is_done(text, digest, human),
+            "done": is_done(text, digest, human, fence, first),
         }
     return infos
 
@@ -224,8 +267,9 @@ def foreign_state(pointer, corpus_dir):
                 # by exactly the evidence a local one needs — a matching fence
                 # digest, or an affirmative human sign-off. A second definition
                 # of "done" is how two tools come to disagree about one corpus.
-                _, first, digest = acceptance(text)
-                return ("done" if is_done(text, digest, first == "human-observed")
+                fence, first, digest = acceptance(text)
+                return ("done" if is_done(text, digest, first == "human-observed",
+                                          fence, first)
                         else "pending")
         return "unknown"
     return "unknown"

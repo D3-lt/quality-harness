@@ -2793,6 +2793,68 @@ one for a single case.
 it governs, and see whether the named check goes red. If they all do, this is a foreign finding that
 does not reproduce here and the entry says so.
 
+### PROBED 2026-08-29 — not found in the population these checks enumerate
+
+Enumerated with a command rather than by reading: for every `**Enforced-by:**` header in
+`docs/adr/*.md`, classify each backticked claim as a mutation-catalogue label, a `file::test` name,
+or unresolved. Twelve records, thirteen claims, none unresolved.
+
+**Eleven of thirteen name a mutation catalogue entry**, and that is the whole answer for them. A
+catalogue entry is not a claim that a check covers an artifact — it is a recorded run in which that
+exact line was broken and the named tests went RED. The campaign re-proves it on every run and exits
+1 on a GREEN. For those eleven, "does the named gate's universe contain this artifact" is not
+asserted, it is measured, continuously, by construction.
+
+**The remaining one is ADR-003's**, which names a test rather than a mutation:
+`tests/package.test.mjs::every shipped gate carries at least one mutation`. That is the shape of
+claim agentsmemory found hollow, so it is the one worth probing. Probed by doing what the record says
+makes the suite go red — adding an executable `plugin/bin/` gate with no catalogue entry, running
+`node --test tests/package.test.mjs`, then removing it:
+
+    ✔ what ships is the plugin and nothing else
+    ✖ every shipped gate carries at least one mutation
+
+RED, on the artifact the decision is about, and `git status` clean afterwards. ADR-003's
+`Served-path change` claims precisely this — *"a gate added with no mutation makes the suite go
+red"* — and it is true.
+
+**Why this corpus is less exposed, stated so it can be applied elsewhere:** an `Enforced-by:` naming
+a MUTATION carries its own reachability proof, because a mutation IS a demonstration that the check
+can fail for that artifact. One naming a TEST carries only a name, and a name is unfalsifiable until
+somebody breaks the thing. That is the cheap, actionable form of the agentsmemory finding: **prefer a
+mutation label over a test name in `Enforced-by:`, and where a test name is used, the record owes the
+probe above.**
+
+### The sampling limit — the correction that keeps this entry OPEN
+
+**Taken from the agentsmemory session, 2026-08-29, and it is right.** If they ALL go red, do not
+conclude the finding does not reproduce; conclude the sample was the population the check happens to
+enumerate. Their green case was a conditional `map[string]any` key, which a struct-tag scanner cannot
+see BY CONSTRUCTION — no amount of probing struct fields would ever have found it. So the probe above
+establishes something narrower than "it does not reproduce here": it establishes that ADR-003's check
+goes red for an artifact of the class it enumerates, an executable under `plugin/bin/` with no
+catalogue entry.
+
+**The candidate it cannot rule out, named so somebody can go and look.** ADR-003's decision is that
+every gate must assert something a deleted line breaks. Its check counts whether an entry EXISTS per
+gate. A gate whose entry exists but whose mutation is killed by something OTHER than the assertion it
+names satisfies the check while violating the decision — and that is not hypothetical here: CLAUDE.md
+§4 records a mutation on a containment guard coming back GREEN because a second guard in a caller
+caught the same input. The campaign catches a mutation nothing kills; it does not catch one the wrong
+thing kills. That is this corpus's version of a map key in a struct-tag scanner, and it is unmeasured.
+
+**Their reframing of the template question replaces mine, because it is better:** ask what CLASS the
+named gate enumerates, not whether it covers the artifact. A rung answering "it checks descriptions"
+is still decoration; one answering "it enumerates struct tags, and mine is a map key" is the finding,
+written by the author before anybody has to discover it.
+
+**Left open:** whether `adr-judge` should ask that question, and whether `adr-lint` should advise when
+`Enforced-by:` names a test with no corresponding catalogue entry. The second is mechanical and
+cheap; it is not taken here because it would change a gate on the strength of a foreign finding that
+did not reproduce in the population sampled, which is the wrong order. It becomes worth doing the
+first time a test-named claim in this corpus fails the probe — or when somebody measures the
+wrong-thing-kills-it candidate above.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

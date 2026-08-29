@@ -56,16 +56,26 @@ for _s in (_sys.stdout, _sys.stderr):
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
 TASK_HEADERS = ["Depends-on", "Covers", "Produces", "Consumes"]
+# The sha field of a tool-written entry, in ONE place. It was five literal copies
+# here and a sixth in adr-verify, every one accepting 7 to 40 hex characters — and
+# adr-verify WRITES whatever `git rev-parse --short HEAD` returns, unvalidated.
+# git honours `core.abbrev`, which it allows down to 4, and a SHA-256 repository
+# emits up to 64. Reproduced 2026-08-29 with `core.abbrev=4`: adr-verify wrote
+# `6aaf*` and exited 0, and every reader rejected its own entry — so the sweep
+# dropped the claim from its denominator, flattering the false-success rate, AND
+# adr-lint blocked the `done` row that evidence was written for. Widening an
+# ACCEPTING grammar invalidates nothing: every entry that parsed before parses.
+SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 # Tool-written mutation evidence. Same shape and same purpose as VLOG_RE: an entry
 # off this grammar was typed by a person, and a typed mutant is the thing the log
 # replaced. `killed` is the only verdict that is evidence — see adr-verify --mutant.
 MLOG_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · "
+    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · "
     r"mutant (?:(?:killed · exit [1-9]\d*)|(?:survived · exit 0)|"
     r"(?:inconclusive · exit \d+)) · `[^`]+` · .+?"
     r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
 MLOG_DIGEST_RE = re.compile(
-    r"^- (?P<date>\d{4}-\d{2}-\d{2}) · (?:[0-9a-f]{7,40}\*?|no-git) · "
+    r"^- (?P<date>\d{4}-\d{2}-\d{2}) · " + SHA_FIELD + r" · "
     r"mutant (?P<verdict>killed|survived|inconclusive) · exit (?P<exit>\d+) · "
     r"`[^`]+` · .+? · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
 
@@ -76,13 +86,13 @@ MLOG_DIGEST_RE = re.compile(
 MUTATION_REQUIRED_FROM = "2026-08-22"
 
 VLOG_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · (?:(?:[0-9a-f]{7,40}\*?|no-git) · exit \d+ · `[^`]+`|"
+    r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
     r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?$")
 VLOG_DIGEST_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
 VLOG_LEGACY_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
+    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)`$")
 
 

@@ -683,8 +683,10 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                 pass
 
     digest = acceptance_digest(cmd)
-    entry = (f"- {today} · {git_sha(cwd)} · mutant {verdict} · exit {code} · "
+    sha = git_sha(cwd)
+    entry = (f"- {today} · {sha} · mutant {verdict} · exit {code} · "
              f"`{rel}` · {why.strip()} · acceptance-sha256:{digest}")
+    refuse_unreadable(entry, sha)
     block = entry
     if verdict != "killed":
         block += f"\n  ```\n  {detail}\n  ```"
@@ -703,9 +705,54 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
 # NOT recorded — the entry keeps the fence's first line and a hash of the whole
 # thing — so re-running a claim means running the task's CURRENT fence, and the
 # digest is what says whether that is the same command the entry proved.
+# The sha field, mirrored from adr-lint::SHA_FIELD and pinned to it by
+# tests/gate-regressions.py::SHA_GRAMMAR. 4 to 64 hex is what git can actually
+# produce: `core.abbrev` goes down to 4, and a SHA-256 repository emits 64.
+SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 CLAIM_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · "
+    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit 0 · "
     r"`[^`]+` · acceptance-sha256:(?P<digest>[0-9a-f]{64})\s*$", re.M)
+
+# Every shape this tool writes, as the readers will see it. Kept beside
+# CLAIM_RE so the writer and its own sweep cannot describe an entry
+# differently.
+ENTRY_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
+    r"human-observed · .+|" + SHA_FIELD + r" · mutant \w+ · exit \d+ · `[^`]+` · .+?)"
+    r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
+
+
+def refuse_unreadable(entry, sha):
+    """Refuse to write an entry the readers cannot parse, and say what to do.
+
+    The one place the writer is held to the readers' grammar. Without it, a
+    corpus with an unusual `core.abbrev` gets a log line every gate treats as
+    absent — and a `done` row pointing at absent evidence is a BLOCKING adr-lint
+    finding, so the tool bricks the record it was recording.
+
+    A refusal is the right shape rather than a silent widening: this cannot know
+    whether the reader on the other side has been updated, and writing something
+    it can parse but adr-lint cannot would move the failure one step later.
+    """
+    if readable_entry(entry):
+        return
+    fail(f"refusing to write an entry the evidence grammar cannot read: `{entry}`. "
+         f"The sha field is `{sha}` — git's `core.abbrev` decides its width, and this "
+         f"grammar accepts 4 to 64 hex characters (or `no-git`). Set `core.abbrev` to a "
+         f"width in that range, or update SHA_FIELD in both gates together.")
+
+
+def readable_entry(entry):
+    """Whether an entry this tool is about to write can be read back.
+
+    The width of the sha is decided by `core.abbrev`, in a config file this
+    tool does not own, so widening the readers closes today's gap and THIS is
+    what closes the next one. An entry the grammar cannot parse is refused
+    rather than written: a log line nothing can read is worse than no line,
+    because the `done` row it was written for then points at evidence that
+    reads as absent, and adr-lint blocks on exactly that.
+    """
+    return bool(ENTRY_RE.match(entry.strip()))
 
 _UNSET = object()
 SWEEP_TIMEOUT_DEFAULT = 900
@@ -778,17 +825,50 @@ def strict_from_number(start):
 
 
 def record_number_of(task):
-    """The ADR number a task file belongs to, or None when its path does not say.
+    """The ADR number of the record that OWNS this task, or None when it has none.
 
     None is NOT "below the cutoff". A record named outside the ADR-NNN convention
     has no number to compare, and demoting it would be silent and permanent —
     the direction of that mistake is the one nobody ever notices.
+
+    THE OWNING RECORD, not any ancestor that looks like one. This scanned every
+    path component in reverse, so a task under `~/adr-42-notes/proj/probe/tasks/`
+    resolved as ADR-42 and was judged against a cutoff it has nothing to do with —
+    a number read from somebody's directory name. The owning record is the
+    directory the `tasks/` directory sits in, and its number is read the way
+    `adr-lint::adr_number` reads it: the record's own title first, then its name.
+    One rule, two call sites, pinned by tests/gate-regressions.py.
     """
-    for part in reversed(task.resolve().parts):
-        m = re.match(r"(?:adr[-_ ]?)(\d{1,4})\b", part, re.I)
-        if m:
-            return int(m.group(1))
-    return None
+    directory = task.resolve().parent
+    if directory.name.lower() == "tasks":
+        directory = directory.parent
+    record = directory.with_suffix(".md")
+    if record.is_file():
+        title = re.search(r"^#\s+ADR[-_ ]?(\d{1,4})\b",
+                          record.read_text(errors="replace", encoding="utf-8"), re.M | re.I)
+        if title:
+            return int(title.group(1))
+    name = re.search(r"(?:adr[-_]?)?(\d{3,4})[-._]", directory.name, re.I)
+    return int(name.group(1)) if name else None
+
+
+def demoted_by(number, cutoff):
+    """Whether a record's findings are advisory under `strictFrom`.
+
+    Spelled out because `(record_number_of(t) or cutoff) < cutoff` could not say
+    "this record is number zero": `0 or cutoff` is `cutoff`, so ADR-000 read as
+    having no number at all. That erred STRICT — an unnumbered record is checked
+    in full — so nothing was ever demoted wrongly by it. It is still wrong, and
+    the reason to fix it is that the next reader of that line has to work out
+    which direction it fails in before they can trust it.
+    """
+    if cutoff is None:
+        return False
+    if number is None:
+        # A record named outside the convention has nothing to compare, and
+        # demoting it would be silent and permanent.
+        return False
+    return number < cutoff
 
 
 def fence_cwd(task):
@@ -944,8 +1024,7 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
     # The cutoff decides the EXIT CODE and nothing else. Every false success is
     # still counted and still printed, so a corpus cannot use strictFrom to make
     # one disappear — only to say "not mine to fix today".
-    demoted = [t for t, _ in false if cutoff is not None
-               and (record_number_of(t) or cutoff) < cutoff]
+    demoted = [t for t, _ in false if demoted_by(record_number_of(t), cutoff)]
     if as_json:
         print(json.dumps({
             "claims": checked + len(superseded) + len(unrunnable),
@@ -1136,6 +1215,7 @@ def main():
 
     if human is not None:
         entry = f"- {today} · human-observed · {human.strip()}"
+        refuse_unreadable(entry, "human-observed")
         append_entry(task, text, entry)
         print(entry)
         sys.exit(0)
@@ -1193,6 +1273,7 @@ def main():
     digest = acceptance_digest(cmd)
     entry = (f"- {today} · {sha} · exit {code} · `{first}` · "
              f"acceptance-sha256:{digest}")
+    refuse_unreadable(entry, sha)
     block = entry
     if code != 0:
         out = output.strip().splitlines()[-10:]

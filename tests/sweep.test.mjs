@@ -768,19 +768,36 @@ test('a hundred tasks terminate and count correctly', () => {
 
 // --- C. entry grammar -------------------------------------------------------
 
-test('a forty-character sha is a claim and a six-character one is not', () => {
-  // The recording path writes a short sha; a repository configured for longer
-  // ones writes forty. Six is below anything git produces, and a reader that
-  // accepts it is accepting text rather than a sha.
+test('every width git can emit is a claim, and anything narrower is not', () => {
+  // CORRECTED 2026-08-29 (docs/BACKLOG.md §47). This asserted that a SIX-character
+  // sha is not a claim, on the stated premise that "six is below anything git
+  // produces". That premise was wrong, and the reader built on it rejected
+  // entries adr-verify itself had written: `core.abbrev` goes down to 4, and a
+  // SHA-256 repository emits 64. Measured — `git -c core.abbrev=4 rev-parse
+  // --short HEAD` returned `6aaf`, and a real `git init --object-format=sha256`
+  // repository returned a 64-character sha.
+  //
+  // Both consequences were live. The sweep dropped such a claim from its
+  // denominator, which makes the false-success rate look BETTER; and adr-lint
+  // blocks a `done` row whose evidence it cannot read, so a corpus with a narrow
+  // `core.abbrev` could not mark anything done using entries the tool wrote.
   const dir = corpus()
   const d = digestOf('exit 0')
-  rawTask(dir, 'T1', { fence: 'exit 0', lines: [
-    `- 2026-08-28 · ${'a'.repeat(40)} · exit 0 · \`exit 0\` · acceptance-sha256:${d}`,
+  const widths = ['a'.repeat(4), 'abcdef', 'abc1234', 'a'.repeat(40), 'a'.repeat(64)]
+  widths.forEach((sha, index) => {
+    rawTask(dir, `T${index + 1}`, { fence: 'exit 0', lines: [
+      `- 2026-08-28 · ${sha} · exit 0 · \`exit 0\` · acceptance-sha256:${d}`,
+    ] })
+  })
+  // Still narrower than git can go, and still not a sha: the guard is widened,
+  // not removed, and a reader that accepts three characters accepts text.
+  rawTask(dir, 'T90', { fence: 'exit 0', lines: [
+    `- 2026-08-28 · abc · exit 0 · \`exit 0\` · acceptance-sha256:${d}`,
   ] })
-  rawTask(dir, 'T2', { fence: 'exit 0', lines: [
-    `- 2026-08-28 · abcdef · exit 0 · \`exit 0\` · acceptance-sha256:${d}`,
+  rawTask(dir, 'T91', { fence: 'exit 0', lines: [
+    `- 2026-08-28 · ${'a'.repeat(65)} · exit 0 · \`exit 0\` · acceptance-sha256:${d}`,
   ] })
-  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, 1)
+  assert.equal(JSON.parse(sweep(dir, ['--json']).stdout).claims, widths.length)
 })
 
 test('an uppercase digest is not a claim', () => {

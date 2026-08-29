@@ -65,6 +65,9 @@ decision, which is the whole mechanism this task adds.
 
 ## Mutation Log
 
+- 2026-08-29 · 48baef8* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · a completed run is content, never the error channel · acceptance-sha256:5ffd2e41049bc725bd6e5cc313be152548ba8844fa9c3f100255c04466f06b6d
+- 2026-08-29 · 48baef8* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · a path that is not there is a gate that could not run, not a clean result · acceptance-sha256:5ffd2e41049bc725bd6e5cc313be152548ba8844fa9c3f100255c04466f06b6d
+
 ## Invariants
 
 - A process that started and exited never reaches the error channel.
@@ -88,3 +91,4 @@ deciding rather than guessing.
   to rewrite it for the first.)
 
 ## Verification Log
+- 2026-08-29 · 48baef8 · exit 0 · `set -o pipefail …` · acceptance-sha256:5ffd2e41049bc725bd6e5cc313be152548ba8844fa9c3f100255c04466f06b6d

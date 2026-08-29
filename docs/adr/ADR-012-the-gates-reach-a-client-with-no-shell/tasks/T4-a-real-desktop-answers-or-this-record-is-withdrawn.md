@@ -73,6 +73,18 @@ because it cannot answer the question this task exists to ask.
 | 3 — the caller can discover it | `docs/mcp.md` carries the config entry; the `claude_desktop_config.json` snippet IS the discovery mechanism for this client |
 | 4 — it is used | **This task's sign-off is the rung-4 measurement** — the only one in this record, and the reason the acceptance is human-observed |
 
+**Status 2026-08-29:** steps 1-3 and 6 are done — the packaging assertions cover `plugin/bin/qh-mcp`
+and its shim (T1 added the gate to the lists those tests read, and `git ls-files -s` records `100755`
+for the gate), `docs/mcp.md` is written, and the parent record's `Governs:` is set. Steps 4 and 5 —
+the measurement — are what remain, and they need a Claude Desktop restart on the machine doing the
+measuring. The task stays `pending`: an unrun measurement is not a finding, and a `done` row without
+its own exit-0 evidence is refused for exactly this reason.
+
+The smoke check to run before touching Desktop, and the config entry to paste, are both in
+`docs/mcp.md`. The handshake carries an `instructions` string; whether Desktop renders it into the
+model's context is step 5's observation, and it is the measurement agentsmemory's ADR-021 T3 has had
+pending for a week.
+
 ## Mutation Log
 
 ## Invariants

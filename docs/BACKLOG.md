@@ -3037,6 +3037,50 @@ challenge is not "the gates catch nothing substantive" — it is that on two ind
 defects were where both instruments are blind, and this project has no answer for that region beyond
 review by something that reads.
 
+### 2026-08-29, third corpus, 93 postmortems — and it contradicts BOTH numbers above
+
+The wcag-43 session answered the same question on the largest corpus on this machine, read off an
+`## Investigation` section that every one of its 93 postmortems carries — provenance recorded at the
+time, not inferred later:
+
+    REVIEW 60 (65%) · GATE 16 (17%) · READING 9 (10%) · PRODUCTION 5 (5%) · UNSTATED 3 (3%)
+
+**So the answer to "has a gate ever caught a substantive defect" is NO LONGER "none found".** Their
+examples are behavioural, not paperwork: an eval showing a whole success criterion at recall 0.0 (it
+was silently not running at all); a CSS-nesting gate reporting UNEXPECTED on both branches; a
+precision-0.50 contrast finding; an Alembic downgrade chain broken; and — the one that belongs in
+this repository's own literature — **an acceptance command whose red run and clean run BOTH exited 1,
+a gate structurally incapable of failing, caught only by running it both ways.** That is §54's
+species exactly, found by somebody else's corpus before we found it in ours.
+
+**They then cut against their own headline, three ways**, and all three are kept: 3 of the 16 were
+caught by a test the author was writing for that change rather than by a standing check (strict count
+13); ~40 of the 93 records come from one ADR's review laps, which measures a convention and inflates
+REVIEW; and all 5 PRODUCTION records are dev/local runs, so "production" there does not mean a live
+system.
+
+**The doc-to-code ratios above are measured on a DIFFERENT DENOMINATOR, and on theirs the effect
+disappears.** Their figures, with zero sha overlap between records:
+
+    ADR-074  docs 2701 · src 57 · tests 2402   →  47.4:1 doc:src  BUT  1.1:1 doc:(src+tests)
+    ADR-076  docs 6846 · src 4563 · tests 5360 →   1.5:1          BUT  0.7:1
+    ADR-056  docs 1968 · src 2000 · tests 1071 →   1.0:1          BUT  0.6:1
+
+The 47.4:1 is a denominator artifact — ADR-074 is test-infrastructure, so `tests/` IS its production
+surface. **On the fair denominator no record there exceeds ~1.1:1.** Their warning is the one to act
+on: the "docs dominate" reading from the other two corpora appears only if `tests/` is excluded from
+production, and depozitas's own combined figure (1.8:1 doc-to-(production+tests)) is much closer to
+this than its headline 5.7:1 suggested. **Two sessions agreeing was partly two sessions choosing the
+same denominator.** Nobody has re-measured the ansible corpus this way; until somebody does, this
+project should quote the doc-to-(src+tests) figure or none at all.
+
+**One structural finding for the skills, and it changes where to look for this evidence at all.**
+ADR Verification Logs are useless as a gate-catch source: across 81 records with Verification
+sections, grepping for a gate catching anything returns two hits and NEITHER is one — one is a
+deliberate red-check, the other says outright that nothing caught it. Every recorded gate-catch on
+that machine lives in `docs/postmortems/`. **Measure gate efficacy in Verification Logs and you will
+get zero everywhere, and it will not mean what it looks like.**
+
 **Two things they reported that this entry does NOT close**, named so they are not lost:
 `adr-lint <directory>` exits 1 with a raw `IsADirectoryError` traceback instead of saying it expected
 a record file — a newcomer's obvious first guess, and worth a message rather than a stack trace. And
@@ -3261,6 +3305,109 @@ correct and they rejected it on a test that could not have disconfirmed it: supp
 error handler and never consults that ini. An uninformative null read as disconfirmation. The general
 form is this project's own rule pointed at a diagnostic instead of at a suite — **before reading a
 null as evidence, ask whether the instrument could have produced a non-null.**
+
+## 60. PARTLY CLOSED — a task that is honestly blocked has no state, and a rejection pointed at the wrong end of the row
+
+Two reports, two corpora, one gap: **the lifecycle models `pending` and `done`, and real work spends
+time in neither.**
+
+**The rejection message is FIXED.** A Verification Log row that fails the grammar was quoted as its
+first 70 characters — the PREFIX, which for a row correct up to a trailing addition is precisely the
+part that was fine. The wcag-43 session hand-wrote six rows, had four rejected for prose appended
+after the closing backtick (`… · \`<cmd>\` (0 import-graph violations)`), and was shown a
+correct-looking prefix beside a complaint about grammar. `where_it_stopped` now finds the longest
+prefix the pattern still accepts and quotes what follows: *"matches up to character 45, then stops
+at: (0 import-graph violations)"*. Asserted both ways — a row with a good prefix names its remainder,
+a row that never starts matching is still quoted whole. Catalogue entry `lint: a rejected row is
+quoted where it stopped matching, not at its prefix`.
+
+**The design question is OPEN, and both reporters arrived at it from opposite directions.**
+
+*wcag-43:* ADR-076 T11 is explicitly PARTIAL — two of thirteen steps blocked by facts that post-date
+the task's authoring — and its acceptance command contains a clause that cannot run. `adr-lint` asked
+it for a Mutation Log, which it cannot have: `adr-verify --mutant` runs the acceptance command.
+So a task that is honestly blocked is pushed toward a fabricated mutant or a silent log. They
+relabelled the rows `· human-observed ·`, which is what they truthfully are, and said it felt like
+finding the escape hatch rather than the intended path. That is the right instinct: the escape hatch
+happens to be honest here, and it will not always be.
+
+*pirkiniukampelis-cms-laravel-3d:* ADR-013 T3 is blocked on a production deploy BY DESIGN, and they
+proposed the header for it:
+
+    **Blocked-on:** production deploy of the commit T1's suite last passed on (external event;
+                    human-observed acceptance waits for it)
+
+with the semantics: still counted OPEN because it is unfinished, but reported in a "waiting on an
+external event" bucket rather than as rot; the header requiring human-observed acceptance, because a
+task with a runnable fence has no business waiting; and age escalation that still applies, labelled
+"still waiting" rather than "rotting".
+
+**Then that task resolved, and how it resolved is the most useful datum here.** The external event had
+ALREADY HAPPENED — production had been running the image since 2026-08-23 and no paperwork knew.
+Two consequences they name, both of which the design must absorb:
+
+1. **A `Blocked-on` row can be STALE-TRUE:** the event occurred and the row stayed blocked. So the age
+   escalation should not ask "is this rotting?" but **"has the event perhaps already happened?"** —
+   which was the true answer at day 7, long before any 90-day threshold.
+2. **The observation that unblocked it came from ANOTHER SESSION** — a peer verified build identity
+   and ran the read-only probe; the owning repository recorded it. `adr-verify --human` handled that
+   unchanged, naming the observer and quoting the raw output. So cross-session observation needs no
+   new mechanism, and that should be written down before somebody invents one.
+
+**Not built yet.** It is a grammar change (a new header), a gate change (a bucket in `adr-debt`), and
+a semantic rule (human-observed acceptance required, runnable fence refused) — an ADR, not a patch.
+The evidence for it is now two independent corpora and one resolved instance.
+
+## 61. OPEN — a task file can name a symbol the code does not have
+
+**Reported 2026-08-29 by the wcag-43 session**, and it cost them an hour of tracing: ADR-076 T11's
+Ordered Steps specify a read path — `violation["evidence"]["node_path"]` — that **exists nowhere in
+the source**. Nothing in `adr-lint` checks that a task's `Produces`, `Consumes` or Ordered Steps
+references resolve to anything real.
+
+It is the same species as the tests-exist rule, which that corpus has now validated properly — see
+the measurement below, which corrects the first version of this paragraph.
+
+### MEASURED 2026-08-29 on 77 records: 17 of 18 true positive, and three corrections
+
+The wcag-43 session hand-verified every row the check produces on their corpus, and corrected their
+own earlier sample against their own headline:
+
+- **The inbox item's "30 rows" DOES NOT REPRODUCE — it is 18**, re-run at the same commit under seven
+  cached versions (2.27.0 through 2.34.1). Most likely the filing session counted all task-level
+  findings. Not a work item.
+- **All 18 hand-verified: 17 TRUE POSITIVE, 1 FALSE POSITIVE.** Seven task files across three records,
+  every one marked `done`.
+- **The single false positive is the row they had first sent as the rule's best justification, and
+  they withdrew it.** `test_both_criteria_share_one_traversal_and_one_capture` IS in the file the
+  table names; the table abbreviated the real `…_and_one_capture_set`. A table typo, not a vacuous
+  acceptance. Abbreviated names are the tool's only observed failure mode; it gets RENAMES right,
+  which is the case that matters — `test_migration_up_down_roundtrip` →
+  `test_outbox_migration_up_down_roundtrip` is not a substring, so `-k` would miss it too.
+
+**One sentence of ours was fabricated and is now removed.** Every finding ended "— the acceptance
+filter passed without it", and four of the reported tasks run WHOLE-FILE acceptance commands with no
+`-k` at all. Nothing was filtered. The existence claim was solid and the mechanism claim was an
+inference the check never makes: a gate reporting an observation it did not make (ADR-005), inside a
+check that is otherwise 17-for-18 correct. It now says the row describes a test the acceptance run
+cannot have exercised, and names a stale table after a rename as the commonest cause.
+
+**And 18 is a FLOOR, not a corpus total** — which is a discovery gap of the same shape as §55.
+`adr-lint` only reaches tasks in a sibling `docs/adr/<slug>/tasks/`; 68 of their 76 records print
+"(no tasks dir — ADR-level checks only)", and ten task tracks under `docs/implementation/adr-*/tasks/`
+were never examined at all. Unexamined is not clean, and a per-record line saying "no tasks dir" is
+easy to read as "nothing to check here".
+
+**Their verdict: ship the rule.** The worst residue they found is not a typo at all — two tasks whose
+tables name files that have NEVER existed while the README's acceptance runs a THIRD file. Table and
+command disagree with each other, independently of any tool.
+
+**Why the symbol version is harder, and must not be attempted the cheap way.** A test name is a
+declaration; a symbol reference inside prose is not, and grepping for one would fire on every renamed
+identifier, every planned name, every quoted example. The tractable form is probably narrow: a
+backticked identifier in `Produces:`/`Consumes:` — the fields that already carry structured tokens —
+resolved against `git grep`, advisory, and silent when the token is not identifier-shaped. Ordered
+Steps prose is out of scope until somebody shows a rule that does not drown a real corpus.
 
 ## Verification claims worth re-running after any of the above
 

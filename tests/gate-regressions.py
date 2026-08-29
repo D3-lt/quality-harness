@@ -1679,6 +1679,22 @@ def main():
         assert any("no executable definition" in f for f in absent), \
             f"a row naming a test that does not exist must still be reported: {absent}"
 
+    # BACKLOG §60. A rejection that quotes the first 70 characters of a bad row
+    # shows the PREFIX — which, for a row correct up to a trailing addition, is
+    # exactly the part that was fine. Reported 2026-08-29 by a session that
+    # hand-wrote six Verification Log rows, had four rejected for prose appended
+    # after the closing backtick, and was shown a correct-looking prefix beside a
+    # complaint about grammar.
+    bad = "- 2026-08-29 · a279259 · exit 0 · `make test` (0 import-graph violations)"
+    said = lint.where_it_stopped(lint.VLOG_RE, bad)
+    assert "(0 import-graph violations)" in said, said
+    assert "then stops at" in said, said
+    # The must-fail direction: a row that fails from its very first character has
+    # no good prefix to point at, and must still be quoted rather than reported
+    # as an empty remainder.
+    assert lint.where_it_stopped(lint.VLOG_RE, "- not a row at all").startswith("- not a row"), \
+        "a row that never starts matching is still shown"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

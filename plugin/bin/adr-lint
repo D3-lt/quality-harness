@@ -272,12 +272,39 @@ def scope_bullets(lines):
     A blank line or an unindented line ends the bullet — the two ways Markdown
     itself ends one, so nothing swallows the paragraph that follows.
     """
-    found, current = [], None
+    found, current, indent, subtree = [], None, 0, None
     for line in lines:
+        lead = len(line) - len(line.lstrip())
+        # Every bullet below the one that opened a child list belongs to that
+        # list, not just the first: suppressing only the first child left the
+        # second reported as an entry needing its own disposition.
+        if subtree is not None and SCOPE_BULLET.match(line) and lead > subtree:
+            continue
+        # A DEEPER BULLET IS A CHILD, not a sibling. An Out of Scope entry may
+        # enumerate what it defers as an indented list, and each child was being
+        # read as an entry of its own and told it needed its own disposition —
+        # four pointers to the one issue the parent already defers as a unit.
+        # Reported 2026-08-29 from an adopting corpus, and checked against the
+        # unedited file so it was not confused with the wrap fix shipped beside
+        # it. Indentation is what Markdown uses to say "child", so it is what
+        # this reads.
         if SCOPE_BULLET.match(line):
+            if current is not None and lead > indent:
+                # A child list ENDS the parent entry rather than extending it.
+                # The parent's disposition closes the parent's own text; joining
+                # the children on would put prose after it and report the entry
+                # as trailing-prose, which is the same false alarm one branch
+                # over. The children are not entries either — they are the
+                # enumeration the parent defers as one unit.
+                found.append(current)
+                current = None
+                subtree = indent
+                continue
+            subtree = None
             if current is not None:
                 found.append(current)
             current = line.strip()
+            indent = lead
         elif current is None:
             continue
         elif not line.strip() or not SCOPE_CONTINUATION.match(line):

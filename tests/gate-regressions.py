@@ -60,6 +60,39 @@ GOVERNS_MATCH_GRAMMAR = [
 ]
 
 
+# The one disposition grammar all THREE gates must implement. adr-lint, adr-debt
+# and adr-retire-check each carry their own copy of `disposition_span` — they are
+# standalone scripts with no import path between them (ADR-011: a shared file
+# under bin/ acquires a generated forwarder) — so the copies are only shared if
+# something compares them. Each row is (line, expected inner text or None).
+#
+# The rows that pay for the table, measured 2026-08-28 (docs/BACKLOG.md §37): a
+# NESTED `()` inside the disposition made every one of the three misread it,
+# because `[^)]*` cannot cross the `)` of the inner pair.
+DISPOSITION_GRAMMAR = [
+    ("- A (permanent: by design)", "permanent: by design"),
+    ("- A (permanent)", "permanent"),
+    ("- A (deferred: docs/BACKLOG.md §37)", "deferred: docs/BACKLOG.md §37"),
+    # THE DEFECT. Every gate reported something false about this line.
+    ("- A (permanent: the `archive()` helper keeps originals)",
+     "permanent: the `archive()` helper keeps originals"),
+    ("- A (deferred: notes.md, see `foo(1)` for why)",
+     "deferred: notes.md, see `foo(1)` for why"),
+    # Two levels deep, and an inner pair that is empty.
+    ("- A (permanent: f(g(x)) is fine)", "permanent: f(g(x)) is fine"),
+    # A parenthetical that is not a disposition is not one.
+    ("- A (see also)", None),
+    ("- A (permanently unavailable)", None),
+    ("- A no parenthetical at all", None),
+    # Unbalanced: there is nothing to return, and guessing would invent a span.
+    ("- A (permanent: unclosed", None),
+    # The FIRST disposition-shaped group wins, and it is the caller's job to
+    # decide whether ending the line matters. adr-lint requires that; adr-debt's
+    # architecture.md scan deliberately does not.
+    ("- A (deferred: x) and (permanent: y)", "deferred: x"),
+]
+
+
 # The one sha grammar the WRITER and the READERS must agree on. Mirrored between
 # adr-lint and adr-verify — six literal copies of the pattern before ADR-011's
 # successor, and the writer emitted a width no copy accepted.
@@ -115,6 +148,7 @@ def main():
     spec_gate = load_script("spec_verify_regressions", bin_dir / "spec-verify")
     arch_gate = load_script("arch_lint_regressions", bin_dir / "arch-lint")
     retire = load_script("adr_retire_regressions", bin_dir / "adr-retire-check")
+    debt = load_script("adr_debt_regressions", bin_dir / "adr-debt")
 
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
@@ -1209,6 +1243,53 @@ def main():
     assert any("ADR-404" in a for a in advice), f"a cited record that does not exist: {advice}"
     _, advice = pointers("**Cross-references:** docs/no-such-file.md\n")
     assert any("no-such-file" in a for a in advice), f"a cited path that does not exist: {advice}"
+
+    # BACKLOG §37. A disposition containing PARENTHESES was misread by all three
+    # gates that parse one, because `[^)]*` cannot cross the `)` of a nested
+    # pair. Measured 2026-08-28 on `(permanent: the `archive()` helper keeps
+    # originals)`, and the three consequences were not the same finding:
+    #   - plugin/bin/adr-lint            advised "needs a disposition" on a
+    #                                    bullet that visibly carries one
+    #   - plugin/bin/adr-debt (bullets)  reported BROKEN [malformed] — a false
+    #                                    finding, and adr-debt exits 1 on those
+    #   - plugin/bin/adr-debt (arch)     captured a TRUNCATED pointer and
+    #                                    resolved it, naming a path nobody wrote
+    # adr-retire-check shares the shape and only ever needed existence, so its
+    # count never changed; it is fixed for uniformity and no defect is claimed.
+    #
+    # ONE TABLE, THREE COPIES. The gates are standalone scripts with no import
+    # path between them, so the copies are only shared if something compares
+    # them — ADR-009's `enforcement_pointers` lesson, applied again.
+    for module in (lint, debt, retire):
+        for line, want in DISPOSITION_GRAMMAR:
+            span = module.disposition_span(line)
+            got = span[0] if span else None
+            assert got == want, (
+                f"{module.__name__}.disposition_span({line!r}): got {got!r}, "
+                f"the shared grammar says {want!r}")
+            if span:
+                assert line[span[1]:span[2]] == f"({got})", (
+                    f"{module.__name__}: the span must bound the group it returned")
+
+    # THE DIRTY AND CLEAN ANSWERS for adr-lint's own use of it, in one place: a
+    # nested paren is accepted, a bullet with no disposition is still named, and
+    # a balanced parenthetical that does not END the bullet is not a disposition.
+    def dispositions(*bullets):
+        errs = lint.Findings()
+        text = "## Out of Scope\n\n" + "\n".join(bullets) + "\n"
+        for ln in lint.sections_of(text).get("Out of Scope", []):
+            stripped = ln.strip()
+            if stripped.startswith("- ") and not lint._carries_a_disposition(stripped):
+                errs.advise(stripped)
+        return [str(a) for a in errs.advice]
+
+    assert dispositions("- Renaming it (permanent: the `archive()` helper keeps originals)") == [], (
+        "a nested paren inside a disposition is still a disposition")
+    assert dispositions("- Renaming it") == ["- Renaming it"], (
+        "and a bullet with no disposition is still named")
+    assert dispositions("- Renaming it (permanent: why) (see also)") == [
+        "- Renaming it (permanent: why) (see also)"], (
+        "a disposition that does not end the bullet is not one, and never was")
 
     # `Invalidates:` takes the LEADING token and ignores the prose after it.
     # Every real value in this corpus is either `none — checked. ADR-003 governs

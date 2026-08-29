@@ -43,6 +43,62 @@ for _s in (_sys.stdout, _sys.stderr):
 # ---------------------------------------------------------------------------
 
 
+def disposition_span(text):
+    """The balanced `(permanent…)` / `(deferred:…)` group in `text`, as (inner, start, end).
+
+    Scanned by paren DEPTH rather than matched with `[^)]*`, which cannot cross
+    the `)` of a nested pair. Measured 2026-08-28 on one bullet reading
+    `(permanent: the `archive()` helper keeps originals)`: adr-lint advised that
+    it carried no disposition at all, and adr-debt reported it as a BROKEN
+    [malformed] pointer — a finding about a bullet that visibly complies. The
+    architecture.md scan was worse again, capturing a TRUNCATED pointer and
+    resolving that, so it named a path nobody wrote.
+
+    None when no such group is balanced. Callers apply their own keyword and
+    position tests; this answers only "where does the disposition actually end".
+
+    ONE BODY, THREE COPIES — adr-lint, adr-debt and adr-retire-check are
+    standalone scripts with no import path between them (ADR-011: a shared file
+    under bin/ acquires a generated forwarder). `tests/gate-regressions.py`
+    holds the one truth table all three are checked against, the way ADR-009
+    binds `enforcement_pointers` to `declaredEnforcement`.
+    """
+    for opening in re.finditer(r"\((?=permanent\b|deferred\b)", text):
+        depth = 0
+        for i in range(opening.start(), len(text)):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[opening.start() + 1:i], opening.start(), i + 1
+    return None
+
+
+def deferred_pointer_of(inner):
+    """The pointer inside a `deferred: …` disposition, or None if it is not one.
+
+    An EMPTY pointer is still a `deferred:` disposition and comes back as `""`,
+    not None. The two are different findings and always have been: `""` reaches
+    `resolve` and is reported BROKEN [empty] — debt recorded by someone who had
+    not decided where it goes — while None means the parenthetical is not a
+    deferral at all, which is the `malformed` branch.
+    """
+    if inner is None or not inner.startswith("deferred:"):
+        return None
+    return inner[len("deferred:"):].lstrip()
+
+
+def deferred_pointer(line):
+    """The pointer of the first balanced `(deferred: …)` anywhere in `line`.
+
+    Unanchored, for architecture.md, whose deferrals are prose rather than
+    Out of Scope bullets.
+    """
+    span = disposition_span(line)
+    return deferred_pointer_of(span[0]) if span else None
+
+
 def sections_of(text):
     out, cur, fence = {}, None, False
     for line in text.splitlines():
@@ -194,18 +250,18 @@ def main():
             rel = md.relative_to(scan_dir)
             if md.name == "architecture.md":
                 for ln in text.splitlines():
-                    m = re.search(r"\(deferred:\s*([^)]*)\)", ln)
-                    if m:
-                        kind, ok = resolve(m.group(1), md, scan_dir)
-                        item = (scan_dir, rel, m.group(1).strip(), ln.strip()[:70])
+                    pointer = deferred_pointer(ln)
+                    if pointer is not None:
+                        kind, ok = resolve(pointer, md, scan_dir)
+                        item = (scan_dir, rel, pointer.strip(), ln.strip()[:70])
                         deferred.append(item)
                         if not ok:
                             broken.append(item + (kind,))
-                        chk, got, dest = receipted(m.group(1), md, scan_dir,
+                        chk, got, dest = receipted(pointer, md, scan_dir,
                                                    adr_id_of(md, scan_dir))
                         if chk and not got:
                             unreceipted.append(item + (dest,))
-                        dead, where = unswept(m.group(1), md, scan_dir)
+                        dead, where = unswept(pointer, md, scan_dir)
                         if dead:
                             unswept_items.append(item + (where,))
                 continue
@@ -213,18 +269,20 @@ def main():
                 s = ln.strip()
                 if not s.startswith("- "):
                     continue
-                m = re.search(r"\(deferred:\s*([^)]*)\)\s*$", s)
-                if m:
-                    kind, ok = resolve(m.group(1), md, scan_dir)
-                    item = (scan_dir, rel, m.group(1).strip(), s[2:m.start()].strip())
+                span = disposition_span(s)
+                trailing = span if span and span[2] == len(s) else None
+                pointer = deferred_pointer_of(trailing[0]) if trailing else None
+                if pointer is not None:
+                    kind, ok = resolve(pointer, md, scan_dir)
+                    item = (scan_dir, rel, pointer.strip(), s[2:trailing[1]].strip())
                     deferred.append(item)
                     if not ok:
                         broken.append(item + (kind,))
-                    chk, got, dest = receipted(m.group(1), md, scan_dir,
+                    chk, got, dest = receipted(pointer, md, scan_dir,
                                                adr_id_of(md, scan_dir))
                     if chk and not got:
                         unreceipted.append(item + (dest,))
-                    dead, where = unswept(m.group(1), md, scan_dir)
+                    dead, where = unswept(pointer, md, scan_dir)
                     if dead:
                         unswept_items.append(item + (where,))
                 elif re.search(r"\(deferred\b", s):

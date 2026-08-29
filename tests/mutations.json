@@ -2814,6 +2814,24 @@
       ],
       "from": "    \"qh_arch_lint\",",
       "to": "    \"qh_arch_lin\","
+    },
+    {
+      "label": "mcp: a completed run is content, never the error channel",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    return _text_result(\"\\n\".join(body), is_error=False)",
+      "to": "    return _text_result(\"\\n\".join(body), is_error=True)"
+    },
+    {
+      "label": "mcp: a path that is not there is a gate that could not run, not a clean result",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "        if not os.path.exists(path):\n            raise GateDidNotRun(\"could not run: no such path {}\".format(path))",
+      "to": "        if False:\n            raise GateDidNotRun(\"could not run: no such path {}\".format(path))"
     }
   ]
 }

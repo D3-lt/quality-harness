@@ -2976,6 +2976,24 @@
       ],
       "from": "        for name, pattern in sorted(ignored_paths(git_root(path.parent), named).items()):",
       "to": "        for name, pattern in []:"
+    },
+    {
+      "label": "verify: a failure block keeps a tail of EACH stream, not of their concatenation",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        shown = lines[-keep:]",
+      "to": "        shown = lines[-keep:] if label == 'stderr' else []"
+    },
+    {
+      "label": "verify: a fence that never returned is UNRUN, not a verdict",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                               timeout=FENCE_TIMEOUT_DEFAULT)",
+      "to": "                               timeout=None)"
     }
   ]
 }

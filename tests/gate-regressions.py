@@ -1739,6 +1739,31 @@ def main():
         assert lint.ignored_paths(None, {"x"}) == {}
         assert lint.ignored_paths(repo, set()) == {}
 
+    # BACKLOG §54. The recorded failure block was the tail of `stdout + stderr`,
+    # so a runner whose verdict goes to stdout and whose noise goes to stderr —
+    # ansible's exact shape — left a block containing NONE of the failure.
+    # Measured 2026-08-29: one FAIL line and twelve warnings produced ten
+    # warnings and no FAIL, and the reporting session hit it five times while
+    # every deploy was in fact correct.
+    tail = verify.failure_tail("FAIL: the assertion that matters\n",
+                               "\n".join(f"warning {i}" for i in range(1, 13)))
+    assert any("FAIL: the assertion that matters" in ln for ln in tail), tail
+    assert any("stdout" in ln for ln in tail) and any("stderr" in ln for ln in tail), tail
+    # The count is stated when lines were dropped, because a tail that hides its
+    # own truncation reads as the whole run.
+    assert any("of 12" in ln for ln in tail), tail
+    # The must-fail direction (CLAUDE.md §4): an EMPTY stream is omitted, not
+    # labelled — otherwise "always emit both headers" satisfies the assertions
+    # above while saying nothing about what was captured.
+    only_err = verify.failure_tail("", "boom\n")
+    assert not any("stdout" in ln for ln in only_err), only_err
+    assert verify.failure_tail("", "") == []
+    # And a killed run's leftovers decode whether they arrive as bytes, str or
+    # None, because that is what TimeoutExpired hands back.
+    assert verify.decode_stream(b"partial") == "partial"
+    assert verify.decode_stream("partial") == "partial"
+    assert verify.decode_stream(None) == ""
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

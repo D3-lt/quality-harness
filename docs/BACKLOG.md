@@ -2855,6 +2855,56 @@ did not reproduce in the population sampled, which is the wrong order. It become
 first time a test-named claim in this corpus fails the probe — or when somebody measures the
 wrong-thing-kills-it candidate above.
 
+## 54. OPEN — the recorded failure block can contain none of the failure
+
+**Reported 2026-08-29 by the infrastructure-06 session** from
+`/Users/…/TakeOnline/infrastructure` (a private corpus, not this one), and **reproduced here on
+HEAD** rather than taken on their word. Two defects in `adr-verify`'s ordinary run path, one of which
+they hit five times while every deploy was in fact correct.
+
+**1. Streams are concatenated, then the tail is taken over the concatenation.**
+`plugin/bin/adr-verify:1253` builds `output = r.stdout + r.stderr`, and line 1279 records
+`output.strip().splitlines()[-10:]`. When a runner puts its verdict on stdout and its noise on
+stderr — ansible's exact shape, play recap to stdout and warnings to stderr — every recorded line
+comes from stderr and the verdict is gone. Reproduced with a fence printing one FAIL line to stdout
+and twelve warnings to stderr:
+
+    recorded block: warning 3 … warning 12
+    FAIL line present in the recorded block: False
+
+The evidence block then says a run failed and shows ten lines that do not say why, which is a
+report that has lost the thing it was written to preserve. Interleaving is lost too: the order in
+the block is not the order anything happened in.
+
+**2. No timeout on the fence.** Line 1248 and the `--mutant` path at line 664 both call
+`subprocess.run(..., capture_output=True)` with no `timeout=`. `sweep_corpus` passes one
+(line 981), so the three paths disagree, and a fence that hangs in the two that do not hangs the
+session with no output at all — `capture_output` holds everything until the process ends.
+
+**Why this is worse than a formatting bug.** The whole claim of this project is that a recorded
+failure is readable evidence. A block that cannot contain the failure teaches a reader to re-run
+instead of to read, which is §36's finding about verdicts that change their mind, one level down.
+The reporting session's own summary is the sharp version: their pipeline produced ~3.1k lines of
+task docs and 22 postmortems in a day, and **all four real bugs came from reading the roles, not
+from any gate** — a gate whose output cannot be read is a cost with no return.
+
+**Not fixed here yet, deliberately.** Both fixes change what a tool writes into an evidence block,
+and one of them (a timeout) introduces a new failure verdict that did not exist. The shape worth
+arguing for first: keep the streams separate and record a tail of EACH, labelled, so a verdict on
+either is present; and give the two paths the timeout the sweep already has, reported as `UNRUN`
+rather than as a failing check (ADR-005 — a gate that could not run has not found anything). That is
+a decision about evidence grammar, which is ADR territory rather than a patch.
+
+**Also reported and NOT reproduced — recorded so the next reader does not chase it.** The same
+session reported `work-next` promoting a `Proposed` record's tasks. That is docs/BACKLOG.md §48,
+closed 2026-08-29 and shipped in v2.31.0: `plugin/scripts/work-next.mjs` joins each task to its
+owning record and treats only `Accepted` as executable. Their run predates the fix or resolves an
+older installed copy — CLAUDE.md §2's two staleness traps. Their second item, `work-next` re-offering
+work finished in July, is **working as contracted**: `unfinished()` asks whether the task file
+carries a tool-written exit-0 evidence row, so a task completed without `adr-verify` evidence is
+invisible as completed. That is the contract this project exists to enforce, and the honest answer
+to them is that the corpus never recorded the completion, not that the reader is wrong.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

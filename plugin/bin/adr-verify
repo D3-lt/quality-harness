@@ -265,6 +265,48 @@ def resolve_bash(platform=sys.platform, env=None, exists=None):
     return None
 
 
+def decode_stream(raw):
+    """Whatever a killed process left behind, as text.
+
+    `TimeoutExpired.stdout` is bytes when the run was started in text mode with
+    a timeout that fired, and None when nothing was captured. Both reach the
+    reader as "" rather than a traceback.
+    """
+    if raw is None:
+        return ""
+    return raw.decode("utf-8", errors="replace") if isinstance(raw, bytes) else raw
+
+
+def failure_tail(stdout, stderr, keep=10):
+    """The lines a reader needs from a failed run, kept PER STREAM.
+
+    The block used to be the last `keep` lines of `stdout + stderr` — the tail of
+    a CONCATENATION. When a runner puts its verdict on stdout and its noise on
+    stderr, which is ansible's exact shape (play recap to stdout, warnings to
+    stderr), every recorded line comes from stderr and the verdict is gone.
+    Measured 2026-08-29 with one FAIL line and twelve warnings: the block held
+    warnings 3 through 12 and no FAIL, and the reporting session hit it five times
+    while every deploy was in fact correct (docs/BACKLOG.md §54).
+
+    Interleaving is lost either way — two captured pipes cannot be re-woven — so
+    the honest form is to say which stream each part came from rather than to
+    imply an order that was never observed. A stream with nothing in it is
+    omitted rather than labelled empty.
+    """
+    parts = []
+    for label, raw in (("stdout", stdout), ("stderr", stderr)):
+        lines = (raw or "").strip().splitlines()
+        if not lines:
+            continue
+        shown = lines[-keep:]
+        head = f"--- last {len(shown)} line(s) of {label}"
+        if len(lines) > len(shown):
+            head += f" (of {len(lines)})"
+        parts.append(head)
+        parts.extend(shown)
+    return parts
+
+
 def bash_or_exit():
     """`resolve_bash` or a usable failure. Never silently falls back to the stub."""
     shell = resolve_bash()
@@ -690,8 +732,17 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                   "been skipped. Rewrite it so it still parses.")
             sys.exit(2)
 
-        r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace")
+        try:
+            r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
+                               text=True, encoding="utf-8", errors="replace",
+                               timeout=FENCE_TIMEOUT_DEFAULT)
+        except subprocess.TimeoutExpired:
+            # The mutant is still applied, so the restore below is what matters —
+            # `finish()` runs it. UNRUN, not survived and not killed: a fence that
+            # never returned observed nothing about the mechanism.
+            fail(f"UNRUN: the fence did not finish within {FENCE_TIMEOUT_DEFAULT}s with the "
+                 f"mutant applied, so nothing was learned about whether the tests notice it. "
+                 f"The file has been restored.")
         out, code = r.stdout + r.stderr, r.returncode
 
         if code == 0:
@@ -795,6 +846,14 @@ def readable_entry(entry):
     return bool(ENTRY_RE.match(entry.strip()))
 
 _UNSET = object()
+# A fence that hangs holds the session forever, and `capture_output` means it
+# holds the OUTPUT too — a hang produces nothing at all to read, which is worse
+# than a slow failure. `sweep_corpus` has always passed a timeout; the recording
+# runs did not, so three call sites carried two contracts (docs/BACKLOG.md §54).
+# Generous, because a real acceptance suite is allowed to be slow: this is the
+# line between "slow" and "never returning", not a performance budget.
+FENCE_TIMEOUT_DEFAULT = 1800
+
 SWEEP_TIMEOUT_DEFAULT = 900
 
 # A nested sweep refuses ITSELF. The substring check on a fence is evadable —
@@ -1285,28 +1344,53 @@ def main():
     if mutant is not None:
         run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why)
 
-    r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
-                       encoding="utf-8", errors="replace")
+    try:
+        r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=FENCE_TIMEOUT_DEFAULT)
+    except subprocess.TimeoutExpired as expired:
+        # UNRUN, not FAILED. A fence that never returned has not judged the code,
+        # and recording exit 1 would put a verdict in the log that nothing
+        # observed — the distinction this project holds every gate to (ADR-005).
+        # Nothing is written to the task file: an entry claiming a run that did
+        # not finish is worse than no entry.
+        partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
+        print(f"[adr-verify] UNRUN: the acceptance fence did not finish within "
+              f"{FENCE_TIMEOUT_DEFAULT}s and was killed. NOTHING has been written to "
+              f"{task.name} — a run that did not finish is not evidence either way. "
+              f"Fix the hang, or run the fence yourself and use --human if it is "
+              f"genuinely a human-observed check.")
+        if partial.strip():
+            print("[adr-verify] what it had produced when it was killed:")
+            for line in partial.strip().splitlines()[-10:]:
+                print(f"  {line}")
+        sys.exit(2)
 
     sha = git_sha(cwd)
 
     output = r.stdout + r.stderr
     code = r.returncode
+    stdout_text, stderr_text = r.stdout or "", r.stderr or ""
     empty = code == 0 and scored_nothing(output)
     if empty:
         # Recorded as a failure, because that is what it is. The task's tests do
         # not exist yet, or the filter no longer matches their names.
         code = 1
-        output += ("\n[adr-verify] the acceptance command exited 0 but scored NO tests. "
+        stderr_text += ("\n[adr-verify] the acceptance command exited 0 but scored NO tests. "
                    "A filter that matches nothing is not a passing gate — write the tests "
                    "the Tests table names, or fix the filter so it selects them.")
 
     if code != 0:
         diagnosis = environment_failure(output, cmd)
         if diagnosis:
-            output += (f"\n[adr-verify] ENVIRONMENT: {diagnosis}\n"
-                       "             This is a machine problem, not a verdict about the code. "
-                       "The run still counts as failed.")
+            note = (f"\n[adr-verify] ENVIRONMENT: {diagnosis}\n"
+                    "             This is a machine problem, not a verdict about the code. "
+                    "The run still counts as failed.")
+            output += note
+            # Into stderr_text too, or the note is printed and not RECORDED: the
+            # block is built per stream now, so anything appended to the merged
+            # text alone reaches the reader and never the task file
+            # (docs/BACKLOG.md §54).
+            stderr_text += note
 
     lines = cmd.splitlines()
     first = lines[0].strip().replace("`", "'") + (" …" if len(lines) > 1 else "")
@@ -1316,7 +1400,7 @@ def main():
     refuse_unreadable(entry, sha)
     block = entry
     if code != 0:
-        out = output.strip().splitlines()[-10:]
+        out = failure_tail(stdout_text, stderr_text)
         block += "\n" + "\n".join(["  ```"] + ["  " + ln for ln in out] + ["  ```"])
     append_entry(task, text, block)
     # Say that the file was WRITTEN. Recording the run is the point of this tool —

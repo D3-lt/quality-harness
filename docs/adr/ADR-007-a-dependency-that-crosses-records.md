@@ -6,6 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-006-a-verdict-that-names-its-own-reliability.md, docs/BACKLOG.md §41
 **Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `plugin/templates/task-template.md`
+**Enforced-by:** `lint: a cross-record dependency must resolve to a real task`, `next: a foreign dependency that is not done blocks`
 **Invalidates:** none — checked. ADR-003 governs `bin/**` and requires every gate to carry a mutation; this adds mutations rather than removing any. ADR-005 and ADR-006 established "a gate reports what it observed" in `spec-verify` and `mutate.mjs`; this is the same rule in `adr-next`, and extends them rather than changing either.
 **Served-path change:** `adr-next` stops printing `ready` for a task whose dependency it could not evaluate, and `Depends-on: ADR-003-T4` becomes writable instead of a lint error.
 

@@ -6,6 +6,7 @@
 **Spec:** docs/specs/2026-08-27-a-mutation-that-proves-nothing.md
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/BACKLOG.md §35
 **Governs:** `scripts/mutate.mjs`
+**Enforced-by:** `mutate: a verdict against a failing baseline is not counted as noticed`
 **Invalidates:** none — checked. ADR-003 governs `bin/**` and `tests/mutations.json` and requires every gate to carry a mutation; ADR-005 gave `spec-verify` a third verdict. This extends both — the same "do not claim what you did not observe" rule, one tool over — and changes neither.
 **Served-path change:** A campaign entry whose named tests were already failing is reported `UNPROVEN` with the action that resolves it, instead of `RED` counted as noticed.
 

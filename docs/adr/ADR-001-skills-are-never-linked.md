@@ -6,6 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/BACKLOG.md §25, docs/adr/ADR-004-templates-are-not-linked.md (amends the template clause of the Decision below)
 **Governs:** `plugin/scripts/standalone-link.mjs`, `plugin/scripts/sync-standalone.mjs`, `tests/standalone-link.test.mjs`
+**Enforced-by:** `link: no skill is ever linked`
 **Invalidates:** none — checked (this is the first record in this corpus; `adr-state.mjs` reports "No decision records found under this repository")
 **Served-path change:** A user who runs `sync-standalone.mjs --link` keeps all thirteen `quality-harness:<name>` skills instead of losing them; `--link` now installs gate forwarders and template links only.
 

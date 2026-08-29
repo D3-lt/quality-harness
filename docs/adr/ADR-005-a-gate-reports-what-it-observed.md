@@ -6,6 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/BACKLOG.md §35
 **Governs:** `plugin/bin/spec-verify`
+**Enforced-by:** `spec-verify: a test that never ran is not reported as failing`
 **Invalidates:** none — checked. ADR-003 governs `bin/**` and requires every shipped gate to carry a mutation; this adds two rather than removing any, so that decision is extended, not changed.
 **Served-path change:** A repository whose test runner `spec-verify` cannot detect now gets `[PARTIAL]`, an `UNRUN` line naming the remedy, and exit 4 — instead of `RED … test failing` and exit 3 over a suite that passes.
 

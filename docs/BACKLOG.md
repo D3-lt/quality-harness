@@ -1455,6 +1455,30 @@ told what is wrong and will still not be able to record that they fixed it, beca
 that write this corpus's evidence are exactly the two Desktop cannot have. That is stated in the
 record's own Consequences rather than left for a reader to discover.
 
+### Shipped 2026-08-29 in v2.34.0 — T1-T3 executed, and a fourth item deferred back here
+
+ADR-012 is **Accepted**, and T1, T2 and T3 each carry an exit-0 Verification Log entry and killed
+mutations (5/5 noticed under `node scripts/mutate.mjs --case 'mcp:'`). `plugin/bin/qh-mcp` ships with
+its Windows shim and its forwarder; `docs/mcp.md` carries the `claude_desktop_config.json` entry and
+a smoke check. **T4 remains `pending`** — its acceptance is human-observed and needs a Claude Desktop
+restart on the measuring machine.
+
+**A fourth deferral, and the reason it exists is worth more than the item.** The paragraph above
+enumerates "the seven gates in `plugin/bin/`". `plugin/bin/` holds **ten**. `adr-retire-check`,
+`postmortem-verify` and `qh-root` were never classified by that enumeration and nobody noticed,
+because every check downstream — the record's lint, the task's stop condition, the implementation
+itself — was scoped to the five the table named. Re-run at execution time with
+`grep -n 'subprocess\.\(run\|Popen\|call\|check_output\)\|shell=True' plugin/bin/adr-retire-check
+plugin/bin/postmortem-verify plugin/bin/qh-root`, all three return **nothing**: they spawn no
+subprocess at all, so they are reading gates and the safe set is eight, not five. The boundary held,
+by luck rather than by design.
+
+**The lesson is the general one and it is not about MCP.** A check scoped to the members a list names
+can only ever confirm that list; it cannot detect that the list is short. Catching a missing member
+requires enumerating from the SOURCE and diffing against the list, which is §5 of CLAUDE.md said
+back to itself. Exposing those three is a scope change rather than a boundary change, and it is
+deferred here.
+
 ## 34. FIXED — the coverage gate was rejecting good code one run in ten
 
 **Cause, found by reading rather than guessing.** `--experimental-test-coverage` measures only the
@@ -2611,6 +2635,22 @@ largest file in the suite by a wide margin.
 **Frequency so far: one occurrence in the runs recorded to date.** Do not act on it as though it
 were established; do record the next one here with its run id, because two data points decide
 whether this is a timeout or something real.
+
+### 2026-08-29 — the diagnostic is in place; the flake itself is untouched
+
+The first half of the work above is done and the second deliberately is not. `scripts/selftest.sh`
+now honours `QUALITY_HARNESS_TAP=<file>`: when set, the suite runs with both the spec reporter to
+stdout and a TAP reporter to that file. The Windows job sets it and uploads the transcript as an
+artifact **on failure only**. TAP names each subtest as it completes, so a run that dies at file
+level with nothing to report still says how far it got.
+
+Off by default, and nothing reads the file — it is a diagnostic, not a gate, and a check nobody reads
+would be worse than none. Verified both paths locally: 388 `ok`/`not ok` lines in the transcript with
+the variable set, and the ordinary run unchanged without it.
+
+**This does not make the flake reproducible and it is not evidence about the cause.** It only means
+the next occurrence arrives with something to read. Record that occurrence here with its run id and
+attach what the transcript said.
 
 ## Verification claims worth re-running after any of the above
 

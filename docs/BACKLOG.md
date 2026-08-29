@@ -1915,7 +1915,7 @@ would have accepted all fifteen bullets and taught nobody anything. A gate that 
 enough to be false is the precondition for a report like this existing at all — which is the same
 argument this repository makes about tests, one level up.
 
-## 38. One of three closed 2026-08-28; the two runner questions stay open
+## 38. Two of three closed; one runner question stays open
 
 **Met again 2026-08-28, by ADR-010's spec.** All 17 facts and all 7 scenarios are bound and passing;
 `spec-verify --implemented` still reports `[PARTIAL]`. The facts resolve through a `Cmd` override —
@@ -1924,6 +1924,11 @@ detected for `tests/`. The gate is right to say UNRUN rather than green, and the
 Draft rather than being talked up. Two candidate closes, in order of honesty: give scenarios a `Cmd`
 column, or let spec-verify accept a repository-level runner declaration. Adding a `package.json` this
 project does not otherwise need would be shaping the repository to satisfy the gate.
+
+> **The first of those two shipped 2026-08-29 — see the receipt below.** The sentence above is kept
+> as written because it is what was known then, but a reader must not act on "the scenarios have no
+> such column": they do now. What remains open is the SECOND candidate, a repository-level runner
+> declaration, and the paragraph it belongs to is the last in this section.
 
 **CLOSED — `--spec --collect` no longer reports a collector it could not run as an absent test.**
 `test_exists` returns `unrun` when the collector cannot start, and also when it exits nonzero having
@@ -2096,14 +2101,39 @@ was satisfied by the line-bound fix, so deleting it changed nothing observable. 
 load-bearing for exactly one shape — a regex and a test definition sharing a line — which is now the
 test. A defence-in-depth branch nobody can make fail is indistinguishable from a dead one.
 
-## 41. Two questions ADR-007 deferred about cross-record relationships
+## 41. One of two closed; the relation-vocabulary question stays open
 
-**`Consumes` still scavenges T-ids, and a qualified id there binds locally.** Found by ADR-007 T1's
+**CLOSED — `Consumes` no longer scavenges a qualified id into a local edge.** Found by ADR-007 T1's
 class sweep, which turned up NINE sites using the same `(?<!\w)T\d+(?!\w)` scavenge where the task
-had listed two. `Depends-on` is fixed; `Consumes` is the one other place an author could plausibly
-write `ADR-003-T4`, and today it would produce a silent local `T4` edge. ADR-007 puts `Consumes` out
-of scope so that a regression in one edge source can be attributed, which is the right call for one
-change and leaves this open. The other six sites scan content that is local by construction.
+had listed two. `Depends-on` was fixed first; `Consumes` is the one other place an author could
+plausibly write `ADR-003-T4`, and it produced a silent local `T4` edge. ADR-007 put `Consumes` out of
+scope so that a regression in one edge source could be attributed — the right call for one change,
+and the sibling it left is now taken.
+
+**Verified 2026-08-29 rather than assumed**, because this entry read OPEN while the code had already
+moved: `dag_edges` splits both headers through `split_dependencies` and scans only the local half, and
+the docstring carries the reproduction (`Consumes:` naming a foreign record printed
+`blocked … (waiting on T4)` — a sibling it has nothing to do with). A foreign id contributes NO edge
+here deliberately: this builds the LOCAL ordering graph, and cross-record readiness is `adr-next`'s
+foreign state, which says "cannot evaluate" rather than inventing an ordering. A wrong edge is worse
+than a missing one, because the DAG then looks answered.
+
+Three checks stand behind it, and all three were re-run:
+
+- `tests/gate-regressions.py` asserts `dag(consumes="ADR-003-T4") == []` AND that a LOCAL `T4` still
+  builds its edge in the same test — without the second, a `dag_edges` returning `[]` unconditionally
+  would satisfy the first (CLAUDE.md §4).
+- `tests/adr-next.test.mjs::a qualified id in Consumes leaves the record rather than binding locally`.
+- Two catalogue mutations, both RED on 2026-08-29:
+  `next: a qualified id in Consumes leaves the record, it does not bind locally` and
+  `lint: the DAG scans only the LOCAL half of Depends-on and Consumes`.
+
+The other six scavenge sites scan content that is local by construction.
+
+**Worth recording about the entry itself:** it said OPEN and the work was done. A backlog is a claim
+about the present, and an entry nobody receipts decays into a to-do list that re-proposes finished
+work. Cheap to check — the fix names its own §NN — and the check is what turned this from a rewrite
+into a receipt.
 
 **Ordering is not the only cross-record relation.** "Supersedes", "invalidates", "measured on the
 pipeline that" — the reporting team counted 41 of 94 task files (44%) mentioning a foreign ADR in

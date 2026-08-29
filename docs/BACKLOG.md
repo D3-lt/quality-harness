@@ -3402,6 +3402,37 @@ easy to read as "nothing to check here".
 tables name files that have NEVER existed while the README's acceptance runs a THIRD file. Table and
 command disagree with each other, independently of any tool.
 
+### 2026-08-29 — a third species, and why it gets a convention rather than a field
+
+The same session then hit the case neither the tests-exist rule nor a symbol check could reach, and
+it is the boundary worth naming. Two task files in ONE record disagreed about ARITY:
+`apply_operator` stamps a mutation id on two elements and enforces `bearers == 2` in a post-condition
+that raises, with a comment naming the other task as the reason; that other task specifies resolving
+a node *"only when exactly one element matches, else None"*. Against the real corpus two always
+match, so the rule returns None by construction. Every symbol exists, the identifier is spelled
+identically in both files, both acceptances pass, `adr-lint` is clean on both. **Nothing textual can
+catch it, and the conflict lives in a number stated in executable form in one file and in prose in
+the other.** A different-lineage review found it; its top finding was that the record named the WRONG
+blocker — telling the next session to wait for work that had already landed, which is worse than
+naming none, because it manufactures a dependency and the reader does nothing while believing they
+are blocked.
+
+They asked whether the format should let a task declare an invariant another task must not
+contradict. **Answered no, and their own case is the argument.** The invariant WAS declared, in the
+strongest available form — a post-condition that raises. A `Produces: … (arity: 2)` field would add a
+SECOND place to state it, and a second place drifts from the first; the record would then carry an
+arity claim the code could contradict silently. Worse, a schema field can only carry what an author
+already knows to write down, and here neither author knew the conflict existed. A field cannot elicit
+a fact nobody has; a reader with both files in front of it can, which is what the review beat is for.
+
+**The convention worth adopting instead, recorded as a note and not yet a rule:** when a task's
+behaviour depends on a constraint enforced elsewhere in code, CITE the enforcing construct — file and
+symbol — rather than restate the constraint. `Consumes:` already exists for that and is used for data
+rather than for constraints. It is the same discipline as `Enforced-by:` naming a check instead of
+describing one, and it has the same reason: today's measurement was that an `Enforced-by:` naming a
+MUTATION carries its own reachability proof while one naming a test carries only a name. One case is
+not enough to change a template; a second one changes that.
+
 **Why the symbol version is harder, and must not be attempted the cheap way.** A test name is a
 declaration; a symbol reference inside prose is not, and grepping for one would fire on every renamed
 identifier, every planned name, every quoted example. The tractable form is probably narrow: a

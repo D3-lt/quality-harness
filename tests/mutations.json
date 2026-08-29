@@ -2546,6 +2546,33 @@
       "to": "    process.stdout.write(asJson ? JSON.stringify({ read: 0, cases: [] }, null, 2) + '\\n' : '')"
     },
     {
+      "label": "deltas: a run that reached no answer is excluded, not scored zero",
+      "file": "scripts/eval-deltas.mjs",
+      "tests": [
+        "tests/eval-deltas.test.mjs"
+      ],
+      "from": "        .filter(run => !neverReachedAnAnswer(run))",
+      "to": "        .filter(run => true)"
+    },
+    {
+      "label": "deltas: an errored run is one that reached no answer",
+      "file": "scripts/eval-deltas.mjs",
+      "tests": [
+        "tests/eval-deltas.test.mjs"
+      ],
+      "from": "  return Boolean(run?.error)",
+      "to": "  return false"
+    },
+    {
+      "label": "deltas: only a run past its own ceiling ran out of turns",
+      "file": "scripts/eval-deltas.mjs",
+      "tests": [
+        "tests/eval-deltas.test.mjs"
+      ],
+      "from": "    && run.turns >= maxTurns",
+      "to": "    && true"
+    },
+    {
       "label": "next: a task is ready only when the record that owns it is Accepted",
       "file": "plugin/scripts/work-next.mjs",
       "tests": [

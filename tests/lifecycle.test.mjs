@@ -2433,6 +2433,80 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   }
 })
 
+test('a Proposed record has no ready tasks, and the router says why it stopped counting', async () => {
+  // docs/BACKLOG.md §48, found 2026-08-29 by authoring the first Proposed record
+  // in this corpus that carried task files. `observe()` built `ready` from a
+  // filesystem walk and never joined a task file to its record's status, so
+  // work-next printed
+  //
+  //   Next: /adr-execute — because an Accepted ADR has tasks that are ready
+  //
+  // naming the tasks of a record nobody had accepted. Correct about the FILES,
+  // wrong about the RECORD, and asserting a status nothing had checked — which
+  // is a gate reporting an observation it did not make (ADR-005), and the exact
+  // thing CLAUDE.md §10 exists to prevent: a session that follows it executes a
+  // decision nobody made.
+  const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
+  const root = await mkdtemp(path.join(testTmp, 'quality-proposed-'))
+  const record = (n, status) =>
+    `# ADR-${n}: decision ${n}\n\n**Status:** ${status}\n\n## Context\n\nx\n`
+  const task = id =>
+    `# Task ADR-${id}\n\n**Depends-on:** none\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n`
+    + '## Verification Log\n\n'
+  const evidenced = '# Task ADR-001-T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n'
+
+  await mkdir(path.join(root, 'docs', 'adr', 'ADR-001-accepted', 'tasks'), { recursive: true })
+  await mkdir(path.join(root, 'docs', 'adr', 'ADR-002-proposed', 'tasks'), { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-accepted.md'), record('001', 'Accepted'))
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-002-proposed.md'), record('002', 'Proposed'))
+  // The corpus must already record evidence the way adr-verify writes it, or
+  // `usesVerificationLog` is false and the whole branch is skipped — which would
+  // make this test pass for a reason that has nothing to do with status.
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T9.md'), evidenced)
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T1.md'), task('001-T1'))
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-002-proposed', 'tasks', 'T1.md'), task('002-T1'))
+
+  const state = observe(root)
+  assert.equal(state.usesVerificationLog, true, 'otherwise this asserts nothing about status')
+  assert.deepEqual(state.ready.map(file => path.basename(path.dirname(path.dirname(file)))),
+    ['ADR-001-accepted'],
+    `only an Accepted record's tasks are ready:\n${state.ready.join('\n')}`)
+  assert.equal(nextStage(state).id, 'adr-execute', 'the Accepted record still has work')
+
+  // AND IT SAYS SO. Dropping in silence is the other half of the same defect:
+  // a corpus whose only unfinished work sits under an unaccepted record would
+  // otherwise read as finished.
+  assert.deepEqual(state.notYetDecided.map(file => path.basename(path.dirname(path.dirname(file)))),
+    ['ADR-002-proposed'],
+    `the tasks it declined to count must be named:\n${JSON.stringify(state.notYetDecided)}`)
+
+  // With the Accepted record's work done, the Proposed one must NOT become the
+  // next stage — the router goes quiet rather than proposing unaccepted work.
+  await rm(path.join(root, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T1.md'))
+  const quiet = observe(root)
+  assert.deepEqual(quiet.ready, [], `nothing accepted is waiting:\n${quiet.ready.join('\n')}`)
+  assert.notEqual(nextStage(quiet)?.id, 'adr-execute',
+    'a Proposed record is a plan, never a work order')
+
+  // Accepting it makes the same file ready, so the guard is reading STATUS and
+  // not merely refusing the second record.
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-002-proposed.md'), record('002', 'Accepted'))
+  const accepted = observe(root)
+  assert.deepEqual(accepted.ready.map(file => path.basename(file)), ['T1.md'],
+    `accepting the record makes its task ready:\n${accepted.ready.join('\n')}`)
+  assert.deepEqual(accepted.notYetDecided, [])
+
+  // The count is told, not left to be subtracted. "10 record(s), 10 accepted" on
+  // a tree of eleven was right by EXCLUSION — the unclassifiable record fell out
+  // of the corpus read entirely — and that is indistinguishable from right by
+  // checking (docs/BACKLOG.md §48).
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-003-draft.md'), record('003', 'Draft'))
+  const withDraft = observe(root)
+  assert.equal(withDraft.undecided, 1, 'the record it cannot act on is counted, not dropped')
+  assert.equal(withDraft.records, 2, 'and `records` still means what it meant')
+})
+
 test('adr-context answers which decisions govern a path, and which were killed there', async () => {
   // Called IN-PROCESS, not spawned. adr-state beside it is exercised by
   // spawnSync, which parent-process coverage cannot see — and this resolver is

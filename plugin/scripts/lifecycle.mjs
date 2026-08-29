@@ -2200,6 +2200,28 @@ function taskDirectoriesFor(file, number) {
   return found
 }
 
+/**
+ * The task files a record owns, by directory ownership and by self-naming.
+ *
+ * Extracted so a record this reader cannot CLASSIFY still has its tasks
+ * attributed: `adrCorpus` needs the texts as well and inlines the same walk for
+ * the governed-path union, and both call `taskDirectoriesFor` with the same
+ * number. Kept beside it rather than duplicated at the caller — a second
+ * attribution rule is a second thing to keep in step (ADR-001, ADR-004).
+ */
+function taskFilesFor(file, text) {
+  const found = []
+  for (const tasks of taskDirectoriesFor(file, adrNumber(file, text))) {
+    let entries = []
+    try {
+      entries = readdirSync(tasks.path).filter(name => name.toLowerCase().endsWith('.md')
+        && name.toLowerCase() !== 'readme.md')
+    } catch { continue }
+    for (const name of entries) found.push(path.join(tasks.path, name))
+  }
+  return [...new Set(found)]
+}
+
 function readRecordFiles(root) {
   const files = []
   const walk = (directory, depth) => {
@@ -2289,7 +2311,13 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // 25 of them carrying no `**Status:**` line at all and 12 carrying one it
       // does not recognise, `Implemented` among them. A count that omits what it
       // could not read is a count that reads as coverage.
-      unreadable.push({ file, status: status || null })
+      // Its TASK FILES are attributed anyway, by the same rule the governing
+      // records use. A Proposed or Draft record governs nothing yet — correctly —
+      // but its tasks still exist, and a consumer that cannot see whose they are
+      // has only two options, both wrong: treat them as executable (§48, where
+      // the router offered an unaccepted record's tasks) or ignore them and
+      // report a corpus with unfinished work as finished.
+      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text) })
       continue
     }
     const declared = declaredGoverns(text)
@@ -2307,32 +2335,42 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // names its ADR in its title (`# Task ADR-001-T1: …`); where no task does,
     // the directory is attributed only if this is the one record beside it.
     const number = adrNumber(file, text)
+    // The task files attributed to this record, PATHS included. The paths are
+    // what lets a caller ask "whose task is this?" — `work-next` needs it to stop
+    // calling an unaccepted record's tasks ready (docs/BACKLOG.md §48), and
+    // deriving it a second time at the caller would be a second attribution rule
+    // to keep in step with this one.
+    const owned = []
     const texts = []
     for (const tasks of taskDirectoriesFor(file, number)) {
       let taskEntries = []
       try {
-        taskEntries = readdirSync(tasks.path).filter(name => name.toLowerCase().endsWith('.md'))
+        taskEntries = readdirSync(tasks.path).filter(name => name.toLowerCase().endsWith('.md')
+          && name.toLowerCase() !== 'readme.md')
       } catch { continue }
       for (const name of taskEntries) {
+        const taskPath = path.join(tasks.path, name)
         let taskText
-        try { taskText = readFileSync(path.join(tasks.path, name), 'utf8') } catch { continue }
+        try { taskText = readFileSync(taskPath, 'utf8') } catch { continue }
         // A directory NAMED for this record is attribution in itself.
         if (tasks.owned) {
+          owned.push(taskPath)
           for (const declaredPath of affectedFiles(taskText)) governs.add(declaredPath)
         } else {
-          texts.push(taskText)
+          texts.push({ path: taskPath, text: taskText })
         }
       }
     }
     const claimed = number
-      ? texts.filter(taskText => new RegExp(`ADR[-_ ]?0*${number}\\b`, 'i').test(taskText))
+      ? texts.filter(entry => new RegExp(`ADR[-_ ]?0*${number}\\b`, 'i').test(entry.text))
       : []
     // Only when this is the one record beside them: a shared tasks/ directory
     // whose files name no ADR cannot be attributed, and guessing would make
     // every record claim its neighbours' files.
     const sole = recordsPerDirectory.get(path.dirname(file)) === 1
-    for (const taskText of (claimed.length ? claimed : (sole ? texts : []))) {
-      for (const declaredPath of affectedFiles(taskText)) governs.add(declaredPath)
+    for (const entry of (claimed.length ? claimed : (sole ? texts : []))) {
+      owned.push(entry.path)
+      for (const declaredPath of affectedFiles(entry.text)) governs.add(declaredPath)
     }
     records.push({
       file,
@@ -2353,6 +2391,11 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // and the CLI cannot disagree about what a header means, which is the
       // drift ADR-001 and ADR-004 were both about.
       enforcedBy: declaredEnforcement(text),
+      // The task files this record owns, by the same attribution the governed
+      // paths use. A consumer that walks the filesystem for task files instead
+      // gets the files right and the RECORD wrong — §48, where the router named
+      // a Proposed record's tasks as ready to execute.
+      taskFiles: [...new Set(owned)],
       declares: [...declares],
       // Two sources, one slot, told apart by the prefix. A `type: package`
       // matcher was never resolvable here; a `governs:` entry WAS resolvable and

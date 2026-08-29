@@ -2031,7 +2031,7 @@ evidence grammar, where a divergence silently drops claims from a denominator, w
 its siblings are two readers of a header a human wrote. Nothing in ADR-011 makes this cheaper or
 harder; it is the next item.
 
-## 48. `work-next` calls a Proposed record's tasks ready, and says "Accepted" while doing it
+## 48. CLOSED 2026-08-29 — `work-next` called a Proposed record's tasks ready
 
 **Found 2026-08-29 by authoring ADR-011, which is the first Proposed record in this corpus to carry
 task files.** `node plugin/scripts/work-next.mjs` printed:
@@ -2072,8 +2072,41 @@ be suspicious of both numbers. `unbacked` is the milder member — it names a ta
 with no evidence, which is worth reporting whatever the record's status — but its stage line says
 "recording evidence for finished work", and on a Proposed record there is no finished work to record.
 
-**Fix shape:** attribute each task file to its record the way `lifecycle.mjs::corpusRecords` already
-does — `taskDirectoriesFor`, plus the `ADR-NNN` in a task title, and REUSE its `recordsPerDirectory`
+**FIXED 2026-08-29, both halves.** `adrCorpus` now attaches `taskFiles` to every record, by the same
+attribution its governed-path union already used — so the join exists once, at the reader, rather
+than being re-derived by each consumer. `observe()` intersects the filesystem walk with it: a task is
+`ready` only when the record that owns it is `governing`.
+
+The second half was the harder one and is the reason the first fix alone would have been wrong. A
+`Proposed` record is not merely non-governing — `statusKind` returns null for it, so it never enters
+`corpus` at all and lands on the non-enumerable `unreadable` list. Its task files therefore had no
+owner to find, and filtering on ownership alone would have silently dropped them: a corpus whose only
+unfinished work sits under an unaccepted record would have read as finished. So `unreadable` entries
+now carry `taskFiles` too (`taskFilesFor`, extracted so one attribution rule serves both branches),
+and `work-next` reports them:
+
+    1 unfinished task file(s) belong to a record this reader cannot execute — Proposed, Draft, or a
+    status it does not recognise. They are not counted as ready, because a record is a work order
+    only once it is Accepted:
+      docs/adr/ADR-099-proposed/tasks/T1-x.md
+
+Measured on a clone carrying one Proposed record with one unfinished task. Before: `Next:
+/adr-execute — because an Accepted ADR has tasks that are ready`, naming that task. After: the line
+above, and no stage proposed.
+
+The count is fixed too. `10 record(s), 10 accepted` on a tree of eleven was right by EXCLUSION, which
+is indistinguishable from right by checking; the line now ends `1 further record(s) carry a status
+this reader does not act on.`
+
+**Three catalogue anchors were orphaned by these edits** — `context: a shared tasks directory is
+attributed, not assumed` and `state: a record that cannot be read is reported` both went to `matches
+0x`, caught by `tests/package.test.mjs`. Re-pointed at the same mechanisms. That is the third time in
+one session an edit to a guard line silently disturbed the mutation catalogue, and the general rule
+is worth stating: **editing a gate's guard lines is an edit to `tests/mutations.json`, and only
+`package.test.mjs` says so.**
+
+**Original fix shape, kept for the reasoning.** Attribute each task file to its record the way
+`lifecycle.mjs::corpusRecords` already does — `taskDirectoriesFor`, plus the `ADR-NNN` in a task title, and REUSE its `recordsPerDirectory`
 / `sole` guard rather than re-deriving the attribution, or the join acquires the "every record claims
 its neighbours' files" bug the comment at `plugin/scripts/lifecycle.mjs:~2270` records. Then drop
 tasks whose record is not `governing` from `ready`. Say what was dropped rather than dropping it in silence — a corpus whose

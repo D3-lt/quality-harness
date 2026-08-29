@@ -1771,6 +1771,23 @@ const PROJECT_CHECKS = [
   { file: 'phpunit.xml.dist', command: 'php vendor/bin/phpunit' },
 ]
 
+/**
+ * The check a project declares in `.quality-harness.json`, if it declares one.
+ *
+ * Anything that is not a non-empty string is IGNORED rather than honoured, and
+ * ignoring it must leave the rungs below intact: a config file that turned the
+ * feature off by being malformed would be the worst of both — no answer, and no
+ * sign that anything was expected.
+ */
+function declaredCheckCommand(directory) {
+  let config
+  try {
+    config = JSON.parse(readFileSync(path.join(directory, '.quality-harness.json'), 'utf8'))
+  } catch { return null }
+  const check = config?.check
+  return typeof check === 'string' && check.trim() ? check.trim() : null
+}
+
 /** A `test` script a composer.json declares, which is the project's own answer. */
 function composerScriptCommand(directory) {
   let manifest
@@ -1824,6 +1841,21 @@ export function projectCheckCommand(cwd = process.cwd()) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
   if (!directory) return null
   const root = gitRepositoryRoot(directory) ?? directory
+  // WHAT THE PROJECT SAYS, before any guess. Every rung below infers a command
+  // from a manifest, and an inferred command can fail to DISCRIMINATE: measured
+  // 2026-08-29 in a real Laravel repository, the derived `php vendor/bin/phpunit`
+  // is red on a clean tree because of a host-only failure, so a session gets the
+  // same exit code whether or not it broke anything — zero bits, which is worse
+  // than the wrong-command defect it replaced (docs/BACKLOG.md §59). That
+  // repository's own declared check discriminated cleanly against two injected
+  // mutations. `.quality-harness.json` already carries this project's config, so
+  // a declared check needs no new file and no parsing of prose.
+  //
+  // A declaration can of course be WRONG. That is the point: the mistake is then
+  // the project's own, visible in a file someone can fix, rather than this tool
+  // guessing and being wrong on the project's behalf.
+  const declared = declaredCheckCommand(root)
+  if (declared) return declared
   // A script the repository NAMES FOR ITSELF beats a manifest guess, the same
   // reason `scripts/verify.sh` sits above `go test ./...`: `php vendor/bin/phpunit`
   // is a guess at how this project runs its tests, and in the repository that

@@ -750,6 +750,42 @@ test('reported: committing does not make the next commit demand a check of it', 
   assert.doesNotMatch(after.stdout, /a\.go/, 'the published half is not re-reported')
 })
 
+test('a project that declares its check is asked for that check', async () => {
+  // docs/BACKLOG.md §59. Every other rung GUESSES from a manifest, and the guess
+  // can be a command that does not discriminate: measured 2026-08-29 in a real
+  // Laravel repository, the DERIVED `php vendor/bin/phpunit` is red on a clean
+  // tree (a host-only failure), so a session gets the same exit code whether or
+  // not it broke anything — zero bits. The command that repository DECLARES,
+  // `php artisan test --testsuite=Unit`, is green on a clean tree and red on
+  // each of two injected mutations, with failure counts identical to the
+  // container run. A discriminator versus a constant.
+  //
+  // .quality-harness.json is already this project's machine-readable config
+  // (strictFrom lives there), so a declared check needs no new file and no prose
+  // parsing. The rung's virtue is that it stops the tool guessing — a project
+  // CAN declare a bad command, and then the mistake is its own and sits in a
+  // file someone can fix.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-declared-'))
+  await writeFile(path.join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'vitest run' } }))
+  await writeFile(path.join(dir, 'verify.sh'), '#!/usr/bin/env bash\n')
+  await writeFile(path.join(dir, '.quality-harness.json'),
+    JSON.stringify({ check: 'php artisan test --testsuite=Unit' }))
+  assert.equal(projectCheckCommand(dir), 'php artisan test --testsuite=Unit',
+    'what the project says beats every guess, including a verify script')
+
+  // The must-fail direction (CLAUDE.md §4), three ways. A declaration that is not
+  // a usable command must not silence the rungs below it — otherwise "declared
+  // wins" degrades into "a config file turns the feature off".
+  for (const declared of [{ check: '' }, { check: '   ' }, { check: 42 }, { strictFrom: 12 }]) {
+    await writeFile(path.join(dir, '.quality-harness.json'), JSON.stringify(declared))
+    assert.equal(projectCheckCommand(dir), 'bash verify.sh',
+      `a check of ${JSON.stringify(declared)} is not a command, so the rungs below still answer`)
+  }
+  // And a config this tool cannot parse changes nothing either.
+  await writeFile(path.join(dir, '.quality-harness.json'), '{ not json')
+  assert.equal(projectCheckCommand(dir), 'bash verify.sh')
+})
+
 test('reported: a PHP repository is not evidenced by a vite build', async () => {
   // docs/BACKLOG.md §56, measured 2026-08-29 by the depozitas-laravel-22 session
   // against the INSTALLED 2.34.1 in a pure-PHP Laravel API: the session hook

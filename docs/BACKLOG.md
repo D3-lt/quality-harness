@@ -3139,7 +3139,7 @@ documenting an allowance nobody honours and pre-digest corpora need a migration 
 silent downgrade. The gates are standalone scripts with no import path between them, which is what
 makes "one grammar, two call sites" cost real work rather than a refactor.
 
-## 59. OPEN — a correctly-identified check that is red on an unmodified tree
+## 59. HALF CLOSED — a correctly-identified check that is red on an unmodified tree
 
 **Measured 2026-08-29 by the depozitas-laravel-22 session**, after §56 fixed the wrong-command
 defect. The rung now resolves correctly — `phpunit.xml` present, `php vendor/bin/phpunit` named — and
@@ -3168,6 +3168,42 @@ that guesses wrong is worse than one that abstains. Two shapes worth considering
 - **Phrase the instruction so a red is readable.** The gates already distinguish UNRUN from FAIL. A
   named check carries no environmental confidence, and the instruction could say so: run it, and a
   red on an unmodified tree is a finding about the environment rather than about your change.
+
+### MEASURED 2026-08-29 — the declared command discriminates, the derived one is a constant
+
+The reporting session ran the experiment rather than arguing the design. Two mutations in one PHP
+service, each applied alone and reverted immediately (backup + trap, `git status` clean after each):
+a boundary loosening (`!== 10` → `< 10`) and a value corruption (`substr(…, 2, 2)` → `substr(…, 2, 3)`).
+
+    invocation                                clean tree       M1              M2
+    host  php artisan test --testsuite=Unit   exit 0, 91 pass  exit 1, 2 fail  exit 1, 4 fail
+    host  php vendor/bin/phpunit  (derived)   exit 2, 1 error  —               —
+    cont. php vendor/bin/phpunit              exit 0, 300 OK   exit 1, 2 fail  exit 1, 4 fail
+
+Host-artisan and container-phpunit agree on precisely what broke — identical failure counts and
+assertion totals — so on detection they are interchangeable. The DERIVED command is red on a clean
+tree, which means a session gets the same exit code whether or not it broke anything: **zero bits**.
+That is worse than the wrong-command defect §56 fixed in one specific way — a false green is at least
+right most of the time, and a constant is uninformative always.
+
+**So the rung is built** (`declaredCheckCommand`): `.quality-harness.json` may carry a `check`
+string, and it answers before every guess. Anything that is not a non-empty string is ignored and
+the rungs below still answer, which is asserted four ways — empty, whitespace, a number, a config
+with no `check` at all — plus an unparseable file. Without those, "declared wins" would degrade into
+"a malformed config turns the feature off", which is no answer and no sign that one was expected.
+Catalogue entries `checks: a declared check answers before any guess` and
+`checks: a malformed declared check does not silence the rungs below`.
+
+**The limit, stated by the reporter and worth keeping:** the declared command wins there partly
+because it scopes to the Unit suite and so dodges the host-only Feature failure. A project can
+declare a bad command. The rung's virtue is that it stops the tool GUESSING — a wrong declaration is
+the project's own mistake, in a file someone can fix, rather than this tool being wrong on the
+project's behalf.
+
+**Still open:** the tool has no way to say "I found a command but cannot vouch for the environment it
+needs". The gates already distinguish UNRUN from FAIL, and the instruction that names a check could
+carry the same honesty — a red on an unmodified tree is a finding about the environment, not about
+the change.
 
 **The reasoning lesson, recorded because it is better than the defect.** Their first theory was
 correct and they rejected it on a test that could not have disconfirmed it: suppressing

@@ -3044,7 +3044,7 @@
       "label": "verify: an Acceptance fence may be spelled sh or shell",
       "file": "plugin/bin/adr-verify",
       "tests": [
-        "tests/gates.test.mjs"
+        "tests/evidence-chain.test.mjs"
       ],
       "from": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash|sh|shell)\\s*\\n(.*?)```\", re.S)",
       "to": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash)\\s*\\n(.*?)```\", re.S)"

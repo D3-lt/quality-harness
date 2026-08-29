@@ -87,6 +87,55 @@ test('a forwarder pins no version, which is the whole point of it', () => {
   }
 })
 
+test('the resolver asks what is INSTALLED, and falls back to the cache scan', () => {
+  // docs/BACKLOG.md §50, reported 2026-08-29. The cache is a directory nothing
+  // prunes — this machine's holds forty-one versions back to 2.0.0 — so a
+  // leftover or half-removed directory with a higher number won over the
+  // installed one silently, and the gate ran a version nobody chose.
+  const home = mkdtempSync(path.join(tmpdir(), 'qh-resolver-'))
+  const cache = cacheDirectory(home)
+  const manifest = path.join(home, '.claude', 'plugins', 'installed_plugins.json')
+  for (const version of ['2.33.1', '9.9.9']) {
+    mkdirSync(path.join(cache, version, 'bin'), { recursive: true })
+  }
+  const resolve = () => spawnSync('node', ['-e', RESOLVER, cache], { encoding: 'utf8' }).stdout
+
+  try {
+    // THE DIRTY CASE FIRST: no manifest, so the scan answers — and it picks the
+    // leftover. This is the behaviour that shipped, asserted so the fix below is
+    // shown to change something.
+    assert.equal(resolve(), path.join(cache, '9.9.9'),
+      'with nothing installed to ask about, the newest cache directory is all there is')
+
+    // ...and with a manifest, the INSTALLED version wins over the higher number.
+    writeFileSync(manifest, JSON.stringify({
+      plugins: { 'quality-harness@quality-harness': [
+        { scope: 'user', installPath: path.join(cache, '2.33.1'), version: '2.33.1' },
+      ] },
+    }))
+    assert.equal(resolve(), path.join(cache, '2.33.1'),
+      'a leftover cache directory must not outrank what is installed')
+
+    // A MANIFEST THAT DOES NOT PARSE FALLS BACK TO THE SCAN, never to nothing.
+    // The file is not ours and its shape can change under us; degrading to the
+    // old answer is the promise, and "no gate at all" is not an acceptable one.
+    writeFileSync(manifest, '{ this is not json')
+    assert.equal(resolve(), path.join(cache, '9.9.9'), 'a parse failure degrades, it does not erase')
+
+    // An entry whose installPath has no bin/ is not a candidate either — a
+    // half-removed install is exactly the shape this defect came from.
+    writeFileSync(manifest, JSON.stringify({
+      plugins: { 'quality-harness@quality-harness': [
+        { scope: 'user', installPath: path.join(cache, '3.0.0'), version: '3.0.0' },
+      ] },
+    }))
+    assert.equal(resolve(), path.join(cache, '9.9.9'),
+      'an installPath with no bin is not an install')
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+  }
+})
+
 test('a forwarder in a directory nothing searches is reported, not assumed to work', () => {
   // Reported 2026-08-29 from another machine, measured rather than guessed.
   // The standalone bin directory was on PATH there only via `.zshrc`, which zsh reads for

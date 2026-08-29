@@ -2502,7 +2502,7 @@ its neighbours' files" bug the comment at `plugin/scripts/lifecycle.mjs:~2270` r
 tasks whose record is not `governing` from `ready`. Say what was dropped rather than dropping it in silence — a corpus whose
 task files cannot be attributed must report that, not report zero.
 
-## 50. The forwarder picks a version by reading the cache, not by asking what is installed
+## 50. CLOSED 2026-08-29 — the forwarder asks what is installed, and falls back to the cache
 
 Reported 2026-08-29 alongside §51, by the session that found the exit-code defect. The generated
 forwarder resolves the newest version by listing
@@ -2526,6 +2526,28 @@ rather than to nothing.
 **Not yet reproduced as a wrong ANSWER**, only as a wrong resolution path — nobody has shown a cache
 directory that outranks the install and changes a verdict. Worth doing before that happens rather
 than after.
+
+### CLOSED 2026-08-29, and the fallback is the load-bearing half
+
+The resolver now reads `installed_plugins.json` (derived from the cache path, not a second literal),
+takes the entry whose `installPath` still has a `bin/`, and uses that. **The directory scan REMAINS,
+as the fallback.** That is deliberate and it is the part worth defending: the manifest is not this
+project's file, its shape can change under us, and a parse failure must degrade to the previous
+answer rather than to none. A resolver that returns nothing turns every gate into "could not run" —
+which, since §51, correctly exits 4 and stops a fence. Trading a wrong-version risk for a
+whole-corpus outage would be a bad bargain made silently.
+
+Four cases asserted, and the first is the one that makes the rest mean anything: **with no manifest,
+the scan still picks the leftover `9.9.9` over the installed `2.33.1`** — the shipped behaviour,
+asserted so the fix is shown to change something. Then the manifest wins; then a manifest that does
+not parse falls back to the scan rather than to nothing; then an `installPath` with no `bin/` is not
+a candidate, which is the half-removed-install shape the defect came from.
+
+The two existing catalogue anchors sit on the scan lines and were left byte-identical rather than
+re-pointed — the scan did not change, it was demoted. Sixth time today an edit moved a guard line,
+and the first time it was checked BEFORE the edit rather than by `package.test.mjs` afterwards.
+
+Enforced-by: `link: the resolver prefers the installed version over a leftover cache directory`, RED.
 
 ## 51. CLOSED 2026-08-29 — a forwarder that could not run the gate reported a pass
 

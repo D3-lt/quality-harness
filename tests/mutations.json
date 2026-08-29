@@ -2024,6 +2024,15 @@
       "to": "  return true"
     },
     {
+      "label": "link: the resolver prefers the installed version over a leftover cache directory",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  'if(ok.length)root=ok[0].installPath;',",
+      "to": "  'if(false)root=ok[0].installPath;',"
+    },
+    {
       "label": "next: a human sign-off that says stop is not done",
       "file": "plugin/bin/adr-next",
       "tests": [

@@ -257,6 +257,63 @@ test('the plugin contains the complete reusable decision lifecycle', () => {
   }
 })
 
+/**
+ * Sections whose BODY declares a closure that the HEADING never mentions.
+ *
+ * Returned rather than asserted so the same function can be shown finding one —
+ * a check that only ever reports "clean" is a check nobody has seen work.
+ */
+function backlogHeadingsThatUndersell(text) {
+  const words = 'CLOSED|FIXED|DECIDED|WITHDRAWN|SUPERSEDED|RESOLVED'
+  const declaresClosure = new RegExp(String.raw`^\s*\*\*(?:PARTLY\s+)?(?:${words})\b`, 'm')
+  const heading = /^##\s+(\d+)(?:\s*\(superseded\))?\.\s*(.+)$/gm
+  const sections = [...text.matchAll(heading)]
+  const found = []
+  for (const [index, section] of sections.entries()) {
+    const end = sections[index + 1]?.index ?? text.length
+    const body = text.slice(section.index + section[0].length, end)
+    if (declaresClosure.test(body) && !new RegExp(words, 'i').test(section[2])) {
+      found.push(`§${section[1]} ${section[2].slice(0, 60)}`)
+    }
+  }
+  return found
+}
+
+test('the backlog index does not undersell what the backlog says it finished', () => {
+  // ONE DIRECTION ONLY, and the direction was chosen by enumerating rather than
+  // by taste. The house style puts the status in the HEADING and does not repeat
+  // it in the body: measured 2026-08-29 over 56 sections, a two-directional rule
+  // flagged 7 correct entries (§26, §27, §28, §29, §31, §32, §34) whose headings
+  // read "CLOSED …" with no marker in the prose below. A gate that fires on the
+  // convention is a gate people switch off.
+  //
+  // What is left is the drift that actually happened, twice, and was fixed by
+  // hand on 2026-08-29: §45's body said its mechanism had shipped in ADR-011
+  // while its heading still described the open defect, and §46 carried "CLOSED
+  // 2026-08-28" in its first line and nothing in its title. An index that
+  // understates its own corpus sends the next session to re-do finished work —
+  // this repository's `Governs:` rot, one document over.
+  const backlog = readFileSync(join(repoRoot, 'docs', 'BACKLOG.md'), 'utf8')
+  assert.deepEqual(backlogHeadingsThatUndersell(backlog), [],
+    'these sections announce a closure in the body that their heading never mentions')
+
+  // ...and it can say the other thing. Without this the assertion above passes
+  // just as well against a checker that returns [] unconditionally, at full line
+  // and branch coverage (CLAUDE.md §4).
+  const drifted = '## 45. A `Governs:` path that names nothing is not reported\n\n'
+    + '**CLOSED 2026-08-29 by ADR-011.** The lint resolves it now.\n'
+  assert.deepEqual(backlogHeadingsThatUndersell(drifted),
+    ['§45 A `Governs:` path that names nothing is not reported'],
+    'the real §45, as it stood before the heading was corrected')
+
+  // And the convention itself is not a finding, in both of its spellings.
+  const conventional = '## 46. CLOSED 2026-08-28 — a fence that passed with no runner\n\n'
+    + '**CLOSED 2026-08-28.** The template recommends pipefail now.\n'
+    + '## 38. One of three closed 2026-08-28; the two runner questions stay open\n\n'
+    + '**CLOSED 2026-08-28** for the first of them.\n'
+  assert.deepEqual(backlogHeadingsThatUndersell(conventional), [])
+})
+
 test('nothing tracked in this repository names a personal filesystem path', () => {
   // Everything here SHIPS. `marketplace.json` says `"source": "."`, so the
   // plugin is the whole repository and every tracked file lands in every user's

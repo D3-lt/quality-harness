@@ -3032,6 +3032,70 @@ a cross-repository gap that no gate can close: ADR-010's T3–T6 are implemented
 repository, but their Acceptance fences execute against that repository's Docker stack, so
 `work-next` calls them ready — honest about the paperwork, wrong about the world.
 
+## 57. CLOSED 2026-08-29 — the tests-exist check could not see a BDD test, and could be satisfied by a comment
+
+**Reported by the klientams-front-v2-01 session**, whose finished TypeScript/Vitest corpus was told by
+`adr-lint` that all seven of its tasks named tests that do not exist — nine messages, every one a
+false positive, on tests they located by `grep` at a named line. Their diagnosis of the mechanism was
+not quite right and their finding was: reproducing it here turned up a SECOND defect in the same
+function, pointing the opposite way, which is the worse of the two.
+
+**1. A BDD test is named by a STRING, not by an identifier.** `test_body`'s declaration matcher wants
+`name(...) {` — an identifier being called. Vitest, Jest, Mocha, Jasmine, RSpec and Go subtests all
+write the name as the first ARGUMENT: `it('name', () => {})`, `t.Run("name", func(…){})`,
+`it 'name' do`. None of those match, so a correct corpus in any of them can never pass this check.
+The docstring records the matcher being widened for PSR-12 PHP and C#; the BDD family was never
+covered.
+
+**2. The last resort accepted a name mentioned ANYWHERE, and this is the serious one.** When no
+declaration matched, the fallback took any line containing the name and returned THE REST OF THE FILE
+as its body. So a name appearing only in a comment — `// t_name is planned` — or in a bare string
+satisfied `check_tests_exist`. The check that exists to catch *a Tests table naming a test that is not
+there* could be satisfied by a note saying it was planned. That is this project's own defect class,
+inside the gate written to detect it, and it was found while reproducing someone else's report rather
+than by the suite.
+
+Both fixed in `test_body`: the BDD call forms are recognised (brace-matched from the callback, or
+`do`/`end` for Ruby), and the last resort now requires the name to sit on a line that also carries a
+definition keyword. Nine assertions in `tests/gate-regressions.py` — six shapes that must be FOUND
+(vitest arrow, vitest async, jest function, go subtest, rspec do/end, plain function) and three that
+must be MISSED (comment only, string only, absent). The three misses are what make the six finds mean
+anything: a `test_body` returning the whole file for everything would satisfy the finds alone
+(CLAUDE.md §4). Catalogue entries `lint: a BDD test named by a string is found` and
+`lint: a test named only in a comment is not a test that exists`.
+
+**Why this had to come from outside.** This repository's tests are `node:test` (`test('name', …)` —
+a BDD form) and Python `def test_…`. The Python path has its own indentation-aware branch, and the
+JS path was never exercised by `check_tests_exist` here because no task file in this corpus names a
+`node:test` case in its Tests table. So the gate had a hole shaped exactly like the corpora it does
+not run on. Third instance today of the same lesson, after §52 and §55.
+
+## 58. OPEN — two readers of one evidence grammar disagree about what `done` means
+
+**Reported and then confirmed from source by the klientams-front-v2-01 session**, on a corpus whose
+seven tasks are all executed: the SessionStart hook announces "T1 is ready" at every session start,
+forever, for a finished ADR.
+
+`adr-next`'s `is_done` accepts ONLY a digest row — `VLOG_DIGEST_RE` requires the entry to end in
+`· acceptance-sha256:<hex>`. `adr-lint`'s own help text documents a legacy allowance: a pre-digest
+exit-0 row counts when the fence is single-line and the displayed command matches. So a task whose
+evidence predates digests is `done` to one reader and `READY` to the other. They ruled out the
+dirty-tree hypothesis by reading the pattern: the `*` suffix is explicitly permitted, and digest
+presence is the sole discriminator.
+
+**The consequence is the one that matters:** a fully executed ADR advertises finished work as ready
+at every session start. That is the signal that teaches people to ignore the hook — the same failure
+mode as §54's unreadable evidence block and §56's wrong check command, arriving through a third door.
+
+**Not fixed here, because the right fix is a decision.** §47 closed the case where `adr-verify` wrote
+an entry `adr-lint` rejected, and the standing lesson from it is that the writer and the readers must
+agree on what an entry IS. This is the same shape one level up: two READERS, one grammar, two
+answers. Either the legacy allowance is real — in which case `adr-next` must implement it, and the
+rule belongs in one place both call — or it is not, in which case `adr-lint`'s help text is
+documenting an allowance nobody honours and pre-digest corpora need a migration story rather than a
+silent downgrade. The gates are standalone scripts with no import path between them, which is what
+makes "one grammar, two call sites" cost real work rather than a refactor.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

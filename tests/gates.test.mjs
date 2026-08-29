@@ -546,6 +546,20 @@ test('an evidenced task whose Affected Files git ignores is reported, with the p
   assert.doesNotMatch(clean.stdout, /git IGNORES it/,
     `a tracked path is not a finding:\n${clean.stdout}`)
 
+  // A HUMAN-OBSERVED ROW IS EVIDENCE HERE TOO, because this check's reasoning is
+  // about the WORKTREE and a human ran the fence against the same one —
+  // arguably more so, since a hand-run fence leaves no tool-written record of
+  // what it touched. Reported 2026-08-29: three checks in this gate shared the
+  // "has passing evidence" concept and this one drew the line differently, so
+  // relabelling a task to human-observed bought exemption from one and not the
+  // others (docs/BACKLOG.md §69).
+  writeFileSync(taskFile, withRows(['cmd/thing/main.go'])
+    .replace(/- 2026-08-29 · abc1234 · exit 0 · [^\n]*/,
+      '- 2026-08-29 · human-observed · PASS — a person confirmed it'))
+  const humanObserved = run('adr-lint', [adr, tasks], repo)
+  assert.match(humanObserved.stdout, /git IGNORES it \(pattern `thing`\)/,
+    `a human-observed row is passing evidence for this check:\n${humanObserved.stdout}`)
+
   // AND WHEN IT COULD NOT ASK, IT SAYS SO. Outside a repository there is no
   // answer to be had, and reporting silence would be "I could not look" wearing
   // the words of "there is nothing" (ADR-005). This case is why the probe

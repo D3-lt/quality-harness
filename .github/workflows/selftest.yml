@@ -98,7 +98,19 @@ jobs:
         with:
           python-version: '3.12'
       - name: Run the project's own check under Git Bash
+        env:
+          # BACKLOG §49: a Windows run failed once naming no subtest at all. The
+          # TAP transcript names each subtest as it completes, so the next
+          # occurrence says how far the file got. Uploaded below, on failure.
+          QUALITY_HARNESS_TAP: selftest.tap
         run: bash scripts/selftest.sh
+      - name: Keep the TAP transcript when the run failed
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: windows-selftest-tap
+          path: selftest.tap
+          if-no-files-found: warn
 
   mutations:
     name: mutations ${{ matrix.shard }}/4

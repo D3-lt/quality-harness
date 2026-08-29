@@ -3977,6 +3977,74 @@ deviation paragraph said *"adr-verify REFUSES this as comment-only"*, true when 
 evening. They rewrote it carrying both halves dated rather than patching the sentence, because a
 record that silently corrects itself teaches nothing about how it went wrong.
 
+## 72. CLOSED 2026-08-29 — the fold counted what survived the tail, not what happened
+
+**Reported by infrastructure-06 on a fixture built to be sharper than mine**: two stdout verdict
+lines, five identical warnings, a unique line, five more identical warnings, a second unique line —
+which separates three questions a uniform block cannot. Is folding consecutive-only? Do unique lines
+survive? How does folding compose with truncation?
+
+The first two answered well: the two runs stayed `(x3)` and `(x5)` rather than collapsing into a
+misleading `(x8)`, and both unique lines survived. **The third is the finding: the first run was FIVE
+lines and reported `(x3)`.** The tail took the last ten of twelve, cutting two from the front of that
+run, and the fold then counted what remained. Accurate about the block; wrong about the world.
+
+**Their argument for why it matters more after folding than before is the part to keep:** folding
+makes the block look COMPLETE. Six tidy lines with explicit counts read as a full accounting in a way
+that fourteen truncated lines never did. The presentation got better and, in exactly one place, less
+honest.
+
+**Fixed with their option 1, which they ranked above their own alternatives:** fold the whole stream,
+then take the last N *folded* lines. Counts become true, and truncation gets rarer — their twelve raw
+lines fold to four, so nothing is cut at all. It subsumes their option 3, since the header then
+describes what is actually shown. Their option 2 (mark a truncated fold) was the honest-but-lesser
+version: it tells the reader a number is wrong without telling them the right one.
+
+Asserted on their exact fixture: `(x5)` and `(x5)`, both unique lines present, no `(x10)` — the
+consecutive-only property — plus a case where the FOLDED lines still exceed the budget so the header
+discloses it. **One earlier assertion of mine was asserting the defect**: it expected `(x10)` from
+twelve identical lines, which is the post-truncation count. Corrected to `(x12)`.
+
+## 73. CLOSED 2026-08-29 — the honest label bought silence
+
+**Measured by wcag-43 with one word changed**, in a scratch copy of a real record with the live
+`tests/` and `src/` trees symlinked in:
+
+    T11 status `partial`  →  0 findings
+    T11 status `done`     →  2 findings
+
+Nothing else differed, and flipping back returned 0. `partial` is not a status this reader acts on,
+so the task fell out of `evidenced_task_ids` entirely — and with it went every check that runs for an
+evidenced task, including **a Mutation Log finding that is true regardless of how the task is
+labelled**.
+
+**The incentive that creates is backwards, and that is the entry:** `done` buys scrutiny you may not
+survive, `pending` is a lie once code has landed, and `partial` — the truthful word for what
+happened — is the one that makes the linter stop looking. Nobody chose that. It is the third shape of
+the same disease this corpus met today: a surface answering a narrower question than its label
+implies.
+
+**Fixed only as far as honesty allows.** A status this reader does not act on is now REPORTED — it
+names the task, quotes the status, and says which checks did not run for it. It does not decide what
+`partial` should mean; that is a decision about the lifecycle (docs/BACKLOG.md §60), not a lint rule.
+What it refuses is letting an unrecognised status pass for silence, which is ADR-005's distinction
+turned on the corpus's own vocabulary. Asserted in both directions: `partial` advises, `done`,
+`pending` and `blocked` stay silent, and an empty or placeholder cell claims nothing.
+
+**They corrected their own earlier attribution to get here.** They had told me T11 was invisible to
+§65 because its rows are `human-observed`; the real cause was the status. Their scratch finding
+stands on its own and §69 fixed it, but the live example had been attached to the wrong cause — and
+the real one was bigger. They also caught a fixture artifact before sending: a first run without the
+`tests/` tree reported 12 findings, ten of them tests-exist rows firing because the directory was
+absent. The honest count is 2.
+
+**And their exit-127 sweep is a clean zero of the uninteresting kind**, which they said plainly:
+0 rows matching `mutant killed`, and 0 files containing a Mutation Log section at all. Their corpus —
+the largest on this machine, 77 records — has never adopted the mutation log, a week after the
+cutover. That is "the check has nothing to run against here", not "we ran it and we are clean". The
+adoption number is the more interesting one, and T11 is post-cutover, needs a log, and per §73 was
+not even being asked.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

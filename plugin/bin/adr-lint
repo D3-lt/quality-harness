@@ -828,6 +828,68 @@ def done_task_ids(readme_text):
     return out
 
 
+# The statuses this reader ACTS on. `done` triggers the evidence checks;
+# `pending` and `blocked` are the documented states of work not yet finished.
+# Anything else is a word the tool cannot classify — and silently skipping the
+# task is the failure below.
+KNOWN_TASK_STATUS = {"done", "pending", "blocked"}
+
+
+def check_task_status_vocabulary(infos, readme_text, errors):
+    """A status this reader does not act on must SAY so, not quietly skip the task.
+
+    Measured 2026-08-29 on a real corpus: changing one word in a tasks README —
+    `done` to `partial` — took a task from 2 findings to 0. Not "partial is
+    unmodelled", which was already known and filed: choosing the honest label
+    REMOVED the task from every evidenced-task check at once, including a
+    Mutation Log finding that was true regardless of how the task is labelled.
+
+    The incentive that creates is the wrong way round. `done` buys scrutiny you
+    may not survive, `pending` is a lie once code has landed, and `partial` — the
+    truthful word — makes the linter stop looking. Nobody chose that. Reported
+    with the number attached (docs/BACKLOG.md §73).
+
+    This does not decide what `partial` should MEAN; that is a decision about the
+    lifecycle, not a lint rule. It only refuses to let an unrecognised status pass
+    for silence, which is this project's own distinction between "I could not
+    look" and "there is nothing" (ADR-005).
+    """
+    if not readme_text:
+        return
+    status_column = None
+    rows = []
+    for line in readme_text.splitlines():
+        line = line.strip()
+        if not line.startswith("|"):
+            continue
+        cells = [c.strip() for c in line.strip("|").split("|")]
+        if status_column is None:
+            for i, c in enumerate(cells):
+                if c.lower() == "status":
+                    status_column = i
+                    break
+            continue
+        rows.append(cells)
+    if status_column is None:
+        return  # no status column: nothing is being claimed, so nothing to read
+    for cells in rows:
+        if status_column >= len(cells):
+            continue
+        found = next(((m.group(1).upper()) for c in cells
+                      if (m := re.match(r"^\[?(T\d+)\b", c, re.I))), None)
+        value = cells[status_column].strip()
+        if found is None or not value or set(value) <= set("-— "):
+            continue
+        if value.lower() in KNOWN_TASK_STATUS or found not in infos:
+            continue
+        errors.advise(
+            f"README.md: {found} has status `{value}`, which this reader does not act on — so the "
+            f"checks that run for an evidenced task did NOT run for it, including whether its "
+            f"Verification Log backs what it claims and whether it carries a Mutation Log. That is "
+            f"'not looked at', not 'nothing found'. Use `done`, `pending` or `blocked`, or say in "
+            f"the task file what the status means.")
+
+
 def check_verification(infos, readme_text, errors):
     """README `done` status requires tool-written passing evidence in the task's log."""
     if not readme_text:
@@ -2348,6 +2410,7 @@ def main():
         # in one place and a new check inside these functions inherits it.
         with errors.protected():
             check_verification(infos, readme_text, errors)
+            check_task_status_vocabulary(infos, readme_text, errors)
             check_status_allows_execution(adr, readme_text, errors)
             check_tests_exist(infos, readme_text, errors, git_root(tasks_dir))
             check_tests_can_fail(infos, readme_text, errors, git_root(tasks_dir))

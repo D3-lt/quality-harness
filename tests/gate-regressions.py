@@ -1758,9 +1758,9 @@ def main():
                                "\n".join(f"warning {i}" for i in range(1, 13)))
     assert any("FAIL: the assertion that matters" in ln for ln in tail), tail
     assert any("stdout" in ln for ln in tail) and any("stderr" in ln for ln in tail), tail
-    # The count is stated when lines were dropped, because a tail that hides its
-    # own truncation reads as the whole run.
-    assert any("of 12" in ln for ln in tail), tail
+    # The raw count is stated whenever folding changed the picture, because a
+    # block that hides what it compressed reads as the whole run.
+    assert any("12 raw" in ln for ln in tail), tail
     # The must-fail direction (CLAUDE.md §4): an EMPTY stream is omitted, not
     # labelled — otherwise "always emit both headers" satisfies the assertions
     # above while saying nothing about what was captured.
@@ -1770,13 +1770,37 @@ def main():
     # whose eye lands mid-block concludes the task failed on a deprecation.
     noisy = verify.failure_tail("FAIL: the line a reader needs\n",
                                 "\n".join(["warning: deprecated module"] * 12))
-    assert any("(x10)" in ln for ln in noisy), noisy
+    # (x12), not (x10): §72 folds the WHOLE stream before truncating, so the
+    # count is what happened rather than what survived the tail. The earlier
+    # version of this assertion expected (x10) and was asserting the defect.
+    assert any("(x12)" in ln for ln in noisy), noisy
     assert sum(1 for ln in noisy if "deprecated" in ln) == 1, noisy
     assert any("FAIL: the line a reader needs" in ln for ln in noisy), noisy
     # The must-fail direction (CLAUDE.md §4): DISTINCT lines must not be folded,
     # or the block loses content rather than repetition.
     distinct = verify.collapse_repeats(["one", "two", "two", "three"])
     assert distinct == ["one", "two  (x2)", "three"], distinct
+
+    # BACKLOG §72. Folding the TAIL counts what survived the tail, not what
+    # happened: five identical warnings with two cut by the tail reported (x3),
+    # accurate about the block and wrong about the world. Folding FIRST makes the
+    # counts true and makes truncation rarer — twelve raw lines fold to four, so
+    # nothing is cut at all. Reported 2026-08-29 on a fixture built to separate
+    # three questions a uniform block cannot: is folding consecutive-only, do
+    # unique lines survive, and how does folding compose with truncation.
+    dup = "warning: deprecated module"
+    interleaved = verify.failure_tail(
+        "FAIL: the verdict\n",
+        "\n".join([dup] * 5 + ["UNIQUE-A"] + [dup] * 5 + ["UNIQUE-B"]))
+    assert [ln for ln in interleaved if dup in ln] == [f"{dup}  (x5)", f"{dup}  (x5)"], interleaved
+    assert "UNIQUE-A" in interleaved and "UNIQUE-B" in interleaved, interleaved
+    # Consecutive-only: two runs of the same line separated by a unique one must
+    # NOT collapse into a single (x10), which would be a different claim.
+    assert not any("(x10)" in ln for ln in interleaved), interleaved
+    # And when the FOLDED lines still exceed the budget, the header says so —
+    # the truncation is disclosed after folding rather than before it.
+    many = verify.failure_tail("", "\n".join(f"distinct line {i}" for i in range(40)))
+    assert any("after folding 40 raw" in ln for ln in many), many
 
     only_err = verify.failure_tail("", "boom\n")
     assert not any("stdout" in ln for ln in only_err), only_err
@@ -1786,6 +1810,33 @@ def main():
     assert verify.decode_stream(b"partial") == "partial"
     assert verify.decode_stream("partial") == "partial"
     assert verify.decode_stream(None) == ""
+
+    # BACKLOG §73. Changing one word in a tasks README — `done` to `partial` —
+    # took a task from 2 findings to 0 on a real corpus. Not "partial is
+    # unmodelled", which was already filed: choosing the honest label REMOVED the
+    # task from every evidenced-task check, including a Mutation Log finding true
+    # regardless of the label. `done` buys scrutiny, `pending` is a lie once code
+    # has landed, and the truthful word makes the linter stop looking.
+    readme = "| Task | Scope | Status |\n|---|---|---|\n| T1 | s | {} |\n"
+    def status_advice(value):
+        errs = lint.Findings()
+        lint.check_task_status_vocabulary({"T1": {"path": Path("T1.md")}},
+                                          readme.format(value), errs)
+        return [a for a in errs.advice if "does not act on" in a]
+
+    assert status_advice("partial"), "an unrecognised status must say the checks did not run"
+    # The must-fail direction (CLAUDE.md §4): the statuses this reader DOES act on
+    # must stay silent, or the advice fires on every task and means nothing.
+    for known in ("done", "pending", "blocked", "DONE"):
+        assert not status_advice(known), f"{known} is acted on and must not be advised at"
+    # An empty or placeholder cell is not a claim, so it is not a finding either.
+    for blank in ("", "—", "-"):
+        assert not status_advice(blank), f"{blank!r} claims nothing"
+    # And a task the reader has no file for is not reported: the status belongs
+    # to a row this corpus cannot resolve, which is a different finding.
+    errs = lint.Findings()
+    lint.check_task_status_vocabulary({}, readme.format("partial"), errs)
+    assert not [a for a in errs.advice if "does not act on" in a], errs.advice
 
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem

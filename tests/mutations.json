@@ -2983,8 +2983,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        shown = collapse_repeats(lines[-keep:])",
-      "to": "        shown = collapse_repeats(lines[-keep:]) if label == 'stderr' else []"
+      "from": "        folded = collapse_repeats(lines)",
+      "to": "        folded = collapse_repeats(lines) if label == 'stderr' else []"
     },
     {
       "label": "verify: a fence that never returned is UNRUN, not a verdict",
@@ -3066,6 +3066,24 @@
       ],
       "from": "        elif environment_failure(out, cmd):",
       "to": "        elif False:"
+    },
+    {
+      "label": "verify: the fold counts what happened, not what survived the tail",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        shown = folded[-keep:]",
+      "to": "        shown = collapse_repeats(lines[-keep:])"
+    },
+    {
+      "label": "lint: a status this reader does not act on is reported, not skipped",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if value.lower() in KNOWN_TASK_STATUS or found not in infos:",
+      "to": "        if True:"
     }
   ]
 }

@@ -783,12 +783,31 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                  f"The file has been restored.")
         out, code = r.stdout + r.stderr, r.returncode
 
+        ambiguous = False
         if code == 0:
             verdict, detail = "survived", "the fence passed with the mechanism broken"
         elif scored_nothing(out):
-            verdict, detail = "inconclusive", "the fence failed but scored no tests"
+            # AMBIGUOUS, and the baseline below is what settles it. A mutant whose
+            # whole effect is to REMOVE tests from a lane — a restored `//go:build`
+            # tag, an inserted `t.Skip`, a renamed `_test.go` — makes the fence
+            # fail BECAUSE it detected that nothing ran, and reporting that as
+            # inconclusive tells the author their strongest mutant proved nothing.
+            # Reported 2026-08-29 by the session whose task's entire deliverable
+            # was removing such a tag (docs/BACKLOG.md §71).
+            verdict, detail, ambiguous = "inconclusive", "the fence failed but scored no tests", True
         elif any(re.search(pat, out, re.M) for pat in BUILD_BROKE):
             verdict, detail = "inconclusive", "the fence failed on a build/parse error, not an assertion"
+        elif environment_failure(out, cmd):
+            # A FALSE KILL was reachable here and predates the baseline below: a
+            # fence whose runner is absent exits 127 with output that scores
+            # nothing this gate recognises, matches no BUILD_BROKE pattern, and
+            # fell straight through to "a test went red". Measured 2026-08-29
+            # with `nosuchrunner` as the fence — recorded `mutant killed`, which
+            # credits a suite with catching something it never ran
+            # (docs/BACKLOG.md §71). Crediting an unearned kill is the worst
+            # outcome this tool has, because the whole point of a mutation is to
+            # find out whether anything NOTICED.
+            verdict, detail, ambiguous = "inconclusive", "the fence failed for a machine reason", True
         else:
             verdict, detail = "killed", "a test went red"
     finally:
@@ -799,6 +818,40 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                 signal.signal(signal.SIGTERM, previous)
             except (OSError, ValueError):
                 pass
+
+    # THE BASELINE, run only in the ambiguous case and only after the mutant is
+    # restored. "The fence failed and scored no tests" is two different runs
+    # wearing one verdict: the mutant removed the tests and the fence caught it
+    # (a kill), or the fence cannot run here at all — a missing runner, a typo,
+    # an environment that was broken before anyone mutated anything (genuinely
+    # inconclusive). Inferring which from the fence's TEXT would be the loose
+    # heuristic this project refused for the comment-only guard; running the
+    # clean fence answers it by measurement.
+    #
+    # A false KILL is the worst outcome available here — it credits a suite with
+    # catching something it never noticed — so the kill is granted only when the
+    # clean fence PASSES and scores tests. Anything else stays inconclusive and
+    # says which it was.
+    if ambiguous:
+        try:
+            base = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
+                                  text=True, encoding="utf-8", errors="replace",
+                                  timeout=fence_timeout())  # baseline
+        except subprocess.TimeoutExpired:
+            base = None
+        if base is None:
+            detail = ("the fence failed scoring no tests, and the clean fence did not finish, "
+                      "so nothing can be concluded about the mutant")
+        elif base.returncode == 0 and not scored_nothing(base.stdout + base.stderr):
+            verdict = "killed"
+            detail = ("the fence failed scoring no tests, and the same fence passes scoring tests "
+                      "on the restored file — so the mutant is what removed them")
+        elif base.returncode == 0:
+            detail = ("the fence failed scoring no tests, and the clean fence passes scoring "
+                      "nothing either — this fence cannot fail here, mutant or not")
+        else:
+            detail = ("the fence failed scoring no tests, and the clean fence fails too — the "
+                      "failure predates the mutant, so this run judged nothing")
 
     digest = acceptance_digest(cmd)
     sha = git_sha(cwd)

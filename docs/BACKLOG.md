@@ -3440,20 +3440,28 @@ is a format migration with no migration path, not a logic bug, and their framing
 one §58 now carries: teach the reader the legacy allowance `adr-lint` already documents, or ship a
 backfill. Three corpora have now reported it.
 
-## 63. OPEN — a surviving mutant exits 0
+## 63. WITHDRAWN — a surviving mutant exits 1, and this entry was filed without reproducing it
 
 **Reported 2026-08-29 by the klientams-front-v2-01 session** after running the first full mutation
 audit any consumer has done on this harness: 7 mutants, 5 killed first pass, **2 survived — and both
 survivors were the assertion the task's headline claim rested on.**
 
-`adr-verify --mutant` prints `NOT evidence: the fence passed with the mechanism broken` and records
-`mutant survived`, then **exits 0**. A script chaining on `&&` reads a survivor as success. In a
-pipeline whose whole discipline is that exit codes are load-bearing, that is the wrong code: a
-survivor is the finding, not the absence of one.
+**WITHDRAWN 2026-08-29 — the claim does not reproduce, and the fault for it being here is mine.**
+`adr-verify --mutant` on a surviving mutant exits **1**, and has since the file was created:
+`sys.exit(0 if verdict == "killed" else 1)` is in the initial commit of `bin/adr-verify` (cc94fc2),
+unchanged through today. Measured on a scratch repository: a mutant that leaves the fence green
+prints `NOT evidence: the fence passed with the mechanism broken` and returns exit 1.
 
-**Not fixed in this release.** It is a behaviour change to a tool that writes evidence, and anything
-already chaining on it would flip. The argument for changing it is that no correct consumer can be
-relying on exit 0 meaning "survived", because that is precisely the case the tool exists to report.
+**I filed this from a report without reproducing it**, which is the one thing this repository asks of
+every finding it records — and I had spent the same afternoon praising other sessions for ruling out
+alternatives before reporting. The reporter is not at fault: they said what they observed, twice, and
+a session that chains two runs with `;` sees only the LAST command's status, which is a plausible
+route to believing the first one passed. Reproducing takes two minutes and I skipped it because the
+claim was congenial — it fitted a pattern the day had established.
+
+**What remains true and worth keeping from the report:** their mutation audit was real and found real
+things, and the two survivors were the assertion each task's headline claim rested on. That half is
+below and unaffected.
 
 **What their survivors were is worth more than the flag.** T7's claim was "flipping one registry
 entry changes every chooser". Its test built a fixture registry, passed it to the selector, and
@@ -3472,6 +3480,58 @@ proves the selector derives, and proves nothing about the surface the app ships.
 
 They also note the tool suggests nothing about WHERE to mutate, which is the expensive judgement —
 and that a task file already names `Produces` and `Consumes`, which is where a hint could come from.
+
+## 64. CLOSED 2026-08-29 — `adr-next` answered for an undecided record without saying so
+
+**Reported by the infrastructure-06 session** against 2.35.0 on a real corpus: `work-next` correctly
+refused to execute a `Proposed` record's tasks, and `adr-next` pointed at the same record offered
+`Next: T3 … also ready: T4, T5` with no status line, nothing on stderr, and **exit 0** — plus an
+`adr-verify` command to run against them. Reproduced here before fixing.
+
+That is §48 with a second front door, and their argument for why this door matters more is the one I
+took: `work-next` produces a session BANNER, while `adr-next <record>` is what somebody types once
+they already have the record in hand — which is exactly the moment they have stopped asking *is this
+decided?* and started asking *what do I do?* A guard on the router and not on the direct entry point
+protects the case where the reader was already being careful.
+
+**It says so and still answers.** The owning record's status is read (by stem, or by ADR number when
+the filename carries a slug the directory does not repeat) and reported on stderr above the answer
+whenever it is not Accepted; the tasks are still listed and the exit code is unchanged. This gate
+instructs and never blocks (CLAUDE.md §3), and their own suggestion was the same: a printed status
+line costs nothing and removes the trap. Asserted both ways — a Proposed record produces the line and
+still answers, an Accepted one produces no line at all, without which the check would be a banner
+that always prints and says nothing.
+
+## 65. OPEN — acceptance passed on files `.gitignore` kept out of the commit
+
+**Reported 2026-08-29 by the golandprojects-85 session.** A `.gitignore` holding the bare pattern
+`crossagentschat` — meant for the root build artifact — also matched `cmd/crossagentschat/`, because
+a git pattern with no slash matches at any depth and matches directories. The task's Verification Log
+records exit 0 for an acceptance block that included `test -f cmd/crossagentschat/main.go`. It ran
+against the WORKTREE. The commit shipped neither that file nor its test, so a clean clone does not
+build — and `TestNoURLLoggingInSource`, a guard that task introduced against logging a channel
+credential, existed in no committed file.
+
+**This is the strongest form of the class this project already names.** CLAUDE.md §8 says a check
+whose answer depends on what is on your disk is not a gate; §1 records that `.gitignore` patterns
+fail silently, which cost this repository two days of a published personal path. Here the evidence
+was TOOL-WRITTEN and correct — the fence really did exit 0 — and still described a file that never
+reached the tree.
+
+**What is checkable, and what is not.** `adr-lint` already resolves `Governs:` against
+`git ls-files` plus `--others --exclude-standard`, a set that by construction excludes ignored files
+(ADR-011). Nothing resolves a task's **Affected Files** against anything. The decisive signal is
+IGNORED, because it has no timing ambiguity: at authoring time a task's files legitimately do not
+exist yet, so "must exist" would fire on every new task and be switched off by day two — but a path
+matched by `.gitignore` is not *not yet written*, it is *will never be committed*. So the tractable
+rule is: for a task carrying passing evidence, report any Affected Files path that git IGNORES,
+advisory, naming the pattern that matched (`git check-ignore -v` gives it, and "the bare pattern
+`crossagentschat` matches at any depth" is the sentence that saves the investigation).
+
+**Their stronger idea is deliberately NOT taken yet:** a post-commit `git ls-files` assertion would
+catch the whole class rather than the ignored subset, but it needs a hook at a point this harness
+does not own, and it changes what `adr-verify` means — that tool records what a command did, and
+asserting a property of the COMMIT is a different job. An ADR, not a patch.
 
 ## Verification claims worth re-running after any of the above
 

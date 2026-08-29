@@ -104,6 +104,42 @@ function corpus(tasks, { adr = false } = {}) {
   return { dir, tasksDir }
 }
 
+test('an undecided record is named as undecided, and its tasks are still answered', () => {
+  // docs/BACKLOG.md §64. `work-next` joins task to record and refuses to call an
+  // unaccepted record's tasks ready (§48); this tool never looked, so one corpus
+  // answered two ways depending on which entry point you used. And this is the
+  // more exposed one — the router prints a session banner, while `adr-next
+  // <record>` is what somebody types once they already have a record in hand and
+  // have stopped asking whether it is decided. Reported 2026-08-29 from a corpus
+  // where it offered a Proposed record's tasks and handed over an adr-verify
+  // command to run against them.
+  //
+  // It SAYS SO and still answers: this gate instructs, never blocks (CLAUDE.md
+  // §3), so the status is reported and the reader decides.
+  // A realistic layout: `ADR-030-slug.md` beside `ADR-030-slug/tasks/`, which is
+  // how a record owns its tasks on disk.
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-status-'))
+  temps.push(dir)
+  const tasksDir = join(dir, 'ADR-030-slug', 'tasks')
+  mkdirSync(tasksDir, { recursive: true })
+  writeFileSync(join(tasksDir, 'T1-t.md'), task({ id: 'T1' }))
+  const record = join(dir, 'ADR-030-slug.md')
+  writeFileSync(record, '# ADR-030: not decided\n\n**Status:** Proposed\n\n## Context\n\nc\n')
+  const proposed = next([tasksDir], root)
+  assert.equal(proposed.status, 0, 'it advises; it never refuses')
+  assert.match(proposed.stderr, /not Accepted/, proposed.stderr)
+  assert.match(proposed.stderr, /Proposed/, proposed.stderr)
+  assert.match(proposed.stdout, /Next: T1 — /, 'the answer is still given')
+
+  // The must-fail direction (CLAUDE.md §4): an Accepted record must produce NO
+  // such line, or the check is a banner that always prints and says nothing.
+  writeFileSync(record, '# ADR-030: decided\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+  const accepted = next([tasksDir], root)
+  assert.equal(accepted.status, 0, accepted.stderr)
+  assert.doesNotMatch(accepted.stderr, /not Accepted/, accepted.stderr)
+  assert.match(accepted.stdout, /Next: T1 — /)
+})
+
 test('the next task is the first with nothing open in front of it', () => {
   const { tasksDir } = corpus([
     { id: 'T1', evidence: true },

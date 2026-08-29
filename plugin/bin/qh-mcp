@@ -3,10 +3,17 @@
 
 ADR-012. A client with no shell (plain Claude Desktop) can reach none of this
 plugin's gates today. This server exposes the ones that only READ, and there is
-no mechanism here by which a gate that executes text the corpus supplies —
-`adr-verify`, `spec-verify` — could be added: the registrar that would allow it
-does not exist. The read-only annotation is set by `reading_tool` itself, so a
-tool cannot be advertised read-only and do something else.
+no mechanism here by which a gate that executes text the corpus supplies could
+be added — the two that run a task's Acceptance fence or a spec's command
+override are absent, and the registrar that would allow one does not exist. The
+read-only annotation is set by `reading_tool` itself, so a tool cannot be
+advertised read-only and do something else.
+
+The name of either executing gate does not appear in this file on purpose:
+`tests/mcp-server.test.mjs::no tool executes text the corpus supplies` asserts
+that against the source as well as against the registry, so a future author
+cannot satisfy the registry half by renaming the tool while still spawning the
+gate.
 
 The protocol surface is three methods — `initialize`, `tools/list`,
 `tools/call` — spoken as line-delimited JSON on stdin and stdout. No SDK, no
@@ -20,6 +27,7 @@ stderr.
 
 import json
 import os
+import subprocess
 import sys
 
 # The revision this server pins when a client names none. A client that DOES
@@ -95,22 +103,228 @@ def _text_result(text, is_error=False):
     return {"content": [{"type": "text", "text": text}], "isError": is_error}
 
 
-def _probe(_arguments):
-    """A trivial tool so `tools/list` has something to return before T2.
+BIN = os.path.dirname(os.path.abspath(__file__))
 
-    T2 replaces it with the five real gates.
+
+def _gate_argv(gate, args):
+    """The argv for running one gate — always through the interpreter.
+
+    Never the gate path alone. The gates are `#!/usr/bin/env python3` scripts and
+    Windows cannot exec one: the spawn returns status `null`, which is neither an
+    error nor a failure, so the caller sees a gate that did not run and cannot
+    tell that from one that found nothing (CLAUDE.md §7).
     """
-    return _text_result("qh-mcp is running; no gate is registered yet.")
+    return [sys.executable, os.path.join(BIN, gate), *[str(arg) for arg in args]]
 
+
+def _run_gate(gate, args, paths):
+    """Run a reading gate and return its result, unmodified.
+
+    `paths` are the arguments the client supplied as filesystem paths, already
+    resolved; they are reported back so the caller can see WHICH tree was read.
+    Over MCP the client names the path and never sees it, which is the one thing
+    a caller cannot check for itself.
+    """
+    argv = _gate_argv(gate, args)
+    try:
+        completed = subprocess.run(argv, capture_output=True, text=True, timeout=120,
+                                   encoding="utf-8", errors="replace")
+    except OSError as unstartable:
+        # ADR-005: a gate that could not run has not found anything. This is the
+        # error channel, and it says which.
+        raise GateDidNotRun("{} could not be started: {}".format(gate, unstartable))
+    except subprocess.TimeoutExpired:
+        raise GateDidNotRun("{} did not finish within 120s".format(gate))
+    return _gate_result(gate, completed, paths)
+
+
+class GateDidNotRun(Exception):
+    """The gate never produced a verdict. Not a finding — see ADR-005."""
+
+
+def _gate_result(gate, completed, paths):
+    """The tool result for a gate that ran. T3 owns this shape."""
+    body = ["{} exit {}".format(gate, completed.returncode),
+            "read: {}".format(", ".join(paths)) if paths else "read: —",
+            "", completed.stdout]
+    if completed.stderr:
+        body += ["", completed.stderr]
+    return _text_result("\n".join(body), is_error=False)
+
+
+def _paths(*values):
+    """Resolve every path the client named, so the result can report the tree."""
+    return [os.path.abspath(os.path.expanduser(value)) for value in values if value]
+
+
+def _adr_lint(arguments):
+    adr, tasks_dir = arguments.get("adr"), arguments.get("tasks_dir")
+    paths = _paths(adr, tasks_dir)
+    return _run_gate("adr-lint", paths, paths)
+
+
+def _adr_next(arguments):
+    paths = _paths(arguments.get("path"))
+    args = list(paths)
+    if arguments.get("all"):
+        args.append("--all")
+    if arguments.get("json"):
+        args.append("--json")
+    return _run_gate("adr-next", args, paths)
+
+
+def _adr_debt(arguments):
+    paths = _paths(*(arguments.get("dirs") or []))
+    return _run_gate("adr-debt", paths, paths)
+
+
+def _adr_judge(arguments):
+    if arguments.get("rubric"):
+        return _run_gate("adr-judge", ["--rubric"], [])
+    paths = _paths(arguments.get("adr"))
+    return _run_gate("adr-judge", paths, paths)
+
+
+def _arch_lint(arguments):
+    paths = _paths(arguments.get("doc"))
+    return _run_gate("arch-lint", paths, paths)
+
+
+# The five gates that only read. The two that execute text the corpus supplies
+# are absent, and there is no registrar that could add them: over MCP the client
+# names the path, so exposing either would turn "lint my ADRs" into "run whatever
+# is written in the file I point you at" (ADR-012).
+#
+# Every description states what the gate answers AND what its exit codes mean,
+# because tool descriptions are the channel proven to arrive at every client;
+# `instructions` on the handshake is unmeasured on Claude Desktop and nothing
+# load-bearing may depend on it.
+reading_tool(
+    "qh_adr_lint",
+    "Check one ADR and its task files against the quality-harness rules: status "
+    "line, alternatives, wiring, out-of-scope dispositions, task acceptance "
+    "fences, the task DAG, and whether a task claiming `done` carries matching "
+    "exit-0 evidence. Exit 0 = well formed; exit 1 = findings, which are ADVICE "
+    "and never a refusal — read them and decide. Reads only; changes nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "adr": {"type": "string", "description": "Path to the ADR markdown file."},
+            "tasks_dir": {"type": "string",
+                          "description": "Path to its tasks directory. Defaults to a `tasks/` "
+                                         "directory beside the ADR."},
+        },
+        "required": ["adr"],
+        "additionalProperties": False,
+    },
+    _adr_lint,
+)
 
 reading_tool(
-    "qh_probe",
-    "Reports that the quality-harness MCP server is reachable. Takes no arguments "
-    "and reads nothing; it exists so a client can confirm the transport before "
-    "any gate is called.",
-    {"type": "object", "properties": {}, "additionalProperties": False},
-    _probe,
+    "qh_adr_next",
+    "Report which task of an ADR is ready to start and why the others are not, "
+    "computed from the task files' Depends-on headers and their recorded "
+    "evidence. Exit 0 = report printed. Reads only; changes nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "path": {"type": "string", "description": "Path to an ADR markdown file or a tasks directory."},
+            "all": {"type": "boolean", "description": "Report every task, not just the next one."},
+            "json": {"type": "boolean", "description": "Emit JSON instead of the human report."},
+        },
+        "required": ["path"],
+        "additionalProperties": False,
+    },
+    _adr_next,
 )
+
+reading_tool(
+    "qh_adr_debt",
+    "Surface deferred scope and open follow-ups across an ADR corpus: every "
+    "`(deferred: <pointer>)` and every unchecked follow-up, with the pointers "
+    "resolved. `(permanent: …)` entries are deliberate boundaries and are never "
+    "reported. Exit 0 = report printed and every pointer resolves; exit 1 = a "
+    "pointer resolves to nothing. Reads only; changes nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "dirs": {"type": "array", "items": {"type": "string"}, "minItems": 1,
+                     "description": "One or more directories to scan."},
+        },
+        "required": ["dirs"],
+        "additionalProperties": False,
+    },
+    _adr_debt,
+)
+
+reading_tool(
+    "qh_adr_judge",
+    "Judge an ADR on the two axes a schema cannot see — whether it rests on "
+    "anything observable, and whether a future reader will know what was decided "
+    "— using rules rather than a model verdict. ALWAYS advisory: the exit code is "
+    "0 whatever it finds, and the only non-zero exit is a broken invocation. Pass "
+    "`rubric` to print the questions instead of answering them. Reads only.",
+    {
+        "type": "object",
+        "properties": {
+            "adr": {"type": "string", "description": "Path to the ADR markdown file."},
+            "rubric": {"type": "boolean",
+                       "description": "Print the rubric questions instead of judging a record."},
+        },
+        "additionalProperties": False,
+    },
+    _adr_judge,
+)
+
+reading_tool(
+    "qh_arch_lint",
+    "Check a per-repo architecture document: required sections, a module map with "
+    "real paths, and — the part that matters — that every rule row names an "
+    "executable check which exists and can actually fail. Exit 0 = well formed; "
+    "exit 1 = findings, which are ADVICE. Reads only; changes nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "doc": {"type": "string", "description": "Path to the architecture markdown file."},
+        },
+        "required": ["doc"],
+        "additionalProperties": False,
+    },
+    _arch_lint,
+)
+
+
+_JSON_TYPES = {"string": str, "boolean": bool, "array": list, "object": dict}
+
+
+def _schema_violation(schema, arguments):
+    """Say what is wrong with these arguments, or None if nothing is.
+
+    Small on purpose: the schemas here declare a handful of scalars, an array of
+    strings, and which of them are required. What this must NOT do is let through
+    an argument the schema never advertised — that argument works for anyone who
+    sends it and is invisible to anyone who reads the tool list.
+    """
+    properties = schema.get("properties", {})
+    undeclared = sorted(set(arguments) - set(properties))
+    if undeclared:
+        return "this tool declares no argument named {}".format(", ".join(repr(n) for n in undeclared))
+    missing = [name for name in schema.get("required", []) if name not in arguments]
+    if missing:
+        return "this tool requires {}".format(", ".join(repr(name) for name in missing))
+    for name, value in arguments.items():
+        expected = _JSON_TYPES.get(properties[name].get("type"))
+        # bool is a subclass of int in Python but a distinct JSON type; only the
+        # string/array/object cases here would be confused by that, and they are
+        # checked against their own classes.
+        if expected is not None and not isinstance(value, expected):
+            return "{!r} must be a {}".format(name, properties[name]["type"])
+        if properties[name].get("type") == "array":
+            if len(value) < properties[name].get("minItems", 0):
+                return "{!r} needs at least {} item(s)".format(name, properties[name]["minItems"])
+            if any(not isinstance(item, str) for item in value):
+                return "{!r} must contain only strings".format(name)
+    return None
 
 
 def _error(request_id, code, message):
@@ -165,7 +379,13 @@ def dispatch(request):
         arguments = params.get("arguments") or {}
         if not isinstance(arguments, dict):
             return _error(request_id, INVALID_PARAMS, "arguments must be a JSON object")
-        return _ok(request_id, tool["handler"](arguments))
+        complaint = _schema_violation(tool["inputSchema"], arguments)
+        if complaint is not None:
+            return _error(request_id, INVALID_PARAMS, complaint)
+        try:
+            return _ok(request_id, tool["handler"](arguments))
+        except GateDidNotRun as unrun:
+            return _error(request_id, INTERNAL_ERROR, str(unrun))
 
     if request_id is None:
         # An unknown NOTIFICATION is ignored, per JSON-RPC. Only a request that

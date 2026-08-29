@@ -3730,6 +3730,47 @@ alternative suggestion, a `--allow-comment-mutant` escape hatch, is not taken: a
 the log is weaker than a guard that knows the difference, and it would have pushed people toward
 hand-pasted evidence, which is what they had to do.
 
+## 68. CLOSED 2026-08-29 — the commonest correct state was reported as a failure
+
+**Raised by infrastructure-06 while VERIFYING §66**, from a sweep of all 28 top-level records rather
+than a sample: `adr-next <record with no tasks directory>` exited **1**, while `adr-next <Proposed
+record>` exited **0**.
+
+Their argument, which is the entry: a record owning no tasks directory is an ordinary, correct state
+— **25 of their 28 records are in it** — and a reader asking about one gets a complete and correct
+answer. This gate advises and never blocks, so reporting the commonest right answer as a failure is
+the wrong code. Sharper still: *"the two states that most deserve a caller's attention are the two
+that report success"* — an undecided record and a corpus whose tasks are all blocked both exit 0,
+while "there is nothing to sequence here" exited 1.
+
+Now exit 0 with a sentence naming where a record's tasks would live. A path that does not EXIST still
+exits 1, because that is "I could not answer" rather than "the answer is none" — the same distinction
+this project holds every gate to, applied to its own exit codes. Asserted both ways; the older
+assertion that expected exit 1 for a missing path was updated to the new message rather than deleted.
+
+**Nothing branched on the old code**: the only in-tree caller passes task DIRECTORIES and already
+skips non-zero. Checked before changing it, because an exit code is an interface.
+
+### The verification that produced it, and what it confirmed
+
+`adr-next` run against every tracked record, asserting mechanically that every task path named begins
+with that record's own stem: **3 own tasks, 0 FOREIGN, 25 no tasks named.** Before §66 every one of
+those 25 returned the same db-doctor task. §64 unchanged: the Proposed record still prints its status
+line and still answers.
+
+Two more corpora re-tested the same release. **playtrix-d2:** 40 tasks, 40 done, 0 ready — the 32
+pre-digest tasks all cleared, and `work-next`'s task count went 237 → 40 with the archive no longer
+walked, turning a confident "Next: /adr-execute docs/adr-archive/ADR-012" into "nothing is waiting",
+which was the true answer and unreachable from either reader that morning. **klientams-front-v2-01**
+tested §58 in both directions from a pre-digest checkout: single-line fences accepted, multi-line
+truncated rows still refused, and — the control I most wanted — mutating ONLY the recorded command of
+one row flipped that task alone back to READY, proving the allowance compares the command against the
+fence rather than noticing that some exit-0 row exists.
+
+**And a limit both of them volunteered:** playtrix has ZERO multi-line fences, so their 40/40 is
+evidence that nothing was left behind, and NOT evidence that the multi-line refusal works. That
+narrowing came from the reporter, unprompted, against their own clean result.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

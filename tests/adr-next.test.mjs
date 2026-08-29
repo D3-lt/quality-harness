@@ -168,10 +168,20 @@ test('a date-named record never borrows another record\'s tasks', () => {
     '# 2026-07-12: router\n\n**Status:** Superseded by x\n\n## Context\n\nc\n')
 
   const foreign = next([join(dir, '2026-07-12-router.md')], root)
-  assert.equal(foreign.status, 1, 'a record owning no tasks has nothing to sequence')
-  assert.match(foreign.stderr, /no tasks directory/, foreign.stderr)
+  // ORDINARY STATE, exit 0. Raised 2026-08-29 by the session that swept its whole
+  // corpus: 25 of its 28 records own no tasks directory, and a gate that advises
+  // and never blocks must not report the commonest correct state as a failure —
+  // especially while an UNDECIDED record, which deserves attention more, exits 0.
+  assert.equal(foreign.status, 0, 'a record owning no tasks is answered, not refused')
+  assert.match(foreign.stdout, /owns no tasks directory/, foreign.stdout)
   assert.doesNotMatch(foreign.stdout, /db-doctor/,
     `it must not answer with another record's tasks:\n${foreign.stdout}`)
+
+  // The must-fail direction: a path that does not exist is "I could not answer",
+  // which is a different thing from "the answer is none" and still exits 1.
+  const missing = next([join(dir, 'no-such-record.md')], root)
+  assert.equal(missing.status, 1, 'a path that is not there is a usage error')
+  assert.match(missing.stderr, /no such file or directory/, missing.stderr)
 
   // The must-fail direction: the record that DOES own that directory still
   // resolves it, so this is a date guard and not a broken sibling lookup.
@@ -464,10 +474,12 @@ test('every way of asking the wrong question is refused, not guessed at', () => 
   assert.match(next([], root).stderr, /Usage/i)
   assert.equal(next(['a', 'b'], root).status, 1)
 
-  // A path that names neither a tasks directory nor an ADR beside one.
+  // A path that is not there at all: "I could not answer", which is a usage
+  // error and stays exit 1. A record that EXISTS and owns no tasks is a
+  // different thing and answers exit 0 — asserted in the date-named test above.
   const missing = next([join(dir, 'nowhere.md')], root)
   assert.equal(missing.status, 1)
-  assert.match(missing.stderr, /no tasks directory/)
+  assert.match(missing.stderr, /no such file or directory/)
 
   // A directory with no task files in it — README.md and a note with no task id
   // are both present and neither counts.

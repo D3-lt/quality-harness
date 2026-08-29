@@ -465,8 +465,24 @@ def main():
 
     tasks_dir = resolve_tasks_dir(Path(args[0]))
     if tasks_dir is None:
-        print(f"adr-next: no tasks directory for {args[0]}", file=sys.stderr)
-        return 1
+        # A record with no tasks directory is an ORDINARY state, not a failure:
+        # most records in a real corpus are in it, and a reader asking about one
+        # gets a complete and correct answer — there is nothing to sequence. This
+        # gate advises and never blocks (CLAUDE.md §3), so it exits 0 and says so;
+        # a shell treating non-zero as failure would otherwise trip on 25 of 28
+        # records while the two states that most deserve attention — an undecided
+        # record, and a record whose tasks are all blocked — reported success.
+        # Raised 2026-08-29 by the session that swept its whole corpus with it.
+        #
+        # A path that does not exist is different and still exits 1: that is "I
+        # could not answer", not "the answer is none".
+        target = Path(args[0])
+        if not target.exists():
+            print(f"adr-next: no such file or directory: {args[0]}", file=sys.stderr)
+            return 1
+        print(f"adr-next: {args[0]} owns no tasks directory, so there is nothing to sequence. "
+              f"A record's tasks live in `tasks/` beside it, or in `<record>/tasks/`.")
+        return 0
 
     infos = load(tasks_dir)
     if not infos:

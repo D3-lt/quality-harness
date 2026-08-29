@@ -441,6 +441,25 @@ def check_reachability_consistency(task_files, errors):
             f"missing rung hides")
 
 
+def where_it_stopped(pattern, line, width=70):
+    """The part of a rejected line the reader needs to see: where matching failed.
+
+    A rejection that quotes the first 70 characters shows the PREFIX — which, for
+    a row that is correct up to a trailing addition, is exactly the part that was
+    fine. Measured 2026-08-29 by a session that hand-wrote six rows, had four
+    rejected for prose appended after the closing backtick, and was shown a
+    correct-looking prefix beside a complaint about grammar (docs/BACKLOG.md §60).
+    Longest-prefix matching says where the grammar gave up, so the reader is
+    pointed at the character that broke it rather than at the ones that did not.
+    """
+    for end in range(len(line), 0, -1):
+        if pattern.match(line[:end]) or pattern.fullmatch(line[:end]):
+            tail = line[end:]
+            return (f"matches up to character {end}, then stops at: {tail[:width]}"
+                    if tail else line[:width])
+    return line[:width]
+
+
 def check_task(path, all_stems, errors):
     text = path.read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
@@ -499,14 +518,15 @@ def check_task(path, all_stems, errors):
             errors.append(f"{path.name}: Verification Log entry doesn't match the adr-verify "
                           f"grammar '- YYYY-MM-DD · <sha[*]|no-git> · exit N · `cmd` · "
                           f"acceptance-sha256:<64 hex>' (legacy no-digest rows remain parseable) "
-                          f"(or '· human-observed · …'): {b[:70]}")
+                          f"(or '· human-observed · …'): {where_it_stopped(VLOG_RE, b)}")
     mlog = [ln.strip() for ln in secs.get("Mutation Log", [])
             if ln.strip().startswith("- ")]
     for b in mlog:
         if not MLOG_RE.match(b):
             errors.append(f"{path.name}: Mutation Log entry doesn't match the adr-verify "
                           f"grammar: killed requires nonzero exit, survived requires exit 0, "
-                          f"and inconclusive may use either · `file` · why: {b[:70]}")
+                          f"and inconclusive may use either · `file` · why: "
+                          f"{where_it_stopped(MLOG_RE, b)}")
     has_mlog_section = "Mutation Log" in secs
 
     acc_match = re.search(r"```bash\s*\n(.*?)```", acc, re.S)
@@ -1608,10 +1628,19 @@ def check_tests_exist(infos, readme_text, errors, root):
             # being searched for (docs/BACKLOG.md §57).
             source = f.read_text(errors="replace", encoding="utf-8")
             if test_body(source, name, python=f.suffix == ".py") is None:
+                # NO CLAIM ABOUT THE FILTER. This used to end "the acceptance
+                # filter passed without it", which is an inference the check never
+                # makes: measured 2026-08-29 on a 77-record corpus where four of
+                # the reported tasks run WHOLE-FILE acceptance commands with no
+                # `-k` at all, so nothing was filtered (docs/BACKLOG.md §61). The
+                # existence finding is solid and the mechanism was fabricated —
+                # a gate reporting an observation it did not make (ADR-005), in
+                # the sentence of a check that is otherwise 17-for-18 correct.
                 errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
                               f"Tests table names `{name}` in `{rel}`, but that file contains no "
-                              f"executable definition with that name — the acceptance filter passed "
-                              f"without it")
+                              f"executable definition with that name — so the row describes a test "
+                              f"the acceptance run cannot have exercised. Either the table is stale "
+                              f"(a rename is the commonest cause) or the test was never written")
 
 
 # Test bodies that cannot fail, and tests the Acceptance never runs.

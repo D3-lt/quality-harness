@@ -2992,6 +2992,15 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
+      "from": "                           encoding=\"utf-8\", errors=\"replace\", timeout=fence_timeout())",
+      "to": "                           encoding=\"utf-8\", errors=\"replace\", timeout=None)"
+    },
+    {
+      "label": "verify: a mutant run that hangs is UNRUN, and the file is put back",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
       "from": "                               timeout=fence_timeout())",
       "to": "                               timeout=None)"
     }

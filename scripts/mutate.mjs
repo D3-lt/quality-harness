@@ -186,11 +186,44 @@ export function testSets(mutations) {
   return [...byKey.values()]
 }
 
+/**
+ * The test names that failed in a mutated run, read from the reporter's own
+ * "failing tests" block.
+ *
+ * A RED verdict says the suite noticed; it never said WHAT noticed, because the
+ * campaign reads an exit status and discards the output. So a mutant killed by
+ * an unrelated assertion in the same file — or by a second guard in a caller,
+ * which happened in this repository once (CLAUDE.md §4) — is indistinguishable
+ * from one killed by the assertion it claims to prove. The names were already in
+ * the captured stdout; keeping them costs nothing.
+ *
+ * REPORTS, never judges. Whether the name that fired is the RIGHT one is a
+ * maintainer's read: the catalogue names test FILES, not test names, so a gate
+ * deciding this would be asserting a mapping nobody has written down. Raised
+ * 2026-08-29 by the agentsmemory session, whose campaigns share the blind spot.
+ */
+export function killedBy(stdout) {
+  if (!stdout) return []
+  const block = stdout.split('failing tests:')[1]
+  if (!block) return []
+  // The reporter prints "✖ <name> (1.2ms)" per failure. A file-level failure
+  // repeats the file's own path with no subtest — BACKLOG §49's shape — and is
+  // dropped here rather than reported as an assertion name it is not.
+  return [...block.matchAll(/^\s*\u2716 (.+?) \(\d[\d.]*ms\)\s*$/gm)]
+    .map(m => m[1])
+    .filter(name => !/[\\/]|\.(mjs|js|py|cjs)$/.test(name))
+}
+
 /** One report line. UNPROVEN names the failing set and what to do about it. */
 export function renderLine(result, width) {
   const note = result.verdict === 'GREEN' ? '  <- the tests did not notice'
     : result.verdict === 'STALE' ? `  <- ${result.detail}`
     : result.verdict === 'HUNG' ? '  <- noticed, but by hanging rather than failing'
+    // A kill names its killer where the reporter gave one. Silence when it did
+    // not: an empty list is "the names were not recoverable", never a claim that
+    // nothing fired.
+    : result.verdict === 'RED' && result.killers?.length
+      ? `  <- killed by: ${result.killers.join(', ')}`
     // The verdict the tests produced stays visible beside the warning, and the
     // line says what to CHANGE rather than only what is wrong — the lesson
     // ADR-005 applied to spec-verify, one tool over.
@@ -339,7 +372,8 @@ export function main(argv) {
       { cwd: root, encoding: 'utf8', timeout: timeoutMs })
     finish(file, original)
 
-    const result = { ...mutation, ...classify({ occurrences, baseline, run }) }
+    const result = { ...mutation, ...classify({ occurrences, baseline, run }),
+      killers: killedBy(run?.stdout) }
     results.push(result)
     console.log(renderLine(result, width))
   }

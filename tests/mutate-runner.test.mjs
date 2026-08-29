@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { baselineOf, classify, renderLine, summarise, testSets } from '../scripts/mutate.mjs'
+import { baselineOf, classify, killedBy, renderLine, summarise, testSets } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -146,4 +146,49 @@ test('GREEN and STALE both count as missed and exit 1', () => {
   assert.equal(summarise([{ verdict: 'STALE' }]).failing, true)
   assert.equal(summarise([{ verdict: 'RED' }, { verdict: 'HUNG' }]).failing, false,
     'a mutation the tests noticed, by either route, is not a failure of the campaign')
+})
+
+// BACKLOG §53. A RED verdict says the suite noticed; it does not say WHAT
+// noticed. The campaign reads an exit status and throws the rest away, so a
+// mutant killed by an unrelated assertion in the same file — or by a second
+// guard in a caller, which happened here once and is recorded in CLAUDE.md §4 —
+// is indistinguishable from one killed by the assertion it claims to prove.
+// The failing test names are already in the captured stdout; discarding them
+// was free to stop doing. Raised 2026-08-29 by the agentsmemory session, whose
+// campaigns have the same blind spot.
+//
+// This REPORTS, it does not judge: deciding whether the name that fired is the
+// right one is a maintainer's read, and a gate that guessed would be asserting
+// a mapping nobody wrote down.
+test('a kill names which tests failed, so the wrong killer is visible', () => {
+  const failed = `
+✖ failing tests:
+
+test at tests/gates.test.mjs:12:1
+✖ a traversal pointer is refused (3.1ms)
+  AssertionError [ERR_ASSERTION]: nope
+test at tests/gates.test.mjs:40:1
+✖ an absolute path is refused (1.2ms)
+✖ tests/gates.test.mjs (26.0ms)
+`
+  // The file-level line is dropped: a suite that died without reaching a subtest
+  // reports the FILE as the failure (BACKLOG §49's shape), and repeating a path
+  // back as "the assertion that fired" would name a killer that does not exist.
+  assert.deepEqual(killedBy(failed), ['a traversal pointer is refused', 'an absolute path is refused'])
+
+  // The must-fail direction (CLAUDE.md §4): a function returning [] for
+  // everything would satisfy an "it is empty when nothing failed" assertion on
+  // its own, so the clean case is only meaningful beside the dirty one above.
+  assert.deepEqual(killedBy('✔ everything passed (1ms)\n# pass 3\n# fail 0\n'), [])
+  assert.deepEqual(killedBy(''), [])
+  assert.deepEqual(killedBy(undefined), [])
+})
+
+test('the report names the killer beside a RED verdict', () => {
+  const line = renderLine(
+    { verdict: 'RED', label: 'lint: a guard refuses traversal', killers: ['a traversal pointer is refused'] },
+    34)
+  assert.match(line, /a traversal pointer is refused/)
+  // A RED with no names recoverable must not invent one, and must still render.
+  assert.doesNotMatch(renderLine({ verdict: 'RED', label: 'x', killers: [] }, 4), /killed by/)
 })

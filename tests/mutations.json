@@ -2859,6 +2859,24 @@
       ],
       "from": "          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory))) {",
       "to": "          && ADR_FILE.test(entry.name)) {"
+    },
+    {
+      "label": "checks: a build is not a project's check",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  for (const name of ['test', 'check', 'lint', 'typecheck']) {",
+      "to": "  for (const name of ['test', 'check', 'lint', 'typecheck', 'build']) {"
+    },
+    {
+      "label": "checks: a composer script answers before a phpunit guess",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const composed = composerScriptCommand(root)",
+      "to": "  const composed = null && composerScriptCommand(root)"
     }
   ]
 }

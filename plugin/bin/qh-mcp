@@ -155,7 +155,14 @@ class GateDidNotRun(Exception):
 
 
 def _gate_result(gate, completed, paths):
-    """The tool result for a gate that ran. T3 owns this shape."""
+    """The tool result for a gate that ran. T3 owns this shape.
+
+    The gate's text is returned unchanged with ONE exception, stated here so the
+    "verbatim" claim is honest: the capture is in text mode, so a CRLF line
+    ending arrives as LF. That is a spelling of the same output, not a summary or
+    a grade, and it is what a JSON payload should carry anyway. Nothing else —
+    no re-wording, no filtering, no verdict of the server's own.
+    """
     body = ["{} exit {}".format(gate, completed.returncode),
             "read: {}".format(", ".join(paths)) if paths else "read: —",
             "", completed.stdout]

@@ -153,6 +153,16 @@ const fixture = join(repoRoot, 'tests', 'fixtures', 'ok')
 const bin = join(repoRoot, 'plugin', 'bin')
 const READING_GATES = ['qh_adr_lint', 'qh_adr_next', 'qh_adr_debt', 'qh_adr_judge', 'qh_arch_lint']
 
+// The server captures the gate in Python's text mode, which translates CRLF to
+// LF; Node's spawnSync captures the bytes as written. So on Windows the same
+// output compares unequal, and `split('\n')[0]` leaves a trailing \r that is in
+// one side and not the other. Both sides are normalized before comparison, and
+// what "verbatim" therefore means is: the gate's own text, its line endings
+// spelled the way the platform reading it spells them. Nothing else is touched.
+// Found by CI on 2026-08-29 — two tests red on windows-latest and green on the
+// two platforms a laptop can run (CLAUDE.md §7).
+const lf = text => text.replace(/\r\n/g, '\n')
+
 function list() {
   const { replies } = talk([INIT, { jsonrpc: '2.0', id: 2, method: 'tools/list' }])
   return replies.find(reply => reply.id === 2).result.tools
@@ -184,7 +194,7 @@ test("every reading gate is listed, and calling it returns that gate's own outpu
     const text = reply.result.content.map(part => part.text).join('')
     const direct = spawnSync('python3', [join(bin, gate), ...argv], { encoding: 'utf8', timeout: 60_000 })
     assert.notEqual(direct.status, null, `${gate} was not executed`)
-    assert.ok(text.includes(direct.stdout.trim().split('\n')[0]),
+    assert.ok(lf(text).includes(lf(direct.stdout).trim().split('\n')[0]),
       `${tool} did not return the gate output\nMCP:\n${text}\ndirect:\n${direct.stdout}`)
   }
 })
@@ -284,7 +294,7 @@ test('gate output is returned verbatim', () => {
   const text = reply.result.content.map(part => part.text).join('')
   const direct = spawnSync('python3', [join(bin, 'adr-lint'), adr, join(fixture, 'tasks')],
     { encoding: 'utf8', timeout: 60_000 })
-  assert.ok(text.includes(direct.stdout), 'the server modified, summarised or graded the gate output')
+  assert.ok(lf(text).includes(lf(direct.stdout)), 'the server modified, summarised or graded the gate output')
   assert.ok(text.includes('exit 0'))
   assert.ok(text.includes(adr), 'the result must name which tree was read')
 })

@@ -149,7 +149,7 @@ fixture's unrunnable fence must be one that would otherwise PASS.
 
 - `strictFrom` demotion — that is T2's job.
 - Repairing the three claims that currently fail — that is T3's job.
-- Resolving `Governs:` against the tree. (deferred: docs/BACKLOG.md §45)
+- Resolving `Governs:` against the tree. (deferred: docs/BACKLOG.md §45 — CLOSED there 2026-08-29 by ADR-011; the deferral is kept as written because it was this record's scope at the time)
 
 ## Verification Log
 <!-- tool-written by adr-verify; empty at authoring -->

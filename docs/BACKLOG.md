@@ -1519,15 +1519,25 @@ arrived at from the other direction.
 ### AMENDED 2026-08-29 — the three nulls are not strong enough to carry that sentence
 
 Derived from the recorded results with `node scripts/eval-deltas.mjs`, which reads every
-`aggregate-result.json` under `plugin/evals/results` and computes Δ **within one invocation only**.
-18 invocations, 8 cases. **7 of the 8 carry a caveat**, and the two that matter here are the two this
-entry and §36 quote:
+`aggregate-result.json` under `plugin/evals` and computes Δ **within one invocation only**.
+**25 invocations, 8 cases, 7 of the 8 carrying a caveat.** The cases this entry and §36 quote:
 
 | case | paired invocations | Δ per invocation | what the numbers support |
 |---|---|---|---|
 | `gates-advise-never-block` | 9 | `+0.00 -0.40 +0.00 +0.20 -1.00 +0.00 +0.00 -0.33 +0.00` | with-arm alone spans **1.00** across invocations |
 | `fence-warning-given` / `-omitted` | 1 each | `+0.60` / `+1.00` | single run against single run |
 | `complexity-instruction-given` / `-omitted` | 2 each | `+0.20 +0.60` / `-0.20 +1.00` | with-arm spans 0.60 |
+| `adr-against-a-real-corpus` | 6 | `-0.60 +0.00 -1.00 -1.00 +0.00 +0.00` | single-run arms AND spans 1.00 |
+
+**The first committed version of the tool reported 18 and 7, and it was wrong.** The suite writes into
+two trees — `plugin/evals/results` and `plugin/evals/generated/cases/results` — and defaulting to the
+first dropped 7 invocations, five of them PAIRED invocations of `adr-against-a-real-corpus`, which is
+the case with the most negative deltas in the corpus. Nothing said anything was missing; the report
+simply described a smaller corpus. Found by a review comparing the tool's count against the ad-hoc
+glob it replaced, and now asserted by
+`tests/eval-deltas.test.mjs::both results trees are read, not just the one named results`. It is the
+same shape as a filter that matched nothing reporting "absent" — twice in one session, in the tool
+built to stop exactly that.
 
 Three things follow, and only the first was known.
 

@@ -1840,8 +1840,8 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "        return \"unrun\", (f\"no runner detected for this repository, and {test} has no Cmd \"",
-      "to": "        return \"fail\", (f\"no runner detected for this repository, and {test} has no Cmd \""
+      "from": "        return \"unrun\", (f\"no runner detected for this repository, and {test} has no command \"",
+      "to": "        return \"fail\", (f\"no runner detected for this repository, and {test} has no command \""
     },
     {
       "label": "spec-verify: a fact nothing could adjudicate is not a pass",
@@ -1941,6 +1941,15 @@
       ],
       "from": "        return \"unrun\", (f\"the {stack} collector could not be run ({e}). Install it, drop \"",
       "to": "        return False, (f\"the {stack} collector could not be run ({e}). Install it, drop \""
+    },
+    {
+      "label": "spec-verify: a scenario's runner override is read and honoured",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                     r\" (?:→|->) `([^`]+)`(?: +cmd:`([^`]+)`)?\\s*$\")",
+      "to": "                     r\" (?:→|->) `([^`]+)`()\\s*$\")"
     },
     {
       "label": "package: a real home path in a tracked file is named",

@@ -1516,6 +1516,50 @@ reached the answer), and this — is that instructions in this harness have not 
 move behaviour, while gates and mutations have moved it repeatedly. That is ADR-003's argument,
 arrived at from the other direction.
 
+### AMENDED 2026-08-29 — the three nulls are not strong enough to carry that sentence
+
+Derived from the recorded results with `node scripts/eval-deltas.mjs`, which reads every
+`aggregate-result.json` under `plugin/evals/results` and computes Δ **within one invocation only**.
+18 invocations, 8 cases. **7 of the 8 carry a caveat**, and the two that matter here are the two this
+entry and §36 quote:
+
+| case | paired invocations | Δ per invocation | what the numbers support |
+|---|---|---|---|
+| `gates-advise-never-block` | 9 | `+0.00 -0.40 +0.00 +0.20 -1.00 +0.00 +0.00 -0.33 +0.00` | with-arm alone spans **1.00** across invocations |
+| `fence-warning-given` / `-omitted` | 1 each | `+0.60` / `+1.00` | single run against single run |
+| `complexity-instruction-given` / `-omitted` | 2 each | `+0.20 +0.60` / `-0.20 +1.00` | with-arm spans 0.60 |
+
+Three things follow, and only the first was known.
+
+**"Δ 0.00" for `gates-advise-never-block` is one of nine deltas, not the measurement.** The other
+eight run from −1.00 to +0.20 on identical inputs, and five of the nine are exactly 0.00 because both
+arms scored the same *number*, not because the arms behaved alike. A case whose with-arm alone swings
+the full 0–1 range cannot distinguish an inert instruction from a noisy grader. §31 and §34 are the
+same shape in this repository — a bimodal case and a jittering coverage gate — and §36's own rule
+applies to the eval suite before it applies to anything the suite measures: **a verdict that changes
+its mind teaches re-running instead of fixing.**
+
+**The 0.92-vs-0.92 figures in the table above have no baseline at all.** They come from
+`--ablation none` runs, which is exactly what this entry says and is fine for a given-vs-omitted
+comparison. They are not evidence about the plugin, and nothing here should be read as one.
+
+**The first attempt at this amendment produced a confident, wrong number, and that is worth
+recording.** Pooling every recorded with-arm against every recorded baseline gave
+`fence-warning-omitted` a Δ of **+0.93** — an arm from three `--ablation none` invocations on
+2026-08-27 compared against a single baseline run on 2026-08-28. The arms never met: different case
+text, different day, different ablation setting. The tool refuses that comparison now, and the
+refusal is asserted in `tests/eval-deltas.test.mjs::a delta is computed within one invocation and
+never across two`.
+
+**What this does NOT overturn.** Given-vs-omitted is still the right experiment, the fence paragraph
+still scored 0.92 in both arms over five runs each, and no instruction here has yet been shown to
+move behaviour. The correction is to the CONFIDENCE, not the direction: the honest statement is
+*"three instructions were measured on cases too noisy to detect a small effect, and none showed
+one"*, which is a much weaker claim than *"instructions have not once been shown to move
+behaviour"* — and it is the claim the data supports. Raising runs per arm on
+`gates-advise-never-block` until its with-arm stops spanning the range is the cheapest way to find
+out which of the two is true.
+
 ## 36. What actually reaches an agent, measured on one
 
 Written 2026-08-27 at the owner's request, from a session in which eleven defects were introduced
@@ -1533,6 +1577,14 @@ same day and broke it anyway.
 Against that: three instructions were measured under ablation and all three were inert — a
 complexity lint (§35), the `gates-advise-never-block` skill prose (Δ 0.00, and traces showed it never
 reached the answer), and the fence-trap paragraph (§35, 0.92 both arms).
+
+**Weakened 2026-08-29, see §35's amendment.** `node scripts/eval-deltas.mjs` derives the deltas from
+the recorded runs and 7 of 8 cases cannot currently support one. The `Δ 0.00` quoted above is one of
+NINE paired invocations of that case, whose deltas span −1.00 to +0.20; its with-arm alone swings the
+full score range. The three nulls are real and the direction is unchanged, but "measured and inert"
+overstates what a suite this noisy can show. **The rule below still stands on the campaign evidence —
+eight defects caught by mutations, two by CI, none by reading — which is not affected by any of
+this.**
 
 **The rule that follows, and the one worth holding this project to: every piece of guidance should
 either become a gate or be deleted.** Not because prose is wrong, but because there are now three

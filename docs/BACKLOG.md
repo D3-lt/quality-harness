@@ -4183,6 +4183,38 @@ is the part I would keep."*
 Build it from what the tool emits in the run you are about to trust, or a cosmetic change upstream
 turns your sweep into a silence you will read as safety.
 
+### The blast radius, measured on a second corpus — and the release window it opened
+
+**173 rows across 14 of 14 task READMEs** sit in a non-first table on the wcag corpus. It is not one
+record's quirk; it is that project's house layout, present in the template every track was written
+from. ADR-076's two headers show why those rows were garbage under the old parse:
+
+    | ID       | Title    | Status      | Covers        | Acceptance     |
+    | Producer | Contract | Consumer(s) | Ordering note |
+
+Column 3 of the second table is `Consumer(s)`, so eight rows in that one file would each have
+reported a status of `T2, T4, T9`.
+
+**The second-order case they flagged is the one worth the fixture:** the same task id appears in BOTH
+tables. `T4` is `done` in the status table and `T10` in the producer table, so whichever the parser
+read LAST won — **a task's real status overwritten by a dependency cell**. Asserted now on their exact
+shape: `T4` produces nothing, and `T11`'s real `partial` from the first table survives.
+
+**And the §73/§75 interaction is the part to remember about SEQUENCING.** Before §73, an unrecognised
+status was a silent exemption — so this parse bug was MASKED by the other bug: 173 rows carried
+garbage statuses, and the tool's response to a garbage status was to say nothing. Two defects
+cancelling into apparent quiet.
+
+§73 removed the silence. **Between v2.37.0 and v2.38.0 there was a window in which that corpus would
+have emitted ~173 false findings**, one per row, each naming a `Consumer(s)` cell as a status word. A
+user updating into that window would have watched their corpus explode and reasonably concluded §73
+was the broken thing — when §73 was correct and had merely stopped hiding §75.
+
+They skipped the window by accident rather than judgement (their user had not updated). The lesson is
+not "ship them together", which is easy to say afterwards: it is that **removing a silence exposes
+everything the silence was covering, and the exposure looks like a regression in the thing that
+removed it.** Worth knowing before the next check that turns quiet into noise.
+
 ### And the fixture could not have caught it
 
 The cell I built from their message — `**done** (2026-07-29) — sshd drop-in split off to T3b` —

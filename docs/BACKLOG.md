@@ -3820,6 +3820,47 @@ measured nothing and it looked exactly like a clean result. The 1096 figure is t
 positive-controlled against a path known to be ignored. That is the third session today to catch a
 false all-clear in their own instrument before reporting it.
 
+## 70. CLOSED 2026-08-29 — the verdict stopped being evicted and started being buried
+
+**Reported by infrastructure-06 reading §54's own fix in place**, which is the thing a fixture cannot
+show you. They ran a synthetic fence — two FAIL lines to stdout, twelve warnings to stderr, exit 1 —
+and every mechanical property held: both stdout lines present where the old tail-of-a-concatenation
+would have dropped both, `(of 12)` disclosing the drop, stdout placed first, digest intact.
+
+And then the honest part: **fourteen lines in that block, two carrying the verdict, ten the same
+sentence repeated.** §54 was filed because the verdict was EVICTED by stderr noise; the fix stopped
+the eviction and the noise still won the page. Their sentence: *"If somebody's eye lands mid-block
+they will conclude the task failed on a deprecation."*
+
+**Fixed with their option 1, which they argued for over their own option 2.** Consecutive identical
+lines fold into one with a count — `warning: deprecated module  (x10)` — so that block is now four
+lines with the verdict first. They recommended it over weighting the budget toward stdout because
+that would be GUESSING which stream carries the answer, and repeated-identical is the overwhelmingly
+common shape for build and ansible stderr, which is exactly why the tail fills with it. Distinct
+lines are never folded, which is the must-fail direction: without it the block would lose content
+rather than repetition.
+
+### Two friction points from building the fixture, both taken
+
+They reported these as observations rather than problems, and both cost a reader a minute:
+
+- **```sh was refused; the fence had to be ```bash.** `sh` and `shell` are reasonable things to type
+  and the fence runs through bash either way, so both are read now — one pattern, shared by the
+  recording path and the sweep, rather than a second spelling. They noted the refusal message was
+  already good, naming the human-observed escape hatch; it now names the accepted spellings too.
+- **A missing `## Verification Log` heading said only that it was missing.** It now says what to do:
+  *"add an empty `## Verification Log` heading to the task file and re-run. This tool appends
+  entries; it does not create the section, because a task file's shape is the author's."* The tool
+  deliberately still will not create it — writing a section nobody asked for is how a tool starts
+  editing documents.
+
+### And two catalogue entries my own refactor invalidated
+
+Sharing the fence pattern and folding the tail both moved lines that two existing mutations named, so
+the packaging check went red — correctly, and immediately. That check exists because a catalogue
+entry whose `from` no longer matches is a mutation that silently stops testing anything, and it is
+the fourth time today it has caught a stale entry within a minute of the edit that stranded it.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

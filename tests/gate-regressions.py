@@ -1764,6 +1764,20 @@ def main():
     # The must-fail direction (CLAUDE.md §4): an EMPTY stream is omitted, not
     # labelled — otherwise "always emit both headers" satisfies the assertions
     # above while saying nothing about what was captured.
+    # BACKLOG §70. The per-stream tail stopped the verdict being EVICTED and not
+    # being BURIED: measured on a real fence, fourteen recorded lines of which two
+    # carried the verdict and ten were one deprecation warning repeated. A reader
+    # whose eye lands mid-block concludes the task failed on a deprecation.
+    noisy = verify.failure_tail("FAIL: the line a reader needs\n",
+                                "\n".join(["warning: deprecated module"] * 12))
+    assert any("(x10)" in ln for ln in noisy), noisy
+    assert sum(1 for ln in noisy if "deprecated" in ln) == 1, noisy
+    assert any("FAIL: the line a reader needs" in ln for ln in noisy), noisy
+    # The must-fail direction (CLAUDE.md §4): DISTINCT lines must not be folded,
+    # or the block loses content rather than repetition.
+    distinct = verify.collapse_repeats(["one", "two", "two", "three"])
+    assert distinct == ["one", "two  (x2)", "three"], distinct
+
     only_err = verify.failure_tail("", "boom\n")
     assert not any("stdout" in ln for ln in only_err), only_err
     assert verify.failure_tail("", "") == []

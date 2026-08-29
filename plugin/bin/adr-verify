@@ -298,10 +298,26 @@ def failure_tail(stdout, stderr, keep=10):
         lines = (raw or "").strip().splitlines()
         if not lines:
             continue
-        shown = collapse_repeats(lines[-keep:])
-        head = f"--- last {min(len(lines), keep)} line(s) of {label}"
-        if len(lines) > keep:
-            head += f" (of {len(lines)})"
+        # FOLD FIRST, THEN TRUNCATE. Folding the tail counts what SURVIVED the
+        # tail, not what happened: a warning that fired five times, with two of
+        # them cut by the tail, was reported `(x3)` — accurate about the block and
+        # wrong about the world. Measured 2026-08-29 on a deliberately sharp
+        # fixture (two runs of the same line separated by unique ones), and the
+        # reporter's point is why it matters more after folding than before:
+        # tidy lines with explicit counts READ as a full accounting, so the
+        # presentation got better and, in that one place, less honest
+        # (docs/BACKLOG.md §72).
+        #
+        # Folding first also makes truncation rarer — their twelve raw lines fold
+        # to four, so nothing is cut at all — which is the better outcome for the
+        # same change.
+        folded = collapse_repeats(lines)
+        shown = folded[-keep:]
+        head = f"--- last {len(shown)} line(s) of {label}"
+        if len(folded) > len(shown):
+            head += f" (of {len(folded)} after folding {len(lines)} raw)"
+        elif len(folded) < len(lines):
+            head += f" ({len(lines)} raw, folded)"
         parts.append(head)
         parts.extend(shown)
     return parts

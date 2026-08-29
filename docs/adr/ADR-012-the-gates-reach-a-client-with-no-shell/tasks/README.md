@@ -24,7 +24,7 @@ Four tasks, sequential — each consumes the one before it.
 |----|-------|--------|--------|------------|
 | T1 | A stdio JSON-RPC core whose read-only annotation cannot disagree with its registration | done | — | `node --test tests/mcp-server.test.mjs` |
 | T2 | Register the five reading gates, and make the two executing ones unregisterable | done | — | `node --test tests/mcp-server.test.mjs` |
-| T3 | A finding is content; the error channel is reserved for a gate that could not run | pending | — | `node --test tests/mcp-server.test.mjs` |
+| T3 | A finding is content; the error channel is reserved for a gate that could not run | done | — | `node --test tests/mcp-server.test.mjs` |
 | T4 | Package the server, and measure whether a real Claude Desktop can use it | pending | — | human-observed |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.

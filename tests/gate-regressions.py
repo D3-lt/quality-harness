@@ -1317,6 +1317,32 @@ def main():
         assert not blocking, f"{record.name}: pointers never block: {blocking}"
         assert not advice, f"{record.name}: every pointer in this corpus resolves: {advice}"
 
+    # BACKLOG §41, the adr-lint half. `split_dependencies` existed for exactly
+    # this and was wired only into the Depends-on VALIDATION; the DAG built a few
+    # lines below still scanned the RAW value, on both headers. So the gate that
+    # rejects an unresolvable qualified dependency was, in the same run, adding a
+    # local edge for it — `ADR-003-T4` contributing a `T4` edge, because TID_RE
+    # does not treat `-` as a word character.
+    def dag(consumes="none", dep="none"):
+        infos = {
+            "T4": {"dep": "none", "consumes": "none", "produces": "none"},
+            "T9": {"dep": dep, "consumes": consumes, "produces": "none"},
+        }
+        return lint.dag_edges(infos)
+
+    assert dag(consumes="ADR-003-T4") == [], (
+        f"a qualified id in Consumes is foreign and contributes no local edge: {dag(consumes='ADR-003-T4')}")
+    assert dag(dep="ADR-003-T4") == [], (
+        f"and the same in Depends-on, which the validator already knew: {dag(dep='ADR-003-T4')}")
+
+    # THE CLEAN ANSWER in the same place: a LOCAL id on either header still
+    # builds its edge. Without this, a dag_edges that returned [] unconditionally
+    # would satisfy both assertions above (CLAUDE.md §4).
+    assert [e[:2] for e in dag(consumes="T4")] == [("T4", "T9")], (
+        f"a local Consumes id still orders the pair: {dag(consumes='T4')}")
+    assert [e[:2] for e in dag(dep="T4")] == [("T4", "T9")], (
+        f"a local Depends-on id still orders the pair: {dag(dep='T4')}")
+
     # ADR-007 T1. `Depends-on` could only name a SIBLING: adr-lint rejected
     # anything else with a blocking error, so the field designed to carry
     # "this must not start before that" could not express a cross-record edge

@@ -438,8 +438,21 @@ def check_task(path, all_stems, errors):
 def dag_edges(infos):
     """Ordering edges (before, after, reason) from Depends-on + Produces/Consumes.
 
-    Consumes contributes an edge for every T-id it references and for every
+    Consumes contributes an edge for every LOCAL T-id it references and for every
     backticked token that also appears backticked in a sibling's Produces.
+
+    QUALIFIED IDS ARE TAKEN OUT WHOLE FIRST, on BOTH headers. `split_dependencies`
+    existed for exactly this and was wired only into the Depends-on VALIDATION at
+    the call site above; the DAG built beside it still scanned the raw value, so
+    `ADR-003-T4` yielded a local `T4` edge in the graph the validator had just
+    been careful about. Reproduced 2026-08-29 (docs/BACKLOG.md §41): a task whose
+    `Consumes:` named a foreign record printed `blocked … (waiting on T4)`, naming
+    a sibling it has nothing to do with. A wrong edge is worse than a missing one,
+    because the DAG then looks answered.
+
+    A foreign id contributes NO edge here, deliberately: this function builds the
+    local ordering graph, and cross-record readiness is `adr-next`'s foreign
+    state, which reports "cannot evaluate" rather than inventing an ordering.
     """
     tid_re = re.compile(r"(?<!\w)T\d+(?!\w)")
     edges, seen = [], set()
@@ -450,12 +463,13 @@ def dag_edges(infos):
             edges.append((a, b, reason))
 
     for tid, inf in infos.items():
-        if inf["dep"] and not inf["dep"].lower().startswith("none"):
-            for d in tid_re.findall(inf["dep"].upper()):
-                add(d, tid, f"{tid} Depends-on {d}")
+        _, dep_local = split_dependencies(inf["dep"])
+        for d in tid_re.findall(" ".join(dep_local).upper()):
+            add(d, tid, f"{tid} Depends-on {d}")
         cons = inf["consumes"]
         if cons and not cons.lower().startswith("none"):
-            for d in tid_re.findall(cons.upper()):
+            _, cons_local = split_dependencies(cons)
+            for d in tid_re.findall(" ".join(cons_local).upper()):
                 add(d, tid, f"{tid} Consumes {d}'s output")
             ctoks = {t.lower() for t in re.findall(r"`([^`]+)`", cons)} - {"none"}
             for other, oinf in infos.items():

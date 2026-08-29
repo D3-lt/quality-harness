@@ -3001,8 +3001,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                               timeout=fence_timeout())",
-      "to": "                               timeout=None)"
+      "from": "                               text=True, encoding=\"utf-8\", errors=\"replace\",\n                               timeout=fence_timeout())",
+      "to": "                               text=True, encoding=\"utf-8\", errors=\"replace\",\n                               timeout=None)"
     },
     {
       "label": "checks: an inferred command says it was inferred, a declared one does not",
@@ -3048,6 +3048,24 @@
       ],
       "from": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash|sh|shell)\\s*\\n(.*?)```\", re.S)",
       "to": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash)\\s*\\n(.*?)```\", re.S)"
+    },
+    {
+      "label": "verify: a fence that failed scoring nothing is decided by a baseline, not assumed",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif base.returncode == 0 and not scored_nothing(base.stdout + base.stderr):",
+      "to": "        elif False:"
+    },
+    {
+      "label": "verify: a fence broken for a machine reason is not credited as a kill",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif environment_failure(out, cmd):",
+      "to": "        elif False:"
     }
   ]
 }

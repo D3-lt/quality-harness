@@ -1279,6 +1279,14 @@ def main():
         out = output.strip().splitlines()[-10:]
         block += "\n" + "\n".join(["  ```"] + ["  " + ln for ln in out] + ["  ```"])
     append_entry(task, text, block)
+    # Say that the file was WRITTEN. Recording the run is the point of this tool —
+    # evidence is tool-written or it is not evidence — but nothing said so, and a
+    # session that ran it on a hint from the session hook watched `git status` go
+    # dirty from what read as a read-only verification. Reported 2026-08-29
+    # (docs/BACKLOG.md §57). The surprise is not the write; it is the silence.
+    print(f"[adr-verify] WROTE this entry into {task}'s ## Verification Log — "
+          f"recording the run IS this tool's job, so the file is now modified; "
+          f"commit it with the work it evidences.")
     print(block)
     sys.exit(code)
 

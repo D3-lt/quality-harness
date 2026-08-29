@@ -298,13 +298,36 @@ def note_foreign(part, corpus_dir, foreign, tid):
 
 
 def resolve_tasks_dir(target):
+    """The tasks directory a caller meant, from whatever they actually typed.
+
+    Three shapes are all obvious first guesses and only one of them used to work:
+    the tasks directory itself, the record's own folder beside it, and the record
+    FILE. The second returned itself and then reported "no task files"; the third
+    resolved only when the folder's name equalled the file's stem, which is false
+    for `ADR-002-long-slug.md` beside `ADR-002/`. Reported 2026-08-29 by two
+    sessions (docs/BACKLOG.md §57). A tool that knows what you meant and refuses
+    to say so is a tool people stop typing.
+    """
     if target.is_dir():
-        return target
+        # `ADR-002/` holding `tasks/` is the record's folder, not its tasks.
+        nested = target / "tasks"
+        return nested if nested.is_dir() else target
     if not target.is_file():
         return None
     for candidate in (target.parent / "tasks", target.parent / target.stem / "tasks"):
         if candidate.is_dir():
             return candidate
+    # A sibling folder that owns this record by NUMBER: the filename carries a
+    # slug the folder does not have to repeat.
+    owns = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", target.stem, re.I)
+    if owns:
+        for sibling in sorted(target.parent.iterdir()):
+            if not sibling.is_dir():
+                continue
+            theirs = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", sibling.name, re.I)
+            if theirs and int(theirs.group(1)) == int(owns.group(1)) \
+                    and (sibling / "tasks").is_dir():
+                return sibling / "tasks"
     return None
 
 

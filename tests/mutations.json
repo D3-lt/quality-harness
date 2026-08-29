@@ -2940,6 +2940,24 @@
       ],
       "from": "RECORD_NUMBER = re.compile(r\"(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)",
       "to": "RECORD_NUMBER = re.compile(r\"(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)"
+    },
+    {
+      "label": "verify: a toolchain directive is not a comment-only mutant",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if DIRECTIVE_COMMENT.search(frm) or DIRECTIVE_COMMENT.search(to):",
+      "to": "    if False:"
+    },
+    {
+      "label": "next: a legacy exit-0 row proves a single-line fence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        want_legacy = first.replace(\"`\", \"'\")",
+      "to": "        want_legacy = None"
     }
   ]
 }

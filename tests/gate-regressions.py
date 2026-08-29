@@ -1603,6 +1603,36 @@ def main():
     assert step_one_advice("1. Update the documentation and the changelog."), \
         "a step 1 that establishes no failing state must still be advised at"
 
+    # BACKLOG §57. Two defects in one function, found from opposite directions.
+    #
+    # A BDD test is NAMED BY A STRING — `it('name', …)`, `t.Run("name", …)`,
+    # `it 'name' do` — and the declaration matcher wanted `name(`, an identifier
+    # being CALLED. So the whole JS/TS/Ruby/Go-subtest family was invisible, and
+    # a session running adr-lint over a finished Vitest corpus was told all seven
+    # of its tasks named tests that do not exist. Reported 2026-08-29.
+    #
+    # And the last-resort fallback accepted ANY line mentioning the name,
+    # returning the rest of the file as its "body" — so a name appearing only in
+    # a COMMENT or a bare string satisfied `check_tests_exist`. The check for a
+    # Tests table naming a test that is not there could be satisfied by a note
+    # saying it was planned. Found here while reproducing the first.
+    for label, source, present in [
+        ("vitest arrow", "it('t_name', () => {\n  expect(1).toBe(1)\n})\n", True),
+        ("vitest async", 'it("t_name", async () => {\n  expect(1).toBe(1)\n})\n', True),
+        ("jest function", "test('t_name', function () {\n  expect(1).toBe(1)\n})\n", True),
+        ("go subtest", 't.Run("t_name", func(t *testing.T) {\n  _ = 1\n})\n', True),
+        ("rspec do/end", "it 't_name' do\n  expect(1).to eq 1\nend\n", True),
+        ("plain function", "func t_name(t *testing.T) {\n  _ = 1\n}\n", True),
+        # The must-fail direction, and it is the half that was broken: without
+        # these three, a `test_body` returning the whole file for anything would
+        # satisfy every case above (CLAUDE.md §4).
+        ("comment only", "// t_name is planned\n", False),
+        ("string only", "const s = 't_name'\n", False),
+        ("absent", "it('other', () => {})\n", False),
+    ]:
+        found = lint.test_body(source, "t_name", python=False) is not None
+        assert found is present, f"test_body on {label}: found={found}, expected={present}"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

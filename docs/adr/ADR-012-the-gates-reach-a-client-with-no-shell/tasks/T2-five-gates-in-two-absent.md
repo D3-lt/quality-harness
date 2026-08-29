@@ -108,3 +108,4 @@ boundary the record rests on holds.
 
 ## Verification Log
 - 2026-08-29 · 46ce66b · exit 0 · `set -o pipefail …` · acceptance-sha256:39cf2d0261d6d1649ef582f954211de5203f36da10267da9a0b4e67eb80ffc78
+- 2026-08-29 · a060f50 · exit 0 · `set -o pipefail …` · acceptance-sha256:39cf2d0261d6d1649ef582f954211de5203f36da10267da9a0b4e67eb80ffc78

@@ -3669,6 +3669,21 @@ That last one matters because `dist` and `logs` are the two patterns nearly ever
 bare, and both are plausible Affected-Files locations for a build- or log-related task — so the trap
 this rule catches is not exotic there, it is the default configuration.
 
+- **A fourth corpus, Laravel, produced a REAL hit nobody predicted precisely**:
+  `storage/api-docs/api-docs.json`, the l5-swagger-generated OpenAPI spec, ignored by
+  `storage/api-docs/`, absent from every commit — and the task's own fence REGENERATES it before
+  grepping it. Evidence-real-but-untracked, exactly. Noise diff against 2.34.1 on the same trees:
+  4→4, 1→1, 13→14 lines, and the single new line is this one. No false positives; their `vendor/`
+  and `bootstrap/cache` never appear in an Affected Files row, so the riskier patterns went
+  unexercised rather than passing.
+
+**And that hit refines what the rule MEANS, which is worth more than the count.** The reporter's
+judgement: advice is the right severity there *because the artifact is regenerable by the fence
+itself — a clean clone re-derives it*. So an ignored Affected-Files path is not always a defect; it
+is sometimes a build product whose absence from the commit is correct. That is a positive argument
+for keeping this advisory permanently rather than a concession, and it is the distinction a blocking
+version could not make.
+
 **Why the message is the half that earns the rule**, in the reporter's words: it names the pattern
 that matched, so nobody hunts through `.gitignore`; it states the CONSEQUENCE rather than the rule —
 *a task that verifiably passed and cannot be reproduced by anyone who clones*; and it gives the fix
@@ -3886,6 +3901,58 @@ Sharing the fence pattern and folding the tail both moved lines that two existin
 the packaging check went red — correctly, and immediately. That check exists because a catalogue
 entry whose `from` no longer matches is a mutation that silently stops testing anything, and it is
 the fourth time today it has caught a stale entry within a minute of the edit that stranded it.
+
+## 71. CLOSED 2026-08-29 — a mutant that removes tests, and the false kill found beside it
+
+**Reported by agentsmemory-main-5b re-testing §67's own fix.** The `//go:build` mutation now RUNS
+instead of being refused — and lands `mutant inconclusive · the fence failed but scored no tests`.
+Both rules are right on their own: the scored-nothing rule exists to catch a fence whose filter
+matches nothing and passes vacuously. But **this mutant's entire signal IS that no tests ran**, and
+the fence detects it correctly and fails. The detector and the classifier were reading the same fact
+and drawing opposite conclusions.
+
+**Their framing of the class is the entry:** any mutant whose effect is to REMOVE tests from a lane
+reports inconclusive however correctly the fence catches it — a restored build tag, an inserted
+`t.Skip`, a narrowed `-run` filter, a renamed `_test.go`. That is exactly the family §67's directive
+list had just made reachable, so the two changes were one change short of working together.
+
+**Their proposed rule was right and I could not take it as stated**, for a reason invisible from
+their side: "the fence failed and scored no tests, therefore a kill" also fires when the fence cannot
+run AT ALL. They were explicit about not wanting intent inferred from the fence's text, and I agree —
+so the tie is broken by MEASUREMENT instead. In the ambiguous case only, and only after the mutant is
+restored, the CLEAN fence is run:
+
+- clean fence passes and scores tests → **killed** ("the mutant is what removed them")
+- clean fence passes scoring nothing → inconclusive, "this fence cannot fail here, mutant or not"
+- clean fence fails too → inconclusive, "the failure predates the mutant"
+- clean fence does not finish → inconclusive, nothing concluded
+
+A false KILL is the worst outcome this tool has, because it credits a suite with catching something
+it never noticed — so the kill is granted only on the positive case.
+
+### The false kill that was already there
+
+Building the must-fail direction found one. A fence naming a runner that does not exist — `nosuchrunner` —
+exits 127, matches no `BUILD_BROKE` pattern, scores nothing this gate recognises, and fell straight
+through to **`mutant killed`, "a test went red"**. That predates today's work and is worse than the
+complaint that led to it: an absent runner was being recorded as evidence that the suite noticed a
+broken mechanism. `environment_failure` now routes it to the same baseline, and it records
+`inconclusive · the failure predates the mutant`.
+
+### Three fixtures, two of which asserted nothing
+
+The first fixture printed a bare `no tests to run`; the second printed nothing at all. Neither is
+what `scored_nothing` recognises — it requires the RUNNER'S own marker (`ok pkg 0.01s [no tests to
+run]`), and absence of output is not evidence of an empty result set. Both reached the ordinary kill
+branch, so the test passed while asserting behaviour that already existed. **The campaign said so
+twice, leaving the baseline mutation GREEN both times**, and only the third fixture — emitting the
+real marker — actually reached the line under test. That is the sixth GREEN mutation today from the
+same family, and the first where the fixture rather than the assertion was the thing that missed.
+
+**Their own prose went false within hours too**, and they handled it the way this corpus asks: the
+deviation paragraph said *"adr-verify REFUSES this as comment-only"*, true when written and false by
+evening. They rewrote it carrying both halves dated rather than patching the sentence, because a
+record that silently corrects itself teaches nothing about how it went wrong.
 
 ## Verification claims worth re-running after any of the above
 

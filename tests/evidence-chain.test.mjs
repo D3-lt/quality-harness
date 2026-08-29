@@ -447,6 +447,61 @@ test('an Acceptance fence may be spelled sh or shell', () => {
   assert.match(refused.stdout, /no non-empty/, refused.stdout)
 })
 
+test('a mutant that removes tests is killed, and a fence broken before it is not', () => {
+  // docs/BACKLOG.md §71. A mutant whose whole effect is to REMOVE tests from a
+  // lane — a restored `//go:build` tag, an inserted `t.Skip`, a renamed
+  // `_test.go` — makes the fence fail BECAUSE it detected that nothing ran. That
+  // was reported `inconclusive`, telling the author their strongest mutant proved
+  // nothing. Reported by the session whose task's entire deliverable was removing
+  // such a tag.
+  //
+  // "The fence failed and scored no tests" is two runs wearing one verdict, and
+  // the fence's TEXT cannot tell them apart — inferring intent from it is the
+  // loose heuristic this project refused for the comment-only guard. A BASELINE
+  // answers it by measurement, and it runs only in the ambiguous case.
+  const build = (fence, marker) => {
+    const copy = corpus()
+    addMutationLog(copy)
+    writeFileSync(join(copy, 'marker.txt'), 'RUN\n')
+    writeFileSync(join(copy, 'suite.sh'),
+      // The skip path emits the RUNNER'S OWN "nothing ran" marker — Go's
+      // `ok pkg 0.01s [no tests to run]` — because that is what `scored_nothing`
+      // recognises, and it is the exact output the reporting corpus produced.
+      // Two earlier fixtures missed the branch: one printed a bare "no tests to
+      // run" (not a recognised marker) and one printed nothing at all (absence of
+      // output is not evidence of an empty result set). Both reached the ordinary
+      // kill branch, so the test passed while asserting a behaviour that already
+      // existed — and the campaign said so, twice, by leaving the baseline
+      // mutation GREEN.
+      '#!/usr/bin/env bash\n'
+      + 'if grep -q SKIP marker.txt; then echo "ok  example.com/pkg  0.01s [no tests to run]";'
+      + ' exit 1; fi\n'
+      + 'echo "ok 1 - a real test"; echo "1 test passed"; exit 0\n')
+    writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/, '```bash\n' + fence + '\n```'))
+    return copy
+  }
+
+  const removed = build("bash suite.sh | tee /dev/stderr | grep -q 'test passed'")
+  const killed = run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md',
+    '--mutant', 'marker.txt', '--from', 'RUN', '--to', 'SKIP',
+    '--why', 'removing the tests from the lane'], removed)
+  assert.match(readTask(removed), /mutant killed/,
+    `a mutant that removes the tests is a kill:\n${killed.stdout}`)
+
+  // THE MUST-FAIL DIRECTION, and it is the one that matters: a fence broken
+  // BEFORE anything was mutated must never be credited as a kill. Crediting an
+  // unearned kill is the worst outcome this tool has — the whole point of a
+  // mutation is to find out whether anything NOTICED. This case recorded
+  // `mutant killed` before §71.
+  const broken = build('nosuchrunner --run-everything')
+  run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md',
+    '--mutant', 'marker.txt', '--from', 'RUN', '--to', 'SKIP', '--why', 'probe'], broken)
+  const log = readTask(broken)
+  assert.doesNotMatch(log, /mutant killed/, `a broken fence is not a kill:\n${log}`)
+  assert.match(log, /mutant inconclusive/, log)
+  assert.match(log, /predates the mutant/, log)
+})
+
 test('a toolchain directive is not a comment-only mutant', () => {
   // BACKLOG §67, asserted THROUGH THE GUARD rather than against the pattern it
   // uses. `# type: ignore` is lexically a comment and semantically an

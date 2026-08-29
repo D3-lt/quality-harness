@@ -247,6 +247,28 @@ def spec_ids(spec_path):
     return ids
 
 
+def closes_the_line(text, end):
+    """Whether a parenthetical ending at `end` is the last thing on the line.
+
+    TRAILING SENTENCE PUNCTUATION IS TOLERATED. `(deferred: notes.md).` is a
+    disposition somebody ended a sentence after, and rejecting it was not merely
+    strict — adr-debt then fell through to its `malformed` branch and printed
+    `BROKEN [malformed] … ('')`, the vocabulary for "deferred with nothing after
+    the colon", about a pointer that is right there in the line. A gate reporting
+    an observation it did not make (ADR-005, CLAUDE.md §3).
+
+    Reported 2026-08-29 against v2.31.1 by a session on an adopting corpus where
+    ALL FIFTEEN of its broken-pointer findings were this shape, every one of them
+    well-formed, blocking at exit 1 — the "a corpus adopting this on a tree it did
+    not write lights up on day one" case ADR-011 was explicitly designed against.
+
+    A SECOND PARENTHETICAL IS STILL NOT PUNCTUATION: `(permanent: why) (see also)`
+    leaves `(see also)` behind and does not close the line. That distinction is
+    what this function keeps, and it is the reason it is not simply dropped.
+    """
+    return text[end:].strip(" \t.,;:") == ""
+
+
 DISPOSITION_TEXT = re.compile(r"^(?:permanent(?::.*)?|deferred:\s*\S.*)$")
 
 
@@ -258,7 +280,7 @@ def _carries_a_disposition(bullet):
     (`(permanent: why) (see also)`), which is not a disposition and never was.
     """
     span = disposition_span(bullet)
-    return bool(span) and span[2] == len(bullet) and bool(DISPOSITION_TEXT.match(span[0]))
+    return bool(span) and closes_the_line(bullet, span[2]) and bool(DISPOSITION_TEXT.match(span[0]))
 
 
 def check_adr(adr_path, errors):

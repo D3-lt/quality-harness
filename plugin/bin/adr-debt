@@ -75,6 +75,49 @@ def disposition_span(text):
     return None
 
 
+SCOPE_BULLET = re.compile(r"^\s*(?:[-*]|\d+\.)\s+\S")
+SCOPE_CONTINUATION = re.compile(r"^\s+\S")
+
+
+def scope_bullets(lines):
+    """Each Out of Scope bullet WITH the indented lines that continue it.
+
+    A DISPOSITION MAY WRAP, and reading these line by line said it did not.
+    `- **Every improvement surfaced in the same session** (deferred: each\n
+    needs its own issue).` shows `(deferred: each` with no closing paren on the
+    line that starts the bullet, so adr-lint advised "needs a disposition" and
+    adr-debt reported BROKEN [malformed] with an EMPTY pointer — about a bullet
+    that is well-formed Markdown.
+
+    THE RULE WAS ALREADY DECIDED HERE, one gate over. `adr-judge::bullets` does
+    exactly this and its docstring says why, dated 2026-08-27: two well-formed
+    records were flagged and "both were 'fixed' by moving words onto line one,
+    which is an author reshaping prose to suit a parser. A gate with false alarms
+    is one people learn to skip, and then it protects nothing." That reasoning was
+    never carried to the Out of Scope readers. Reported 2026-08-29 from an
+    adopting corpus, and it flagged this project's own ADR-012 the same hour.
+
+    A blank line or an unindented line ends the bullet — the two ways Markdown
+    itself ends one, so nothing swallows the paragraph that follows.
+    """
+    found, current = [], None
+    for line in lines:
+        if SCOPE_BULLET.match(line):
+            if current is not None:
+                found.append(current)
+            current = line.strip()
+        elif current is None:
+            continue
+        elif not line.strip() or not SCOPE_CONTINUATION.match(line):
+            found.append(current)
+            current = None
+        else:
+            current += " " + line.strip()
+    if current is not None:
+        found.append(current)
+    return found
+
+
 def closes_the_line(text, end):
     """Whether a parenthetical ending at `end` is the last thing on the line.
 
@@ -154,6 +197,18 @@ def resolve(pointer, md_file, scan_dir):
         return "empty", False
     if p.startswith(("http://", "https://")):
         return "url", True
+    # THE LEADING TOKEN, when it is a record id, and the prose after it is prose.
+    # This corpus's own ADR template already states the rule for `Invalidates:`
+    # — "only the leading token, because the prose after it is prose: `ADR-001 —
+    # the clause of its Decision reading …` is one pointer and a sentence, not a
+    # list" — and it was never carried to a deferral pointer, which is written
+    # the same way. Reported 2026-08-29 from an adopting corpus: a pointer
+    # reading "ADR-028 T4, in this record's `tasks/` — …" resolved the stray
+    # token `tasks/` as a PATH, found nothing, and reported BROKEN [path] about a
+    # record and task that both exist.
+    lead = re.match(r"^(ADR-?\s?\d+)(?![\w-])", p, re.I)
+    if lead:
+        return _resolve_adr_id(lead.group(1), scan_dir)
     ptoks = [t.strip("`,.;:") for t in p.split()
              if "/" in t or t.endswith(".md")]
     if ptoks:
@@ -164,13 +219,23 @@ def resolve(pointer, md_file, scan_dir):
         return "path", any((r / t).exists() for t in ptoks for r in roots)
     m = re.search(r"(?<!\w)(ADR-?\d+)(?!\w)", p, re.I)
     if m:
-        pat = re.sub(r"[-_]", "", m.group(1)).lower()
-        hits = [f for f in scan_dir.rglob("*.md")
-                if pat in re.sub(r"[-_]", "", f.stem).lower()] + \
-               [d for d in scan_dir.rglob("*") if d.is_dir()
-                and pat == re.sub(r"[-_]", "", d.name).lower()]
-        return "adr", bool(hits)
+        return _resolve_adr_id(m.group(1), scan_dir)
     return "ref", True  # F-n, issue key, prose — listed, not resolved here
+
+
+def _resolve_adr_id(token, scan_dir):
+    """("adr", whether this corpus holds a record with that number).
+
+    One body, two callers — the leading-token test above and the anywhere-in-the
+    -string fallback below it — because two copies of a resolver is how the two
+    come to disagree about what counts as the same record (ADR-009).
+    """
+    pat = re.sub(r"[-_\s]", "", token).lower()
+    hits = [f for f in scan_dir.rglob("*.md")
+            if pat in re.sub(r"[-_]", "", f.stem).lower()] + \
+           [d for d in scan_dir.rglob("*") if d.is_dir()
+            and pat == re.sub(r"[-_]", "", d.name).lower()]
+    return "adr", bool(hits)
 
 
 def adr_id_of(md_file, scan_dir):
@@ -287,10 +352,7 @@ def main():
                         if dead:
                             unswept_items.append(item + (where,))
                 continue
-            for ln in secs.get("Out of Scope", []):
-                s = ln.strip()
-                if not s.startswith("- "):
-                    continue
+            for s in scope_bullets(secs.get("Out of Scope", [])):
                 span = disposition_span(s)
                 trailing = span if span and closes_the_line(s, span[2]) else None
                 pointer = deferred_pointer_of(trailing[0]) if trailing else None
@@ -307,6 +369,16 @@ def main():
                     dead, where = unswept(pointer, md, scan_dir)
                     if dead:
                         unswept_items.append(item + (where,))
+                elif span and re.match(r"deferred\b", span[0] or ""):
+                    # A REAL DISPOSITION IN THE WRONG PLACE is not an empty one.
+                    # Reported 2026-08-29: a bullet reading `… (deferred: each
+                    # needs its own issue). Folding any of them in would …` was
+                    # reported BROKEN [malformed] with pointer '' — the vocabulary
+                    # for "nothing after the colon" — when the pointer is present
+                    # and the actual fault is that prose follows it. A reader sent
+                    # to look for a missing pointer finds one and concludes the
+                    # gate is wrong (ADR-005; CLAUDE.md §3).
+                    broken.append((scan_dir, rel, span[0], s[2:72], "trailing-prose"))
                 elif re.search(r"\(deferred\b", s):
                     broken.append((scan_dir, rel, "", s[2:72], "malformed"))
             for ln in secs.get("Follow-ups", []):

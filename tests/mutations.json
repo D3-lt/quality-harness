@@ -2015,6 +2015,15 @@
       "to": "    '  exit 0',"
     },
     {
+      "label": "link: a forwarder directory nothing searches is not reported as reachable",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return parts.some(entry => normalise(entry) === want)",
+      "to": "  return true"
+    },
+    {
       "label": "next: a human sign-off that says stop is not done",
       "file": "plugin/bin/adr-next",
       "tests": [

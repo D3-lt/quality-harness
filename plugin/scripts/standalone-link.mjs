@@ -62,6 +62,38 @@ export const RESOLVER = [
 /** Marks a file this tool generated, so a later run may replace its own work. */
 export const FORWARDER_MARK = 'quality-harness-forwarder'
 
+/**
+ * Whether `directory` is on `pathValue`, compared the way the platform compares paths.
+ *
+ * A forwarder written into a directory nothing searches resolves NOTHING, and this
+ * tool has always written one and then described what it would do — never checked
+ * that anything could reach it. It installs no PATH entry either: the directory's
+ * reachability has been somebody else's shell profile all along.
+ *
+ * Reported 2026-08-29 from another machine, measured rather than guessed: there,
+ * the standalone bin directory was put on PATH only by `.zshrc`, which zsh reads
+ * for INTERACTIVE shells. So the forwarder reached a human at a terminal and was
+ * structurally absent from the two contexts where staleness is silent — an
+ * agent's tool shell and a CI step, both non-interactive by construction. That
+ * session's sweep ran a gate two releases old and could not have run anything
+ * else. `.zshenv` is the file a non-interactive shell reads; `.zshrc` cannot
+ * work for this.
+ *
+ * `platform` and `pathValue` are parameters because the answer differs by both and
+ * a branch with no seam is a branch with no test (CLAUDE.md §7): Windows splits on
+ * `;` and compares case-insensitively, POSIX splits on `:` and does not.
+ */
+export function onSearchPath(directory, pathValue, platform = process.platform) {
+  const windows = platform === 'win32'
+  const parts = String(pathValue ?? '').split(windows ? ';' : ':').filter(Boolean)
+  const normalise = value => {
+    const trimmed = path.normalize(value).replace(/[\\/]+$/, '')
+    return windows ? trimmed.toLowerCase() : trimmed
+  }
+  const want = normalise(directory)
+  return parts.some(entry => normalise(entry) === want)
+}
+
 export function forwarderScript(gate, homeDirectory = os.homedir()) {
   const cache = cacheDirectory(homeDirectory).replace(homeDirectory, '$HOME')
   return [

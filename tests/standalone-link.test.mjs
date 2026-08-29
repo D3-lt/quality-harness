@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, forwarderCmd, forwarderScript,
-  knownDigests, linkPlan, replaceable, sameLineage, write,
+  knownDigests, linkPlan, onSearchPath, replaceable, sameLineage, write,
 } from '../plugin/scripts/standalone-link.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -85,6 +85,44 @@ test('a forwarder pins no version, which is the whole point of it', () => {
     assert.match(text, /adr-lint/)
     assert.ok(text.includes(FORWARDER_MARK))
   }
+})
+
+test('a forwarder in a directory nothing searches is reported, not assumed to work', () => {
+  // Reported 2026-08-29 from another machine, measured rather than guessed.
+  // The standalone bin directory was on PATH there only via `.zshrc`, which zsh reads for
+  // INTERACTIVE shells. So the forwarder reached a human at a terminal and was
+  // structurally absent from the two contexts where staleness is silent — an
+  // agent's tool shell and a CI step, both non-interactive by construction. That
+  // session's sweep ran a gate two releases old and could not have run anything
+  // else. This tool writes the forwarder and installs no PATH entry: the
+  // directory's reachability has been somebody else's shell profile all along,
+  // and nothing ever said so.
+  //
+  // The platform is a PARAMETER because the answer differs by it and a branch
+  // with no seam is a branch with no test (CLAUDE.md §7).
+  assert.equal(onSearchPath('/opt/qh/bin', '/usr/bin:/opt/qh/bin', 'linux'), true)
+  assert.equal(onSearchPath('/opt/qh/bin', '/usr/bin:/opt/bin', 'linux'), false,
+    'the whole point: a directory nothing searches')
+  assert.equal(onSearchPath('/opt/qh/bin/', '/usr/bin:/opt/qh/bin', 'linux'), true,
+    'a trailing separator is the same directory')
+  assert.equal(onSearchPath('/opt/qh/binx', '/usr/bin:/opt/qh/bin', 'linux'), false,
+    'and a prefix is not a match')
+
+  // Windows splits on `;` and compares case-insensitively; POSIX does neither.
+  // Asserting the same input BOTH ways is what makes this a test of the seam
+  // rather than of the developer's own platform.
+  // Deliberately not under a Windows home directory: with separators normalised
+  // `C:\\Users\\Someone` reads as a personal filesystem path, and
+  // tests/package.test.mjs::nothing tracked in this repository names a personal
+  // filesystem path is right to reject one (CLAUDE.md §6). Case-folding is what
+  // this case is about, and `Opt` exercises it just as well.
+  const winPath = 'C:\\Windows;c:\\opt\\qh\\bin'
+  assert.equal(onSearchPath('C:\\Opt\\QH\\bin', winPath, 'win32'), true,
+    'Windows folds case')
+  assert.equal(onSearchPath('C:\\Opt\\QH\\bin', winPath, 'linux'), false,
+    'and POSIX does not — same input, different answer, which is the point')
+  assert.equal(onSearchPath('/a', '', 'linux'), false, 'an empty PATH searches nothing')
+  assert.equal(onSearchPath('/a', undefined, 'linux'), false, 'and an absent one does not throw')
 })
 
 test('a forwarder that could not run the gate does not report a pass', { skip: process.platform === 'win32' }, () => {

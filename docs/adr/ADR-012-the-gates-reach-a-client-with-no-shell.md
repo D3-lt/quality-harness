@@ -45,6 +45,16 @@ capabilities than the last, the defect is a step that assumed the capability was
 | `spec-verify` | **`subprocess.run(override_cmd, shell=True, …)` at :504** — a `Cmd` override read from the spec file | **no** |
 | `adr-verify` | **the task file's Acceptance fence, through bash** | **no** |
 
+**That table enumerated seven and `plugin/bin/` holds ten.** Corrected 2026-08-29, at execution
+time, by running the enumeration again rather than trusting the row count above: `ls plugin/bin/`
+returns ten extensionless gates, and `grep -n 'subprocess\.\(run\|Popen\|call\|check_output\)\|shell=True'
+plugin/bin/adr-retire-check plugin/bin/postmortem-verify plugin/bin/qh-root` returns **nothing** —
+none of the three spawns anything at all. So all three are reading gates and the safe set is eight,
+not five; the boundary this record rests on is unchanged, because the two that execute corpus
+content are still exactly those two. The three are simply not exposed here (see Out of Scope), which
+is a scope decision rather than a safety one. A record's own table is not a substitute for re-running
+the command that built it — CLAUDE.md §5, and this is what it looks like when nobody does.
+
 Five gates read files and report. Two execute text that the corpus supplies. Over MCP the client
 names the path, so exposing either of those two turns "lint my ADRs" into "run whatever is written in
 the file I point you at" — remote code execution with extra steps, from a client that cannot see the
@@ -179,6 +189,9 @@ See `tasks/README.md`. Four tasks.
 
 ## Out of Scope
 
+- Exposing `adr-retire-check`, `postmortem-verify` or `qh-root`, which the corrected enumeration
+  above shows are reading gates and safe to expose. (deferred: docs/BACKLOG.md §33 — they are
+  narrower tools than the five, and adding them is a scope change rather than a boundary change.)
 - Exposing `adr-verify` or `spec-verify` over MCP in any form. (permanent: both execute text the
   corpus supplies, and over MCP the client names the file. That is not a limitation to lift later —
   it is the boundary that makes the rest of this safe.)

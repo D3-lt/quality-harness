@@ -45,6 +45,38 @@ export function resultFiles(root) {
 const mean = values => values.reduce((total, value) => total + value, 0) / values.length
 
 /**
+ * True when this run never reached an answer, so its score is not an observation.
+ *
+ * Measured 2026-08-29 over the 148 recorded runs in this corpus: 35 carry an
+ * `error`, and 32 of those are turn exhaustion — the harness reports it as a bare
+ * `exit 1: (no stderr)` and the run's `turns` is exactly its own `maxTurns + 1`.
+ * Their scores were entering arm means as 0.00, which is what made
+ * `gates-advise-never-block` look bimodal: at ONE fixed configuration (maxTurns 8,
+ * `--ablation with-without`, n=26) all 15 finished runs scored 1.00 and all 11
+ * exhausted runs scored 0.00. The graders were right — a transcript that never
+ * answers should fail a grader of the answer. The defect is one level up: a
+ * truncated run is UNRUN, and counting it as a zero reports an observation nobody
+ * made (ADR-005, CLAUDE.md §3).
+ */
+export function neverReachedAnAnswer(run) {
+  return Boolean(run?.error)
+}
+
+/**
+ * Whether an unfinished run ran out of turns rather than failing some other way.
+ *
+ * Named separately from `neverReachedAnAnswer` because the remedy differs: a
+ * ceiling is raised in the case's own `max_turns`, while an interruption or a
+ * timeout says nothing about the case at all. `maxTurns` is per-case in the
+ * report, so a corpus mixing ceilings is still classified run by run.
+ */
+export function ranOutOfTurns(run, maxTurns) {
+  return neverReachedAnAnswer(run)
+    && typeof maxTurns === 'number' && typeof run?.turns === 'number'
+    && run.turns >= maxTurns
+}
+
+/**
  * One row per (invocation, case): the arms that invocation actually ran.
  *
  * `delta` is null when the invocation ran no baseline — which is what
@@ -58,17 +90,27 @@ export function observations(files) {
     try { report = JSON.parse(readFileSync(file, 'utf8')) } catch { continue }
     const invocation = path.basename(path.dirname(file))
     for (const entry of report.cases ?? []) {
-      const scores = arm => (entry.arms?.[arm] ?? [])
+      const armRuns = arm => (entry.arms?.[arm] ?? [])
+      // Finished runs only. An errored run's score is a number the report happens
+      // to carry, not a measurement of the behaviour under test.
+      const scores = arm => armRuns(arm)
+        .filter(run => !neverReachedAnAnswer(run))
         .map(run => run?.score)
         .filter(score => typeof score === 'number')
+      const unfinished = arm => armRuns(arm).filter(neverReachedAnAnswer)
       const withArm = scores('with')
       const baseline = scores('without')
-      if (!withArm.length && !baseline.length) continue
+      const dropped = [...unfinished('with'), ...unfinished('without')]
+      const recorded = armRuns('with').length + armRuns('without').length
+      if (!recorded) continue
       rows.push({
         invocation,
         case: entry.name,
         withArm,
         baseline,
+        recorded,
+        dropped: dropped.length,
+        ceiling: dropped.filter(run => ranOutOfTurns(run, entry.maxTurns)).length,
         // Within one invocation only. This is the whole point of the file.
         delta: withArm.length && baseline.length
           ? mean(withArm) - mean(baseline)
@@ -111,11 +153,23 @@ export function verdicts(rows) {
     if (spread >= BIMODAL_SPREAD) {
       notes.push(`BIMODAL — the with-arm alone spans ${spread.toFixed(2)} across invocations`)
     }
+    const recorded = entries.reduce((total, entry) => total + entry.recorded, 0)
+    const dropped = entries.reduce((total, entry) => total + entry.dropped, 0)
+    const ceiling = entries.reduce((total, entry) => total + entry.ceiling, 0)
+    if (dropped) {
+      // Reported, never silently absorbed: a case whose runs mostly die at the
+      // ceiling has not been measured, and the count is the reader's only sign.
+      notes.push(`UNFINISHED — ${dropped} of ${recorded} recorded run(s) reached no answer`
+        + `${ceiling ? ` (${ceiling} ran out of turns)` : ''} and are excluded, not scored 0`)
+    }
     out.push({
       case: name,
       invocations: entries.length,
       pairedInvocations: paired.length,
       pairedRuns: runs,
+      recordedRuns: recorded,
+      unfinishedRuns: dropped,
+      ranOutOfTurns: ceiling,
       deltas: paired.map(entry => Number(entry.delta.toFixed(2))),
       spread: Number(spread.toFixed(2)),
       notes,

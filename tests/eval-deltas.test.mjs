@@ -5,7 +5,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { main, observations, resultFiles, verdicts } from '../scripts/eval-deltas.mjs'
+import { main, neverReachedAnAnswer, observations, ranOutOfTurns, resultFiles, verdicts } from '../scripts/eval-deltas.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -167,4 +167,76 @@ test('the derivation runs against this repository without depending on its resul
   try { code = main([], repoRoot) } finally { out = cap.done() }
   assert.equal(code, 0)
   assert.ok(out.length > 0, 'it always says something')
+})
+
+test('a run that never reached an answer is excluded, not scored zero', () => {
+  // THE DEFECT THIS ASSERTS, measured 2026-08-29 over the 148 recorded runs of
+  // this corpus. 35 carry an `error`; 32 of those are turn exhaustion, which the
+  // harness reports as a bare `exit 1: (no stderr)` with `turns` exactly one past
+  // the case's own `maxTurns`. Their scores were entering arm means as 0.00, and
+  // that alone produced the "bimodal" reputation of `gates-advise-never-block`:
+  // at ONE fixed configuration (maxTurns 8, `--ablation with-without`, n=26) all
+  // 15 finished runs scored 1.00 and all 11 exhausted runs scored 0.00. Every
+  // -1.00 delta in the whole recorded corpus came from an exhausted run. The
+  // graders are right to fail a transcript that never answers; the defect is one
+  // level up — a truncated run is UNRUN (ADR-005, CLAUDE.md §3).
+  const root = resultsTree({
+    a: [{
+      name: 'starved',
+      maxTurns: 8,
+      arms: {
+        with: [{ score: 1, turns: 4 }, { score: 0, turns: 9, error: 'exit 1: (no stderr)' }],
+        without: [{ score: 1, turns: 3 }],
+      },
+    }],
+  })
+  const [row] = observations(resultFiles(root))
+  assert.deepEqual(row.withArm, [1], 'the exhausted run leaves the arm entirely')
+  assert.equal(row.delta, 0, 'and so the delta is +0.00, not the -0.50 the zero manufactured')
+  assert.equal(row.recorded, 3)
+  assert.equal(row.dropped, 1)
+  assert.equal(row.ceiling, 1, 'turns past its own maxTurns is named as a ceiling, not a mystery')
+
+  const [starved] = verdicts([row])
+  assert.ok(starved.notes.some(note => note.startsWith('UNFINISHED')), starved.notes.join(' | '))
+  assert.match(starved.notes.join(' | '), /1 of 3 recorded run\(s\)/)
+
+  // AND THE CLEAN ANSWER IN THE SAME TEST. A check that only ever reports
+  // "something was dropped" is indistinguishable from one hard-coded to say so —
+  // CLAUDE.md §4: every check that returns a clean answer must be shown capable
+  // of returning a dirty one.
+  const whole = resultsTree({
+    a: [{
+      name: 'fed',
+      maxTurns: 8,
+      arms: { with: [{ score: 1, turns: 4 }, { score: 0, turns: 5 }], without: [{ score: 1, turns: 3 }] },
+    }],
+  })
+  const [fedRow] = observations(resultFiles(whole))
+  assert.deepEqual(fedRow.withArm, [1, 0], 'a finished run scoring 0 is a real 0 and stays')
+  assert.equal(fedRow.delta, -0.5)
+  assert.equal(fedRow.dropped, 0)
+  const [fed] = verdicts([fedRow])
+  assert.ok(!fed.notes.some(note => note.startsWith('UNFINISHED')), fed.notes.join(' | '))
+})
+
+test('an unfinished run that did not run out of turns is not called a ceiling', () => {
+  // The remedies differ and the report must not blur them: a ceiling is raised in
+  // the case's own `max_turns`, while an interruption or a timeout says nothing
+  // about the case at all. Three of this corpus's 35 errored runs are of the
+  // second kind — `interrupted` at turn 15 of 30, and a 300s timeout — and
+  // calling those "ran out of turns" would send a reader to the wrong knob.
+  const run = { score: 0, turns: 15, error: 'interrupted' }
+  assert.equal(neverReachedAnAnswer(run), true, 'it still reached no answer')
+  assert.equal(ranOutOfTurns(run, 30), false, 'but 15 of 30 turns is not exhaustion')
+  assert.equal(ranOutOfTurns({ ...run, turns: 31 }, 30), true)
+  assert.equal(ranOutOfTurns({ score: 1, turns: 31 }, 30), false, 'a finished run is never a ceiling')
+  assert.equal(ranOutOfTurns(run, undefined), false, 'no declared ceiling means no ceiling verdict')
+
+  const root = resultsTree({
+    a: [{ name: 'cut', maxTurns: 30, arms: { with: [run, { score: 1, turns: 4 }], without: [{ score: 1, turns: 3 }] } }],
+  })
+  const [cut] = verdicts(observations(resultFiles(root)))
+  assert.match(cut.notes.join(' | '), /1 of 3 recorded run\(s\) reached no answer and are excluded/,
+    'no "(n ran out of turns)" clause when none did')
 })

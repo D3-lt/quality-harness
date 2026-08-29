@@ -2083,8 +2083,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "                    if state != \"done\":",
-      "to": "                    if False:"
+      "from": "    if state != \"done\":",
+      "to": "    if False:"
     },
     {
       "label": "next: an edge that cannot be evaluated is not ready",
@@ -2112,6 +2112,24 @@
       ],
       "from": "                elif re.search(r\"(?<![A-Za-z])ADR(?![A-Za-z])\", part, re.I):",
       "to": "                elif False:"
+    },
+    {
+      "label": "next: a qualified id in Consumes leaves the record, it does not bind locally",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "                if QUALIFIED_DEP.match(part):\n                    note_foreign(part, corpus_dir, foreign, tid)\n                    continue",
+      "to": "                if False:\n                    note_foreign(part, corpus_dir, foreign, tid)\n                    continue"
+    },
+    {
+      "label": "lint: the DAG scans only the LOCAL half of Depends-on and Consumes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            _, cons_local = split_dependencies(cons)\n            for d in tid_re.findall(\" \".join(cons_local).upper()):",
+      "to": "            cons_local = [cons]\n            for d in tid_re.findall(\" \".join(cons_local).upper()):"
     },
     {
       "label": "lint: a pointer may not leave the repository",

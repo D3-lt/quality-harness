@@ -22,7 +22,7 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { FORWARDER_MARK, backupRoot, linkPlan, write as writeLink } from './standalone-link.mjs'
+import { FORWARDER_MARK, backupRoot, linkPlan, onSearchPath, write as writeLink } from './standalone-link.mjs'
 
 const HERE = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -190,6 +190,22 @@ function linkMode(root, home, apply) {
   }
   process.stdout.write(`Installed ${written} of ${writable.length} entry(s)`
     + `${skipped ? `; ${skipped} left alone because it is not a file this plugin installed` : ''}.\n`)
+  // A forwarder in a directory nothing searches resolves nothing, and this tool
+  // installs no PATH entry — that has always been somebody else's shell profile.
+  // Say what was observed rather than describing what a forwarder would do
+  // (ADR-005): the check is against THIS process's PATH, which is the honest
+  // scope, because a directory added only by an interactive profile is absent
+  // from an agent's tool shell and from a CI step whatever a terminal shows.
+  const reachable = writable
+    .map(entry => path.dirname(entry.to))
+    .filter((dir, at, all) => all.indexOf(dir) === at)
+    .filter(dir => !onSearchPath(dir, process.env.PATH))
+  for (const dir of reachable) {
+    process.stdout.write(`\nNote: ${dir.replace(home, '~')} is NOT on this shell's PATH, so a bare `
+      + 'gate name will not reach what was just installed there. Add it in a file every shell '
+      + 'reads (.zshenv, not .zshrc — zsh reads .zshrc only when interactive, so an agent or a '
+      + "CI step never sees it), or name the gate's full path.\n")
+  }
   return written === writable.length ? 0 : 1
 }
 

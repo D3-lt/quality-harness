@@ -76,6 +76,7 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr011-t2.out && ! grep -qE
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-29 · 4e4e47d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · makes the unresolved push unconditional-false: a declaration matching nothing tracked reads as resolved · acceptance-sha256:c158ffa420ed3dea6e095332a65e6e005dabff8ef75f62ab75c7cbb1db8db25d
 
 ## Invariants
 
@@ -103,3 +104,4 @@ field should be taken as a decision rather than assumed here.
 ## Verification Log
 
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-29 · 4e4e47d · exit 0 · `set -o pipefail …` · acceptance-sha256:c158ffa420ed3dea6e095332a65e6e005dabff8ef75f62ab75c7cbb1db8db25d

@@ -163,6 +163,28 @@ export function main(argv) {
     process.stdout.write(`  (+${orphans.length - SHOWN} more; --json for all)\n`)
   }
   }
+  // A declaration that matches nothing tracked, said by the tool that answers
+  // "what governs what" — because the failure mode is this tool having LESS to
+  // say rather than saying something wrong. After ADR-008 moved the tree, seven
+  // records' declarations stopped matching and `adr-context` answered "none
+  // governs" for the whole gate surface, with every gate green.
+  //
+  // With no tracked listing the corpus reader reports none of these, so silence
+  // here means "nothing to report" only when git could answer. That is the
+  // reader's contract (ADR-005), not a claim made in this renderer.
+  const rotted = [...new Set(corpus.flatMap(record => record.unresolved))]
+    .filter(entry => entry.startsWith('governs:'))
+  if (rotted.length) {
+  process.stdout.write('\nDeclared but matching nothing git tracks — these decisions govern no\n'
+    + 'file, and `adr-context` will answer "none governs" for the code they were\n'
+    + 'written about:\n')
+  for (const entry of rotted.slice(0, SHOWN)) {
+    process.stdout.write(`  ${entry.slice('governs:'.length)}\n`)
+  }
+  if (rotted.length > SHOWN) {
+    process.stdout.write(`  (+${rotted.length - SHOWN} more; --json for all)\n`)
+  }
+  }
   if (dangling.length) {
   process.stdout.write('\nSuperseded by a record that is not in this corpus:\n')
   for (const record of dangling) {

@@ -4045,6 +4045,58 @@ cutover. That is "the check has nothing to run against here", not "we ran it and
 adoption number is the more interesting one, and T11 is post-cutover, needs a log, and per §73 was
 not even being asked.
 
+## 74. OPEN — a mutation a human performed has nowhere to be recorded
+
+**Reported by wcag-43, who tried three routes and refused all three.** Verified against source: the
+two log grammars are asymmetric, and the asymmetry is exactly backwards from what forgeability would
+predict.
+
+    VLOG_RE  … (?:<sha> · exit N · `cmd`  |  human-observed · .+ ) …
+    MLOG_RE  … <sha> · mutant (killed · exit [1-9]\d* | survived · exit 0 | inconclusive · exit \d+) …
+
+**A Verification Log can say "a person ran this and observed the result". A Mutation Log cannot** —
+even though a mutation is the EASIER of the two to perform and observe by hand: edit one line, run,
+read the exit code, revert.
+
+Their case is not hypothetical. T11's Acceptance contains an integration clause that is blocked, so
+`adr-verify --mutant` cannot run it. They performed the mutation anyway — replaced a `match_reason`
+call with `if True`, which is the "rate is always 1.000" bug the column exists to prevent — one test
+went red, reverting turned it green. **A real kill, performed and observed, with nowhere to put it.**
+
+What they tried, and why each failed:
+
+1. **A prose-only `## Mutation Log`.** Rejected by the gate — *"its Mutation Log is empty"* — and they
+   say the rejection is correct: an explanation is not evidence.
+2. **Hand-typing a `mutant killed` row.** Refused on their own side, citing this project's source:
+   *"a typed mutant is the thing the log replaced."* Typing one dresses a hand-run mutation as
+   tool-written, which is the move they had already corrected themselves for once today.
+3. **`adr-verify --mutant`.** Cannot run; there is no path that skips an unrunnable clause.
+
+**They deliberately did NOT propose the fix**, and their reason is the decision: adding
+`human-observed` to `MLOG_RE` may be exactly wrong. A hand-typed mutation row is trivially forgeable
+in a way a hand-run acceptance is not — the whole point of `--mutant` is that the TOOL made the edit,
+ran the fence and read the exit code, so nobody can claim a kill they did not get. Opening a prose
+lane could hand back the forgeability the mechanism exists to remove.
+
+Against that: an honestly-blocked task cannot carry mutation evidence it genuinely has. That is §73's
+shape again — **the truthful path is the one with no paperwork available** — and it is now the third
+instance of that pattern in this corpus in one day.
+
+**Their narrow proposal is the one worth arguing about**, and it is better than the obvious fix: a
+human-observed mutation row could be required to quote the exact one-line DIFF and the test that went
+red. *"Checkable by a reader in a way `· mutant killed · exit 1 ·` is not."* That keeps a
+forgeability property rather than removing one — a fabricated diff has to name a real test and a real
+line, and the next reader can run it.
+
+**Not decided here.** It is a change to the evidence grammar, which is this project's most
+load-bearing contract, and the tradeoff is between two failure modes that both matter: a forgeable
+lane, or an honest task that cannot record what it did. That is an ADR and a human's call.
+
+**What they did in their repository: nothing.** T11 keeps its mutation evidence as Verification Log
+prose and no `## Mutation Log` section was added, because adding a section that cannot hold a valid
+row trades a silent gap for a rejected one — and the gap is the honest state until the format has a
+lane.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

@@ -2502,6 +2502,54 @@ its neighbours' files" bug the comment at `plugin/scripts/lifecycle.mjs:~2270` r
 tasks whose record is not `governing` from `ready`. Say what was dropped rather than dropping it in silence — a corpus whose
 task files cannot be attributed must report that, not report zero.
 
+## 50. The forwarder picks a version by reading the cache, not by asking what is installed
+
+Reported 2026-08-29 alongside §51, by the session that found the exit-code defect. The generated
+forwarder resolves the newest version by listing
+`~/.claude/plugins/cache/quality-harness/quality-harness/` and taking the highest directory name that
+has a `bin/`. It never consults `installed_plugins.json`.
+
+So **a leftover or partially-removed cache directory with a higher number silently wins over the
+installed one.** The reporter's cache holds 2.7.0 through 2.32.0; this one holds forty-one
+directories going back to 2.0.0. Nothing prunes them, and `claude plugin uninstall` is not known to.
+
+Not fixed with §51 deliberately: that was a gate reporting an observation it did not make, and this
+is a gate running the wrong version — different failure, different blast radius, and bundling them
+would have made one commit answer two questions. This one runs SOMETHING, and its verdicts are real
+verdicts about a real record; they are just possibly from a version nobody installed.
+
+**What it would take:** read `installed_plugins.json`, find the entry for this plugin, and use its
+`installPath`. The forwarder already runs `node -e` to do the directory scan, so the machinery is
+there; the risk is that the file's shape is not ours and a parse failure must fall back to the scan
+rather than to nothing.
+
+**Not yet reproduced as a wrong ANSWER**, only as a wrong resolution path — nobody has shown a cache
+directory that outranks the install and changes a verdict. Worth doing before that happens rather
+than after.
+
+## 51. CLOSED 2026-08-29 — a forwarder that could not run the gate reported a pass
+
+Reported with a fixture by a session running these gates over another corpus. `exit 0` on
+"this gate did not run", so `adr-lint <record> && <the rest>` continued and `adr-verify` recorded
+exit 0 against the task — a tool-written false PASS in a Verification Log, from the layer built to
+prevent exactly that. The diagnostics went to stderr, which nothing reads back.
+
+The comment on the line is what produced it: *"a missing plugin is the harness failing to run, never
+a finding about the user's file. Exiting non-zero would make a project's own gate fail because a tool
+is absent, which is the block this harness removed."* CLAUDE.md §3 applied one level too far — §3 is
+about a gate that RAN and found problems. A gate that could not run has made no observation, and in a
+shell `exit 0` IS one. §40's lesson a third time: a comment can carry the bug.
+
+Now exit 4, this repository's own "could not check" code (ADR-005, `spec-verify`). `adr-verify` had
+already answered the same question one file over — a zero exit that scored no tests is recorded as
+exit 1, because a filter matching nothing is not a passing gate.
+
+**The old test asserted the defect, and a catalogue entry pinned it.** `link: a forwarder that cannot
+find the plugin still exits 0` is removed as superseded. The replacement asserts the CONSEQUENCE —
+it runs the fence and requires it not to continue — rather than the exit code alone.
+
+Enforced-by: `link: a forwarder that could not run the gate does not exit 0`, RED.
+
 ## 49. OPEN — a Windows run of `lifecycle.test.mjs` failed once, naming no test
 
 Observed 2026-08-29 on run 33246705246, commit 439e64d. The **only** diff from fafd177 — which had

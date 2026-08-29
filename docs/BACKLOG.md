@@ -1825,6 +1825,13 @@ is the same rot `Enforced-by:` is being built to avoid, already present in two h
 uses on every record. Cheap to close once T1's resolution machinery exists — which is the argument
 for closing it then rather than now.
 
+**Taken up 2026-08-29 by ADR-011** (`docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md`),
+which resolves `Cross-references:` and `Invalidates:` alongside §45's `Governs:`. Two items stay
+here, deferred by ADR-011 and by its T1: **backfilling `Enforced-by:` into the seven records that
+lack it** — unchanged in its reasoning, seven judgements that must not be made under the momentum of
+shipping a mechanism — and **resolving a `§NN` fragment in `Cross-references:` to a heading in the
+file it names**, which ADR-011 resolves the file for and the fragment not at all.
+
 ## 45. A `Governs:` path that names nothing is not reported
 
 **Found while executing ADR-008 T2, 2026-08-28, and it is §44's third pointer wearing a different
@@ -1916,6 +1923,61 @@ Both are about the same property: **the writer and the reader of the evidence ch
 an entry is.** A third implementation would make it worse; the right shape is one grammar with two
 call sites, and the standing reason they are separate — the gates are standalone scripts with no
 import path — is what makes this cost real rather than theoretical.
+
+**Still open, and deliberately left by ADR-011** (`docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md`,
+Out of Scope). ADR-011 ships one rule as two implementations, which is the opposite shape, and its
+Alternatives section states why the two cases differ: this entry is a WRITER and a READER of one
+evidence grammar, where a divergence silently drops claims from a denominator, while `Governs:` and
+its siblings are two readers of a header a human wrote. Nothing in ADR-011 makes this cheaper or
+harder; it is the next item.
+
+## 48. `work-next` calls a Proposed record's tasks ready, and says "Accepted" while doing it
+
+**Found 2026-08-29 by authoring ADR-011, which is the first Proposed record in this corpus to carry
+task files.** `node plugin/scripts/work-next.mjs` printed:
+
+    10 record(s), 10 accepted, 20 task file(s), 2 spec(s).
+
+    Next: /adr-execute <adr>
+      because an Accepted ADR has tasks that are ready and not yet done.
+        docs/adr/ADR-011-.../tasks/T1-resolve-the-three-pointers.md
+        docs/adr/ADR-011-.../tasks/T2-say-it-where-authority-is-answered.md
+
+ADR-011 is **Proposed**. `adr-state.mjs` on the same tree gets it right — "1 record(s) are Proposed
+or Draft and govern nothing yet, which is correct — they are not counted above" — and the two tools
+read the same corpus.
+
+The cause is that `observe()` builds `ready` from `taskFiles(directory)`, a filesystem walk, and
+filters each file on "no exit-0 Verification Log entry" plus "has an `## Acceptance` section"
+(`plugin/scripts/work-next.mjs:105-110`). The owning record's status is never consulted; `corpus` is
+read for `accepted` and `retirable` and never joined to the task files. So the recommendation is
+correct about the FILES and wrong about the RECORD, and the reason line asserts a status the tool
+did not check — a gate reporting an observation it did not make (CLAUDE.md §3, ADR-005).
+
+The consequence is the one CLAUDE.md §10 exists to prevent: a session that follows `work-next`
+executes a decision nobody accepted. `adr-lint` catches the tail of it — a `done` row on a Proposed
+record is refused — but only after the work is done.
+
+**The class, and the second member.** Every observation in `observe()` that is derived from task
+files without joining them to their record's status. Enumerated 2026-08-29:
+
+    grep -n "tasks.filter\|corpus.filter" plugin/scripts/work-next.mjs
+
+Four call sites returned. `retirable` filters `corpus` and is status-aware. `ready` and `unbacked`
+both filter `tasks` and are not. The `accepted` count is right by ACCIDENT rather than by checking:
+the printed line reads `10 record(s), 10 accepted` on a tree holding eleven records, because
+`statusKind` returns `null` for `Proposed` and `corpusRecords` files ADR-011 under `unreadable`. So
+`records` silently undercounts the corpus by one, and a reader who checks 10 against 11 is right to
+be suspicious of both numbers. `unbacked` is the milder member — it names a task claiming `done`
+with no evidence, which is worth reporting whatever the record's status — but its stage line says
+"recording evidence for finished work", and on a Proposed record there is no finished work to record.
+
+**Fix shape:** attribute each task file to its record the way `lifecycle.mjs::corpusRecords` already
+does — `taskDirectoriesFor`, plus the `ADR-NNN` in a task title, and REUSE its `recordsPerDirectory`
+/ `sole` guard rather than re-deriving the attribution, or the join acquires the "every record claims
+its neighbours' files" bug the comment at `plugin/scripts/lifecycle.mjs:~2270` records. Then drop
+tasks whose record is not `governing` from `ready`. Say what was dropped rather than dropping it in silence — a corpus whose
+task files cannot be attributed must report that, not report zero.
 
 ## Verification claims worth re-running after any of the above
 

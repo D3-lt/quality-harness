@@ -38,6 +38,28 @@ ENFORCEMENT_GRAMMAR = [
 ]
 
 
+# The one glob grammar both `Governs:` matchers must implement. Mirrored
+# verbatim in tests/lifecycle.test.mjs, for the same reason ENFORCEMENT_GRAMMAR
+# is: `**` crosses separators and `*` does not, and two implementations of that
+# rule are only shared if something compares them.
+GOVERNS_MATCH_GRAMMAR = [
+    ("plugin/bin/adr-lint", "plugin/bin/**", True),
+    ("plugin/bin/adr-lint", "plugin/bin/*", True),
+    ("plugin/bin/nested/x", "plugin/bin/*", False),
+    ("plugin/bin/nested/x", "plugin/bin/**", True),
+    ("plugin/bin/adr-lint", "plugin/bin", True),
+    ("plugin/bin/adr-lint", "plugin/bin/adr-lint", True),
+    ("plugin/bin/adr-lint", "plugin/bin/adr-lin", False),
+    ("plugin/binx/adr-lint", "plugin/bin", False),
+    ("plugin/bin/adr-lint", "plugin\\bin\\**", True),
+    ("plugin/bin/adr-lint", "./plugin/bin/**", True),
+    ("plugin/bin/adr-lint", "plugin/bin/", True),
+    ("tests/mutations.json", "tests/mutations.json", True),
+    ("tests/mutations.json", "tests/mutations?json", True),
+    ("tests/mutations.json", "", False),
+]
+
+
 def verification_errors(lint, acceptance, entries, mlog=()):
     infos = {
         "T1": {
@@ -1001,6 +1023,97 @@ def main():
     for value, want in ENFORCEMENT_GRAMMAR:
         got = lint.enforcement_pointers(f"**Enforced-by:** {value}\n")
         assert got == want, f"{value!r}: python said {got}, the shared grammar says {want}"
+
+    # ADR-011 T1. `Governs:`, `Cross-references:` and `Invalidates:` were checked
+    # for SHAPE and never against the thing they name, so a path that named
+    # nothing read exactly like a path that named something. Measured 2026-08-28:
+    # ADR-008 moved the plugin under `plugin/` and seven records' `Governs:`
+    # lines stopped resolving; `adr-context` answered "none governs" for the whole
+    # gate surface and `adr-lint` passed throughout.
+    corpus_dir = repo_root / "docs" / "adr"
+
+    def pointers(text, tracked=None, corpus=None):
+        errs = lint.Findings()
+        lint.check_pointers(text, Path("ADR-999-probe.md"), errs,
+                            repo_root if tracked is None else None,
+                            corpus_dir if corpus is None else corpus,
+                            tracked=tracked)
+        return list(errs), [str(a) for a in errs.advice]
+
+    # THE ONE GLOB GRAMMAR, mirrored verbatim in tests/lifecycle.test.mjs. `**`
+    # crosses separators and `*` does not; a bare declaration matches the file
+    # itself and anything under it. Two implementations of one rule are only
+    # shared if something compares them — ADR-009's lesson, applied again.
+    for candidate, declaration, want in GOVERNS_MATCH_GRAMMAR:
+        got = lint.path_matches_declaration(candidate, declaration)
+        assert got is want, (
+            f"{candidate!r} vs {declaration!r}: python said {got}, the shared grammar says {want}")
+
+    # The DIRTY answer, for the header with live consequences.
+    _, advice = pointers("**Governs:** `plugin/bin/no-such-gate`\n")
+    assert any("no-such-gate" in a for a in advice), (
+        f"a Governs path matching nothing tracked must be named: {advice}")
+    # ...and it is ADVICE. CLAUDE.md §3: a gate instructs and never blocks, and a
+    # corpus adopting this on a tree it did not write would light up on day one.
+    blocking, _ = pointers("**Governs:** `plugin/bin/no-such-gate`\n")
+    assert not blocking, f"an unresolvable pointer never blocks: {blocking}"
+
+    # The CLEAN answer, in the same test, so a check that reports clean is shown
+    # able to report dirty. `plugin/bin/**` is this corpus's own case.
+    _, advice = pointers("**Governs:** `plugin/bin/**`, `tests/mutations.json`\n")
+    assert not advice, f"both of these resolve against the real tree: {advice}"
+
+    # A directory prefix resolves without a glob.
+    _, advice = pointers("**Governs:** `plugin/bin`\n")
+    assert not advice, f"a declared directory resolves through the files under it: {advice}"
+
+    # COULD NOT LOOK is not a verdict (ADR-005). With no tracked listing the check
+    # resolves nothing and says so — the alternative is that an empty listing makes
+    # every pointer in the corpus a finding at once.
+    blocking, advice = pointers("**Governs:** `plugin/bin/no-such-gate`\n", tracked=False)
+    assert not blocking, f"could-not-look never blocks either: {blocking}"
+    assert any("could not" in a.lower() for a in advice), (
+        f"the gate must say it could not look: {advice}")
+    assert not any("no-such-gate" in a for a in advice), (
+        f"and must not name a pointer as unresolved when it never resolved any: {advice}")
+
+    # `Cross-references:` — a tracked path and a real record resolve; an absent
+    # record and an untracked path are named. A bare `§NN` fragment is left alone
+    # rather than guessed at (deferred, docs/BACKLOG.md §44).
+    _, advice = pointers(
+        "**Cross-references:** docs/adr/ADR-009-a-decision-names-what-enforces-it.md, "
+        "docs/BACKLOG.md §44, §45\n")
+    assert not advice, f"every one of these resolves: {advice}"
+    _, advice = pointers("**Cross-references:** docs/adr/ADR-404-nothing-here.md\n")
+    assert any("ADR-404" in a for a in advice), f"a cited record that does not exist: {advice}"
+    _, advice = pointers("**Cross-references:** docs/no-such-file.md\n")
+    assert any("no-such-file" in a for a in advice), f"a cited path that does not exist: {advice}"
+
+    # `Invalidates:` takes the LEADING token and ignores the prose after it.
+    # Every real value in this corpus is either `none — checked. ADR-003 governs
+    # …` or `ADR-001 — the clause of its Decision reading "…"`; comma-splitting
+    # the second turns its prose into pointers.
+    assert lint.invalidates_pointer("**Invalidates:** none — checked. ADR-003 governs `bin/**`\n") is None
+    assert lint.invalidates_pointer(
+        '**Invalidates:** ADR-001 — the clause reading "`--link` installs gates, and templates"\n'
+    ) == "ADR-001"
+    _, advice = pointers(
+        '**Invalidates:** ADR-001 — the clause reading "`--link` installs gates, and templates"\n')
+    assert not advice, f"ADR-001 exists and the prose is not a pointer: {advice}"
+    _, advice = pointers("**Invalidates:** ADR-404 — a record that was never written\n")
+    assert any("ADR-404" in a for a in advice), f"an invalidated record must exist: {advice}"
+
+    # A record carrying none of the three headers is untouched.
+    blocking, advice = pointers("# ADR-999: no headers at all\n")
+    assert not blocking and not advice, "a record without these headers must be unchanged"
+
+    # THE COURT OF LAST RESORT: every record in this repository resolves today.
+    # A silent check and a check that cannot fire look identical, which is why the
+    # dirty cases above are asserted in the same run as this one.
+    for record in sorted(corpus_dir.glob("ADR-*.md")):
+        blocking, advice = pointers(record.read_text(encoding="utf-8", errors="replace"))
+        assert not blocking, f"{record.name}: pointers never block: {blocking}"
+        assert not advice, f"{record.name}: every pointer in this corpus resolves: {advice}"
 
     # ADR-007 T1. `Depends-on` could only name a SIBLING: adr-lint rejected
     # anything else with a blocking error, so the field designed to carry

@@ -3558,7 +3558,7 @@ line costs nothing and removes the trap. Asserted both ways — a Proposed recor
 still answers, an Accepted one produces no line at all, without which the check would be a banner
 that always prints and says nothing.
 
-## 65. OPEN — acceptance passed on files `.gitignore` kept out of the commit
+## 65. PARTLY CLOSED — acceptance passed on files `.gitignore` kept out of the commit
 
 **Reported 2026-08-29 by the golandprojects-85 session.** A `.gitignore` holding the bare pattern
 `crossagentschat` — meant for the root build artifact — also matched `cmd/crossagentschat/`, because
@@ -3583,6 +3583,28 @@ matched by `.gitignore` is not *not yet written*, it is *will never be committed
 rule is: for a task carrying passing evidence, report any Affected Files path that git IGNORES,
 advisory, naming the pattern that matched (`git check-ignore -v` gives it, and "the bare pattern
 `crossagentschat` matches at any depth" is the sentence that saves the investigation).
+
+### CLOSED 2026-08-29, for the ignored subset
+
+`adr-lint` now reports it. For a task carrying a passing exit-0 entry, every path its Affected Files
+name is passed to `git check-ignore -v --stdin`, and any that git ignores is advised with **the
+pattern that matched**:
+
+    advice: T1.md: Affected Files names `cmd/thing/main.go`, and git IGNORES it (pattern `thing`).
+    This task's acceptance passed against the worktree, so the evidence is real and the file is not
+    in the commit — a clean clone does not have it. A pattern with no slash matches at every depth
+    and matches directories; anchor it (`/thing`) if it was meant for one place.
+
+Naming the pattern is the point: *"the bare pattern `crossagentschat` matches at any depth"* is the
+sentence that ends the investigation, and a finding that only says a file is missing starts a longer
+one. Advisory, because a corpus adopting this on an existing tree will light up.
+
+`check-ignore` exit 0 and 1 are answers (some ignored / none ignored); anything else — not a
+repository, git absent — returns "could not look" rather than "nothing is ignored" (ADR-005).
+Asserted in both directions plus both could-not-look cases: without the tracked-path assertion,
+"everything is ignored" would satisfy the positive one. Catalogue entries
+`lint: a git probe that could not run is not 'nothing is ignored'` and
+`lint: an evidenced task whose Affected Files are ignored is reported`.
 
 **Their stronger idea is deliberately NOT taken yet:** a post-commit `git ls-files` assertion would
 catch the whole class rather than the ignored subset, but it needs a hook at a point this harness

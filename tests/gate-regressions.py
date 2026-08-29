@@ -1715,6 +1715,30 @@ def main():
         assert not verify.DIRECTIVE_COMMENT.search(prose), \
             f"ordinary prose must stay comment-only: {prose!r}"
 
+    # BACKLOG §65. An acceptance fence runs against the WORKTREE, so a file git
+    # ignores can carry tool-written exit-0 evidence and still ship to nobody.
+    # Measured 2026-08-29 on a Go repository whose .gitignore held a bare
+    # `crossagentschat` for a build artifact, which also matched
+    # `cmd/crossagentschat/` — a clean clone did not build, and a guard against
+    # logging a credential existed in no committed file.
+    with tempfile.TemporaryDirectory() as td:
+        repo = Path(td)
+        subprocess.run(["git", "init", "-q", str(repo)], check=True)
+        (repo / ".gitignore").write_text("thing\n", encoding="utf-8")
+        (repo / "cmd" / "thing").mkdir(parents=True)
+        (repo / "cmd" / "thing" / "main.go").write_text("package main\n", encoding="utf-8")
+        (repo / "kept.go").write_text("package main\n", encoding="utf-8")
+        found = lint.ignored_paths(repo, {"cmd/thing/main.go", "kept.go"})
+        assert found.get("cmd/thing/main.go") == "thing", found
+        # The must-fail direction, and it is the whole check (CLAUDE.md §4): a
+        # tracked path must NOT be reported, or "everything is ignored" satisfies
+        # the assertion above and the finding means nothing.
+        assert "kept.go" not in found, found
+        # And a probe that could not run answers {} rather than "nothing is
+        # ignored" — the two are different answers (ADR-005).
+        assert lint.ignored_paths(None, {"x"}) == {}
+        assert lint.ignored_paths(repo, set()) == {}
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

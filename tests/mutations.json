@@ -2958,6 +2958,24 @@
       ],
       "from": "        want_legacy = first.replace(\"`\", \"'\")",
       "to": "        want_legacy = None"
+    },
+    {
+      "label": "lint: a git probe that could not run is not 'nothing is ignored'",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if r.returncode not in (0, 1):",
+      "to": "    if False:"
+    },
+    {
+      "label": "lint: an evidenced task whose Affected Files are ignored is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        for name, pattern in sorted(ignored_paths(git_root(path.parent), named).items()):",
+      "to": "        for name, pattern in []:"
     }
   ]
 }

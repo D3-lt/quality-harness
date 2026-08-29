@@ -478,6 +478,29 @@ def check_task(path, all_stems, errors):
     if not aff:
         errors.advise(f"{path.name}: Affected Files table has no data rows "
                       f"(a row with a backticked path)")
+    # A task with PASSING EVIDENCE whose Affected Files name a path git IGNORES.
+    # The fence ran against the worktree; an ignored path is in the worktree and
+    # will never be in the commit, so the evidence is tool-written, correct about
+    # what it measured, and about a file that ships to nobody (docs/BACKLOG.md
+    # §65). Only for an evidenced task, and only for IGNORED — a path that merely
+    # does not exist yet is the normal state of a task being written.
+    if any(VLOG_RE.match(ln.strip()) and "· exit 0 ·" in ln
+           for ln in secs.get("Verification Log", [])):
+        named = set()
+        for ln in aff:
+            cells = [c.strip() for c in re.split(r"(?<!\\)\|", ln.strip().strip("|"))]
+            pm = re.search(r"`([^`]+)`", cells[0]) if cells else None
+            if pm and not pm.group(1).strip().startswith("`"):
+                named.add(pm.group(1).strip())
+        for name, pattern in sorted(ignored_paths(git_root(path.parent), named).items()):
+            errors.advise(
+                f"{path.name}: Affected Files names `{name}`, and git IGNORES it "
+                f"(pattern `{pattern}`). This task's acceptance passed against the "
+                f"worktree, so the evidence is real and the file is not in the commit — "
+                f"a clean clone does not have it. A pattern with no slash matches at "
+                f"every depth and matches directories; anchor it (`/{pattern.lstrip('/')}`) "
+                f"if it was meant for one place.")
+
     adds = set()
     for ln in aff:
         cells = [c.strip() for c in re.split(r"(?<!\\)\|", ln.strip().strip("|"))]
@@ -1584,6 +1607,55 @@ def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
     if invalidated and not resolve_record_number(invalidated, corpus_dir):
         errors.advise(f"{path.name}: Invalidates: names `{invalidated}`, which is not a record in "
                       f"this corpus — a decision cannot invalidate one that was never written")
+
+
+def ignored_paths(root, candidates):
+    """Which of `candidates` git IGNORES, as {path: the pattern that matched}.
+
+    An acceptance fence runs against the WORKTREE. A file matched by
+    `.gitignore` is in the worktree and will never be in the commit, so a task
+    can record tool-written exit-0 evidence for work that ships to nobody:
+    measured 2026-08-29 on a Go repository whose `.gitignore` held the bare
+    pattern `crossagentschat` for a build artifact, which also matched
+    `cmd/crossagentschat/` because a pattern with no slash matches at any depth
+    and matches directories. A clean clone did not build, and a guard that task
+    introduced against logging a credential existed in no committed file
+    (docs/BACKLOG.md §65).
+
+    IGNORED, not "missing", is the signal: at authoring time a task's files
+    legitimately do not exist yet, so a check for existence would fire on every
+    new task and be switched off by the second day. "Ignored" has no such
+    timing ambiguity — it means "will never be committed", whatever the clock
+    says.
+
+    `check-ignore -v` names the pattern, because "the bare pattern
+    `crossagentschat` matches at any depth" is the sentence that ends the
+    investigation, and a finding that only says "this file is missing" starts a
+    different and longer one.
+    """
+    if root is None or not candidates:
+        return {}
+    try:
+        r = subprocess.run(["git", "-C", str(root), "check-ignore", "-v", "--stdin"],
+                           input="\n".join(sorted(candidates)), capture_output=True,
+                           text=True, timeout=30, encoding="utf-8", errors="replace")
+    except Exception:
+        return {}
+    # 0 = at least one ignored, 1 = none ignored, 128 = not a repository. Only
+    # the first two are answers; anything else is "could not look" and must not
+    # be reported as "nothing is ignored" (ADR-005).
+    if r.returncode not in (0, 1):
+        return {}
+    found = {}
+    for line in r.stdout.splitlines():
+        # <source>:<line>:<pattern>\t<path>
+        parts = line.split("\t", 1)
+        if len(parts) != 2:
+            continue
+        where, path_name = parts
+        bits = where.rsplit(":", 1)
+        found[path_name.strip()] = bits[-1].strip() if bits else where
+    return found
 
 
 def check_tests_exist(infos, readme_text, errors, root):

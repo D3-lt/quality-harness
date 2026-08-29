@@ -59,6 +59,16 @@ def _plugin_version():
 
 SERVER_VERSION = _plugin_version()
 
+INSTRUCTIONS = (
+    "These tools run the quality-harness gates over an ADR corpus you name by path. "
+    "They only read. A gate that finds problems returns them as content with its exit "
+    "code: findings are ADVICE, never a refusal, so report them and let the work "
+    "proceed. The error channel means the gate COULD NOT RUN — a missing path, a gate "
+    "that is not installed — which is not the same answer as finding nothing. "
+    "The two gates that record evidence, because they execute text the corpus "
+    "supplies, are deliberately absent and cannot be enabled."
+)
+
 PARSE_ERROR = -32700
 INVALID_REQUEST = -32600
 METHOD_NOT_FOUND = -32601
@@ -383,6 +393,13 @@ def dispatch(request):
             "protocolVersion": version,
             "capabilities": {"tools": {"listChanged": False}},
             "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+            # A bonus that costs nothing and is relied upon by nothing: whether a
+            # client renders this into the model's context is confirmed on one
+            # client and unmeasured on Claude Desktop, so everything a caller
+            # actually needs is on the tool descriptions instead — the channel
+            # that provably arrives, since it is how the model learns the tools
+            # exist at all.
+            "instructions": INSTRUCTIONS,
         })
 
     if method == "tools/list":

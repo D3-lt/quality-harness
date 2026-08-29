@@ -502,6 +502,51 @@ function agedCorpus(prefix, config) {
   return { repo, adr, tasks: join(adrDir, 'tasks') }
 }
 
+test('an evidenced task whose Affected Files git ignores is reported, with the pattern', () => {
+  // docs/BACKLOG.md §65. An acceptance fence runs against the WORKTREE, so a
+  // file .gitignore matches carries tool-written exit-0 evidence and still ships
+  // to nobody. Reported from a Go repository whose bare `crossagentschat`
+  // pattern also matched `cmd/crossagentschat/`, leaving a clean clone that did
+  // not build and a credential guard in no committed file.
+  //
+  // THROUGH adr-lint, not against `ignored_paths`. The first version of this
+  // work asserted the helper directly and the campaign caught it: both
+  // mutations — removing the report and removing the could-not-run guard — came
+  // back GREEN, because nothing drove the path they broke. Third instance of
+  // that error in one day, and the tell each time was a catalogue entry naming
+  // a test file that never exercises the change.
+  const { repo, adr, tasks } = agedCorpus('quality-harness-ignored-', null)
+  writeFileSync(join(repo, '.gitignore'), 'thing\n')
+  mkdirSync(join(repo, 'cmd', 'thing'), { recursive: true })
+  writeFileSync(join(repo, 'cmd', 'thing', 'main.go'), 'package main\n')
+  writeFileSync(join(repo, 'kept.go'), 'package main\n')
+
+  const taskFile = join(tasks, readdirSync(tasks).find(n => /^T\d/.test(n)))
+  const before = readFileSync(taskFile, 'utf8')
+  // The check only asks of a task carrying PASSING evidence — a path that does
+  // not exist yet is the normal state of a task being written, so the question
+  // is only meaningful once a fence has run against the worktree.
+  const withRows = files => before.replace(
+    /(## Affected Files\n)[\s\S]*?(?=\n## )/,
+    `$1\n| File | Change | Why |\n|---|---|---|\n`
+    + files.map(f => `| \`${f}\` | edit | w |\n`).join(''))
+    .replace(/(## Verification Log\n)[\s\S]*$/,
+      `$1\n- 2026-08-29 · abc1234 · exit 0 · \`true\` · acceptance-sha256:${'0'.repeat(64)}\n`)
+
+  writeFileSync(taskFile, withRows(['cmd/thing/main.go']))
+  const ignored = run('adr-lint', [adr, tasks], repo)
+  assert.match(ignored.stdout, /git IGNORES it \(pattern `thing`\)/,
+    `the ignored path and the pattern that matched it:\n${ignored.stdout}`)
+
+  // The must-fail direction (CLAUDE.md §4): a TRACKED path must produce nothing,
+  // or "report every Affected File" satisfies the assertion above and the
+  // finding means nothing.
+  writeFileSync(taskFile, withRows(['kept.go']))
+  const clean = run('adr-lint', [adr, tasks], repo)
+  assert.doesNotMatch(clean.stdout, /git IGNORES it/,
+    `a tracked path is not a finding:\n${clean.stdout}`)
+})
+
 test('strictFrom lets a corpus adopt these gates without failing on its own history', () => {
   // A project that adopts the gates late lights up on every record written
   // before the decision to adopt them, and a gate that fails on day one over

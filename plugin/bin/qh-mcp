@@ -1,0 +1,213 @@
+#!/usr/bin/env python3
+"""qh-mcp — the quality-harness reading gates, over MCP stdio.
+
+ADR-012. A client with no shell (plain Claude Desktop) can reach none of this
+plugin's gates today. This server exposes the ones that only READ, and there is
+no mechanism here by which a gate that executes text the corpus supplies —
+`adr-verify`, `spec-verify` — could be added: the registrar that would allow it
+does not exist. The read-only annotation is set by `reading_tool` itself, so a
+tool cannot be advertised read-only and do something else.
+
+The protocol surface is three methods — `initialize`, `tools/list`,
+`tools/call` — spoken as line-delimited JSON on stdin and stdout. No SDK, no
+dependency: ADR-008 measured what this plugin ships (663 K, zero npm packages)
+and an SDK would put `node_modules` into a marketplace download.
+
+STDOUT CARRIES JSON-RPC AND NOTHING ELSE. A stray `print` corrupts the stream
+and the client can only report that the server is broken. Diagnostics go to
+stderr.
+"""
+
+import json
+import os
+import sys
+
+# The revision this server pins when a client names none. A client that DOES
+# name one is answered in its own revision (see `initialize`): the three methods
+# here are stable across every published revision, so echoing costs nothing and
+# guessing a revision the client rejects makes the whole server unmeasurable —
+# which is what ADR-012 T4 is trying to measure on a real Claude Desktop.
+DEFAULT_PROTOCOL_VERSION = "2025-06-18"
+
+SERVER_NAME = "quality-harness"
+
+
+def _plugin_version():
+    """The shipped plugin's version, read from the manifest beside this gate.
+
+    A literal here would be a second place to remember on every release, and the
+    one that nobody edits is the one a client reports. Unreadable is not fatal —
+    the handshake still has to succeed for the gates to be reachable at all.
+    """
+    manifest = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                            ".claude-plugin", "plugin.json")
+    try:
+        with open(manifest, encoding="utf-8") as handle:
+            version = json.load(handle).get("version")
+    except (OSError, ValueError):
+        return "unknown"
+    return version if isinstance(version, str) and version else "unknown"
+
+
+SERVER_VERSION = _plugin_version()
+
+PARSE_ERROR = -32700
+INVALID_REQUEST = -32600
+METHOD_NOT_FOUND = -32601
+INVALID_PARAMS = -32602
+INTERNAL_ERROR = -32603
+
+# Every exposed gate lives here, and the only way in is `reading_tool`.
+REGISTRY = []
+
+
+def reading_tool(name, description, schema, handler):
+    """Register a gate that only reads, and annotate it read-only.
+
+    There is no argument that could set the annotation otherwise and no sibling
+    registrar that could skip it. That is the point: the read-only annotation is
+    derived from WHICH function registered the tool, so the advertisement cannot
+    contradict the registration. A future author who wants to expose a gate that
+    executes corpus content has to add a registrar and answer for it in review.
+    """
+    REGISTRY.append({
+        "name": name,
+        "description": description,
+        "inputSchema": schema,
+        "annotations": {"readOnlyHint": True, "title": name},
+        "handler": handler,
+    })
+
+
+def _advertised(tool):
+    """The tool as `tools/list` states it — everything but the Python handler."""
+    return {key: value for key, value in tool.items() if key != "handler"}
+
+
+def _find(name):
+    for tool in REGISTRY:
+        if tool["name"] == name:
+            return tool
+    return None
+
+
+def _text_result(text, is_error=False):
+    return {"content": [{"type": "text", "text": text}], "isError": is_error}
+
+
+def _probe(_arguments):
+    """A trivial tool so `tools/list` has something to return before T2.
+
+    T2 replaces it with the five real gates.
+    """
+    return _text_result("qh-mcp is running; no gate is registered yet.")
+
+
+reading_tool(
+    "qh_probe",
+    "Reports that the quality-harness MCP server is reachable. Takes no arguments "
+    "and reads nothing; it exists so a client can confirm the transport before "
+    "any gate is called.",
+    {"type": "object", "properties": {}, "additionalProperties": False},
+    _probe,
+)
+
+
+def _error(request_id, code, message):
+    return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": message}}
+
+
+def _ok(request_id, result):
+    return {"jsonrpc": "2.0", "id": request_id, "result": result}
+
+
+def dispatch(request):
+    """Answer one JSON-RPC request, or return None for a notification.
+
+    A notification carries no `id` and must draw no reply — Claude Desktop sends
+    `notifications/initialized` right after the handshake, and a server that
+    answers it puts an id-less response on the wire.
+    """
+    if not isinstance(request, dict):
+        return _error(None, INVALID_REQUEST, "a request must be a JSON object")
+
+    request_id = request.get("id")
+    method = request.get("method")
+    if not isinstance(method, str):
+        if request_id is None:
+            return None
+        return _error(request_id, INVALID_REQUEST, "a request must name a method")
+
+    params = request.get("params") or {}
+    if not isinstance(params, dict):
+        return _error(request_id, INVALID_PARAMS, "params must be a JSON object")
+
+    if method == "initialize":
+        # Echo the client's revision when it names one. See
+        # DEFAULT_PROTOCOL_VERSION for why this is not pinned.
+        version = params.get("protocolVersion")
+        if not isinstance(version, str) or not version:
+            version = DEFAULT_PROTOCOL_VERSION
+        return _ok(request_id, {
+            "protocolVersion": version,
+            "capabilities": {"tools": {"listChanged": False}},
+            "serverInfo": {"name": SERVER_NAME, "version": SERVER_VERSION},
+        })
+
+    if method == "tools/list":
+        return _ok(request_id, {"tools": [_advertised(tool) for tool in REGISTRY]})
+
+    if method == "tools/call":
+        name = params.get("name")
+        tool = _find(name) if isinstance(name, str) else None
+        if tool is None:
+            return _error(request_id, INVALID_PARAMS, "no tool named {!r} is registered".format(name))
+        arguments = params.get("arguments") or {}
+        if not isinstance(arguments, dict):
+            return _error(request_id, INVALID_PARAMS, "arguments must be a JSON object")
+        return _ok(request_id, tool["handler"](arguments))
+
+    if request_id is None:
+        # An unknown NOTIFICATION is ignored, per JSON-RPC. Only a request that
+        # expects an answer gets method-not-found.
+        return None
+    return _error(request_id, METHOD_NOT_FOUND, "this server does not implement {!r}".format(method))
+
+
+def serve(stdin, stdout):
+    """Read line-delimited JSON requests until EOF, writing one reply per line."""
+    for line in stdin:
+        line = line.strip()
+        if not line:
+            continue
+        try:
+            request = json.loads(line)
+        except ValueError as unparseable:
+            response = _error(None, PARSE_ERROR, "could not parse this line as JSON: {}".format(unparseable))
+        else:
+            try:
+                response = dispatch(request)
+            except Exception as failure:  # noqa: BLE001 - a crash here kills the client's session
+                request_id = request.get("id") if isinstance(request, dict) else None
+                response = _error(request_id, INTERNAL_ERROR, "the server could not answer: {}".format(failure))
+        if response is None:
+            continue
+        stdout.write(json.dumps(response) + "\n")
+        stdout.flush()
+
+
+def main(argv=()):
+    # This server takes no arguments: a client names the corpus per call, because
+    # a Desktop registration cannot be scoped to a project (ADR-012). An
+    # unrecognized flag is therefore a typo, and a gate that ignores one answers a
+    # question nobody asked — so it is refused rather than absorbed.
+    if argv:
+        sys.stderr.write("qh-mcp: unknown option: {}\n".format(argv[0]))
+        sys.stderr.write("qh-mcp: this server takes no arguments; it speaks JSON-RPC on stdin.\n")
+        return 2
+    serve(sys.stdin, sys.stdout)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main(sys.argv[1:]))

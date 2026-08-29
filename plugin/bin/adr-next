@@ -60,6 +60,18 @@ NEGATIVE = re.compile(r"(?<![a-z])(block(?:ed)?|stop(?:ped)?|fail(?:ed|s)?|refus
                       r"withdraw(?:n)?|reject(?:ed)?|not |never |cannot|abort(?:ed)?)(?![a-z])", re.I)
 
 
+# A record NUMBER from a filename, and NOT the year of an ISO date. Every
+# `2026-07-12-thing.md` in a date-named corpus otherwise reports number 2026, so
+# any two of them "share" it: `adr-next <record with no tasks dir>` matched a
+# FOREIGN record's directory and answered with its tasks, confidently and with
+# that record's adr-verify command. Reported 2026-08-29 against the sibling
+# matching added the same day (docs/BACKLOG.md §66). `lifecycle.mjs::adrNumber`
+# already carried this lookahead for the same reason, measured 2026-08-26 — the
+# rule existed and this copy did not have it, which is what a third spelling of
+# one rule costs.
+RECORD_NUMBER = re.compile(r"(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?0*(\d{1,4})\b", re.I)
+
+
 def human_outcome(note):
     """"stop", "pass", or None when the note states neither.
 
@@ -319,12 +331,12 @@ def resolve_tasks_dir(target):
             return candidate
     # A sibling folder that owns this record by NUMBER: the filename carries a
     # slug the folder does not have to repeat.
-    owns = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", target.stem, re.I)
+    owns = RECORD_NUMBER.match(target.stem)
     if owns:
         for sibling in sorted(target.parent.iterdir()):
             if not sibling.is_dir():
                 continue
-            theirs = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", sibling.name, re.I)
+            theirs = RECORD_NUMBER.match(sibling.name)
             if theirs and int(theirs.group(1)) == int(owns.group(1)) \
                     and (sibling / "tasks").is_dir():
                 return sibling / "tasks"
@@ -388,8 +400,8 @@ def owning_record_status(tasks_dir):
         except OSError:
             continue
         if candidate.stem != record_dir.name:
-            mine = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", record_dir.name, re.I)
-            theirs = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", candidate.name, re.I)
+            mine = RECORD_NUMBER.match(record_dir.name)
+            theirs = RECORD_NUMBER.match(candidate.name)
             if not (mine and theirs and int(mine.group(1)) == int(theirs.group(1))):
                 continue
         text = candidate.read_text(errors="replace", encoding="utf-8")

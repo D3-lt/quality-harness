@@ -25,7 +25,7 @@ const skills = [
 ]
 const gates = [
   'adr-debt', 'adr-judge', 'adr-lint', 'adr-next', 'adr-retire-check', 'adr-verify', 'arch-lint',
-  'postmortem-verify', 'qh-root', 'spec-verify',
+  'postmortem-verify', 'qh-mcp', 'qh-root', 'spec-verify',
 ]
 const templates = [
   'adr-archive-readme-template.md', 'adr-template.md', 'architecture-template.md',

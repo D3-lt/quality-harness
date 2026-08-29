@@ -20,7 +20,10 @@ stdio, with every tool registered through one function that sets `readOnlyHint` 
 | `plugin/bin/qh-mcp` | add | The server. A `bin/` entry, so `standalone-link.mjs` gives it a forwarder like every other gate |
 | `tests/mcp-server.test.mjs` | add | Drives the three methods over a real stdio pipe, as a client does |
 | `tests/mutations.json` | edit | The catalogue entry for the registrar — the mechanism this task adds |
-| `.gitattributes` | edit | `plugin/bin/qh-mcp text eol=lf`; the Windows job executes it, and a mutation matching across its lines finds nothing without it (CLAUDE.md §7) |
+| `.gitattributes` | none — already correct | `plugin/bin/* text eol=lf` covers the new path by construction. Asked git rather than read the file: `git check-attr text eol -- plugin/bin/qh-mcp` answers `text: set`, `eol: lf` (CLAUDE.md §7) |
+| `plugin/bin/qh-mcp.cmd` | add | `tests/package.test.mjs` requires a Windows shim per gate, CRLF, naming the `py` launcher first |
+| `tests/package.test.mjs` | edit | the `gates` list this suite checks the shipped tree against |
+| `tests/gate-rules.test.mjs` | edit | `every gate refuses a flag it does not know` asserts its case list equals `bin/`, so a new gate cannot be added without one |
 
 The line that SELECTS a tool is `reading_tool()` itself — there is no registry literal to edit and
 no dispatch table to add to, which is the point. Deleting the `readOnlyHint` assignment inside it is
@@ -92,6 +95,14 @@ CLAUDE.md §4 names.
 
 Stop and ask if `initialize` needs a protocol-version negotiation this task cannot pin from the
 spec — guessing a version a client rejects makes every later task unmeasurable.
+
+**Resolved 2026-08-29, without a guess.** No version is pinned where a client names one: the server
+echoes `params.protocolVersion` back when it is a non-empty string, and falls back to a single named
+constant only when the client sends none. The three methods implemented here are stable across every
+published revision, so echoing costs nothing and removes the failure mode the stop condition names —
+a pinned revision a real Desktop rejects would make T4 unmeasurable for a reason unrelated to this
+decision. `a client speaking a different protocol revision is answered in its own revision` asserts
+both halves.
 
 ## Out of Scope
 

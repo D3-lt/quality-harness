@@ -17,10 +17,12 @@ Desktop, registered against it, answers a question only a gate can answer.
 
 | File | Change | Why |
 |------|--------|-----|
-| `plugin/bin/qh-mcp.cmd` | add | Windows shim; every other bin entry has one and the packaging test requires it |
 | `docs/mcp.md` | add | The `claude_desktop_config.json` entry a user copies, and what the client does and does not get |
-| `tests/package.test.mjs` | edit | The new bin entry must ship with its shim and its executable bit in git's index |
-| `docs/adr/ADR-012-…​.md` | edit | Set `Governs:` to `plugin/bin/qh-mcp` once the path is tracked |
+
+The Windows shim, the packaging list and this record's `Governs:` were owned by T1 instead: the
+packaging suite asserts a shim and a mutation catalogue entry per `bin/` entry, so the gate went red
+the moment `plugin/bin/qh-mcp` existed and there was nothing to defer. `adr-lint` refused the
+duplicate `add` and is what caught it.
 
 `plugin/scripts/standalone-link.mjs` is deliberately NOT edited: it generates a forwarder for every
 entry it finds in `plugin/bin/`, so the new one is picked up by construction. The packaging test is

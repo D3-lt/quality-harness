@@ -702,6 +702,7 @@ test('every gate refuses a flag it does not know', () => {
     ['arch-lint', ['architecture.md', '--bogus']],
     ['postmortem-verify', ['postmortem-selftest.md', '--bogus']],
     ['spec-verify', ['--spec', '--bogus', 'spec-selftest.md']],
+    ['qh-mcp', ['--bogus']],
     ['qh-root', ['--bogus']],
   ]
   for (const [gate, args] of invocations) {

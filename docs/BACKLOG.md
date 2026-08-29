@@ -3268,7 +3268,7 @@ documenting an allowance nobody honours and pre-digest corpora need a migration 
 silent downgrade. The gates are standalone scripts with no import path between them, which is what
 makes "one grammar, two call sites" cost real work rather than a refactor.
 
-## 59. HALF CLOSED — a correctly-identified check that is red on an unmodified tree
+## 59. CLOSED 2026-08-29 — a correctly-identified check that is red on an unmodified tree
 
 **Measured 2026-08-29 by the depozitas-laravel-22 session**, after §56 fixed the wrong-command
 defect. The rung now resolves correctly — `phpunit.xml` present, `php vendor/bin/phpunit` named — and
@@ -3349,10 +3349,22 @@ loudly with an obvious cause when Docker is absent instead of passing while mean
 reasoning, recorded because it is the first real use of this rung: prefer the invocation whose
 failure mode is legible over the one that is merely easier to start.
 
-**Still open:** the tool has no way to say "I found a command but cannot vouch for the environment it
-needs". The gates already distinguish UNRUN from FAIL, and the instruction that names a check could
-carry the same honesty — a red on an unmodified tree is a finding about the environment, not about
-the change.
+**CLOSED 2026-08-29 — the sentence now says which kind of command it is naming.** A DECLARED command
+(`check` in `.quality-harness.json`, or a `composer.json` test script — both are the project
+speaking) is stated plainly. An INFERRED one carries a caveat: *"That command was inferred from this
+repository rather than declared by it, so if it is red on an unmodified tree the finding is about
+this machine and not about your change — say which, and declare the real command as `check`."*
+
+Two details that are not cosmetic. **The word "environment" is deliberately absent**, and an existing
+assertion caught the first version for spending it: that word is reserved for a run that actually
+failed that way, and a standing note carrying it in every message makes it stop meaning anything.
+And **one resolver serves both callers** — `checkCommandOrigin` returns the command and its
+provenance, because resolving the repository root a second time at the sentence's call site is how
+one rule becomes two spellings that drift, which cost this project §66 the same day.
+
+Asserted both ways: a declared command produces no caveat, an inferred one produces it, and the
+inferred sentence must not contain "environment". Catalogue entry
+`checks: an inferred command says it was inferred, a declared one does not`.
 
 **The reasoning lesson, recorded because it is better than the defect.** Their first theory was
 correct and they rejected it on a test that could not have disconfirmed it: suppressing

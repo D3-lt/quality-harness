@@ -3003,6 +3003,15 @@
       ],
       "from": "                               timeout=fence_timeout())",
       "to": "                               timeout=None)"
+    },
+    {
+      "label": "checks: an inferred command says it was inferred, a declared one does not",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const caveat = origin === 'declared'",
+      "to": "  const caveat = true"
     }
   ]
 }

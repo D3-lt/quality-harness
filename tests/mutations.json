@@ -2463,6 +2463,15 @@
       ],
       "from": "            .filter(declaration => !tracked.some(file => pathMatchesDeclaration(file, declaration)))",
       "to": "            .filter(() => false)"
+    },
+    {
+      "label": "state: the rot report reaches the reader, not just the corpus record",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    .filter(entry => entry.startsWith('governs:'))",
+      "to": "    .filter(() => false)"
     }
   ]
 }

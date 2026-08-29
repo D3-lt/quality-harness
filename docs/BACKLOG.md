@@ -1970,6 +1970,67 @@ assertion is FOR, which is close to knowing the specification. Worth an experime
 take the four known instances and see whether any mechanical property separates them from healthy
 assertions. If none does, that is a finding worth writing down rather than a gap to keep open.
 
+### EXPERIMENT RUN 2026-08-29 — the property exists, fires on the known shape, and is unusable at this precision
+
+The hypothesis was not invented for the experiment; it is CLAUDE.md §4 stated mechanically: **a test
+that asserts a CLEAN answer from a subject and never asserts a DIRTY one from the same subject cannot
+tell a working mechanism from one returning empty.** A throwaway probe over `tests/*.test.mjs` split
+each `assert.*` call into top-level arguments, kept those whose expectation is an empty or falsy
+literal (`[]`, `''`, `0`, `false`, `null`, `undefined`, `{}`), took the callee of the asserted
+subject, and asked whether the same test also asserts something non-clean about that callee.
+
+| | |
+|---|---|
+| clean assertions over a call | **160** |
+| library-call noise (a chained `.trim()`, `.filter()` — the chain, not the subject) | 12 |
+| paired with a dirty assertion in the same test | **119** |
+| unpaired — the heuristic's candidates | **29** |
+
+**Recall: it does fire on the known shape.** The canonical instance was reconstructed —
+`assert.deepEqual(uncovered(['a','b']), [])` with no dirty sibling — injected into a copy of the
+suite, and the candidate count moved 29 → 30. So the property is not vacuous itself, which had to be
+checked rather than assumed.
+
+**Precision: 29 candidates on a suite where the discipline is uniformly applied, and the hand-checked
+ones are all false.** Two causes, both legitimate style rather than sloppiness:
+
+- **The clean/dirty pair is split across ADJACENT tests.** `sweep.test.mjs::a bare number is a valid
+  cutoff` asserts `sweep(dir).status === 0` and nothing else; the very next test asserts
+  `notEqual(sweep(dir).status, 0)`. One behaviour per test is good practice, and §4's rule says "in
+  the same test" — so either the rule is stricter than the corpus, or the checker must widen to the
+  file and lose most of its power.
+- **The result is bound to a variable first.** `mutate-runner.test.mjs::UNPROVEN entries are in
+  neither half` asserts `found.failing === true` — a dirty assertion — but `found` is a variable, so
+  no textual pairing with `summarise(` exists.
+
+**So the answer to §39's question is: yes, a mechanical property separates them, and no, it is not
+usable.** One true instance among thirty at this precision, on a corpus that already follows the
+rule. §37's own measurement of 2026-08-29 decides what that means: a gate with false alarms does not
+merely get skipped, it HIDES ITS OWN TRUE FINDINGS — four false disposition advices concealed a real
+one on the same record, read past twice. Shipping a checker that cries 29 times to catch 1 would
+manufacture exactly that. **Not built, and this is the reason rather than a lack of time.**
+
+**THE PROBE'S FIRST VERSION HAD THE DEFECT IT WAS HUNTING, which is the most useful thing here.** It
+took the asserted subject with `([^,]+?)`, which cannot cross a comma — so every assertion over a
+call with more than one argument was invisible, *including the canonical
+`assert.deepEqual(uncovered(a, b), [])` this experiment exists to detect*. It reported 89 assertions
+and **0 unpaired**, and both numbers were about a subset it never said it had taken. That reads as a
+clean bill of health. It was caught only because the injected fixture failed to move the count —
+i.e. by the falsifiability check, not by reading the code. Take two sees 160, so take one was blind
+to 44% of them.
+
+The general form, and it is this repository's own rule met from a new direction: **a measurement
+instrument must be shown able to see the thing it is measuring, before its "nothing found" is read as
+nothing being there.** The same shape as §35's exhausted eval runs and ADR-005's filter that matched
+nothing.
+
+**Not kept as a script.** The finding is that the checker should not ship; committing the probe that
+produced it would leave a tool nobody runs and a second thing to maintain. The method above is
+stated precisely enough to redo it, and the numbers are dated.
+
+**STILL OPEN, unchanged:** the discipline in ADR-003 — feed the predicate an input that MUST produce
+a finding — remains the only thing that works, and it is applied by hand.
+
 **A baseline is only as good as the suite under it.** If a test-set is flaky, its baseline pass is
 luck, and every verdict beneath it inherits that luck. The campaign already depends on this — today
 silently, since it takes no baseline at all — and ADR-006 makes the dependency visible by naming the

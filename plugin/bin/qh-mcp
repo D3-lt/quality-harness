@@ -208,6 +208,15 @@ def _adr_debt(arguments):
 def _adr_judge(arguments):
     if arguments.get("rubric"):
         return _run_gate("adr-judge", ["--rubric"], [])
+    if not arguments.get("adr"):
+        # adr-judge is the one gate whose non-zero exit is NEITHER a finding nor
+        # an environment failure — its verdicts are always exit 0, and its only
+        # non-zero exit is a broken invocation. That is a third reason, and the
+        # two-channel split (T3) has no place for it, so the server never
+        # produces one: an invocation this gate would reject is refused here,
+        # where it is still "could not run" rather than a usage dump wearing an
+        # exit code and reading as a finding.
+        raise GateDidNotRun("could not run: qh_adr_judge needs either 'adr' or 'rubric'")
     paths = _paths(arguments.get("adr"))
     return _run_gate("adr-judge", paths, paths)
 

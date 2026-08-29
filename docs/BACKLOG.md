@@ -3113,6 +3113,19 @@ evidence predates digests is `done` to one reader and `READY` to the other. They
 dirty-tree hypothesis by reading the pattern: the `*` suffix is explicitly permitted, and digest
 presence is the sole discriminator.
 
+**CORRECTED 2026-08-29 by the reporter, and it is worse than first reported.** Their initial reading
+("done T1 · READY T2–T5 · blocked T6 T7") was taken while T1 still carried a digest row their own
+`adr-verify` run had just appended; they reverted it and did not re-measure. Against the COMMITTED
+tree, on both 2.34.1 and the current build:
+
+    READY    T1
+    blocked  T2 … T7  (waiting on T1)
+
+So `adr-next` does not mis-report some tasks of a finished ADR — it reports the ENTIRE record as
+unstarted, zero done, every task ready or blocked behind the first. Any corpus whose evidence
+predates digests is in that state, wholesale. The correction is theirs and they volunteered it
+against their own earlier message, which is the only reason the severity here is right.
+
 **The consequence is the one that matters:** a fully executed ADR advertises finished work as ready
 at every session start. That is the signal that teaches people to ignore the hook — the same failure
 mode as §54's unreadable evidence block and §56's wrong check command, arriving through a third door.

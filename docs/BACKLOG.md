@@ -3174,7 +3174,7 @@ JS path was never exercised by `check_tests_exist` here because no task file in 
 `node:test` case in its Tests table. So the gate had a hole shaped exactly like the corpora it does
 not run on. Third instance today of the same lesson, after §52 and §55.
 
-## 58. OPEN — two readers of one evidence grammar disagree about what `done` means
+## 58. CLOSED 2026-08-29 — two readers of one evidence grammar disagreed about what `done` means
 
 **Reported and then confirmed from source by the klientams-front-v2-01 session**, on a corpus whose
 seven tasks are all executed: the SessionStart hook announces "T1 is ready" at every session start,
@@ -3203,6 +3203,31 @@ against their own earlier message, which is the only reason the severity here is
 **The consequence is the one that matters:** a fully executed ADR advertises finished work as ready
 at every session start. That is the signal that teaches people to ignore the hook — the same failure
 mode as §54's unreadable evidence block and §56's wrong check command, arriving through a third door.
+
+### CLOSED 2026-08-29 — the allowance, copied condition for condition
+
+Three corpora reported it and the third settled the design: `adr-lint` accepts the legacy row AND
+`work-next` honours the same shape, so `adr-next` was the outlier two-to-one, not one half of a
+disagreement. **The backfill option is dead on their argument**, which is the strongest sentence
+anyone contributed today: stamping a digest onto an August row means computing sha256 of TODAY's
+fence and asserting it is what ran then — **manufacturing exactly the provenance the digest exists to
+prove**. One corpus checked five files by hand and found it true there; no tool can know it in
+general.
+
+So `is_done` now accepts a pre-digest row under the same three conditions `adr-lint` documents, copied
+rather than loosened: the fence must be SINGLE-LINE (a legacy row records only the displayed command,
+so it cannot prove a multi-line fence), the recorded command must not be the truncated ` …` form, and
+it must equal the fence's first line with backticks written as quotes — which is what `adr-verify`
+displays. Each of the three is asserted to still REFUSE, without which "accept any exit-0 row" would
+satisfy the positive case and the digest would stop meaning anything.
+
+**And the migration story is now known rather than assumed**, from the corpus that ran it: where the
+fences still pass, re-running `adr-verify` records digests and is self-healing — nine tasks, nine
+vitest runs, both records moved from "READY T1 / everything blocked" to every task done. The
+allowance is what carries a corpus whose fences NO LONGER pass, which is the case where re-running is
+not available and the alternative is a permanent misread.
+
+**Original framing, kept because it was the state before the third report:**
 
 **Not fixed here, because the right fix is a decision.** §47 closed the case where `adr-verify` wrote
 an entry `adr-lint` rejected, and the standing lesson from it is that the writer and the readers must
@@ -3604,6 +3629,42 @@ Asserted both ways: the record with no tasks directory refuses and names the rea
 mention the foreign record, and the record that DOES own that directory still resolves it — without
 the second, a broken sibling lookup would satisfy the first. Catalogue entry
 `next: the year of an ISO date is not a record number`.
+
+## 67. CLOSED 2026-08-29 — the comment-only guard refused a build tag
+
+**Reported by the agentsmemory-main-5b session**, twice, and correctly ranked by them as the highest-
+value thing they had sent: `adr-verify --mutant` refused to restore `//go:build readcostspec` —
+"COMMENT-ONLY MUTANT: this edit changes only comments or blank lines" — when removing that tag was
+the whole deliverable of the task, and restoring it was the mutation the task's own Reachability table
+named.
+
+**The guard was right about the shape and wrong about the effect.** `//go:build` is lexically a
+comment and semantically a build constraint: restoring it removes four test functions from
+compilation. They hand-verified both directions, and the evidence is the sharper half —
+
+    go test ./internal/mcpserver/ -run 'TestF4Chunking…' -count=1
+    ok  …  0.018s [no tests to run]      exit 0
+
+**exit 0 over a suite that executed nothing**, which is a larger behavioural change than most real
+mutants and precisely the shape this project exists to catch.
+
+**The family is not Go-only**, and several members are exactly what a campaign most wants to test,
+because a coverage-suppression pragma is a mechanism whose whole job is to make something invisible:
+`// +build`, `//go:generate`, `//go:embed`, `//go:linkname`, `//nolint`, `# type: ignore`, `# noqa`,
+`// eslint-disable`, `/* istanbul ignore */`, a shebang.
+
+**Fixed as a LIST, deliberately, not a heuristic.** "A comment whose first token ends in a colon"
+would swallow ordinary prose, and this guard exists to REFUSE mutants — a loose exemption silently
+re-opens the hole it closes. Eight directives asserted exempt and four prose comments asserted still
+refused, including `// a note about nolint policy` and a sentence with `go:` mid-line. Verified end to
+end on a scratch Go repository: the prose edit is still refused, the `//go:build` mutation applies and
+runs. Catalogue entry `verify: a toolchain directive is not a comment-only mutant`.
+
+**They chose the honest workaround while it was open** — recorded the mutation in their task file as a
+deviation with the hand-run evidence, saying plainly that the entry was hand-verified and why. Their
+alternative suggestion, a `--allow-comment-mutant` escape hatch, is not taken: an override recorded in
+the log is weaker than a guard that knows the difference, and it would have pushed people toward
+hand-pasted evidence, which is what they had to do.
 
 ## Verification claims worth re-running after any of the above
 

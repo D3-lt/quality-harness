@@ -1695,6 +1695,26 @@ def main():
     assert lint.where_it_stopped(lint.VLOG_RE, "- not a row at all").startswith("- not a row"), \
         "a row that never starts matching is still shown"
 
+    # BACKLOG §67. `//go:build readcostspec` is lexically a comment and
+    # semantically a build constraint — restoring it removes whole test functions
+    # from compilation. The comment-only guard classifies by SHAPE, so it refused
+    # the strongest mutant a task whose deliverable IS the tag can have. Reported
+    # 2026-08-29 with a hand-verified repro: `go test -run …` exited 0 over a
+    # suite that executed nothing.
+    for directive in ("//go:build readcostspec", "// +build linux", "//nolint:errcheck",
+                      "# type: ignore", "# noqa: E501", "// eslint-disable-next-line",
+                      "/* istanbul ignore next */", "#!/usr/bin/env bash"):
+        assert verify.DIRECTIVE_COMMENT.search(directive), \
+            f"a toolchain directive is not prose: {directive!r}"
+    # The must-fail direction, and it is the whole guard (CLAUDE.md §4): ordinary
+    # comments must NOT be exempted, or the exemption re-opens the hole the
+    # comment-only check exists to close.
+    for prose in ("// Bindings for the spec, in the DEFAULT lane",
+                  "# the go: prefix appears mid-sentence here",
+                  "// a note about nolint policy", "/* ignore this paragraph */"):
+        assert not verify.DIRECTIVE_COMMENT.search(prose), \
+            f"ordinary prose must stay comment-only: {prose!r}"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

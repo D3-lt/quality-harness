@@ -104,6 +104,46 @@ function corpus(tasks, { adr = false } = {}) {
   return { dir, tasksDir }
 }
 
+test('a pre-digest exit-0 row proves a single-line fence, and only that', () => {
+  // docs/BACKLOG.md §58, reported by three independent corpora on 2026-08-29.
+  // `adr-lint` accepts a legacy no-digest row under a narrow allowance its own
+  // help documents, and `work-next` honours the same shape; this reader took
+  // digest rows only. So a corpus whose evidence predates digests read as fully
+  // executed to two tools and as ENTIRELY UNSTARTED to this one — every task
+  // ready or blocked behind the first, forever. One corpus measured 40/40
+  // correlation with the digest cutover and ruled out the honest alternative (an
+  // Acceptance edited after its evidence) by reading git log.
+  const legacy = (fence, command = fence) =>
+    `# Task T1: probe\n\n**Depends-on:** none\n**Covers:** none\n**Produces:** none\n`
+    + `**Consumes:** none\n\n## Acceptance\n\n\`\`\`bash\n${fence}\n\`\`\`\n\n`
+    + `## Verification Log\n\n- 2026-08-20 · 691a106f* · exit 0 · \`${command}\`\n`
+  const withTask = body => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-legacy-'))
+    temps.push(dir)
+    const tasksDir = join(dir, 'tasks')
+    mkdirSync(tasksDir)
+    writeFileSync(join(tasksDir, 'T1-t.md'), body)
+    return next(['--json', tasksDir], root)
+  }
+  const doneOf = result => JSON.parse(result.stdout).done.some(t => t.id === 'T1')
+
+  assert.equal(doneOf(withTask(legacy('bun run test'))), true,
+    'a legacy exit-0 row whose displayed command matches the single-line fence is evidence')
+
+  // The three conditions that keep the allowance narrow, each asserted to still
+  // REFUSE — without these, "accept any exit-0 row" would satisfy the case above
+  // and the digest would stop meaning anything (CLAUDE.md §4).
+  assert.equal(doneOf(withTask(legacy('bun run test', 'bun run other'))), false,
+    'a command that is not the fence proves nothing')
+  assert.equal(doneOf(withTask(legacy('bun run test', 'bun run test …'))), false,
+    'the truncated display form cannot prove the fence it elided')
+  const multi = '# Task T1: probe\n\n**Depends-on:** none\n\n## Acceptance\n\n'
+    + '```bash\nset -o pipefail\nbun run test\n```\n\n## Verification Log\n\n'
+    + '- 2026-08-20 · 691a106f* · exit 0 · `set -o pipefail`\n'
+  assert.equal(doneOf(withTask(multi)), false,
+    'a legacy row records one displayed line, so it cannot prove a multi-line fence')
+})
+
 test('a date-named record never borrows another record\'s tasks', () => {
   // docs/BACKLOG.md §66, reported 2026-08-29 against the sibling matching added
   // the same day. `2026-07-12-router.md` and `2026-06-01-db-doctor.md` both

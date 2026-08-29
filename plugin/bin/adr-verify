@@ -198,6 +198,16 @@ BUILD_BROKE = [
 # that changes only prose changes nothing the program does — and it is exactly
 # the mutant an author reaches for by accident when a test matches a file's
 # comments instead of its keys (measured 2026-08-21, twice in one hour).
+# Comments that are INSTRUCTIONS TO A TOOLCHAIN, not prose. Editing one changes
+# what is compiled, linted or measured, so a mutation touching one is a real
+# mutation however comment-shaped it looks (docs/BACKLOG.md §67).
+DIRECTIVE_COMMENT = re.compile(
+    r"(?://\s*(?:go:|\+build\b|nolint\b|eslint-|prettier-|ts-(?:ignore|expect-error)\b)"
+    r"|#\s*(?:type:\s*ignore\b|noqa\b|pylint:|mypy:|ruff:|fmt:\s*(?:off|on)\b)"
+    r"|/\*\s*(?:istanbul|c8|v8)\s+ignore\b"
+    r"|^#!)",
+    re.M)
+
 LINE_COMMENT = {
     ".yml": "#", ".yaml": "#", ".toml": "#", ".sh": "#", ".bash": "#",
     ".py": "#", ".rb": "#", ".conf": "#", ".ini": ";", ".env": "#",
@@ -600,8 +610,27 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
         fail(f"MUTANT NOT UNIQUE: --from text appears {n} times in {rel}. "
              f"Extend it until it selects exactly the one site you mean.")
 
-    marker = LINE_COMMENT.get(target.suffix.lower())
-    if marker and strip_comments(frm, marker) == strip_comments(to, marker):
+    # A DIRECTIVE WEARS A COMMENT'S SYNTAX. `//go:build readcostspec` is lexically
+    # a comment and semantically a build constraint: restoring it removes whole
+    # test functions from compilation, which is a larger behavioural change than
+    # most real mutants. The guard below classifies by SHAPE and cannot see that,
+    # so it refused the strongest mutant a task whose deliverable IS the tag can
+    # have — reported 2026-08-29 with a hand-verified repro where `go test -run`
+    # exited 0 over a suite that executed nothing (docs/BACKLOG.md §67).
+    #
+    # The family is not Go-only: `// +build`, `//go:generate`, `//go:embed`,
+    # `//go:linkname`, `//nolint`, `# type: ignore`, `# noqa`,
+    # `// eslint-disable`, `/* istanbul ignore */`, a shebang. Several are
+    # exactly what a campaign most wants to test, because a coverage-suppression
+    # pragma is a mechanism whose whole job is to make something invisible.
+    #
+    # Deliberately a LIST rather than a heuristic: "a comment whose first token
+    # ends in a colon" would swallow ordinary prose, and this guard exists to
+    # refuse mutants, so a loose exemption silently re-opens the hole it closes.
+    if DIRECTIVE_COMMENT.search(frm) or DIRECTIVE_COMMENT.search(to):
+        pass
+    elif (marker := LINE_COMMENT.get(target.suffix.lower())) and \
+            strip_comments(frm, marker) == strip_comments(to, marker):
         fail(f"COMMENT-ONLY MUTANT: in {rel} this edit changes only comments or "
              f"blank lines, so it changes nothing the program does. A test cannot "
              f"be expected to notice it, and a 'survived' verdict here would be "

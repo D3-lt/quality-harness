@@ -1838,8 +1838,23 @@ function makeTargetCommand(directory) {
 
 // The check this project owns, named so a session can run it instead of guessing.
 export function projectCheckCommand(cwd = process.cwd()) {
+  return checkCommandOrigin(cwd).command
+}
+
+/**
+ * The check for `cwd` AND where it came from: `declared` when the project said
+ * so in `.quality-harness.json`, `inferred` when this tool read it off a
+ * manifest, `none` when neither.
+ *
+ * One resolver, two callers. `runTheCheckSentence` needs the provenance to say
+ * whether a red on a clean tree is a finding about the environment, and
+ * resolving the root a second time at that call site is how one rule becomes two
+ * spellings that drift — which cost this project a defect the same day
+ * (docs/BACKLOG.md §66).
+ */
+export function checkCommandOrigin(cwd = process.cwd()) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
-  if (!directory) return null
+  if (!directory) return { command: null, origin: 'none' }
   const root = gitRepositoryRoot(directory) ?? directory
   // WHAT THE PROJECT SAYS, before any guess. Every rung below infers a command
   // from a manifest, and an inferred command can fail to DISCRIMINATE: measured
@@ -1855,23 +1870,27 @@ export function projectCheckCommand(cwd = process.cwd()) {
   // the project's own, visible in a file someone can fix, rather than this tool
   // guessing and being wrong on the project's behalf.
   const declared = declaredCheckCommand(root)
-  if (declared) return declared
+  if (declared) return { command: declared, origin: 'declared' }
   // A script the repository NAMES FOR ITSELF beats a manifest guess, the same
   // reason `scripts/verify.sh` sits above `go test ./...`: `php vendor/bin/phpunit`
   // is a guess at how this project runs its tests, and in the repository that
   // reported §56 it is the wrong one — phpunit there runs only inside Docker, so
   // the bare host command would not execute at all. `composer test` is whatever
   // that project decided it is.
+  // The project naming its own test script is the project SPEAKING, like the
+  // declared `check` above and unlike a manifest guess.
   const composed = composerScriptCommand(root)
-  if (composed) return composed
+  if (composed) return { command: composed, origin: 'declared' }
   for (const candidate of PROJECT_CHECKS) {
-    if (existsSync(path.join(root, candidate.file))) return candidate.command
+    if (existsSync(path.join(root, candidate.file))) {
+      return { command: candidate.command, origin: 'inferred' }
+    }
   }
   const packaged = packageManagerCommand(root)
-  if (packaged) return packaged
+  if (packaged) return { command: packaged, origin: 'inferred' }
   const made = makeTargetCommand(root)
-  if (made) return made
-  return null
+  if (made) return { command: made, origin: 'inferred' }
+  return { command: null, origin: 'none' }
 }
 
 function gitRepositoryRoot(directory) {
@@ -1885,10 +1904,30 @@ function gitRepositoryRoot(directory) {
 // something specific instead of leaving the reader to guess which invocation
 // counts. Falls back to the general phrasing when the project names none.
 export function runTheCheckSentence(cwd) {
-  const command = projectCheckCommand(cwd)
-  return command
-    ? `Run \`${command}\` (this project's own check) after the final edit and report the exact command and result.`
-    : 'Run the smallest repository-owned test, lint, build, or validation command after the final edit and report the exact command and result.'
+  const { command, origin } = checkCommandOrigin(cwd ?? process.cwd())
+  if (!command) {
+    return 'Run the smallest repository-owned test, lint, build, or validation command after the '
+      + 'final edit and report the exact command and result.'
+  }
+  // A DECLARED command is the project speaking; an INFERRED one is this tool
+  // guessing from a manifest, and a guess carries no confidence about the
+  // environment it needs. Measured 2026-08-29: an inferred `php vendor/bin/phpunit`
+  // was red on a clean tree because of a host-only failure, so a session got the
+  // same exit code whether or not it had broken anything — and a red it did not
+  // cause teaches distrust of the gate, which is what let an earlier wrong
+  // command survive so long (docs/BACKLOG.md §59).
+  const caveat = origin === 'declared'
+    ? ''
+    // The word "environment" is deliberately NOT used here. It is reserved for a
+    // run that actually failed that way, and a standing note carrying it in every
+    // message would make the word stop meaning anything — which
+    // tests/lifecycle.test.mjs::a check that could not run is not a finding about
+    // the change asserts, and caught when the first version of this said it.
+    : ' That command was inferred from this repository rather than declared by it, so if it is '
+      + 'red on an unmodified tree the finding is about this machine and not about your change — '
+      + 'say which, and declare the real command as `check` in `.quality-harness.json`.'
+  return `Run \`${command}\` (this project's own check) after the final edit and report the exact `
+    + `command and result.${caveat}`
 }
 
 // What the last attempt was, when it was not a pass. An environment that could

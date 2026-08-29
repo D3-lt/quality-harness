@@ -38,11 +38,13 @@ const env = {
 const GATE_NAMES = new Set(readdirSync(bin, { withFileTypes: true })
   .filter(e => e.isFile() && !e.name.includes('.')).map(e => e.name))
 
-function run(command, args, cwd, input = undefined) {
+function run(command, args, cwd, input = undefined, extraEnv = undefined) {
   const [file, argv] = process.platform === 'win32' && GATE_NAMES.has(command)
     ? ['python3', [join(bin, command), ...args]]
     : [command, args]
-  return spawnSync(file, argv, { cwd, env, input, encoding: 'utf8', timeout: 60_000 })
+  return spawnSync(file, argv, {
+    cwd, env: extraEnv ? { ...env, ...extraEnv } : env, input, encoding: 'utf8', timeout: 60_000,
+  })
 }
 
 function expectExit(result, status, label) {
@@ -363,6 +365,43 @@ test('a mutant that did not land, or landed twice, is refused instead of scored'
   // must be untouched.
   assert.equal(readFileSync(target, 'utf8'), before, 'the target must be untouched')
   assert.equal(readTask(copy).split('## Mutation Log')[1].trim(), '')
+})
+
+test('a fence that never returns is UNRUN, and writes nothing', () => {
+  // docs/BACKLOG.md §54. Only `sweep_corpus` had a timeout; the recording runs
+  // did not, so three call sites carried two contracts — and because the run is
+  // captured, a hang produced NO output at all rather than a slow failure.
+  //
+  // The timeout is a PARAMETER for this test's sake: a branch reachable only
+  // after thirty minutes is a branch with no test (CLAUDE.md §7, written about
+  // platforms and equally true of clocks). The campaign caught the first version
+  // of this work with no such seam — the mutation removing the timeout came back
+  // GREEN, because nothing could reach the path.
+  const copy = corpus()
+  const before = readTask(copy)
+  writeTask(copy, before.replace(/```bash\n[\s\S]*?\n```/,
+    '```bash\necho starting; sleep 30\n```'))
+  const hung = run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md'], copy, undefined,
+    { QUALITY_HARNESS_FENCE_TIMEOUT: '2' })
+  expectExit(hung, 2, 'a run that did not finish is not a verdict either way')
+  assert.match(hung.stdout, /UNRUN/)
+  assert.match(hung.stdout, /NOTHING has been written/)
+  // What it managed to print before it was killed is shown, because a hang with
+  // no output is the case this exists to stop being.
+  assert.match(hung.stdout, /starting/)
+  // And the file is untouched: an entry claiming a run that did not finish is
+  // worse than no entry.
+  assert.equal(readTask(copy).split('## Verification Log')[1].trim(), '',
+    'a killed run must record nothing')
+
+  // The must-fail direction: with a timeout that the fence fits inside, the same
+  // fence records normally — so this asserts the TIMEOUT, not that adr-verify
+  // refuses everything.
+  writeTask(copy, before.replace(/```bash\n[\s\S]*?\n```/, '```bash\necho quick; exit 1\n```'))
+  const quick = run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md'], copy, undefined,
+    { QUALITY_HARNESS_FENCE_TIMEOUT: '60' })
+  expectExit(quick, 1, 'a fence that finishes is judged normally')
+  assert.match(readTask(copy), /· exit 1 · /)
 })
 
 test('a toolchain directive is not a comment-only mutant', () => {

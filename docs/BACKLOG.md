@@ -3564,6 +3564,47 @@ catch the whole class rather than the ignored subset, but it needs a hook at a p
 does not own, and it changes what `adr-verify` means — that tool records what a command did, and
 asserting a property of the COMMIT is a different job. An ADR, not a patch.
 
+## 66. CLOSED 2026-08-29 — a record with no tasks answered with ANOTHER record's tasks
+
+**Reported by the infrastructure-06 session within the hour, against the sibling matching added the
+same day**, and it is the worst defect this project shipped today: `adr-next <record>` for any record
+owning no tasks directory returned a FOREIGN record's tasks — the right shape of answer, the wrong
+record, exit 0, and an `adr-verify` command for a record the reader was not looking at.
+
+    adr-next docs/adr/2026-07-12-app-tier-deploy-router-hardening.md   # Superseded, no tasks dir
+      → Next: T1 — …/2026-06-01-db-doctor-repair-election-hardening/tasks/T1-peers-failclosed.md
+
+**The cause is a rule this repository already had and a second copy that did not.** Number matching
+read `(?:adr[-_]?)?0*(\d{1,4})` from a filename, so every `2026-*.md` in a date-named corpus reports
+number **2026** — the year — and any two of them "share" it. `lifecycle.mjs::adrNumber` carries a
+`(?!\d{4}-\d{2}-\d{2})` lookahead for exactly this, measured 2026-08-26 after a corpus grew an
+"ADR-2026". The rule existed; the copy written today to fix §55 and §57's sibling lookups did not have
+it. That is what a third spelling of one rule costs, and it is ADR-009's lesson (one grammar, two call
+sites) arriving as a defect rather than as an argument.
+
+**Reproduced, then fixed** in both places written today — `adr-next`'s resolution and status lookup
+(now one `RECORD_NUMBER` constant rather than four inline copies) and `adr-lint`'s directory message.
+`lifecycle.mjs` was checked and was never exposed: its numeric arm is guarded by `adrNumber`, which
+already excludes dates.
+
+**Their analysis of why the guard shipped an hour earlier could not catch it is the part worth
+keeping.** §64's status check resolves the owning record OF THE TASK IT FOUND — db-doctor's, which
+really is Accepted — so it correctly printed nothing. *"A guard on 'is this task's record accepted'
+cannot detect 'this task is not from the record you named'."* The defence was working and guarding
+the wrong edge, which is the same family as an anchor check that validates a path against whichever
+repository the reading session happens to be in.
+
+**And their ranking is right:** the §64 case gave the RIGHT tasks with missing context; this gave the
+WRONG tasks with full confidence. On this project's advises-never-blocks rule that is the bad kind of
+advice — not "I could not tell you", but a confident answer about something else. A record owning no
+tasks now says so and stops (exit 1), which is what they proposed; the corpus-wide reading is what
+`adr-next` with no argument already means.
+
+Asserted both ways: the record with no tasks directory refuses and names the reason and does NOT
+mention the foreign record, and the record that DOES own that directory still resolves it — without
+the second, a broken sibling lookup would satisfy the first. Catalogue entry
+`next: the year of an ISO date is not a record number`.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

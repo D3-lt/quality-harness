@@ -104,6 +104,42 @@ function corpus(tasks, { adr = false } = {}) {
   return { dir, tasksDir }
 }
 
+test('a date-named record never borrows another record\'s tasks', () => {
+  // docs/BACKLOG.md §66, reported 2026-08-29 against the sibling matching added
+  // the same day. `2026-07-12-router.md` and `2026-06-01-db-doctor.md` both
+  // report ADR number 2026 — the YEAR of the ISO date — so a record owning no
+  // tasks directory matched a FOREIGN record's directory and answered with its
+  // tasks, exit 0, plus that record's adr-verify command. A wrong answer given
+  // confidently, which is worse than the missing warning fixed beside it: the
+  // status guard could not catch it either, because it correctly checked the
+  // status of the record whose task it found.
+  //
+  // `lifecycle.mjs::adrNumber` already carried this lookahead, measured
+  // 2026-08-26 for the same reason. The rule existed; a second spelling of it
+  // did not have it.
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-dated-'))
+  temps.push(dir)
+  const owned = join(dir, '2026-06-01-db-doctor', 'tasks')
+  mkdirSync(owned, { recursive: true })
+  writeFileSync(join(owned, 'T1-t.md'), task({ id: 'T1', goal: 'db-doctor peers' }))
+  writeFileSync(join(dir, '2026-06-01-db-doctor.md'),
+    '# 2026-06-01: db-doctor\n\n**Status:** Accepted\n\n## Context\n\nc\n')
+  writeFileSync(join(dir, '2026-07-12-router.md'),
+    '# 2026-07-12: router\n\n**Status:** Superseded by x\n\n## Context\n\nc\n')
+
+  const foreign = next([join(dir, '2026-07-12-router.md')], root)
+  assert.equal(foreign.status, 1, 'a record owning no tasks has nothing to sequence')
+  assert.match(foreign.stderr, /no tasks directory/, foreign.stderr)
+  assert.doesNotMatch(foreign.stdout, /db-doctor/,
+    `it must not answer with another record's tasks:\n${foreign.stdout}`)
+
+  // The must-fail direction: the record that DOES own that directory still
+  // resolves it, so this is a date guard and not a broken sibling lookup.
+  const owns = next([join(dir, '2026-06-01-db-doctor.md')], root)
+  assert.equal(owns.status, 0, owns.stderr)
+  assert.match(owns.stdout, /Next: T1 — /, owns.stdout)
+})
+
 test('an undecided record is named as undecided, and its tasks are still answered', () => {
   // docs/BACKLOG.md §64. `work-next` joins task to record and refuses to call an
   // unaccepted record's tasks ready (§48); this tool never looked, so one corpus

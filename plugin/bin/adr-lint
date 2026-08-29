@@ -2143,10 +2143,14 @@ def main():
         # Reported 2026-08-29 after the first version of this message shipped.
         sibling = adr.with_suffix(".md")
         if not sibling.exists():
-            mine = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", adr.name, re.I)
+            # NOT the year of an ISO date: every `2026-07-12-thing.md` would
+            # otherwise report number 2026 and any two of them would "share" it
+            # (docs/BACKLOG.md §66).
+            mine = re.match(r"(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?0*(\d{1,4})\b", adr.name, re.I)
             if mine:
                 for candidate in sorted(adr.parent.glob("*.md")):
-                    theirs = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", candidate.name, re.I)
+                    theirs = re.match(r"(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?0*(\d{1,4})\b",
+                                      candidate.name, re.I)
                     if theirs and int(theirs.group(1)) == int(mine.group(1)):
                         sibling = candidate
                         break

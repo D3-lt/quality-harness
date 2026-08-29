@@ -347,6 +347,58 @@ def reject_unknown_flags(known=()):
         sys.exit(1)
 
 
+def owning_record_status(tasks_dir):
+    """The Status of the record these tasks belong to, or None if it cannot be found.
+
+    `work-next` joins every task to its record and refuses to call an undecided
+    record's tasks ready (docs/BACKLOG.md §48). This tool never looked, so the
+    same corpus answered two ways depending on which entry point you used — and
+    THIS is the more exposed one: the router produces a session banner, while
+    `adr-next <record>` is what somebody types when they already have a record in
+    hand and have stopped asking whether it is decided. Reported 2026-08-29 from a
+    corpus where it offered a Proposed record's tasks and handed over an
+    `adr-verify` command to run against them (docs/BACKLOG.md §64).
+
+    Returns the status verbatim, because the caller reports it rather than
+    judging it: this gate instructs and never blocks (CLAUDE.md §3), so an
+    undecided record still gets its answer, with the status said out loud.
+    """
+    # Resolved, because a RELATIVE `tasks` argument makes the parent `.`, whose
+    # `with_suffix` raises "has an empty name" — a traceback out of a status
+    # lookup, in the same shape this suite caught adr-lint producing on a
+    # directory argument earlier today. Found by
+    # tests/gate-rules.test.mjs::the machine-readable output lifecycle.mjs
+    # depends on is machine-readable, which is the test that exists because a
+    # crash on stdout is not machine-readable output.
+    try:
+        record_dir = tasks_dir.resolve().parent
+    except OSError:
+        return None
+    if record_dir == record_dir.parent:      # filesystem root: no record can own it
+        return None
+    # Bounded: the sibling scan exists to find `ADR-002-long-slug.md` beside
+    # `ADR-002/`, not to read an arbitrary directory of markdown. A corpus
+    # directory holds tens of records; anything past a couple of hundred is not
+    # a corpus and this question is not worth asking there.
+    siblings = sorted(record_dir.parent.glob("*.md"))[:200]
+    for candidate in (record_dir.with_suffix(".md"), *siblings):
+        try:
+            if not candidate.is_file():
+                continue
+        except OSError:
+            continue
+        if candidate.stem != record_dir.name:
+            mine = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", record_dir.name, re.I)
+            theirs = re.match(r"(?:adr[-_]?)?0*(\d{1,4})\b", candidate.name, re.I)
+            if not (mine and theirs and int(mine.group(1)) == int(theirs.group(1))):
+                continue
+        text = candidate.read_text(errors="replace", encoding="utf-8")
+        found = re.search(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", text, re.M | re.I)
+        if found:
+            return found.group(1).strip().strip("*").strip()
+    return None
+
+
 def main():
     reject_unknown_flags(("--all", "--json"))
     args = [a for a in sys.argv[1:] if not a.startswith("--")]
@@ -364,6 +416,16 @@ def main():
     if not infos:
         print(f"adr-next: no task files in {tasks_dir}", file=sys.stderr)
         return 1
+
+    # Said BEFORE the answer, because the answer is what gets acted on. A record
+    # that is not Accepted is a plan or history, never a work order (CLAUDE.md
+    # §10) — but this gate instructs and never blocks, so the tasks are still
+    # reported and the reader decides.
+    status = owning_record_status(tasks_dir)
+    if status is not None and not re.match(r"accepted\b", status, re.I):
+        print(f"adr-next: the record owning these tasks is **{status}**, not Accepted — "
+              f"a record is a work order only once it is Accepted, so what follows is a "
+              f"reading of its PLAN, not of work anyone has decided to do.", file=sys.stderr)
 
     # The corpus directory: the parent of the record's own folder, which is where
     # a sibling ADR lives. None when the layout is not that shape, and then every

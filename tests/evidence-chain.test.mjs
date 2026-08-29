@@ -402,6 +402,24 @@ test('a fence that never returns is UNRUN, and writes nothing', () => {
     { QUALITY_HARNESS_FENCE_TIMEOUT: '60' })
   expectExit(quick, 1, 'a fence that finishes is judged normally')
   assert.match(readTask(copy), /· exit 1 · /)
+
+  // THE MUTANT PATH IS THE DANGEROUS ONE, because a hang there leaves the file
+  // deliberately broken. UNRUN, and the mutant must be put back — a timeout that
+  // left the tree mutated would be worse than no timeout at all.
+  const mutantHang = corpus()
+  addMutationLog(mutantHang)
+  const target = addBlindSpot(mutantHang)
+  const pristine = readFileSync(target, 'utf8')
+  writeTask(mutantHang, readTask(mutantHang).replace(/```bash\n[\s\S]*?\n```/,
+    '```bash\necho starting; sleep 30\n```'))
+  const hungMutant = run('adr-verify', [
+    '--cwd', '.', 'tasks/T1-fixture.md',
+    '--mutant', 'unused.py', '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99', '--why', 'probe',
+  ], mutantHang, undefined, { QUALITY_HARNESS_FENCE_TIMEOUT: '2' })
+  assert.match(hungMutant.stdout + hungMutant.stderr, /UNRUN/,
+    `${hungMutant.stdout}\n${hungMutant.stderr}`)
+  assert.equal(readFileSync(target, 'utf8'), pristine,
+    'a killed mutant run must still put the file back')
 })
 
 test('a toolchain directive is not a comment-only mutant', () => {

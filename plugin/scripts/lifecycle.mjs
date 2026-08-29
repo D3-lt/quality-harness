@@ -2187,13 +2187,19 @@ function adrNumber(file, text) {
 function taskDirectoriesFor(file, number) {
   const directory = path.dirname(file)
   const found = [{ path: path.join(directory, 'tasks'), owned: false }]
-  if (number === null) return found
+  // A record with no number still owns the directory named after it. Ownership
+  // was matched on the ADR NUMBER alone, so `2026-08-17-thing.md` beside
+  // `2026-08-17-thing/tasks/` was classified correctly and reported zero tasks —
+  // the record found, its work invisible (docs/BACKLOG.md §55). The stem is
+  // exact, so it cannot bind a directory to the wrong record the way a loose
+  // numeric prefix could.
+  const stem = path.basename(file).replace(/\.md$/i, '')
   let siblings = []
   try { siblings = readdirSync(directory, { withFileTypes: true }) } catch { return found }
   for (const entry of siblings) {
     if (!entry.isDirectory()) continue
-    const owns = /^(?:adr[-_]?)?0*(\d{1,4})\b/i.exec(entry.name)
-    if (owns && Number(owns[1]) === number) {
+    const owns = number !== null && /^(?:adr[-_]?)?0*(\d{1,4})\b/i.exec(entry.name)
+    if ((owns && Number(owns[1]) === number) || entry.name === stem) {
       found.push({ path: path.join(directory, entry.name, 'tasks'), owned: true })
     }
   }
@@ -2222,6 +2228,47 @@ function taskFilesFor(file, text) {
   return [...new Set(found)]
 }
 
+/**
+ * A record this reader would otherwise never open, recognised by CONTENT.
+ *
+ * `ADR_FILE` matches a numeric filename and deliberately excludes an ISO-dated
+ * one, because `2026-03-08-retrospective.md` was being read as ADR-2026. That
+ * exclusion took an entire naming convention with it: a corpus whose records are
+ * all named `2026-08-17-thing.md` produced ZERO records, and the reader then said
+ * "Nothing in the corpus is waiting" over two dozen unfinished task files.
+ * Measured 2026-08-29 on a 56-record corpus by the session that owns it, and
+ * reproduced here on identical bytes under two filenames (docs/BACKLOG.md §55).
+ *
+ * So the fix is a probe, not a wider pattern. Inside an `adr` directory a file
+ * carrying a `Status:` line is a record whatever it is called; everything else
+ * still needs the filename. Measured against that corpus before shipping: of 56
+ * `.md` files under its `docs/adr`, the 31 with no status line are all
+ * non-records (task files, tasks/README.md, an index, a research note), and no
+ * postmortem, runbook or spec in the tree carries the line at all.
+ *
+ * A task file is excluded by PATH rather than by content, because a
+ * `tasks/README.md` may well acquire a status line and is never a decision.
+ *
+ * A STATUS LINE ALONE IS NOT ENOUGH, and this repository's own fixtures prove
+ * why: `2026-03-08-retrospective.md` carrying `**Status:** Accepted` is the
+ * defect the filename guard was added for, and a probe reading only the status
+ * would re-open it. A decision record also SAYS something — it carries the
+ * Context or Decision section every template in this project requires — so the
+ * probe asks for both. The corpus that reported §55 confirms the discrimination
+ * holds there: its 31 status-less files are all non-records, and the three
+ * record-SHAPED filenames that are not records (an index, a research note, a
+ * `.queries.md` companion) self-excluded only by luck, which is exactly the
+ * fragility a second condition removes.
+ */
+function looksLikeRecord(file, directory) {
+  if (!/(^|[\\/])adr([\\/]|$)/i.test(directory)) return false
+  if (/(^|[\\/])tasks([\\/]|$)/i.test(directory)) return false
+  let text
+  try { text = readFileSync(file, 'utf8') } catch { return false }
+  return /^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S/im.test(text)
+    && /^##\s+(Context|Decision)\b/im.test(text)
+}
+
 function readRecordFiles(root) {
   const files = []
   const walk = (directory, depth) => {
@@ -2235,7 +2282,7 @@ function readRecordFiles(root) {
         if (UNINTERESTING_DIRECTORY.test(entry.name)) continue
         walk(child, depth + 1)
       } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')
-          && ADR_FILE.test(entry.name)) {
+          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory))) {
         files.push(child)
       }
     }

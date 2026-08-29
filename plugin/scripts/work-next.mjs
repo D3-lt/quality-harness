@@ -238,6 +238,23 @@ export function main(argv = process.argv.slice(2)) {
   // Said whatever the next stage is, and BEFORE it: work that exists and is not
   // executable is the answer to "why is nothing waiting?", and a reader who does
   // not get it concludes the corpus is finished (docs/BACKLOG.md §48).
+  // Task files and NO records is a discovery failure, and it is provable without
+  // knowing why: two walkers read the same corpus by different rules — tasks by
+  // path, records by filename or content — so tasks > 0 with records = 0 means
+  // the record walker missed what the task walker found. Printed BEFORE the
+  // stage, and regardless of it: the corpus that reported this was routed to
+  // `/spec-write` for work already decided, so a message that only fires when no
+  // stage is chosen would have stayed silent on the very case it is for
+  // (docs/BACKLOG.md §55). `unreadable` cannot cover this either — a file must
+  // be opened before it can be classed unopenable.
+  if (state.tasks && !state.records) {
+    process.stdout.write(`\n${state.tasks} task file(s) and NOT ONE record: this reader found no `
+      + 'decision records at all, which over a corpus that plainly has task files is a discovery '
+      + 'failure rather than an empty corpus. Records are found by filename (`0043-thing.md`, '
+      + '`ADR-12-thing.md`) or, inside an `adr` directory, by carrying both a Status line and a '
+      + 'Context or Decision section. Read anything below as a reading of what this tool could '
+      + 'find, which here is nothing.\n')
+  }
   if (state.notYetDecided.length) {
     process.stdout.write(`\n${state.notYetDecided.length} unfinished task file(s) belong to a record `
       + 'this reader cannot execute — Proposed, Draft, or a status it does not recognise. They are '

@@ -470,7 +470,14 @@ def check_task(path, all_stems, errors):
     if not steps:
         errors.advise(f"{path.name}: Ordered Steps has no '1.' numbered step — step 1 must "
                       f"establish the failing test (TDD red)")
-    elif "test" not in steps[0].lower():
+    # What step 1 must do is ESTABLISH RED — show the thing can fail before it is
+    # made to pass. Asking whether it contains the word "test" is a check on the
+    # sentence rather than on what the step does (ADR-003), and it was wrong in
+    # both directions: "Confirm the gate is red first: `spec-verify ...`" was
+    # advised at, while "update the tests later" was not. Found 2026-08-29 by a
+    # Claude Desktop session running this gate over this corpus (ADR-012 T4).
+    # BACKLOG §52.
+    elif not re.search(r"\b(tests?|red|fail(s|ed|ing|ure)?)\b", steps[0], re.I):
         errors.advise(f"{path.name}: Ordered Steps step 1 must establish the failing test "
                       f"(TDD red) — currently: {steps[0].strip()[:80]}")
     dep = header_val(text, "Depends-on") or ""

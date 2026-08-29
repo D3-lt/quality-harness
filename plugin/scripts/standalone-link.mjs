@@ -43,20 +43,44 @@ export function cacheDirectory(homeDirectory = os.homedir()) {
 }
 
 /**
- * The resolver a forwarder embeds: newest semver directory that still has a
- * `bin`, printed as an absolute path, empty when there is none.
+ * The resolver a forwarder embeds: the INSTALLED version, falling back to the
+ * newest semver directory in the cache that still has a `bin`. Printed as an
+ * absolute path, empty when there is none.
+ *
+ * ASKS WHAT IS INSTALLED FIRST, and the fallback is why that is not enough on its
+ * own. The cache is a directory nothing prunes — this machine's holds forty-one
+ * versions back to 2.0.0 — so a leftover or half-removed directory with a higher
+ * number used to win over the installed one silently, and the gate would run a
+ * version nobody chose. Reported 2026-08-29 (docs/BACKLOG.md §50).
+ *
+ * The scan REMAINS the fallback rather than being replaced: the manifest is not
+ * ours, its shape can change under us, and a parse failure must degrade to the
+ * old answer rather than to none. `try/catch` around the read is that promise.
  *
  * Deliberately not `sort -V` or a shell glob. macOS ships BSD sort, whose `-V`
  * cannot be relied on, and lexical order puts 2.0.4 above 2.0.10 — this cache
  * holds both. The comparison is numeric per component or it is wrong.
+ *
+ * No single quote may appear here: the sh forwarder embeds this inside `node -e
+ * '...'`, and one would end the string in a file nothing type-checks.
  */
 export const RESOLVER = [
   'const f=require("fs"),p=require("path"),c=process.argv[1];',
+  'const has=d=>!!d&&f.existsSync(p.join(d,"bin"));',
+  'const num=s=>/^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(String(s))||[0,0,0,0];',
+  'let root="";',
+  'try{',
+  'const man=JSON.parse(f.readFileSync(p.join(c,"..","..","..","installed_plugins.json"),"utf8"));',
+  'const e=(man&&man.plugins&&man.plugins["quality-harness@quality-harness"])||[];',
+  'const ok=(Array.isArray(e)?e:[e]).filter(x=>x&&has(x.installPath));',
+  'ok.sort((a,b)=>{const A=num(a.version),B=num(b.version);return B[1]-A[1]||B[2]-A[2]||B[3]-A[3]});',
+  'if(ok.length)root=ok[0].installPath;',
+  '}catch{}',
   'let v=[];try{v=f.readdirSync(c)}catch{};',
   'v=v.map(n=>({n,m:/^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(n)}))',
   '.filter(x=>x.m&&f.existsSync(p.join(c,x.n,"bin")));',
   'v.sort((a,b)=>b.m[1]-a.m[1]||b.m[2]-a.m[2]||b.m[3]-a.m[3]);',
-  'process.stdout.write(v.length?p.join(c,v[0].n):"")',
+  'process.stdout.write(root||(v.length?p.join(c,v[0].n):""))',
 ].join('')
 
 /** Marks a file this tool generated, so a later run may replace its own work. */

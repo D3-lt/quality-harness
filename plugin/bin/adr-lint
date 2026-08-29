@@ -96,6 +96,38 @@ VLOG_LEGACY_RE = re.compile(
     r"`(?P<command>[^`]+)`$")
 
 
+def disposition_span(text):
+    """The balanced `(permanent…)` / `(deferred:…)` group in `text`, as (inner, start, end).
+
+    Scanned by paren DEPTH rather than matched with `[^)]*`, which cannot cross
+    the `)` of a nested pair. Measured 2026-08-28 on one bullet reading
+    `(permanent: the `archive()` helper keeps originals)`: adr-lint advised that
+    it carried no disposition at all, and adr-debt reported it as a BROKEN
+    [malformed] pointer — a finding about a bullet that visibly complies. The
+    architecture.md scan was worse again, capturing a TRUNCATED pointer and
+    resolving that, so it named a path nobody wrote.
+
+    None when no such group is balanced. Callers apply their own keyword and
+    position tests; this answers only "where does the disposition actually end".
+
+    ONE BODY, THREE COPIES — adr-lint, adr-debt and adr-retire-check are
+    standalone scripts with no import path between them (ADR-011: a shared file
+    under bin/ acquires a generated forwarder). `tests/gate-regressions.py`
+    holds the one truth table all three are checked against, the way ADR-009
+    binds `enforcement_pointers` to `declaredEnforcement`.
+    """
+    for opening in re.finditer(r"\((?=permanent\b|deferred\b)", text):
+        depth = 0
+        for i in range(opening.start(), len(text)):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[opening.start() + 1:i], opening.start(), i + 1
+    return None
+
+
 def sections_of(text):
     out, cur, fence = {}, None, False
     for line in text.splitlines():
@@ -215,6 +247,20 @@ def spec_ids(spec_path):
     return ids
 
 
+DISPOSITION_TEXT = re.compile(r"^(?:permanent(?::.*)?|deferred:\s*\S.*)$")
+
+
+def _carries_a_disposition(bullet):
+    """Whether an Out of Scope bullet ENDS with a well-formed disposition.
+
+    Position and grammar are separate questions and are asked separately: a
+    bullet may hold a parenthetical that is balanced but does not close the line
+    (`(permanent: why) (see also)`), which is not a disposition and never was.
+    """
+    span = disposition_span(bullet)
+    return bool(span) and span[2] == len(bullet) and bool(DISPOSITION_TEXT.match(span[0]))
+
+
 def check_adr(adr_path, errors):
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
     if not re.search(r"^\*\*Status:\*\*", text, re.M):
@@ -229,8 +275,7 @@ def check_adr(adr_path, errors):
                       f"(write 'None — implementation-internal only' if true)")
     for ln in secs.get("Out of Scope", []):
         s = ln.strip()
-        if s.startswith("- ") and not re.search(
-                r"\((?:permanent(?::[^)]*)?|deferred:\s*[^)\s][^)]*)\)\s*$", s):
+        if s.startswith("- ") and not _carries_a_disposition(s):
             errors.advise(f"{adr_path.name}: Out of Scope entry needs a disposition — "
                           f"'(permanent[: why])' or '(deferred: <pointer>)': {s[:70]}")
     spec = header_val(text, "Spec")

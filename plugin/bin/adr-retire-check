@@ -37,6 +37,38 @@ def normalize_id(value):
     return f"ADR-{int(match.group(1)):03d}" if match else None
 
 
+def disposition_span(text):
+    """The balanced `(permanent…)` / `(deferred:…)` group in `text`, as (inner, start, end).
+
+    Scanned by paren DEPTH rather than matched with `[^)]*`, which cannot cross
+    the `)` of a nested pair. Measured 2026-08-28 on one bullet reading
+    `(permanent: the `archive()` helper keeps originals)`: adr-lint advised that
+    it carried no disposition at all, and adr-debt reported it as a BROKEN
+    [malformed] pointer — a finding about a bullet that visibly complies. The
+    architecture.md scan was worse again, capturing a TRUNCATED pointer and
+    resolving that, so it named a path nobody wrote.
+
+    None when no such group is balanced. Callers apply their own keyword and
+    position tests; this answers only "where does the disposition actually end".
+
+    ONE BODY, THREE COPIES — adr-lint, adr-debt and adr-retire-check are
+    standalone scripts with no import path between them (ADR-011: a shared file
+    under bin/ acquires a generated forwarder). `tests/gate-regressions.py`
+    holds the one truth table all three are checked against, the way ADR-009
+    binds `enforcement_pointers` to `declaredEnforcement`.
+    """
+    for opening in re.finditer(r"\((?=permanent\b|deferred\b)", text):
+        depth = 0
+        for i in range(opening.start(), len(text)):
+            if text[i] == "(":
+                depth += 1
+            elif text[i] == ")":
+                depth -= 1
+                if depth == 0:
+                    return text[opening.start() + 1:i], opening.start(), i + 1
+    return None
+
+
 def sections_of(text):
     sections, current, fence = {}, None, False
     for line in text.splitlines():
@@ -95,7 +127,11 @@ def meaningful_obligations(root):
             continue
         sections = sections_of(path.read_text(errors="replace", encoding="utf-8"))
         for line in sections.get("Out of Scope", []):
-            if re.search(r"\(deferred:\s*[^)]+\)", line):
+            # An obligation is COUNTED, not resolved, so anything after the colon
+            # counts — `(deferred: )` included, which is still an obligation
+            # somebody owes. `(deferred:)` with nothing at all is not.
+            span = disposition_span(line)
+            if span and span[0].startswith("deferred:") and len(span[0]) > len("deferred:"):
                 counts[adr_id] += 1
         for line in sections.get("Follow-ups", []):
             match = re.match(r"^\s*- \[ \]\s*(.*?)\s*$", line)

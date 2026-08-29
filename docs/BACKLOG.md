@@ -1752,7 +1752,7 @@ Six of the eleven defects would not have been caught by any of the above — the
 invocation, and grader-calibration problems. This entry ranks what helps; it does not claim the list
 is complete, and the ranking comes from one session with one agent on one codebase.
 
-## 37. A disposition containing parentheses is silently unrecognised
+## 37. CLOSED 2026-08-29 — a disposition containing parentheses is silently unrecognised
 
 `adr-lint` requires every Out of Scope bullet to end with `(permanent[: why])` or
 `(deferred: <pointer>)`. Writing `(permanent: the `archive()` helper keeps originals...)` reports
@@ -1767,6 +1767,52 @@ mode is an author reading "needs a disposition" over a bullet that visibly has o
 the gate is wrong — which is how a gate stops being read. The fix is to match the LAST balanced
 parenthetical rather than the last `(...)` run, or simply to anchor on the `permanent:`/`deferred:`
 keyword.
+
+### CLOSED 2026-08-29 — and the entry above understated it, because it named one instance
+
+**"Advisory rather than blocking, so nothing was mis-gated" is true of the instance and false of the
+class.** Enumerated with a command rather than from memory:
+
+```
+$ grep -rn 'permanent\|deferred' plugin/bin/* plugin/scripts/*.mjs | grep -E 'r"|re\.'
+plugin/bin/adr-debt:197          re.search(r"\(deferred:\s*([^)]*)\)", ln)
+plugin/bin/adr-debt:216          re.search(r"\(deferred:\s*([^)]*)\)\s*$", s)
+plugin/bin/adr-lint:233          r"\((?:permanent(?::[^)]*)?|deferred:\s*[^)\s][^)]*)\)\s*$"
+plugin/bin/adr-retire-check:98   re.search(r"\(deferred:\s*[^)]+\)", line)
+```
+
+Four parsers, one root cause — `[^)]*` cannot cross the `)` of a nested pair — and three different
+consequences, each reproduced on a fixture before being fixed:
+
+| site | what it did with `(permanent: the `archive()` helper keeps originals)` |
+|---|---|
+| `adr-lint:233` | advised "needs a disposition" on a bullet that visibly carries one |
+| `adr-debt:216` | reported `BROKEN [malformed]` — **a false finding, and `adr-debt` exits 1 on broken pointers** |
+| `adr-debt:197` (architecture.md) | captured a **truncated** pointer (`docs/notes.md, see \`foo(1`) and resolved *that*, naming a path nobody wrote |
+| `adr-retire-check:98` | unchanged — it needs existence, not a span, and still counted. Fixed for uniformity; **no defect is claimed here, because none could be demonstrated** |
+
+So the blocking one, not the advisory one, is what this entry should have led with.
+
+**The fix.** `disposition_span(text)` scans by paren DEPTH from each `(` that opens `permanent` or
+`deferred`, and returns `(inner, start, end)` — the text and the bounds of the balanced group. It is
+one body in three copies, because adr-lint, adr-debt and adr-retire-check are standalone scripts with
+no import path between them (ADR-011 rejected a shared file under `bin/` for the concrete reason that
+`standalone-link.mjs` generates a forwarder for every entry it finds there). The copies are bound by
+`DISPOSITION_GRAMMAR` in `tests/gate-regressions.py`, run against all three modules — ADR-009's
+`enforcement_pointers` lesson, applied again.
+
+Position and grammar are asked separately, which the old single regex could not do: adr-lint requires
+the disposition to END the bullet, so `- A (permanent: why) (see also)` is still named; adr-debt's
+architecture.md scan deliberately does not require that.
+
+**Two behaviours deliberately preserved, both found by re-reading the existing tests rather than by
+the change.** `(deferred: )` and `(deferred:)` still report `BROKEN [empty]` — debt recorded by
+someone who had not decided where it goes — and are NOT folded into `malformed`, which means the
+parenthetical is not a deferral at all. And `adr-retire-check` still counts `(deferred: )` while not
+counting `(deferred:)`, exactly as its old regex did.
+
+Enforced-by: `tests/gates.test.mjs::focused false-green regressions remain closed` (which runs
+`tests/gate-regressions.py`), and four catalogue entries, all RED.
 
 ## 38. One of three closed 2026-08-28; the two runner questions stay open
 

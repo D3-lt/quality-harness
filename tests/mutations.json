@@ -2510,6 +2510,42 @@
       "to": "        if current and _looks_like_a_path(pointer.split()[0] if pointer.split() else ''):\n            pairs += [(current, int(n)) for n in SECTION_FRAGMENT.findall(pointer)]"
     },
     {
+      "label": "adr-lint: a disposition's parentheses are balanced, not just the last run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if depth == 0:\n                    return text[opening.start() + 1:i], opening.start(), i + 1",
+      "to": "                return text[opening.start() + 1:i], opening.start(), i + 1"
+    },
+    {
+      "label": "adr-lint: a disposition must END the Out of Scope bullet",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(span) and span[2] == len(bullet) and bool(DISPOSITION_TEXT.match(span[0]))",
+      "to": "    return bool(span) and bool(DISPOSITION_TEXT.match(span[0]))"
+    },
+    {
+      "label": "adr-debt: a disposition's parentheses are balanced, not just the last run",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if depth == 0:\n                    return text[opening.start() + 1:i], opening.start(), i + 1",
+      "to": "                return text[opening.start() + 1:i], opening.start(), i + 1"
+    },
+    {
+      "label": "adr-retire-check: a disposition's parentheses are balanced, not just the last run",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if depth == 0:\n                    return text[opening.start() + 1:i], opening.start(), i + 1",
+      "to": "                return text[opening.start() + 1:i], opening.start(), i + 1"
+    },
+    {
       "label": "verify: the sha grammar matches the one adr-lint reads with",
       "file": "plugin/bin/adr-verify",
       "tests": [

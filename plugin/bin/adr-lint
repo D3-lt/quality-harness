@@ -1636,11 +1636,21 @@ def check_tests_exist(infos, readme_text, errors, root):
                 # existence finding is solid and the mechanism was fabricated —
                 # a gate reporting an observation it did not make (ADR-005), in
                 # the sentence of a check that is otherwise 17-for-18 correct.
+                #
+                # AND NO LIKELIEST CAUSE. The replacement briefly said a rename is
+                # the commonest cause; the same session then FIXED its residue and
+                # measured 3 confirmed renames out of 17, with ~11 having no
+                # plausible equivalent anywhere. Naming the wrong likeliest cause
+                # is worse than naming none, because the nearest-looking neighbour
+                # is always right there: the cheap resolution becomes writing it
+                # into the table, which closes the finding by asserting coverage
+                # nobody verified. A gate must not prompt a fabrication.
                 errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
                               f"Tests table names `{name}` in `{rel}`, but that file contains no "
                               f"executable definition with that name — so the row describes a test "
-                              f"the acceptance run cannot have exercised. Either the table is stale "
-                              f"(a rename is the commonest cause) or the test was never written")
+                              f"the acceptance run cannot have exercised. Either the test was never "
+                              f"written, or the table is stale after a rename — if you substitute a "
+                              f"name, check it covers the same behaviour before you edit")
 
 
 # Test bodies that cannot fail, and tests the Acceptance never runs.

@@ -2634,6 +2634,25 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   assert.deepEqual(adrCorpus(root).map(r => path.basename(r.file)), ['2026-08-17-dated.md'],
     'a dated document is a record only when it also says what was decided')
 
+  // An ARCHIVE is history, never a work order. Measured 2026-08-29 on a consumer
+  // corpus where this listed 75 archived task files as executable next work —
+  // including a record archived precisely because re-running its acceptance would
+  // stamp July's work with today's date, which that project's own README calls
+  // "the fabrication hole with better formatting" (docs/BACKLOG.md §62).
+  const archived = await mkdtemp(path.join(testTmp, 'quality-archive-'))
+  await mkdir(path.join(archived, 'docs', 'adr-archive', 'ADR-012', 'tasks'), { recursive: true })
+  await mkdir(path.join(archived, 'docs', 'adr', 'ADR-020', 'tasks'), { recursive: true })
+  await writeFile(path.join(archived, 'docs', 'adr-archive', 'ADR-012.md'), record('ADR-012: old'))
+  await writeFile(path.join(archived, 'docs', 'adr-archive', 'ADR-012', 'tasks', 'T1.md'), task)
+  await writeFile(path.join(archived, 'docs', 'adr', 'ADR-020.md'), record('ADR-020: live'))
+  await writeFile(path.join(archived, 'docs', 'adr', 'ADR-020', 'tasks', 'T1.md'), task)
+  const scoped = observe(archived)
+  assert.deepEqual(scoped.ready.map(f => path.basename(path.dirname(path.dirname(f)))), ['ADR-020'],
+    `an archived task is history, not next work:\n${scoped.ready.join('\n')}`)
+  // The must-fail direction: the live task under a NON-archive directory is still
+  // found, so this is a scope filter and not a walker that stopped walking.
+  assert.equal(scoped.tasks, 1, 'the archived task file is out of scope entirely')
+
   // And the sentence that makes the next instance self-diagnosing. A corpus the
   // record walker cannot read at all must SAY so: two walkers over one corpus
   // disagreeing (tasks found, records zero) is provable from the numbers alone,

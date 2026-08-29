@@ -2517,6 +2517,33 @@
       ],
       "from": "    return number < cutoff",
       "to": "    return (number or cutoff) < cutoff"
+    },
+    {
+      "label": "deltas: an arm from another invocation is never a comparison",
+      "file": "scripts/eval-deltas.mjs",
+      "tests": [
+        "tests/eval-deltas.test.mjs"
+      ],
+      "from": "        delta: withArm.length && baseline.length\n          ? mean(withArm) - mean(baseline)\n          : null,",
+      "to": "        delta: withArm.length || baseline.length\n          ? mean(withArm.length ? withArm : [0]) - mean(baseline.length ? baseline : [0])\n          : null,"
+    },
+    {
+      "label": "deltas: a case that swings across invocations is called bimodal",
+      "file": "scripts/eval-deltas.mjs",
+      "tests": [
+        "tests/eval-deltas.test.mjs"
+      ],
+      "from": "    if (spread >= BIMODAL_SPREAD) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "deltas: no results is could-not-look, not no-effect",
+      "file": "scripts/eval-deltas.mjs",
+      "tests": [
+        "tests/eval-deltas.test.mjs"
+      ],
+      "from": "    process.stdout.write(asJson ? JSON.stringify({ read: null, cases: [] }, null, 2) + '\\n' : message)",
+      "to": "    process.stdout.write(asJson ? JSON.stringify({ read: 0, cases: [] }, null, 2) + '\\n' : '')"
     }
   ]
 }

@@ -5,12 +5,7 @@
 **Owner:** Zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/adr/ADR-008-the-plugin-is-not-the-repository.md, docs/BACKLOG.md §33
-**Governs:** None — declared by its tasks
-
-<The file this decision is about does not exist yet, and a `Governs:` naming it would resolve to
-nothing for as long as the record is Proposed — which is exactly what `adr-lint` reports and what
-`tests/gate-regressions.py::every pointer in this corpus resolves` refuses. Set to
-`plugin/bin/qh-mcp` when T1 lands and the path is tracked.>
+**Governs:** `plugin/bin/qh-mcp`
 **Enforced-by:** None — the checks ship with T1–T3, and naming one before it exists would name a check that cannot fail (ADR-009). Set on acceptance and execution.
 **Invalidates:** none — checked
 **Served-path change:** A user of plain Claude Desktop, which has no shell, can run this project's reading gates against a corpus on their own machine; today they can run none of them.

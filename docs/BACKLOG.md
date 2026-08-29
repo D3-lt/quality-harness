@@ -1869,7 +1869,7 @@ opposite of this project's standing rule — and the reason here is better than 
 user with no next move. He concedes the tooling in that class is cloud-security rather than
 architecture boundaries, "a documented gap, not a ready solution".
 
-## 44. Three pointers nothing resolves
+## 44. PARTLY CLOSED 2026-08-29 — one pointer left, and a backfill nobody should rush
 
 **Deferred here by ADR-009** (`docs/adr/ADR-009-a-decision-names-what-enforces-it.md`, Out of Scope,
 and by both its tasks).
@@ -1894,7 +1894,7 @@ lack it** — unchanged in its reasoning, seven judgements that must not be made
 shipping a mechanism — and **resolving a `§NN` fragment in `Cross-references:` to a heading in the
 file it names**, which ADR-011 resolves the file for and the fragment not at all.
 
-## 45. A `Governs:` path that names nothing is not reported
+## 45. CLOSED 2026-08-29 — a `Governs:` path that names nothing is now reported
 
 **Found while executing ADR-008 T2, 2026-08-28, and it is §44's third pointer wearing a different
 hat.** Moving the plugin under `plugin/` re-anchored every path in the repository — and silently
@@ -1914,7 +1914,26 @@ Advice, never blocking, for the reason ADR-009 gives: a corpus adopting this on 
 write will light up, and a gate that fails on day one is a gate people switch off. A glob (`bin/**`)
 resolves when it matches at least one file.
 
-## 46. An acceptance fence that passes when its runner never starts
+**CLOSED 2026-08-29 by ADR-011** (`docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md`,
+Accepted, both tasks carrying tool-written evidence). `adr-lint::check_pointers` resolves every
+declared path against `git ls-files` — never the filesystem, because a path check over the disk
+answers "is this on THIS machine" (ADR-008) — and advises when one matches nothing. A glob resolves
+on at least one match, exactly as this entry asked. `adr-state` reports the same thing from the tool
+that answers *what governs what*, which is where the original failure was visible: it had less to
+say, and less to say reads as a clean corpus.
+
+Measured in both directions, because a check that reports clean must be shown able to report dirty:
+silent on all eleven records here, and on a clone with ADR-003's `Governs:` pointed at
+`tests/mutations-GONE.json` both the lint and `adr-state` name the miss. The catalogue carries
+`lint: a Governs path that matches nothing tracked is reported` — which is also the string ADR-011's
+own `Enforced-by:` header names, so the record's pointer to its own check resolves.
+
+Left open deliberately, and named in ADR-011's Out of Scope: making this BLOCKING. It stays advice
+for the reason this entry gives and one ADR-011 adds — a blocking version would have failed this
+entire corpus for the two days after ADR-008 moved the tree, during which nothing was wrong with any
+record.
+
+## 46. CLOSED 2026-08-28 — an acceptance fence that passed when its runner never started
 
 **CLOSED 2026-08-28.** The template now recommends `set -o pipefail` and `&&`; the ten fences that
 inherited the broken form are repaired, and each was re-recorded — a fresh killed mutant and a fresh

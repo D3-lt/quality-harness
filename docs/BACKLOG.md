@@ -3771,6 +3771,55 @@ fence rather than noticing that some exit-0 row exists.
 evidence that nothing was left behind, and NOT evidence that the multi-line refusal works. That
 narrowing came from the reporter, unprompted, against their own clean result.
 
+## 69. CLOSED 2026-08-29 — three checks in one gate disagreed about "passing evidence"
+
+**Found by wcag-43 while proving §65 could fire at all**, which is the part worth copying: a zero-hit
+sweep is worthless without a positive control, so they built one — a task pointing its Affected Files
+at `.venv/injected_probe.py` with `.venv/` ignored — and it took three fixture attempts. **The
+failures were the finding.**
+
+With the ignored path, the task marked `done`, and a `· human-observed ·` row, §65 stayed silent.
+With a `· <sha> · exit 0 · \`cmd\`` row instead — same task, same bash fence, same ignored path — it
+fired. And in the same run, on the same human-observed row, two OTHER checks in the same file did
+fire: the tests-exist rule and the mutation-log requirement. They tested their first hypothesis
+("human-observed exempts the task") and it broke, which is what turned this from an impression into a
+finding.
+
+So three checks shared the concept *has passing acceptance evidence* and one drew the line somewhere
+else. **Relabelling a task to human-observed silently bought exemption from one check and not the
+others** — and relabelling is exactly the escape hatch §60 already records as feeling like an escape
+hatch. This is a concrete cost of taking it.
+
+**Their argument for which line is wrong is the one I took**, and it comes from this check's own
+docstring: the point is that an acceptance fence runs against the WORKTREE and an ignored file will
+never be in the commit. A human ran that fence against the same worktree. The reasoning applies
+identically — arguably more so, since a hand-run fence leaves no tool-written record of what it
+touched. Their live corpus has a task of exactly that shape, invisible to §65 while visible to the
+other two.
+
+Fixed: a `· human-observed ·` row is passing evidence for this check as well. Asserted through
+`adr-lint` on a corpus whose only evidence row is human-observed.
+
+### The rest of that re-test, recorded because the negatives were earned
+
+**Tests-exist is stable across both matcher changes**: 15 rows, and they PREDICTED 15 before running
+because they had repaired 3 of the original 18. The delta is fully explained by their own edits — no
+drift from the BDD addition or from the caller that stopped pre-stripping string literals.
+
+**§65 on the real corpus: 1096 distinct Affected-Files cells harvested, 0 ignored, 0 false
+positives** — with the positive control above proving the rule can fire.
+
+**§60's rejection message shortens the moment it was built for**, from the person who lost minutes to
+the old one: *"matches up to character 45, then stops at: (0 import-graph violations)"* points at the
+only part that was wrong. They also note a row matching nothing from character 0 still falls back to
+the prefix quote, which is correct — there is no partial match to report.
+
+**And their own method error, disclosed unprompted:** their first sweep reported 0 harvested paths
+and they nearly sent "0 hits" off it — the harvest had failed on a shell glob error, so they had
+measured nothing and it looked exactly like a clean result. The 1096 figure is the corrected run,
+positive-controlled against a path known to be ignored. That is the third session today to catch a
+false all-clear in their own instrument before reporting it.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

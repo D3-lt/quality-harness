@@ -18,7 +18,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | resolve Governs, Cross-references and Invalidates in adr-lint | pending | — | `python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .` |
+| T1 | resolve Governs, Cross-references and Invalidates in adr-lint | done | — | `python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .` |
 | T2 | make adr-state say a Governs path resolves to nothing | pending | — | `node --test tests/lifecycle.test.mjs` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.

@@ -110,6 +110,7 @@ must come from the same rules as `lifecycle.mjs::globToRegExp`, which is what th
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-29 · a60cb12* · mutant killed · exit 1 · `plugin/bin/adr-lint` · removes the resolution entirely: a Governs path that matches nothing tracked reads as fine · acceptance-sha256:b3245ec602c75d77450e2628ea3ec612ff7a784b9851ef20fbdeea8f6b3ad5f0
 
 ## Invariants
 
@@ -140,3 +141,4 @@ resolve against git rather than the filesystem should be re-taken rather than fo
 ## Verification Log
 
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-29 · a60cb12 · exit 0 · `python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .` · acceptance-sha256:b3245ec602c75d77450e2628ea3ec612ff7a784b9851ef20fbdeea8f6b3ad5f0

@@ -80,6 +80,8 @@ CLAUDE.md §4 names.
 
 ## Mutation Log
 
+- 2026-08-29 · efbdf9e* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · the read-only annotation is derived from the registrar, not decorative · acceptance-sha256:ed303569a13d46395b3f84d5f1f5f95d5648b5842eaab2e7b0a335b0801001be
+
 ## Invariants
 
 - Stdout carries JSON-RPC and nothing else.
@@ -110,3 +112,4 @@ both halves.
 - Result vocabulary — that is T3.
 
 ## Verification Log
+- 2026-08-29 · efbdf9e · exit 0 · `set -o pipefail …` · acceptance-sha256:ed303569a13d46395b3f84d5f1f5f95d5648b5842eaab2e7b0a335b0801001be

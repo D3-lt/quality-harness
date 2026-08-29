@@ -22,7 +22,7 @@ Four tasks, sequential — each consumes the one before it.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A stdio JSON-RPC core whose read-only annotation cannot disagree with its registration | pending | — | `node --test tests/mcp-server.test.mjs` |
+| T1 | A stdio JSON-RPC core whose read-only annotation cannot disagree with its registration | done | — | `node --test tests/mcp-server.test.mjs` |
 | T2 | Register the five reading gates, and make the two executing ones unregisterable | pending | — | `node --test tests/mcp-server.test.mjs` |
 | T3 | A finding is content; the error channel is reserved for a gate that could not run | pending | — | `node --test tests/mcp-server.test.mjs` |
 | T4 | Package the server, and measure whether a real Claude Desktop can use it | pending | — | human-observed |
@@ -48,6 +48,8 @@ Status: `pending` | `running` | `blocked` | `done` | `failed`.
   it, which is why it is last.
 - T4 also takes a measurement another project has had pending for a week — whether Desktop surfaces
   `server.WithInstructions`. Report it back to that corpus whichever way it goes.
-- `Governs:` on the parent record is deliberately `None — declared by its tasks` until T1 lands. A
-  Proposed record cannot govern a file it has not shipped, and declaring one would resolve to nothing
-  for as long as the record is Proposed.
+- `Governs:` on the parent record was `None — declared by its tasks` until T1 landed; it is now
+  `plugin/bin/qh-mcp`, set in the same commit that made the path tracked. The Windows shim and the
+  packaging-list edits moved from T4 to T1 for the same reason — the packaging suite asserts a shim
+  and a mutation catalogue entry per `bin/` entry, so both went red the moment the gate existed.
+  `adr-lint` refused the duplicate `add` and is what caught it.

@@ -208,6 +208,50 @@ table('C3 fires when every consequence is upside', [
   [['C3'], 'praise only', { consequences: 'The pipeline becomes simpler and easier for everyone.' }],
 ])
 
+test('a rule with nothing to judge is named, not counted as a pass', () => {
+  // Reported 2026-08-29 from an adopting corpus. A record with NO
+  // `## Alternatives Considered` section at all got adr-lint exit 1
+  // ("Alternatives Considered has no entries") and adr-judge exit 0
+  // ("evidence and clarity rules all pass"). Both verdicts were defensible and
+  // the second was unreadable: "all pass" says the reasoning was examined and
+  // holds, when the rule that examines it had nothing to run on. A maintainer
+  // who runs judge and not lint concludes the record is sound. ADR-005's class
+  // inside the judge — vacuous truth reported as a verdict.
+  //
+  // The `judge()` helper above always writes all four sections, which is what
+  // makes it useful everywhere else and useless here: this rule is about a
+  // section that is ABSENT, so the record has to be written whole.
+  const raw = body => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'qh-judge-raw-'))
+    temps.push(dir)
+    const path = join(dir, 'ADR-051.md')
+    writeFileSync(path, body)
+    const [file, argv] = process.platform === 'win32' && GATE_NAMES.has('adr-judge')
+      ? ['python3', [join(bin, 'adr-judge'), path]]
+      : ['adr-judge', [path]]
+    return spawnSync(file, argv, { env, encoding: 'utf8', timeout: 60_000 })
+  }
+  const head = ['# ADR-051: Probe', '', '**Status:** Proposed', '',
+    '## Context', '', 'Measured 2026-08-29 against docs/x.md: 12 of 40.', '',
+    '## Decision', '', 'We will ship the thing.', '']
+
+  const absent = raw([...head, '## Consequences', '', '- Negative: it costs a round trip.', ''].join('\n'))
+  assert.equal(absent.status, 0, `the judge never blocks, vacuum or not:\n${absent.stdout}`)
+  assert.doesNotMatch(absent.stdout, /all pass/,
+    `a rule that could not run is not a rule that passed:\n${absent.stdout}`)
+  assert.match(absent.stdout, /UNJUDGED E2/, absent.stdout)
+  assert.match(absent.stdout, /nothing to judge/, absent.stdout)
+
+  // AND THE CLEAN ANSWER, so the headline is shown able to say the other thing.
+  // Without it, printing the vacuum unconditionally would satisfy every
+  // assertion above (CLAUDE.md §4).
+  const whole = raw([...head,
+    '## Alternatives Considered', '', '- Doing nothing: rejected because it costs a round trip.', '',
+    '## Consequences', '', '- Negative: it costs a round trip.', ''].join('\n'))
+  assert.match(whole.stdout, /all pass/, whole.stdout)
+  assert.doesNotMatch(whole.stdout, /UNJUDGED/, whole.stdout)
+})
+
 test('a record that passes every rule stays silent, and the gate never blocks', () => {
   const { fired, stdout } = judge({})
   assert.deepEqual(fired, [])

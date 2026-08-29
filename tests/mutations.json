@@ -2990,9 +2990,9 @@
       "label": "verify: a fence that never returned is UNRUN, not a verdict",
       "file": "plugin/bin/adr-verify",
       "tests": [
-        "tests/gates.test.mjs"
+        "tests/evidence-chain.test.mjs"
       ],
-      "from": "                               timeout=FENCE_TIMEOUT_DEFAULT)",
+      "from": "                               timeout=fence_timeout())",
       "to": "                               timeout=None)"
     }
   ]

@@ -4,7 +4,8 @@
 // and the framing is exactly where a hand-written JSON-RPC server goes wrong.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -244,4 +245,46 @@ test('every argument a handler honours is declared in that tool schema', () => {
   // An undeclared argument is refused rather than silently honoured.
   const reply = call('qh_adr_lint', { adr: join(fixture, 'ADR-001-selftest.md'), bogus: 'x' })
   assert.ok(reply.error || reply.result.isError, 'an undeclared argument was accepted')
+})
+
+// --- ADR-012 T3: which channel a run uses -----------------------------------
+
+// A finding is content; the error channel is reserved for a gate that could not
+// run. Both halves are asserted here, and they must both run: a server hard-coded
+// to `isError: false` passes the first alone, and one hard-coded to `true` passes
+// the second alone. Only the pair measures the decision.
+test('a gate that ran and found something returns content, and one that could not run does not', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-mcp-'))
+  const incomplete = join(dir, 'ADR-999-incomplete.md')
+  // Enough of a record to be recognised and not enough to pass: adr-lint reports
+  // findings and exits 1. That is a gate that WORKED.
+  writeFileSync(incomplete, '# ADR-999: a record with nothing behind it\n\n**Status:** Proposed\n')
+
+  const found = call('qh_adr_lint', { adr: incomplete })
+  assert.equal(found.error, undefined, `a gate with findings must not reach the error channel: ${JSON.stringify(found.error)}`)
+  assert.equal(found.result.isError, false, 'findings are advice, not a broken tool')
+  const text = found.result.content.map(part => part.text).join('')
+  assert.match(text, /exit 1/, 'the exit code must be stated, not left to be inferred from output')
+
+  // The other half: a path that is not there. The gate could not run, and that is
+  // not the same answer as "ran and found nothing" (ADR-005).
+  const absent = call('qh_adr_lint', { adr: join(dir, 'ADR-000-not-here.md') })
+  assert.ok(absent.error, 'a path that does not exist must not come back as a clean run')
+  assert.match(absent.error.message, /could not|does not exist/i, absent.error.message)
+  assert.doesNotMatch(absent.error.message, /\bfailed\b/i,
+    'a gate that could not run must not borrow the vocabulary of one that ran (ADR-005)')
+  assert.ok(absent.error.message.includes('ADR-000-not-here.md'), 'the error must name what was attempted')
+})
+
+test('gate output is returned verbatim', () => {
+  // A second opinion about a gate's output is a second gate, and this one has no
+  // mutations. Compare against the same gate run directly.
+  const adr = join(fixture, 'ADR-001-selftest.md')
+  const reply = call('qh_adr_lint', { adr, tasks_dir: join(fixture, 'tasks') })
+  const text = reply.result.content.map(part => part.text).join('')
+  const direct = spawnSync('python3', [join(bin, 'adr-lint'), adr, join(fixture, 'tasks')],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.ok(text.includes(direct.stdout), 'the server modified, summarised or graded the gate output')
+  assert.ok(text.includes('exit 0'))
+  assert.ok(text.includes(adr), 'the result must name which tree was read')
 })

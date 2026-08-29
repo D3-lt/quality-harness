@@ -2483,6 +2483,33 @@
       "to": "SHA_FIELD = r\"(?:[0-9a-f]{7,40}\\*?|no-git)\""
     },
     {
+      "label": "adr-lint: a section number is a whole number, not a prefix",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return re.search(rf\"^#{{1,6}}\\s+0*{number}\\b\", text, re.M) is not None",
+      "to": "    return re.search(rf\"^#{{1,6}}\\s+0*{number}\", text, re.M) is not None"
+    },
+    {
+      "label": "adr-lint: a cited section that does not exist is named",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif not has_section(body, number):",
+      "to": "        elif False:"
+    },
+    {
+      "label": "adr-lint: a bare fragment inherits the file cited beside it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if current:\n            pairs += [(current, int(n)) for n in SECTION_FRAGMENT.findall(pointer)]",
+      "to": "        if current and _looks_like_a_path(pointer.split()[0] if pointer.split() else ''):\n            pairs += [(current, int(n)) for n in SECTION_FRAGMENT.findall(pointer)]"
+    },
+    {
       "label": "verify: the sha grammar matches the one adr-lint reads with",
       "file": "plugin/bin/adr-verify",
       "tests": [

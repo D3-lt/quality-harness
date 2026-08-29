@@ -37,7 +37,7 @@ import re
 import subprocess
 import sys
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -1291,10 +1291,59 @@ def resolve_record_number(pointer, corpus_dir):
 def _looks_like_a_path(pointer):
     """A cited token that names a file rather than a section or a phrase.
 
-    `§45` names a heading and is deliberately not resolved (docs/BACKLOG.md §44);
-    guessing at it would turn a legitimate citation into a finding.
+    `§45` is a fragment OF the file cited beside it, not a file of its own;
+    `section_fragments` pairs it back up and `check_pointers` resolves it there.
     """
     return bool(re.search(r"[/\\]", pointer) or re.search(r"\.\w+$", pointer))
+
+
+SECTION_FRAGMENT = re.compile(r"§\s*(\d+)")
+
+
+def section_fragments(pointers):
+    """Each `§NN` fragment paired with the path it is a fragment of.
+
+    `Cross-references: docs/BACKLOG.md §44, §45` splits into three items, and the
+    bare `§45` inherits its file from the item before it — which is how every
+    multi-section citation in this corpus is written. A fragment with no path
+    ahead of it names nothing resolvable and is dropped rather than guessed at,
+    for the reason ADR-005 gives: a guess that lands wrong reads as a finding.
+    """
+    pairs = []
+    current = None
+    for pointer in pointers:
+        head = pointer.split()[0].strip("`,") if pointer.split() else ""
+        if head and _looks_like_a_path(head) and not leaves_the_tree(head):
+            current = head
+        if current:
+            pairs += [(current, int(n)) for n in SECTION_FRAGMENT.findall(pointer)]
+    return pairs
+
+
+def has_section(text, number):
+    """Whether a markdown heading in `text` numbers this section.
+
+    The corpus writes them `## 44. Title`, and `## 34 (superseded).` is the one
+    that carries no period — so the digits are required and the punctuation after
+    them is not. `\\b` keeps `§4` from matching `## 44`, which a prefix test would
+    resolve happily and wrongly.
+    """
+    return re.search(rf"^#{{1,6}}\s+0*{number}\b", text, re.M) is not None
+
+
+def _read_pointed_file(root, relative):
+    """The text of a cited repository-relative path, or None when it cannot be read.
+
+    None is COULD NOT LOOK and never "the file says nothing" (ADR-005). Built
+    with `Path` rather than by joining separators, because a `/` written into a
+    literal is an assertion about the operating system (CLAUDE.md §7).
+    """
+    if root is None:
+        return None
+    try:
+        return (Path(root) / PurePosixPath(relative)).read_text(encoding="utf-8", errors="replace")
+    except OSError:
+        return None
 
 
 def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
@@ -1335,6 +1384,17 @@ def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
             if not any(path_matches_declaration(f, head) for f in tracked):
                 errors.advise(f"{path.name}: Cross-references: cites `{head}`, which no tracked "
                               f"file matches")
+    for relative, number in section_fragments(cross_reference_pointers(text)):
+        if not any(path_matches_declaration(f, relative) for f in tracked):
+            continue  # the loop above already named the path; one finding, not two
+        body = _read_pointed_file(root, relative)
+        if body is None:
+            errors.advise(f"{path.name}: Cross-references: cites `{relative} §{number}`, which was "
+                          f"NOT resolved — that file is tracked but could not be read from here. "
+                          f"This is 'I could not look', not 'the section is missing'")
+        elif not has_section(body, number):
+            errors.advise(f"{path.name}: Cross-references: cites `{relative} §{number}`, but that "
+                          f"file has no heading numbering section {number}")
     invalidated = invalidates_pointer(text)
     if invalidated and not resolve_record_number(invalidated, corpus_dir):
         errors.advise(f"{path.name}: Invalidates: names `{invalidated}`, which is not a record in "

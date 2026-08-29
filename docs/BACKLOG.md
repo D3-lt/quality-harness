@@ -1894,6 +1894,41 @@ lack it** — unchanged in its reasoning, seven judgements that must not be made
 shipping a mechanism — and **resolving a `§NN` fragment in `Cross-references:` to a heading in the
 file it names**, which ADR-011 resolves the file for and the fragment not at all.
 
+**Backfill DONE 2026-08-29. All eleven records now name what catches a violation, and every pointer
+resolves.** Chosen one record at a time by reading each Decision and asking what actually goes red
+when that decision is broken — not by scanning for a plausible label:
+
+| record | the check it names | form |
+|---|---|---|
+| ADR-001 | `link: no skill is ever linked` | mutation |
+| ADR-002 | `verify: a killed mutant run is journalled so the next one restores it` | mutation |
+| ADR-003 | `tests/package.test.mjs::every shipped gate carries at least one mutation` | **test** |
+| ADR-004 | `link: no template is linked either` | mutation |
+| ADR-005 | `spec-verify: a test that never ran is not reported as failing` | mutation |
+| ADR-006 | `mutate: a verdict against a failing baseline is not counted as noticed` | mutation |
+| ADR-007 | `lint: a cross-record dependency must resolve to a real task`, `next: a foreign dependency that is not done blocks` | mutation ×2 |
+| ADR-010 | already carried one | mutation |
+
+**Nine of the ten pointers are catalogue labels, which is the strongest form** — the campaign grades
+each RED or GREEN on every run, so the claim is measured rather than asserted. `adr-context
+plugin/bin/adr-lint` now answers with four governing records and the check that catches each, which
+is the chain ADR-009 was built for, finally complete.
+
+**ADR-003's is the weak one, and it is labelled weak deliberately.** Its decision is "every gate
+asserts an observable property that no restructuring can satisfy" — a property no single mutation can
+enforce, because it is about the SHAPE of every future check rather than about one mechanism. The
+test it names enforces the PROXY: every shipped gate must carry at least one mutation, and a shape
+assertion cannot carry one that fails. That is real enforcement and it is not the same thing, so the
+record says `test` rather than pretending to a measured claim.
+
+**§44 asked which records would honestly answer `None`, and the answer here is none of them** — which
+is a fact about this corpus rather than a general one. Every decision in it is about a mechanism the
+campaign already mutates. A corpus of "we chose Postgres" decisions would answer `None` far more
+often, and ADR-009 is explicit that this is a first-class answer.
+
+**Still open:** resolving a `§NN` fragment in `Cross-references:` to a heading in the file it names.
+ADR-011 resolves the file and leaves the fragment alone rather than guessing at it.
+
 ## 45. CLOSED 2026-08-29 — a `Governs:` path that names nothing is now reported
 
 **Found while executing ADR-008 T2, 2026-08-28, and it is §44's third pointer wearing a different

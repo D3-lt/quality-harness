@@ -3648,6 +3648,32 @@ Asserted in both directions plus both could-not-look cases: without the tracked-
 `lint: a git probe that could not run is not 'nothing is ignored'` and
 `lint: an evidenced task whose Affected Files are ignored is reported`.
 
+### Measured on three corpora, in both directions
+
+The rule now has the evidence a new advisory check needs before anyone trusts it:
+
+- **The defect tree that produced it.** A detached worktree at the original commit — bare
+  `crossagentschat` pattern, `cmd/` absent from the checkout — produces the advice for both
+  `main.go` and `main_test.go`, naming the pattern. On the fixed tree (anchored `/crossagentschat`,
+  both files committed) every one of those lines is gone. It catches the defect it was built for and
+  stops when the tree is fixed.
+- **A 77-record Python corpus: 1096 distinct Affected-Files cells harvested, 0 ignored, 0 false
+  positives** — with a synthetic positive proving the rule can fire at all, because a zero-hit sweep
+  without a positive control is worth nothing.
+- **A JS two-sided fixture**, which is the case none of us could produce from a real corpus: bare
+  `dist`, `logs`, `node_modules` patterns, two tasks identical apart from their Affected Files row,
+  both with real `adr-verify` evidence. The one naming `dist/bundle.js` is advised; the one naming
+  `src/app.js` is silent. Same corpus, same commit, same `.gitignore`.
+
+That last one matters because `dist` and `logs` are the two patterns nearly every JS repository has
+bare, and both are plausible Affected-Files locations for a build- or log-related task — so the trap
+this rule catches is not exotic there, it is the default configuration.
+
+**Why the message is the half that earns the rule**, in the reporter's words: it names the pattern
+that matched, so nobody hunts through `.gitignore`; it states the CONSEQUENCE rather than the rule —
+*a task that verifiably passed and cannot be reproduced by anyone who clones*; and it gives the fix
+with the reason a bare pattern differs.
+
 **Their stronger idea is deliberately NOT taken yet:** a post-commit `git ls-files` assertion would
 catch the whole class rather than the ignored subset, but it needs a hook at a point this harness
 does not own, and it changes what `adr-verify` means — that tool records what a command did, and

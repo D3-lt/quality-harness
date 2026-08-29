@@ -3082,8 +3082,17 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if value.lower() in KNOWN_TASK_STATUS or found not in infos:",
+      "from": "        if status_word(value) in KNOWN_TASK_STATUS or found not in infos:",
       "to": "        if True:"
+    },
+    {
+      "label": "lint: a status is read as its word, not as the whole decorated cell",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    lead = re.match(r\"[\\s*_`~]*([A-Za-z][A-Za-z-]*)\", cell or \"\")",
+      "to": "    lead = re.match(r\"([A-Za-z][A-Za-z-]*)\", cell or \"\")"
     }
   ]
 }

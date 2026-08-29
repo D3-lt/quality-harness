@@ -41,8 +41,15 @@ SECTIONS = ["Problem", "Goal", "Actors", "Use Cases", "Scenarios", "Facts", "Dom
             "Contracts Touched", "Non-Goals", "Risks", "Open Questions", "Verify",
             "Grill Log (appendix)"]
 UC_RE = re.compile(r"^### UC-(\d+):")
+# The trailing ``cmd:`…` `` is a scenario's RUNNER OVERRIDE, and it is optional.
+# A fact can override its runner in the Cmd column of its row; a scenario is a
+# HEADING and had no column to put one in, so a scenario binding had no authoring
+# escape at all (docs/BACKLOG.md §38, open since 2026-08-23). A corpus whose stack
+# `detect_stack` does not know — a Go one, say — could be told honestly that its
+# facts could not be adjudicated AND given a way to fix that, while its scenarios
+# had neither.
 SCEN_RE = re.compile(r"^### UC(\d+)-S(\d+) \[(happy|failure)\] (.+?) \[@(draft|spec|implemented)\]"
-                     r" (?:→|->) `([^`]+)`\s*$")
+                     r" (?:→|->) `([^`]+)`(?: +cmd:`([^`]+)`)?\s*$")
 SCEN_HEAD_RE = re.compile(r"^### UC\d+-S\d+")
 FACT_RE = re.compile(r"^\|\s*(F-\d+)\s*\|(.+)$")
 GRILL_RE = re.compile(r"^\|\s*\d+\s*\|(.+)$")
@@ -474,7 +481,7 @@ def test_exists(test, root, stack, collect):
                            encoding="utf-8", errors="replace")
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return "unrun", (f"the {stack} collector could not be run ({e}). Install it, drop "
-                         "--collect to inspect the source instead, or give the fact a Cmd "
+                         "--collect to inspect the source instead, or give the binding a "
                          "override; nothing here says whether the test exists.")
     if r.returncode != 0 and not r.stdout.strip() and not r.stderr.strip():
         # Exited nonzero and said nothing at all. That is a collector that fell
@@ -515,9 +522,10 @@ def test_runs(test, root, stack, override_cmd):
     # found". The tests were all passing. A gate that reports RED for a passing corpus teaches
     # people to stop reading it.
     #
-    # The Cmd column can override this per FACT, but scenarios have no Cmd column at all, so no
-    # amount of authoring could have fixed it. The test's own path is the honest signal: it says
-    # which project it lives in, and therefore which runner owns it.
+    # A binding can override this — a fact through its `Cmd` cell, a scenario through the trailing
+    # cmd:`…` on its heading — but an override is authoring, and this case needed none: the test's
+    # own path is the honest signal, saying which project it lives in and therefore which runner
+    # owns it. The overrides are the escape when the path cannot answer.
     cwd = root
     local = path_stack(root, path)
     if local is not None:
@@ -539,10 +547,11 @@ def test_runs(test, root, stack, override_cmd):
         "molecule": ["molecule", "test", "-s", name],
     }
     if stack is None:
-        return "unrun", (f"no runner detected for this repository, and {test} has no Cmd "
-                         "override. Add a Cmd cell to the fact's row with the exact command "
-                         "that runs it, or bind the fact to a test under a directory whose "
-                         "project markers name a runner spec-verify knows.")
+        return "unrun", (f"no runner detected for this repository, and {test} has no command "
+                         "override. Give the binding one — a `Cmd` cell on a fact's row, or "
+                         "a trailing cmd:`<command>` on a scenario heading — or bind it to a "
+                         "test under a directory whose project markers name a runner "
+                         "spec-verify knows.")
     try:
         r = subprocess.run(cmds[stack], cwd=cwd, capture_output=True, text=True, timeout=1800,
                            encoding="utf-8", errors="replace")
@@ -621,8 +630,9 @@ def check_spec(path, mode, root_override, collect):
                 errors.advise(f"scenario heading does not match grammar "
                               f"'### UCn-Sm [happy|failure] <title> [@tag] → `test`': {line.strip()}")
                 continue
-            uc, s, kind, title, tag, test = m.groups()
-            scenarios.append(dict(uc=uc, id=f"UC{uc}-S{s}", kind=kind, tag=tag, test=test))
+            uc, s, kind, title, tag, test, cmd = m.groups()
+            scenarios.append(dict(uc=uc, id=f"UC{uc}-S{s}", kind=kind, tag=tag, test=test,
+                                  cmd=(cmd or "").strip() or None))
             if uc not in ucs:
                 errors.append(f"scenario UC{uc}-S{s} references unknown UC-{uc}")
             if is_unbound(test) and tag != "draft":
@@ -682,7 +692,7 @@ def check_spec(path, mode, root_override, collect):
               if ln.strip() and not ln.strip().startswith("<!--")]
         if oq:
             errors.append(f"Open Questions not empty ({len(oq)} line(s)) — required for Ready-for-ADR")
-        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=None)
+        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=sc["cmd"])
                              for sc in scenarios]:
             if item["tag"] == "draft":
                 errors.append(f"{item['id']}: still @draft — bind a test (TDD red is fine) "
@@ -690,7 +700,7 @@ def check_spec(path, mode, root_override, collect):
 
         root = repo_root(Path(path), root_override)
         stack = detect_stack(root)
-        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=None)
+        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=sc["cmd"])
                              for sc in scenarios]:
             if item["tag"] in ("spec", "implemented") and not is_unbound(item["test"]):
                 ok, why = test_exists(item["test"], root, stack, collect)
@@ -702,7 +712,7 @@ def check_spec(path, mode, root_override, collect):
     if mode == "implemented":
         root = repo_root(Path(path), root_override)
         stack = detect_stack(root)
-        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=None)
+        for item in facts + [dict(id=sc["id"], test=sc["test"], tag=sc["tag"], cmd=sc["cmd"])
                              for sc in scenarios]:
             if item["tag"] == "implemented" and not is_unbound(item["test"]):
                 verdict, why = test_runs(item["test"], root, stack, item["cmd"])

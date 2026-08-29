@@ -2555,6 +2555,15 @@
       "to": "    return text[end:].strip() == \"\""
     },
     {
+      "label": "adr-lint: a disposition that wraps is read whole, not judged on its first line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            current += \" \" + line.strip()",
+      "to": "            pass"
+    },
+    {
       "label": "adr-debt: a disposition still has to close the bullet",
       "file": "plugin/bin/adr-debt",
       "tests": [
@@ -2571,6 +2580,24 @@
       ],
       "from": "                if depth == 0:\n                    return text[opening.start() + 1:i], opening.start(), i + 1",
       "to": "                return text[opening.start() + 1:i], opening.start(), i + 1"
+    },
+    {
+      "label": "adr-debt: a deferral pointer resolves on its leading record id",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    lead = re.match(r\"^(ADR-?\\s?\\d+)(?![\\w-])\", p, re.I)",
+      "to": "    lead = None"
+    },
+    {
+      "label": "adr-debt: a disposition in the wrong place is not an empty one",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                elif span and re.match(r\"deferred\\b\", span[0] or \"\"):",
+      "to": "                elif False:"
     },
     {
       "label": "adr-retire-check: a disposition's parentheses are balanced, not just the last run",

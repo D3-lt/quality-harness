@@ -2841,6 +2841,15 @@
       ],
       "from": "    elif not re.search(r\"\\b(tests?|red|fail(s|ed|ing|ure)?)\\b\", steps[0], re.I):",
       "to": "    elif \"test\" not in steps[0].lower():"
+    },
+    {
+      "label": "mutate: a kill reports which test fired, and a file-level failure is not one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    .filter(name => !/[\\\\/]|\\.(mjs|js|py|cjs)$/.test(name))",
+      "to": "    .filter(() => true)"
     }
   ]
 }

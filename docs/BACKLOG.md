@@ -2855,7 +2855,7 @@ did not reproduce in the population sampled, which is the wrong order. It become
 first time a test-named claim in this corpus fails the probe — or when somebody measures the
 wrong-thing-kills-it candidate above.
 
-## 54. OPEN — the recorded failure block can contain none of the failure
+## 54. CLOSED 2026-08-29 — the recorded failure block could contain none of the failure
 
 **Reported 2026-08-29 by the infrastructure-06 session** from
 `/Users/…/TakeOnline/infrastructure` (a private corpus, not this one), and **reproduced here on
@@ -3229,7 +3229,37 @@ not available and the alternative is a permanent misread.
 
 **Original framing, kept because it was the state before the third report:**
 
-**Not fixed here, because the right fix is a decision.** §47 closed the case where `adr-verify` wrote
+### CLOSED 2026-08-29 — a labelled tail per stream, and a timeout reported as UNRUN
+
+`failure_tail` keeps the last ten lines of EACH stream, labelled, and states the total when lines
+were dropped so a truncated tail cannot read as the whole run. Interleaving is genuinely lost — two
+captured pipes cannot be re-woven — so the block says which stream each part came from rather than
+implying an order nobody observed. An empty stream is omitted rather than labelled, which is the
+must-fail direction: without it, "always emit both headers" satisfies every other assertion while
+saying nothing about what was captured. The environment note now goes into the recorded text as well
+as the printed text, because building the block per stream meant anything appended to the merged
+string alone reached the reader and never the file.
+
+Both recording runs now carry a timeout, which only `sweep_corpus` had. A fence that never returned
+is **UNRUN and nothing is written**: it has not judged the code, and an entry claiming a run that did
+not finish is worse than no entry. What the process had produced when it was killed is printed,
+because `TimeoutExpired` carries it and a hang with no output at all is the case this exists to stop
+being. The `--mutant` path gets the same verdict and its file is restored — a timeout that left the
+tree mutated would be worse than no timeout.
+
+**The timeout is a PARAMETER** (`QUALITY_HARNESS_FENCE_TIMEOUT`), and that is not a convenience: the
+campaign came back GREEN on the first version because no test can wait thirty minutes, so the branch
+had no seam and therefore no test. A value that is not a positive integer is ignored rather than
+honoured, so a typo cannot silently restore the hang.
+
+**Three of today's four GREEN mutations were the same mistake**, and it is worth naming as a habit
+rather than as three incidents: the assertion drove the helper while the catalogue entry named a test
+file that never exercises the changed path. The tell is available before the campaign runs — if the
+`tests` of a catalogue entry do not contain a test that CALLS the changed line, the entry is decoration.
+
+**Original framing, kept as the state before the work:**
+
+**Not fixed in this commit, deliberately.** §47 closed the case where `adr-verify` wrote
 an entry `adr-lint` rejected, and the standing lesson from it is that the writer and the readers must
 agree on what an entry IS. This is the same shape one level up: two READERS, one grammar, two
 answers. Either the legacy allowance is real — in which case `adr-next` must implement it, and the

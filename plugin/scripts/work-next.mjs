@@ -79,6 +79,15 @@ function taskFiles(directory) {
     try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return }
     for (const entry of entries) {
       const child = path.join(dir, entry.name)
+      // An ARCHIVE is history, never a work order (CLAUDE.md §10). `adr-state`
+      // and `adr-context` read archives deliberately — they answer "what was
+      // decided, and what was killed" — but this reader answers "what should be
+      // done next", and an archived task is by definition not that. Measured
+      // 2026-08-29 on a consumer corpus where this listed 75 archived tasks as
+      // executable next work, including a record archived precisely because
+      // re-running its acceptance would stamp July's work with today's date
+      // (docs/BACKLOG.md §62).
+      if (entry.isDirectory() && /(^|[-_])archive(d|s)?$|^archive/i.test(entry.name)) continue
       if (entry.isDirectory()) walk(child, depth + 1)
       else if (entry.name.toLowerCase().endsWith('.md') && /[\\/]tasks[\\/]/.test(child)
         && !/readme\.md$/i.test(entry.name)) found.push(child)

@@ -2913,6 +2913,15 @@
       ],
       "from": "    for end in range(len(line), 0, -1):",
       "to": "    for end in range(0, 0, -1):"
+    },
+    {
+      "label": "next: an archived task is history, never the next thing to do",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (entry.isDirectory() && /(^|[-_])archive(d|s)?$|^archive/i.test(entry.name)) continue",
+      "to": "      if (false) continue"
     }
   ]
 }

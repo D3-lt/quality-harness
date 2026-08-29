@@ -3409,6 +3409,70 @@ backticked identifier in `Produces:`/`Consumes:` — the fields that already car
 resolved against `git grep`, advisory, and silent when the token is not identifier-shaped. Ordered
 Steps prose is out of scope until somebody shows a rule that does not drown a real corpus.
 
+## 62. CLOSED 2026-08-29 — `work-next` offered an ARCHIVE as the next thing to do
+
+**Reported by the playtrix-d2 session** from a monorepo with 40 live task files: `work-next` listed
+**75 archived task files** under `docs/adr-archive/` as executable next work. Reproduced here on a
+two-record fixture, fixed, and asserted in both directions.
+
+Its evidence rule was right — those files' Verification Log is literally `<Filled during
+execution.>` — and only the SCOPE was wrong. The reporting project created its archive on 2026-08-21
+to settle exactly this class: 37 tasks marked done with no exit-0 entry, where re-running acceptance
+would stamp July's work with today's date. Their README calls that **"the fabrication hole with
+better formatting"**, which is the best short statement of it anyone has written. So the tool was
+pointing sessions at the one directory built to keep them away.
+
+`adr-state` and `adr-context` read archives deliberately — they answer *what was decided and what was
+killed*. `work-next` answers *what should be done next*, and an archived record is by definition not
+that (CLAUDE.md §10). Two readers, two contracts, and this one had the wrong one. Enforced by
+`tests/lifecycle.test.mjs`, which asserts the archived task is out of scope AND that the live task
+beside it is still found — without the second, a walker that stopped walking would satisfy the first.
+Catalogue entry `next: an archived task is history, never the next thing to do`.
+
+**Their finding 1 is §58, independently confirmed on a third corpus and with the alternative ruled
+out.** 40/40 exact correlation: every task verified before 2026-08-25 carries no
+`acceptance-sha256`, and `adr-next` calls all 32 of them unverified; the two records verified after
+it report done. The apparent exception confirms the mechanism — a `human-observed` task takes the
+sign-off branch and is reported done without a digest. They checked the honest alternative (an
+Acceptance fence edited after its evidence, which would make the withholding CORRECT) by reading git
+log on five sampled task files: no commit touches an Acceptance block after its evidence date. So it
+is a format migration with no migration path, not a logic bug, and their framing of the choice is the
+one §58 now carries: teach the reader the legacy allowance `adr-lint` already documents, or ship a
+backfill. Three corpora have now reported it.
+
+## 63. OPEN — a surviving mutant exits 0
+
+**Reported 2026-08-29 by the klientams-front-v2-01 session** after running the first full mutation
+audit any consumer has done on this harness: 7 mutants, 5 killed first pass, **2 survived — and both
+survivors were the assertion the task's headline claim rested on.**
+
+`adr-verify --mutant` prints `NOT evidence: the fence passed with the mechanism broken` and records
+`mutant survived`, then **exits 0**. A script chaining on `&&` reads a survivor as success. In a
+pipeline whose whole discipline is that exit codes are load-bearing, that is the wrong code: a
+survivor is the finding, not the absence of one.
+
+**Not fixed in this release.** It is a behaviour change to a tool that writes evidence, and anything
+already chaining on it would flip. The argument for changing it is that no correct consumer can be
+relying on exit 0 meaning "survived", because that is precisely the case the tool exists to report.
+
+**What their survivors were is worth more than the flag.** T7's claim was "flipping one registry
+entry changes every chooser". Its test built a fixture registry, passed it to the selector, and
+asserted correctly — while the chooser the app actually renders is a module-scope constant built at
+import time from the DEFAULT registry, which a fixture argument never reaches. **The test exercised a
+parameter no production caller uses**, and beside it sat a comment asserting the equivalence in
+prose: *"Form and modal both render from offeredDeliveryTypes — one selector, two choosers"* — an
+argument standing where an assertion should be. T1's third literal was an ORDER produced by a rank
+table that exists for no other purpose, and nothing compared against it; permuting the table was
+invisible.
+
+Both were fixed by ADDING ASSERTIONS, not by touching production code, and the fix needed a
+non-obvious step: mocking the registry's exported data is not enough, because the selector's default
+parameter closes over the real module's own copy. **A test that injects a fixture into a selector
+proves the selector derives, and proves nothing about the surface the app ships.**
+
+They also note the tool suggests nothing about WHERE to mutate, which is the expensive judgement —
+and that a task file already names `Produces` and `Consumes`, which is where a hint could come from.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

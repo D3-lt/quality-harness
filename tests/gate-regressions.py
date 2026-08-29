@@ -1887,6 +1887,26 @@ def main():
     assert not [a for a in errs.advice if "does not act on" in a], \
         f"a second table's column is not a status even with no gap: {errs.advice}"
 
+    # THE SAME TASK ID IN BOTH TABLES, which is the second-order case: `T4` is
+    # `done` in the status table and `T10` in the producer table, so under the
+    # old parse whichever was read LAST won — a task's real status overwritten by
+    # a dependency cell. Measured on a corpus where 173 rows across 14 of 14 task
+    # READMEs sit in a non-first table (docs/BACKLOG.md §75).
+    duplicated = (
+        "| ID | Title | Status | Covers | Acceptance |\n|---|---|---|---|---|\n"
+        "| T4 | the task | done | F-1 | something |\n"
+        "| T11 | partial one | **partial** — two of thirteen | F-2 | something |\n"
+        "\n"
+        "| Producer | Contract | Consumer(s) | Ordering note |\n|---|---|---|---|\n"
+        "| T4 | the contract | T10 | T4 first |\n"
+        "| T11 | another | T2, T4, T9 | later |\n")
+    errs = lint.Findings()
+    lint.check_task_status_vocabulary(
+        {"T4": {"path": Path("T4.md")}, "T11": {"path": Path("T11.md")}}, duplicated, errs)
+    named = [a for a in errs.advice if "does not act on" in a]
+    assert len(named) == 1 and "T11" in named[0], \
+        f"a Consumer(s) cell must not overwrite a status, and T11's real one must survive: {named}"
+
     # The must-fail direction: the STATUS table is still read, in a README with
     # the same two-table shape — otherwise "ignore the second table" degrades
     # into "ignore everything" and the check silently stops working.

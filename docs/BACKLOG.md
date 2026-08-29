@@ -3018,12 +3018,24 @@ has.** Doc-to-code on their corpus, from git insertions: ADR-011 11.7 doc lines 
 ADR-010 3.7, combined 5.7:1 doc-to-production and 1.8:1 doc-to-(production+tests). They flagged
 ADR-011 as inflated by a genuinely tiny production change and named 3.7:1 as the fairer figure. And
 on provenance, which is the number that matters: **zero of their three postmortems record a defect
-found by a gate** — one found by a peer session, one during a repository briefing, one by an
+found by an ADR gate** — one found by a peer session, one during a repository briefing, one by an
 independent review of a doc sentence claiming a guarantee that did not hold. With
 infrastructure-06's independent 4-of-4-found-by-reading, that is two unrelated corpora in two
-languages agreeing. Recorded as a standing challenge to this project rather than filed away: the
-gates demonstrably catch paperwork drift and have not yet been shown catching a substantive defect in
-a consumer repository.
+languages agreeing.
+
+**Sharpened 2026-08-29 by the reporter, because the first version of this paragraph blurred two
+instruments.** Their number is about the ADR gates, NOT about their test suite: that suite caught
+both mutations of a later experiment immediately and precisely, with the same failure counts as the
+container run. So the honest statement is three-part — the ADR gates check that the paperwork is
+consistent, the suite checks that the code works, and all three of their real defects lived in a
+third place, in prose and configuration that neither instrument reads.
+
+That third region is where this project is deliberately blind, and the blindness is principled: a
+gate that reads prose is an LLM judge, and the outside evidence says those grade tone at AUROC ≤0.65
+while cheap deterministic detectors reach 0.83–0.95 (docs/research/2026-08-28-…). So the standing
+challenge is not "the gates catch nothing substantive" — it is that on two independent corpora the
+defects were where both instruments are blind, and this project has no answer for that region beyond
+review by something that reads.
 
 **Two things they reported that this entry does NOT close**, named so they are not lost:
 `adr-lint <directory>` exits 1 with a raw `IsADirectoryError` traceback instead of saying it expected
@@ -3093,6 +3105,24 @@ and looked like a check that found nothing.
 
 **The new assertion is proved able to fail**: reverting the caller to the pre-fix form reproduces the
 reporter's exact message (`no executable definition with that name`) and the test goes red.
+
+**Credit, corrected by the reporter against their own interest.** Two of the four defects here came
+from their re-run (the unreachable fix, and the can-fail check skipping every JS/TS test downstream
+of it); the comment-satisfies-the-check fallback was found here while reproducing their report, and
+they point out it is invisible from a corpus where the names are real. Their framing of what a re-run
+actually buys is worth keeping exactly: *it tells you a fix did not land, which is a narrow thing
+that happens to be very cheap and very hard to learn any other way.*
+
+**And the rule they wrote, which is the generalisable half of this whole entry:**
+
+> A fix verified only by its own new assertions has been tested at the function, not at the entry
+> point the report came in through. A defect reported from outside gets its regression at the
+> outermost callable boundary, on a fixture in the reporter's language — or you have tested the
+> patch instead of the bug.
+
+Both failures here were of that shape: assertions correct and green while the production path was
+unchanged, first because `code_only` had already deleted the name, then because the can-fail check
+pre-stripped identically.
 
 **Why this had to come from outside.** This repository's tests are `node:test` (`test('name', …)` —
 a BDD form) and Python `def test_…`. The Python path has its own indentation-aware branch, and the

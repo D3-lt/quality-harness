@@ -1589,6 +1589,88 @@ identical inputs and fixing that.** A grader with sd 0.39 on a 0-to-1 scale is m
 This is the same conclusion §36 reaches about gates and states as a rule — a verdict that changes its
 mind teaches re-running instead of fixing — applied to the instrument that produced §36's evidence.
 
+### AMENDED AGAIN 2026-08-29 — the variance was the instrument, and the power table is retracted
+
+The question above ("why does one case score 0.00 and 1.00 on identical inputs") has an answer, and
+it is not the grader and not the model. **A run that ran out of turns was entering the arm mean as a
+score of 0.00.**
+
+The demonstration is within ONE fixed configuration, which is what the paragraph it replaces failed
+to do. `gates-advise-never-block` at `maxTurns: 8` under `--ablation with-without`, n=26:
+
+| | runs | scores |
+|---|---|---|
+| finished | 15 | all 1.00 |
+| exhausted | 11 | all 0.00 |
+
+The separation is total. There is no third value. The 0.00/1.00 "bimodality" was one binary — did
+the transcript reach the answer before the ceiling — recorded as if it were a judgement about the
+plugin.
+
+**How an exhausted run is recognisable.** The eval harness reports it as a bare `exit 1: (no
+stderr)`, which is indistinguishable from a crash until you compare `turns` against the case's own
+`maxTurns`. Across the whole corpus that comparison is exact: of 35 errored runs, 32 have `turns` at
+or past their ceiling, and every one of those 32 sits at exactly `maxTurns + 1`. The other three are
+`interrupted` and `timed out after 300s`, which say nothing about the case and must not be reported
+as a ceiling — the remedies are different knobs.
+
+**The class, swept rather than remembered** (CLAUDE.md §5). One case is 49 of the corpus's 148 runs,
+so the count had to come from all eight:
+
+```
+$ node scripts/eval-deltas.mjs        # the counts below are now part of its report
+  adr-against-a-real-corpus       UNFINISHED — 8 of 23 recorded run(s) reached no answer (5 ran out of turns)
+  adr-write-consults-the-corpus   UNFINISHED — 1 of 12 recorded run(s) reached no answer (1 ran out of turns)
+  complexity-instruction-given    UNFINISHED — 2 of 13 recorded run(s) reached no answer (2 ran out of turns)
+  gates-advise-never-block        UNFINISHED — 24 of 49 recorded run(s) reached no answer (24 ran out of turns)
+```
+
+Corpus-wide the sweep is 148 runs, 35 with an `error`, 32 of them at or past their own ceiling; the
+other four cases (`complexity-instruction-omitted`, `done-needs-tool-written-evidence`,
+`fence-warning-given`, `fence-warning-omitted`) have none. The three non-ceiling failures are
+`interrupted` twice and one `timed out after 300s`.
+
+Four of the eight cases are affected, and **every −1.00 Δ in the recorded corpus came from an
+exhausted run** — two on `adr-against-a-real-corpus`, one on `gates-advise-never-block`. Those were
+the most quoted numbers in this entry and in §36.
+
+**The graders were right, and were not changed.** `does-not-halt` gained its "FAIL when there is no
+answer to judge" clause deliberately, after thirteen truncated runs passed it — a boundary that
+passes on silence refuses nobody. A grader of an answer should fail a transcript with no answer. The
+defect is one level up: the arm mean must not contain a run that produced no observation at all
+(ADR-005; CLAUDE.md §3, "a filter that matched nothing is *I could not look*"). `scripts/eval-deltas.mjs`
+now drops such runs from both arms and reports `UNFINISHED — n of m recorded run(s) reached no
+answer`, naming the ceiling count separately. Asserted by
+`tests/eval-deltas.test.mjs::a run that never reached an answer is excluded, not scored zero` and
+`::an unfinished run that did not run out of turns is not called a ceiling`, each showing the clean
+answer beside the dirty one, and by three catalogue entries, all RED.
+
+**The case's own `max_turns` was already raised to 14** on 2026-08-27 and no recorded run has
+exhausted since. That half was done; what remained was that the recorded corpus mixes pre-fix and
+post-fix runs and the instrument reported them as one population.
+
+**RETRACTED: the power table above, and the sd 0.39 / 0.41 it rests on.** Those figures pool every
+recorded run of the case across three different turn ceilings (6, 8, 14), two ablation modes, and two
+revisions of the `does-not-halt` grader. A pooled absolute statistic over a case whose configuration
+changed underneath it is exactly the error `eval-deltas.mjs` refuses for Δ — and this entry committed
+it in the paragraph arguing for care. **Do not replace 264 with a smaller number derived the same
+way.** A power calculation needs runs at one fixed configuration, and this corpus contains six such
+runs at `maxTurns: 14`, which is not enough to estimate a standard deviation. The honest state is:
+*the dominant variance component has been identified and removed from the instrument, and the
+residual is unmeasured.*
+
+**A comparability rule this uncovered, stated so it is not rediscovered.** `invokes-a-skill` is a
+`tool_used` grader marked with-only. Under `--ablation with-without` it is reported and NOT scored;
+under `--ablation none` it is scored. Identical behaviour therefore records 1.00 in the first mode
+and 0.714 (5 of 7 weight) in the second. **Absolute scores from the two ablation modes are not on the
+same scale** and must never be pooled or compared. This is by design, not a bug, and it is the whole
+of the residual spread on the `maxTurns: 14` runs.
+
+**UNPROVEN, and named rather than claimed.** `aggregate-result.json` records each grader's name, type
+and weight, but not its prose. A grader whose text changed while keeping its name is invisible to any
+check comparing configurations, so the tool cannot detect that kind of drift and does not claim to.
+
+
 ## 36. What actually reaches an agent, measured on one
 
 Written 2026-08-27 at the owner's request, from a session in which eleven defects were introduced
@@ -1614,6 +1696,15 @@ full score range. The three nulls are real and the direction is unchanged, but "
 overstates what a suite this noisy can show. **The rule below still stands on the campaign evidence —
 eight defects caught by mutations, two by CI, none by reading — which is not affected by any of
 this.**
+
+**Weakened again 2026-08-29, see §35's second amendment.** The span quoted in the paragraph above was
+itself an artifact: half of that case's 49 recorded runs ran out of turns, and an exhausted run's
+0.00 was entering the arm mean. With those removed the case has six paired invocations spanning 0.60,
+and the −1.00 is gone — as is every other −1.00 in the corpus. So the `Δ 0.00` above is neither the
+measurement nor evidence of noise on the scale previously claimed; it is one of six deltas from a
+case whose residual variance has not been measured at a fixed configuration. The direction is still
+unchanged and no instruction here has yet been shown to move behaviour. **The rule below continues to
+stand on the campaign evidence, which none of this touches.**
 
 **The rule that follows, and the one worth holding this project to: every piece of guidance should
 either become a gate or be deleted.** Not because prose is wrong, but because there are now three

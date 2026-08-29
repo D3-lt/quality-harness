@@ -104,3 +104,4 @@ gate — a handler hard-coded to refuse would otherwise pass.
 ## Verification Log
 - 2026-08-29 · 48baef8 · exit 0 · `set -o pipefail …` · acceptance-sha256:5ffd2e41049bc725bd6e5cc313be152548ba8844fa9c3f100255c04466f06b6d
 - 2026-08-29 · c012f31 · exit 0 · `set -o pipefail …` · acceptance-sha256:5ffd2e41049bc725bd6e5cc313be152548ba8844fa9c3f100255c04466f06b6d
+- 2026-08-29 · 88afc60 · exit 0 · `set -o pipefail …` · acceptance-sha256:5ffd2e41049bc725bd6e5cc313be152548ba8844fa9c3f100255c04466f06b6d

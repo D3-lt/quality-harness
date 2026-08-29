@@ -1409,6 +1409,52 @@ MCP surface that lints but cannot record evidence is the measuring half again.
 This deserves a record rather than a backlog item once it is picked up: it is a new distribution
 surface, a new trust boundary, and it is costly to reverse.
 
+### Taken up 2026-08-29 by ADR-012, which closes the reading half and defers three things here
+
+**ADR-012** (`docs/adr/ADR-012-the-gates-reach-a-client-with-no-shell.md`, Proposed) ships
+`plugin/bin/qh-mcp`: a stdio JSON-RPC server exposing the five gates that never execute corpus
+content. The boundary it draws is sharper than the read-versus-write one this entry assumed, and it
+was enumerated rather than recalled — `grep -n 'subprocess.run(' plugin/bin/*`, 2026-08-29:
+
+`adr-lint`, `adr-debt` and `arch-lint` spawn only `git` with fixed argv; `adr-next` and `adr-judge`
+spawn nothing. **`spec-verify` runs a `Cmd` override read from the spec file through `shell=True`
+(:504), and `adr-verify` runs the task file's Acceptance fence through bash.** Those two execute text
+the corpus supplies, and over MCP the client names the path — so exposing either turns "lint my ADRs"
+into "run whatever is written in the file I point you at". They are not guarded by a flag; no
+registrar exists that could register them.
+
+Three items are deferred BACK here by that record, receipted below so the sweep can see them:
+
+- **The mutation half on Desktop.** Deferred by ADR-012. Not by exposing `adr-verify --mutant` —
+  that rewrites a file in a path the client names, and ADR-002's journal exists because the restore
+  is dangerous *with* a process to run it; over MCP there is no hook at all, so a killed client
+  leaves a mutated tree and nothing to restore it. The shape worth reaching for instead, credited to
+  the agentsmemory session that suggested it 2026-08-29: **the client sends CONTENT and the server
+  mutates its own copy**, never the server reaching into a path the client named. That inverts who
+  owns the filesystem, which is the actual problem. A different tool with a different contract, not
+  a flag on this one.
+- **`server.WithInstructions` as a delivery channel.** Deferred by ADR-012, and the reason is a
+  measurement nobody has taken. Recalled 2026-08-29 from the agentsmemory corpus: the instructions
+  field is **confirmed on exactly one client (Claude Code) and UNMEASURED on Desktop**, and that
+  project's own ADR-021 T3 live measurement has been pending a week. The transport is proven — 41
+  tools over stdio, Desktop spawning the bridge — but whether Desktop renders the instructions string
+  into the model's context, and at what length, is not. So ADR-012 puts everything load-bearing in
+  tool DESCRIPTIONS, which provably arrive because they are how the model learns a tool exists.
+  ADR-012 T4 takes the measurement and reports it back to that corpus, which has the same task open.
+- **`adr-state`, `adr-context` and `work-next` over MCP.** Deferred by ADR-012 T2. They are
+  `plugin/scripts/*.mjs` rather than `plugin/bin/` gates, so they need a second spawn path and a
+  second argument grammar; worth doing, and not worth folding into the record that establishes the
+  boundary.
+
+One constraint recorded rather than fixed: **a Desktop registration cannot be scoped.** Its bridge
+takes no per-project argument, measured 2026-08-22 on a shipped Desktop registration, so any design
+requiring a project notion is one Desktop cannot express. `qh-mcp` takes the corpus path per call.
+
+**§33 is not closed by this.** ADR-012 closes the reading half. A Desktop user will be able to be
+told what is wrong and will still not be able to record that they fixed it, because the two gates
+that write this corpus's evidence are exactly the two Desktop cannot have. That is stated in the
+record's own Consequences rather than left for a reader to discover.
+
 ## 34. FIXED — the coverage gate was rejecting good code one run in ten
 
 **Cause, found by reading rather than guessing.** `--experimental-test-coverage` measures only the

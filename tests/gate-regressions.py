@@ -1736,8 +1736,17 @@ def main():
         assert "kept.go" not in found, found
         # And a probe that could not run answers {} rather than "nothing is
         # ignored" — the two are different answers (ADR-005).
-        assert lint.ignored_paths(None, {"x"}) == {}
+        assert lint.ignored_paths(None, {"x"}) is None
         assert lint.ignored_paths(repo, set()) == {}
+        # A probe that RAN and found nothing is {}; a probe that COULD NOT RUN is
+        # None, and the caller says so. Returning {} for both made the guard
+        # unobservable — a mutation removing it could not be killed, which is a
+        # finding about the code rather than about the test (BACKLOG §65).
+        # In its OWN temp root: a directory under `repo` is inside that
+        # repository, so check-ignore answers there and the case proves nothing.
+        with tempfile.TemporaryDirectory() as elsewhere:
+            assert lint.ignored_paths(Path(elsewhere), {"x"}) is None
+        assert lint.ignored_paths(repo, {"kept.go"}) == {}
 
     # BACKLOG §54. The recorded failure block was the tail of `stdout + stderr`,
     # so a runner whose verdict goes to stdout and whose noise goes to stderr —

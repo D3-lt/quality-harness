@@ -5,6 +5,11 @@
 **Owner:** <name or role>
 **Spec:** <path to the Ready-for-ADR spec, or `None — no spec stage`>
 **Cross-references:** <ADR/doc paths or none>
+
+<RESOLVED, and advisory. Each item that names a record (`ADR-004`, or a path to one) must name a
+record this corpus has, and each item that names a repository file must name one git tracks;
+`adr-lint` advises when one does not. A `§NN` fragment is deliberately NOT resolved — it names a
+heading, and guessing at it would turn a legitimate citation into a finding.>
 **Governs:** <paths this decision is authoritative over — globs allowed — or `None — declared by its tasks`>
 
 <Optional and additive. Without it, what this decision governs is resolved from the union of its
@@ -23,7 +28,17 @@ The typed form from adrkit is also read:
       pattern: "mongodb@>=6"
 
 Only `type: path` is resolved against files. Anything else is recorded and reported as unresolved —
-a matcher that quietly matches nothing reads as coverage while covering nothing.>
+a matcher that quietly matches nothing reads as coverage while covering nothing.
+
+EVERY DECLARED PATH IS RESOLVED against the files git tracks, and `adr-lint` advises when one matches
+nothing. A glob resolves when it matches at least one file; `**` crosses separators and `*` does not.
+Resolution is against `git ls-files`, never the filesystem: a path check over the disk answers "is
+this on THIS machine", which makes the answer depend on who is asking. When git cannot answer, the
+gate says it could not look and resolves nothing — "I could not look" is not "the path names nothing".
+
+The reason this is resolved at all: on 2026-08-28 a directory move re-anchored every path in a
+repository, seven records' `Governs:` lines stopped naming anything, `adr-context` answered "none
+governs" for the whole gate surface, and every gate stayed green for two days.>
 **Enforced-by:** <the check that FAILS when this decision is violated, or `None — <reason>`>
 
 <Optional and advisory. `Governs:` above says which paths this decision owns; this says what stops it
@@ -46,6 +61,11 @@ that is ADR-003's rule and the campaign's job. A GATE NAME is the weakest and th
 have no cheap mechanical enforcement, and a record that says so is carrying information the corpus
 otherwise lacks. Naming a check that cannot fail is worse than naming none.>
 **Invalidates:** <accepted ADRs whose tasks this decision changes, or `none — checked`>
+
+<RESOLVED, and advisory: the LEADING TOKEN is read as a record id and must name a record this
+corpus has — a decision cannot invalidate one that was never written. Only the leading token,
+because the prose after it is prose: `ADR-001 — the clause of its Decision reading "…"` is one
+pointer and a sentence, not a list.>
 **Served-path change:** <what a user or agent experiences differently once this ships — one sentence naming the code path — or `None — this ADR changes only measurement or tooling`>
 
 <Required, and the escape is deliberately explicit rather than omitted, because "we improved the

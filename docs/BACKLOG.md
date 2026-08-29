@@ -4097,6 +4097,48 @@ prose and no `## Mutation Log` section was added, because adding a section that 
 row trades a silent gap for a rejected one — and the gap is the honest state until the format has a
 lane.
 
+## 75. CLOSED 2026-08-29 — the right column of the wrong table
+
+**Found by the sweep I asked for**, after §73's word-extraction fix: the status check fired on **7 of
+28 records**, reporting statuses like `T2, T4`, `T1`, `T6`, `T3, T5, T6, bitbucket-deploy`. Those are
+DEPENDENCY values.
+
+**The extraction was fine; the binding was not.** A tasks README commonly holds TWO tables whose first
+column is `| T1 |` — the status table, and a wave/ordering table whose third column is *depends-on*.
+The check took the status column index from the first header it saw and applied it to every later
+row, so each task produced one correct read and one garbage read, and the garbage one is what got
+advised on.
+
+The index is also **per-table**, which the same corpus proves: one status table is
+`ID | Title | Status | Owner | Acceptance` and another is `ID | Title | Status | Acceptance`. A
+column number right for one is wrong for the other **even among the correct tables**.
+
+Fixed by binding every row to its own table — a header is a row whose next line is a separator, the
+status column is located by NAME within that header, and rows carry the column their own table
+declared. Asserted on the reporting corpus's exact two-table shape, and in the direction that matters:
+the status table is still read when a second table follows it, without which "ignore the second
+table" degrades into "ignore everything".
+
+### The family this belongs to, named by the reporter
+
+Their observation, and it is the fourth instance in one day: **reading the right position in the
+wrong container.** `adr-next` returning a foreign record's tasks (§66); `ADR_FILE` and `taskFiles()`
+discovering by different rules over one corpus (§55); an agentsmemory anchor checked against whatever
+tree the reading session happened to be in; and now a status column read out of a table that has no
+status column. *"Each time the extraction is correct and the binding is not."*
+
+### And the fixture could not have caught it
+
+The cell I built from their message — `**done** (2026-07-29) — sshd drop-in split off to T3b` —
+parses correctly, and their status table produces no advice. **The defect lives entirely in the
+second table, and they had sent me the cell without the table it sits in.** A fixture built from a
+reported symptom tests the symptom; only the corpus tests the corpus.
+
+They also corrected their own process, unprompted, for the second time today: their earlier "clean
+negative" was worthless because they ran `adr-next` and `work-next` and never ran `adr-lint`, where
+the check lives. *"I reported 'nothing there' when the honest report was 'I did not look'."* That is
+the same distinction this project holds its gates to, applied by a reporter to their own report.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

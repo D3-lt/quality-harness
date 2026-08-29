@@ -492,7 +492,13 @@ def check_task(path, all_stems, errors):
             pm = re.search(r"`([^`]+)`", cells[0]) if cells else None
             if pm and not pm.group(1).strip().startswith("`"):
                 named.add(pm.group(1).strip())
-        for name, pattern in sorted(ignored_paths(git_root(path.parent), named).items()):
+        asked = ignored_paths(git_root(path.parent), named)
+        if asked is None and named:
+            errors.advise(
+                f"{path.name}: could not ask git whether this task's Affected Files are "
+                f"ignored, so that check did NOT run — a path kept out of the commit by "
+                f".gitignore would not have been reported here.")
+        for name, pattern in sorted((asked or {}).items()):
             errors.advise(
                 f"{path.name}: Affected Files names `{name}`, and git IGNORES it "
                 f"(pattern `{pattern}`). This task's acceptance passed against the "
@@ -1633,8 +1639,13 @@ def ignored_paths(root, candidates):
     investigation, and a finding that only says "this file is missing" starts a
     different and longer one.
     """
-    if root is None or not candidates:
+    if not candidates:
         return {}
+    # No repository is a COULD-NOT-LOOK, not an all-clear: the question "does
+    # git ignore this path" has no answer outside a repository, and answering {}
+    # would report silence as safety (ADR-005).
+    if root is None:
+        return None
     try:
         # -z, because the LINE form quotes a path and keeps the platform's line
         # ending: on Windows the first version of this parsed
@@ -1647,12 +1658,15 @@ def ignored_paths(root, candidates):
                            input="\0".join(sorted(candidates)) + "\0", capture_output=True,
                            text=True, timeout=30, encoding="utf-8", errors="replace")
     except Exception:
-        return {}
+        return None
     # 0 = at least one ignored, 1 = none ignored, 128 = not a repository. Only
-    # the first two are answers; anything else is "could not look" and must not
-    # be reported as "nothing is ignored" (ADR-005).
+    # the first two are ANSWERS; anything else is "could not look", and it
+    # returns None rather than {} so the caller can SAY it could not check
+    # (ADR-005). Returning {} made the two indistinguishable — and the campaign
+    # proved it, with a mutation removing this guard that nothing could kill,
+    # because a guard with no observable effect is decoration.
     if r.returncode not in (0, 1):
-        return {}
+        return None
     fields = r.stdout.split("\0")
     found = {}
     for i in range(0, len(fields) - 3, 4):

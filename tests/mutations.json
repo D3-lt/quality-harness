@@ -2965,8 +2965,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if r.returncode not in (0, 1):",
-      "to": "    if False:"
+      "from": "        if asked is None and named:",
+      "to": "        if False:"
     },
     {
       "label": "lint: an evidenced task whose Affected Files are ignored is reported",
@@ -2974,7 +2974,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        for name, pattern in sorted(ignored_paths(git_root(path.parent), named).items()):",
+      "from": "        for name, pattern in sorted((asked or {}).items()):",
       "to": "        for name, pattern in []:"
     },
     {

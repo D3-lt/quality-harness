@@ -3012,6 +3012,15 @@
       ],
       "from": "  const caveat = origin === 'declared'",
       "to": "  const caveat = true"
+    },
+    {
+      "label": "next: a record owning no tasks is answered, a missing path is refused",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        target = Path(args[0])",
+      "to": "        target = Path('/nonexistent-probe')"
     }
   ]
 }

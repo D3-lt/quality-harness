@@ -34,6 +34,14 @@ Verification Log entry whatever its number, because that is the claim the corpus
 The verdict line says `[strictFrom] …` whenever it is in effect, so a demoted PASS is never
 mistaken for a clean one.
 
+**Naming your project's check.** The same file takes `{"check": "<command>"}`, and it answers before
+every rung that would otherwise infer one from a manifest. Declare it when the inferred command is
+wrong or cannot discriminate — a suite that needs a container, a runner whose bare invocation is red
+on a clean tree, a monorepo where the root manifest is not the thing to run. A command that is red
+without your change carries no information about your change, so a project that knows its own answer
+should say it here rather than let the tool guess. Anything that is not a non-empty string is
+ignored and the inferred rungs still answer.
+
 - Run `adr-lint <adr.md>` and paste the run. It mechanically checks template conformance,
   shell-command acceptance, TDD step 1, README↔task-file consistency, and spec coverage. A finding
   here is nearly always a real gap in the plan — the cheapest moment to close it is before the first

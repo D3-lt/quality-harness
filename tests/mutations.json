@@ -2886,6 +2886,24 @@
       ],
       "from": "        r\"\"\"(['\"`])\"\"\" + re.escape(name) + r\"\"\"\\1\\s*,\"\"\",",
       "to": "        r\"\"\"(['\"`])\"\"\" + re.escape(name) + r\"\"\"\\1\\s*,ZZZ\"\"\","
+    },
+    {
+      "label": "checks: a declared check answers before any guess",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const declared = declaredCheckCommand(root)",
+      "to": "  const declared = null && declaredCheckCommand(root)"
+    },
+    {
+      "label": "checks: a malformed declared check does not silence the rungs below",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return typeof check === 'string' && check.trim() ? check.trim() : null",
+      "to": "  return check ?? null"
     }
   ]
 }

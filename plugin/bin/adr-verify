@@ -735,12 +735,12 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
         try:
             r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
                                text=True, encoding="utf-8", errors="replace",
-                               timeout=FENCE_TIMEOUT_DEFAULT)
+                               timeout=fence_timeout())
         except subprocess.TimeoutExpired:
             # The mutant is still applied, so the restore below is what matters —
             # `finish()` runs it. UNRUN, not survived and not killed: a fence that
             # never returned observed nothing about the mechanism.
-            fail(f"UNRUN: the fence did not finish within {FENCE_TIMEOUT_DEFAULT}s with the "
+            fail(f"UNRUN: the fence did not finish within {fence_timeout()}s with the "
                  f"mutant applied, so nothing was learned about whether the tests notice it. "
                  f"The file has been restored.")
         out, code = r.stdout + r.stderr, r.returncode
@@ -853,6 +853,29 @@ _UNSET = object()
 # Generous, because a real acceptance suite is allowed to be slow: this is the
 # line between "slow" and "never returning", not a performance budget.
 FENCE_TIMEOUT_DEFAULT = 1800
+
+
+def fence_timeout(env=None):
+    """Seconds before a recording fence is called hung, as a PARAMETER.
+
+    A branch reachable only after thirty minutes is a branch with no test, and
+    this project's own rule is to make the awkward thing injectable rather than
+    to trust it (CLAUDE.md §7, written about platforms and true of clocks).
+    `QUALITY_HARNESS_FENCE_TIMEOUT` is that seam: the suite sets it to a couple of
+    seconds and asserts the UNRUN path end to end.
+
+    A value that is not a positive integer is IGNORED rather than honoured — a
+    typo must not silently disable the timeout, which would restore the hang this
+    exists to bound.
+    """
+    raw = (env if env is not None else os.environ).get("QUALITY_HARNESS_FENCE_TIMEOUT")
+    if raw is None:
+        return FENCE_TIMEOUT_DEFAULT
+    try:
+        seconds = int(str(raw).strip())
+    except ValueError:
+        return FENCE_TIMEOUT_DEFAULT
+    return seconds if seconds > 0 else FENCE_TIMEOUT_DEFAULT
 
 SWEEP_TIMEOUT_DEFAULT = 900
 
@@ -1346,7 +1369,7 @@ def main():
 
     try:
         r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=FENCE_TIMEOUT_DEFAULT)
+                           encoding="utf-8", errors="replace", timeout=fence_timeout())
     except subprocess.TimeoutExpired as expired:
         # UNRUN, not FAILED. A fence that never returned has not judged the code,
         # and recording exit 1 would put a verdict in the log that nothing
@@ -1355,7 +1378,7 @@ def main():
         # not finish is worse than no entry.
         partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
         print(f"[adr-verify] UNRUN: the acceptance fence did not finish within "
-              f"{FENCE_TIMEOUT_DEFAULT}s and was killed. NOTHING has been written to "
+              f"{fence_timeout()}s and was killed. NOTHING has been written to "
               f"{task.name} — a run that did not finish is not evidence either way. "
               f"Fix the hang, or run the fence yourself and use --human if it is "
               f"genuinely a human-observed check.")

@@ -3230,6 +3230,26 @@ declare a bad command. The rung's virtue is that it stops the tool GUESSING — 
 the project's own mistake, in a file someone can fix, rather than this tool being wrong on the
 project's behalf.
 
+**Scope of the claim, narrowed by the reporter once it became a rung, and it is the sentence to read
+before citing this entry:** this is one repository, and what was measured is that a DECLARATION BEATS
+A CONSTANT. The derived command there carried zero bits — red on a clean tree, so the same exit code
+whichever way the code went. **Nothing here shows that a declaration beats a merely weaker derived
+command.** If another consumer's inferred check discriminates at all, the case for declaring is real
+but much softer, and §59 must not be read as "declared beats derived generally".
+
+**Verified from the consumer side at 069e92e**, each case re-derived rather than taken on trust: no
+config, a declared command, `""`, `"   "`, `42`, a config carrying only `strictFrom`, and an
+unparseable file — the six non-answers all fall through to the rungs below rather than turning the
+feature off. That property is the one that matters most here, because a malformed config silently
+disabling the check would have been a worse defect than the one this rung fixes.
+
+That repository then declared `docker compose run --rm --no-deps app php vendor/bin/phpunit` — not
+the host `artisan` form its own matrix appeared to favour — because the container form is what CI
+effectively runs, covers all 300 tests rather than the 91 the host Unit invocation reaches, and fails
+loudly with an obvious cause when Docker is absent instead of passing while meaning nothing. Their
+reasoning, recorded because it is the first real use of this rung: prefer the invocation whose
+failure mode is legible over the one that is merely easier to start.
+
 **Still open:** the tool has no way to say "I found a command but cannot vouch for the environment it
 needs". The gates already distinguish UNRUN from FAIL, and the instruction that names a check could
 carry the same honesty — a red on an unmodified tree is a finding about the environment, not about

@@ -1344,6 +1344,32 @@ def main():
     assert lint.scope_bullets(["- A (permanent: why)", "Unindented prose."]) == [
         "- A (permanent: why)"], "and so does an unindented line"
     assert lint.scope_bullets(["- one", "- two"]) == ["- one", "- two"], "two bullets stay two"
+    # A NESTED SUB-BULLET IS A CHILD, NOT AN ENTRY. Reported 2026-08-29 from an
+    # adopting corpus whose Out of Scope entry enumerates what it defers as an
+    # indented list: each child was told it needed its own disposition, which
+    # would be four pointers to the one issue the parent already defers as a
+    # unit. The reporter checked it against the UNEDITED file before reporting,
+    # so it was not confused with the wrap fix shipped the same hour.
+    assert lint.scope_bullets([
+        "- Parent (deferred: docs/BACKLOG.md)",
+        "  - first child, which wraps",
+        "    onto another line",
+        "  - second child",
+        "- A real sibling",
+    ]) == ["- Parent (deferred: docs/BACKLOG.md)", "- A real sibling"], (
+        "children are neither entries nor part of the parent's disposition line")
+    assert dispositions(
+        "- Parent (deferred: docs/BACKLOG.md)",
+        "  - first child",
+        "  - second child") == [], "no child is asked for a disposition"
+    # ...and the parent is still HELD to the rule: a child list does not excuse
+    # the entry that owns it. Without this, suppressing children entirely would
+    # satisfy the assertion above while dropping a real finding.
+    assert dispositions(
+        "- Parent with no disposition at all",
+        "  - first child",
+        "  - second child"), "the parent is still an entry and still checked"
+
     assert dispositions("- A wrapped one (deferred:", "  docs/BACKLOG.md)") == [], (
         "a disposition split across a wrap is still a disposition")
     assert dispositions("- A wrapped one with no disposition", "  and more of it"), (

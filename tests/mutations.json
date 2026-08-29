@@ -2564,6 +2564,24 @@
       "to": "            pass"
     },
     {
+      "label": "adr-lint: a nested sub-bullet is a child, not an Out of Scope entry",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if current is not None and lead > indent:",
+      "to": "            if current is not None and False:"
+    },
+    {
+      "label": "adr-lint: every bullet under a child list belongs to it, not just the first",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if subtree is not None and SCOPE_BULLET.match(line) and lead > subtree:",
+      "to": "        if False and SCOPE_BULLET.match(line) and lead > subtree:"
+    },
+    {
       "label": "adr-debt: a disposition still has to close the bullet",
       "file": "plugin/bin/adr-debt",
       "tests": [

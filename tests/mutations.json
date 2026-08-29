@@ -2922,6 +2922,15 @@
       ],
       "from": "      if (entry.isDirectory() && /(^|[-_])archive(d|s)?$|^archive/i.test(entry.name)) continue",
       "to": "      if (false) continue"
+    },
+    {
+      "label": "next: an undecided record is named as undecided before its tasks are offered",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if status is not None and not re.match(r\"accepted\\b\", status, re.I):",
+      "to": "    if False:"
     }
   ]
 }

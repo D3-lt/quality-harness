@@ -1842,7 +1842,15 @@ def main():
                     "`blocked` waiting on prod", "_pending_"):
         assert not status_advice(dressed), f"a dressed status is still its word: {dressed!r}"
     # And the emphasis must not hide an unrecognised one either.
-    assert status_advice("**partial** — two of thirteen steps"), "emphasis is not an exemption"
+    dressed_advice = status_advice("**partial** — two of thirteen steps")
+    assert dressed_advice, "emphasis is not an exemption"
+    # The message names the WORD it acted on as well as the cell it read. Quoting
+    # only the cell reads as though that whole string was treated as the status,
+    # which invites the conclusion that the parser is naive in exactly the way it
+    # is not (docs/BACKLOG.md §75).
+    assert "`partial` (from" in dressed_advice[0], dressed_advice
+    # And when the cell IS the word, it is not repeated back twice.
+    assert "(from" not in status_advice("partial")[0], status_advice("partial")
 
     # BACKLOG §75. A README commonly holds TWO tables whose first column is
     # `| T1 |`: the status table, and a wave/ordering table whose third column is

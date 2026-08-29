@@ -913,8 +913,17 @@ def check_task_status_vocabulary(infos, readme_text, errors):
             continue
         if status_word(value) in KNOWN_TASK_STATUS or found not in infos:
             continue
+        # SHOW THE EXTRACTION, not only the input. Quoting the whole cell —
+        # `**partial** — two of thirteen steps` — reads as though that string is
+        # what the tool treated as the status, and invites the conclusion that the
+        # parser is naive in exactly the way it is not. Naming both is the same
+        # instinct as §65 naming the .gitignore pattern that matched: a reader
+        # should be able to see what was read as well as what was there.
+        # Suggested 2026-08-29 by the session that ran the positive control.
+        word = status_word(value)
+        seen = f"`{word}`" if word == value.strip().lower() else f"`{word}` (from `{value}`)"
         errors.advise(
-            f"README.md: {found} has status `{value}`, which this reader does not act on — so the "
+            f"README.md: {found} has status {seen}, which this reader does not act on — so the "
             f"checks that run for an evidenced task did NOT run for it, including whether its "
             f"Verification Log backs what it claims and whether it carries a Mutation Log. That is "
             f"'not looked at', not 'nothing found'. Use `done`, `pending` or `blocked`, or say in "

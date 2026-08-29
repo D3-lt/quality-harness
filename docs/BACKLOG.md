@@ -2973,6 +2973,65 @@ corpus tests the conventions its authors already use. The reporting session ran 
 corpus shaped differently and the defect was immediate — which is the second time in one day that a
 foreign reader found something CI could not (docs/BACKLOG.md §52 was the first).
 
+## 56. CLOSED 2026-08-29 — a PHP repository was told its check was a vite build
+
+**Measured by the depozitas-laravel-22 session** against the INSTALLED 2.34.1 in a pure-PHP Laravel
+11 JSON API — composer.json and phpunit.xml present, CI running phpunit Unit and Feature suites, no
+frontend served — and reproduced here:
+
+    projectCheckCommand(<laravel repo>)  →  "npm run build"
+
+Their session hook told them, in those words, that *this project's own check* was `npm run build`. A
+PHP change would then be "evidenced" by `vite build`, which cannot fail because of a PHP edit or pass
+because of one. ADR-005's class, in the tool that tells every session what its evidence is.
+
+**Root cause: a missing row, not a wrong order.** `PROJECT_CHECKS` had no PHP entry at all, so
+discovery fell through to `packageManagerCommand`, which returns the first of
+`test, check, lint, typecheck, build` present in package.json. Laravel and Symfony skeletons ship
+exactly `dev` and `build`, both vite — so `build` won. The blast radius is general: **any** language
+whose manifest is absent from that list gets the same answer whenever a package.json sits in the
+root, which on a modern PHP skeleton is always.
+
+### Fixed in two parts, and the second is bigger than PHP
+
+1. **PHP rows, ordered by who is speaking.** `composer.json`'s own `scripts.test` is consulted FIRST
+   and yields `composer test`, above `phpunit.xml` → `php vendor/bin/phpunit`. That order is the
+   reporter's caution taken seriously: in their repository phpunit runs only inside Docker
+   (`docker compose exec app php vendor/bin/phpunit`), so the bare host command would not execute at
+   all — and naming an unrunnable command is its own failure mode. A script the repository names for
+   itself beats a guess, exactly as `scripts/verify.sh` already beats `go test ./...`.
+2. **A build is not a check.** `build` is removed from the package-manager fallback entirely. It
+   compiles; it says nothing about behaviour, and a repository whose only script is `build` is better
+   told that no check could be determined than handed one that passes while the code is broken —
+   "I could not determine this project's check" is a sentence a reader can act on. This half applies
+   to every JavaScript repository with no test script, not only to PHP ones.
+
+Enforced by `tests/lifecycle.test.mjs::reported: a PHP repository is not evidenced by a vite build`,
+which asserts the composer script wins, phpunit is the fallback without one, a build-only package.json
+yields NULL, and — the must-fail direction — a package.json with a real `test` script still resolves
+(without which "the fallback stopped working" would satisfy the third). Catalogue entries
+`checks: a build is not a project's check` and
+`checks: a composer script answers before a phpunit guess`.
+
+**What else that session measured, kept because it is the strongest outside evidence this project
+has.** Doc-to-code on their corpus, from git insertions: ADR-011 11.7 doc lines per production line,
+ADR-010 3.7, combined 5.7:1 doc-to-production and 1.8:1 doc-to-(production+tests). They flagged
+ADR-011 as inflated by a genuinely tiny production change and named 3.7:1 as the fairer figure. And
+on provenance, which is the number that matters: **zero of their three postmortems record a defect
+found by a gate** — one found by a peer session, one during a repository briefing, one by an
+independent review of a doc sentence claiming a guarantee that did not hold. With
+infrastructure-06's independent 4-of-4-found-by-reading, that is two unrelated corpora in two
+languages agreeing. Recorded as a standing challenge to this project rather than filed away: the
+gates demonstrably catch paperwork drift and have not yet been shown catching a substantive defect in
+a consumer repository.
+
+**Two things they reported that this entry does NOT close**, named so they are not lost:
+`adr-lint <directory>` exits 1 with a raw `IsADirectoryError` traceback instead of saying it expected
+a record file — a newcomer's obvious first guess, and worth a message rather than a stack trace. And
+a cross-repository gap that no gate can close: ADR-010's T3–T6 are implemented and merged in another
+repository, but their Acceptance fences execute against that repository's Docker stack, so
+`work-next` calls them ready — honest about the paperwork, wrong about the world.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

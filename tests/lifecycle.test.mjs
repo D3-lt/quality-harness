@@ -750,6 +750,47 @@ test('reported: committing does not make the next commit demand a check of it', 
   assert.doesNotMatch(after.stdout, /a\.go/, 'the published half is not re-reported')
 })
 
+test('reported: a PHP repository is not evidenced by a vite build', async () => {
+  // docs/BACKLOG.md §56, measured 2026-08-29 by the depozitas-laravel-22 session
+  // against the INSTALLED 2.34.1 in a pure-PHP Laravel API: the session hook
+  // said "this project's own check is `npm run build`". Laravel ships a
+  // package.json whose only scripts are `dev` and `build`, both vite, and
+  // PROJECT_CHECKS had no PHP row — so discovery fell through to the package
+  // manager and picked a frontend build that cannot fail because of a PHP edit
+  // or pass because of one. A gate reporting an observation it did not make
+  // (ADR-005), and general: any language whose manifest is missing here gets the
+  // same answer whenever a package.json sits in the root.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-php-'))
+  await writeFile(path.join(dir, 'package.json'),
+    JSON.stringify({ scripts: { dev: 'vite', build: 'vite build' } }))
+  await writeFile(path.join(dir, 'phpunit.xml'), '<phpunit/>\n')
+  await writeFile(path.join(dir, 'composer.json'),
+    JSON.stringify({ require: { php: '^8.2' }, scripts: { test: 'phpunit' } }))
+  assert.equal(projectCheckCommand(dir), 'composer test',
+    'a repository-owned composer script beats a guess, as scripts/verify.sh does')
+
+  // Without a composer script, the test runner it declares — still never the
+  // frontend build.
+  await writeFile(path.join(dir, 'composer.json'), JSON.stringify({ require: { php: '^8.2' } }))
+  assert.equal(projectCheckCommand(dir), 'php vendor/bin/phpunit')
+
+  // A BUILD IS NOT A CHECK, and this is the half that generalises past PHP.
+  // `build` was the last resort of the package-manager fallback, so any repo
+  // with a package.json and no test/check/lint/typecheck script was told its
+  // evidence command was a build. Naming nothing is the honest answer there
+  // (ADR-005): "I could not determine this project's check" is a sentence a
+  // reader can act on; a build that passes while the code is broken is not.
+  const js = await mkdtemp(path.join(testTmp, 'quality-build-only-'))
+  await writeFile(path.join(js, 'package.json'), JSON.stringify({ scripts: { build: 'vite build' } }))
+  assert.equal(projectCheckCommand(js), null, 'a build alone is not a check')
+
+  // The must-fail direction (CLAUDE.md §4): a real check is still found, so the
+  // change is "build is not a check" and not "the fallback stopped working".
+  await writeFile(path.join(js, 'package.json'),
+    JSON.stringify({ scripts: { build: 'vite build', test: 'vitest run' } }))
+  assert.equal(projectCheckCommand(js), 'npm run test')
+})
+
 test('reported: a project that ships a verify script is asked for that script', async () => {
   // blueprints, 2026-08-26. The project ran `./verify.sh` and the gate asked for
   // "the smallest repository-owned test, lint, build, or validation command" —

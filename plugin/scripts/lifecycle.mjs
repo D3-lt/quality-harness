@@ -1758,7 +1758,29 @@ const PROJECT_CHECKS = [
   { file: 'go.mod', command: 'go test ./...' },
   { file: 'pytest.ini', command: 'pytest' },
   { file: 'tox.ini', command: 'pytest' },
+  // PHP was missing entirely, and the consequence was not "no answer" but a
+  // WRONG one: Laravel and Symfony ship a package.json whose only scripts are
+  // `dev` and `build`, both vite, so discovery fell through to the package
+  // manager and named `npm run build` as a pure-PHP API's check — a frontend
+  // build that cannot fail because of a PHP edit or pass because of one.
+  // Measured 2026-08-29 against the installed 2.34.1 in a real Laravel
+  // repository (docs/BACKLOG.md §56). `phpunit.xml` is the declaration; a
+  // `composer.json` alone is a weaker signal and is handled above it, by the
+  // script the repository names for itself.
+  { file: 'phpunit.xml', command: 'php vendor/bin/phpunit' },
+  { file: 'phpunit.xml.dist', command: 'php vendor/bin/phpunit' },
 ]
+
+/** A `test` script a composer.json declares, which is the project's own answer. */
+function composerScriptCommand(directory) {
+  let manifest
+  try {
+    manifest = JSON.parse(readFileSync(path.join(directory, 'composer.json'), 'utf8'))
+  } catch { return null }
+  const script = manifest?.scripts?.test
+  const named = Array.isArray(script) ? script.length > 0 : typeof script === 'string' && script.trim()
+  return named ? 'composer test' : null
+}
 
 function packageManagerCommand(directory) {
   let manifest
@@ -1771,7 +1793,13 @@ function packageManagerCommand(directory) {
     : existsSync(path.join(directory, 'yarn.lock')) ? 'yarn'
     : existsSync(path.join(directory, 'bun.lockb')) ? 'bun'
     : 'npm'
-  for (const name of ['test', 'check', 'lint', 'typecheck', 'build']) {
+  // A BUILD IS NOT A CHECK. `build` was the last resort here, so any repository
+  // with a package.json and no test/check/lint/typecheck script was told its
+  // evidence command was a build — which compiles and says nothing about
+  // behaviour. Naming nothing is the honest answer (ADR-005): a reader can act
+  // on "I could not determine this project's check", and cannot act on a build
+  // that passes while the code is broken.
+  for (const name of ['test', 'check', 'lint', 'typecheck']) {
     if (typeof scripts[name] === 'string' && scripts[name].trim()) {
       return runner === 'npm' ? `npm run ${name}` : `${runner} ${name}`
     }
@@ -1796,6 +1824,14 @@ export function projectCheckCommand(cwd = process.cwd()) {
   const directory = nearestExistingDirectory(path.resolve(cwd))
   if (!directory) return null
   const root = gitRepositoryRoot(directory) ?? directory
+  // A script the repository NAMES FOR ITSELF beats a manifest guess, the same
+  // reason `scripts/verify.sh` sits above `go test ./...`: `php vendor/bin/phpunit`
+  // is a guess at how this project runs its tests, and in the repository that
+  // reported §56 it is the wrong one — phpunit there runs only inside Docker, so
+  // the bare host command would not execute at all. `composer test` is whatever
+  // that project decided it is.
+  const composed = composerScriptCommand(root)
+  if (composed) return composed
   for (const candidate of PROJECT_CHECKS) {
     if (existsSync(path.join(root, candidate.file))) return candidate.command
   }

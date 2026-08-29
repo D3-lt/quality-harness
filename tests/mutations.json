@@ -2299,8 +2299,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "               and (record_number_of(t) or cutoff) < cutoff]",
-      "to": "               and (record_number_of(t) or 0) < cutoff]"
+      "from": "        # A record named outside the convention has nothing to compare, and\n        # demoting it would be silent and permanent.\n        return False",
+      "to": "        # A record named outside the convention has nothing to compare, and\n        # demoting it would be silent and permanent.\n        return True"
     },
     {
       "label": "sweep: an unreadable strictFrom config is said out loud, not silently ignored",
@@ -2472,6 +2472,51 @@
       ],
       "from": "    .filter(entry => entry.startsWith('governs:'))",
       "to": "    .filter(() => false)"
+    },
+    {
+      "label": "lint: the sha grammar accepts every width git can produce",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "SHA_FIELD = r\"(?:[0-9a-f]{4,64}\\*?|no-git)\"",
+      "to": "SHA_FIELD = r\"(?:[0-9a-f]{7,40}\\*?|no-git)\""
+    },
+    {
+      "label": "verify: the sha grammar matches the one adr-lint reads with",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "SHA_FIELD = r\"(?:[0-9a-f]{4,64}\\*?|no-git)\"",
+      "to": "SHA_FIELD = r\"(?:[0-9a-f]{7,40}\\*?|no-git)\""
+    },
+    {
+      "label": "verify: an entry the readers cannot parse is refused, not written",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(ENTRY_RE.match(entry.strip()))",
+      "to": "    return True"
+    },
+    {
+      "label": "verify: a task's number comes from the record that owns it",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    name = re.search(r\"(?:adr[-_]?)?(\\d{3,4})[-._]\", directory.name, re.I)",
+      "to": "    name = re.search(r\"(?:adr[-_]?)?(\\d{1,4})[-._]\", str(directory), re.I)"
+    },
+    {
+      "label": "verify: zero is a record number, not an absent one",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return number < cutoff",
+      "to": "    return (number or cutoff) < cutoff"
     }
   ]
 }

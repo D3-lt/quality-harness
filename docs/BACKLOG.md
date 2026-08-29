@@ -1567,8 +1567,27 @@ move behaviour. The correction is to the CONFIDENCE, not the direction: the hone
 *"three instructions were measured on cases too noisy to detect a small effect, and none showed
 one"*, which is a much weaker claim than *"instructions have not once been shown to move
 behaviour"* — and it is the claim the data supports. Raising runs per arm on
-`gates-advise-never-block` until its with-arm stops spanning the range is the cheapest way to find
-out which of the two is true.
+`gates-advise-never-block` until its with-arm stops spanning the range is the obvious next move — and
+the arithmetic says buy the variance down before buying samples.
+
+**How many runs this case actually needs, computed 2026-08-29 from its own recorded spread.** Over
+every recorded run: with-arm n=28, mean 0.55, sd **0.39**; baseline n=21, mean 0.67, sd **0.41**. At
+80% power and α=0.05, `n ≈ 16σ²/δ²` per arm:
+
+| effect worth detecting | runs per arm |
+|---|---|
+| δ = 0.10 | **264** |
+| δ = 0.20 | 66 |
+| δ = 0.30 | 29 |
+| δ = 0.50 | 11 |
+
+At roughly $0.34 and 80 seconds a run (measured over the 49 recorded runs of this case), detecting a
+small effect costs about **$180 and five hours**, and 15 runs per arm — the number that looks
+reasonable — buys the power to detect only an effect of about 0.43, which is enormous. **So the
+honest next step is not more samples: it is finding out why one case scores 0.00 and 1.00 on
+identical inputs and fixing that.** A grader with sd 0.39 on a 0-to-1 scale is measuring the run.
+This is the same conclusion §36 reaches about gates and states as a rule — a verdict that changes its
+mind teaches re-running instead of fixing — applied to the instrument that produced §36's evidence.
 
 ## 36. What actually reaches an agent, measured on one
 
@@ -1910,7 +1929,16 @@ when that decision is broken — not by scanning for a plausible label:
 | ADR-010 | already carried one | mutation |
 
 **Nine of the ten pointers are catalogue labels, which is the strongest form** — the campaign grades
-each RED or GREEN on every run, so the claim is measured rather than asserted. `adr-context
+each RED or GREEN on every run, so the claim is measured rather than asserted. **And it was measured
+rather than assumed**: `resolve_enforcement` proves only that a label EXISTS in the catalogue, so
+every one was run —
+
+    node scripts/mutate.mjs --case '<label>'
+
+— 2026-08-29, all **RED**, including ADR-008's and ADR-010's pre-existing pointers. Without that run
+this table would have claimed the measured form on the strength of a lookup, which is exactly the
+risk ADR-009's own table names: *`Enforced-by:` names a check that exists and cannot fail.* ADR-010's
+pointer was already in place and is listed for completeness, not chosen here. `adr-context
 plugin/bin/adr-lint` now answers with four governing records and the check that catches each, which
 is the chain ADR-009 was built for, finally complete.
 

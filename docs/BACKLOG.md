@@ -4127,6 +4127,22 @@ discovering by different rules over one corpus (§55); an agentsmemory anchor ch
 tree the reading session happened to be in; and now a status column read out of a table that has no
 status column. *"Each time the extraction is correct and the binding is not."*
 
+### The campaign then found the fix half-untested
+
+CI came back GREEN on the mutation for this change, and it was right to. Two mechanisms protect the
+binding — a reset on any non-table line, and re-reading the header per table — and with a blank line
+or a heading between the tables the RESET alone is enough. So a mutant that skipped the per-header
+re-read behaved identically on every fixture, because every fixture had a gap.
+
+The case that separates them is two tables **back to back**, with no blank line or heading. There the
+reset never fires and only the re-read prevents the second table's column being read as a status.
+Added, and the mutation goes RED.
+
+Worth naming as its own shape: **two mechanisms where one is never exercised** is the same defect
+class as a catalogue entry naming a test that never drives the changed path — the code is right, the
+evidence that it is right covers only half of it, and nothing says so until something breaks the
+untested half deliberately.
+
 ### And the fixture could not have caught it
 
 The cell I built from their message — `**done** (2026-07-29) — sshd drop-in split off to T3b` —

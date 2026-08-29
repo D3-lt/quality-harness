@@ -2945,7 +2945,7 @@
       "label": "verify: a toolchain directive is not a comment-only mutant",
       "file": "plugin/bin/adr-verify",
       "tests": [
-        "tests/gates.test.mjs"
+        "tests/evidence-chain.test.mjs"
       ],
       "from": "    if DIRECTIVE_COMMENT.search(frm) or DIRECTIVE_COMMENT.search(to):",
       "to": "    if False:"

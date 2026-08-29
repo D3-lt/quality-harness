@@ -26,7 +26,22 @@ else
   verdict="PARTIAL — tests and syntax checks passed; plugin validation was skipped."
 fi
 
-node --test "$REPO"/tests/*.test.mjs
+# QUALITY_HARNESS_TAP names a file to receive a TAP transcript alongside the
+# normal output. It exists for BACKLOG §49: a Windows run failed once at FILE
+# level — `✖ …\lifecycle.test.mjs`, location `1:1`, message `'test failed'` —
+# naming no subtest anywhere in the log, so the next occurrence would cost the
+# same investigation as the first. TAP reports each subtest as it completes, so
+# the transcript names how far the file got even when the run dies without a
+# failing assertion to report. Off by default: it is a diagnostic, not a gate,
+# and nothing reads the file here.
+if [ -n "${QUALITY_HARNESS_TAP:-}" ]; then
+  node --test \
+    --test-reporter=spec --test-reporter-destination=stdout \
+    --test-reporter=tap --test-reporter-destination="$QUALITY_HARNESS_TAP" \
+    "$REPO"/tests/*.test.mjs
+else
+  node --test "$REPO"/tests/*.test.mjs
+fi
 
 # The gates are the extensionless files; bin/*.cmd are Windows shims.
 # `-f` is not decoration: a `__pycache__/` left in bin by any process that

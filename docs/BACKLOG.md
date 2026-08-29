@@ -4143,6 +4143,26 @@ class as a catalogue entry naming a test that never drives the changed path — 
 evidence that it is right covers only half of it, and nothing says so until something breaks the
 untested half deliberately.
 
+### Verified on the corpus that found it, with a positive control
+
+The re-sweep across all 28 records: **before 7 fire / 21 silent, after 0 fire / 28 silent**, with no
+README touched — the shape is legitimate and the tool was wrong about it, not the other way round.
+
+**And they built the positive control themselves**, for the reason that makes it worth recording:
+*"app-tier and db-doctor go silent is also what a disabled check looks like, and testing only that
+direction would have been today's error one more time."* Their control is a status table with a
+genuinely unacted status followed IMMEDIATELY by an ordering table — no blank line, no heading, which
+is the exact case the mutation had shown untested. It produced **one** advice, naming
+`**partial** — two of thirteen steps` and NOT naming `T2, T4`. So the check fires on a real unacted
+status, the per-header re-read prevents the back-to-back leak with no reset to fall back on, and
+emphasis is not an exemption — all three, independently exercised.
+
+**One thing they noticed that I took:** the advice quoted the whole cell, so a reader could take that
+string as what the tool treated as the status and conclude the parser is naive in exactly the way it
+is not. It now names both — ``status `partial` (from `**partial** — two of thirteen steps`)`` — and
+does not repeat itself when the cell already is the word. Same instinct as §65 naming the
+`.gitignore` pattern that matched: show what was READ, not only what was there.
+
 ### And the fixture could not have caught it
 
 The cell I built from their message — `**done** (2026-07-29) — sshd drop-in split off to T3b` —

@@ -3939,6 +3939,29 @@ complaint that led to it: an absent runner was being recorded as evidence that t
 broken mechanism. `environment_failure` now routes it to the same baseline, and it records
 `inconclusive · the failure predates the mutant`.
 
+### The retroactive question, and this corpus swept for it
+
+The reporter's sharper point: **every mutation-log entry written on a machine with a missing or
+misnamed runner is suspect, retroactively.** A `killed` row carrying a tool-written stamp is worse
+than no row, because the stamp is what makes it trusted. So this corpus was swept rather than
+assumed clean (CLAUDE.md §5):
+
+    grep -rho 'mutant killed · exit [0-9]*' docs/adr --include='*.md' | sort | uniq -c
+      36  mutant killed · exit 1
+       2  mutant killed · exit 2
+
+**No entry at exit 127**, which is the signature of the command that does not exist. The two at exit
+2 both run `python3 plugin/bin/spec-verify --spec …`, where 2 is that gate's own deliberate refusal
+code and the mutation broke a fact binding — so the refusal IS the detection, and both are
+defensible. They are named here anyway, because **exit 2 from a gate is exactly the ambiguous shape**:
+a code that can mean "I refuse this" or "I could not run", and a future entry at that code deserves
+the second look these two survived.
+
+That is a sweep of one corpus, and it is the corpus that wrote the tool. A consumer whose fence
+names a runner that is absent on the machine that ran it would have the false rows, and nothing in
+this repository can see them from here — which is worth saying to anyone whose mutation log predates
+today.
+
 ### Three fixtures, two of which asserted nothing
 
 The first fixture printed a bare `no tests to run`; the second printed nothing at all. Neither is

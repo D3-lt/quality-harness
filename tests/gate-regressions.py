@@ -1863,6 +1863,22 @@ def main():
     lint.check_task_status_vocabulary({"T1": {"path": Path("T1.md")}}, two_tables, errs)
     assert not [a for a in errs.advice if "does not act on" in a], \
         f"a depends-on column is not a status: {errs.advice}"
+    # ADJACENT tables, with no blank line or heading between them. This is what
+    # makes the per-header re-read load-bearing: with a gap, the reset on any
+    # non-table line already clears the column, so a mutant that skipped the
+    # re-read behaved identically and the campaign said so by staying GREEN. Two
+    # mechanisms, only one of them exercised — which is the same defect class as
+    # a catalogue entry naming a test that never drives the path.
+    adjacent = (
+        "| ID | Title | Status |\n|---|---|---|\n"
+        "| T1 | groups | done |\n"
+        "| ID | Title | Depends-on |\n|---|---|---|\n"
+        "| T1 | groups | T3, T5, T6 |\n")
+    errs = lint.Findings()
+    lint.check_task_status_vocabulary({"T1": {"path": Path("T1.md")}}, adjacent, errs)
+    assert not [a for a in errs.advice if "does not act on" in a], \
+        f"a second table's column is not a status even with no gap: {errs.advice}"
+
     # The must-fail direction: the STATUS table is still read, in a README with
     # the same two-table shape — otherwise "ignore the second table" degrades
     # into "ignore everything" and the check silently stops working.

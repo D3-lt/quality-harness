@@ -2347,6 +2347,46 @@ its neighbours' files" bug the comment at `plugin/scripts/lifecycle.mjs:~2270` r
 tasks whose record is not `governing` from `ready`. Say what was dropped rather than dropping it in silence — a corpus whose
 task files cannot be attributed must report that, not report zero.
 
+## 49. OPEN — a Windows run of `lifecycle.test.mjs` failed once, naming no test
+
+Observed 2026-08-29 on run 33246705246, commit 439e64d. The **only** diff from fafd177 — which had
+just passed Windows on the same nine jobs — was the `version` string in
+`plugin/.claude-plugin/plugin.json`. Re-running the failed job on the same commit passed. So it is
+intermittent, and it is Windows-only so far: ubuntu and macOS have not produced it.
+
+**What makes it worth an entry rather than a shrug** is the shape of the report:
+
+```
+✖ D:\a\quality-harness\quality-harness\tests\lifecycle.test.mjs (3266.7912ms)
+✖ failing tests:
+test at tests\lifecycle.test.mjs:1:1
+✖ D:\a\quality-harness\quality-harness\tests\lifecycle.test.mjs (3266.7912ms)
+  'test failed'
+```
+
+**No subtest is named anywhere in the log.** Every other ✖ this suite has ever produced names the
+assertion that failed. A file-level failure with `1:1` as its location and `'test failed'` as its
+message tells a reader nothing about what broke, which means the next occurrence costs the same
+investigation as this one. This repository's own rule (§36) is that a verdict which changes its mind
+teaches re-running instead of fixing — and a verdict that changes its mind *and cannot say what it
+was about* teaches re-running twice.
+
+**What was ruled out, and what was not.** Not a code change: the test tree is byte-identical to the
+green run before it. Not a mutation-catalogue or gate change: those jobs were green in the same run.
+NOT ruled out — a timeout or a resource limit inside one of the file's spawned subprocesses, which on
+Windows would surface as a file that fails without a subtest reporting; the file spawns gates and
+`node` repeatedly, and 3266 ms is fast enough that a spawn failure is more likely than a hang.
+
+**The work, when it is picked up:** make the file report which subtest failed on Windows before
+trying to fix the flake itself. A retry that turns green is not evidence about the cause, and
+re-running until green is exactly the habit this corpus exists to refuse. Candidates: run the file
+with `--test-reporter=tap` in CI so a failing subtest cannot be swallowed, or split it — it is the
+largest file in the suite by a wide margin.
+
+**Frequency so far: one occurrence in the runs recorded to date.** Do not act on it as though it
+were established; do record the next one here with its run id, because two data points decide
+whether this is a timeout or something real.
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

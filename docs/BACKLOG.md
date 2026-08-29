@@ -1860,6 +1860,37 @@ counting `(deferred:)`, exactly as its old regex did.
 Enforced-by: `tests/gates.test.mjs::focused false-green regressions remain closed` (which runs
 `tests/gate-regressions.py`), and four catalogue entries, all RED.
 
+### The series that followed, and the one measurement that justifies all of it
+
+Four releases on 2026-08-29 — v2.31.1 nested parens, v2.31.2 a trailing full stop, v2.31.3 a wrapped
+disposition and a deferral resolving on its leading record id, v2.31.4 nested children. Every one was
+reported by a session running these gates over **another project's 44-record corpus**, and not one was
+reachable from this repository's eleven records. Across the four: **15 broken pointers → 0, exit 1 →
+exit 0**, attributed 13 / 1 to the gates and 1 to that corpus.
+
+**What the last one measured, and it is the argument for the whole series.** Once the four false
+disposition advices on one record were suppressed, a FIFTH bullet on the same record was found to
+carry no disposition at all — a real finding, correct, and present the entire time. The reporter's
+words: *"it was sitting fifth in a list of five where four were false … I read past that bullet twice
+today."*
+
+This repository already had the rule — `adr-judge::bullets`, 2026-08-27: *"a gate with false alarms is
+one people learn to skip, and then it protects nothing."* The measurement sharpens it. **A gate with
+false alarms does not merely get ignored; it hides its own true findings in plain sight.** The cost is
+not the wasted attention on the four, it is the one that was correct and unread. That is a stronger
+claim than "people stop reading", and unlike the original it was observed rather than reasoned.
+
+**A corollary about fixtures, from the same day.** The first attempt at the nested-children fix
+suppressed only the FIRST child; the second was still reported. It was caught because the fixture had
+two children. A fixture with ONE of something cannot distinguish *handled* from *handled once* —
+which is the falsifiability rule this corpus already applies to mutants, applied to fixture shape.
+
+**And the thing not to conclude.** The findings were not available because the corpus was large; they
+were available because the gate was **strict enough to be wrong in a legible way**. A looser parser
+would have accepted all fifteen bullets and taught nobody anything. A gate that makes a claim precise
+enough to be false is the precondition for a report like this existing at all — which is the same
+argument this repository makes about tests, one level up.
+
 ## 38. One of three closed 2026-08-28; the two runner questions stay open
 
 **Met again 2026-08-28, by ADR-010's spec.** All 17 facts and all 7 scenarios are bound and passing;

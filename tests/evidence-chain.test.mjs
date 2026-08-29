@@ -422,6 +422,31 @@ test('a fence that never returns is UNRUN, and writes nothing', () => {
     'a killed mutant run must still put the file back')
 })
 
+test('an Acceptance fence may be spelled sh or shell', () => {
+  // docs/BACKLOG.md §70. `sh` is a reasonable thing to type and the fence runs
+  // through bash either way; refusing it bought nothing. Asserted THROUGH the
+  // gate, because the campaign caught the first version of this work with the
+  // mutation GREEN — the pattern was widened and nothing exercised a file that
+  // used the new spelling.
+  for (const language of ['sh', 'shell', 'bash']) {
+    const copy = corpus()
+    writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/,
+      '```' + language + '\nexit 3\n```'))
+    const ran = run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md'], copy)
+    expectExit(ran, 3, `a \`\`\`${language} fence must be read and run`)
+    assert.match(readTask(copy), /· exit 3 · /, `${language}: the run is recorded`)
+  }
+
+  // The must-fail direction: a fence in a language this gate does not run is
+  // still refused, or "read every fence" satisfies the loop above.
+  const other = corpus()
+  writeTask(other, readTask(other).replace(/```bash\n[\s\S]*?\n```/,
+    '```python\nprint("no")\n```'))
+  const refused = run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md'], other)
+  expectExit(refused, 2, 'a python fence is not an acceptance command this gate runs')
+  assert.match(refused.stdout, /no non-empty/, refused.stdout)
+})
+
 test('a toolchain directive is not a comment-only mutant', () => {
   // BACKLOG §67, asserted THROUGH THE GUARD rather than against the pattern it
   // uses. `# type: ignore` is lexically a comment and semantically an
@@ -627,9 +652,16 @@ test('the warning that names the broken file survives the kill that hides it', a
   // and the assertion fails for a reason that has nothing to do with flushing.
   // CI on ubuntu-latest found it on 2026-08-27; the same test had passed on
   // macOS repeatedly, which is what a timing race looks like from one machine.
+  // Wait for the line the assertions actually READ, not for a proxy. Waiting on
+  // `MUTANT APPLIED` alone and then killing leaves the `--restore` line — emitted
+  // immediately after it — unflushed, so the assertion below fails on timing
+  // rather than on behaviour. It surfaced first in the coverage job, whose
+  // instrumentation is slow enough to open the window; that is the same shape as
+  // the race this loop was written for, one line further on.
   const untilAnnounced = async () => {
-    for (let i = 0; i < 400 && !/MUTANT APPLIED/.test(said()); i += 1) await setTimeout(25)
-    return /MUTANT APPLIED/.test(said())
+    const ready = () => /MUTANT APPLIED/.test(said()) && /--restore/.test(said())
+    for (let i = 0; i < 400 && !ready(); i += 1) await setTimeout(25)
+    return ready()
   }
   assert.ok(await untilAnnounced(), 'the warning never arrived, so the kill proves nothing')
   assert.ok(mutated(copy), 'the warning must be emitted while the mutant is on disk')

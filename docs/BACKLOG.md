@@ -4163,6 +4163,26 @@ is not. It now names both — ``status `partial` (from `**partial** — two of t
 does not repeat itself when the cell already is the word. Same instinct as §65 naming the
 `.gitignore` pattern that matched: show what was READ, not only what was there.
 
+### Confirmed again on the released build, and the method is the keeper
+
+Re-run under v2.38.0 (2a17224): **0 fires, 28 silent, control still advises.** Stable across two
+builds.
+
+**How they ran it matters more than the result.** Their previous sweep grepped for the literal
+sentence `which this reader does not act on`. The message had just changed — to name the extracted
+word beside the raw cell — and if that change had dropped the sentence, **their detector would have
+returned 0 fires for the wrong reason**: a false all-clear produced by their own assertion rather
+than by the code under test. Today's family, aimed at the verifier's own instrument.
+
+So they ran the positive control FIRST to learn the new format, then built the sweep's pattern from
+what the tool actually emits rather than from what they remembered it emitting. The sentence turned
+out to be unchanged and the old grep would have worked — *"that is luck, not method, and the method
+is the part I would keep."*
+
+**The rule, stated generally:** a detector built from remembered output is a claim about a version.
+Build it from what the tool emits in the run you are about to trust, or a cosmetic change upstream
+turns your sweep into a silence you will read as safety.
+
 ### And the fixture could not have caught it
 
 The cell I built from their message — `**done** (2026-07-29) — sshd drop-in split off to T3b` —

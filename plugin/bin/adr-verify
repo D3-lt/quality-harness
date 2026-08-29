@@ -693,7 +693,18 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
     append_entry(task, task.read_text(errors="replace", encoding="utf-8"), block, section="Mutation Log")
     print(block)
     if verdict != "killed":
-        print(f"[adr-verify] NOT evidence: {detail}. Only `killed` counts.")
+        # The tool's own exit code, said in the sentence that says the run
+        # failed. A survivor's recorded row legitimately contains `exit 0` — that
+        # is the FENCE's code, and a fence exiting 0 with the mechanism broken is
+        # the definition of a survivor — but it sits four characters from `mutant
+        # survived`, so a reader scanning for an exit code finds that one. A
+        # session grepping its own runs concluded this tool exits 0 on a survivor
+        # and reported it; it exits 1 and always has (docs/BACKLOG.md §63). The
+        # grammar of the row is right and is not reordered for this; the remedy
+        # is that the verdict line names its own status.
+        print(f"[adr-verify] NOT evidence: {detail}. Only `killed` counts "
+              f"(adr-verify exits 1; the `exit 0` in the row above is the FENCE's code, "
+              f"which is what a survivor means).")
     sys.exit(0 if verdict == "killed" else 1)
 
 

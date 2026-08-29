@@ -2931,6 +2931,15 @@
       ],
       "from": "    if status is not None and not re.match(r\"accepted\\b\", status, re.I):",
       "to": "    if False:"
+    },
+    {
+      "label": "next: the year of an ISO date is not a record number",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "RECORD_NUMBER = re.compile(r\"(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)",
+      "to": "RECORD_NUMBER = re.compile(r\"(?:adr[-_]?)?0*(\\d{1,4})\\b\", re.I)"
     }
   ]
 }

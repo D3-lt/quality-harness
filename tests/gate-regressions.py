@@ -93,6 +93,29 @@ DISPOSITION_GRAMMAR = [
 ]
 
 
+# What may follow a disposition and still leave it closing the bullet. All THREE
+# gates carry a copy of `closes_the_line`, so the rows are run against all three.
+#
+# Reported 2026-08-29 against v2.31.1 from an adopting corpus: `(deferred: x).`
+# — a well-formed pointer with a full stop after it — was rejected, and adr-debt
+# then printed BROKEN [malformed] with an EMPTY pointer, which is the vocabulary
+# for "nothing after the colon". All 15 of that corpus's broken-pointer findings
+# were this shape, blocking at exit 1. The `.` predates v2.31.1; the old regex
+# anchored on `\)\s*$`, which allows whitespace and nothing else.
+CLOSES_THE_LINE = [
+    ("- A (permanent: why)", True),
+    ("- A (permanent: why).", True),
+    ("- A (deferred: notes.md).", True),
+    ("- A (deferred: notes.md);", True),
+    ("- A (deferred: notes.md) ", True),
+    ("- A (deferred: notes.md) .", True),
+    # A SECOND PARENTHETICAL IS NOT PUNCTUATION, and this row is the reason the
+    # end-of-bullet rule is narrowed rather than dropped.
+    ("- A (permanent: why) (see also)", False),
+    ("- A (permanent: why) and more prose", False),
+]
+
+
 # The one sha grammar the WRITER and the READERS must agree on. Mirrored between
 # adr-lint and adr-verify — six literal copies of the pattern before ADR-011's
 # successor, and the writer emitted a width no copy accepted.
@@ -1261,6 +1284,13 @@ def main():
     # path between them, so the copies are only shared if something compares
     # them — ADR-009's `enforcement_pointers` lesson, applied again.
     for module in (lint, debt, retire):
+        for line, closes in CLOSES_THE_LINE:
+            span = module.disposition_span(line)
+            assert span, f"{module.__name__}: {line!r} has a disposition to locate"
+            got = module.closes_the_line(line, span[2])
+            assert got is closes, (
+                f"{module.__name__}.closes_the_line({line!r}): got {got}, "
+                f"the shared grammar says {closes}")
         for line, want in DISPOSITION_GRAMMAR:
             span = module.disposition_span(line)
             got = span[0] if span else None

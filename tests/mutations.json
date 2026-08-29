@@ -2542,8 +2542,26 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    return bool(span) and span[2] == len(bullet) and bool(DISPOSITION_TEXT.match(span[0]))",
+      "from": "    return bool(span) and closes_the_line(bullet, span[2]) and bool(DISPOSITION_TEXT.match(span[0]))",
       "to": "    return bool(span) and bool(DISPOSITION_TEXT.match(span[0]))"
+    },
+    {
+      "label": "adr-lint: sentence punctuation after a disposition is not a second parenthetical",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return text[end:].strip(\" \\t.,;:\") == \"\"",
+      "to": "    return text[end:].strip() == \"\""
+    },
+    {
+      "label": "adr-debt: a disposition still has to close the bullet",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return text[end:].strip(\" \\t.,;:\") == \"\"",
+      "to": "    return True"
     },
     {
       "label": "adr-debt: a disposition's parentheses are balanced, not just the last run",

@@ -1899,7 +1899,7 @@ needs re-recording with `adr-verify` on a clean tree. That is the cost, and it i
 rather than done inside ADR-010: it is a corpus-wide repair with its own evidence to regenerate, and
 ADR-010's own fences already use the corrected form.
 
-## 47. Two evidence-grammar divergences between adr-lint and adr-verify
+## 47. CLOSED 2026-08-29 — the writer emitted a width no reader accepted
 
 **Found by a cold review of the sweep, 2026-08-28, and deliberately not fixed there** — both are
 pre-existing in `adr-lint`'s own grammar, and changing one side alone would make the writer and the
@@ -1924,7 +1924,45 @@ an entry is.** A third implementation would make it worse; the right shape is on
 call sites, and the standing reason they are separate — the gates are standalone scripts with no
 import path — is what makes this cost real rather than theoretical.
 
-**Still open, and deliberately left by ADR-011** (`docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md`,
+**CLOSED 2026-08-29.** Both halves fixed, and the reproduction found the entry understated one of
+them. `SHA_FIELD` is now one named constant per gate — five literal copies collapsed in `adr-lint`,
+one in `adr-verify` — accepting `[0-9a-f]{4,64}`, which is what git can actually emit. The
+boundaries are measured rather than reasoned: `git -c core.abbrev=4 rev-parse --short HEAD` returned
+`6aaf`, and a real `git init --object-format=sha256` repository returned a 64-character sha. Both are
+in `tests/gate-regressions.py::SHA_GRAMMAR`, which every reader on both sides is checked against, so
+3 and 65 still fail and no width git produces does.
+
+**What the entry got wrong, and it matters.** This was filed as "adr-verify can WRITE an entry that
+adr-lint rejects", a measurement problem. Reproduced 2026-08-29 on a clone with `core.abbrev=4`:
+adr-verify wrote `- … · 6aaf* · exit 0 · …` and exited 0, and **both** readers rejected it —
+`adr-verify`'s own `CLAIM_RE` included. So one cause has two consequences, and the second is worse
+than the first. The sweep drops the claim from its denominator, which flatters the false-success
+rate; and `adr-lint`'s refusal of a `done` row without a matching exit-0 entry is BLOCKING, so a
+corpus with `core.abbrev < 7` cannot mark anything done using evidence the tool itself just wrote.
+A gate bricking a record over a config value nobody set deliberately is the failure this project
+exists to not have.
+
+Widening the readers closes today's gap. What closes the next one is that `adr-verify` now checks
+every entry against the grammar BEFORE writing it and refuses rather than emitting a line nothing can
+read — the width is decided by `core.abbrev`, in a config file the tool does not own.
+
+**The record-number half is fixed and was NOT a false-success hole**, which is worth recording
+because the entry implied it was. `record_number_of` scanned every resolved path component in
+reverse, so a task under `~/adr-42-notes/proj/probe/tasks/` inherited ADR-42 from somebody's
+directory name. It now reads the OWNING record — the directory the `tasks/` directory sits in — with
+`adr-lint::adr_number`'s rules, title first then name. And `(record_number_of(t) or cutoff) < cutoff`
+became `demoted_by(number, cutoff)` with an explicit `is None`, because the falsy-or could not say
+"this record is number zero". Checked rather than assumed: for ADR-000 and for a numeric filename,
+`0 or cutoff` and `None or cutoff` both yield `cutoff`, so `cutoff < cutoff` is False and the record
+was **checked in full**. Every divergence measured erred STRICT. The reason to fix it anyway is that
+the next reader of that line has to re-derive which direction it fails in before they can trust it.
+
+**A pre-existing test asserted the wrong premise, and is corrected in place.**
+`tests/sweep.test.mjs::a forty-character sha is a claim and a six-character one is not` said in its
+own comment that "six is below anything git produces". It is not. The test now asserts every width
+git can emit (4, 6, 7, 40, 64) is a claim and that 3 and 65 are not, and carries the measurement.
+
+**Superseded by the above; kept for the reasoning.** Deliberately left by ADR-011 (`docs/adr/ADR-011-a-pointer-resolves-or-it-is-reported.md`,
 Out of Scope). ADR-011 ships one rule as two implementations, which is the opposite shape, and its
 Alternatives section states why the two cases differ: this entry is a WRITER and a READER of one
 evidence grammar, where a divergence silently drops claims from a denominator, while `Governs:` and

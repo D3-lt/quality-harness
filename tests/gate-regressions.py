@@ -60,6 +60,28 @@ GOVERNS_MATCH_GRAMMAR = [
 ]
 
 
+# The one sha grammar the WRITER and the READERS must agree on. Mirrored between
+# adr-lint and adr-verify — six literal copies of the pattern before ADR-011's
+# successor, and the writer emitted a width no copy accepted.
+#
+# The boundaries are not typed: 4 came from `git -c core.abbrev=4 rev-parse
+# --short HEAD`, and 64 from a real `git init --object-format=sha256` repository
+# (9ae7b849…, measured 2026-08-29). A hand-invented width is a guess about what
+# git does; these are what it did.
+SHA_GRAMMAR = [
+    ("6aaf", True),                                                     # core.abbrev=4
+    ("6aafd94", True),                                                  # git's default here
+    ("6aafd948f3d8cca6c4be10aaf95514c46609b3be", True),                 # full SHA-1
+    ("9ae7b8494baf383e0ed2b53238a961316e6dcdd284dfad3e83361e95557de407", True),  # full SHA-256
+    ("6aaf*", True),                                                    # dirty tree
+    ("no-git", True),                                                   # outside a repository
+    ("6aa", False),                                                     # narrower than git allows
+    ("9ae7b8494baf383e0ed2b53238a961316e6dcdd284dfad3e83361e95557de4077", False),  # 65
+    ("6aafd9g", False),                                                 # not hex
+    ("", False),
+]
+
+
 def verification_errors(lint, acceptance, entries, mlog=()):
     infos = {
         "T1": {
@@ -1023,6 +1045,76 @@ def main():
     for value, want in ENFORCEMENT_GRAMMAR:
         got = lint.enforcement_pointers(f"**Enforced-by:** {value}\n")
         assert got == want, f"{value!r}: python said {got}, the shared grammar says {want}"
+
+    # BACKLOG §47. adr-verify WRITES the sha `git rev-parse --short HEAD` returns,
+    # unvalidated, while every reader accepted `[0-9a-f]{7,40}` — six literal
+    # copies of one pattern, five in adr-lint and one in adr-verify.
+    #
+    # git honours `core.abbrev`, which it allows down to 4, and a SHA-256
+    # repository emits up to 64. Reproduced 2026-08-29 on a clone with
+    # `core.abbrev=4`: adr-verify wrote `- … · 6aaf* · exit 0 · …` and exited 0,
+    # and BOTH readers rejected its own entry — the sweep's CLAIM_RE included.
+    # One cause, two consequences: a claim the sweep cannot read leaves the
+    # denominator, which makes the false-success rate look BETTER; and adr-lint's
+    # refusal of a `done` row without a matching exit-0 entry is BLOCKING, so a
+    # corpus with core.abbrev < 7 cannot mark anything done using evidence the
+    # tool itself just wrote.
+    for sha, want in SHA_GRAMMAR:
+        line = (f"- 2026-08-29 · {sha} · exit 0 · `printf a` · acceptance-sha256:" + "0" * 64)
+        for name, pattern in (("adr-lint VLOG_RE", lint.VLOG_RE),
+                              ("adr-lint VLOG_DIGEST_RE", lint.VLOG_DIGEST_RE),
+                              ("adr-verify CLAIM_RE", verify.CLAIM_RE)):
+            got = bool(pattern.match(line) if name != "adr-verify CLAIM_RE"
+                       else pattern.search(line))
+            assert got is want, f"{name} disagrees with the shared grammar on {sha!r}"
+        legacy = f"- 2026-08-29 · {sha} · exit 0 · `printf a`"
+        assert bool(lint.VLOG_LEGACY_RE.match(legacy)) is want, (
+            f"the legacy reader disagrees with the shared grammar on {sha!r}")
+        mutant = (f"- 2026-08-29 · {sha} · mutant killed · exit 1 · `x.py` · why · "
+                  "acceptance-sha256:" + "0" * 64)
+        for name, pattern in (("MLOG_RE", lint.MLOG_RE), ("MLOG_DIGEST_RE", lint.MLOG_DIGEST_RE)):
+            assert bool(pattern.match(mutant)) is want, (
+                f"the mutation reader {name} disagrees with the shared grammar on {sha!r}")
+
+    # THE WRITER CHECKS ITSELF. Widening the readers closes today's gap; this is
+    # what stops the next one, because the width git returns is decided by a
+    # config file this tool does not own. An entry it cannot read back is a
+    # refusal, not a silent write.
+    assert verify.readable_entry("- 2026-08-29 · 6aaf · exit 0 · `printf a` · acceptance-sha256:"
+                                 + "0" * 64), "a 4-wide sha is what core.abbrev=4 produces"
+    assert not verify.readable_entry("- 2026-08-29 · 6aa · exit 0 · `printf a` · "
+                                     "acceptance-sha256:" + "0" * 64)
+
+    # The record-number resolvers diverged, and NOT symmetrically — checked
+    # rather than assumed. `(record_number_of(t) or cutoff) < cutoff` treats
+    # ADR-000 as absent, and absent means "checked in full", so the pre-existing
+    # bug erred STRICT in every case measured here. It is still wrong: the
+    # falsy-or cannot express "this record is number zero", and the next reader
+    # of that line has to re-derive which direction it fails in.
+    with tempfile.TemporaryDirectory() as rt:
+        root = Path(rt)
+        for record, task in (("ADR-000-zero", "T1-a.md"), ("ADR-014-normal", "T1-a.md")):
+            (root / record / "tasks").mkdir(parents=True)
+            (root / record / "tasks" / task).write_text("# T1\n", encoding="utf-8")
+        assert verify.record_number_of(root / "ADR-000-zero" / "tasks" / "T1-a.md") == 0
+        assert verify.record_number_of(root / "ADR-014-normal" / "tasks" / "T1-a.md") == 14
+        # ...and zero is not absent. This is the assertion the falsy-or cannot pass.
+        assert verify.demoted_by(0, 14) is True, "ADR-000 is below a cutoff of 14"
+        assert verify.demoted_by(None, 14) is False, "no number is not below the cutoff"
+        assert verify.demoted_by(14, 14) is False and verify.demoted_by(13, 14) is True
+
+    # AN ANCESTOR THAT MERELY LOOKS LIKE A RECORD. `record_number_of` scanned
+    # every path component in reverse, so a task in a directory nobody numbered
+    # inherited a number from a parent — `~/adr-42-notes/proj/docs/adr/probe/…`
+    # resolved as ADR-42 and was demoted against a cutoff it has nothing to do
+    # with. The owning record is the DIRECTORY THE TASKS LIVE IN, which is the
+    # same thing adr-lint's `adr_number` reads.
+    with tempfile.TemporaryDirectory() as rt:
+        stray = Path(rt) / "adr-42-notes" / "proj" / "probe" / "tasks"
+        stray.mkdir(parents=True)
+        (stray / "T1-a.md").write_text("# T1\n", encoding="utf-8")
+        assert verify.record_number_of(stray / "T1-a.md") is None, (
+            "a directory that merely looks like a record is not this task's record")
 
     # ADR-011 T1. `Governs:`, `Cross-references:` and `Invalidates:` were checked
     # for SHAPE and never against the thing they name, so a path that named

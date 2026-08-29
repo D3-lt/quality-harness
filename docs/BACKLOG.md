@@ -3064,6 +3064,36 @@ anything: a `test_body` returning the whole file for everything would satisfy th
 (CLAUDE.md §4). Catalogue entries `lint: a BDD test named by a string is found` and
 `lint: a test named only in a comment is not a test that exists`.
 
+### The fix was unreachable, and its own tests did not notice — reported the same day
+
+The klientams session installed the fix, re-ran it, and got **the same nine messages, unchanged**.
+The BDD matcher was correct and was never reached with usable input: `check_tests_exist` passed
+`code_only(...)` output, which blanks every string literal, so `it('name', …)` arrived as `it('', …)`
+and the name was deleted before the search. Their measurement: `name in raw_text` True,
+`name in code_only(raw)` False.
+
+**The assertions passed because they called `test_body` directly on raw source — the mechanism, not
+the path.** That is this repository's own rule (CLAUDE.md §4: assert the mechanism, not a downstream
+effect something else also covers) failing in the other direction: a unit that works, reached by a
+caller that cannot use it. A regression going through `check_tests_exist` end-to-end on a Vitest
+fixture would have caught it, and that is now what the test does.
+
+Fixed by moving the stripping INTO `test_body`, per branch: the declaration and last-resort branches
+read `code_only` output, the BDD branch reads raw text and refuses a match on a line a comment marker
+opens (`commented_out`), which keeps the anti-comment property the last-resort branch was fixed for.
+Both callers pass raw source — except for Python, which is stripped at the caller in the can-fail
+check, because Python names its tests with `def` (which survives stripping) and its bodies carry
+DOCSTRINGS whose `assert` must not be mistaken for an assertion the test makes. That exception was
+found by `tests/gate-regressions.py::an assert inside a docstring must not count` going red, which is
+the older regression defending itself.
+
+The second caller mattered too: `check_tests_can_fail` pre-stripped identically and `continue`s on a
+None body, so it silently skipped every JS/TS test it was asked about — a check that reported nothing
+and looked like a check that found nothing.
+
+**The new assertion is proved able to fail**: reverting the caller to the pre-fix form reproduces the
+reporter's exact message (`no executable definition with that name`) and the test goes red.
+
 **Why this had to come from outside.** This repository's tests are `node:test` (`test('name', …)` —
 a BDD form) and Python `def test_…`. The Python path has its own indentation-aware branch, and the
 JS path was never exercised by `check_tests_exist` here because no task file in this corpus names a

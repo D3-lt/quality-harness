@@ -1603,8 +1603,10 @@ def check_tests_exist(infos, readme_text, errors, root):
                               f"Tests table names `{rel}` for `{name}`, but no such file exists "
                               f"in the repo — the row describes a test nothing can run")
                 continue
-            source = code_only(f.read_text(errors="replace", encoding="utf-8"),
-                               python=f.suffix == ".py")
+            # RAW source: `test_body` strips per branch, because a BDD test's name
+            # is a string literal and stripping strings here deleted the thing
+            # being searched for (docs/BACKLOG.md §57).
+            source = f.read_text(errors="replace", encoding="utf-8")
             if test_body(source, name, python=f.suffix == ".py") is None:
                 errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
                               f"Tests table names `{name}` in `{rel}`, but that file contains no "
@@ -1633,6 +1635,18 @@ FAIL_CALLS = re.compile(
     r"|->assert\w*\s*\("                                     # ->assertX(...) on any receiver
     r"|\bassert\w*\s*\(",                                   # bare assertX(...) call
     re.I)
+
+
+def commented_out(text, index):
+    """Is the match at `index` on a line that a comment marker opens?
+
+    The BDD branch reads raw text because the test's NAME is a string literal,
+    so it cannot lean on `code_only` to drop commented code the way the other
+    branches do. This is the narrow replacement: a `// it('x', …)` left behind
+    when someone disabled a test is not a test that exists.
+    """
+    start = text.rfind("\n", 0, index) + 1
+    return re.match(r"\s*(?://|#|\*|--)", text[start:index]) is not None
 
 
 def test_body(text, name, python=False):
@@ -1673,18 +1687,33 @@ def test_body(text, name, python=False):
                 out.append(nxt)
             return ''.join(out)
         return None
-    m = re.search(r"\b" + re.escape(name) + r"\b\s*\([^)]*\)[^{;]*?\{", text, re.S)
+    # THE BDD BRANCH MUST SEE THE RAW TEXT, and everything else must not.
+    # `check_tests_exist` passes `code_only(...)` output, which blanks every
+    # string literal — so `it('name', …)` arrives as `it('', …)` and a name that
+    # IS a string is deleted before it can be searched for. The BDD fix shipped
+    # earlier today was therefore unreachable in production while passing its own
+    # assertions, because those called this function on raw source: a test that
+    # exercised the mechanism and not the path. Reported 2026-08-29 by the
+    # session that had asked for the fix and then re-ran it (docs/BACKLOG.md §57).
+    #
+    # So the stripping happens HERE, per branch, instead of at the caller: the
+    # declaration and last-resort branches read code with strings and comments
+    # removed, and the BDD branch reads the raw text while refusing a match on a
+    # commented-out line — which keeps the anti-comment property the last-resort
+    # branch was fixed for.
+    stripped = code_only(text, python=python)
+    m = re.search(r"\b" + re.escape(name) + r"\b\s*\([^)]*\)[^{;]*?\{", stripped, re.S)
     if m:
         i = m.end() - 1
         depth = 0
-        for j in range(i, len(text)):
-            if text[j] == "{":
+        for j in range(i, len(stripped)):
+            if stripped[j] == "{":
                 depth += 1
-            elif text[j] == "}":
+            elif stripped[j] == "}":
                 depth -= 1
                 if depth == 0:
-                    return text[i:j + 1]
-        return text[i:]
+                    return stripped[i:j + 1]
+        return stripped[i:]
     # A BDD test is NAMED BY A STRING, not by an identifier: `it('name', …)`,
     # `test("name", …)`, `t.Run("name", …)`, `it 'name' do`. The declaration
     # matcher above wants `name(` and cannot see any of them, and the whole
@@ -1695,7 +1724,7 @@ def test_body(text, name, python=False):
         r"""(?:\b(?:it|test|describe|context|specify|scenario)\s*\(|\bt\.Run\s*\()\s*"""
         r"""(['"`])""" + re.escape(name) + r"""\1\s*,""",
         text)
-    if bdd:
+    if bdd and not commented_out(text, bdd.start()):
         brace = text.find("{", bdd.end())
         if brace != -1:
             depth = 0
@@ -1710,7 +1739,7 @@ def test_body(text, name, python=False):
     # Ruby and other `do`/`end` block forms, which have no brace to match.
     ruby = re.search(r"\b(?:it|specify|scenario|context|describe)\s+(['\"])"
                      + re.escape(name) + r"\1\s+do\b", text)
-    if ruby:
+    if ruby and not commented_out(text, ruby.start()):
         tail = text[ruby.end():]
         stop = re.search(r"(?m)^\s*end\s*$", tail)
         return tail[:stop.end()] if stop else tail
@@ -1721,12 +1750,12 @@ def test_body(text, name, python=False):
     # there could be satisfied by a note saying it is planned. Measured
     # 2026-08-29 on this gate (docs/BACKLOG.md §57).
     m = re.search(r"(?m)^[^\n]*\b(?:def|func|fn|class|sub|method|proc)\b[^\n]*\b"
-                  + re.escape(name) + r"\b", text)
+                  + re.escape(name) + r"\b", stripped)
     if not m:
         return None
     start = m.end()
-    nxt = re.search(r"(?m)^(def |func |fn |class |    def )", text[start:])
-    return text[start:start + nxt.start()] if nxt else text[start:]
+    nxt = re.search(r"(?m)^(def |func |fn |class |    def )", stripped[start:])
+    return stripped[start:start + nxt.start()] if nxt else stripped[start:]
 
 
 def code_only(text, python=False):
@@ -1787,8 +1816,16 @@ def check_tests_can_fail(infos, readme_text, errors, root):
             f = resolve_test_file(root, rel)
             if f is None or f.is_dir():
                 continue  # check_tests_exist already reported both cases
-            text = code_only(f.read_text(errors="replace", encoding="utf-8"),
-                             python=f.suffix == ".py")
+            # RAW for the languages that name a test with a STRING, stripped for
+            # Python. Pre-stripping deletes a BDD test's name, so this check
+            # silently skipped every JS/TS test it was asked about — `continue`
+            # on a None body reports nothing, so the skip was invisible
+            # (docs/BACKLOG.md §57). Python is the exception in both directions:
+            # its tests are named by `def`, which survives stripping, and its
+            # bodies carry DOCSTRINGS that must be removed before an `assert` in
+            # one can be mistaken for an assertion the test makes.
+            raw = f.read_text(errors="replace", encoding="utf-8")
+            text = code_only(raw, python=True) if f.suffix == ".py" else raw
             body = test_body(text, name, python=f.suffix == ".py")
             if body is None:
                 continue
@@ -2051,6 +2088,30 @@ def main():
     adr = Path(sys.argv[1])
     if not adr.exists():
         print(f"ADR not found: {adr}")
+        sys.exit(1)
+    # A DIRECTORY is the first thing anyone types — `adr-lint docs/adr`, or the
+    # record's own `ADR-002/` sitting beside `ADR-002.md`. It used to reach
+    # `read_text` and raise IsADirectoryError with a full traceback, which is a
+    # crash where a sentence belongs: a usage error is not a defect in the corpus
+    # and must not look like one. Reported 2026-08-29 by two sessions
+    # independently (docs/BACKLOG.md §56, §57).
+    if adr.is_dir():
+        sibling = adr.with_suffix(".md")
+        records = sorted(str(f) for f in adr.glob("*.md") if f.name.lower() != "readme.md")
+        print(f"expected a record FILE, got a directory: {adr}")
+        if sibling.exists():
+            print(f"  the record for this directory is {sibling} — lint that, and this "
+                  f"directory's tasks are found beside it")
+        elif records:
+            print("  this directory holds records; lint one of them:")
+            for found in records[:5]:
+                print(f"    {found}")
+            if len(records) > 5:
+                print(f"    (+{len(records) - 5} more)")
+        else:
+            print("  and it holds no .md record to lint")
+        print("  there is no whole-corpus mode; `adr-debt <corpus-dir>` is the tool that "
+              "reads a directory")
         sys.exit(1)
     errors = Findings()
     # Before any check runs, so every finding this record produces is judged the

@@ -1633,6 +1633,52 @@ def main():
         found = lint.test_body(source, "t_name", python=False) is not None
         assert found is present, f"test_body on {label}: found={found}, expected={present}"
 
+    # BACKLOG §57, second half — and the reason this assertion goes through
+    # `check_tests_exist` instead of through `test_body`. The BDD fix above
+    # passed its own assertions while being UNREACHABLE in production: the caller
+    # passed `code_only(...)` output, which blanks every string literal, so
+    # `it('name', …)` arrived as `it('', …)` and the name was gone before the
+    # matcher ran. Reported the same day by the session that had asked for the
+    # fix and then re-ran it against its own corpus — nine identical messages,
+    # unmoved. A test that exercises the mechanism and not the PATH is the defect
+    # this repository exists to refuse (CLAUDE.md §4).
+    with tempfile.TemporaryDirectory() as td:
+        root = Path(td)
+        (root / "src").mkdir()
+        (root / "src" / "wizard.test.ts").write_text(
+            "import { describe, it, expect } from 'vitest'\n\n"
+            "describe('wizard', () => {\n"
+            "  it('test_carriers_derive_from_availability', () => {\n"
+            "    expect(carriersFor('courier')).toEqual(['dpd'])\n"
+            "  })\n"
+            "})\n", encoding="utf-8")
+        rows = ("| Test name | File | Verifies | Covers |\n|---|---|---|---|\n"
+                "| `{name}` | `src/wizard.test.ts` | it works | — |\n")
+        def exists_findings(name):
+            # `evidenced_task_ids` asks the question of a task that is `done` or
+            # carries an exit-0 entry, so the fixture must carry one — otherwise
+            # the check skips and BOTH cases below come back empty, which is how
+            # the first version of this test passed while asserting nothing.
+            infos = {"T1": {
+                "path": root / "T1.md",
+                "tests": [(name, "src/wizard.test.ts")],
+                "vlog": ["- 2026-08-29 · abc1234 · exit 0 · `npx vitest run` · "
+                         "acceptance-sha256:" + "0" * 64],
+            }}
+            errs = lint.Findings()
+            lint.check_tests_exist(infos, "| T1 | x | done |", errs, root)
+            return [str(e) for e in list(errs) + list(errs.advice)]
+
+        named = exists_findings("test_carriers_derive_from_availability")
+        assert not any("no executable definition" in f for f in named), \
+            f"a Vitest test named by a string exists: {named}"
+        # The must-fail direction: the same call path must still report a row
+        # naming a test that is genuinely absent, or the assertion above is
+        # satisfied by a check that reports nothing at all.
+        absent = exists_findings("test_nobody_wrote_this")
+        assert any("no executable definition" in f for f in absent), \
+            f"a row naming a test that does not exist must still be reported: {absent}"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

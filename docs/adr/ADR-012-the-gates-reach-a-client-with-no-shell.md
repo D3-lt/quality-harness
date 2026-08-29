@@ -1,6 +1,6 @@
 # ADR-012: Expose the reading gates over MCP, and refuse the two that execute the corpus
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-29
 **Owner:** Zy
 **Spec:** None — no spec stage

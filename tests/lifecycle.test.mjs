@@ -12,7 +12,9 @@ import {
   bashDeletionMutationPaths,
   bashNavigationImpact,
   mutatesOnlyTempPaths,
+  checkCommandOrigin,
   projectCheckCommand,
+  runTheCheckSentence,
   budgetExhausted,
   commandInsideWrappers,
   describeCommand,
@@ -772,6 +774,29 @@ test('a project that declares its check is asked for that check', async () => {
     JSON.stringify({ check: 'php artisan test --testsuite=Unit' }))
   assert.equal(projectCheckCommand(dir), 'php artisan test --testsuite=Unit',
     'what the project says beats every guess, including a verify script')
+
+  // docs/BACKLOG.md §59's open half. A DECLARED command is the project speaking;
+  // an INFERRED one is this tool reading a manifest, and a guess carries no
+  // confidence about the environment it needs — measured on a repository whose
+  // inferred command was red on a clean tree, returning the same exit code
+  // whether or not anything had been broken. A red the session did not cause
+  // teaches distrust of the gate, which is what let a wrong command survive.
+  assert.equal(checkCommandOrigin(dir).origin, 'declared')
+  assert.doesNotMatch(runTheCheckSentence(dir), /inferred from this repository/,
+    'a declared command needs no caveat')
+
+  const guessed = await mkdtemp(path.join(testTmp, 'quality-guessed-'))
+  await writeFile(path.join(guessed, 'package.json'), JSON.stringify({ scripts: { test: 'vitest' } }))
+  assert.equal(checkCommandOrigin(guessed).origin, 'inferred')
+  const sentence = runTheCheckSentence(guessed)
+  assert.match(sentence, /inferred from this repository/, sentence)
+  assert.match(sentence, /about this machine and not about your change/, sentence)
+  // The must-fail direction (CLAUDE.md §4): the caveat must not appear on every
+  // message, or it says nothing — the declared case above is that assertion, and
+  // this one keeps the word "environment" reserved for a run that actually
+  // failed that way.
+  assert.doesNotMatch(sentence, /environment/,
+    'a standing note must not spend the word an actual environment verdict needs')
 
   // The must-fail direction (CLAUDE.md §4), three ways. A declaration that is not
   // a usable command must not silence the rungs below it — otherwise "declared

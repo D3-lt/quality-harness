@@ -873,23 +873,37 @@ def check_task_status_vocabulary(infos, readme_text, errors):
     """
     if not readme_text:
         return
+    # EVERY ROW IS BOUND TO ITS OWN TABLE. A README commonly holds TWO tables
+    # whose first column is `| T1 |`: the status table, and a wave/ordering table
+    # whose third column is DEPENDS-ON. Taking the status column index from the
+    # first header and applying it to every later row read `T3, T5, T6` as a
+    # status and advised on it — 7 of 28 records, one correct read and one
+    # garbage read per task. Measured 2026-08-29 on a real corpus
+    # (docs/BACKLOG.md §75).
+    #
+    # The index is also per-table: one README's status table is
+    # `ID | Title | Status | Owner | Acceptance` and another's is
+    # `ID | Title | Status | Acceptance`, so a column number right for one is
+    # wrong for the other even among the CORRECT tables. Bound by name, per
+    # table, or the check is reading the right position in the wrong container.
+    lines = [ln.strip() for ln in readme_text.splitlines()]
+    separator = re.compile(r"^\|[\s:|-]+\|?$")
     status_column = None
     rows = []
-    for line in readme_text.splitlines():
-        line = line.strip()
+    for i, line in enumerate(lines):
         if not line.startswith("|"):
+            status_column = None       # a table ends where the table rows end
+            continue
+        if separator.match(line):
             continue
         cells = [c.strip() for c in line.strip("|").split("|")]
-        if status_column is None:
-            for i, c in enumerate(cells):
-                if c.lower() == "status":
-                    status_column = i
-                    break
+        header = i + 1 < len(lines) and separator.match(lines[i + 1])
+        if header:
+            status_column = next((j for j, c in enumerate(cells) if c.lower() == "status"), None)
             continue
-        rows.append(cells)
-    if status_column is None:
-        return  # no status column: nothing is being claimed, so nothing to read
-    for cells in rows:
+        if status_column is not None:
+            rows.append((status_column, cells))
+    for status_column, cells in rows:
         if status_column >= len(cells):
             continue
         found = next(((m.group(1).upper()) for c in cells

@@ -412,6 +412,39 @@ test('adr-debt resolves the pointers it can, and reports the ones it cannot', ()
   assert.equal(empty.status, 1, empty.stdout)
   assert.match(empty.stdout, /BROKEN \[empty\]/)
 
+  // A POINTER THAT LEADS WITH A RECORD ID, then continues in prose. Reported
+  // 2026-08-29 from an adopting corpus: `(deferred: ADR-002 T4, in this record's
+  // `tasks/` — a long sentence)` picked the stray `tasks/` out of the prose,
+  // resolved it as a PATH, found nothing, and reported BROKEN [path] about a
+  // record that exists. The ADR template already states the rule for
+  // `Invalidates:` — only the leading token, because the prose after it is prose.
+  adr("## Out of Scope\n\n- Rate limiting (deferred: ADR-002 T4, in this record's "
+    + "`tasks/` — and a sentence that keeps going about why)\n")
+  const leading = scan()
+  assert.doesNotMatch(leading.stdout, /BROKEN/,
+    `a pointer leading with a real record id resolves:\n${leading.stdout}`)
+  assert.equal(leading.status, 0, leading.stdout)
+
+  // ...and the leading id is still RESOLVED, not merely skipped: a record this
+  // corpus does not have must still be reported, or the fix above would be
+  // indistinguishable from switching the check off.
+  adr("## Out of Scope\n\n- Rate limiting (deferred: ADR-404 T4, in this record's "
+    + "`tasks/` — and a sentence that keeps going about why)\n")
+  const leadingMissing = scan()
+  assert.match(leadingMissing.stdout, /BROKEN \[adr\]/,
+    `a leading id naming no record is still broken:\n${leadingMissing.stdout}`)
+
+  // A DISPOSITION IN THE WRONG PLACE IS NOT AN EMPTY ONE. A bullet whose
+  // disposition is followed by prose used to report BROKEN [malformed] with
+  // pointer '' — the vocabulary for "nothing after the colon" — sending a reader
+  // to look for a pointer that is right there (ADR-005, CLAUDE.md §3).
+  adr("## Out of Scope\n\n- Rate limiting (deferred: notes.md). Folding it in would widen this,\n")
+  const trailing = scan()
+  assert.match(trailing.stdout, /BROKEN \[trailing-prose\]/,
+    `the finding must name what is actually wrong:\n${trailing.stdout}`)
+  assert.match(trailing.stdout, /notes\.md/,
+    `and must show the pointer it found rather than an empty string:\n${trailing.stdout}`)
+
   // An unchecked follow-up is open work the corpus is still carrying.
   adr('## Follow-ups\n\n- [ ] Add the rate limiter\n- [x] Ship the parser\n')
   const followups = scan()

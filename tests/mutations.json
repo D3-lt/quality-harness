@@ -2904,6 +2904,15 @@
       ],
       "from": "  return typeof check === 'string' && check.trim() ? check.trim() : null",
       "to": "  return check ?? null"
+    },
+    {
+      "label": "lint: a rejected row is quoted where it stopped matching, not at its prefix",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for end in range(len(line), 0, -1):",
+      "to": "    for end in range(0, 0, -1):"
     }
   ]
 }

@@ -126,15 +126,17 @@ def _run_gate(gate, args, paths):
     a caller cannot check for itself.
     """
     argv = _gate_argv(gate, args)
+    if not os.path.exists(argv[1]):
+        raise GateDidNotRun("could not run: the {} gate is not installed at {}".format(gate, argv[1]))
     try:
         completed = subprocess.run(argv, capture_output=True, text=True, timeout=120,
                                    encoding="utf-8", errors="replace")
     except OSError as unstartable:
         # ADR-005: a gate that could not run has not found anything. This is the
         # error channel, and it says which.
-        raise GateDidNotRun("{} could not be started: {}".format(gate, unstartable))
+        raise GateDidNotRun("could not run: {} did not start ({})".format(gate, unstartable))
     except subprocess.TimeoutExpired:
-        raise GateDidNotRun("{} did not finish within 120s".format(gate))
+        raise GateDidNotRun("could not run: {} did not finish within 120s".format(gate))
     return _gate_result(gate, completed, paths)
 
 
@@ -153,8 +155,23 @@ def _gate_result(gate, completed, paths):
 
 
 def _paths(*values):
-    """Resolve every path the client named, so the result can report the tree."""
-    return [os.path.abspath(os.path.expanduser(value)) for value in values if value]
+    """Resolve every path the client named, and refuse one that is not there.
+
+    A path that does not exist is a gate that COULD NOT RUN, not a gate that ran
+    and found nothing (ADR-005). Over MCP the client names a path it cannot see,
+    so this is the likeliest way to ask for an answer about nothing — and the
+    likeliest place to mistake silence for a clean result. The resolved paths are
+    reported back in every result so the caller can see which tree was read.
+    """
+    resolved = []
+    for value in values:
+        if not value:
+            continue
+        path = os.path.abspath(os.path.expanduser(value))
+        if not os.path.exists(path):
+            raise GateDidNotRun("could not run: no such path {}".format(path))
+        resolved.append(path)
+    return resolved
 
 
 def _adr_lint(arguments):
@@ -379,6 +396,8 @@ def dispatch(request):
         arguments = params.get("arguments") or {}
         if not isinstance(arguments, dict):
             return _error(request_id, INVALID_PARAMS, "arguments must be a JSON object")
+        # An argument that does not match the schema is the fourth "could not
+        # run" case, and it is caught before anything is spawned.
         complaint = _schema_violation(tool["inputSchema"], arguments)
         if complaint is not None:
             return _error(request_id, INVALID_PARAMS, complaint)

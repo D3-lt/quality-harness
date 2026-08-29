@@ -1907,9 +1907,26 @@ printed nothing at all, which is a collector falling over rather than one report
 run path's tri-state made this cheap; ADR-005 deferred it only because that change was scoped to the
 run verdict.
 
-**STILL OPEN:** no `go test` in `cmds` and no Go branch in `detect_stack`, so Go corpora are told
-honestly that they cannot be adjudicated but still cannot be; and scenarios have no `Cmd` column, so
-a scenario binding has no authoring escape at all. Both below, unchanged.
+**CLOSED 2026-08-29 — a scenario can now override its runner.** A fact could name its own command
+in the `Cmd` cell of its row; a scenario is a HEADING with no column to put one in, so on a corpus
+whose stack `detect_stack` does not know, a scenario binding had **no authoring escape at all** — it
+was told honestly that it could not be adjudicated and given no way to fix that. The grammar now
+takes an optional trailing override:
+
+    ### UC1-S1 [happy] It works [@implemented] → `TestThing` cmd:`go test -run TestThing ./...`
+
+The remedy line changed with it: "no runner detected … has no Cmd override. Add a Cmd cell to the
+fact's row" named the one escape that did not exist for the binding being reported. It now names
+both. Enforced-by: `tests/gate-rules.test.mjs::a scenario can override its runner, which is the
+escape it never had`, which asserts UNRUN without the override, adjudicated with it, and **RED when
+the overridden command exits non-zero** — without that third case, ignoring the override entirely
+would satisfy the second. Catalogue entry `spec-verify: a scenario's runner override is read and
+honoured`, RED.
+
+**STILL OPEN:** no `go test` in `cmds` and no Go branch in `detect_stack`, so a Go corpus is still
+told honestly that it cannot be adjudicated — but it can now *do* something about it, which is the
+half that was missing. Adding the runner itself remains its own decision (binding grammar, how `-run`
+anchors, what a passing-but-empty run means), unchanged below.
 
 ## 38 (superseded). Three things ADR-005 deferred about spec-verify
 
@@ -2102,7 +2119,7 @@ opposite of this project's standing rule — and the reason here is better than 
 user with no next move. He concedes the tooling in that class is cloud-security rather than
 architecture boundaries, "a documented gap, not a ready solution".
 
-## 44. PARTLY CLOSED 2026-08-29 — one pointer left, and a backfill nobody should rush
+## 44. CLOSED 2026-08-29 — both halves: the backfill, and the `§NN` fragment
 
 **Deferred here by ADR-009** (`docs/adr/ADR-009-a-decision-names-what-enforces-it.md`, Out of Scope,
 and by both its tasks).

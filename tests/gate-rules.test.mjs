@@ -549,6 +549,46 @@ test('spec-verify says it could not run a test, rather than that the test failed
   assert.match(unrun.stdout, /Cmd/, 'say how to make it adjudicable')
 })
 
+test('a scenario can override its runner, which is the escape it never had', () => {
+  // docs/BACKLOG.md §38, open since 2026-08-23 and closed here. A FACT can name
+  // its own command in the Cmd cell of its row; a scenario is a HEADING with no
+  // column to put one in, so on a corpus whose stack `detect_stack` does not know
+  // — a Go one, say — a scenario binding had NO authoring escape at all. It was
+  // told honestly that it could not be adjudicated, and given no way to fix that.
+  //
+  // Same fixture root as the test above: no composer.json, no pyproject.toml, no
+  // Cargo.toml, no package.json, no molecule/. Nothing detects.
+  const dir = scratch('spec-scenario-cmd')
+  cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
+  const spec = join(dir, 'spec-selftest.md')
+  const good = readFileSync(spec, 'utf8')
+  const scenario = '### UC1-S1 [happy] Conforming fixtures pass every gate [@spec] '
+    + '→ `test_selftest_fixture.py::test_gates_run`'
+
+  // THE DIRTY ANSWER FIRST: @implemented, no override, nothing detects the stack.
+  writeFileSync(spec, good.replace(scenario, scenario.replace('[@spec]', '[@implemented]')))
+  const without = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.match(without.stdout, /UNRUN/, `no runner and no override is UNRUN:\n${without.stdout}`)
+  assert.match(without.stdout, /UC1-S1/, `and it must name the scenario:\n${without.stdout}`)
+
+  // ...AND THE CLEAN ONE, same scenario, same undetectable root, one override.
+  // `true` is a command every platform CI runs on has, and it exits 0.
+  writeFileSync(spec, good.replace(
+    scenario, scenario.replace('[@spec]', '[@implemented]') + ' cmd:`true`'))
+  const withCmd = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.doesNotMatch(withCmd.stdout, /UNRUN\s+UC1-S1/,
+    `an overridden scenario is adjudicated, not UNRUN:\n${withCmd.stdout}`)
+
+  // The override must actually RUN, not merely be accepted: a command that exits
+  // non-zero has to come back RED. Without this, ignoring the override entirely
+  // would satisfy the assertion above.
+  writeFileSync(spec, good.replace(
+    scenario, scenario.replace('[@spec]', '[@implemented]') + ' cmd:`false`'))
+  const failing = run('spec-verify', ['--implemented', '--repo', dir, spec], dir)
+  assert.match(failing.stdout, /RED/,
+    `the override is executed, and a failing one is RED:\n${failing.stdout}`)
+})
+
 // --- arch-lint: the two detections that stop a rule row citing nothing -------
 
 test('arch-lint rejects a gate that cannot fail and a symbol that is not there', () => {

@@ -1843,6 +1843,35 @@ def main():
         assert not status_advice(dressed), f"a dressed status is still its word: {dressed!r}"
     # And the emphasis must not hide an unrecognised one either.
     assert status_advice("**partial** — two of thirteen steps"), "emphasis is not an exemption"
+
+    # BACKLOG §75. A README commonly holds TWO tables whose first column is
+    # `| T1 |`: the status table, and a wave/ordering table whose third column is
+    # DEPENDS-ON. Taking the status column index from the first header and
+    # applying it to every later row read `T3, T5, T6` as a status — 7 of 28
+    # records on a real corpus, one correct read and one garbage read per task.
+    # The column is per-table too: one status table is
+    # `ID | Title | Status | Owner | Acceptance` and another is
+    # `ID | Title | Status | Acceptance`, so an index right for one is wrong for
+    # the other even among the correct tables.
+    two_tables = (
+        "| ID | Title | Status | Owner | Acceptance |\n|---|---|---|---|---|\n"
+        "| T1 | groups | **done** (2026-07-20) | zy | full check |\n"
+        "\n## Wave order\n\n"
+        "| ID | Title | Depends-on | Note |\n|---|---|---|---|\n"
+        "| T1 | groups | T3, T5, T6, bitbucket-deploy | T1 first |\n")
+    errs = lint.Findings()
+    lint.check_task_status_vocabulary({"T1": {"path": Path("T1.md")}}, two_tables, errs)
+    assert not [a for a in errs.advice if "does not act on" in a], \
+        f"a depends-on column is not a status: {errs.advice}"
+    # The must-fail direction: the STATUS table is still read, in a README with
+    # the same two-table shape — otherwise "ignore the second table" degrades
+    # into "ignore everything" and the check silently stops working.
+    errs = lint.Findings()
+    lint.check_task_status_vocabulary(
+        {"T1": {"path": Path("T1.md")}},
+        two_tables.replace("**done** (2026-07-20)", "**partial** — two of thirteen"), errs)
+    assert [a for a in errs.advice if "does not act on" in a], \
+        "the status table must still be read when a second table follows it"
     # And a task the reader has no file for is not reported: the status belongs
     # to a row this corpus cannot resolve, which is a different finding.
     errs = lint.Findings()

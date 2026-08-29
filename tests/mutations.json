@@ -3093,6 +3093,15 @@
       ],
       "from": "    lead = re.match(r\"[\\s*_`~]*([A-Za-z][A-Za-z-]*)\", cell or \"\")",
       "to": "    lead = re.match(r\"([A-Za-z][A-Za-z-]*)\", cell or \"\")"
+    },
+    {
+      "label": "lint: a status column is bound to its own table, not to the first header seen",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if header:",
+      "to": "        if header and status_column is None:"
     }
   ]
 }

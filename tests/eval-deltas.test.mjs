@@ -36,6 +36,23 @@ const say = () => {
   return { done: () => { process.stdout.write = real; return written.join('') } }
 }
 
+test('both results trees are read, not just the one named results', () => {
+  // The suite writes into `plugin/evals/results` AND
+  // `plugin/evals/generated/cases/results`. The first version of this tool
+  // defaulted to the former and silently dropped 7 of 25 recorded invocations,
+  // five of them PAIRED invocations of one case — so the corpus looked smaller
+  // and nothing said anything was missing. Found by a review comparing the
+  // tool's count against the ad-hoc glob it replaced.
+  const root = mkdtempSync(join(os.tmpdir(), 'eval-deltas-trees-'))
+  for (const under of ['results/one', 'generated/cases/results/two']) {
+    const dir = join(root, under)
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(join(dir, 'aggregate-result.json'),
+      JSON.stringify({ cases: [{ name: 'probe', arms: { with: runs([1]), without: runs([0]) } }] }), 'utf8')
+  }
+  assert.equal(resultFiles(root).length, 2, 'a nested results tree is still a results tree')
+})
+
 test('a delta is computed within one invocation and never across two', () => {
   // The defect this file exists to prevent, and it was made here first: pooling a
   // with-arm recorded under `--ablation none` against a baseline from a different
@@ -46,6 +63,15 @@ test('a delta is computed within one invocation and never across two', () => {
     '2026-08-27T10-00-00-000Z': [{ name: 'probe', arms: { with: runs([0.9, 0.9]) } }],
     '2026-08-28T10-00-00-000Z': [{ name: 'probe', arms: { without: runs([0.0]) } }],
   })
+  //
+  // NOTE ON WHAT IS AND IS NOT MUTATION-COVERED, recorded because the catalogued
+  // mutant here kills through an adjacent path. `deltas: a delta needs BOTH arms,
+  // not one arm and a zero` makes a single-armed invocation fabricate a delta,
+  // and this test goes red — but that is a different defect from cross-invocation
+  // pooling. The cross-invocation guarantee is STRUCTURAL: `delta` is computed
+  // inside the per-file loop from that file's own `entry.arms`, so no one-line
+  // substitution can make two invocations' arms meet. A structural property has
+  // no mutant, and claiming one would be worse than saying so here.
   const rows = observations(resultFiles(root))
   assert.equal(rows.length, 2)
   assert.deepEqual(rows.map(row => row.delta), [null, null],

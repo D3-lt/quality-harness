@@ -130,6 +130,15 @@ python3 plugin/bin/adr-verify <task.md> --mutant <file> --from <text> --to <text
 caller where a *second* guard caught the same input — the test was proving something other than what
 it named. Assert the mechanism, not a downstream effect something else also covers.
 
+**A fix reported from outside gets its regression at the outermost callable boundary.** Verified only
+by its own new assertions, a fix has been tested at the FUNCTION, not at the entry point the report
+came in through — and on 2026-08-29 that shipped twice in one hour: a BDD matcher that worked when
+called directly and was unreachable in production, because the caller passed `code_only()` output
+that had already deleted the name it searched for. The assertions were correct and green throughout.
+Write the regression on a fixture in the reporter's language, through the same call the report came
+through, or you have tested the patch instead of the bug. (BACKLOG §57, and the rule is the reporting
+session's.)
+
 **Coverage cannot see a vacuous assertion.** `assert.deepEqual(uncovered(...), [])` against a
 subject mutated to return `[]` passes at 100% line and branch coverage. Every check that returns a
 "clean" answer must be shown capable of returning a dirty one, in the same test.

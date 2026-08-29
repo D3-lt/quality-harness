@@ -85,6 +85,17 @@ Stop and ask if a gate is found that exits non-zero for a reason that is neither
 environment failure — the two-channel split assumes those are the only two, and a third would need
 deciding rather than guessing.
 
+**A third was found, 2026-08-29, and it is decided rather than absorbed.** `adr-judge` exits 0
+whatever it finds — a heuristic about prose must never enter this corpus's evidence chain — so its
+ONLY non-zero exit is a broken invocation. Spawned with neither `adr` nor `rubric` it printed its
+usage and exited 2, and the server handed that back as content with an exit code, which reads
+exactly like a gate that ran and found something. **The decision: the server never produces the
+third case.** An invocation the gate would reject is refused before anything is spawned, where it is
+still `could not run`. That keeps the two-channel split true rather than widening it, and it is
+consistent with the schema validation T2 already does for the same reason. `a broken invocation is
+refused, not dressed up as a finding` asserts it, and asserts the two valid shapes still reach the
+gate — a handler hard-coded to refuse would otherwise pass.
+
 ## Out of Scope
 
 - Changing any gate's exit codes. (permanent: the CLI is the contract; a second consumer does not get

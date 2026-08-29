@@ -288,3 +288,20 @@ test('gate output is returned verbatim', () => {
   assert.ok(text.includes('exit 0'))
   assert.ok(text.includes(adr), 'the result must name which tree was read')
 })
+
+test('a broken invocation is refused, not dressed up as a finding', () => {
+  // adr-judge's verdicts are always exit 0; its only non-zero exit is a broken
+  // invocation. Spawning it with neither argument would hand back a usage dump
+  // with an exit code attached, which reads exactly like a gate that ran and
+  // found something. It is the third reason T3's stop condition asks about, and
+  // the server's answer is to never produce one.
+  const reply = call('qh_adr_judge', {})
+  assert.ok(reply.error, 'a broken invocation came back as content')
+  assert.match(reply.error.message, /could not run/, reply.error.message)
+  // …and the two shapes that ARE valid still reach the gate.
+  const rubric = call('qh_adr_judge', { rubric: true })
+  assert.equal(rubric.error, undefined, JSON.stringify(rubric.error))
+  assert.equal(rubric.result.isError, false)
+  const judged = call('qh_adr_judge', { adr: join(fixture, 'ADR-001-selftest.md') })
+  assert.equal(judged.error, undefined, JSON.stringify(judged.error))
+})

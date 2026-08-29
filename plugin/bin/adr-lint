@@ -1636,8 +1636,15 @@ def ignored_paths(root, candidates):
     if root is None or not candidates:
         return {}
     try:
-        r = subprocess.run(["git", "-C", str(root), "check-ignore", "-v", "--stdin"],
-                           input="\n".join(sorted(candidates)), capture_output=True,
+        # -z, because the LINE form quotes a path and keeps the platform's line
+        # ending: on Windows the first version of this parsed
+        # `"cmd/thing/main.go\r"` — quoted AND carrying a CR — and matched
+        # nothing. Caught by the Windows job, which is the only place it could
+        # be (CLAUDE.md §7). With -z the fields are NUL-separated and raw:
+        # <source> NUL <line> NUL <pattern> NUL <path> NUL.
+        r = subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false",
+                            "check-ignore", "-v", "-z", "--stdin"],
+                           input="\0".join(sorted(candidates)) + "\0", capture_output=True,
                            text=True, timeout=30, encoding="utf-8", errors="replace")
     except Exception:
         return {}
@@ -1646,15 +1653,12 @@ def ignored_paths(root, candidates):
     # be reported as "nothing is ignored" (ADR-005).
     if r.returncode not in (0, 1):
         return {}
+    fields = r.stdout.split("\0")
     found = {}
-    for line in r.stdout.splitlines():
-        # <source>:<line>:<pattern>\t<path>
-        parts = line.split("\t", 1)
-        if len(parts) != 2:
-            continue
-        where, path_name = parts
-        bits = where.rsplit(":", 1)
-        found[path_name.strip()] = bits[-1].strip() if bits else where
+    for i in range(0, len(fields) - 3, 4):
+        pattern, path_name = fields[i + 2], fields[i + 3]
+        if path_name:
+            found[path_name] = pattern
     return found
 
 

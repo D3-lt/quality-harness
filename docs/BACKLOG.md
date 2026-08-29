@@ -3126,6 +3126,43 @@ documenting an allowance nobody honours and pre-digest corpora need a migration 
 silent downgrade. The gates are standalone scripts with no import path between them, which is what
 makes "one grammar, two call sites" cost real work rather than a refactor.
 
+## 59. OPEN — a correctly-identified check that is red on an unmodified tree
+
+**Measured 2026-08-29 by the depozitas-laravel-22 session**, after §56 fixed the wrong-command
+defect. The rung now resolves correctly — `phpunit.xml` present, `php vendor/bin/phpunit` named — and
+the command it names is RED on a clean checkout:
+
+    host       php vendor/bin/phpunit  → exit 2, 1 error   (PHP 8.5.9)
+    container  php vendor/bin/phpunit  → exit 0, 300 tests green (PHP 8.4.15)
+
+Nothing in that repository is broken and CI, which runs in the container, is right to be green. The
+difference is which PHP is first on `PATH`: a deprecation reaches Laravel's `Log::channel(...)` past
+a Mockery mock with no expectation for it. They confirmed the container result with a one-off
+`docker compose run --rm`, having first reported the cause as inconclusive rather than guessing.
+
+**The asymmetry is the finding, and it is theirs:** a false GREEN lets bad code through; a false RED
+teaches a session to distrust the gate. §56 fixed the first and, in that repository, produced the
+second. Distrust is not a smaller cost — it is what let `npm run build` survive as long as it did.
+
+**Not "detect Docker".** That is a lot of guessing about compose files and service names, and a rung
+that guesses wrong is worse than one that abstains. Two shapes worth considering instead:
+
+- **Let a project DECLARE its check.** `.quality-harness.json` already exists and is read by these
+  gates; nothing in it currently says what the project's check is. The reporting repository states
+  its answer (`docker compose exec app php vendor/bin/phpunit …`) in CLAUDE.md — the place agents
+  read and gates do not. A declared field is the structured version of what they had, with no
+  parsing of prose and no guessing.
+- **Phrase the instruction so a red is readable.** The gates already distinguish UNRUN from FAIL. A
+  named check carries no environmental confidence, and the instruction could say so: run it, and a
+  red on an unmodified tree is a finding about the environment rather than about your change.
+
+**The reasoning lesson, recorded because it is better than the defect.** Their first theory was
+correct and they rejected it on a test that could not have disconfirmed it: suppressing
+`E_DEPRECATED` via `-d error_reporting=` cannot change the outcome, because Laravel installs its own
+error handler and never consults that ini. An uninformative null read as disconfirmation. The general
+form is this project's own rule pointed at a diagnostic instead of at a suite — **before reading a
+null as evidence, ask whether the instrument could have produced a non-null.**
+
 ## Verification claims worth re-running after any of the above
 
 - `bash scripts/selftest.sh` → 72/72, on any branch (item 4) and as evidence (item 6).

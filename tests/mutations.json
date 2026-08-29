@@ -2796,6 +2796,24 @@
       ],
       "from": "        \"annotations\": {\"readOnlyHint\": True, \"title\": name},",
       "to": "        \"annotations\": {\"title\": name},"
+    },
+    {
+      "label": "mcp: a gate is spawned through the interpreter, not as a bare path",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    return [sys.executable, os.path.join(BIN, gate), *[str(arg) for arg in args]]",
+      "to": "    return [os.path.join(BIN, gate), *[str(arg) for arg in args]]"
+    },
+    {
+      "label": "mcp: each gate's registration is what puts it in tools/list",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    \"qh_arch_lint\",",
+      "to": "    \"qh_arch_lin\","
     }
   ]
 }

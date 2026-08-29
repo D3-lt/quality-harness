@@ -122,23 +122,126 @@ test('nothing but JSON-RPC reaches stdout', () => {
     INIT,
     { jsonrpc: '2.0', method: 'notifications/initialized' },
     { jsonrpc: '2.0', id: 2, method: 'tools/list' },
-    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: replyProbe, arguments: {} } },
+    { jsonrpc: '2.0', id: 3, method: 'tools/call', params: probeCall },
   ])
   assert.ok(lines.length >= 3, `expected a reply per request, got ${lines.length}`)
   assert.equal(replies.length, lines.length)
   assert.equal(result.status, 0, result.stderr)
 })
 
-// The probe tool T1 registers so `tools/list` has something to return. T2
-// replaces it with the five real gates.
-const replyProbe = 'qh_probe'
+// One real call, used by the transport tests above. T1 registered a probe tool
+// here; T2 replaced it with the five gates, so this is one of those.
+const probeCall = {
+  name: 'qh_adr_lint',
+  arguments: { adr: join(repoRoot, 'tests', 'fixtures', 'ok', 'ADR-001-selftest.md') },
+}
 
 test('a registered tool can be called and returns content', () => {
-  const { replies } = talk([INIT, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: replyProbe, arguments: {} } }])
+  const { replies } = talk([INIT, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: probeCall }])
   const call = replies.find(reply => reply.id === 2)
   assert.equal(call.error, undefined, JSON.stringify(call.error))
   assert.equal(call.result.isError, false)
   assert.ok(Array.isArray(call.result.content))
   assert.equal(call.result.content[0].type, 'text')
   assert.ok(call.result.content[0].text.length > 0)
+})
+
+// --- ADR-012 T2: the five reading gates, and the two that must be absent -----
+
+const fixture = join(repoRoot, 'tests', 'fixtures', 'ok')
+const bin = join(repoRoot, 'plugin', 'bin')
+const READING_GATES = ['qh_adr_lint', 'qh_adr_next', 'qh_adr_debt', 'qh_adr_judge', 'qh_arch_lint']
+
+function list() {
+  const { replies } = talk([INIT, { jsonrpc: '2.0', id: 2, method: 'tools/list' }])
+  return replies.find(reply => reply.id === 2).result.tools
+}
+
+function call(name, args) {
+  const { replies } = talk([INIT, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } }])
+  return replies.find(reply => reply.id === 2)
+}
+
+test("every reading gate is listed, and calling it returns that gate's own output", () => {
+  const listed = list().map(tool => tool.name).sort()
+  assert.deepEqual(listed, [...READING_GATES].sort(),
+    'tools/list must name exactly the five gates that never execute corpus content')
+
+  // One end-to-end call per tool, compared against the same gate run directly.
+  // Deleting any single reading_tool() call turns exactly this assertion red.
+  const invocations = [
+    ['qh_adr_lint', { adr: join(fixture, 'ADR-001-selftest.md'), tasks_dir: join(fixture, 'tasks') },
+      'adr-lint', [join(fixture, 'ADR-001-selftest.md'), join(fixture, 'tasks')]],
+    ['qh_adr_next', { path: join(fixture, 'tasks'), all: true }, 'adr-next', [join(fixture, 'tasks'), '--all']],
+    ['qh_adr_debt', { dirs: [fixture] }, 'adr-debt', [fixture]],
+    ['qh_adr_judge', { adr: join(fixture, 'ADR-001-selftest.md') }, 'adr-judge', [join(fixture, 'ADR-001-selftest.md')]],
+    ['qh_arch_lint', { doc: join(fixture, 'architecture.md') }, 'arch-lint', [join(fixture, 'architecture.md')]],
+  ]
+  for (const [tool, args, gate, argv] of invocations) {
+    const reply = call(tool, args)
+    assert.equal(reply.error, undefined, `${tool}: ${JSON.stringify(reply.error)}`)
+    const text = reply.result.content.map(part => part.text).join('')
+    const direct = spawnSync('python3', [join(bin, gate), ...argv], { encoding: 'utf8', timeout: 60_000 })
+    assert.notEqual(direct.status, null, `${gate} was not executed`)
+    assert.ok(text.includes(direct.stdout.trim().split('\n')[0]),
+      `${tool} did not return the gate output\nMCP:\n${text}\ndirect:\n${direct.stdout}`)
+  }
+})
+
+test('no tool executes text the corpus supplies', () => {
+  const tools = list()
+  // `not any(...)` over an empty registry is true, and a server that registered
+  // nothing would satisfy the boundary while providing no boundary at all.
+  assert.ok(tools.length > 0, 'the registry is empty, so the assertion below asserts nothing')
+  assert.ok(tools.some(tool => tool.name === 'qh_adr_lint'), 'the registry is not the real one')
+
+  for (const tool of tools) {
+    for (const forbidden of ['adr-verify', 'spec-verify', 'adr_verify', 'spec_verify']) {
+      assert.ok(!JSON.stringify(tool).includes(forbidden), `${tool.name} names ${forbidden}`)
+    }
+  }
+  // Asserted against the source as well, so a future author cannot satisfy the
+  // registry half by renaming the tool while still spawning the gate.
+  const source = readFileSync(server, 'utf8')
+  assert.ok(!/adr-verify|spec-verify/.test(source),
+    'the server names a gate that executes text the corpus supplies; over MCP the client names the file')
+})
+
+test('a gate is spawned through the interpreter, never as a bare path', () => {
+  // A `#!` spawn works on the developer's machine and returns status `null` on
+  // the platform CI blocks on — neither an error nor a failure. Read the argv
+  // the server would use rather than trusting the code to be right.
+  const probe = [
+    'import importlib.machinery, importlib.util, json, sys',
+    `loader = importlib.machinery.SourceFileLoader("qh", ${JSON.stringify(server)})`,
+    'spec = importlib.util.spec_from_loader("qh", loader)',
+    'module = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(module)',
+    'print(json.dumps([module._gate_argv("adr-lint", ["x"]), sys.executable]))',
+  ].join('\n')
+  // -B: importing the server as a module would otherwise leave a __pycache__
+  // beside the gates, and a .pyc embeds the absolute source path — which is a
+  // personal filesystem path inside the plugin tree (CLAUDE.md §6).
+  const result = spawnSync('python3', ['-B', '-c', probe], { encoding: 'utf8', timeout: 60_000 })
+  assert.notEqual(result.status, null, result.stderr)
+  assert.equal(result.status, 0, result.stderr)
+  const [argv, executable] = JSON.parse(result.stdout)
+  assert.equal(argv[0], executable, 'the gate is spawned as a bare path, which returns null on Windows')
+  assert.ok(argv[1].endsWith('adr-lint'), argv[1])
+  assert.deepEqual(argv.slice(2), ['x'])
+})
+
+test('every argument a handler honours is declared in that tool schema', () => {
+  // An argument the handler accepts and the schema never advertises works for
+  // anyone who sends it and is invisible to anyone who reads the tool list.
+  const declared = Object.fromEntries(list().map(tool => [tool.name, tool.inputSchema]))
+  for (const name of READING_GATES) {
+    assert.equal(declared[name].type, 'object', name)
+    assert.equal(declared[name].additionalProperties, false,
+      `${name} accepts arguments it does not declare`)
+    assert.ok(Object.keys(declared[name].properties).length > 0, `${name} declares no arguments`)
+  }
+  // An undeclared argument is refused rather than silently honoured.
+  const reply = call('qh_adr_lint', { adr: join(fixture, 'ADR-001-selftest.md'), bogus: 'x' })
+  assert.ok(reply.error || reply.result.isError, 'an undeclared argument was accepted')
 })

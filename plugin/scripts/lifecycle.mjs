@@ -2072,6 +2072,9 @@ function globToRegExp(pattern) {
 
 // A declared path matches the file itself, anything under it when it names a
 // directory, and whatever its globs cover.
+export const __pathMatchesDeclarationForTest = (candidate, declaration) =>
+  pathMatchesDeclaration(candidate, declaration)
+
 export function pathMatchesDeclaration(candidate, declaration) {
   const file = candidate.replace(/\\/g, '/').replace(/^\.\//, '')
   const declared = declaration.replace(/\\/g, '/').replace(/^\.\//, '').replace(/\/$/, '')
@@ -2222,11 +2225,43 @@ function readRecordFiles(root) {
 }
 
 /**
+/**
+ * Repository-relative paths git knows about, or null when git cannot answer.
+ *
+ * null and an EMPTY ARRAY are different answers and must never collapse. An
+ * empty listing says "this tree holds no files"; null says "I could not look",
+ * and a declaration checked against a null read as empty would report every
+ * record in the corpus as rot at once — a tool asserting an observation it
+ * never made (ADR-005).
+ *
+ * `--others --exclude-standard` because a record and the files it governs are
+ * commonly added in the same commit, and against git rather than the filesystem
+ * because `existsSync` answers "is this on THIS machine" (ADR-008).
+ */
+export function trackedPaths(root) {
+  const found = new Set()
+  for (const args of [['ls-files'], ['ls-files', '--others', '--exclude-standard']]) {
+    const run = spawnSync('git', ['-C', root, '-c', 'core.quotePath=false', ...args],
+      { encoding: 'utf8', timeout: 30000 })
+    if (run.error || run.status !== 0 || typeof run.stdout !== 'string') return null
+    for (const line of run.stdout.split('\n')) {
+      const value = line.trim()
+      if (value) found.add(value)
+    }
+  }
+  return [...found]
+}
+
+/**
  * Every decision record in a repository, with what it governs already resolved.
  *
- * Pure with respect to the corpus on disk: no subprocess, no network, no writes.
+ * Reads the corpus and asks git ONE read-only question — which paths it tracks —
+ * so a `Governs:` declaration matching nothing can be reported rather than
+ * silently governing nothing. `tracked` is an injectable seam: pass a listing to
+ * make the resolution hermetic, or null to read a corpus without resolving
+ * declarations at all. Nothing here writes, and nothing here runs a check.
  */
-export function adrCorpus(root) {
+export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   const records = []
   // Attached to the returned array rather than changing its shape: every caller
   // treats this as a list of records, and widening the return type to report a
@@ -2319,7 +2354,19 @@ export function adrCorpus(root) {
       // drift ADR-001 and ADR-004 were both about.
       enforcedBy: declaredEnforcement(text),
       declares: [...declares],
-      unresolved: declared.unresolved,
+      // Two sources, one slot, told apart by the prefix. A `type: package`
+      // matcher was never resolvable here; a `governs:` entry WAS resolvable and
+      // resolved to nothing, which is the rot ADR-011 is about. With no listing
+      // this stays empty — the reader could not look, and saying nothing is the
+      // only honest answer (ADR-005).
+      unresolved: [
+        ...declared.unresolved,
+        ...(tracked
+          ? declared.paths
+            .filter(declaration => !tracked.some(file => pathMatchesDeclaration(file, declaration)))
+            .map(declaration => `governs:${declaration}`)
+          : []),
+      ],
     })
   }
   // Non-enumerable so nothing that JSON-serialises a corpus starts emitting it,

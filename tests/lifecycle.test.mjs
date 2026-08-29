@@ -2318,6 +2318,121 @@ test('--link says what it does NOT handle, instead of "nothing to do"', async ()
   await rm(home, { recursive: true, force: true })
 })
 
+test('a Governs declaration that matches nothing tracked is reported, and could-not-look is not', async () => {
+  // ADR-011 T2. `adr-state` answered "none governs" for this repository's whole
+  // gate surface for two days after ADR-008 moved the tree, because seven
+  // records' `Governs:` lines named paths that no longer existed. Nothing said
+  // the declarations had stopped matching; the tool simply had less to say.
+  const { adrCorpus, __pathMatchesDeclarationForTest } = await import('../plugin/scripts/lifecycle.mjs')
+  const dir = await mkdtemp(path.join(os.tmpdir(), 'adr-governs-'))
+  await mkdir(path.join(dir, 'docs', 'adr'), { recursive: true })
+  const record = (n, governs) =>
+    `# ADR-${n}: decision ${n}\n\n**Status:** Accepted\n**Governs:** ${governs}\n\n## Context\n\nx\n`
+  await writeFile(path.join(dir, 'docs', 'adr', 'ADR-001-live.md'),
+    record('001', '`plugin/bin/**`, `tests/mutations.json`'))
+  await writeFile(path.join(dir, 'docs', 'adr', 'ADR-002-rotted.md'),
+    record('002', '`bin/adr-lint`'))
+
+  const tracked = ['plugin/bin/adr-lint', 'plugin/bin/adr-verify', 'tests/mutations.json']
+
+  // The DIRTY answer: `bin/adr-lint` is exactly what this repository's records
+  // said before the move, and exactly what nothing matched after it.
+  const withTracked = adrCorpus(dir, { tracked })
+  const rotted = withTracked.find(entry => entry.number === 2)
+  assert.deepEqual(rotted.unresolved, ['governs:bin/adr-lint'],
+    `a declaration matching nothing tracked must be reported: ${JSON.stringify(rotted.unresolved)}`)
+
+  // The CLEAN answer, in the same run, so a check that reports clean is shown
+  // able to report dirty. Both of ADR-001's declarations match.
+  const live = withTracked.find(entry => entry.number === 1)
+  assert.deepEqual(live.unresolved, [],
+    `these resolve against the listing: ${JSON.stringify(live.unresolved)}`)
+
+  // COULD NOT LOOK is not a verdict (ADR-005). Outside a git tree there is no
+  // listing, and a corpus read there must report nothing unresolved for this
+  // reason — the alternative is every declaration in the corpus at once.
+  for (const noListing of [null, undefined]) {
+    const blind = adrCorpus(dir, { tracked: noListing })
+    assert.deepEqual(blind.flatMap(entry => entry.unresolved), [],
+      'no tracked listing means the reader could not look, not that nothing matches')
+  }
+
+  // The typed-matcher entries this slot already carried are untouched, and the
+  // `governs:` prefix is what lets a reader tell the two sources apart.
+  await writeFile(path.join(dir, 'docs', 'adr', 'ADR-003-typed.md'),
+    '# ADR-003: typed\n\n**Status:** Accepted\n**Governs:**\n'
+    + '- type: path\n  pattern: "plugin/bin/**"\n- type: package\n  pattern: "mongodb@>=6"\n'
+    + '\n## Context\n\nx\n')
+  const typed = adrCorpus(dir, { tracked }).find(entry => entry.number === 3)
+  assert.deepEqual(typed.unresolved, ['package:mongodb@>=6'],
+    `a non-path matcher is still recorded as before: ${JSON.stringify(typed.unresolved)}`)
+
+  // AND THE RENDERER SAYS IT. The corpus reader knowing is not the same as the
+  // tool that answers "what governs what" telling anyone — the failure mode here
+  // is adr-state having LESS to say, which reads exactly like a clean corpus.
+  //
+  // A real git tree, because the listing comes from git and a fixture that never
+  // asks it would assert the could-not-look branch while claiming to test the
+  // other one. `sandbox` is deliberately named nothing like a repository root:
+  // a blanket rename once bound two `git -C` helpers to this repository and the
+  // suite committed to main (CLAUDE.md §9).
+  const sandbox = await mkdtemp(path.join(os.tmpdir(), 'adr-state-governs-'))
+  const inSandbox = (...args) => spawnSync('git', ['-C', sandbox, ...args], { encoding: 'utf8' })
+  inSandbox('init', '-q')
+  inSandbox('config', 'user.email', 'probe@example.invalid')
+  inSandbox('config', 'user.name', 'probe')
+  await mkdir(path.join(sandbox, 'docs', 'adr'), { recursive: true })
+  await mkdir(path.join(sandbox, 'src'), { recursive: true })
+  await writeFile(path.join(sandbox, 'src', 'pay.js'), '// real\n')
+  await writeFile(path.join(sandbox, 'docs', 'adr', 'ADR-001-live.md'), record('001', '`src/pay.js`'))
+  await writeFile(path.join(sandbox, 'docs', 'adr', 'ADR-002-rotted.md'), record('002', '`src/moved-away.js`'))
+  inSandbox('add', '-A')
+  inSandbox('commit', '-qm', 'fixture')
+
+  const state = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), sandbox], { encoding: 'utf8' })
+  assert.equal(state.status, 0, 'adr-state reads and never judges')
+  assert.match(state.stdout, /matching nothing git tracks/,
+    `a declaration that resolves to nothing must be printed:\n${state.stdout}`)
+  assert.match(state.stdout, /src\/moved-away\.js/, state.stdout)
+  assert.doesNotMatch(state.stdout, /src\/pay\.js\n/,
+    `a declaration that resolves must not be listed as rot:\n${state.stdout}`)
+
+  // Repair it and the report goes away — a check that cannot go quiet again is a
+  // check nobody can act on.
+  await writeFile(path.join(sandbox, 'docs', 'adr', 'ADR-002-rotted.md'), record('002', '`src/pay.js`'))
+  const repaired = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), sandbox], { encoding: 'utf8' })
+  assert.doesNotMatch(repaired.stdout, /matching nothing git tracks/, repaired.stdout)
+
+  await rm(sandbox, { recursive: true, force: true })
+  await rm(dir, { recursive: true, force: true })
+
+  // ONE GLOB GRAMMAR, mirrored verbatim from tests/gate-regressions.py's
+  // GOVERNS_MATCH_GRAMMAR. `**` crosses separators and `*` does not, and two
+  // implementations of that rule are only shared if something compares them —
+  // ADR-009's lesson, and the reason ADR-011 ships two rather than a module.
+  for (const [candidate, declaration, want] of [
+    ['plugin/bin/adr-lint', 'plugin/bin/**', true],
+    ['plugin/bin/adr-lint', 'plugin/bin/*', true],
+    ['plugin/bin/nested/x', 'plugin/bin/*', false],
+    ['plugin/bin/nested/x', 'plugin/bin/**', true],
+    ['plugin/bin/adr-lint', 'plugin/bin', true],
+    ['plugin/bin/adr-lint', 'plugin/bin/adr-lint', true],
+    ['plugin/bin/adr-lint', 'plugin/bin/adr-lin', false],
+    ['plugin/binx/adr-lint', 'plugin/bin', false],
+    ['plugin/bin/adr-lint', 'plugin\\bin\\**', true],
+    ['plugin/bin/adr-lint', './plugin/bin/**', true],
+    ['plugin/bin/adr-lint', 'plugin/bin/', true],
+    ['tests/mutations.json', 'tests/mutations.json', true],
+    ['tests/mutations.json', 'tests/mutations?json', true],
+    ['tests/mutations.json', '', false],
+  ]) {
+    assert.equal(__pathMatchesDeclarationForTest(candidate, declaration), want,
+      `the shared glob grammar disagrees on ${candidate} vs ${declaration}`)
+  }
+})
+
 test('adr-context answers which decisions govern a path, and which were killed there', async () => {
   // Called IN-PROCESS, not spawned. adr-state beside it is exercised by
   // spawnSync, which parent-process coverage cannot see — and this resolver is

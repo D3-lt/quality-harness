@@ -17,19 +17,25 @@ nothing git tracks, instead of silently governing nothing.
 
 | File | Change | Why |
 |------|--------|-----|
-| `plugin/scripts/lifecycle.mjs` | edit | `declaredGoverns` parses the header and `corpusRecords` already carries an `unresolved` slot; this fills it for a second reason |
+| `plugin/scripts/lifecycle.mjs` | edit | `declaredGoverns` parses the header and `adrCorpus` already carries an `unresolved` slot; this fills it for a second reason, from an injected tracked listing |
+| `plugin/scripts/adr-state.mjs` | edit | it is the tool that answers "what governs what" and it printed nothing about a declaration that matches nothing |
 | `tests/lifecycle.test.mjs` | edit | where the corpus reader's behaviour is asserted, and where T1's truth table is mirrored |
 | `tests/mutations.json` | edit | ADR-003 requires the mechanism to carry a mutation |
 
-`adr-state.mjs` prints the `unresolved` line already and is deliberately NOT edited: the line that
-selects this is the existing `Recorded but not resolved by this tool:` report, and the mutation
-proves a declaration reaches it.
+**Corrected during execution, 2026-08-29.** This task was authored claiming `adr-state.mjs` already
+printed the `unresolved` slot and was deliberately not edited. It does not. The
+`Recorded but not resolved by this tool:` line lives in `lifecycle.mjs::decisionContext`, which is
+the EDIT-BOUNDARY HOOK's renderer, not `adr-state`'s — `adr-state` reads `record.declares` and never
+touches `unresolved`. So the authoring claim named the wrong caller, and shipping on it would have
+left the tool that answers "what governs what" silent about a declaration that governs nothing:
+exactly the failure this record is about, one tool over. `adr-state.mjs` gains the report and a test
+that spawns it against a real git fixture.
 
 ## Ordered Steps
 
 1. Confirm the failing test first, red today: a corpus whose record declares `Governs:` on a path no
    tracked file matches is read with an empty `unresolved`, and `adr-state` prints nothing about it.
-2. Give `corpusRecords` the tracked listing — `git ls-files` plus `--others --exclude-standard`
+2. Give `adrCorpus` the tracked listing — `git ls-files` plus `--others --exclude-standard`
    through `spawnSync`, taken once per corpus read, `null` when git cannot answer.
 3. When the listing is available, a declared path that no tracked file matches under
    `pathMatchesDeclaration` is pushed to `unresolved` as `governs:<the declaration>`, which is the
@@ -53,6 +59,7 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr011-t2.out && ! grep -qE
 | Test name | File | Verifies | Covers |
 |-----------|------|----------|--------|
 | `a declared Governs path matching nothing tracked is reported unresolved` | `tests/lifecycle.test.mjs` | the dirty answer | — |
+| `adr-state prints a declaration that matches nothing, and goes quiet when it is repaired` | `tests/lifecycle.test.mjs` | the renderer, spawned against a real git fixture, in both directions | — |
 | `a declared Governs glob matching one tracked file is not reported` | `tests/lifecycle.test.mjs` | the clean answer, in the same test as the dirty one | — |
 | `a corpus read with no tracked listing reports nothing unresolved` | `tests/lifecycle.test.mjs` | could-not-look is not a verdict | — |
 | `the JS and Python matchers agree on the mirrored truth table` | `tests/lifecycle.test.mjs` | the two implementations cannot drift | — |
@@ -62,8 +69,8 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr011-t2.out && ! grep -qE
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the tests above |
-| 2 — something selects it | `adr-state.mjs`'s existing `Recorded but not resolved by this tool:` line reads the slot; the mutation makes the push unconditional-false and `node --test tests/lifecycle.test.mjs` goes red |
-| 3 — the caller can discover it | the printed line already names what it is reporting, and gains the `governs:` prefix so a reader can tell the two sources apart |
+| 2 — something selects it | `adr-state.mjs` filters the slot for `governs:` entries and prints them; the spawned-CLI assertion covers that line, and the mutation makes the push unconditional-false so `node --test tests/lifecycle.test.mjs` goes red |
+| 3 — the caller can discover it | the printed paragraph says what a listed declaration means and what it costs; the `governs:` prefix keeps it distinguishable from the typed-matcher entries the slot already carried, and `decisionContext` (the edit-boundary hook) renders the same slot at the moment an agent edits a governed file |
 | 4 — it is used | to be recorded at execution: `node plugin/scripts/adr-state.mjs` over this repository, confirming the line stays absent while every declaration resolves |
 
 ## Mutation Log
@@ -75,6 +82,7 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr011-t2.out && ! grep -qE
 - `adr-state` exits 0 whatever it finds; this adds a report, never a verdict.
 - A corpus read outside a git tree reports nothing unresolved for this reason.
 - The two implementations answer the mirrored truth table identically.
+- `adrCorpus` stays hermetic when handed a listing: `tracked` is an injectable parameter, and every existing caller reading a corpus outside a git tree is unchanged.
 
 ## Risks
 
@@ -90,7 +98,7 @@ field should be taken as a decision rather than assumed here.
 ## Out of Scope
 
 - The `adr-lint` half of the resolution. (that is T1's job)
-- Any change to what `adr-context` prints. (permanent: it answers "which records govern this path", and a declaration matching nothing produces no answer there to annotate.)
+- Any change to what `adr-context` prints for a queried path. (permanent: it answers "which records govern this path", and a declaration matching nothing produces no row there to annotate; the hook's `decisionContext` renderer already reads the same slot.)
 
 ## Verification Log
 

@@ -1100,6 +1100,237 @@ def check_enforcement(text, path, errors, root):
                           f"avoid. Name the check, or say `None — <reason>`")
 
 
+def tracked_paths(root):
+    """Repository-relative paths git knows about, or None when git cannot answer.
+
+    None and an EMPTY SET are different answers and must never collapse. An
+    empty set says "this tree holds no files"; None says "I could not look", and
+    resolving pointers against a None that was quietly read as empty would make
+    every pointer in the corpus a finding at once — a gate reporting an
+    observation it never made (ADR-005).
+
+    `--others --exclude-standard` is included because a record and the files it
+    governs are commonly added in the same commit, and a check that only sees
+    the index would report a path that is right there in the working tree.
+
+    Against git rather than the filesystem, deliberately: `Path.exists()` answers
+    "is this on THIS machine", which makes the gate's verdict depend on who is
+    asking (ADR-008, and the four CI jobs that failed on a commit which passed
+    on the laptop that wrote it).
+    """
+    if root is None:
+        return None
+    found = set()
+    for args in (["ls-files"], ["ls-files", "--others", "--exclude-standard"]):
+        try:
+            r = subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false", *args],
+                               capture_output=True, text=True, timeout=30,
+                               encoding="utf-8", errors="replace")
+        except Exception:
+            return None
+        if r.returncode != 0:
+            return None
+        found.update(line.strip() for line in r.stdout.splitlines() if line.strip())
+    return found
+
+
+def _glob_to_regexp(pattern):
+    """One glob component at a time, so `**` crosses separators and `*` cannot.
+
+    A transcription of `lifecycle.mjs::globToRegExp`, and a transcription is what
+    it must stay: the two are compared input by input in
+    `tests/gate-regressions.py::GOVERNS_MATCH_GRAMMAR`, mirrored in the JS suite.
+    ADR-009 shipped one rule as two implementations on the same terms, and the
+    truth table is the only thing that keeps them honest.
+    """
+    normal = re.sub(r"^\./", "", pattern.replace("\\", "/"))
+    source = "^"
+    index = 0
+    while index < len(normal):
+        char = normal[index]
+        if char == "*":
+            if index + 1 < len(normal) and normal[index + 1] == "*":
+                source += ".*"
+                index += 3 if normal[index + 2:index + 3] == "/" else 2
+                continue
+            source += "[^/]*"
+        elif char == "?":
+            source += "[^/]"
+        else:
+            source += re.escape(char)
+        index += 1
+    try:
+        return re.compile(source + "$", re.I)
+    except re.error:
+        return None
+
+
+def path_matches_declaration(candidate, declaration):
+    """Whether a tracked file is covered by a `Governs:` declaration.
+
+    A declared path matches the file itself, anything under it when it names a
+    directory, and whatever its globs cover.
+
+    BOTH separators are normalized before any structural test, on every
+    platform. A declaration spelled `plugin\\bin\\**` is the same declaration,
+    and a matcher that splits on "/" alone reports coverage it never checked
+    (CLAUDE.md §7 — five defects of exactly this shape).
+    """
+    file = re.sub(r"^\./", "", candidate.replace("\\", "/"))
+    declared = re.sub(r"^\./", "", declaration.replace("\\", "/")).rstrip("/")
+    if not declared:
+        return False
+    if re.search(r"[*?]", declared):
+        matcher = _glob_to_regexp(declared)
+        return bool(matcher.search(file)) if matcher else False
+    return file == declared or file.startswith(declared + "/")
+
+
+def _split_pointer_list(value):
+    """A backticked span is one item, commas inside it included.
+
+    Extracted from `enforcement_pointers` rather than copied: a mutation label
+    reads "…mutates, exactly once", and splitting on every comma tore it in
+    half. `Cross-references:` needs the same parse, and a second copy of it is
+    how the two would come to disagree.
+    """
+    parts = []
+    rest = []
+    position = 0
+    for span in re.finditer(r"`([^`]*)`", value):
+        rest.append(value[position:span.start()])
+        parts.append(span.group(1).strip())
+        position = span.end()
+    rest.append(value[position:])
+    parts += [p.strip() for p in ",".join(rest).split(",")]
+    return [p for p in parts if p and not re.match(r"[<(]", p)]
+
+
+def governs_declarations(text):
+    """The paths a record declares authority over, or [] when it declares none.
+
+    Tokenised the way `lifecycle.mjs::declaredGoverns` does — a backticked span
+    or a run of non-space, non-comma characters — because the two must agree
+    about what a declaration IS before they can agree about whether it resolves.
+    The adrkit typed form is deliberately not read here: `adr-state` already
+    records a non-`type: path` matcher as unresolved, and a second opinion about
+    it from a different tool is worse than one.
+    """
+    raw = header_val(text, "Governs")
+    if raw is None:
+        return []
+    value = raw.strip()
+    if not value or re.match(r"none\b", value, re.I):
+        return []
+    found = []
+    for token in re.finditer(r"`([^`]+)`|([^\s,]+)", value):
+        item = (token.group(1) or token.group(2)).strip()
+        if item and not re.match(r"[<(]", item):
+            found.append(item)
+    return found
+
+
+def cross_reference_pointers(text):
+    """The records and files a record cites, or [] when it cites none."""
+    raw = header_val(text, "Cross-references")
+    if raw is None:
+        return []
+    value = raw.strip()
+    if not value or re.match(r"none\b", value, re.I):
+        return []
+    return _split_pointer_list(value)
+
+
+def invalidates_pointer(text):
+    """The record this one claims to invalidate, or None.
+
+    THE LEADING TOKEN ONLY, and that is the whole parse. Every real value in
+    this corpus is either `none — checked. ADR-003 governs …` or `ADR-001 — the
+    clause of its Decision reading "…"`. Comma-splitting the second turns its
+    prose into pointers, so this header does NOT reuse `_split_pointer_list`:
+    one field, one parse, stated where a reader will look for it.
+    """
+    raw = header_val(text, "Invalidates")
+    if raw is None:
+        return None
+    value = raw.strip()
+    if not value or re.match(r"none\b", value, re.I):
+        return None
+    lead = value.split()[0].strip("`,;:")
+    return lead or None
+
+
+def resolve_record_number(pointer, corpus_dir):
+    """Whether `ADR-001` names a record in this corpus.
+
+    The same number comparison `resolve_qualified_dep` makes, without the task
+    half — a cited record may have no tasks at all, and requiring one would
+    report a real record as missing.
+    """
+    found = re.match(r"ADR-0*(\d{1,4})", pointer, re.I)
+    if not found or corpus_dir is None:
+        return False
+    number = int(found.group(1))
+    for candidate in sorted(corpus_dir.glob("ADR-*.md")):
+        digits = re.match(r"ADR-0*(\d{1,4})", candidate.name, re.I)
+        if digits and int(digits.group(1)) == number:
+            return True
+    return False
+
+
+def _looks_like_a_path(pointer):
+    """A cited token that names a file rather than a section or a phrase.
+
+    `§45` names a heading and is deliberately not resolved (docs/BACKLOG.md §44);
+    guessing at it would turn a legitimate citation into a finding.
+    """
+    return bool(re.search(r"[/\\]", pointer) or re.search(r"\.\w+$", pointer))
+
+
+def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
+    """Advise when `Governs:`, `Cross-references:` or `Invalidates:` names nothing.
+
+    ADVICE, never blocking, and it stays that way for ADR-009's reason and one of
+    its own: a corpus adopting this on a tree it did not write will light up, and
+    this repository's own corpus would have failed for the two days after ADR-008
+    moved the tree — during which nothing was wrong with any record.
+
+    `tracked` is injectable so the could-not-look branch is reachable from a
+    test on any platform. A branch with no seam is a branch with no test.
+    """
+    if tracked is None:
+        tracked = tracked_paths(root)
+    if tracked is False or tracked is None:
+        errors.advise(f"{path.name}: could not list the files git tracks, so `Governs:`, "
+                      f"`Cross-references:` and `Invalidates:` were NOT resolved. This is "
+                      f"'I could not look', not 'those pointers name nothing'")
+        return
+    for declaration in governs_declarations(text):
+        if leaves_the_tree(declaration):
+            errors.advise(f"{path.name}: Governs: declares `{declaration}`, which points outside "
+                          f"the repository — a decision cannot own a path it does not contain")
+        elif not any(path_matches_declaration(f, declaration) for f in tracked):
+            errors.advise(f"{path.name}: Governs: declares `{declaration}`, which no tracked file "
+                          f"matches — the decision governs nothing, and `adr-context` will answer "
+                          f"'none governs' for the code it was written about")
+    for pointer in cross_reference_pointers(text):
+        head = pointer.split()[0].strip("`,") if pointer.split() else ""
+        if not head:
+            continue
+        if re.match(r"ADR-\d", head, re.I):
+            if not resolve_record_number(head, corpus_dir):
+                errors.advise(f"{path.name}: Cross-references: cites `{head}`, which is not a "
+                              f"record in this corpus")
+        elif _looks_like_a_path(head) and not leaves_the_tree(head):
+            if not any(path_matches_declaration(f, head) for f in tracked):
+                errors.advise(f"{path.name}: Cross-references: cites `{head}`, which no tracked "
+                              f"file matches")
+    invalidated = invalidates_pointer(text)
+    if invalidated and not resolve_record_number(invalidated, corpus_dir):
+        errors.advise(f"{path.name}: Invalidates: names `{invalidated}`, which is not a record in "
+                      f"this corpus — a decision cannot invalidate one that was never written")
+
+
 def check_tests_exist(infos, readme_text, errors, root):
     """A `done` task's Tests table must name tests that exist in the files it names.
 
@@ -1640,6 +1871,8 @@ def main():
     # to nothing is worth saying and is never worth blocking a record over.
     check_enforcement(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
                       git_root(adr.parent))
+    check_pointers(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
+                   git_root(adr.parent), adr.parent)
     check_cross_record_cycles(adr.parent, errors)
 
     if spec_file is not None:

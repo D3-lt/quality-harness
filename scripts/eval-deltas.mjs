@@ -133,7 +133,14 @@ export function main(argv = [], cwd = process.cwd()) {
   }
   const asJson = argv.includes('--json')
   const given = argv.find(a => !a.startsWith('--'))
-  const root = given ? path.resolve(cwd, given) : path.join(cwd, 'plugin', 'evals', 'results')
+  // `plugin/evals`, not `plugin/evals/results`: the suite writes into TWO trees —
+  // that one and `plugin/evals/generated/cases/results` — and defaulting to the
+  // first silently dropped 7 of 25 recorded invocations, five of them PAIRED
+  // invocations of `adr-against-a-real-corpus`. Found 2026-08-29 by a review that
+  // compared the tool's count against the ad-hoc glob it replaced. A reader would
+  // have seen a smaller corpus and no sign that anything was missing, which is
+  // the same shape as a filter that matched nothing reporting "absent".
+  const root = given ? path.resolve(cwd, given) : path.join(cwd, 'plugin', 'evals')
 
   // COULD NOT LOOK, and it says so. The results tree is gitignored, so a fresh
   // checkout has none — and "no results here" must never render as "no effect".

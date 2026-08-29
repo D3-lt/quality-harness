@@ -2519,7 +2519,7 @@
       "to": "    return (number or cutoff) < cutoff"
     },
     {
-      "label": "deltas: an arm from another invocation is never a comparison",
+      "label": "deltas: a delta needs BOTH arms, not one arm and a zero",
       "file": "scripts/eval-deltas.mjs",
       "tests": [
         "tests/eval-deltas.test.mjs"

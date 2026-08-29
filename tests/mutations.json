@@ -744,8 +744,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    for (const taskText of (claimed.length ? claimed : (sole ? texts : []))) {",
-      "to": "    for (const taskText of texts) {"
+      "from": "    for (const entry of (claimed.length ? claimed : (sole ? texts : []))) {",
+      "to": "    for (const entry of texts) {"
     },
     {
       "label": "context: a symlinked root still resolves",
@@ -1759,7 +1759,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      unreadable.push({ file, status: status || null })",
+      "from": "      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text) })",
       "to": "      void status"
     },
     {
@@ -2544,6 +2544,33 @@
       ],
       "from": "    process.stdout.write(asJson ? JSON.stringify({ read: null, cases: [] }, null, 2) + '\\n' : message)",
       "to": "    process.stdout.write(asJson ? JSON.stringify({ read: 0, cases: [] }, null, 2) + '\\n' : '')"
+    },
+    {
+      "label": "next: a task is ready only when the record that owns it is Accepted",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const ready = tasks.filter(file => unfinished(file) && executable(file))",
+      "to": "  const ready = tasks.filter(file => unfinished(file))"
+    },
+    {
+      "label": "next: work under an undecided record is named, not silently dropped",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const notYetDecided = tasks.filter(file => unfinished(file) && !executable(file)\n    && owner.has(path.resolve(file)))",
+      "to": "  const notYetDecided = []"
+    },
+    {
+      "label": "state: a record this reader cannot classify still has its tasks attributed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  for (const tasks of taskDirectoriesFor(file, adrNumber(file, text))) {",
+      "to": "  for (const tasks of []) {"
     }
   ]
 }

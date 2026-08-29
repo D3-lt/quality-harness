@@ -106,11 +106,39 @@ export function observe(directory) {
     return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
   })
 
-  const ready = tasks.filter(file => {
+  // Attributed by the corpus reader, not by walking the filesystem. A task file
+  // is READY only when the record that owns it is Accepted: `Proposed`, `Draft`
+  // and archived records are plans and history, never work orders (CLAUDE.md
+  // §10). Without this join the router named the tasks of an unaccepted record
+  // and said "an Accepted ADR has tasks that are ready" while doing it — correct
+  // about the files, wrong about the record, and asserting a status nothing had
+  // checked (docs/BACKLOG.md §48).
+  const owner = new Map()
+  for (const record of corpus) {
+    for (const file of record.taskFiles ?? []) owner.set(path.resolve(file), record)
+  }
+  // A record whose status this reader does not recognise — `Proposed`, `Draft`,
+  // anything a corpus spells its own way — is not in `corpus` at all; it is on
+  // the non-enumerable `unreadable` list. Its tasks are still attributed, and
+  // they are exactly the ones that must be named rather than silently dropped.
+  for (const entry of corpus.unreadable ?? []) {
+    for (const file of entry.taskFiles ?? []) {
+      if (!owner.has(path.resolve(file))) owner.set(path.resolve(file), { kind: null, ...entry })
+    }
+  }
+  const executable = file => owner.get(path.resolve(file))?.kind === 'governing'
+  const unfinished = file => {
     const text = read(file)
     return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
       && /^##\s+Acceptance/im.test(text)
-  })
+  }
+  const ready = tasks.filter(file => unfinished(file) && executable(file))
+  // Named rather than dropped in silence: a corpus whose only unfinished work
+  // sits under a record nobody has accepted would otherwise read as finished,
+  // which is the same "I could not look" / "there is nothing" conflation the
+  // gates are held to elsewhere (ADR-005).
+  const notYetDecided = tasks.filter(file => unfinished(file) && !executable(file)
+    && owner.has(path.resolve(file)))
 
   const retirable = corpus.filter(record => record.kind === 'graveyard'
     && !/[\\/]archive[\\/]/i.test(record.file))
@@ -130,9 +158,16 @@ export function observe(directory) {
     usesVerificationLog,
     records: corpus.length,
     accepted: corpus.filter(record => record.kind === 'governing').length,
+    // `records` counts what this reader could CLASSIFY, and until §48 that was
+    // the only number printed — so a tree of eleven records reported "10
+    // record(s), 10 accepted", right by exclusion and indistinguishable from
+    // right by checking. A count that omits what it could not read reads as
+    // coverage; the reader is told the remainder rather than left to subtract.
+    undecided: (corpus.unreadable ?? []).length,
     tasks: tasks.length,
     unbacked,
     ready,
+    notYetDecided,
     retirable,
     specs: specs.length,
   }
@@ -182,9 +217,11 @@ export function main(argv = process.argv.slice(2)) {
     process.stdout.write(`${JSON.stringify({
       records: state.records,
       accepted: state.accepted,
+      undecidedRecords: state.undecided,
       tasks: state.tasks,
       unbackedDoneClaims: state.unbacked.map(relative),
       tasksWithoutEvidence: state.ready.map(relative),
+      tasksUnderAnUndecidedRecord: state.notYetDecided.map(relative),
       retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
       specs: state.specs,
       next: stage ? { id: stage.id, entry: stage.entry, when: stage.when } : null,
@@ -194,7 +231,24 @@ export function main(argv = process.argv.slice(2)) {
   }
 
   process.stdout.write(`${state.records} record(s), ${state.accepted} accepted, `
-    + `${state.tasks} task file(s), ${state.specs} spec(s).\n`)
+    + `${state.tasks} task file(s), ${state.specs} spec(s).`
+    + (state.undecided
+      ? ` ${state.undecided} further record(s) carry a status this reader does not act on.\n`
+      : '\n'))
+  // Said whatever the next stage is, and BEFORE it: work that exists and is not
+  // executable is the answer to "why is nothing waiting?", and a reader who does
+  // not get it concludes the corpus is finished (docs/BACKLOG.md §48).
+  if (state.notYetDecided.length) {
+    process.stdout.write(`\n${state.notYetDecided.length} unfinished task file(s) belong to a record `
+      + 'this reader cannot execute — Proposed, Draft, or a status it does not recognise. They are '
+      + 'not counted as ready, because a record is a work order only once it is Accepted:\n')
+    for (const file of state.notYetDecided.slice(0, 5)) {
+      process.stdout.write(`  ${relative(file)}\n`)
+    }
+    if (state.notYetDecided.length > 5) {
+      process.stdout.write(`  (+${state.notYetDecided.length - 5} more; --json for all)\n`)
+    }
+  }
   if (!stage) {
     if (state.tasks && !state.usesVerificationLog) {
       process.stdout.write(`\n${state.tasks} task file(s) and not one exit-0 Verification Log entry: `

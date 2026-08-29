@@ -29,8 +29,15 @@ fi
 node --test "$REPO"/tests/*.test.mjs
 
 # The gates are the extensionless files; bin/*.cmd are Windows shims.
+# `-f` is not decoration: a `__pycache__/` left in bin by any process that
+# imported a gate has no extension either, and ast.parse died on it with "Is a
+# directory" — the gate CRASHED instead of reporting, after every test had
+# already passed. A check whose answer depends on what is on your disk is
+# CLAUDE.md §8; tests/gates.test.mjs carried the same defect and was fixed
+# 2026-08-29, and this second copy was found the same day by walking into it.
 for file in "$ROOT"/bin/*; do
   case "$file" in *.*) continue ;; esac
+  [ -f "$file" ] || continue
   python3 -B -c 'import ast, pathlib, sys; ast.parse(pathlib.Path(sys.argv[1]).read_text(encoding="utf-8"), filename=sys.argv[1])' "$file"
 done
 

@@ -55,6 +55,8 @@ node --test tests/gate-rules.test.mjs 2>&1 | tee /tmp/acc-014-t3.out && ! grep -
 
 ## Mutation Log
 
+- 2026-08-30 · afa49b3* · mutant killed · exit 1 · `plugin/bin/adr-debt` · an old wait must be asked about, or the event happens and nobody looks again · acceptance-sha256:ebc76ef4b17f30c1501be89ea060f25350fb2104b86daa12ad263e76b860e07d
+
 ## Invariants
 
 - The deferred count keeps meaning what it meant: work punted with a pointer, not work waiting on the world.
@@ -74,3 +76,4 @@ A number that silently changes definition is worse than a missing one.
 - Escalating to a person. (permanent: no owner model and no scheduler here.)
 
 ## Verification Log
+- 2026-08-30 · afa49b3 · exit 0 · `set -o pipefail …` · acceptance-sha256:ebc76ef4b17f30c1501be89ea060f25350fb2104b86daa12ad263e76b860e07d

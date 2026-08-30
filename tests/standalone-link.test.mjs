@@ -46,17 +46,23 @@ function resolve(versions, directory) {
 
 
 // THIS IS A SHAPE CHECK, and it says so because ADR-003 forbids passing one off
-// as a behaviour check. A cmd fence has no seam: there is no way to execute
-// `where /q py && (…) || (…)` from macOS or Linux and observe that it is wrong.
-// The behavioural assertion lives on a Windows box and nowhere else, and until it
-// runs there this file records shape and the commit records that shape is all
-// that was proven.
+// as a behaviour check. A cmd fence has no seam: there is no way to execute it
+// from macOS or Linux and observe what it does.
 //
-// What was measured, 2026-08-30 on Windows 11 by a peer session: `A && B || C` in
-// cmd is not if/else — `||` fires when B exits non-zero, not only when A fails.
-// So every FAILING gate ran twice, once under `py -3` and again under `python`,
-// and the caller received the second interpreter's exit code rather than the
-// gate's. A failing adr-lint printed its entire FAIL block twice, verbatim.
+// The control flow HAS since been executed on Windows 11 by a peer session — a
+// hand-written copy of this form, pointed at an installed gate: one FAIL block
+// instead of two, exit matching a direct `py -3` run, the passing case exit 0,
+// and the `python` branch reached and propagating when `py` is hidden. What has
+// NOT been run there is these files, so the shape check below is what this repo
+// asserts and the commit records the boundary.
+//
+// Two measured facts shape the form. `A && B || C` is not if/else: `||` fires
+// when B exits non-zero, not only when A fails, so every FAILING gate ran twice
+// and the caller got the second interpreter's status. And a parenthesised
+// `if (…) else (…)` — the obvious repair — breaks on an unquoted argument
+// containing `)`. `C:\Program Files (x86)\…` is that argument, and the
+// ProgramFiles(x86) root is already in resolve_bash's fallback list; measured
+// "was unexpected at this time", exit 255, gate never run.
 test('a cmd forwarder runs one interpreter and returns its exit code', () => {
   const gates = readdirSync(path.join(root, 'bin'))
     .filter(name => name.endsWith('.cmd'))
@@ -66,42 +72,52 @@ test('a cmd forwarder runs one interpreter and returns its exit code', () => {
   const generated = forwarderCmd('adr-lint')
 
   for (const [name, text] of [...shipped, ['<generated>', generated]]) {
-    // The exact defect, spelled the exact way it shipped.
+    // The original defect, spelled the way it shipped.
     assert.doesNotMatch(text, /&&\s*\(\s*py\s+-3/,
       `${name}: chains the gate onto \`where /q py\` with && — a failing gate then runs twice`)
     assert.doesNotMatch(text, /\|\|\s*\(\s*python\b/,
       `${name}: falls back with || , which fires on the GATE's exit code, not on where's`)
-    // And the form that replaced it, so removing the chain without replacing the
-    // selection would not pass: `where` must be tested by errorlevel, not chained.
-    assert.match(text, /^where \/q py$/m, `${name}: must probe for the py launcher on its own line`)
-    assert.match(text, /^if errorlevel 1 \($/m, `${name}: must branch on where's errorlevel`)
-    assert.match(text, /^\) else \($/m, `${name}: must have a real else branch`)
+    // And the repair that would have replaced one defect with another: the line
+    // that expands %* must not sit inside a parenthesised block, because `)` in
+    // an unquoted argument closes it early. Asserted as "starts at column 0",
+    // which is what a call outside a block looks like — the generator's own
+    // `if not defined QH_ROOT (` fence is a block too, and a legitimate one: it
+    // expands no user argument, which is exactly the distinction that matters.
+    for (const call of text.split(/\r?\n/).filter(line => line.includes('%*'))) {
+      assert.match(call, /^(py -3|python) /,
+        `${name}: an interpreter call is indented, so it is inside a block: ${call.trim()}`)
+    }
+    // The form that is actually there.
+    assert.match(text, /^where \/q py && goto :usepy$/m, `${name}: must select by goto`)
+    assert.match(text, /^exit \/b$/m,
+      `${name}: bare 'exit /b' is what preserves the python branch's status`)
+    assert.match(text, /^:usepy$/m, `${name}: missing the py label`)
   }
 
-  // Both interpreters still reachable, one per branch — a fix that simply deleted
-  // the fallback would satisfy everything above.
-  // \r\n, not \n: the generator emits CRLF and `*.cmd text eol=crlf` keeps it that
-  // way, because cmd needs it. Matching \n here would have failed for the right
-  // reason and been "fixed" by loosening the assertion.
-  assert.match(generated, /\r\n {2}python "%QH_ROOT%\\bin\\adr-lint" %\*\r\n/)
-  assert.match(generated, /\r\n {2}py -3 "%QH_ROOT%\\bin\\adr-lint" %\*\r\n/)
+  // Both interpreters still reachable, one per branch — deleting the fallback
+  // would satisfy everything above.
+  assert.match(generated, /\r\npython "%QH_ROOT%\\bin\\adr-lint" %\*\r\n/)
+  assert.match(generated, /\r\npy -3 "%QH_ROOT%\\bin\\adr-lint" %\*\r\n/)
+  // Order matters: the bare `exit /b` must sit between them, or the py branch
+  // runs after the python one and the gate executes twice again.
+  const g = generated.replace(/\r\n/g, '\n')
+  assert.ok(g.indexOf('\npython "') < g.indexOf('\nexit /b\n')
+    && g.indexOf('\nexit /b\n') < g.indexOf('\npy -3 "'),
+    'the fallback must exit before reaching the :usepy label')
 
   // The generator writes into the standalone bin directory and the eleven above
-  // ship in the package. They are different files with the same job, so they
-  // drift unless something compares them.
-  // Sliced from `where /q py` onward: the generator has an earlier `)` closing its
-  // "no installed plugin" guard, and a filter that swept the whole file picked it
-  // up. Anchor on the block, then compare it.
+  // ship in the package. Different files, same job, so they drift unless
+  // something compares them. Sliced from the selection line: the generator has an
+  // earlier `)` closing its "no installed plugin" guard.
   const selection = text => {
     const lines = text.split(/\r?\n/)
-    const start = lines.findIndex(line => line === 'where /q py')
+    const start = lines.findIndex(line => line === 'where /q py && goto :usepy')
     assert.notEqual(start, -1, 'no interpreter-selection block found')
     return lines.slice(start).filter(Boolean).map(line => line.replace(/"[^"]*"/, '"<gate>"').trim())
   }
   assert.deepEqual(selection(generated), selection(shipped[0][1]),
     'the generated forwarder and the shipped ones must select the interpreter identically')
 })
-
 
 test('the resolver orders versions numerically, not lexically', () => {
   // The cache on the machine this was written for holds 2.0.4, 2.0.10, 2.1.7 and

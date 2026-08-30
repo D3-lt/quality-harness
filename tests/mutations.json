@@ -3291,6 +3291,51 @@
       ],
       "from": "    bash -n \"$file_path\" 2>&1 | tail -30 || true",
       "to": "    true"
+    },
+    {
+      "label": "arch: a document with no Status line is reported",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "if not re.search(r\"^\\*\\*Status:\\*\\*\", text, re.M):",
+      "to": "if False:"
+    },
+    {
+      "label": "arch: a missing section is named",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "        if s not in secs:\n            errors.advise(f\"missing section ## {s}\")",
+      "to": "        if False:\n            errors.advise(f\"missing section ## {s}\")"
+    },
+    {
+      "label": "arch: an empty Module Map is reported",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "if \"Module Map\" in secs and not mm:",
+      "to": "if False:"
+    },
+    {
+      "label": "arch: a rule section needs rows or a None escape",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "        if not rows:\n            errors.append(f\"{s}: no data rows",
+      "to": "        if False:\n            errors.append(f\"{s}: no data rows"
+    },
+    {
+      "label": "arch: a check cell must name a runnable check",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "            if \"`\" not in check:",
+      "to": "            if False:"
     }
   ]
 }

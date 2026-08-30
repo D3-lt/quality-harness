@@ -20,6 +20,7 @@ import {
   describeCommand,
   sessionOrientation,
   spawnGate,
+  resolvePython,
   adrCorpus,
   validationVerdict,
   shadowInstallNotice,
@@ -1584,6 +1585,64 @@ test('a bin/ gate is spawned in a way Windows can actually run', async () => {
   const source = await readFile(path.join(pluginDir, 'scripts', 'lifecycle.mjs'), 'utf8')
   assert.equal((source.match(/spawnSync\(tool\b/g) ?? []).length, 1,
     'a bin/ gate must be spawned through spawnGate, which names the interpreter on Windows')
+})
+
+test('a Windows python3 that is not Python is refused, not believed', async () => {
+  // Windows 11 ships `python3` as a WindowsApps App Execution Alias: a spawnable
+  // exe that is not Python. It prints "Python was not found" to STDOUT, leaves
+  // stderr empty, and exits 9009 — so it sets no `error`, and spawnGate's old
+  // `run.error ? python : run` fallback never fired. Every gate came back 9009,
+  // readyTaskLines' `continue` ate it, and orientation was silently empty on that
+  // machine. Reported 2026-08-30 from Windows 11 build 26200.9168, where `py -3`
+  // ran the same gate and exited 3 while `python3` exited 9009.
+  //
+  // The alias stands in as a node script here so the case is reachable from any
+  // platform. That is the point: the branch shipped broken because the existing
+  // win32 test runs where `python3` is genuine, so nothing could ever see it.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-python-alias-'))
+  const alias = path.join(dir, 'store-alias.mjs')
+  await writeFile(alias, [
+    "process.stdout.write('Python was not found; run without arguments to install from the Microsoft Store,'",
+    "  + ' or disable this shortcut from Settings > Apps > Advanced app settings > App execution aliases.\\n')",
+    'process.exit(9009)',
+  ].join('\n'))
+  const decoy = [process.execPath, alias]
+
+  // The fixture must be capable of fooling the OLD test before it can prove the
+  // new one: spawnable, no `error`, nothing on stderr, and a nonzero status that
+  // is neither 0 nor the 3 readyTaskLines tolerates. A fixture that merely failed
+  // to spawn would pass against the very code this replaces.
+  const misbehaves = spawnSync(decoy[0], [decoy[1], '-c', 'import sys'], { encoding: 'utf8' })
+  assert.equal(misbehaves.error, undefined, 'the alias must SPAWN — that is what defeated the error-keyed fallback')
+  // 9009 on Windows; POSIX truncates a wait status to 8 bits, so this reads 49
+  // here. The number is not the property — "nonzero, and neither the 0 nor the 3
+  // readyTaskLines tolerates" is, which is why the fix must not key on 9009.
+  assert.ok(misbehaves.status !== 0 && misbehaves.status !== 3 && misbehaves.status !== null,
+    `the alias must exit nonzero and unhandled, got ${misbehaves.status}`)
+  assert.equal(misbehaves.stderr, '', 'the alias says nothing on stderr, which is why it read as success')
+  assert.match(misbehaves.stdout, /Python was not found/)
+
+  // Offered first, and still refused: presence is not evidence.
+  assert.equal(resolvePython('win32', [decoy], spawnSync), null,
+    'a spawnable non-Python must never be accepted as the interpreter')
+  assert.deepEqual(resolvePython('win32', [decoy, ['python3']], spawnSync), ['python3'],
+    'the probe must skip the decoy and keep looking')
+  assert.equal(resolvePython('linux', [decoy], spawnSync), null, 'POSIX execs the shebang itself')
+
+  // And the reported symptom, through spawnGate: the gate runs and answers.
+  const repo = await mkdtemp(path.join(testTmp, 'quality-python-alias-repo-'))
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks'), path.join(repo, 'tasks'), { recursive: true })
+  const tool = path.join(pluginDir, 'bin', 'adr-next')
+  const chosen = resolvePython('win32', [decoy, ['python3']], spawnSync)
+  const run = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], { encoding: 'utf8', timeout: 10_000 }, 'win32', chosen)
+  assert.equal(run.status, 0, run.stderr)
+  assert.ok(JSON.parse(run.stdout).ready?.length, 'the gate must be reached past the decoy')
+
+  // Nothing answered: no verdict, and no pretence that a check ran.
+  const none = spawnGate(tool, [], { encoding: 'utf8' }, 'win32', null)
+  assert.equal(none.status, null)
+  assert.match(none.stderr, /an absent checker certifies nothing/)
+  assert.ok(none.error, 'a gate that could not start must look like one that could not spawn')
 })
 
 test('adr-next reads the task files, not the index that describes them', async () => {

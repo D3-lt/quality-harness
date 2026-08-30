@@ -4773,3 +4773,252 @@ each copy separately doubles the tests to keep a duplication nobody wants.
 
 **Not fixed here.** Deduplicating a gate's rules is a change to what it reports, and it
 wants its own evidence rather than being folded into a hardening pass.
+
+## 88. Bare `python3` is a decoy on stock Windows, and 18 sites still spawn it
+
+Found 2026-08-30 by a peer Claude session on a real Windows 11 box (build 26200.9168) that
+this repository has never been able to reach. Stock Windows ships `python3` as an App
+Execution Alias under the user's local AppData: a real, spawnable executable that is not
+Python. It writes `Python was not found; run without arguments to install from the Microsoft
+Store` to **stdout**, leaves stderr empty, and exits 9009.
+
+`spawnGate` in `plugin/scripts/lifecycle.mjs` fell back to `python` only when `run.error` was
+set. The alias sets no `error` — it spawns. So the fallback never fired, every gate returned
+9009, and `readyTaskLines`' `continue` turned that into the silently empty session
+orientation that the comment above the function says was fixed on 2026-08-25. The same
+defect, reached by a different mechanism.
+
+**Fixed here** by `resolvePython(platform, candidates, run)`, which probes `py -3`, then
+`python`, then `python3` with `-c "import sys;print(sys.version_info[0])"` and requires the
+expected stdout. Nothing keys on 9009 — that is cmd.exe's own "command not found" code, so it
+cannot separate "the interpreter never ran" from "the gate ran and returned 9009". Presence is
+never the evidence; the same reason `resolve_bash()` refuses the System32 WSL stub and the
+WindowsApps launcher rather than trusting `where bash`.
+
+**Why nothing caught it.** `tests/lifecycle.test.mjs` already exercised the win32 branch — on
+boxes where `python3` is genuine, so the branch was reachable but the decoy was not. CI cannot
+close the gap either: `actions/setup-python` puts a real `python3` on the Windows job's PATH,
+so the alias is structurally unreachable there. The new test stands the alias up as a node
+script behind the injected `candidates`/`run` seam, which is what makes the case reachable
+from macOS at all.
+
+**The class, enumerated** with `git grep -nE "spawn(Sync)?\(\s*['\"]python"` — 19 sites:
+
+| where | count | state |
+|---|---|---|
+| `plugin/scripts/lifecycle.mjs` | 1 | fixed here |
+| `scripts/unasserted.mjs:70,87` | 2 | **open** — bare `python3`, no fallback at all |
+| `tests/` (8 files) | 16 | **open** — bare `python3` |
+
+**Two siblings left, both new tasks.**
+
+*The 16 in `tests/`* are why `bash scripts/selftest.sh` cannot run on that Windows box as-is,
+which is the next thing anyone will try. They are not a product defect — CI's Windows job has
+a real `python3` — but they make the suite unrunnable on a stock developer machine, which is
+the one place the five platform defect classes in CLAUDE.md §7 are actually reachable before a
+push. A shared test helper that resolves the interpreter once is the fix.
+
+*The 2 in `scripts/unasserted.mjs`* stay at the repository root and never ship, so a user
+cannot hit them; a Windows contributor can.
+
+**Not verified on Windows.** The fix is verified through the injected seam on macOS and by
+restoring the `run.error` condition and watching the test fail. No line of it has executed on
+Windows, and CI will not change that for the reason above.
+
+## 89. `.gitattributes` pins `*.mjs` but not `*.js`, and six more extensions go CRLF
+
+Found 2026-08-30 by a peer Claude session on Windows 11 with `core.autocrlf=true`, reading a
+real Windows checkout this repository cannot produce. Confirmed against this tree: our
+`.gitattributes` is byte-identical to the one it measured, so the finding applies here.
+
+The file is seven lines and has **no `* text=auto` catch-all**, so every extension not named
+is left to `core.autocrlf` and lands CRLF on a Windows checkout. `git check-attr text eol`
+reports `unspecified` for all of these, and all of them were CRLF on disk there:
+
+| unpinned | files |
+|---|---|
+| `*.js` | `plugin/workflows/{consensus,quality-cycle,review-ring}.js` |
+| `*.py` | `scripts/neuter.py`, `tests/gate-regressions.py`, `tests/fixtures/ok/test_selftest_fixture.py` |
+| `*.json` | `tests/mutations.json`, `plugin/hooks/hooks.json`, both `plugin.json`/`marketplace.json` |
+| `*.yml` / `*.yaml` | `.github/workflows/selftest.yml`, the eval case template |
+| `*.txt`, no-ext | `tests/fixtures/ok/adr-archive/ADR-001-attachment.txt`, `LICENSE` |
+
+**`*.mjs` is pinned and `*.js` is not.** Same repository, same kind of code, opposite checkout
+behaviour on Windows. That reads as an oversight rather than a decision.
+
+**`*.py` is unpinned** and only survives because `plugin/bin/*` catches the gates by path. Any
+Python that moves out of `plugin/bin`, or any new `.py` gate, silently becomes CRLF there —
+and §1 already records that a file move breaks four things silently.
+
+**`tests/mutations.json` is CRLF on Windows**, and the campaign matches multi-line `from:`
+strings. §7's second row is a mutation whose `from` ended in `\n` matching **0 times** for
+exactly this reason.
+
+**Two fixture files are CRLF**: `test_selftest_fixture.py` and `ADR-001-attachment.txt` — the
+"content matched across a line boundary" shape §7 describes.
+
+**Not fixed here.** Pinning an extension renormalizes every existing checkout, so it is a
+change to what users get on disk and wants its own evidence and its own commit — not a
+side-effect of an unrelated pass. The `.cmd` files being CRLF is correct and deliberate
+(`*.cmd text eol=crlf` sits last and last-match wins); do not "fix" those.
+
+Verified clean by the same probe, so the sweep is not vacuous: every extensionless gate in
+`plugin/bin/` is 0 CR bytes, all of `plugin/scripts/`, `.gitignore` and `.gitattributes` are
+pinned `eol: lf` and clean on disk.
+
+## 90. `Path.is_absolute()` is False for a rooted path on Windows, and three sites join it to cwd
+
+Found 2026-08-30 by the same peer session, from `Y:\Projects\zeus` — a non-`C:` drive this
+project has never been able to test on.
+
+`PureWindowsPath("/etc/passwd").is_absolute()` is **False**: a POSIX-rooted path is
+drive-relative on Windows, not absolute. Three sites treat that as "relative" and join it to
+the working directory:
+
+    plugin/bin/adr-lint:474    if not spec_file.is_absolute():
+    plugin/bin/adr-verify:688  target = (cwd / rel) if not Path(rel).is_absolute() else Path(rel)
+    plugin/bin/adr-verify:923  path = (cwd / target) if not Path(target).is_absolute() else Path(target)
+
+Measured there with cwd = `Y:\Projects\zeus`: `/etc/passwd` → `Y:\etc\passwd`, and
+`\Windows\System32\drivers\etc\hosts` → `Y:\Windows\System32\drivers\etc\hosts`. So a rooted
+pointer is silently re-rooted onto whichever drive the run happens to be on. **The same input
+behaves differently by drive letter** — on `C:` it lands on real system paths, on `Y:` on paths
+that mostly do not exist, so the defect is invisible on each box for the opposite reason.
+
+This is §7 item 2 inverted. The release correctly stopped checking for a leading slash and
+moved to `Path.is_absolute()`, which is the right primitive on Windows — and inherited the
+mirror-image blind spot.
+
+**Do not "fix" this with `os.path.isabs`, and the reason is sharper than it first looked.**
+The peer proposed it on the grounds that the two primitives disagree. Measured here on Python
+3.14.7, `ntpath.isabs("/etc/passwd")` is **False** — it agrees with `pathlib`, so on 3.14 the
+swap changes nothing. The peer then re-measured on the two interpreters its machine actually
+has, and the disagreement is real on the older one:
+
+| interpreter | `os.path.isabs('/etc/passwd')` | `Path('/etc/passwd').is_absolute()` |
+|---|---|---|
+| 3.14.3 | False | False |
+| 3.10.11 | **True** | False |
+
+`ntpath.isabs` changed in 3.13 to stop calling a rooted, driveless path absolute. So
+`os.path.isabs` is not "no change" — it is **version-dependent**, which is worse than either
+answer, and a box with both Pythons installed can select either one.
+
+The fix has to test the property directly — a leading separator (either spelling) **or** a
+drive prefix. That is §7's own "reject a drive prefix as well as a leading slash" rule in the
+mirror direction, and its real merit is that it does not ask the interpreter what it thinks
+"absolute" means.
+
+**`leaves_the_tree` is not affected** and the probe proves it rather than assuming it: it
+returned True for `..\dir\file`, `Y:\…`, `Y:/…`, `C:\…`, `/etc/passwd` and
+`..\..\..\Windows\System32`, and False for both in-tree relative forms — so it is discriminating,
+not returning True for everything. adr-lint's enforcement path is protected by it;
+`adr-verify:688/923` are the sites to look at, and whether their inputs are pre-filtered is not
+yet traced.
+
+**Also recorded, because the margin is invisible:** every containment check in `plugin/bin`
+uses `Path` semantics (`parent in child.parents`, `relative_to`), never `startswith(str(...))`
+— `git grep 'startswith(str('` in `plugin/bin` returns nothing. On Windows those compare
+case-insensitively and the mixed-case cases all passed. Anyone who "simplifies" one to a string
+comparison reintroduces a case bug on a machine where nothing fails.
+
+## 91. `resolve_bash()` returns the WindowsApps Store alias — and CLAUDE.md §7 says it does not
+
+Found 2026-08-30 by a peer Claude session on Windows 11. **Reproduced here from macOS** through
+the resolver's own injectable seam, so this needs no Windows box to confirm or to regress:
+
+    PATH = C:\Windows\System32;C:\Users\alice\AppData\Local\Microsoft\WindowsApps
+    all three bash.exe present, including C:\Program Files\Git\bin\bash.exe
+    resolve_bash('win32', env, exists) -> C:\Users\alice\AppData\Local\Microsoft\WindowsApps\bash.exe
+
+`plugin/bin/adr-verify:218`. Its docstring says, correctly: *"Windows ships
+`C:\Windows\System32\bash.exe`, a launcher that drops into the default WSL distro, **and the
+Store adds another stub under WindowsApps**."* The PATH loop then skips only
+`/[\\/]system32[\\/]?$/i`. **The code never acts on the second half of its own sentence.** The
+Store stub is a 0-byte app-execution alias and `os.path.isfile()` returns True for it, so the
+loop returns it and the `ProgramFiles\Git` fallback below — which would have found the real
+Git Bash — is never reached.
+
+On the measured box the registry PATH (what a normal cmd/PowerShell sees) carries **no**
+bash-bearing directory except WindowsApps, so this is the answer a real Windows user gets. It
+resolved correctly under Claude Code's own shell only because that shell prepends Git's
+`usr\bin`.
+
+**The instruction file is wrong, and that is the worse half.** CLAUDE.md §7 states: *"Git Bash
+resolution must exclude the System32 WSL stub and the WindowsApps launcher — both are named
+`bash` and neither is one. `resolve_bash()` does this; do not reimplement it."* It does not do
+this. A record claiming more than happened is the defect this project exists to demonstrate the
+absence of, and it has been instructing every session not to re-check.
+
+**The class has two members** — `git grep -n "system32" plugin/` :
+
+| site | filters System32 | filters WindowsApps |
+|---|---|---|
+| `plugin/bin/adr-verify:243` (`resolve_bash`) | yes | **no** |
+| `plugin/scripts/run-shell-hook.mjs:98` (`resolveBashExecutable`) | yes | **no** |
+
+The docstring calls these "same precedence", and they are — including the hole. Fix both or
+neither.
+
+**Fix shape, unjudged:** filter WindowsApps as System32 is filtered, reject a zero-byte
+candidate, or probe the candidate instead of trusting `isfile`. Probing is the form §90 and
+§88 both landed on. Note also the resolver has no canonical answer: the PATH scan returns
+`Git\usr\bin\bash.exe` and the fallback returns `Git\bin\bash.exe`.
+
+## 92. Every `.cmd` forwarder runs a failing gate twice, under two different interpreters
+
+Found 2026-08-30 by the same peer, with verbatim doubled output from a real run.
+
+All eleven forwarders in `plugin/bin/*.cmd`, and the generator at
+`plugin/scripts/standalone-link.mjs:181` that writes new ones, end in:
+
+    where /q py && (py -3 "%~dp0<gate>" %*) || (python "%~dp0<gate>" %*)
+
+`A && B || C` in cmd is **not** if/else. `||` fires on **B's** nonzero exit, not only on
+`where /q py` failing. So any gate that returns nonzero — which is every gate that finds
+something — runs a second time under `python`, and **the exit code the caller sees is
+`python`'s, not `py -3`'s.**
+
+Measured: `adr-lint.cmd <an ADR>` printed its entire FAIL block twice, exit 1. Reproduced with
+`--help` (`unknown option: --help` twice) and with a directory argument.
+
+Consequences: every gate failure does double work and double output; and on a box with no
+`python` on PATH the `||` branch replaces the gate's real verdict with cmd's
+`'python' is not recognized` and exit 9009. A fence would still be nonzero, so nothing goes
+falsely green — but the diagnostic is destroyed, which §3 already names as the thing a gate
+must never do.
+
+This is the same root as §88 from the other direction: `where /q py` succeeding is treated as
+evidence about a later command's exit code. The current form cannot distinguish "py is missing"
+from "the gate failed".
+
+**Not fixed here.** The correct shape must run exactly one interpreter and propagate exactly
+its exit code, e.g. `where /q py && ( py -3 "%~dp0<gate>" %* & exit /b ) & python "%~dp0<gate>" %*`
+— but a cmd fence is precisely the thing this project must not change without executing it on
+Windows, and none of it has run there. This one needs a real Windows verification, not a seam.
+
+## 93. Nothing records which Python answered, and the answer changes the verdict
+
+Raised 2026-08-30 by a peer session, from the §90 correction rather than from a failure — the
+generalisable half of it, and it outlives that finding.
+
+The measured box has two interpreters four years and one semantic change apart, both reachable
+through `py --list`: 3.14-64 and 3.10-64. §90's table shows the same guard returning different
+answers on each. The gates ship as `#!/usr/bin/env python3`, so the interpreter is whatever the
+environment hands them, and **nothing in this repository pins, probes, or records which one
+answered.**
+
+That is the same shape as §88, stated generally: the check ran, it returned something, and the
+something depended on an environment fact nobody asserted. §88 was the case where the
+environment supplied something that was not Python at all; this is the case where it supplies a
+real Python whose semantics differ.
+
+`resolvePython` (added for §88) is already the place this would live: it probes with
+`-c "import sys;print(sys.version_info[0])"` and discards everything but the major version. If
+it took `version_info[:2]` and a gate's evidence recorded it, a 3.10-vs-3.14 divergence would
+show up in the Verification Log instead of silently changing a verdict.
+
+**Not built here, deliberately.** Widening the probe is two lines; the value is entirely in the
+consumer that records it, and there is no consumer yet. Building the plumbing first would be
+speculative. The task is: decide where an interpreter identity belongs in tool-written evidence
+(§4), then widen the probe to feed it.

@@ -851,7 +851,7 @@ test('a mutation a human performed is accepted where the tool could not run it',
   expectExit(lintWithMutationRow(humanRow({
     file: '`x.go`',
     from: 'from ``s := `raw` + x``',
-    to: 'to ``s := `` ``',
+    to: 'to ``y := `q` ``',
     test: 'test `TestRaw`',
   })), 0, 'a Markdown code span must carry a body containing backticks')
 })
@@ -869,4 +869,94 @@ test('a human-observed row that cannot be reproduced is refused, not advised', (
     assert.notEqual(lintWithMutationRow(built).status, 0,
       `adr-lint must refuse a human-observed row with ${why}: ${built}`)
   }
+})
+
+// ADR-013 T2. `--human-mutant` records a mutation a person performed, for a task
+// whose Acceptance contains a clause that cannot run. It executes NOTHING: that
+// is the premise, not a limitation.
+const humanMutant = (copy, over = {}) => verify(copy, [
+  '--human-mutant', over.file ?? 'ADR-001-selftest.md',
+  '--from', over.from ?? '## Decision',
+  '--to', over.to ?? '## Decisiun',
+  '--test', over.test ?? 'adr-lint ADR-001-selftest.md tasks',
+  '--test-exit', over.exit ?? '1',
+  '--why', over.why ?? 'the fence needs a live database this checkout has no access to',
+  ...(over.extra ?? []),
+])
+
+test('--human-mutant records a mutation the tool could not have run', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  expectExit(humanMutant(copy), 0, '--human-mutant must record the row')
+  const row = readTask(copy).split('## Mutation Log')[1].trim()
+  assert.match(row, /· human-observed · mutant killed · test exit 1 · /,
+    `the row must carry the human arm: ${row}`)
+  assert.match(row, /· line \d+ · /,
+    `the writer must derive the line number rather than trust a typed one: ${row}`)
+  // The row it wrote must be the row the reader accepts — the writer is held to
+  // the readers' grammar, or a `done` row points at evidence nothing can parse.
+  expectExit(lint(copy), 0, 'adr-lint must accept what --human-mutant wrote')
+})
+
+// A must-fail assertion here cannot settle for a non-zero exit. Before the flag
+// existed every one of these returned 2 (unknown option) and "passed" — the
+// vacuity CLAUDE.md §4 names. Each asserts the refusal it is named for.
+const refusedBecause = (result, needle, label) => {
+  assert.notEqual(result.status, 0, `${label}: must be refused`)
+  const said = `${result.stdout ?? ''}${result.stderr ?? ''}`
+  assert.ok(said.includes(needle),
+    `${label}: must be refused FOR THAT REASON, not merely non-zero — wanted ${JSON.stringify(needle)} in: ${said.trim().slice(0, 400)}`)
+}
+
+test('--human-mutant refuses a diff that does not locate one place in the file', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  // Zero occurrences: the row would name a change that is not there.
+  refusedBecause(humanMutant(copy, { from: 'text that is absent from the record' }),
+    'matches nothing', 'a from-text matching no line')
+  // Many occurrences: the row parses and still identifies nothing, which is the
+  // property the refusals exist to prevent (`return nil` in a 400-line file).
+  const copy2 = corpus()
+  addMutationLog(copy2)
+  refusedBecause(humanMutant(copy2, { from: 'e' }),
+    'places', 'a from-text matching many lines')
+})
+
+test('--human-mutant refuses a kill claimed on a passing test', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  refusedBecause(humanMutant(copy, { exit: '0' }),
+    '--test-exit', 'test exit 0 is not a kill, however it is spelled')
+})
+
+test('--human-mutant will not combine with the modes that actually run something', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  for (const [flag, extra] of [
+    ['--mutant', ['--mutant', 'ADR-001-selftest.md']],
+    ['--sweep', ['--sweep', '.']],
+  ]) {
+    refusedBecause(humanMutant(copy, { extra }),
+      'cannot be combined', `--human-mutant with ${flag}`)
+  }
+})
+
+test('a Mutation Log row of backticks is rejected fast, not backtracked over', () => {
+  // The backreferenced code span this arm first shipped with was catastrophically
+  // slow on input it REJECTS: `where_it_stopped` re-matches growing prefixes, and
+  // 600 backticks cost 2.07s, growing faster than the square. A Mutation Log
+  // bullet is author-controlled and adr-lint reads one per bullet across a whole
+  // corpus, so the gate hung on a long line instead of reporting it. Asserted
+  // through the real binary because that is where a user meets the hang.
+  const copy = corpus()
+  addMutationLog(copy)
+  const row = `- 2026-08-30 · human-observed · mutant killed · test exit 1 · \`x.py\``
+    + ` · line 1 · from ${'`'.repeat(4000)}x`
+  writeTask(copy, `${readTask(copy).trimEnd()}\n${row}\n`)
+  const started = Date.now()
+  const result = lint(copy)
+  const elapsed = Date.now() - started
+  assert.notEqual(result.status, 0, 'the row is malformed and must be refused')
+  assert.ok(elapsed < 10_000,
+    `adr-lint must reject a row of backticks without backtracking: took ${elapsed}ms`)
 })

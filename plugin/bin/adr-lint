@@ -102,16 +102,37 @@ MLOG_TOOL_ARM = (
 # that is routine (Go raw strings, JS template literals, shell, Markdown) are what this
 # plugin ships to. Reported by wcag-43 before any row existed; changing a delimiter
 # after rows exist costs a migration or a second grammar.
-def _code_span(q, body):
-    """A Markdown code span whose delimiter length is captured, so the body may hold backticks."""
-    return r"(?P<" + q + r">`+)(?P<" + body + r">.*?)(?P=" + q + r")"
+def _code_span(quant):
+    """A Markdown code span of 1-3 backticks, written WITHOUT a backreference.
+
+    The obvious spelling — `(?P<q>`+)(?P<body>.*?)(?P=q)` — is catastrophically
+    slow on input it REJECTS. Measured 2026-08-30 on a row ending in a run of N
+    backticks: MLOG_RE alone took 0.13s at N=1600, and `where_it_stopped`, which
+    re-matches growing prefixes, took 2.07s at N=600 and grows faster than the
+    square. A Mutation Log bullet is author-controlled text and `check_task` runs
+    this once per bullet across a whole corpus, so that is a gate that hangs on a
+    long line rather than reporting one. Found by a Codex review before the arm
+    had ever been used.
+
+    Bounding the delimiter to three and forbidding the closing run inside the body
+    with a lookahead makes every branch deterministic: the star cannot consume the
+    delimiter, so there is nothing to backtrack into. Three is not a limitation in
+    practice — a body needing four backticks in a row is a code fence, not a line.
+    """
+    return (r"(?:"
+            r"`[^`\n]" + quant + r"`"
+            r"|``(?:[^`\n]|`(?!`))" + quant + r"``"
+            r"|```(?:[^`\n]|`(?!``))" + quant + r"```"
+            r")")
 
 
 MLOG_HUMAN_ARM = (
     r"human-observed · mutant killed · test exit [1-9]\d* · "
     r"`[^`]+` · line \d+ · "
-    r"from " + _code_span("fq", "fromtext") + r" · "
-    r"to " + _code_span("tq", "totext") + r" · "
+    # `from` must carry at least one character; `to` may be empty, because
+    # deleting a line is a real mutation and the row should be able to say so.
+    r"from " + _code_span("+") + r" · "
+    r"to " + _code_span("*") + r" · "
     r"test `[^`]+` · .+?")
 # One fragment, two readers. Written twice, a mutation on either copy comes back GREEN
 # because the other carries the load — the finding class CLAUDE.md §4 names.

@@ -896,6 +896,84 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
 
 
 
+def write_human_mutant(task, text, cwd, today, target, frm, to, test, test_exit, why):
+    """Record a mutation a PERSON performed, for a fence that cannot run.
+
+    This mode executes NOTHING, which is its premise rather than a limitation: it
+    exists because `--mutant` cannot run the Acceptance fence at all. What it can
+    still do is make the claim CHECKABLE, and that is the whole trade — a reader
+    who cannot trust that a tool observed the kill can at least re-apply the diff
+    and re-run the named test.
+
+    So the tool refuses anything it cannot verify about the report itself:
+
+    - the from-text must occur EXACTLY ONCE in the named file. Reported by wcag-43
+      before the lane shipped: the most natural mutations sit on the most common
+      lines (`return nil`, `if err != nil {`), and "from `return nil`" in a
+      400-line file identifies nothing. Such a row parses and is still
+      unreproducible, which is the exact property the refusals exist to prevent.
+    - the LINE NUMBER is derived here, never typed. A typed one is a second thing
+      that can be wrong, and uniqueness already computes it.
+    - `--test-exit` must be non-zero, the same constraint the tool arm's `exit`
+      carries. A kill claimed on a passing test is refused on its face.
+
+    What it cannot check, and does not pretend to: that the diff was ever applied.
+    Nothing observed it. ADR-013 records that as the cost of the lane.
+    """
+    path = (cwd / target) if not Path(target).is_absolute() else Path(target)
+    if not path.exists():
+        fail(f"--human-mutant file not found: {target}")
+    body = path.read_text(errors="replace", encoding="utf-8")
+    hits = body.count(frm)
+    if hits == 0:
+        fail(f"--from matches nothing in {target}: a row naming a change that is not there "
+             f"is not evidence. Paste the line exactly as it appears in the file.")
+    if hits > 1:
+        fail(f"--from matches {hits} places in {target}, so the row would identify none of "
+             f"them. Quote enough of the line to be unique — a reader has to be able to "
+             f"apply this diff without guessing which occurrence you meant.")
+    line = body[:body.index(frm)].count("\n") + 1
+    rel = relative_to_repo(path, cwd)
+    entry = (f"- {today} · human-observed · mutant killed · test exit {test_exit} · "
+             f"`{rel}` · line {line} · from {span(frm)} · to {span(to)} · "
+             f"test `{test.strip()}` · {why.strip()}")
+    refuse_unreadable(entry, "human-observed")
+    append_entry(task, text, entry, section="Mutation Log")
+    print(entry)
+    print(f"[adr-verify] NOTHING WAS RUN. This row records what you report having observed: "
+          f"the diff above, applied at {rel}:{line}, and `{test.strip()}` returning "
+          f"{test_exit}. It is checkable because a reader can repeat it — that is what this "
+          f"lane trades for the tool-written guarantee it cannot give.")
+    sys.exit(0)
+
+
+def span(text):
+    """`text` as a Markdown code span whose delimiter is longer than any run inside it.
+
+    Markdown's own rule, reused rather than invented: a run of N backticks
+    delimits content containing runs of fewer than N. Without it a mutated line
+    holding a backtick cannot be written at all, and Go raw strings, JS template
+    literals, shell and Markdown make that routine in what this plugin ships to.
+    """
+    longest = max((len(m) for m in re.findall(r"`+", text)), default=0)
+    fence = "`" * (longest + 1)
+    pad = " " if text.startswith("`") or text.endswith("`") else ""
+    return f"{fence}{pad}{text}{pad}{fence}"
+
+
+def relative_to_repo(path, cwd):
+    """The path as the corpus names it: repo-relative with forward slashes.
+
+    Never a separator typed into a literal (CLAUDE.md §7) — `relative_to` then
+    `as_posix()`, so the row reads identically on all three platforms.
+    """
+    try:
+        return path.resolve().relative_to(Path(cwd).resolve()).as_posix()
+    except ValueError:
+        return path.as_posix()
+
+
+
 # --- --sweep: re-check the corpus's own claims (ADR-010) ---------------------
 
 # A claim is one distinct (task file, acceptance digest) pair carrying an exit-0
@@ -916,6 +994,12 @@ CLAIM_RE = re.compile(
 # differently.
 ENTRY_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
+    r"human-observed · mutant killed · test exit [1-9]\d* · `[^`]+` · line \d+ · "
+    # Bounded, backreference-free code spans — the same shape adr-lint reads, and
+    # for the same reason: the backreferenced version is catastrophically slow on
+    # input it rejects (see adr-lint::_code_span).
+    r"from (?:`[^`\n]+`|``(?:[^`\n]|`(?!`))+``|```(?:[^`\n]|`(?!``))+```) · to (?:`[^`\n]*`|``(?:[^`\n]|`(?!`))*``|```(?:[^`\n]|`(?!``))*```) · "
+    r"test `[^`]+` · .+?|"
     r"human-observed · .+|" + SHA_FIELD + r" · mutant \w+ · exit \d+ · `[^`]+` · .+?)"
     r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
 
@@ -1349,6 +1433,9 @@ def main():
     mutant = frm = to = why = None
     restore = False
     sweep = None
+    human_mutant = None
+    test_name = None
+    test_exit = None
     timeout = SWEEP_TIMEOUT_DEFAULT
     as_json = False
     saw_timeout = False
@@ -1363,6 +1450,27 @@ def main():
         elif args[i] == "--mutant":
             i += 1
             mutant = value(i, "--mutant")
+        elif args[i] == "--human-mutant":
+            i += 1
+            human_mutant = value(i, "--human-mutant")
+        elif args[i] == "--test":
+            i += 1
+            test_name = value(i, "--test")
+        elif args[i] == "--test-exit":
+            i += 1
+            # Validated here rather than at use: a non-number would otherwise
+            # reach the row as text and be refused by the grammar with a message
+            # about the grammar, which tells the author nothing about what they
+            # typed.
+            raw = value(i, "--test-exit")
+            try:
+                test_exit = int(raw)
+            except ValueError:
+                fail(f"--test-exit wants the exit code the test returned, not {raw!r}")
+            if test_exit <= 0:
+                fail(f"--test-exit must be non-zero: a test that returned {test_exit} PASSED, "
+                     f"so nothing was killed. This is the same constraint the tool-written "
+                     f"arm carries; a kill claimed on a passing test is refused on its face.")
         elif args[i] == "--from":
             i += 1
             frm = value(i, "--from")
@@ -1414,7 +1522,8 @@ def main():
             sys.exit(2)
         if not Path(sweep).is_dir():
             fail(f"not a directory: {sweep}")
-        for flag, given in (("--human", human), ("--mutant", mutant), ("--cwd", cwd)):
+        for flag, given in (("--human", human), ("--mutant", mutant),
+                            ("--human-mutant", human_mutant), ("--cwd", cwd)):
             if given is not None:
                 fail(f"{flag} cannot be combined with --sweep")
         if restore:
@@ -1441,6 +1550,29 @@ def main():
         fail(f"task file not found: {task}")
     text = task.read_text(errors="replace", encoding="utf-8")
     today = datetime.date.today().isoformat()
+
+    if human_mutant is not None:
+        # The modes that RUN something are mutually exclusive with the one that
+        # does not, for the same reason the existing pair are: a command asking
+        # for both has not decided what it is claiming.
+        if mutant is not None:
+            fail("--human-mutant cannot be combined with --mutant — one records a mutation a "
+                 "tool performed and the other one a person did, and a row cannot be both. "
+                 "If the fence can run, use --mutant: it is the stronger evidence.")
+        if human is not None:
+            fail("--human-mutant cannot be combined with --human — they write different logs "
+                 "(Mutation Log and Verification Log). Run them separately.")
+        if restore:
+            fail("--human-mutant cannot be combined with --restore")
+        missing = [f for f, v in (("--from", frm), ("--to", to), ("--test", test_name),
+                                  ("--test-exit", test_exit), ("--why", why)) if v is None]
+        if missing:
+            fail(f"--human-mutant needs {', '.join(missing)}. Every one of them is what makes "
+                 f"the row checkable by a reader: the diff to re-apply, the test to re-run, the "
+                 f"code it returned, and why the Acceptance fence could not run it itself.")
+        where = cwd if cwd is not None else Path.cwd()
+        write_human_mutant(task, text, where, today, human_mutant, frm, to,
+                           test_name, test_exit, why)
 
     if human is not None:
         entry = f"- {today} · human-observed · {human.strip()}"

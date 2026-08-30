@@ -3102,6 +3102,24 @@
       ],
       "from": "        if header:",
       "to": "        if header and status_column is None:"
+    },
+    {
+      "label": "ADR-013: the human mutation arm still refuses a kill on a passing test",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-regressions.py"
+      ],
+      "from": "    r\"human-observed · mutant killed · test exit [1-9]\\d* · \"",
+      "to": "    r\"human-observed · mutant killed · test exit \\d* · \""
+    },
+    {
+      "label": "ADR-013: from/to are code spans so a mutated line may hold a backtick",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-regressions.py"
+      ],
+      "from": "    return r\"(?P<\" + q + r\">`+)(?P<\" + body + r\">.*?)(?P=\" + q + r\")\"",
+      "to": "    return r\"(?P<\" + q + r\">`)(?P<\" + body + r\">[^`]*)(?P=\" + q + r\")\""
     }
   ]
 }

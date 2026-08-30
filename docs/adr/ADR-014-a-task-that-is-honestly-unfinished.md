@@ -1,12 +1,12 @@
 # ADR-014: Give an unfinished task a status the corpus can read
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-08-30
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-010-a-claim-is-re-checked-or-it-is-not-counted.md, docs/BACKLOG.md §60, docs/BACKLOG.md §73
 **Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-debt`, `plugin/templates/tasks-readme-template.md`
-**Enforced-by:** None — proposed; the check that would enforce it is T2's, and naming it before it exists would be a pointer to nothing
+**Enforced-by:** None yet — Accepted and unexecuted. The checks are T1's `partial` obligations, T2's `Blocked-on` grammar and T3's waiting-versus-rot split; this header names them as each lands rather than claiming a check that does not exist
 **Served-path change:** A task that is genuinely part-done, or waiting on something outside the repository, can say so in a word the tools read — instead of choosing between a status that overstates and one that buys silence.
 
 ## Context

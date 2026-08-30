@@ -249,7 +249,7 @@ test('adr-lint recognizes async Python test bodies', () => {
   expectExit(run('python3', ['-c', probe, join(bin, 'adr-lint')]), 0, 'async Python test body')
 })
 
-test('adr-verify resolves Git Bash on Windows, never the System32 WSL stub', () => {
+test('adr-verify resolves Git Bash on Windows, never either bash.exe decoy', () => {
   // Windows has up to three bash.exe on PATH, and a bare subprocess.run(["bash"])
   // picks C:\Windows\System32\bash.exe — a launcher into the default WSL distro.
   // Reported 2026-08-25: an Acceptance fence calling `docker` ran inside that
@@ -276,6 +276,24 @@ test('adr-verify resolves Git Bash on Windows, never the System32 WSL stub', () 
     // Only the stub exists: report absence instead of running WSL.
     'got = resolve("win32", {"PATH": "C:\\\\Windows\\\\System32"}, lambda p: p == STUB)',
     'bad += [] if got is None else [f"fell back to {got}"]',
+    // The SECOND decoy, and the one that actually shipped. WindowsApps holds a
+    // 0-byte Store app-execution alias that os.path.isfile() accepts, so the PATH
+    // scan returned it and the install-root fallback below was never reached.
+    // Measured 2026-08-30 on Windows 11: the registry PATH carried no bash-bearing
+    // directory except WindowsApps, so this was the answer a real user got. The
+    // docstring named this stub from the first commit; only System32 was filtered.
+    'ALIAS = "C:\\\\Users\\\\d\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps\\\\bash.exe"',
+    'both = {"PATH": "C:\\\\Windows\\\\System32;C:\\\\Users\\\\d\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsApps", "LOCALAPPDATA": "C:\\\\Users\\\\d\\\\AppData\\\\Local"}',
+    // Both decoys on PATH, real Git Bash reachable only through the fallback.
+    'got = resolve("win32", both, lambda p: p in {GIT, STUB, ALIAS})',
+    'bad += [] if got == GIT else [f"PATH scan picked the Store alias: {got}"]',
+    // And with no Git installed, absence — never the alias.
+    'got = resolve("win32", both, lambda p: p in {STUB, ALIAS})',
+    'bad += [] if got is None else [f"fell back to a decoy: {got}"]',
+    // The fixture has to be able to FAIL: prove the alias is otherwise findable,
+    // so the two assertions above are about the filter and not about a typo.
+    'got = resolve("win32", {"PATH": "C:\\\\Users\\\\d\\\\AppData\\\\Local\\\\Microsoft\\\\WindowsAppsX"}, lambda p: p.endswith("WindowsAppsX" + chr(92) + "bash.exe"))',
+    'bad += [] if got is not None else ["a directory merely NAMED like the alias dir was skipped too"]',
     // POSIX is untouched.
     'got = resolve("darwin", {}, exists)',
     'bad += [] if got == "bash" else [f"posix returned {got}"]',

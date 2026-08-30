@@ -3363,6 +3363,24 @@
       ],
       "from": "    if (probe.status === 0 && (probe.stdout ?? '').trim() === '3') return [command, ...prefix]",
       "to": "    if (!probe.error) return [command, ...prefix]"
+    },
+    {
+      "label": "windows: adr-verify refuses the WindowsApps bash alias",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "r\"[\\\\/](?:system32|windowsapps)[\\\\/]?$\"",
+      "to": "r\"[\\\\/]system32[\\\\/]?$\""
+    },
+    {
+      "label": "windows: the shell hook refuses the WindowsApps bash alias",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "/[\\\\/](?:system32|windowsapps)[\\\\/]?$/i",
+      "to": "/[\\\\/]system32[\\\\/]?$/i"
     }
   ]
 }

@@ -4750,7 +4750,14 @@ already points.
 
 Measured, not estimated:
 
-    node scripts/unasserted.mjs plugin/bin/adr-retire-check     # 9 of 33
+    node scripts/unasserted.mjs plugin/bin/adr-retire-check     # 11 of 33
+
+**The 9 was wrong and a Codex review caught why.** The instrument counted raw parentheses
+to find a statement's extent, so a message containing one — `obligation(s)`, a quoted
+`(pattern …)`, an f-string holding `{len(have)}` — took the extent wrong, the neutered file
+did not parse, every suite went red, and the site read as `killed`. It overstated coverage in
+the one direction that flatters it. Extents now come from Python's own `ast`, sliced in BYTES
+because `col_offset` is a byte offset and these messages are full of `—` and `·`.
 
 Down from 17 of 33. The nine are the catalog-path twins of the `--adopt` rules just
 covered (sites 5, 13, 16, 17, 18 repeat sentences that now fire in adoption mode only),

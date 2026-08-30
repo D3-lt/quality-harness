@@ -4850,17 +4850,35 @@ behaviour on Windows. That reads as an oversight rather than a decision.
 Python that moves out of `plugin/bin`, or any new `.py` gate, silently becomes CRLF there —
 and §1 already records that a file move breaks four things silently.
 
-**`tests/mutations.json` is CRLF on Windows**, and the campaign matches multi-line `from:`
-strings. §7's second row is a mutation whose `from` ended in `\n` matching **0 times** for
-exactly this reason.
+**Correction, 2026-08-30, same day:** this entry first claimed `tests/mutations.json` being
+CRLF put the campaign at risk because it holds multi-line `from:` strings. That is wrong, and
+it was wrong in the direction that flatters the finding. A `\n` inside a JSON string is the
+two-character escape `\` `n`, not a newline byte, so the file's own line endings never reach
+the parsed value — verified by parsing a deliberately CRLF JSON file and getting `"a\nb"` back
+intact. What §7's second row actually describes is the **target** file being CRLF, and all 23
+files carrying a cross-line mutation are pinned today. `tests/package.test.mjs:592` already
+asserts exactly that, asked of `git check-attr` rather than of the file, and it fires on any
+new cross-line mutation aimed at an unpinned target. The acute risk was already guarded.
 
 **Two fixture files are CRLF**: `test_selftest_fixture.py` and `ADR-001-attachment.txt` — the
 "content matched across a line boundary" shape §7 describes.
 
-**Not fixed here.** Pinning an extension renormalizes every existing checkout, so it is a
-change to what users get on disk and wants its own evidence and its own commit — not a
-side-effect of an unrelated pass. The `.cmd` files being CRLF is correct and deliberate
-(`*.cmd text eol=crlf` sits last and last-match wins); do not "fix" those.
+**Partly fixed.** `*.js` and `*.py` are now pinned `text eol=lf`, closing the parity gap that
+is the real hazard here: a contributor who sees `*.mjs` pinned will reasonably assume JS is,
+and `plugin/workflows/*.js` ships. `*.py` matters for the same reason §1 gives about file
+moves — the gates are Python and survive only because `plugin/bin/*` catches them by path, so
+any Python that moves out of that directory silently becomes CRLF.
+
+`git add --renormalize` was deliberately NOT run. Adding an attribute changes what git does on
+the next checkout; renormalizing rewrites every affected file in the index, which is a large,
+visible change that deserves its own commit and its own reason.
+
+Still unpinned and left so on purpose: `*.json`, `*.yml`, `*.yaml`, `*.txt` and `LICENSE`.
+Nothing matches their content across a line boundary, `LICENSE` is the fixture
+`package.test.mjs:600` uses to prove its own check can fire, and pinning a file merely because
+it could one day matter is the speculative complexity YAGNI rejects. The `.cmd` files being
+CRLF is correct and deliberate (`*.cmd text eol=crlf` sits last and last-match wins); do not
+"fix" those.
 
 Verified clean by the same probe, so the sweep is not vacuous: every extensionless gate in
 `plugin/bin/` is 0 CR bytes, all of `plugin/scripts/`, `.gitignore` and `.gitattributes` are

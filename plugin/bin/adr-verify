@@ -243,8 +243,13 @@ def resolve_bash(platform=sys.platform, env=None, exists=None):
 
     for raw in (env.get("PATH") or env.get("Path") or "").split(";"):
         directory = raw.strip().strip('"')
-        # Skip System32: its bash.exe is the WSL launcher, not a shell.
-        if not directory or re.search(r"[\\/]system32[\\/]?$", directory, re.I):
+        # Skip both stubs. System32's bash.exe is the WSL launcher; WindowsApps
+        # holds a 0-byte Store app-execution alias. os.path.isfile() is True for
+        # the alias, so trusting it returned the alias and never reached the
+        # ProgramFiles fallback below — measured 2026-08-30 on Windows 11, where
+        # the registry PATH carried no bash-bearing directory but WindowsApps.
+        # The docstring named both from the start; only one was ever filtered.
+        if not directory or re.search(r"[\\/](?:system32|windowsapps)[\\/]?$", directory, re.I):
             continue
         candidate = ntpath.join(directory, "bash.exe")
         if exists(candidate):

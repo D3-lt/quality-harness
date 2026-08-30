@@ -1153,20 +1153,36 @@ test('a Tests row pointing outside the repository is unproven, not failed', () =
   // Tests table names a `../` path. adr-lint reported "the row describes a test
   // nothing can run" and BLOCKED — while the test existed in the repo the path
   // names. A permanently-red gate is one people stop running.
-  const copy = corpus()
+  const copy = gitCorpus()
   expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
   addMutationLog(copy)
   expectExit(mutate(copy), 0, 'and its mutant is killed')
-  writeTask(copy, readTask(copy).replace(
-    /(\n\| *)`?[\w./-]+\.(?:py|mjs|js|ts|php)`?( *\|)/,
-    '$1`../sibling_repo/tests/Unit/GuardTest.php`$2'))
+
+  // Two rows naming ONE outside file, so the once-per-path dedupe is exercised.
+  const outside = '../sibling_repo/tests/Unit/GuardTest.php'
+  const before = readTask(copy)
+  const after = before.replace(
+    '| adr-lint-positive | selftest.sh | conforming ADR + task pass the gate | — |',
+    '| `test_the_sentinel_is_refused` | `' + outside + '` | the guard refuses it | — |\n'
+    + '| `test_a_second_row_same_file` | `' + outside + '` | and admits the other | — |')
+  assert.notEqual(after, before, 'the fixture Tests row must actually be replaced')
+  writeTask(copy, after)
   markDone(copy)
 
   const got = lint(copy)
   const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
-  if (/sibling_repo/.test(said)) {
-    assert.match(said, /advice: /, `a path outside the repo must advise, not block: ${said.slice(0, 400)}`)
-    assert.match(said, /did NOT run|unproven/i, 'and say what it could not do')
-  }
-  expectExit(got, 0, `a task whose code lives elsewhere must not be permanently red: ${said.slice(0, 400)}`)
+  // Unconditional. Guarding these behind `if (said includes the path)` is what made
+  // the first version of this test vacuous: the mutation that removed the whole
+  // branch survived, because nothing here had to be true.
+  assert.match(said, new RegExp(`advice: [^\n]*${outside.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}`),
+    `a path outside the repo must be ADVISED: ${said.slice(0, 500)}`)
+  assert.match(said, /did NOT run|unproven/i,
+    `and say what it could not do rather than what is absent: ${said.slice(0, 500)}`)
+  assert.doesNotMatch(said, /describes a test nothing can run/,
+    `it must not claim absence it did not establish: ${said.slice(0, 500)}`)
+  // Once per path, not once per row: two rows named one file.
+  const mentions = said.split('\n').filter(l => l.includes(outside) && l.includes('advice:')).length
+  assert.equal(mentions, 1, `one file is one finding, not one per row: ${mentions}`)
+  expectExit(got, 0,
+    `a task whose code lives elsewhere must not be permanently red: ${said.slice(0, 500)}`)
 })

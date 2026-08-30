@@ -3228,6 +3228,15 @@
       ],
       "from": "                logged = \"\\n\".join(secs.get(\"Verification Log\", [])\n                                   + secs.get(\"Mutation Log\", []))",
       "to": "                logged = text"
+    },
+    {
+      "label": "ADR-014: an unpaired backtick is not a code span",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            if rest != -1 and text[first + run:rest].strip():",
+      "to": "            if True:"
     }
   ]
 }

@@ -4,7 +4,9 @@
 **Blocked-on:** <OPTIONAL, and only where the Acceptance is human-observed: the event this task
 waits on, written so a later reader can check whether it has HAPPENED. A command that exits 0 once
 it has is the best form — `commit <sha> is an ancestor of master (git merge-base --is-ancestor
-<sha> master)`. Where only someone with other access can confirm it, say who. Not a mood, and not
+<sha> master)`. Where only someone with other access can confirm it — a log on a host you cannot
+reach, a person who has to look — say who, with `checked by: <who>`; the gate reads that marker
+and stops asking. Not a mood, and not
 a second Stop Condition: that section says when to abandon, this one says what to wait for. A task
 with a runnable ```bash fence cannot use this header — a task that can run its own acceptance is
 not waiting, it is unfinished, which is `pending` or `partial`.>

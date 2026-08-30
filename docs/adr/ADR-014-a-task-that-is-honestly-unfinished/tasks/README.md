@@ -6,8 +6,8 @@ with a task file, the task file wins.
 | Order | Task | Depends-on | Status |
 |---|---|---|---|
 | 1 | T1 | none | done |
-| 1 | T2 | none | pending |
-| 2 | T3 | T1, T2 | pending |
+| 1 | T2 | none | done |
+| 2 | T3 | T1, T2 | done |
 
 ## Waves
 

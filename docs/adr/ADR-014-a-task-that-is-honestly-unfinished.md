@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-010-a-claim-is-re-checked-or-it-is-not-counted.md, docs/BACKLOG.md §60, docs/BACKLOG.md §73
 **Governs:** `plugin/bin/adr-lint`, `plugin/bin/adr-debt`, `plugin/templates/tasks-readme-template.md`
-**Enforced-by:** None yet — Accepted and unexecuted. The checks are T1's `partial` obligations, T2's `Blocked-on` grammar and T3's waiting-versus-rot split; this header names them as each lands rather than claiming a check that does not exist
+**Enforced-by:** ADR-014: partial is a status the reader acts on, ADR-014: a task is selected by its evidence not by its status word, ADR-014: Blocked-on is refused where the acceptance can actually run, ADR-014: waiting is counted and shown separately from debt, ADR-014: an old wait asks rather than scolds
 **Served-path change:** A task that is genuinely part-done, or waiting on something outside the repository, can say so in a word the tools read — instead of choosing between a status that overstates and one that buys silence.
 
 ## Context

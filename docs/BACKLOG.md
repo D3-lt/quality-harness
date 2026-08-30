@@ -3373,7 +3373,14 @@ error handler and never consults that ini. An uninformative null read as disconf
 form is this project's own rule pointed at a diagnostic instead of at a suite — **before reading a
 null as evidence, ask whether the instrument could have produced a non-null.**
 
-## 60. PARTLY CLOSED — a task that is honestly blocked has no state, and a rejection pointed at the wrong end of the row
+## 60. PROPOSED AS ADR-014 — a task that is honestly blocked has no state, and a rejection pointed at the wrong end of the row
+
+**2026-08-30: the design half is now `docs/adr/ADR-014-a-task-that-is-honestly-unfinished.md`, Status
+Proposed** — `partial` as a status whose obligations follow its evidence, plus the `Blocked-on:`
+header and a waiting bucket that is not debt. The rejection-message half of this entry was fixed and
+shipped; the entry below is kept as written because it is what was known then. The record carries the
+measured cost (2 findings to 0, one word changed) and the stale-true datum that shapes the escalation
+wording.
 
 Two reports, two corpora, one gap: **the lifecycle models `pending` and `done`, and real work spends
 time in neither.**
@@ -4045,7 +4052,13 @@ cutover. That is "the check has nothing to run against here", not "we ran it and
 adoption number is the more interesting one, and T11 is post-cutover, needs a log, and per §73 was
 not even being asked.
 
-## 74. OPEN — a mutation a human performed has nowhere to be recorded
+## 74. PROPOSED AS ADR-013 — a mutation a human performed has nowhere to be recorded
+
+**2026-08-30: this is now `docs/adr/ADR-013-a-mutation-a-human-performed.md`, Status Proposed.** The
+entry below is what was known when it was filed and is kept as written; the record carries the
+decision, its four alternatives (including doing nothing), and the risk the tooling cannot mitigate.
+Nothing is executed until a human accepts it — `work-next` names its three tasks as belonging to a
+record nobody has accepted, which is the guard working.
 
 **Reported by wcag-43, who tried three routes and refused all three.** Verified against source: the
 two log grammars are asymmetric, and the asymmetry is exactly backwards from what forgeability would

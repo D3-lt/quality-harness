@@ -932,7 +932,27 @@ def done_task_ids(readme_text):
 # `pending` and `blocked` are the documented states of work not yet finished.
 # Anything else is a word the tool cannot classify — and silently skipping the
 # task is the failure below.
-KNOWN_TASK_STATUS = {"done", "pending", "blocked"}
+#
+# `partial` (ADR-014) is the fourth, and it was added because the corpus kept
+# producing the shape and had no word for it. Measured as docs/BACKLOG.md §73:
+# one word changed, everything else identical — a task whose README status read
+# `partial` produced 0 findings; the same task marked `done` produced 2. So
+# before §73 the HONEST word bought silence from the linter, which is an
+# incentive nobody designed and exactly backwards.
+#
+# §73 removed the silence by advising on the unknown word. That was a placeholder
+# for a decision nobody had made. This is the decision: `partial` is a status
+# with OBLIGATIONS. A partial task's checks follow its EVIDENCE, not its word —
+# see evidenced_task_ids, which already asks the question of any task carrying a
+# passing entry regardless of status. What `partial` does NOT get is the exit-0
+# requirement, because that belongs to a claim of completion and this word makes
+# none.
+#
+# Deliberately not adopted: `running`, `failed`, `deferred`, all observed in
+# another corpus's legend. One word with two corpora behind it is a decision;
+# five words with one legend behind them is a taxonomy, and taxonomies are where
+# vocabularies go to rot (the record's Out of Scope says so).
+KNOWN_TASK_STATUS = {"done", "pending", "blocked", "partial"}
 
 
 def status_word(cell):

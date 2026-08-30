@@ -3138,6 +3138,24 @@
       ],
       "from": "    if hits > 1:",
       "to": "    if False:"
+    },
+    {
+      "label": "ADR-014: partial is a status the reader acts on",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\", \"partial\"}",
+      "to": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\"}"
+    },
+    {
+      "label": "ADR-014: a partial task's obligations follow its evidence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        if any(VLOG_RE.match(b) and \"· exit 0 ·\" in b for b in inf.get(\"vlog\", [])):\n            ids.add(tid)",
+      "to": "        if False:\n            ids.add(tid)"
     }
   ]
 }

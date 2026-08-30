@@ -4559,3 +4559,39 @@ pointer that resolves is not a pointer that was honoured, and nothing here can c
 a cross-repo edge); and whether "external" is a property of the pointer or of the corpus.
 
 **Not fixed. It wants its own record**, because it changes a shared vocabulary three tools read.
+
+## 83. A task waiting on a DECISION nobody has made has no header, and rots silently
+
+**Reported 2026-08-30 by wcag-43**, who explicitly declined to propose it: *"I have one instance and
+you have shipped two ADRs today on the strength of one instance each; a third on the same evidence
+would be me pattern-matching my own case into your format."* Recorded at their assessment, not
+above it.
+
+ADR-014 models two kinds of waiting and the distinction between them is ownership:
+
+    Depends-on  — another task IN THIS CORPUS must land. Someone here can go and do it.
+    Blocked-on  — something OUTSIDE it must happen. Nobody here can make it happen sooner.
+
+Their T11 step 5 is neither. It is waiting on **a decision nobody has made**: compare the evidence
+node against both mutation-id bearers and credit the nearer, or pick one bearer with a stated
+justification. No amount of work unblocks it. No external event resolves it. Every prerequisite
+exists. A human has to choose.
+
+**Why it is worth a header rather than prose.** Today that state reads as `partial` with three
+paragraphs of Verification Log prose carrying the whole thing. An unmade decision does not announce
+itself the way a shipped dependency does — nobody is notified when a choice continues not to be
+made — so it is the state most likely to rot and the least likely to be noticed rotting. With a
+header, `adr-debt` could ask the question that actually matters: *this has been waiting on a
+decision for 30 days; has anyone been asked?* That is the same escalation ADR-014 T3 already built
+for `Blocked-on`, pointed at a different kind of wait.
+
+**ONE INSTANCE. Deliberately left as a note**, on this corpus's own rule — §61 and §53 sit at one
+instance each for the same reason. The reporter's caution is the right one: two records shipped
+today each rested on a single instance, and the discipline that made those work was that the
+instance came from a corpus that was not this one AND the shape was independently measured. This has
+the first and not the second.
+
+**What would make it real:** a second, independent instance — a task in some corpus that is blocked
+on a choice rather than on work or on the world. If one appears, this becomes a record, and the
+design question it must answer first is whether it is a third header or a `Blocked-on` whose event
+is "a person decides X", since the latter costs no vocabulary and the escalation already exists.

@@ -154,6 +154,15 @@ const INVOCATIONS = [
   { shape: 'adr-verify --mutant --from --to --why', exit: 1,
     build: dir => ({ cwd: dir, args: ['adr-verify', 'tasks/T1-fixture.md', '--cwd', '.',
       '--mutant', 'unused.py', '--from', 'X = 1', '--to', 'X = 2', '--why', 'probe'] }) },
+  // The human mutation lane. It runs NOTHING, so unlike --mutant above it exits 0
+  // on a well-formed report: the exit code says the row was written, not that a
+  // fence passed. `X = 1` occurs exactly once in the fixture, which is what the
+  // uniqueness refusal requires.
+  { shape: 'adr-verify --human-mutant --from --to', exit: 0,
+    build: dir => ({ cwd: dir, args: ['adr-verify', 'tasks/T1-fixture.md', '--cwd', '.',
+      '--human-mutant', 'unused.py', '--from', 'X = 1', '--to', 'X = 2',
+      '--test', 'test_probe', '--test-exit', '1',
+      '--why', 'the fence has an integration clause this checkout cannot reach'] }) },
   { shape: 'adr-verify --human', exit: 0,
     build: dir => ({ cwd: dir, args: ['adr-verify', 'tasks/T1-fixture.md', '--human', 'Zy observed it'] }) },
   { shape: 'adr-retire-check --adopt', exit: 0,
@@ -407,4 +416,38 @@ test('mutation-audit says which gates earn their place, and names the counterexa
     'the counterexample must carry the measurement that settled it')
   assert.match(flat, /conversation trigger/i,
     'and where the same number does earn its place')
+})
+
+// ADR-013 T3. The template and the execute skill must AGREE about when the human
+// mutation lane applies — and neither may offer it as a general alternative to
+// `--mutant`, because the whole point of --mutant is that a tool made the edit,
+// ran the fence and read the exit code.
+test('the template and the execute skill agree about the human mutation lane', () => {
+  const template = readFileSync(join(root, 'templates', 'task-template.md'), 'utf8')
+  const skill = readFileSync(join(root, 'skills', 'adr-execute', 'SKILL.md'), 'utf8')
+
+  for (const [name, text] of [['task-template.md', template], ['adr-execute/SKILL.md', skill]]) {
+    assert.ok(text.includes('--human-mutant'),
+      `${name} must name the flag, or an author in the blocked case never finds it`)
+    // The CONDITION, in the words the gate uses. "cannot run" would read as
+    // "fails to start", which excludes the case the record was written from: a
+    // fence that starts fine and has one clause that cannot complete.
+    assert.ok(/cannot run to completion/i.test(text),
+      `${name} must state the condition as "cannot run to completion"`)
+    // The ceiling. The lane records a kill; it does not unlock `done`. Stated in
+    // both places because an author who reads only one must not infer otherwise.
+    assert.ok(/does not (?:make|satisfy|unlock)|raises the floor/i.test(text),
+      `${name} must say the lane does not unlock \`done\``)
+    // And it must not be offered as a general escape from --mutant.
+    assert.ok(!/instead of `?--mutant`?|alternative to `?--mutant`?/i.test(text),
+      `${name} must not offer the human lane as a general alternative to --mutant`)
+  }
+
+  // The claim both documents make about the gate has to be TRUE. A template that
+  // promises more than the checks deliver is the "list kept beside the truth"
+  // this corpus exists to refuse — so assert it against adr-lint's source, not
+  // against the prose.
+  const lint = readFileSync(join(bin, 'adr-lint'), 'utf8')
+  assert.ok(/MLOG_DIGEST_RE/.test(lint),
+    'the done gate must still be the digest-bound one the documents describe')
 })

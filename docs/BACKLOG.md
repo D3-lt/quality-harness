@@ -4697,7 +4697,8 @@ version 1.40609.0 (read from `/Applications/Claude.app/Contents/Info.plist`).
 The observing session initially reported itself as running in the web/mobile interface and warned
 its "none" therefore said nothing about Desktop. It then retracted that unprompted, on evidence it
 was better placed to weigh than I was: `qh-mcp` was registered, five tools resolved, and the call
-reached a **local stdio server reading paths under `/Users/zy/`** — which a web session cannot do.
+reached a **local stdio server reading absolute paths under the operator's home directory** —
+which a web session cannot do.
 So this was Desktop's MCP plumbing throughout, and I had accepted the weaker framing without
 checking the one fact that settles it.
 

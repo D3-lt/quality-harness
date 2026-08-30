@@ -4252,3 +4252,46 @@ the same distinction this project holds its gates to, applied by a reporter to t
   while the bug bites.
 - Nothing in 2.0.12-2.0.15 was verified live, for the reason in item 12: the hooks acting
   on a session run from a different clone than the one being edited.
+
+## 76. `Enforced-by:` splits on comma, and 80 of 345 mutation labels contain one
+
+**Found 2026-08-30 while executing ADR-013 T1**, by trying to name a new mutation in the record's
+own `Enforced-by:` header and watching the gate report two pointers where one was written.
+
+`Enforced-by:` is a comma-separated pointer list: each entry must resolve to a mutation label in
+`tests/mutations.json`, a `path::name` test that exists, or a gate in `bin/`. The label
+
+    ADR-013: from/to are code spans, so a mutated line may contain a backtick
+
+was split at its comma into `ADR-013: from/to are code spans` and `so a mutated line may contain a
+backtick`, and both halves were advised as pointers to nothing. The header was correct; the reader
+cannot express it.
+
+**The sweep, and it is not a rare shape — it is the house style.**
+
+    python3 -c "import json; d=json.load(open('tests/mutations.json')); \
+      print(sum(1 for m in d['mutations'] if ',' in m['label']), 'of', len(d['mutations']))"
+    → 80 of 345
+
+Nearly a quarter, because this project names a mutation for the distinction it kills — `lint: None
+is an answer, not an unresolvable pointer`, `verify: a fence that never returned is UNRUN, not a
+verdict`, `mcp: a completed run is content, never the error channel`. The `X, not Y` construction
+is exactly how a mutation label says what it protects, so the collision follows from the
+convention rather than from carelessness.
+
+**Why this is worse than an unusable header.** The advice does not say "your label contains a
+comma"; it says the pointer names nothing. The cheap response is to rewrite the label or drop the
+pointer — which is what I did, renaming the mutation to avoid the comma. So the pressure runs
+backwards: the naming convention that makes a label informative is the one that makes it
+unnameable, and the gate quietly teaches authors to write less descriptive labels. **14 records
+currently carry an `Enforced-by:` header**, so anything they could not name is invisible today.
+
+**Not fixed here**, because it is a change to how a shared header is parsed and belongs with its
+own evidence. The obvious candidates: accept backtick-quoted entries (`` `label, with comma` ``),
+split on a separator that cannot occur in a label, or match the whole header value against known
+labels before splitting. The third needs no format change and no migration, which makes it worth
+pricing first.
+
+**Sibling left open deliberately:** whether the same split is used by any other header that names
+a check. Not swept — the class is "a structured header whose separator can occur inside its
+values", and `Enforced-by:` is the only member confirmed.

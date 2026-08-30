@@ -223,6 +223,116 @@ def main():
     assert lint.MLOG_RE.match(prefix + "inconclusive · exit 0" + suffix)
     assert lint.MLOG_RE.match(prefix + "inconclusive · exit 2" + suffix)
 
+    # ADR-013 T1 — `a human-observed mutation row carries its diff and its failing test`.
+    # A mutation is the EASIER of the two evidence kinds to perform by hand (edit a line,
+    # run, read the code, revert), yet MLOG_RE had no human arm while VLOG_RE did.
+    # Reported by wcag-43 as BACKLOG §74 against a task whose Acceptance contains a
+    # blocked clause, so `adr-verify --mutant` cannot run the fence at all. The arm takes
+    # their narrow proposal: a hand-written row must LOCATE the change, quote the diff and
+    # NAME the test that went red, so a reader can re-run it. That keeps a forgeability
+    # property rather than removing one.
+    human_mut = (
+        "- 2026-08-30 · human-observed · mutant killed · test exit 1 · "
+        "`src/wcag_scanner/eval/scorer.py` · line 187 · "
+        'from `if match_reason(r.mutated_node) == "right_reason":` · to `if True:` · '
+        "test `test_reason_matching_counts_right_and_wrong_separately` · "
+        "the fence's integration clause cannot run"
+    )
+    assert lint.MLOG_HUMAN_RE.match(human_mut), "a complete human row must parse"
+    assert lint.MLOG_RE.match(human_mut), "and MLOG_RE must admit it via the shared arm"
+
+    # Markdown's own code-span rule, so a mutated line may CONTAIN a backtick. 26 of this
+    # repository's 343 tool mutations do, and the languages where that is routine — Go raw
+    # strings, JS template literals, shell, Markdown — are what this plugin ships to.
+    backticked = (
+        "- 2026-08-30 · human-observed · mutant killed · test exit 1 · `x.go` · line 12 · "
+        "from ``s := `raw` + x`` · to ``s := `` `` · test `TestRaw` · fence needs a live db"
+    )
+    assert lint.MLOG_RE.match(backticked), \
+        "a variable-length code span must carry a body containing backticks"
+    # And the field separator itself may appear inside the diff, because the delimiters
+    # bound it — three of the 343 contain ' · '.
+    assert lint.MLOG_RE.match(
+        "- 2026-08-30 · human-observed · mutant killed · test exit 2 · `x.py` · line 9 · "
+        "from `a · b` · to `c · d` · test `t` · why"), "delimiters must bound the separator"
+
+    # Each incomplete variant is REFUSED, not advised: an incomplete claim is not a weaker
+    # claim, it is an unreproducible one — a reader cannot re-run what the row does not name.
+    for why, bad in (
+        ("no test name", human_mut.split(" · test `")[0] + " · a why with no test"),
+        ("no from/to",
+         "- 2026-08-30 · human-observed · mutant killed · test exit 1 · `a.py` · line 3 · "
+         "test `test_x` · why"),
+        ("no line number", human_mut.replace(" · line 187", "")),
+        ("a bare verdict",
+         "- 2026-08-30 · human-observed · mutant killed · `src/a.py`"),
+        ("an empty why", human_mut.rsplit(" · ", 1)[0] + " · "),
+        # `test exit` carries the same non-zero constraint the tool arm's `exit` does, so a
+        # row claiming a kill on a passing test is refused on its face.
+        ("a kill on exit 0", human_mut.replace("test exit 1", "test exit 0")),
+    ):
+        assert not lint.MLOG_RE.match(bad), \
+            f"a human-observed row with {why} must be refused: {bad!r}"
+
+    # A refusal has to be LEGIBLE or the lane is a wall: the reader must name the field it
+    # stopped at, since refusing an unsupported shape is this arm's boundary, not a bug.
+    stopped = lint.where_it_stopped(
+        lint.MLOG_RE,
+        "- 2026-08-30 · human-observed · mutant killed · test exit 1 · `x.py` · line 9 · "
+        "from `a` · test `t` · why")
+    assert stopped.startswith("- 2026-08-30 · human-observed") and "line 9" not in stopped, \
+        f"a refusal must name where it stopped, not restate the row: {stopped!r}"
+
+    # `an existing tool-written mutation row parses unchanged`. The arm widens a grammar two
+    # gates share, so the original arms are asserted in the same test — a widening that
+    # quietly changed one of them would otherwise pass.
+    assert lint.MLOG_RE.match(prefix + "killed · exit 1" + suffix), "tool arm changed"
+    assert not lint.MLOG_RE.match(prefix + "killed · exit 0" + suffix), "tool arm changed"
+    assert not lint.MLOG_RE.match(prefix + "survived · exit 1" + suffix), "tool arm changed"
+    # The human arm must not become a way past the tool arm's exit-code pairing.
+    assert not lint.MLOG_RE.match(
+        "- 2026-08-30 · human-observed · mutant killed · exit 0 · `src/a.py` · why"), \
+        "the human arm must not reopen the killed/exit-0 pairing the tool arms refuse"
+
+    # ADR-013 T1 step 3 — the arm proved through `check_task`, the caller that actually
+    # refuses a row. Asserting the regex object alone tests the pattern; a reader reaches
+    # it through here, and this is where a widening that never got wired would show up.
+    def mlog_errors(row):
+        with tempfile.TemporaryDirectory() as td:
+            probe = Path(td) / "T9-probe.md"
+            probe.write_text(
+                "# Task X-T9: probe\n\n"
+                "**Depends-on:** none\n**Covers:** none\n**Produces:** none\n"
+                "**Consumes:** none\n\n"
+                "## Goal\n\ng\n\n"
+                "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+                "| `x.py` | edit | w |\n\n"
+                "## Ordered Steps\n\n1. Write the failing test first.\n2. Then the rest.\n\n"
+                "## Acceptance\n\n```bash\ntrue\n```\n\n"
+                "## Tests\n\n| Test name | File | Verifies | Covers |\n|---|---|---|---|\n"
+                "| t | f | v | — |\n\n"
+                "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                "## Verification Log\n\n## Mutation Log\n\n" + row + "\n",
+                encoding="utf-8")
+            errs = lint.Findings()
+            lint.check_task(probe, set(), errs)
+            return [e for e in errs if "Mutation Log entry" in e]
+
+    assert mlog_errors(human_mut) == [], \
+        f"check_task must accept a complete human row: {mlog_errors(human_mut)}"
+    assert mlog_errors(backticked) == [], "check_task must accept a backticked body"
+    # The must-fail direction in the same test, without which an arm that accepted
+    # everything would satisfy both assertions above (CLAUDE.md §4).
+    assert mlog_errors(human_mut.replace("test exit 1", "test exit 0")), \
+        "check_task must still refuse a kill claimed on a passing test"
+    assert mlog_errors("- 2026-08-30 · human-observed · mutant killed · `src/a.py` · why"), \
+        "check_task must still refuse a row that locates nothing"
+    # And the refusal an author reads must NAME the lane, or nobody finds it.
+    said = mlog_errors("- 2026-08-30 · human-observed · mutant killed · `src/a.py` · why")[0]
+    assert "--human-mutant" in said and "cannot run" in said, \
+        f"the refusal must tell an author the lane exists and when it applies: {said}"
+
     legacy_kill = (
         "- 2026-08-21 · no-git · mutant killed · exit 1 · "
         "`src/a.py` · old unbound kill"

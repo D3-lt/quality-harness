@@ -23,7 +23,8 @@ omits the file, the change or the failing test.
 
 ## Ordered Steps
 
-1. Write the failing test first: a row reading `- <date> · human-observed · mutant killed · `<file>` · from `<text>` · to `<text>` · test `<name>` · <why>` must PARSE, and four malformed variants (no test name, no from/to, a bare verdict, an empty why) must NOT. Confirm red.
+1. Write the failing test first: a row reading `- <date> · human-observed · mutant killed · test exit <N> · `<file>` · line <N> · from `<text>` · to `<text>` · test `<name>` · <why>` must PARSE, and six malformed variants (no test name, no from/to, no line number, a bare verdict, an empty why, a kill claimed on `test exit 0`) must NOT. Confirm red.
+   **Shape revised 2026-08-30, before any row existed**, on evidence from wcag-43 — the session that reported §74 and holds the only real instance. Three changes: `from`/`to` are Markdown code spans of variable delimiter length, because 26 of this repository's 345 tool mutations contain a backtick and the languages where that is routine (Go raw strings, JS template literals, shell, Markdown) are what this plugin ships to; `line <N>` is carried because from-text alone is not unique in a file (`return nil` identifies nothing) and a row that parses while being unreproducible is the exact property the refusals exist to prevent; and `test exit <N>` records what the person actually observed, spelled differently from the tool arm's `exit <N>` because that one is the ACCEPTANCE FENCE's code and this fence is the thing that cannot run — same number, different observation, so it does not borrow the other's vocabulary.
 2. Add the arm to `MLOG_RE`, keeping the three tool-run arms unchanged so an existing row still parses byte for byte.
 3. Add the catalogue entry and confirm it comes back RED against the test file that drives `check_task`, not against the regex directly.
 

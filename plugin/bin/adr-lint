@@ -69,10 +69,57 @@ SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 # Tool-written mutation evidence. Same shape and same purpose as VLOG_RE: an entry
 # off this grammar was typed by a person, and a typed mutant is the thing the log
 # replaced. `killed` is the only verdict that is evidence — see adr-verify --mutant.
-MLOG_RE = re.compile(
-    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · "
+MLOG_TOOL_ARM = (
+    SHA_FIELD + r" · "
     r"mutant (?:(?:killed · exit [1-9]\d*)|(?:survived · exit 0)|"
-    r"(?:inconclusive · exit \d+)) · `[^`]+` · .+?"
+    r"(?:inconclusive · exit \d+)) · `[^`]+` · .+?")
+# ADR-013: the arm for a mutation a PERSON performed, for the one case the tool arm
+# cannot serve — a task whose Acceptance contains a clause that cannot run, so
+# `--mutant` never gets to read an exit code. Reported as BACKLOG §74 with a real kill
+# in hand and no row to put it in.
+#
+# It is deliberately NOT the obvious `human-observed` mirror of VLOG_RE. A hand-typed
+# mutation row is forgeable in a way a hand-run acceptance is not: the point of
+# --mutant is that the TOOL made the edit, ran the fence and read the exit code. This
+# arm buys that property back a different way — it must locate the change (file, line),
+# quote the DIFF, and name the test that went red, so a reader can re-run it. A
+# fabricated row has to name a real line and a real test, and is checkable rather than
+# merely asserted.
+#
+# `killed` is the only verdict it admits. `survived` and `inconclusive` are claims about
+# what a fence DID, and this arm exists precisely because no fence ran; a person
+# reporting "it survived" observed nothing a reader can check.
+#
+# `test exit N` is NOT the tool arm's `exit N`. The tool arm reports the ACCEPTANCE
+# FENCE's code; here the fence is what cannot run, and the code is the one the named
+# TEST returned. Same number, different observation — so it gets different words rather
+# than borrowing a verdict's vocabulary (CLAUDE.md §3). It keeps the same non-zero
+# constraint, so a row claiming a kill on exit 0 is refused on its face.
+#
+# from/to use MARKDOWN'S OWN code-span rule — a run of N backticks delimits content
+# containing runs of fewer than N — rather than a bare `[^`]+`. Measured against this
+# repository's 343 tool mutations, 26 (7.6%) contain a backtick, and the languages where
+# that is routine (Go raw strings, JS template literals, shell, Markdown) are what this
+# plugin ships to. Reported by wcag-43 before any row existed; changing a delimiter
+# after rows exist costs a migration or a second grammar.
+def _code_span(q, body):
+    """A Markdown code span whose delimiter length is captured, so the body may hold backticks."""
+    return r"(?P<" + q + r">`+)(?P<" + body + r">.*?)(?P=" + q + r")"
+
+
+MLOG_HUMAN_ARM = (
+    r"human-observed · mutant killed · test exit [1-9]\d* · "
+    r"`[^`]+` · line \d+ · "
+    r"from " + _code_span("fq", "fromtext") + r" · "
+    r"to " + _code_span("tq", "totext") + r" · "
+    r"test `[^`]+` · .+?")
+# One fragment, two readers. Written twice, a mutation on either copy comes back GREEN
+# because the other carries the load — the finding class CLAUDE.md §4 names.
+MLOG_HUMAN_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · " + MLOG_HUMAN_ARM +
+    r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
+MLOG_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · (?:" + MLOG_TOOL_ARM + r"|" + MLOG_HUMAN_ARM + r")"
     r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
 MLOG_DIGEST_RE = re.compile(
     r"^- (?P<date>\d{4}-\d{2}-\d{2}) · " + SHA_FIELD + r" · "
@@ -565,7 +612,11 @@ def check_task(path, all_stems, errors):
         if not MLOG_RE.match(b):
             errors.append(f"{path.name}: Mutation Log entry doesn't match the adr-verify "
                           f"grammar: killed requires nonzero exit, survived requires exit 0, "
-                          f"and inconclusive may use either · `file` · why: "
+                          f"and inconclusive may use either · `file` · why. A mutation a "
+                          f"PERSON performed, where the Acceptance contains a clause that "
+                          f"cannot run, is written by `adr-verify --human-mutant` as "
+                          f"'· human-observed · mutant killed · test exit N · `file` · "
+                          f"line N · from `…` · to `…` · test `…` · why': "
                           f"{where_it_stopped(MLOG_RE, b)}")
     has_mlog_section = "Mutation Log" in secs
 

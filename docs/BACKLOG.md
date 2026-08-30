@@ -4336,3 +4336,76 @@ seconds" as a first-class claim rather than as a side effect of a broken regex. 
 doing for one property; both become worth doing at the second.
 
 **Left open deliberately, at one instance.**
+
+## 78. `! grep` cannot fail a `set -e` fence, and that is the idiom the vacuity guard is written in
+
+**Reported 2026-08-30 by agentsmemory-main-5b**, measured in their corpus and reproduced here before
+recording. POSIX specifies that `set -e` does not apply to a command whose status is inverted with
+`!`, so the standard vacuity guard is inert inside a `set -e` script. Both shells, on this machine:
+
+    sh   -c 'set -e; ! grep -q FAIL /tmp/x.out; echo REACHED; exit 7'   -> REACHED, rc=7
+    bash -c 'set -e; ! grep -q FAIL /tmp/x.out; echo REACHED; exit 7'   -> REACHED, rc=7
+    sh   -c 'set -e;   grep -q NOPE /tmp/x.out; echo REACHED; exit 7'   -> rc=1   (control)
+
+The `! grep … && next` form is inert for a second reason — the `&&` short-circuits and the script
+carries on.
+
+**This corpus has zero instances, and the reason is luck rather than design.** Swept by fence block
+over `git ls-files docs/adr`:
+
+    fences=51  set -e=0  negated grep=22  BOTH (inert)=0  negated-grep-is-last-command=22
+
+Every Acceptance fence here opens with `set -o pipefail` and never `set -e`, and all 22 negated
+greps are the LAST command in their fence — where the status IS the script's exit status, so the
+guard is load-bearing. The reporter's corpus has 50 that sit mid-script under `set -e` and are
+therefore inert. Same idiom, opposite outcome, decided by a convention neither corpus wrote down.
+
+Their sweep also found **0 cases where the inert guard was the only detector**: all 50 sit beside a
+positive assertion (`grep -q -- "--- PASS: …"`), and a lane that scored no tests prints neither, so
+the positive check already catches the vacuous case. The negated guard is redundant there, which is
+exactly why its inertness never produced a failure anyone investigated.
+
+**Why it is worth a check anyway.** It READS like the vacuity guard, and the first fence written
+without a positive assertion beside it loses the vacuity check silently — a gate that cannot fail,
+which is the defect this project exists to demonstrate the absence of. The un-negated form costs
+nothing:
+
+    if grep -qE "no tests to run|^FAIL|^--- FAIL" /tmp/out; then exit 1; fi
+
+**What a check must distinguish**, and why it is not a one-liner: *inert* (negated, under `set -e`,
+not the last command) from *redundant but harmless* (negated, but last, or beside a positive
+assertion). Reporting the second as a defect is how a gate teaches people to ignore it.
+
+**Not fixed here**, and no instance in this repository to fix. It belongs in a fence linter, and the
+reporter's 50-versus-0 measurement is the evidence for how to phrase the advisory.
+
+## 79. The mutant classifier cannot tell a vacuous fence from a kill whose signal is "no tests ran"
+
+**Reported 2026-08-30 by agentsmemory-main-5b**, observed at their commit 25cd90b against
+quality-harness v2.36.0:
+
+    2026-08-29 · 25cd90b · mutant inconclusive · exit 1 · internal/mcpserver/readcost_spec_test.go
+      the fence failed but scored no tests
+
+Two rules that are individually right, colliding. The "scored no tests" rule exists to catch a fence
+whose filter matches nothing and passes vacuously. But this mutant's ENTIRE signal is that no tests
+ran — the fence detects it correctly, by grepping for `no tests to run`, and fails.
+
+**The class:** any mutant whose effect is to REMOVE TESTS FROM A LANE is reported `inconclusive`,
+however correctly the fence catches it.
+
+The question the classifier does not ask is whether the fence scored no tests and **passed**
+(vacuous — `inconclusive` is right) or scored no tests and **failed because it detected that** (a
+kill). The exit code already separates the two.
+
+**Not confirmed as previously known.** A search of this backlog for the vacuity rule did not turn it
+up, and no exhaustive sweep was run — so this is "not confirmed present", not "confirmed absent".
+
+**Not fixed here, deliberately.** Widening what counts as `killed` is a change to how a verdict is
+computed, and this project's rule is that a gate must never report an observation it did not make.
+That needs its own record and its own evidence rather than a patch attached to unrelated work.
+The reporter says their PR #117 carries the reproduction.
+
+**Related but not the same hole:** ADR-013 gives a lane to a mutation the tool COULD NOT RUN. This
+one is a mutation the tool ran and classified wrongly. A row that belongs to §79 must not be routed
+into ADR-013's lane — that would launder a computable verdict into a hand-reported one.

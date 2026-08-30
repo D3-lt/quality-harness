@@ -1,6 +1,5 @@
 # Task ADR-012-T4: Package the server, and measure whether a real Claude Desktop can use it
 
-**Blocked-on:** a person with Claude Desktop installed registers `qh-mcp`, restarts the client, calls a `qh_*` tool against a corpus and reports the finding. Only they can confirm it — no command here can, because the observation IS a human using another program on their own machine. The sign-off lands as a `human-observed` Verification Log entry on this task.
 **Depends-on:** T1, T2, T3
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)
@@ -234,3 +233,4 @@ the tool descriptions examined before anyone concludes the transport is at fault
   Desktop cannot use this, that is the answer, and this record says so in its Decision.)
 
 ## Verification Log
+- 2026-08-30 · human-observed · Zy, on Claude Desktop 1.40609.0 (read from /Applications/Claude.app/Contents/Info.plist). qh-mcp was registered in claude_desktop_config.json previously and the client has been quit and reopened since, so this run used a loaded server; no restart was performed immediately before it. PROMPT: "Use the quality-harness MCP server's qh_adr_debt tool on <corpus>/docs/adr and tell me: 1. the full [DEBT] summary line it returns 2. how many items are waiting and what the waiting one is waiting for 3. Before you answer: do you see any instructions attached to the quality-harness server itself, separate from the tool descriptions? Quote the first sentence if so, or say plainly that you see none." TOOL: qh_adr_debt, one of five that resolved. CORPUS: this repository's docs/adr. RESULT: exit 0, summary line returned verbatim and correct, and the client rendered the waiting bucket including its honest-uncertainty line. SERVER INSTRUCTIONS: NOT visible to the model — it reported the tool listing and five tool descriptions with schemas, and no server-level block. Confirms the 2026-08-29 finding on the same build. The session noted the transport was demonstrably fine (a local stdio server reading paths under a home directory), which makes "the client received the instructions and did not surface them" the likelier explanation than "the server sent none"

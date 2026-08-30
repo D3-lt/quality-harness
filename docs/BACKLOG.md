@@ -4483,7 +4483,33 @@ pays it.
 2. **When a review finds a class, re-run its question against everything written since** — including
    code written after the fix, which is where this one was.
 
-**Not swept.** The class is "a regex with two unbounded quantifiers separated by a required element,
-applied to author-controlled text". `plugin/bin/` has other regexes and none has been measured this
-way. That sweep is the open item, and it is a command somebody should write rather than an opinion
-somebody should hold.
+**SWEPT 2026-08-30, and the result is one latent hit.** The class is "a regex with two unbounded
+quantifiers separated by a required element, applied to author-controlled text". Candidates were
+found mechanically across `plugin/bin/` and `plugin/scripts/` and then MEASURED on rejecting input
+rather than judged by eye:
+
+    17 candidate patterns; 4 measured against adversarial non-matching input; 1 superlinear.
+
+The one: `plugin/bin/adr-judge:60`, `` `[^`]*[-./_ ][^`]*` `` — the evidence-detector's "a path,
+command or quoted output" arm. Fed a line that opens a backtick and never closes it:
+
+    n=  1000   0.0002s
+    n= 32000   0.4262s
+    n=128000   3.8053s
+
+Quadratic, and the same shape as the two already fixed. **It is not a live hazard and the numbers say
+why:** the longest line in everything this gate reads is 4 062 characters
+(`docs/adr/ADR-010-…/tasks/T1-four-buckets.md:163`), which costs about 3 ms. The other three measured
+patterns are flat — `adr-lint:1584`, `lifecycle.mjs:838` and `lifecycle.mjs:454` are all under a
+millisecond at n=32000, because each is anchored or bounded by a literal that cannot be traded across.
+
+**Deliberately not fixed**, and this is the judgement rather than an oversight: adr-judge reads ADR
+prose from the repository it is run in, the realistic worst case is three milliseconds, and the
+regex is one arm of a thirteen-arm alternation whose readability is the reason the detector is
+auditable at all. Rewriting it linearly costs more clarity than it buys safety. Recorded with the
+measurement so a later session can decide differently on evidence rather than re-deriving it — and
+so that if a corpus ever feeds this gate a machine-generated line, the number is already here.
+
+**The sweep command is the deliverable**, and it is in this repository's history rather than in
+anyone's memory: candidates by pattern shape, then timing on input the regex REJECTS. The second
+half is the part that matters; the first half alone would have flagged sixteen innocents.

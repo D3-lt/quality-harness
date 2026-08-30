@@ -293,14 +293,25 @@ def main():
         assert not lint.MLOG_RE.match(bad), \
             f"a human-observed row with {why} must be refused: {bad!r}"
 
-    # A refusal has to be LEGIBLE or the lane is a wall: the reader must name the field it
-    # stopped at, since refusing an unsupported shape is this arm's boundary, not a bug.
-    stopped = lint.where_it_stopped(
-        lint.MLOG_RE,
-        "- 2026-08-30 · human-observed · mutant killed · test exit 1 · `x.py` · line 9 · "
-        "from `a` · test `t` · why")
-    assert stopped.startswith("- 2026-08-30 · human-observed") and "line 9" not in stopped, \
-        f"a refusal must name where it stopped, not restate the row: {stopped!r}"
+    # A location that cannot be pointed at is not a location. `line 0` names no
+    # line in any file and `line 007` is not how one is written; both parsed until
+    # a Codex review found them, and both would have produced a row a reader
+    # cannot follow — the property the other refusals exist to protect.
+    assert not lint.MLOG_RE.match(human_mut.replace("line 187", "line 0")), \
+        "line 0 names no line and must be refused"
+    assert not lint.MLOG_RE.match(human_mut.replace("line 187", "line 007")), \
+        "a zero-padded line number must be refused rather than silently accepted"
+    assert lint.MLOG_RE.match(human_mut.replace("line 187", "line 1")), \
+        "line 1 is a real line and must still parse"
+
+    # An EMPTY code span carries no diff, so `from` must hold at least one
+    # character while `to` may be empty — deleting a line is a real mutation and
+    # the row should be able to say so.
+    assert not lint.MLOG_RE.match(human_mut.replace(
+        'from `if match_reason(r.mutated_node) == "right_reason":`', "from ``")), \
+        "an empty `from` names no change and must be refused"
+    assert lint.MLOG_RE.match(human_mut.replace("to `if True:`", "to ``")), \
+        "an empty `to` is a deletion and must still parse"
 
     # `an existing tool-written mutation row parses unchanged`. The arm widens a grammar two
     # gates share, so the original arms are asserted in the same test — a widening that

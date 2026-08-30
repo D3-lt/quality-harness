@@ -16,8 +16,6 @@ have landed. There is no parallel-safe grouping here — three tasks, one chain.
 
 ## Notes
 
-- **The record is `Proposed`.** None of these is a work order until a human accepts it. The decision
-  being proposed is whether a human-performed mutation gets a lane at all, and the tasks exist to
-  show what accepting it would cost, not to be executed on their own.
+- **The record is `Accepted`** (2026-08-30). These are work orders. T1 and T2 are done and carry tool-written evidence; T3 is the terminal task.
 - T1 and T2 both touch the evidence grammar, which two gates read. The writer and both readers must
   agree in the same commit — docs/BACKLOG.md §47 and §58 are what happens when they do not.

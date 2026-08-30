@@ -132,7 +132,7 @@ def _code_span(quant):
 
 MLOG_HUMAN_ARM = (
     r"human-observed · mutant killed · test exit [1-9]\d* · "
-    r"`[^`]+` · line \d+ · "
+    r"`[^`]+` · line [1-9]\d* · "
     # `from` must carry at least one character; `to` may be empty, because
     # deleting a line is a real mutation and the row should be able to say so.
     r"from " + _code_span("+") + r" · "

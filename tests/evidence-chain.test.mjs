@@ -866,8 +866,14 @@ test('a human-observed row that cannot be reproduced is refused, not advised', (
     ['no diff', humanRow({ from: null, to: null })],
   ]) {
     const built = row.replace(/ · null/g, '')
-    assert.notEqual(lintWithMutationRow(built).status, 0,
+    const got = lintWithMutationRow(built)
+    assert.notEqual(got.status, 0,
       `adr-lint must refuse a human-observed row with ${why}: ${built}`)
+    // Non-zero is not enough: a crash or an unrelated lint failure is also
+    // non-zero, and would keep this green while the refusal path was broken.
+    const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
+    assert.ok(said.includes('Mutation Log entry'),
+      `must be refused BY THE MUTATION LOG CHECK, not merely non-zero (${why}): ${said.trim().slice(0, 300)}`)
   }
 })
 

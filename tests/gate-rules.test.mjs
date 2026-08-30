@@ -1202,3 +1202,79 @@ test('every adr-retire-check structural rule has a case that makes it fire', () 
     assert.notEqual(said.trim(), '', `${label}: reported nothing at all`)
   }
 })
+
+test('adr-retire-check --adopt reports what it finds on a tree adopting the lifecycle', () => {
+  // The duplicate messages in scripts/unasserted.mjs's output were the tell: sites
+  // 4/5/13, 7/16, 8/17 and 6/18 are the SAME sentences twice, because
+  // adoption_report duplicates the structural rules that the catalog path already
+  // has. Only one copy was ever reached, so half of them asserted nothing.
+  //
+  // --adopt is what a corpus runs BEFORE it has an archive catalog, so these are
+  // the first findings a new adopter ever sees.
+  const base = scratch('adopt')
+  const build = (layout) => {
+    const dir = join(base, layout.name)
+    mkdirSync(join(dir, 'adr'), { recursive: true })
+    mkdirSync(layout.archiveAt ? join(dir, layout.archiveAt) : join(dir, 'adr-archive'),
+      { recursive: true })
+    for (const [rel, body] of Object.entries(layout.files ?? {})) {
+      mkdirSync(dirname(join(dir, rel)), { recursive: true })
+      writeFileSync(join(dir, rel), body)
+    }
+    return dir
+  }
+  const record = (id, status) => `# ${id}: probe\n\n**Status:** ${status}\n\n## Decision\n\nd\n`
+
+  // Nested rather than sibling: a recursive gate scanning the active root would
+  // walk history too, which is the reason the rule exists.
+  const nested = build({ name: 'nested', archiveAt: 'adr/archive',
+    files: { 'adr/README.md': '# active\n', 'adr/ADR-001-a.md': record('ADR-001', 'Accepted') } })
+  const overlap = run('adr-retire-check',
+    ['--adopt', join(nested, 'adr'), join(nested, 'adr', 'archive')], nested)
+  assert.match(`${overlap.stdout}${overlap.stderr}`, /overlap|recursive/i,
+    `nested roots must be reported: ${overlap.stdout}`)
+
+  // Siblings, but the active corpus has no catalog at all.
+  const noReadme = build({ name: 'no-readme',
+    files: { 'adr/ADR-001-a.md': record('ADR-001', 'Accepted') } })
+  const missing = run('adr-retire-check',
+    ['--adopt', join(noReadme, 'adr'), join(noReadme, 'adr-archive')], noReadme)
+  assert.match(`${missing.stdout}${missing.stderr}`, /needs README\.md/i,
+    `an active corpus with no catalog must be reported: ${missing.stdout}`)
+
+  // A catalog whose links do not resolve, and a record present in BOTH trees.
+  const broken = build({ name: 'broken',
+    files: {
+      'adr/README.md': '# active\n\n- [ADR-001](ADR-001-gone.md)\n',
+      'adr/ADR-001-a.md': record('ADR-001', 'Accepted'),
+      'adr-archive/ADR-001-a.md': record('ADR-001', 'Accepted'),
+    } })
+  const said = run('adr-retire-check',
+    ['--adopt', join(broken, 'adr'), join(broken, 'adr-archive')], broken)
+  const out = `${said.stdout}${said.stderr}`
+  assert.match(out, /broken link/i, `an unresolvable catalog link must be reported: ${out}`)
+  assert.match(out, /exists 2 times/i, `a record in both trees must be reported: ${out}`)
+
+  // A legacy record whose Status is a word this reader cannot classify.
+  const legacy = build({ name: 'legacy',
+    files: {
+      'adr/README.md': '# active\n',
+      'adr-archive/ADR-009-a.md': record('ADR-009', 'Mostly Fine'),
+    } })
+  const cls = run('adr-retire-check',
+    ['--adopt', join(legacy, 'adr'), join(legacy, 'adr-archive')], legacy)
+  assert.match(`${cls.stdout}${cls.stderr}`, /cannot classify/i,
+    `an unclassifiable legacy status must be reported: ${cls.stdout}`)
+
+  // The must-fail direction: a clean adopting tree draws none of these, or every
+  // assertion above is satisfied by a gate that reports unconditionally.
+  const clean = build({ name: 'clean',
+    files: { 'adr/README.md': '# active\n', 'adr/ADR-001-a.md': record('ADR-001', 'Accepted') } })
+  const ok = run('adr-retire-check',
+    ['--adopt', join(clean, 'adr'), join(clean, 'adr-archive')], clean)
+  const okOut = `${ok.stdout}${ok.stderr}`
+  for (const p of [/overlap|recursive/i, /needs README\.md/i, /broken link/i,
+    /exists \d+ times/i, /cannot classify/i]) {
+    assert.doesNotMatch(okOut, p, `a clean adopting tree must be quiet: ${okOut}`)
+  }
+})

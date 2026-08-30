@@ -1,5 +1,6 @@
 # Task ADR-012-T4: Package the server, and measure whether a real Claude Desktop can use it
 
+**Blocked-on:** a person with Claude Desktop installed registers `qh-mcp`, restarts the client, calls a `qh_*` tool against a corpus and reports the finding. Only they can confirm it — no command here can, because the observation IS a human using another program on their own machine. The sign-off lands as a `human-observed` Verification Log entry on this task.
 **Depends-on:** T1, T2, T3
 **Covers:** none — no spec
 **Estimated scope:** M (multi-file)

@@ -2121,7 +2121,8 @@ def main():
         f"done must still require its evidence: {list(errs)}"
 
     # ADR-014 T2 — `Blocked-on requires a human-observed acceptance`.
-    def blocked_on_findings(header, acceptance="```bash\ntrue\n```"):
+    def blocked_on_findings(header, acceptance="```bash\ntrue\n```",
+                            stems=("T4-registry",)):
         with tempfile.TemporaryDirectory() as td:
             probe = Path(td) / "T9-probe.md"
             probe.write_text(
@@ -2139,7 +2140,7 @@ def main():
                 "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
                 "## Verification Log\n", encoding="utf-8")
             errs = lint.Findings()
-            lint.check_task(probe, set(), errs)
+            lint.check_task(probe, set(stems), errs)
             return ([e for e in errs if "Blocked-on" in e],
                     [a for a in errs.advice if "Blocked-on" in a])
 
@@ -2207,6 +2208,32 @@ def main():
     assert not lint.names_a_check("(" + "a" * 200000)
     _dt = time.perf_counter() - _t0
     assert _dt < 0.5, f"an unclosed parenthesis must not backtrack: took {_dt:.3f}s"
+
+    # ADR-014 T2, follow-on. Reported by wcag-43 against the shipped rule: the
+    # refusal tests whether the fence RUNS, and that is a proxy that happens to
+    # correlate. Their T11 genuinely IS waiting — on T10 putting a judge back on
+    # the production path — so "a runnable fence means you are not waiting" gets
+    # the right verdict for their task by a route that is not true.
+    #
+    # The distinction that does the work is WHOSE CLOCK the event is on:
+    #   Depends-on — another task IN THIS CORPUS. Someone here can go and do it.
+    #   Blocked-on — something OUTSIDE it. Nobody here can make it happen sooner.
+    #
+    # The hole that leaves: a task with an UNRUNNABLE fence and an IN-CORPUS
+    # blocker passes the shipped rule and should not, or Blocked-on becomes a
+    # second spelling of Depends-on and the two drift.
+    sibling_event = "**Blocked-on:** T4 landing the registry\n"
+    blocking, _ = blocked_on_findings(sibling_event, human_acc)
+    assert blocking, "Blocked-on naming a task in this corpus must be refused"
+    assert "Depends-on" in blocking[0], \
+        f"and the refusal must name the header that IS for in-corpus work: {blocking[0]}"
+    # The must-fail direction: an event outside the corpus that merely CONTAINS a
+    # T-shaped token is not an in-corpus dependency. Without this the check would
+    # refuse legitimate events and teach people to route around it.
+    blocking, _ = blocked_on_findings(
+        "**Blocked-on:** the vendor enabling API T5000 on our account "
+        "(curl -sf https://vendor.invalid/status)\n", human_acc)
+    assert blocking == [], f"an external event mentioning a T-token must be accepted: {blocking}"
 
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem

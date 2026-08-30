@@ -1105,3 +1105,45 @@ test('Blocked-on is refused on a task that can run its own acceptance', () => {
   // refusal is caused by what this task added and not by the fixture.
   expectExit(lint(corpus()), 0, 'a task without Blocked-on must be untouched')
 })
+
+test('--human-mutant refuses a diff a reader could not tell had been applied', () => {
+  // Reported by wcag-43 after verifying their own founding case against the
+  // shipped rule. `--from` uniqueness makes the row LOCATABLE; `--to` absence
+  // makes it REVERSIBLE. If the to-text is already in the file, a reader who
+  // applies the row cannot afterwards tell whether it was applied or reverted,
+  // and a second reader re-applying it double-mutates. Same read of the same
+  // file, so it costs nothing.
+  const copy = corpus()
+  addMutationLog(copy)
+  refusedBecause(
+    humanMutant(copy, { from: '## Decision', to: '## Context' }),
+    'already', 'a to-text already present in the file')
+
+  // The must-fail direction: a to-text absent from the file is accepted, or the
+  // check would refuse every mutation and the assertion above would be vacuous.
+  expectExit(humanMutant(copy, { from: '## Decision', to: '## Decisiun' }), 0,
+    'a to-text absent from the file must still be accepted')
+})
+
+test('Blocked-on naming a sibling task is refused, and an external event is not', () => {
+  // End to end, so the catalogue has a suite the runner can start. The fixture
+  // corpus has a T1, so naming it is naming work this team owns.
+  const owned = corpus()
+  writeTask(owned, readTask(owned).replace(/```bash\n[\s\S]*?```/,
+    'Acceptance is human-observed: a person watches it.')
+    .replace('**Depends-on:**', '**Blocked-on:** T1 landing the registry\n**Depends-on:**'))
+  const got = lint(owned)
+  assert.notEqual(got.status, 0, 'a Blocked-on naming a sibling must be refused')
+  const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
+  assert.match(said, /Depends-on/, `and must name the header that is for it: ${said.slice(0, 300)}`)
+
+  // The must-fail direction: a genuinely external event on the same task is
+  // accepted, or the rule refuses every Blocked-on and proves nothing.
+  const external = corpus()
+  writeTask(external, readTask(external).replace(/```bash\n[\s\S]*?```/,
+    'Acceptance is human-observed: a person watches it.')
+    .replace('**Depends-on:**',
+      '**Blocked-on:** the vendor enabling the account (curl -sf https://vendor.invalid/status)\n'
+      + '**Depends-on:**'))
+  expectExit(lint(external), 0, 'an external event must be accepted')
+})

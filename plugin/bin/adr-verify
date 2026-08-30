@@ -932,6 +932,16 @@ def write_human_mutant(task, text, cwd, today, target, frm, to, test, test_exit,
         fail(f"--from matches {hits} places in {target}, so the row would identify none of "
              f"them. Quote enough of the line to be unique — a reader has to be able to "
              f"apply this diff without guessing which occurrence you meant.")
+    # `--from` uniqueness makes the row LOCATABLE; `--to` absence makes it
+    # REVERSIBLE. Reported by wcag-43 after checking their own founding case: if
+    # the to-text is already in the file, a reader who applies this row cannot
+    # afterwards tell whether it was applied or reverted, and a second reader
+    # re-applying it double-mutates. Same read of the same file, so it is free.
+    if to and to in body:
+        fail(f"--to is already present in {target}, so a reader could not tell afterwards "
+             f"whether this mutation had been applied or reverted -- and a second reader "
+             f"re-applying it would double-mutate. Quote enough of the line that the "
+             f"mutated form is not already there.")
     line = body[:body.index(frm)].count("\n") + 1
     rel = relative_to_repo(path, cwd)
     entry = (f"- {today} · human-observed · mutant killed · test exit {test_exit} · "

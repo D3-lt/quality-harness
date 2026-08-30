@@ -671,6 +671,26 @@ def check_task(path, all_stems, errors):
         # lacks ("appears in the router audit log on both prod nodes"). That is a
         # legitimate Blocked-on no command here can run, and refusing it would
         # punish the honest case.
+        # WHOSE CLOCK the event is on is the distinction that does the work, and
+        # the fence test above is a proxy that happens to correlate. Reported by
+        # wcag-43 against the shipped rule: their task genuinely IS waiting — on
+        # a sibling task putting a judge back on the production path — so
+        # "a runnable fence means you are not waiting" reached the right verdict
+        # by a route that is not true. The hole it leaves is a task with an
+        # UNRUNNABLE fence and an IN-CORPUS blocker, which passes and should not.
+        #
+        #   Depends-on — another task in this corpus. Someone here can go and do it.
+        #   Blocked-on — something outside it. Nobody here can make it happen sooner.
+        #
+        # Admitting the first into Blocked-on makes it a second spelling of
+        # Depends-on, and the two would drift.
+        elif (sibling := next((d for d in re.findall(r"\bT\d+\b", blocked_on)
+                               if any(id_matches(d, stem) for stem in all_stems)), None)):
+            errors.append(
+                f"{path.name}: Blocked-on names `{sibling}`, which is a task in this corpus — "
+                f"that is what **Depends-on:** is for. Blocked-on is for something nobody here "
+                f"can make happen sooner; a sibling task is work this team owns. Keeping both "
+                f"spellings for the same thing is how two headers drift apart.")
         elif not names_a_check(blocked_on):
             errors.advise(
                 f"{path.name}: Blocked-on names no way to check whether the thing has "

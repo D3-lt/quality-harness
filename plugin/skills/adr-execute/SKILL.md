@@ -124,6 +124,26 @@ Execute tasks wave by wave. For each task in the current wave:
    adr-verify <task.md> --mutant <file> --from <text> --to <text> --why <what this kills>
    ```
 
+   **If the Acceptance fence CANNOT RUN TO COMPLETION**, a mutation you performed by hand has its
+   own lane — a clause whose precondition is not met, not a fence that is merely slow or needs
+   docker, because on a slow fence `--mutant` still produces tool-written truth:
+
+   ```bash
+   adr-verify <task.md> --human-mutant <file> --from <text> --to <text> \
+     --test <name> --test-exit <N> --why <which clause blocks the fence>
+   ```
+
+   It runs nothing, which is the premise. It refuses a `--from` that does not match exactly one
+   place in the file, derives the line number from that match, and requires a non-zero `--test-exit`.
+
+   **This does not make the task `done`.** The `done` gate wants a killed mutant carrying the
+   acceptance digest of the fence it proved, and a hand-reported row has none because no fence ran.
+   A task with real work, real verification and a real hand-performed kill behind an unrunnable
+   fence is `partial` (ADR-014) — record the kill, then say the task is not finished. The lane
+   raises the floor, never the ceiling: if a typed row unlocked `done`, declaring a fence unrunnable
+   would be the cheap path to the strongest claim in the system, resting on the one field nothing
+   can check.
+
    Break the mechanism the test is about — delete the wiring, invert the condition, alias the new
    function to the old one — and let the tool run it. The tool refuses a `--from` that is absent or
    non-unique, refuses a mutant that only changes comments, syntax-checks the mutated file, restores

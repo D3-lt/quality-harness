@@ -27,11 +27,23 @@ test.after(() => { for (const t of temps) rmSync(t, { recursive: true, force: tr
 
 // Spawned through the interpreter: the gates are `#!/usr/bin/env python3` and
 // Windows cannot exec them (CLAUDE.md §7).
-function lint(doc) {
+function lint(doc, files = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'qh-arch-')); temps.push(dir)
-  const file = join(dir, 'architecture.md')
-  writeFileSync(file, doc)
-  const r = spawnSync('python3', [gate, file], { encoding: 'utf8', cwd: dir })
+  writeFileSync(join(dir, 'architecture.md'), doc)
+  for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body)
+  // A REAL repository, because the symbol checks resolve against `git ls-files`.
+  // Without this every symbol "appears nowhere in the repo" -- so the finding fired
+  // for all input, the positive assertion passed for the wrong reason, and the
+  // must-fail direction is what exposed it.
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+    GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'],
+    ['commit', '-qm', 'fixture']]) {
+    const g = spawnSync('git', args, { cwd: dir, env, encoding: 'utf8' })
+    assert.equal(g.status, 0, `git ${args.join(' ')}: ${g.stderr}`)
+  }
+  const r = spawnSync('python3', [gate, join(dir, 'architecture.md')],
+    { encoding: 'utf8', cwd: dir, env })
   return `${r.stdout ?? ''}${r.stderr ?? ''}`
 }
 
@@ -91,4 +103,31 @@ test('arch-lint reports a check cell naming no command', () => {
   // one spelling keeps the test about the behaviour, not the wording.
   assert.match(out, /no backticked command|sync-prose/,
     `a check cell naming no runnable check must be reported: ${out}`)
+})
+
+test('arch-lint reports a check cell citing a symbol the repo does not contain', () => {
+  // Found by scripts/unasserted.mjs after the hand-written list missed it: this is
+  // arch-lint's strongest claim — a rule whose "check" names a function or test
+  // that does not exist anywhere is a rule nothing enforces — and nothing asserted
+  // it fired. It is the architecture-document equivalent of a task naming a test
+  // that was never written.
+  const table = ['## Dependency Contracts', '',
+    '| Rule | Check |', '|------|-------|',
+    '| the domain layer imports no adapter | `assert_no_adapter_imports_anywhere` |', ''].join('\n')
+  const cited = conforming.replace(
+    '## Dependency Contracts\n\nNone — fixture has no import graph.\n', table)
+  assert.notEqual(cited, conforming)
+  assert.match(lint(cited), /appears nowhere in the repo/,
+    'a check naming a symbol that does not exist must be reported')
+
+  // The must-fail direction: a symbol that DOES exist in the repo is accepted, or
+  // the finding fires on every check cell and means nothing. This is what caught
+  // the harness being vacuous.
+  const real = conforming.replace(
+    '## Dependency Contracts\n\nNone — fixture has no import graph.\n',
+    table.replace('`assert_no_adapter_imports_anywhere`', '`assert_no_adapter_imports`'))
+  assert.doesNotMatch(
+    lint(real, { 'rules.py': 'def assert_no_adapter_imports(tree):\n    raise AssertionError\n' }),
+    /appears nowhere in the repo/,
+    'a symbol the repo does contain must not be reported as absent')
 })

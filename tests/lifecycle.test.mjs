@@ -424,6 +424,31 @@ test('shell-hook runner honors Claude Code Git Bash configuration on Windows', (
     PATH: 'C:\\Windows\\System32',
     LOCALAPPDATA: 'C:\\Users\\missing\\AppData\\Local',
   }, () => false), null)
+
+  // The second decoy. WindowsApps holds a 0-byte Store app-execution alias that
+  // existsSync() accepts, so the PATH scan returned it and the install-root
+  // fallback was never reached. Measured 2026-08-30 on Windows 11, where the
+  // registry PATH held no bash-bearing directory except that one. This resolver
+  // and adr-verify's resolve_bash are documented as "same precedence" and were —
+  // including the hole, so they move together or not at all.
+  const alias = 'C:\\Users\\dev\\AppData\\Local\\Microsoft\\WindowsApps\\bash.exe'
+  const bothDecoys = {
+    PATH: `C:\\Windows\\System32;${path.win32.dirname(alias)}`,
+    LOCALAPPDATA: localRoot,
+  }
+  const withAlias = candidate => candidate === alias || candidate === localBash
+  assert.equal(resolveBashExecutable('win32', bothDecoys, withAlias), localBash,
+    'the PATH scan must skip the Store alias and let the install-root fallback answer')
+  assert.equal(resolveBashExecutable('win32', bothDecoys, candidate => candidate === alias), null,
+    'with only decoys present, report absence rather than returning one')
+  // The fixture must be capable of being FOUND, or the two assertions above pass
+  // for the wrong reason — a typo in the path would look identical.
+  assert.equal(resolveBashExecutable('win32',
+    { PATH: 'C:\\Tools\\WindowsAppsX' },
+    candidate => candidate === 'C:\\Tools\\WindowsAppsX\\bash.exe'),
+    'C:\\Tools\\WindowsAppsX\\bash.exe',
+    'only the exact directory name is filtered, not anything containing it')
+
   assert.equal(resolveBashExecutable('linux', { CLAUDE_CODE_GIT_BASH_PATH: configured }), 'bash')
 })
 

@@ -95,7 +95,9 @@ export function resolveBashExecutable(
   const searchPath = env.PATH ?? env.Path ?? ''
   for (const rawDirectory of searchPath.split(path.win32.delimiter)) {
     const directory = rawDirectory.trim().replace(/^"|"$/g, '')
-    if (!directory || /[\\/]system32[\\/]?$/i.test(directory)) continue
+    // Both stubs, for the reason spelled out in adr-verify's resolve_bash: the
+    // WindowsApps entry is a 0-byte Store alias that existsSync() accepts.
+    if (!directory || /[\\/](?:system32|windowsapps)[\\/]?$/i.test(directory)) continue
     const candidate = path.win32.join(directory, 'bash.exe')
     if (candidateExists(candidate)) return candidate
   }

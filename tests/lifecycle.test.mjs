@@ -3430,3 +3430,45 @@ test('adr-state reports the three kinds of record it did not read, separately', 
   assert.doesNotMatch(quiet.stdout, /could NOT be read|govern nothing yet/,
     'a clean corpus gets no warning at all')
 })
+
+test('a signed-off human-observed task is finished, not ready forever', async () => {
+  // Found 2026-08-30 by finishing ADR-012 T4, whose acceptance is human-observed
+  // by design: the observation is a person watching another program on their own
+  // machine, so no fence runs and there is no `exit 0` row to find.
+  //
+  // `unfinished()` tested only for `· exit 0`, so every human-observed task was
+  // permanently ready — adr-lint, adr-debt and the task index all agreed it was
+  // done while this router went on naming it as the next thing to do. adr-lint
+  // already handles the case (it requires a human-observed sign-off for such a
+  // task and accepts nothing else); this reader simply did not.
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const root = await mkdtemp(path.join(testTmp, 'qh-human-'))
+  const record = `# ADR-001: Probe\n\n**Status:** Accepted\n**Date:** 2026-08-30\n`
+  const humanTask = (signed) =>
+    '# Task ADR-001-T1\n\n**Depends-on:** none\n\n## Acceptance\n\n'
+    + 'Acceptance is human-observed: a person restarts the client and reports.\n\n'
+    + '## Verification Log\n\n'
+    + (signed ? '- 2026-08-30 · human-observed · Zy watched it and reported\n' : '')
+  // A tool-run task alongside, so `usesVerificationLog` is true and the branch
+  // under test is actually reached rather than skipped.
+  const evidenced = '# Task ADR-001-T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
+    + '## Verification Log\n\n- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n'
+
+  const tasks = path.join(root, 'docs', 'adr', 'ADR-001-probe', 'tasks')
+  await mkdir(tasks, { recursive: true })
+  await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-probe.md'), record)
+  await writeFile(path.join(tasks, 'T9.md'), evidenced)
+
+  // UNSIGNED: genuinely still waiting on the person, so it IS ready.
+  await writeFile(path.join(tasks, 'T1.md'), humanTask(false))
+  const before = observe(root)
+  assert.equal(before.usesVerificationLog, true, 'otherwise this asserts nothing')
+  assert.ok(before.ready.some(f => f.endsWith('T1.md')),
+    'an unsigned human-observed task is still work someone must do')
+
+  // SIGNED OFF: the observation happened and was recorded. It is finished.
+  await writeFile(path.join(tasks, 'T1.md'), humanTask(true))
+  const after = observe(root)
+  assert.ok(!after.ready.some(f => f.endsWith('T1.md')),
+    `a signed-off human-observed task must not stay ready forever:\n${after.ready.join('\n')}`)
+})

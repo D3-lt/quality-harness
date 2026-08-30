@@ -3156,6 +3156,15 @@
       ],
       "from": "        if any(VLOG_RE.match(b) and \"· exit 0 ·\" in b for b in inf.get(\"vlog\", [])):\n            ids.add(tid)",
       "to": "        if False:\n            ids.add(tid)"
+    },
+    {
+      "label": "ADR-014: Blocked-on is refused where the acceptance can actually run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        if ACCEPTANCE_FENCE.search(acc_text):\n            errors.append(\n                f\"{path.name}: Blocked-on says this task waits on something outside the \"",
+      "to": "        if False:\n            errors.append(\n                f\"{path.name}: Blocked-on says this task waits on something outside the \""
     }
   ]
 }

@@ -55,6 +55,8 @@ node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/acc-t2.out && ! grep -
 
 ## Mutation Log
 
+- 2026-08-30 · 04ace39* · mutant killed · exit 1 · `plugin/bin/adr-verify` · a from-text matching many places identifies none of them, and such a row parses while being unreproducible · acceptance-sha256:9b0aa1080ba1a2ac269bfa8994d55f72547296b0f214b7d213bb0c61244457b1
+
 ## Invariants
 
 - The writer never executes anything. A tool that ran the fence would be `--mutant`, and this exists because that cannot run.
@@ -75,3 +77,4 @@ in docs/BACKLOG.md §67, and it would be worse here.
 - Any check that the reported diff was actually applied. (permanent: nothing observed it; that is what this lane trades away, and the record says so.)
 
 ## Verification Log
+- 2026-08-30 · 04ace39 · exit 0 · `set -o pipefail …` · acceptance-sha256:9b0aa1080ba1a2ac269bfa8994d55f72547296b0f214b7d213bb0c61244457b1

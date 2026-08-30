@@ -4,7 +4,7 @@
 **Date:** 2026-08-29
 **Owner:** zy
 **Spec:** None — no spec stage
-**Cross-references:** docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/BACKLOG.md §74, docs/BACKLOG.md §60
+**Cross-references:** docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-014-a-task-that-is-honestly-unfinished.md, docs/BACKLOG.md §74, docs/BACKLOG.md §60
 **Governs:** `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/templates/task-template.md`
 **Enforced-by:** None — proposed; the enforcing check is what T2 adds, and naming it here before it exists would be a pointer to nothing
 **Served-path change:** A task whose Acceptance cannot run — because a clause of it is blocked — can record a mutation it genuinely performed, and a reader can check that record without trusting the author.
@@ -37,6 +37,10 @@ observe by hand: edit one line, run, read the exit code, revert.
 This is docs/BACKLOG.md §60's shape for the third time in one day: **the truthful path is the one
 with no paperwork available.** A task honestly blocked cannot record what it did; a task willing to
 overstate can.
+
+ADR-014 defers *"recording a mutation a human performed"* to this record. The two are siblings rather
+than sequential: a task can be `partial` without needing this lane, and a blocked fence can need this
+lane while the task is plainly `pending`. Neither depends on the other being accepted.
 
 ## Existing Primitives Audit
 

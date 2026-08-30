@@ -3118,8 +3118,17 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    return r\"(?P<\" + q + r\">`+)(?P<\" + body + r\">.*?)(?P=\" + q + r\")\"",
-      "to": "    return r\"(?P<\" + q + r\">`)(?P<\" + body + r\">[^`]*)(?P=\" + q + r\")\""
+      "from": "            r\"|``(?:[^`\\n]|`(?!`))\" + quant + r\"``\"",
+      "to": "            r\"|``(?:[^`\\n])\" + quant + r\"``\""
+    },
+    {
+      "label": "ADR-013: a rejected row of backticks does not backtrack",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            r\"|```(?:[^`\\n]|`(?!``))\" + quant + r\"```\"",
+      "to": "            r\"|```(?:[^`\\n]|`(?!``))\" + quant + r\"```\" + r\"|(?P<zz>`+).*?(?P=zz)\""
     }
   ]
 }

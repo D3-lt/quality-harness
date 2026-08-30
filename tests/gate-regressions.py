@@ -8,6 +8,7 @@ import io
 import io
 import subprocess
 import sys
+import time
 import tempfile
 from contextlib import redirect_stdout
 from pathlib import Path
@@ -246,7 +247,7 @@ def main():
     # strings, JS template literals, shell, Markdown — are what this plugin ships to.
     backticked = (
         "- 2026-08-30 · human-observed · mutant killed · test exit 1 · `x.go` · line 12 · "
-        "from ``s := `raw` + x`` · to ``s := `` `` · test `TestRaw` · fence needs a live db"
+        "from ``s := `raw` + x`` · to ``y := `q` `` · test `TestRaw` · fence needs a live db"
     )
     assert lint.MLOG_RE.match(backticked), \
         "a variable-length code span must carry a body containing backticks"
@@ -255,6 +256,24 @@ def main():
     assert lint.MLOG_RE.match(
         "- 2026-08-30 · human-observed · mutant killed · test exit 2 · `x.py` · line 9 · "
         "from `a · b` · to `c · d` · test `t` · why"), "delimiters must bound the separator"
+    # An ambiguous span — a two-backtick body that itself contains `` — is REFUSED,
+    # not guessed at. The backreferenced spelling accepted it by lazily closing
+    # early, which is how a row means one thing to the writer and another to the
+    # reader. It is also the spelling that was catastrophically slow (_code_span).
+    assert not lint.MLOG_RE.match(
+        "- 2026-08-30 · human-observed · mutant killed · test exit 1 · `x.go` · line 12 · "
+        "from ``s := `` `` · to `y` · test `T` · why"), "an ambiguous code span must be refused"
+    # And the whole point of the rewrite: a row of backticks is REJECTED FAST.
+    # 600 of them cost `where_it_stopped` 2.07s before this change and grew faster
+    # than the square; a Mutation Log bullet is author-controlled and check_task
+    # runs this per bullet, so the gate hung on a long line instead of reporting it.
+    _t0 = time.perf_counter()
+    _row = ("- 2026-08-30 · human-observed · mutant killed · test exit 1 · `x.py` · line 1 · "
+            "from " + "`" * 4000 + "x")
+    assert not lint.MLOG_RE.match(_row)
+    lint.where_it_stopped(lint.MLOG_RE, _row)
+    _dt = time.perf_counter() - _t0
+    assert _dt < 1.0, f"rejecting a row of backticks must not backtrack: took {_dt:.3f}s"
 
     # Each incomplete variant is REFUSED, not advised: an incomplete claim is not a weaker
     # claim, it is an unreproducible one — a reader cannot re-run what the row does not name.

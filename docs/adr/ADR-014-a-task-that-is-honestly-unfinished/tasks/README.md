@@ -17,6 +17,6 @@ with a task file, the task file wins.
 
 ## Notes
 
-- **The record is `Accepted`** (2026-08-30). These are work orders. None of its three tasks has been executed yet.
+- **The record is `Accepted`** (2026-08-30) and fully executed: T1, T2 and T3 are done, each with tool-written acceptance and mutation evidence.
 - T1 changes a vocabulary three tools read. The vocabulary and its readers move together or §58
   happens again.

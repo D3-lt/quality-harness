@@ -5,7 +5,7 @@ file wins.
 
 | Order | Task | Depends-on | Status |
 |---|---|---|---|
-| 1 | T1 | none | pending |
+| 1 | T1 | none | done |
 | 2 | T2 | T1 | pending |
 | 3 | T3 | T1, T2 | pending |
 

@@ -960,3 +960,35 @@ test('a Mutation Log row of backticks is rejected fast, not backtracked over', (
   assert.ok(elapsed < 10_000,
     `adr-lint must reject a row of backticks without backtracking: took ${elapsed}ms`)
 })
+
+test('the human lane is advised against where a fence could have run', () => {
+  // ADR-013 T2 step 4. The fixture's Acceptance IS a runnable bash fence, so a
+  // human-observed row in it is exactly the case worth a word.
+  //
+  // The wording matters more than the detection, and wcag-43 -- who holds the
+  // only real instance -- said why: their T11 fence is genuinely runnable and
+  // starts fine; it is the fourth clause that cannot complete. So an advisory
+  // reading "this fence looks runnable, use --mutant instead" would be WRONG on
+  // the one real case, and would be ignored, which is how advisories die. It
+  // asks the author to confirm instead, and points at the field that records it.
+  const copy = corpus()
+  addMutationLog(copy)
+  expectExit(humanMutant(copy), 0, 'the row must still be written')
+  const said = `${lint(copy).stdout ?? ''}${lint(copy).stderr ?? ''}`
+  assert.ok(/advice: /.test(said) && /cannot run to completion/.test(said),
+    `a runnable fence carrying a human row must be advised, not blocked: ${said.slice(0, 600)}`)
+  // ADVICE, never a block: the fence may be runnable in CI and not here, which is
+  // a real shape, and refusing it would teach people to route around the gate.
+  expectExit(lint(copy), 0, 'the advisory must not block')
+
+  // The must-fail direction: a task whose Acceptance is human-observed carries no
+  // runnable fence, so the same row must draw NO advice. Without this, an
+  // advisory that fired unconditionally would satisfy the assertion above.
+  const quiet = corpus()
+  addMutationLog(quiet)
+  writeTask(quiet, readTask(quiet).replace(/```bash\n[\s\S]*?```/, 'Human-observed: read end to end.'))
+  expectExit(humanMutant(quiet), 0, 'the row must be written for a human-observed task too')
+  const quietSaid = `${lint(quiet).stdout ?? ''}${lint(quiet).stderr ?? ''}`
+  assert.ok(!/cannot run to completion/.test(quietSaid),
+    `a task with no runnable fence must draw no such advice: ${quietSaid.slice(0, 600)}`)
+})

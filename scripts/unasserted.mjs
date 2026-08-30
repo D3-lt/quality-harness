@@ -80,6 +80,28 @@ function parses(f) {
   return spawnSync(cmd[0], cmd[1], { encoding: 'utf8' }).status === 0
 }
 
+// A REACHABILITY CONTROL, after the baseline and before any per-site verdict.
+// Neuter EVERY finding at once: if the suites still pass, they do not exercise
+// this gate's findings at all, and "17 of 33 assert nothing" would be true,
+// useless, and indistinguishable from a real result. Naming the wrong suites is
+// the easiest way to misuse this tool, so it refuses rather than reporting.
+{
+  let all = original
+  for (const site of [...sites].reverse()) {
+    all = all.slice(0, site.start) + site.indent + (python ? 'pass' : 'void 0') + all.slice(site.end)
+  }
+  writeFileSync(file, all)
+  const reachable = parses(file) && run()
+  writeFileSync(file, original)
+  if (!reachable) {
+    process.stderr.write(
+      `neutering EVERY finding in ${target} changed nothing the named suite(s) check, so they do `
+      + `not exercise its findings and no per-site verdict here would be evidence. Name the suites `
+      + `that drive this gate, or omit them to run the whole gate.\n`)
+    process.exit(2)
+  }
+}
+
 const survivors = []
 const unusable = []
 try {

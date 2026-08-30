@@ -419,7 +419,17 @@ def main():
             for ln in secs.get("Follow-ups", []):
                 s = ln.strip()
                 if s.startswith("- [ ]"):
-                    followups.append((scan_dir, rel, s[5:].strip()))
+                    item = s[5:].strip()
+                    # An explicit statement of ABSENCE is not an open item. The task
+                    # template's own literal is `- [ ] (none at authoring)`, and
+                    # counting it reported "nothing was deferred" as "one thing is
+                    # open" -- inflating the total and, worse, teaching authors to
+                    # DELETE the honest placeholder. That is BACKLOG §73's incentive
+                    # inversion again: the truthful form is the one that costs you.
+                    # Reported 2026-08-30 by pirkiniukampelis-cms-laravel-3d.
+                    if re.fullmatch(r"\(?\s*none\b[^)]*\)?\.?", item, re.I):
+                        continue
+                    followups.append((scan_dir, rel, item))
             # A task waiting on an external event, and how long it has waited.
             #
             # Age comes from the newest dated EVIDENCE ROW anywhere in the task --
@@ -435,7 +445,14 @@ def main():
             # did not make (ADR-005).
             bo = re.search(r"^\*\*Blocked-on:\*\*\s*(.+?)\s*$", text, re.M)
             if bo:
-                seen = sorted(re.findall(r"^- (\d{4}-\d{2}-\d{2}) · ", text, re.M))
+                # Only the EVIDENCE SECTIONS count. Scanning the whole file let a
+                # row-shaped line quoted in prose -- and task files quote the grammar
+                # constantly -- make an old wait look young and delay the 30-day
+                # question. Found by a Codex review; my own first test used a plain
+                # inline date, which never matched, so it proved nothing about this.
+                logged = "\n".join(secs.get("Verification Log", [])
+                                   + secs.get("Mutation Log", []))
+                seen = sorted(re.findall(r"^- (\d{4}-\d{2}-\d{2}) · ", logged, re.M))
                 waiting.append((scan_dir, rel, bo.group(1).strip(),
                                 seen[-1] if seen else None))
 

@@ -3201,6 +3201,33 @@
       ],
       "from": "    if to and to in body:",
       "to": "    if False:"
+    },
+    {
+      "label": "peer: a Tests path outside the repo is unproven not absent",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                if leaves_the_tree(rel):",
+      "to": "                if False:"
+    },
+    {
+      "label": "peer: an explicit statement of absence is not an open follow-up",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                    if re.fullmatch(r\"\\(?\\s*none\\b[^)]*\\)?\\.?\", item, re.I):",
+      "to": "                    if False:"
+    },
+    {
+      "label": "peer: a wait is dated by its evidence logs not by prose",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                logged = \"\\n\".join(secs.get(\"Verification Log\", [])\n                                   + secs.get(\"Mutation Log\", []))",
+      "to": "                logged = text"
     }
   ]
 }

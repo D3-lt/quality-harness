@@ -1999,6 +1999,9 @@ def ignored_paths(root, candidates):
 
 
 def check_tests_exist(infos, readme_text, errors, root):
+    # Paths outside the tree are reported ONCE each: a task naming one file in
+    # eight Tests rows has one problem, not eight.
+    reported_outside = set()
     """A `done` task's Tests table must name tests that exist in the files it names.
 
     This is the static half of the vacuous-acceptance hole. A filter that matches
@@ -2031,6 +2034,31 @@ def check_tests_exist(infos, readme_text, errors, root):
                               f"DIRECTORY — a Tests row must name the file the test lives in")
                 continue
             if f is None:
+                # A path that LEAVES this repository is a "could not look", not an
+                # absence. Reported 2026-08-30 by depozitas-laravel-22: the gate
+                # looked in ONE repository, for a `../` path built to point outside
+                # it, and reported "the row describes a test nothing can run" — while
+                # the test was present in the repo the path names, on an unmerged
+                # branch, added by the very commit the task records.
+                #
+                # Two things were wrong and only one was the wording. It BLOCKED, so
+                # a task whose code genuinely lives elsewhere made the owning repo's
+                # lint permanently red with no reachable state that satisfies it —
+                # and the first thing a team does with a permanently-red gate is stop
+                # running it. And it fired once per Tests ROW, so eight rows naming
+                # one file read as eight problems.
+                #
+                # The tool already owns the right idiom; check_verification says
+                # "could not ask git … so that check did NOT run". CLAUDE.md §3.
+                if leaves_the_tree(rel):
+                    if rel not in reported_outside:
+                        reported_outside.add(rel)
+                        errors.advise(
+                            f"{inf['path'].name}: {tid}'s Tests table names `{rel}`, which points "
+                            f"OUTSIDE this repository, so this check did NOT run for it — whether "
+                            f"those tests exist is unproven here, not disproven. If the code lives "
+                            f"in another repository, say which one in the task, and verify it there.")
+                    continue
                 errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
                               f"Tests table names `{rel}` for `{name}`, but no such file exists "
                               f"in the repo — the row describes a test nothing can run")

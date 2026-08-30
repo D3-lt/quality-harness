@@ -1147,3 +1147,26 @@ test('Blocked-on naming a sibling task is refused, and an external event is not'
       + '**Depends-on:**'))
   expectExit(lint(external), 0, 'an external event must be accepted')
 })
+
+test('a Tests row pointing outside the repository is unproven, not failed', () => {
+  // depozitas-laravel-22: their task's code lives in a sibling repository, so the
+  // Tests table names a `../` path. adr-lint reported "the row describes a test
+  // nothing can run" and BLOCKED — while the test existed in the repo the path
+  // names. A permanently-red gate is one people stop running.
+  const copy = corpus()
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'and its mutant is killed')
+  writeTask(copy, readTask(copy).replace(
+    /(\n\| *)`?[\w./-]+\.(?:py|mjs|js|ts|php)`?( *\|)/,
+    '$1`../sibling_repo/tests/Unit/GuardTest.php`$2'))
+  markDone(copy)
+
+  const got = lint(copy)
+  const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
+  if (/sibling_repo/.test(said)) {
+    assert.match(said, /advice: /, `a path outside the repo must advise, not block: ${said.slice(0, 400)}`)
+    assert.match(said, /did NOT run|unproven/i, 'and say what it could not do')
+  }
+  expectExit(got, 0, `a task whose code lives elsewhere must not be permanently red: ${said.slice(0, 400)}`)
+})

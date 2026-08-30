@@ -2235,6 +2235,47 @@ def main():
         "(curl -sf https://vendor.invalid/status)\n", human_acc)
     assert blocking == [], f"an external event mentioning a T-token must be accepted: {blocking}"
 
+    # A Tests row naming a path OUTSIDE this repository is "I could not look", not
+    # "nothing can run this". Reported 2026-08-30 by depozitas-laravel-22, who then
+    # went and found the test: present in the repo the `../` path names, on an
+    # unmerged branch, added by the very commit the task records. The gate looked in
+    # ONE repository, for a path built to point outside it, and reported absence as a
+    # verdict about the world — CLAUDE.md §3, and the tool already owns the right
+    # idiom nine lines below in its own output ("could not ask git … so that check
+    # did NOT run").
+    #
+    # It also BLOCKED, so a task whose code genuinely lives elsewhere made the owning
+    # repository's lint permanently red with no reachable state that satisfies it.
+    cross = {
+        "T1": {"human": False, "path": Path("T1.md"),
+               "vlog": ["- 2026-08-22 · no-git · exit 0 · `x` "
+                        "· acceptance-sha256:" + "0" * 64],
+               "mlog": [], "acc_all": "x", "acc_first": "x",
+               "tests": [("test_the_sentinel_is_refused",
+                          "../other_repo/tests/Unit/GuardTest.php"),
+                         ("test_a_second_row_same_file",
+                          "../other_repo/tests/Unit/GuardTest.php")]}
+    }
+    errs = lint.Findings()
+    lint.check_tests_exist(cross, "| T1 | probe | done |", errs, Path("."))
+    blocking = [e for e in errs if "GuardTest" in e]
+    advice = [a for a in errs.advice if "GuardTest" in a]
+    assert not blocking, f"a path leaving the repository must not BLOCK: {blocking}"
+    assert advice, "but it must still be reported"
+    assert len(advice) == 1, \
+        f"and once per file, not once per row — two rows named one path: {advice}"
+    assert "could not" in advice[0].lower() or "did not run" in advice[0].lower(), \
+        f"the wording must say what it could not do, not what is absent: {advice[0]}"
+
+    # The must-fail direction: a path INSIDE the repository that does not exist is
+    # still a blocking finding, or this turns a real check into a shrug.
+    inside = {"T1": dict(cross["T1"],
+                         tests=[("test_x", "tests/does_not_exist_here.py")])}
+    errs = lint.Findings()
+    lint.check_tests_exist(inside, "| T1 | probe | done |", errs, Path("."))
+    assert [e for e in errs if "does_not_exist_here" in e], \
+        "a missing file INSIDE the repo must still block"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

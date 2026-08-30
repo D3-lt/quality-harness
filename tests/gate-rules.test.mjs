@@ -1098,3 +1098,50 @@ test('a wait is dated by its newest evidence row, not by prose', () => {
     `a recent Mutation Log row means somebody looked: ${recent.stdout}`)
   assert.match(recent.stdout, /1 waiting/, 'and it is still waiting')
 })
+
+test('an explicit statement of absence is not counted as debt', () => {
+  // Reported by pirkiniukampelis-cms-laravel-3d: the task template's own literal
+  // `- [ ] (none at authoring)` was counted as an open follow-up, so "nothing was
+  // deferred" was reported as "one thing is open". It inflated their corpus total
+  // and, worse, teaches authors to DELETE the honest placeholder — the same
+  // incentive inversion as BACKLOG §73, where the truthful word bought silence.
+  const dir = scratch('absence')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'),
+    '# ADR-001: Probe\n\n## Follow-ups\n\n- [ ] (none at authoring)\n')
+  const got = run('adr-debt', [adrDir], dir)
+  assert.match(got.stdout, /0 open follow-ups/,
+    `an explicit "none" must not be counted as an open item: ${got.stdout}`)
+
+  // The must-fail direction: a REAL open follow-up is still counted, or this
+  // silences the whole check rather than one false positive.
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'),
+    '# ADR-001: Probe\n\n## Follow-ups\n\n- [ ] (none at authoring)\n'
+    + '- [ ] Decide whether the purge job keeps its own schedule\n')
+  const real = run('adr-debt', [adrDir], dir)
+  assert.match(real.stdout, /1 open follow-ups/,
+    `a real follow-up beside the placeholder must still count: ${real.stdout}`)
+})
+
+test('a wait is dated by its evidence logs, not by a row-shaped line in prose', () => {
+  // Reported by a Codex review: the age scan read the WHOLE file for `- <date> · `,
+  // so a quoted example row in prose — which has exactly that shape — could make an
+  // old wait look young and delay the 30-day question. My own earlier test used a
+  // plain inline date, which the scan never matched, so it proved nothing about this.
+  const dir = scratch('waiting-prose-row')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(join(adrDir, 'ADR-001-probe', 'tasks'), { recursive: true })
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'), '# ADR-001: Probe\n')
+  const today = new Date().toISOString().slice(0, 10)
+  writeFileSync(join(adrDir, 'ADR-001-probe', 'tasks', 'T1-quoted.md'),
+    '# Task ADR-001-T1\n\n**Blocked-on:** the vendor enabling the account\n'
+    + '**Depends-on:** none\n\n## Goal\n\nThe grammar looks like this:\n\n'
+    + `- ${today} · no-git · exit 0 · \`probe\`\n\n`     // a quoted EXAMPLE, not evidence
+    + '## Out of Scope\n\n- none\n\n'
+    + '## Verification Log\n\n- 2025-01-05 · no-git · human-observed · a person watched it\n')
+
+  const got = run('adr-debt', [adrDir], dir)
+  assert.match(got.stdout, /already happened/,
+    `a row-shaped line in prose must not reset the clock: ${got.stdout}`)
+})

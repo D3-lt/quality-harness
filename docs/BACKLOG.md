@@ -4745,3 +4745,24 @@ is a stronger inference than "cannot distinguish three cases", and it points the
 already points.
 
 **So the record needs no update. The measurement stands, confirmed on its own build.**
+
+## 87. Nine adr-retire-check findings still assert nothing
+
+Measured, not estimated:
+
+    node scripts/unasserted.mjs plugin/bin/adr-retire-check     # 9 of 33
+
+Down from 17 of 33. The nine are the catalog-path twins of the `--adopt` rules just
+covered (sites 5, 13, 16, 17, 18 repeat sentences that now fire in adoption mode only),
+plus four with no coverage on either path: an accepted archived record with no exact
+active-catalog receipt; a record whose obligations are undetected and whose catalog must
+therefore say so; and a `Replaces:` naming a replacement that does not exist or is not
+discoverable.
+
+**The duplication is the more interesting half.** The same sentences exist twice because
+`adoption_report` re-implements the structural rules the catalog path already has. One
+shared implementation would make both paths testable at once and is the real fix; asserting
+each copy separately doubles the tests to keep a duplication nobody wants.
+
+**Not fixed here.** Deduplicating a gate's rules is a change to what it reports, and it
+wants its own evidence rather than being folded into a hardening pass.

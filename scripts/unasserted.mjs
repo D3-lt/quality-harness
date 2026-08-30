@@ -72,7 +72,16 @@ if (run()) {
   process.exit(2)
 }
 
+/** Whether the file still parses, so a broken edit is never read as a verdict. */
+function parses(f) {
+  const cmd = python
+    ? ['python3', ['-c', 'import ast,sys;ast.parse(open(sys.argv[1]).read())', f]]
+    : ['node', ['--check', f]]
+  return spawnSync(cmd[0], cmd[1], { encoding: 'utf8' }).status === 0
+}
+
 const survivors = []
+const unusable = []
 try {
   process.stdout.write(`${sites.length} finding site(s) in ${target}\n\n`)
   for (const [n, site] of sites.entries()) {
@@ -81,6 +90,18 @@ try {
       + site.indent + (python ? 'pass' : 'void 0')
       + original.slice(site.end)
     writeFileSync(file, neutered)
+    // A neutered file that no longer PARSES is not a measurement. The balancer
+    // counts raw parentheses, so a message containing an unbalanced `)` inside its
+    // string would take the statement's extent wrong -- today no gate has one, but
+    // that is luck rather than design, and the failure mode is silent: the gate
+    // stops starting, every suite goes red, and the site reads as "killed". A
+    // check that cannot tell a broken instrument from a real verdict is the defect
+    // this repository exists to refuse (CLAUDE.md §3).
+    if (!parses(file)) {
+      unusable.push(quoted)
+      process.stdout.write(`${String(n + 1).padStart(3)}  UNUSABLE  ${quoted}\n`)
+      continue
+    }
     const noticed = run()
     if (!noticed) survivors.push(quoted)
     process.stdout.write(`${String(n + 1).padStart(3)}  ${noticed ? 'killed  ' : 'SURVIVED'}  ${quoted}\n`)
@@ -90,4 +111,9 @@ try {
 }
 
 process.stdout.write(`\nrestored. ${survivors.length} of ${sites.length} assert nothing.\n`)
+if (unusable.length) {
+  process.stdout.write(
+    `${unusable.length} site(s) could not be measured -- neutering them left a file that does `
+    + `not parse, so those are UNUSABLE rather than killed or surviving.\n`)
+}
 process.exit(survivors.length ? 1 : 0)

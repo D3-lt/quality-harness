@@ -4295,3 +4295,44 @@ pricing first.
 **Sibling left open deliberately:** whether the same split is used by any other header that names
 a check. Not swept — the class is "a structured header whose separator can occur inside its
 values", and `Enforced-by:` is the only member confirmed.
+
+## 77. The backtracking fix has a regression test and no catalogue mutation
+
+**Found 2026-08-30 while executing ADR-013 T2**, immediately after a Codex review found the
+catastrophic backtracking it is about (the fix is in the commit that removes the backreferenced
+code span).
+
+The property — *rejecting a Mutation Log row of backticks must not backtrack* — is guarded twice,
+once in `tests/gate-regressions.py` against the compiled pattern and once in
+`tests/evidence-chain.test.mjs` through the real `adr-lint` binary. Both assert a wall-clock bound.
+Neither is in `tests/mutations.json`, and the entry written for it was **removed rather than kept**.
+
+**Why it was removed, which is the part worth recording.** The mutation reintroduced the
+backreferenced span as an extra alternative:
+
+    r"|```(?:[^`\n]|`(?!``))" + quant + r"```" + r"|(?P<zz>`+).*?(?P=zz)"
+
+It came back RED, and the campaign named **fifteen** killing tests including every unrelated one.
+That is the tell. `_code_span` is called twice (once for `from`, once for `to`), so any NAMED group
+inside it is defined twice in one pattern, and the mutant does not slow `adr-lint` down — it stops
+it importing:
+
+    re.PatternError: redefinition of group name 'zz' as group 2; was group 1
+
+So the row would have claimed a timing property was protected while measuring "the module still
+loads". A mutation that kills for the wrong reason is the same defect as one that survives for the
+wrong reason (CLAUDE.md §4), and it is harder to notice because the verdict looks right.
+
+**The obstacle is structural.** A backreference needs a named or numbered group; the helper is
+called twice per pattern; so no mutation that reintroduces the original spelling can avoid the
+collision. Reintroducing catastrophic backtracking WITHOUT a backreference is possible in principle
+(nested quantifiers over an ambiguous class) but was not attempted — inventing a second pathological
+regex to prove a fix against the first is a worse trade than saying plainly that this one is
+covered by assertion and not by mutation.
+
+**What would close it:** either a `_code_span` that takes its group name as a parameter, so a mutant
+can be unique per call site, or a mutation catalogue that can express "this must complete inside N
+seconds" as a first-class claim rather than as a side effect of a broken regex. Neither is worth
+doing for one property; both become worth doing at the second.
+
+**Left open deliberately, at one instance.**

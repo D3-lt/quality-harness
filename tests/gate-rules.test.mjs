@@ -1004,3 +1004,65 @@ test('qh-root answers with a plugin directory, or with nothing at all', () => {
     rmSync(empty, { recursive: true, force: true })
   }
 })
+
+// --- ADR-014 T3: waiting is not debt ----------------------------------------
+
+test('a task waiting on an external event is not counted as debt', () => {
+  const dir = scratch('waiting')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(join(adrDir, 'ADR-001-probe', 'tasks'), { recursive: true })
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'), '# ADR-001: Probe\n')
+
+  const task = (name, blockedOn, vlogDate) => writeFileSync(
+    join(adrDir, 'ADR-001-probe', 'tasks', name),
+    `# Task ADR-001-${name}\n\n`
+    + (blockedOn ? `**Blocked-on:** ${blockedOn}\n` : '')
+    + '**Depends-on:** none\n\n## Goal\n\ng\n\n## Out of Scope\n\n- none\n\n'
+    + '## Verification Log\n'
+    + (vlogDate ? `\n- ${vlogDate} · no-git · human-observed · a person watched it\n` : ''))
+
+  // Waiting on the outside world, and recent. It is reported, and it is NOT debt:
+  // the deferred count means work punted with a pointer, and this is work whose
+  // pointer is an event in the world. A number that silently changed definition
+  // would be worse than a missing one.
+  task('T1-waiting.md', 'commit abc1234 is an ancestor of master'
+    + ' (git merge-base --is-ancestor abc1234 master)', '2026-08-29')
+  const got = run('adr-debt', [adrDir], dir)
+  assert.match(got.stdout, /1 waiting/, `a waiting bucket must appear: ${got.stdout}`)
+  assert.match(got.stdout, /0 deferred/,
+    `and waiting must not be counted as deferred debt: ${got.stdout}`)
+  assert.match(got.stdout, /abc1234/, 'the event itself must be shown, not just counted')
+
+  // The must-fail direction: a task with no Blocked-on produces no waiting line,
+  // or the bucket counts every task and means nothing.
+  const plain = scratch('waiting-none')
+  const plainAdr = join(plain, 'adr')
+  mkdirSync(join(plainAdr, 'ADR-001-probe', 'tasks'), { recursive: true })
+  writeFileSync(join(plainAdr, 'ADR-001-probe.md'), '# ADR-001: Probe\n')
+  writeFileSync(join(plainAdr, 'ADR-001-probe', 'tasks', 'T1-plain.md'),
+    '# Task ADR-001-T1\n\n**Depends-on:** none\n\n## Goal\n\ng\n\n'
+    + '## Out of Scope\n\n- none\n\n## Verification Log\n')
+  const none = run('adr-debt', [plainAdr], plain)
+  assert.match(none.stdout, /0 waiting/, `no Blocked-on means nothing waiting: ${none.stdout}`)
+})
+
+test('an old wait asks whether the event has already happened', () => {
+  const dir = scratch('waiting-old')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(join(adrDir, 'ADR-001-probe', 'tasks'), { recursive: true })
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'), '# ADR-001: Probe\n')
+  writeFileSync(join(adrDir, 'ADR-001-probe', 'tasks', 'T1-stale.md'),
+    '# Task ADR-001-T1\n\n**Blocked-on:** the vendor enabling the account\n'
+    + '**Depends-on:** none\n\n## Goal\n\ng\n\n## Out of Scope\n\n- none\n\n'
+    + '## Verification Log\n\n- 2025-01-05 · no-git · human-observed · a person watched it\n')
+
+  const got = run('adr-debt', [adrDir], dir)
+  // The failure mode of a real wait is not that it rots — it is that the event
+  // happens and nobody looks again. So an old one is asked about, not scolded.
+  assert.match(got.stdout, /already happened/,
+    `an old wait must ask whether the event has already happened: ${got.stdout}`)
+  const line = got.stdout.split('\n').find(l => l.includes('waiting '))
+  assert.ok(line, `a waiting line must be printed: ${got.stdout}`)
+  assert.doesNotMatch(line, /rot|stale|overdue|neglect/i,
+    `the wording must ask, not scold: ${line}`)
+})

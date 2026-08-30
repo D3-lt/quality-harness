@@ -451,3 +451,26 @@ test('the template and the execute skill agree about the human mutation lane', (
   assert.ok(/MLOG_DIGEST_RE/.test(lint),
     'the done gate must still be the digest-bound one the documents describe')
 })
+
+// ADR-014 T3. The status legend an author reads must BE the vocabulary the gate
+// acts on. It was not: the shipped legend advertised `running` and `failed`,
+// which KNOWN_TASK_STATUS has never contained, so a task written by following the
+// template was reported as carrying a status the checks skipped. A template that
+// promises a rule the gates do not implement is the "list kept beside the truth"
+// this corpus exists to refuse — and this is that list, in the template itself.
+test('the task README legend lists exactly the statuses the gate acts on', () => {
+  const legend = readFileSync(join(root, 'templates', 'tasks-readme-template.md'), 'utf8')
+  const lint = readFileSync(join(bin, 'adr-lint'), 'utf8')
+
+  const declared = /KNOWN_TASK_STATUS = \{([^}]*)\}/.exec(lint)
+  assert.ok(declared, 'adr-lint must declare KNOWN_TASK_STATUS')
+  const vocabulary = [...declared[1].matchAll(/"([a-z]+)"/g)].map(m => m[1]).sort()
+
+  const line = legend.split('\n').find(l => l.startsWith('Status:'))
+  assert.ok(line, 'the legend must have a Status: line')
+  const advertised = [...line.matchAll(/`([a-z]+)`/g)].map(m => m[1]).sort()
+
+  assert.deepEqual(advertised, vocabulary,
+    `the legend and the gate must name the same statuses — legend ${advertised.join()}, `
+    + `gate ${vocabulary.join()}`)
+})

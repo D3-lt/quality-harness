@@ -3165,6 +3165,24 @@
       ],
       "from": "        if ACCEPTANCE_FENCE.search(acc_text):\n            errors.append(\n                f\"{path.name}: Blocked-on says this task waits on something outside the \"",
       "to": "        if False:\n            errors.append(\n                f\"{path.name}: Blocked-on says this task waits on something outside the \""
+    },
+    {
+      "label": "ADR-014: waiting is counted and shown separately from debt",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "                waiting.append((scan_dir, rel, bo.group(1).strip(),\n                                seen[-1] if seen else None))",
+      "to": "                pass"
+    },
+    {
+      "label": "ADR-014: an old wait asks rather than scolds",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if age is not None and age >= STALE_AFTER_DAYS:",
+      "to": "        if False:"
     }
   ]
 }

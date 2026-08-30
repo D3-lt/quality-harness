@@ -3354,6 +3354,15 @@
       ],
       "from": "        if tracked is not None and q.resolve() not in tracked:\n            continue",
       "to": "        if False:\n            continue"
+    },
+    {
+      "label": "windows: a python3 that is not Python is refused",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (probe.status === 0 && (probe.stdout ?? '').trim() === '3') return [command, ...prefix]",
+      "to": "    if (!probe.error) return [command, ...prefix]"
     }
   ]
 }

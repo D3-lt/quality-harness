@@ -3246,6 +3246,33 @@
       ],
       "from": "    if (/^\\s*Acceptance is human-observed:/im.test(text)\n      && /^- \\d{4}-\\d{2}-\\d{2} · human-observed · \\S/m.test(text)) return false",
       "to": "    if (false) return false"
+    },
+    {
+      "label": "foreign: a cross-repo Tests path does not block a consumer corpus",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/foreign-corpus.test.mjs"
+      ],
+      "from": "                if leaves_the_tree(rel):",
+      "to": "                if False:"
+    },
+    {
+      "label": "foreign: an explicit none is not debt in a consumer corpus",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/foreign-corpus.test.mjs"
+      ],
+      "from": "                    if re.fullmatch(r\"\\(?\\s*none\\b[^)]*\\)?\\.?\", item, re.I):",
+      "to": "                    if False:"
+    },
+    {
+      "label": "foreign: partial stays in the vocabulary a consumer corpus uses",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/foreign-corpus.test.mjs"
+      ],
+      "from": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\", \"partial\"}",
+      "to": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\"}"
     }
   ]
 }

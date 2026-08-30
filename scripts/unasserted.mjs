@@ -19,7 +19,7 @@
 //
 //   node scripts/unasserted.mjs plugin/bin/adr-retire-check [suite.test.mjs ...]
 import { spawnSync } from 'node:child_process'
-import { readFileSync, writeFileSync } from 'node:fs'
+import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
@@ -30,8 +30,42 @@ if (!target) {
   process.exit(2)
 }
 
+// AN ON-DISK JOURNAL, and it is the only thing that protects the tree.
+//
+// This neuters real source and restores it. A `finally` handles an ordinary
+// throw; it does NOT handle SIGINT, SIGTERM or a lost process, and this is one
+// long SYNCHRONOUS loop, so Node never reaches the event loop and a signal
+// handler could not run while it is working. scripts/mutate.mjs learned exactly
+// this on 2026-08-27 -- SIGTERM was sent twice and the run carried on. A review
+// pointed out this tool had the same shape and none of the protection.
+//
+// So: write the original beside the run before touching anything, recover from it
+// at startup, and remove it on a clean finish.
+const journalPath = path.join(root, '.unasserted-inflight.json')
+
+function recover() {
+  if (!existsSync(journalPath)) return
+  const { file: was, original: text } = JSON.parse(readFileSync(journalPath, 'utf8'))
+  writeFileSync(was, text)
+  rmSync(journalPath, { force: true })
+  process.stderr.write(`unasserted: restored ${path.relative(root, was)} from an interrupted run\n`)
+}
+recover()
+
 const file = path.join(root, target)
 const original = readFileSync(file, 'utf8')
+
+// REFUSE OVER A DIRTY TARGET. The restore below writes `original` back
+// wholesale, so an edit made while this runs is silently rolled back -- the same
+// way mutate.mjs lost two patches on 2026-08-26.
+const dirty = spawnSync('git', ['status', '--porcelain', '--', target],
+  { cwd: root, encoding: 'utf8' })
+if (dirty.status === 0 && dirty.stdout.trim()) {
+  process.stderr.write(`${target} has uncommitted changes, and this run restores it wholesale -- `
+    + 'an edit made while it works would be rolled back. Commit or stash first.\n')
+  process.exit(2)
+}
+writeFileSync(journalPath, JSON.stringify({ file, original }))
 const neuter = path.join(root, 'scripts', 'neuter.py')
 const py = (...args) => spawnSync('python3', [neuter, ...args], { input: original, encoding: 'utf8' })
 
@@ -102,10 +136,9 @@ try {
       `${String(n + 1).padStart(3)}  ${noticed ? 'killed  ' : 'SURVIVED'}  ${quoted.slice(0, 68)}\n`)
   }
 } finally {
-  // An ordinary throw reaches here. A KILLED PROCESS DOES NOT: scripts/mutate.mjs
-  // journals its mutant for exactly that reason, and this tool does not yet, so an
-  // interrupted run can leave a gate neutered. `git checkout -- <gate>` repairs it.
+  // The journal is the guarantee; this is the fast path for an ordinary exit.
   writeFileSync(file, original)
+  rmSync(journalPath, { force: true })
 }
 
 process.stdout.write(`\nrestored. ${survivors.length} of ${sites.length} assert nothing.\n`)

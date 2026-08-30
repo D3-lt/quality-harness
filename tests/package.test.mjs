@@ -648,31 +648,38 @@ test('every shipped gate carries at least one mutation', () => {
   assert.deepEqual(uncovered(['ghost-gate'], new Set([`${binPrefix}real-gate`])), ['ghost-gate'],
     'the check must be able to name an uncovered gate, or it asserts nothing')
 
-  // SHIPPED SCRIPTS TOO. The scope was bin/ alone, and plugin/scripts/ ships
-  // executable logic as well -- including post-edit-check.sh, a PostToolUse hook
-  // that runs after EVERY Edit/Write for every user. It carried no mutation and
-  // no behavioural test at all, and this check could not see it, because the one
-  // place a gate can hide from "a gate nothing mutates" is outside bin/.
+  // SHIPPED SCRIPTS TOO, and from the INDEX rather than the disk. The scope was
+  // bin/ alone, and plugin/scripts/ ships executable logic as well -- including
+  // post-edit-check.sh, a PostToolUse hook that runs after EVERY Edit/Write. It
+  // carried no mutation and no behavioural test, and this check could not see it.
   //
-  // Trivial forwarders are excluded by size rather than by name: a wrapper has
-  // nothing to assert, and listing exemptions is how the list becomes the truth.
-  const scriptsDir = join(root, 'scripts')
-  const scriptPrefix = `${relative(repoRoot, scriptsDir).split(sep).join('/')}/`
-  const scripts = readdirSync(scriptsDir, { withFileTypes: true })
-    .filter(e => e.isFile() && /\.(sh|mjs)$/.test(e.name))
-    .filter(e => readFileSync(join(scriptsDir, e.name), 'utf8').split('\n').length >= 60)
-    .map(e => e.name).sort()
-  // Shown capable of naming one, for the same reason the bin/ predicate is: a
-  // complete catalogue and a predicate that returns nothing at all look identical.
-  assert.deepEqual(
-    ['ghost-script.sh'].filter(n => !new Set([`${scriptPrefix}real.sh`]).has(`${scriptPrefix}${n}`)),
-    ['ghost-script.sh'], 'the scripts predicate must be able to name an uncovered script')
-  assert.ok(scripts.length >= 5, `expected the shipped scripts, found ${scripts.length}`)
-  const bareScripts = scripts.filter(n => !covered.has(`${scriptPrefix}${n}`))
+  // Three escape hatches went with the first version of the widening and a review
+  // named all three: a >= 60 line threshold nothing asserted, an extension list
+  // that admitted .sh and .mjs only, and readdirSync, which answers "is this on
+  // THIS machine" rather than "is this in the repository" (CLAUDE.md §8).
+  //
+  // So: every tracked file under plugin/scripts/, recursively, whatever its
+  // extension. Trivial forwarders are named EXPLICITLY below rather than excluded
+  // by a rule, because a rule is what a new file slips through.
+  const shippedScripts = spawnSync('git', ['ls-files', '--', 'plugin/scripts'],
+    { cwd: repoRoot, encoding: 'utf8' })
+  assert.equal(shippedScripts.status, 0, 'git must list the shipped scripts')
+  const scriptPaths = shippedScripts.stdout.split('\n').filter(Boolean)
+  assert.ok(scriptPaths.length >= 5, `expected the shipped scripts, found ${scriptPaths.length}`)
+
+  // A forwarder has no behaviour to assert. Each entry is a claim someone can
+  // check, and a file that stops being trivial has to be removed from the list
+  // deliberately -- which is the point.
+  const trivial = new Set([])
+  const bareScripts = scriptPaths.filter(p => !covered.has(p) && !trivial.has(p))
+  // Shown capable of naming one, for the same reason the bin/ predicate is.
+  assert.deepEqual(['plugin/scripts/ghost.sh'].filter(p => !new Set(['plugin/scripts/real.sh']).has(p)),
+    ['plugin/scripts/ghost.sh'], 'the scripts predicate must be able to name an uncovered script')
   assert.deepEqual(bareScripts, [],
     `these shipped scripts carry no mutation in tests/mutations.json: ${bareScripts.join(', ')}. `
-    + 'A shipped script nothing mutates has never been shown to assert anything, and a hook '
-    + 'that runs on every edit is the last place that should be true.')
+    + 'A shipped script nothing mutates has never been shown to assert anything, and a hook that '
+    + 'runs on every edit is the last place that should be true. If one is a trivial forwarder, '
+    + 'name it in `trivial` above with the reason.')
 
   const bare = uncovered(gates, covered)
   // Name the gate. "expected 10 to be 11" makes the reader redo the enumeration

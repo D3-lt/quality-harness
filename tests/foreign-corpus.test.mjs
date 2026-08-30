@@ -17,6 +17,8 @@
 // is absent", so what matters is which words it uses.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
+import { cpSync, mkdtempSync, rmSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -24,7 +26,23 @@ import { fileURLToPath } from 'node:url'
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
 const bin = join(repoRoot, 'plugin', 'bin')
-const corpus = join(testDir, 'fixtures', 'foreign')
+
+// A COPY IN ITS OWN REPOSITORY. Running a git-aware gate inside this checkout is
+// what CLAUDE.md §9 forbids -- a test that spawns git in a directory it did not
+// create is one typo from committing here -- and it also made the fixture's
+// findings depend on this repository's index rather than on the fixture.
+const temps = []
+test.after(() => { for (const t of temps) rmSync(t, { recursive: true, force: true }) })
+const corpus = mkdtempSync(join(tmpdir(), 'qh-foreign-')); temps.push(corpus)
+cpSync(join(testDir, 'fixtures', 'foreign'), corpus, { recursive: true })
+{
+  const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
+    GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
+  for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
+    const r = spawnSync('git', args, { cwd: corpus, env, encoding: 'utf8' })
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+  }
+}
 const adrDir = join(corpus, 'adr')
 
 // Spawned through the interpreter: the gates are `#!/usr/bin/env python3` scripts
@@ -63,6 +81,11 @@ test('a consumer-shaped corpus draws no verdict the gates did not earn', () => {
   // able to reach green by doing ordinary work, never by moving the code or lying
   // about where it lives. A permanently-red gate is one people stop running.
   const blocking = out.split('\n').filter(l => l.trim() && !l.includes('advice:') && !l.startsWith('['))
+  // The control the filter needs. `aboutCrossRepo === []` is also true when there
+  // are NO blocking findings at all, so without this the assertion below is
+  // satisfied by a gate that said nothing.
+  assert.ok(blocking.length > 0,
+    `this fixture is deliberately incomplete and must draw blocking findings:\n${out}`)
   const aboutCrossRepo = blocking.filter(l => /sibling_repo|\.\.\//.test(l))
   assert.deepEqual(aboutCrossRepo, [],
     `no BLOCKING finding may be about living in two repositories:\n${aboutCrossRepo.join('\n')}`)

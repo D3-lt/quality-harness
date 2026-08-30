@@ -21,3 +21,4 @@ __pycache__/
 
 # macOS writes this into any directory Finder touches.
 .DS_Store
+.unasserted-inflight.json

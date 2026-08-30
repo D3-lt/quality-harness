@@ -154,6 +154,33 @@ exactly the thing this section replaced.
 The acceptance digest binds the mutant to the exact fence it proved could fail; changing the fence
 invalidates both passing and mutation evidence.
 
+WHEN THE FENCE CANNOT RUN TO COMPLETION — and only then — a mutation you performed BY HAND has a
+lane of its own:
+
+  adr-verify <task.md> --human-mutant <file> --from <text> --to <text> --test <name> --test-exit <N> --why <text>
+
+  - YYYY-MM-DD · human-observed · mutant killed · test exit <N> · `<file>` · line <N> · from `<a>` · to `<b>` · test `<name>` · <why>
+
+"Cannot run to completion" means a CLAUSE whose precondition is not met — an integration step against
+something this checkout cannot reach. It does not mean slow, or awkward, or needing docker: on a slow
+fence `--mutant` still produces tool-written truth, it just costs time. Say in `<why>` WHICH clause
+blocks it; `adr-lint` advises when a runnable fence uses this lane, and that sentence is the answer.
+
+The tool checks what it can — your `--from` must match exactly one place in the named file, and the
+line number is derived from that match rather than typed — and it runs nothing, which is the premise.
+What it cannot check is that you applied the diff at all. That is what this lane trades away.
+
+THE LANE RAISES THE FLOOR, NEVER THE CEILING. It does not make a task `done`. The `done` gate wants a
+killed mutant carrying the acceptance digest of the fence it proved, and a hand-reported row has no
+digest because no fence ran — so a task with real work, real verification and a real hand-performed
+kill sitting behind an unrunnable fence is not `done` and not `pending`. It is `partial` (ADR-014),
+which is a status with obligations rather than an exemption.
+
+The reason it stops there is an incentive, not a technicality. If a hand-typed row unlocked `done`,
+then *declaring your fence unrunnable* would become the cheap path to the strongest claim in the
+system — and that claim is the one half of the row nothing can verify. The mutation half is checkable
+against the file; "the fence could not run" is prose. Do not build `done` on the unverifiable half.
+
 Why the table that used to live here became a tool: every other check in this pipeline proves a
 command exited 0, and nothing proved a command CAN exit non-zero — so a test bound to nothing passes
 exactly like a test bound to the mechanism. The old `| Mutation | Compiles? | Test that goes red |`

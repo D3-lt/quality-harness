@@ -998,3 +998,37 @@ test('the human lane is advised against where a fence could have run', () => {
   assert.ok(!/cannot run to completion/.test(quietSaid),
     `a task with no runnable fence must draw no such advice: ${quietSaid.slice(0, 600)}`)
 })
+
+test('a human-reported kill records the mutation and does not unlock done', () => {
+  // ADR-013 T3's decision, asserted rather than asserted-about. The lane raises
+  // the floor, never the ceiling: the `done` gate wants a killed mutant carrying
+  // the acceptance digest of the fence it proved, and a hand-reported row has no
+  // digest because no fence ran.
+  //
+  // The reason it stops there is an incentive, not a technicality. If a typed row
+  // unlocked `done`, declaring a fence unrunnable would become the cheap path to
+  // the strongest claim in the system — and "the fence could not run" is the one
+  // half of the row nothing can check. The mutation half IS checkable against the
+  // file; the excuse is prose. Do not build `done` on the unverifiable half.
+  const copy = corpus()
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence itself passes')
+  addMutationLog(copy)
+  expectExit(humanMutant(copy), 0, 'and the hand-performed kill is recorded')
+  markDone(copy)
+
+  const got = lint(copy)
+  assert.notEqual(got.status, 0, 'a human row must not satisfy the done gate')
+  const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
+  assert.match(said, /mutant/i,
+    `and the refusal must be the MUTATION requirement, not something else: ${said.slice(0, 400)}`)
+
+  // The must-fail direction: a tool-written kill on the same task DOES satisfy it.
+  // Without this, a done gate that refused everything would satisfy the assertion
+  // above (CLAUDE.md §4).
+  const ok = corpus()
+  expectExit(verify(ok, ['--cwd', '.']), 0, 'fence passes')
+  addMutationLog(ok)
+  expectExit(mutate(ok), 0, 'and a tool-written mutant is killed')
+  markDone(ok)
+  expectExit(lint(ok), 0, 'a tool-written kill must still unlock done')
+})

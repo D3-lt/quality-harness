@@ -4447,3 +4447,43 @@ fence cannot run can find the lane at all". Both rows are in the task's Mutation
 and the kill — because the survivor is the more interesting of the two.
 
 **One instance. Left open.**
+
+## 81. The same ReDoS class, written twice in one day, the second time after being told
+
+**Found 2026-08-30 by the session that had just fixed the first one**, while preparing questions for
+a review rather than by a test.
+
+The Mutation Log code span shipped with `(?P<q>`+)(?P<body>.*?)(?P=q)`, which a Codex review found
+was catastrophically slow on input it REJECTS (2.07s at 600 backticks). That was fixed, the lesson
+written into `wing_craft`, and the commit message explained it at length.
+
+Hours later, the same session wrote ADR-014 T2's advisory as:
+
+    re.search(r"\(([^()]*[a-z][^()]*)\)\s*$", value)
+
+Two unbounded classes either side of a required character. Measured on a `Blocked-on` value that
+opens a parenthesis and never closes one:
+
+    n=16000   0.84s
+    n=60000  11.92s
+
+Same shape, same day, same author, after the lesson. Replaced with a linear scan from the end
+(`names_a_check`): 0.00005s at 400 000 characters.
+
+**What is worth recording is not the regex — it is that knowing the rule did not prevent it.** The
+first one was found by an outside reviewer; the second by deliberately re-asking that reviewer's
+question against new code. Neither was found by the suite, because in both cases every assertion was
+green: the cost falls on the REJECTING path, and a test that feeds a validator VALID input never
+pays it.
+
+**So the generalisable practice is not "avoid backreferences".** It is:
+
+1. **Every validator gets a rejecting-path timing assertion**, not only a correctness assertion.
+   Both fixes now carry one; nothing else in this repository does.
+2. **When a review finds a class, re-run its question against everything written since** — including
+   code written after the fix, which is where this one was.
+
+**Not swept.** The class is "a regex with two unbounded quantifiers separated by a required element,
+applied to author-controlled text". `plugin/bin/` has other regexes and none has been measured this
+way. That sweep is the open item, and it is a command somebody should write rather than an opinion
+somebody should hold.

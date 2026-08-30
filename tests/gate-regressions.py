@@ -2191,6 +2191,23 @@ def main():
     _, advice = blocked_on_findings(event, human_acc)
     assert advice == [], f"a Blocked-on naming a runnable check must not be advised at: {advice}"
 
+    # ADR-014 T2 — the advisory's checkable-event test must be LINEAR.
+    # Its natural regex spelling backtracked quadratically on a value that opens a
+    # parenthesis and never closes one: 0.84s at 16k characters, 11.9s at 60k, with
+    # the cost on the REJECTING path — which is the path that fires the advisory.
+    # That is the same finding a review had just made about the Mutation Log code
+    # span, written again the same day by the session that had been told.
+    assert lint.names_a_check(
+        "commit abc is an ancestor of master (git merge-base --is-ancestor abc master)")
+    assert lint.names_a_check("`git merge-base --is-ancestor abc master`")
+    assert not lint.names_a_check("the upstream team getting round to it")
+    assert not lint.names_a_check("wait (see (this) thing)"), "nested parens are prose"
+    assert not lint.names_a_check("waiting ()"), "an empty parenthesis names nothing"
+    _t0 = time.perf_counter()
+    assert not lint.names_a_check("(" + "a" * 200000)
+    _dt = time.perf_counter() - _t0
+    assert _dt < 0.5, f"an unclosed parenthesis must not backtrack: took {_dt:.3f}s"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

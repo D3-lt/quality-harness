@@ -812,3 +812,61 @@ test('an ordinary run recovers a mutant a killed run left, before it measures an
   assert.match(result.stdout, /RESTORED/)
   assert.ok(!mutated(copy), 'the run measured a tree that still held the mutant')
 })
+
+// ADR-013 T1. The human-observed mutation arm, driven through the REAL adr-lint
+// binary on a real corpus rather than against the compiled pattern. The pattern
+// assertions live in tests/gate-regressions.py; this is the mutation catalogue's
+// killer, because scripts/mutate.mjs runs node suites and cannot execute a .py
+// one — a mutation that names a suite this runner cannot start is reported as a
+// failing baseline, never as evidence.
+const humanRow = (over = {}) => {
+  const f = {
+    exit: 'test exit 1',
+    file: '`src/scorer.py`',
+    line: 'line 187',
+    from: 'from `if match_reason(node) == "right_reason":`',
+    to: 'to `if True:`',
+    test: 'test `test_reason_matching_counts_right_and_wrong`',
+    why: 'the fence’s integration clause cannot run',
+    ...over,
+  }
+  return `- 2026-08-30 · human-observed · mutant killed · ${f.exit} · ${f.file}`
+    + ` · ${f.line} · ${f.from} · ${f.to} · ${f.test} · ${f.why}`
+}
+
+function lintWithMutationRow(row) {
+  const copy = corpus()
+  addMutationLog(copy)
+  writeTask(copy, `${readTask(copy).trimEnd()}\n${row}\n`)
+  return lint(copy)
+}
+
+test('a mutation a human performed is accepted where the tool could not run it', () => {
+  expectExit(lintWithMutationRow(humanRow()), 0,
+    'adr-lint must accept a complete human-observed mutation row')
+
+  // A body holding a backtick is the case the first draft of this arm could not
+  // express: 26 of this repository's tool mutations contain one, and Go raw
+  // strings, JS template literals and shell make it routine in what we ship to.
+  expectExit(lintWithMutationRow(humanRow({
+    file: '`x.go`',
+    from: 'from ``s := `raw` + x``',
+    to: 'to ``s := `` ``',
+    test: 'test `TestRaw`',
+  })), 0, 'a Markdown code span must carry a body containing backticks')
+})
+
+test('a human-observed row that cannot be reproduced is refused, not advised', () => {
+  // Each of these parses as prose and would read as evidence. An incomplete claim
+  // is not a weaker claim, it is an unreproducible one.
+  for (const [why, row] of [
+    ['a kill claimed on a passing test', humanRow({ exit: 'test exit 0' })],
+    ['no line number', humanRow({ line: null })],
+    ['no test named', humanRow({ test: null })],
+    ['no diff', humanRow({ from: null, to: null })],
+  ]) {
+    const built = row.replace(/ · null/g, '')
+    assert.notEqual(lintWithMutationRow(built).status, 0,
+      `adr-lint must refuse a human-observed row with ${why}: ${built}`)
+  }
+})

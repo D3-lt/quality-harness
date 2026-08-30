@@ -4825,6 +4825,18 @@ cannot hit them; a Windows contributor can.
 restoring the `run.error` condition and watching the test fail. No line of it has executed on
 Windows, and CI will not change that for the reason above.
 
+**The mechanism, measured 2026-08-30 and visible without running either alias.** Every Python
+app-execution alias on that box carries the timestamp `21:47:39` that day — `py.exe`,
+`python.exe`, `python3.exe`, `pythonw.exe`, `pymanager.exe` and two more, all 0 bytes, all
+rewritten by a Python install that happened mid-investigation. `bash.exe` in the same directory
+is 0 bytes and dated `2026-08-20`: untouched, still pointing at an application nobody installed.
+
+That difference is the entire distinction between an alias that runs and an alias that does
+not, **and no filesystem predicate available to the resolver can see it.** Both are 0 bytes,
+both satisfy `isfile()`, both carry exactly the right name. This is not an argument for reading
+timestamps — it is the argument against every cheap predicate, timestamps included, and for
+asking the candidate a question only the real tool answers.
+
 **The alias is not reliably dead, and that strengthens the fix rather than weakening it.**
 Measured later the same day on the same box: `python3 --version` returned `Python 3.14.7` and
 exit 0, where hours earlier it had returned "Python was not found" and 9009. A WindowsApps
@@ -5154,6 +5166,25 @@ construct that cannot tell two causes apart and confidently reports the wrong on
 `where /q py` succeeding being read as evidence about a later command's exit code; this is a
 failed subprocess being read as an empty result. That both survived in one generator is the
 argument for looking at the whole file rather than the line.
+
+**This is the DEFAULT state of a stock Windows box, not an edge case, and that was measured
+after the entry was first written.** The finding was reached by stripping `node` from PATH
+deliberately — but the reporting session then checked when node arrived on that machine:
+
+    C:\Program Files\nodejs              directory created  2026-08-30 21:49
+    C:\Program Files\nodejs\node.exe     file created       2026-08-26 09:28
+
+The MSI preserves the build's file timestamps, so the binary looks four days old inside a
+directory that is minutes old — and reading the binary's own date first would have said "node
+predates this investigation". A second query found the real answer. Before 21:49 that day there
+was no node on the box at all: not under Program Files, not nvm, not scoop, and nothing but an
+empty npm prefix under the roaming profile. So for the entire first half of this investigation
+the machine was in exactly this state — plugin correctly installed, gate present and working,
+forwarder reporting "no installed plugin … install or update the plugin", exit 4.
+
+Anyone on a stock Windows box without node gets that message, and the one remedy it names
+cannot help. Raise the severity accordingly: this is what the tool says to a normal user, not
+what it says under a contrived PATH.
 
 **Not fixed here.** It wants its own entry and its own fix — probe for `node` before the `for /f`
 and say which of the two happened, rather than folding a second cause into §92's commit. And

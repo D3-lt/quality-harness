@@ -69,6 +69,10 @@ SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 # Tool-written mutation evidence. Same shape and same purpose as VLOG_RE: an entry
 # off this grammar was typed by a person, and a typed mutant is the thing the log
 # replaced. `killed` is the only verdict that is evidence — see adr-verify --mutant.
+# Mirrored from adr-verify::ACCEPTANCE_FENCE. The two gates must agree on what a
+# runnable fence IS, or the T2 advisory fires on tasks the writer accepted and
+# stays silent on ones it refused.
+ACCEPTANCE_FENCE = re.compile(r"```(?:bash|sh|shell)\s*\n(.*?)```", re.S)
 MLOG_TOOL_ARM = (
     SHA_FIELD + r" · "
     r"mutant (?:(?:killed · exit [1-9]\d*)|(?:survived · exit 0)|"
@@ -639,6 +643,30 @@ def check_task(path, all_stems, errors):
                           f"'· human-observed · mutant killed · test exit N · `file` · "
                           f"line N · from `…` · to `…` · test `…` · why': "
                           f"{where_it_stopped(MLOG_RE, b)}")
+    # ADR-013 T2. The human lane exists for a fence that CANNOT RUN TO COMPLETION.
+    # When the task carries a runnable ```bash fence, say so — but as a question,
+    # not a verdict.
+    #
+    # The wording is the whole check, and it was corrected by the session holding
+    # the only real instance. Their fence is a genuine bash fence that starts fine
+    # and passes three of its four clauses; the fourth cannot complete. So "this
+    # fence looks runnable — use --mutant instead" would be WRONG on the one case
+    # this lane was written for, and would be ignored, which is how an advisory
+    # dies. This cannot know WHICH clause is blocked without reading the fence for
+    # intent, and guessing that is the heuristic docs/BACKLOG.md §67 refused. So it
+    # asks the author to confirm, and names the field that records the answer.
+    #
+    # ADVICE, never a block (CLAUDE.md §3): a fence runnable in CI and not locally
+    # is a real shape, and blocking it teaches people to route around the gate.
+    if any(MLOG_HUMAN_RE.match(b) for b in mlog) and ACCEPTANCE_FENCE.search(acc):
+        errors.advise(
+            f"{path.name}: a Mutation Log row records a mutation a PERSON performed, and this "
+            f"task's Acceptance is a runnable ```bash fence. That lane is for a fence that "
+            f"cannot run to completion — a clause whose precondition is not met, not a fence "
+            f"that is merely slow or inconvenient, since `adr-verify --mutant` on a slow fence "
+            f"still produces tool-written truth. Confirm it genuinely cannot complete, and say "
+            f"which clause blocks it in the row's own `why`, so the next reader does not have "
+            f"to re-derive it.")
     has_mlog_section = "Mutation Log" in secs
 
     acc_match = re.search(r"```bash\s*\n(.*?)```", acc, re.S)

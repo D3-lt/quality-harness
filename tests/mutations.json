@@ -3120,6 +3120,24 @@
       ],
       "from": "            r\"|``(?:[^`\\n]|`(?!`))\" + quant + r\"``\"",
       "to": "            r\"|``(?:[^`\\n])\" + quant + r\"``\""
+    },
+    {
+      "label": "ADR-013: the human-lane advisory is bound to a runnable fence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if any(MLOG_HUMAN_RE.match(b) for b in mlog) and ACCEPTANCE_FENCE.search(acc):",
+      "to": "    if any(MLOG_HUMAN_RE.match(b) for b in mlog):"
+    },
+    {
+      "label": "ADR-013: a hand-reported diff must locate exactly one place",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if hits > 1:",
+      "to": "    if False:"
     }
   ]
 }

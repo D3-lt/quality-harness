@@ -4687,3 +4687,45 @@ tolerating — `adr-lint`'s existing advice:
 
 It names the observation, why it matters, the remedy, AND the legitimate alternative for the case
 where the remedy does not apply. That last clause is what stops it nagging.
+
+## 86. A second client renders no server instructions — and a model cannot tell why
+
+**Observed 2026-08-30** by running `qh_adr_debt` against this corpus from Anthropic's web/mobile
+chat interface. **This does NOT discharge ADR-012 T4**, which names Claude Desktop specifically, and
+it is filed as its own finding rather than as a re-measurement of that task.
+
+**What worked, and it is the useful half.** The tool was called through a real MCP client with no
+shell and returned the corpus correctly:
+
+    [DEBT] 50 deferred · 3 open follow-ups · 0 broken pointers · 0 unreceipted · 0 into an archive · 1 waiting
+
+The client also rendered the `waiting` bucket added today (ADR-014 T3) including its
+honest-uncertainty line — it reported the one waiting item, what it waits for, and that *"the
+duration is reported as unknown: that task's Verification Log carries no dated entry, so nothing has
+looked at it."* An independent surface reading that correctly is end-to-end confirmation the wording
+survives a client, which nothing in this repository could have shown.
+
+**What was absent.** No server-level instruction block reached the model — only the tool names, their
+descriptions and schemas. `server.WithInstructions` text IS sent: confirmed here over stdio, where
+`initialize` returns it beginning *"These tools run the quality-harness gates over an ADR corpus you
+name by path. They only read."*
+
+**THE EPISTEMIC POINT, which is why this is worth a section rather than a line.** The reporting model
+raised it against its own observation, unprompted:
+
+> I can't distinguish "the server sent no instructions" from "the client received them and didn't
+> surface them to the model" from "they were surfaced somewhere I'd not recognize as separate from
+> tool text." All three look identical from inside.
+
+So a model's report of absence is **weakly diagnostic about the wire and strongly diagnostic about
+nothing else.** The stdio measurement is the stronger evidence of what the SERVER sends; a model can
+only report what the CLIENT chose to render. That asymmetry is the same shape as T4's core claim —
+the only witness to a client behaviour is someone standing at the client — and it means "the model
+did not see it" must never be recorded as "the server did not send it".
+
+**Consistent with, and not a substitute for, the 2026-08-29 Desktop 1.40609.0 measurement**
+(ADR-012's Out of Scope), which found the client does not render instructions at all. Two surfaces,
+same outcome, neither able to say why. If a Desktop run also reports "none", that CONFIRMS
+1.40609.0 rather than invalidating it.
+
+**T4 remains `pending` with its `Blocked-on` intact**, because what it asks for is Desktop.

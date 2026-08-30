@@ -4513,3 +4513,49 @@ so that if a corpus ever feeds this gate a machine-generated line, the number is
 **The sweep command is the deliverable**, and it is in this repository's history rather than in
 anyone's memory: candidates by pattern shape, then timing on input the regex REJECTS. The second
 half is the part that matters; the first half alone would have flagged sixteen innocents.
+
+## 82. `BROKEN` is the wrong word for "the target is in another repository"
+
+**Reported 2026-08-30 by klientams-front-v2-01**, who ran the current gates from this working tree
+against their own finished corpus. Both `adr-lint` runs passed. `adr-debt` exited 1, and the whole
+of it was two pointers:
+
+    BROKEN [adr] ADR-001…: ('ADR-007 Follow-ups, backend repo') A CourierInterface/registry …
+    BROKEN [adr] ADR-002…: ('ADR-007 Follow-ups, backend repo') A backend CourierInterface/registry …
+
+ADR-007 lives in the Laravel backend repository. Their SPA repo is one half of a two-repo decision,
+so the pointer is **correct and unresolvable from here by construction**, and always will be.
+
+**This is not a request to support their corpus. It is a gate borrowing a verdict's vocabulary,
+which CLAUDE.md §3 forbids in as many words:** *"a filter that matched nothing is 'I could not
+look', not 'the thing is absent' … If a check cannot determine something, it says so — `UNRUN`,
+`PARTIAL`, `UNPROVEN` — and never borrows the vocabulary of a verdict."* `adr-debt` cannot see the
+other repository. It reports `BROKEN`, which means *you wrote a bad pointer*. Those are different
+findings and a reader cannot act on the first if it is spelled as the second.
+
+**The tell that it is a gap rather than their mess**: the ADR-002 author had to write the excuse into
+the pointer text, inside the data field —
+
+    "…adr-debt reports this pointer BROKEN because the destination lives in another repository,
+     which is correct and expected; per the standing SPA-only rule it needs its own session"
+
+A human writing a comment to a linter inside a value the linter cannot read. That is the same shape
+as the `partial` silent exemption ADR-014 closed, inverted: there the honest word bought silence,
+here honesty has **no word at all** and prose is the only recourse.
+
+**What it costs if unfixed:** a corpus that is one half of a cross-repo decision is permanently red,
+and the first thing a team does with a permanently-red gate is stop running it. That failure mode is
+this project's whole subject.
+
+**The shape of a fix**, not a decision — the vocabulary already has `(permanent: <why>)` for
+deliberate non-deferral; the missing sibling is a deliberate EXTERNAL pointer, resolving as
+intentional rather than broken, counted in its own column, keeping exit 0. The reporter explicitly
+declined to propose a spelling and asked that it be designed rather than adopted.
+
+**Open questions a record would have to answer**, and the reason this is not a one-line fix:
+how the reader distinguishes a genuinely external target from a typo that merely looks external;
+whether an external pointer needs a receipt at the far end (the §41/§76 reciprocity rule says a
+pointer that resolves is not a pointer that was honoured, and nothing here can check the far end of
+a cross-repo edge); and whether "external" is a property of the pointer or of the corpus.
+
+**Not fixed. It wants its own record**, because it changes a shared vocabulary three tools read.

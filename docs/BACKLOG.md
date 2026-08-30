@@ -4409,3 +4409,41 @@ The reporter says their PR #117 carries the reproduction.
 **Related but not the same hole:** ADR-013 gives a lane to a mutation the tool COULD NOT RUN. This
 one is a mutation the tool ran and classified wrongly. A row that belongs to §79 must not be routed
 into ADR-013's lane — that would launder a computable verdict into a hand-reported one.
+
+## 80. A contract test that asserts words appear, not that a document says the right thing
+
+**Found 2026-08-30 by a SURVIVED mutation during ADR-013 T3** — recorded in that task's Mutation Log
+rather than deleted, because a survivor is a finding.
+
+The mutation changed the template's heading:
+
+    WHEN THE FENCE CANNOT RUN TO COMPLETION  ->  WHEN THE FENCE IS INCONVENIENT
+
+`tests/skill-contract.test.mjs::the template and the execute skill agree about the human mutation
+lane` did not notice. The phrase occurs **twice** in the template — once as that heading, once in the
+prose that defines it — so removing it from the heading left the other occurrence carrying the
+assertion. Exactly the shape CLAUDE.md §4 names: the test went through a second guard covering the
+same input.
+
+**Why it matters beyond the assertion.** The mutated template is not merely missing a phrase, it is
+CONTRADICTORY: the heading invites the inconvenient case and the prose two lines down excludes it.
+An author reads the heading. The check reads the file. A document can be internally inconsistent in
+the precise way that matters and stay green.
+
+**The general form**, which is the part worth keeping: *asserting that a string appears in a document
+is not asserting that the document tells the reader the right thing.* Every "the skill mentions X"
+check in this suite has the same ceiling, and they are a ratchet against renames rather than a check
+on meaning — which is what they were built for and is fine, provided nobody mistakes one for the
+other.
+
+**Not fixed.** The honest fix is not another substring: it is either checking the phrase where it is
+load-bearing (the line that introduces the flag) — brittle, and it drifts with formatting — or
+grading the document's meaning, which needs `claude plugin eval` and graders that can actually run.
+This suite's own header already says that is out of scope and why.
+
+**What was done instead**, so the record is not a promise: T3's killed mutant was taken on
+`--human-mutant` in the template, which occurs exactly once and is load-bearing for "an author whose
+fence cannot run can find the lane at all". Both rows are in the task's Mutation Log — the survivor
+and the kill — because the survivor is the more interesting of the two.
+
+**One instance. Left open.**

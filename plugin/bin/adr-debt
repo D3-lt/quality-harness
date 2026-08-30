@@ -23,6 +23,7 @@ into the new ADR's Context, re-deferred with a fresh pointer, or promoted to
 `(permanent: <why>)`. Debt that is never surfaced is debt that was silently
 dropped — this report is the surfacing mechanism.
 """
+import datetime
 import re
 import subprocess
 import sys
@@ -357,6 +358,13 @@ def main():
 
     deferred, followups, broken, unreceipted = [], [], [], []
     unswept_items = []
+    # ADR-014 T3. Waiting is not debt, and the two must not share a number.
+    # `deferred` means work punted with a POINTER to where it was filed; a
+    # Blocked-on task's pointer is an event in the world. Counting them together
+    # would silently change what the deferred number has always meant, which this
+    # task's Stop Condition forbids -- a number that changes definition is worse
+    # than a missing one.
+    waiting = []
     for scan_dir in dirs:
         for md in sorted(scan_dir.rglob("*.md")):
             text = md.read_text(errors="replace", encoding="utf-8")
@@ -412,10 +420,50 @@ def main():
                 s = ln.strip()
                 if s.startswith("- [ ]"):
                     followups.append((scan_dir, rel, s[5:].strip()))
+            # A task waiting on an external event, and how long it has waited.
+            # Age comes from the newest date the task's own Verification Log
+            # carries, because that is the last time anybody demonstrably looked.
+            # With no entry there is nothing to measure, and this SAYS SO rather
+            # than assuming recency -- a gate must not report an observation it
+            # did not make (ADR-005).
+            bo = re.search(r"^\*\*Blocked-on:\*\*\s*(.+?)\s*$", text, re.M)
+            if bo:
+                seen = sorted(re.findall(r"^- (\d{4}-\d{2}-\d{2}) · ", text, re.M))
+                waiting.append((scan_dir, rel, bo.group(1).strip(),
+                                seen[-1] if seen else None))
 
     print(f"[DEBT] {len(deferred)} deferred · {len(followups)} open follow-ups · "
           f"{len(broken)} broken pointers · {len(unreceipted)} unreceipted · "
-          f"{len(unswept_items)} into an archive")
+          f"{len(unswept_items)} into an archive · "
+          f"{len(waiting)} waiting")
+    # The failure mode of a real wait is NOT that it rots. It is that the event
+    # happens and nobody looks again -- so an old one is ASKED ABOUT, never
+    # scolded. Reported by klientams-front-v2-01, whose own instance is a correct
+    # deploy-time call sitting unreachable on an unmerged branch: the day it
+    # merges, nothing tells them.
+    STALE_AFTER_DAYS = 30
+    today = datetime.date.today()
+    cur = None
+    for scan_dir, rel, event, seen in waiting:
+        if rel != cur:
+            print(f"  {scan_dir / rel}:")
+            cur = rel
+        age = None
+        if seen:
+            try:
+                age = (today - datetime.date.fromisoformat(seen)).days
+            except ValueError:
+                age = None
+        if age is not None and age >= STALE_AFTER_DAYS:
+            print(f"    waiting {age}d → {event} -- still waiting; has the event "
+                  f"perhaps already happened? Check it, then finish the task or say "
+                  f"what changed.")
+        elif age is None:
+            print(f"    waiting → {event} -- how long is unknown: this task's "
+                  f"Verification Log carries no dated entry, so nothing here has "
+                  f"looked at it.")
+        else:
+            print(f"    waiting {age}d → {event}")
     cur = None
     for scan_dir, rel, ptr, txt in deferred:
         if rel != cur:

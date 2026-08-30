@@ -17,8 +17,6 @@ with a task file, the task file wins.
 
 ## Notes
 
-- **The record is `Proposed`.** None of these is a work order until a human accepts it. What is being
-  proposed is that `partial` becomes a status with obligations and that a task may declare what it
-  waits for; the tasks exist to show the cost of accepting, not to be executed.
+- **The record is `Accepted`** (2026-08-30). These are work orders. None of its three tasks has been executed yet.
 - T1 changes a vocabulary three tools read. The vocabulary and its readers move together or §58
   happens again.

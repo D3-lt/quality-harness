@@ -222,7 +222,20 @@ file — what matters is the answer git gives for the path.
 - The gates are `#!/usr/bin/env python3` scripts. **Windows cannot exec them**: a direct spawn returns
   status `null`, which is not an error and not a failure. Spawn through the interpreter.
 - Git Bash resolution must exclude the `System32` WSL stub and the WindowsApps launcher — both are
-  named `bash` and neither is one. `resolve_bash()` does this; do not reimplement it.
+  named `bash` and neither is one. **`resolve_bash()` excludes only the first.** Its docstring
+  names both; its PATH loop matches `system32` and nothing else, so on a stock Windows box it
+  returns the 0-byte Store alias and never reaches the `ProgramFiles\Git` fallback below it.
+  `resolveBashExecutable` in `plugin/scripts/run-shell-hook.mjs` has the identical hole. Measured
+  2026-08-30 on Windows 11, and reproduced from macOS in four lines through the resolver's own
+  `(platform, env, exists)` seam — no Windows box was needed, and none had ever been pointed at
+  it. BACKLOG §91 is the fix.
+
+  This line previously read "`resolve_bash()` does this; do not reimplement it", which was false
+  for the WindowsApps half from the day it was written. It is left visible rather than quietly
+  edited because the failure mode is the point: an instruction telling every session not to
+  re-check is worse than the defect it describes, and this file is read as fact by sessions that
+  cannot run the platform it is about. **A rule here that asserts a guard handles a case is a
+  hypothesis until something executes it.**
 - **`PATH` differs in separator (`:` vs `;`), in resolution (`which` vs `where`), and in what an
   invalid value does.** To test "the tool is absent", empty `PATH` rather than pointing it somewhere
   that only looks absent on your machine.

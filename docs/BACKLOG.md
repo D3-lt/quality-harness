@@ -1160,7 +1160,7 @@ If it is ever built, the shape that fits the harness is not a new gate but a lin
 report — the same place the session notice already says what changed — and it should carry the
 number, the threshold, and nothing resembling a verdict.
 
-## 29. FIXED 2026-08-27 — this entry was stale and is kept for the mechanism
+## 29. CLOSED — FIXED 2026-08-27 — this entry was stale and is kept for the mechanism
 
 `bullets()` in `bin/adr-judge` was rewritten the same day it was reported: a `CONTINUATION` pattern
 now folds wrapped lines into the bullet they belong to, and a blank line or an unindented line ends
@@ -1243,7 +1243,7 @@ rule applied to the eval suite itself, and it is the only shape here that would 
 this harness that demonstrably works. Every current grader asks whether an ANSWER mentions
 something.
 
-## 31. FIXED — the case was bimodal, not invocation-dependent
+## 31. CLOSED — FIXED — the case was bimodal, not invocation-dependent
 
 **Diagnosed and fixed 2026-08-27.** There was no suite-versus-isolated disagreement. The case was
 BIMODAL: a run that answers directly takes 3-5 turns and scores 1.00; a run that wanders first
@@ -1499,7 +1499,7 @@ requires enumerating from the SOURCE and diffing against the list, which is §5 
 back to itself. Exposing those three is a scope change rather than a boundary change, and it is
 deferred here.
 
-## 34. FIXED — the coverage gate was rejecting good code one run in ten
+## 34. CLOSED — FIXED — the coverage gate was rejecting good code one run in ten
 
 **Cause, found by reading rather than guessing.** `--experimental-test-coverage` measures only the
 parent process, and NINE of this repository's fourteen test files spawn subprocesses. A source line

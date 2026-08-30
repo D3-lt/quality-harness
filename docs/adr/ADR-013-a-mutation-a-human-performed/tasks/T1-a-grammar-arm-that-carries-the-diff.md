@@ -19,6 +19,7 @@ omits the file, the change or the failing test.
 |------|--------|-----|
 | `plugin/bin/adr-lint` | edit | `MLOG_RE` gains the arm; `check_task` is what SELECTS it, since that is where Mutation Log rows are matched |
 | `tests/gate-regressions.py` | edit | the shape assertions, both directions |
+| `tests/evidence-chain.test.mjs` | edit | drives the real `adr-lint` binary on a real corpus, and is what the catalogue can actually run — `scripts/mutate.mjs` spawns `node --test`, so a mutation naming a `.py` suite reports a failing baseline rather than a verdict |
 | `tests/mutations.json` | edit | the catalogue entry that proves the arm can be broken |
 
 ## Ordered Steps

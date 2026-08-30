@@ -4688,11 +4688,22 @@ tolerating — `adr-lint`'s existing advice:
 It names the observation, why it matters, the remedy, AND the legitimate alternative for the case
 where the remedy does not apply. That last clause is what stops it nagging.
 
-## 86. A second client renders no server instructions — and a model cannot tell why
+## 86. Desktop 1.40609.0 re-observed: tools arrive, server instructions do not
 
-**Observed 2026-08-30** by running `qh_adr_debt` against this corpus from Anthropic's web/mobile
-chat interface. **This does NOT discharge ADR-012 T4**, which names Claude Desktop specifically, and
-it is filed as its own finding rather than as a re-measurement of that task.
+**Observed 2026-08-30** by running `qh_adr_debt` against this corpus from **Claude Desktop**,
+version 1.40609.0 (read from `/Applications/Claude.app/Contents/Info.plist`).
+
+**FILED FIRST AS "a second client", WHICH WAS WRONG, and the correction is the interesting part.**
+The observing session initially reported itself as running in the web/mobile interface and warned
+its "none" therefore said nothing about Desktop. It then retracted that unprompted, on evidence it
+was better placed to weigh than I was: `qh-mcp` was registered, five tools resolved, and the call
+reached a **local stdio server reading paths under `/Users/zy/`** — which a web session cannot do.
+So this was Desktop's MCP plumbing throughout, and I had accepted the weaker framing without
+checking the one fact that settles it.
+
+**The version makes this a RE-OBSERVATION, not a new data point.** ADR-012 already records the
+measurement on 1.40609.0, and this is the same build, so it extends the finding forward by nothing.
+Had the build been newer it would have been worth a dated Verification Log entry.
 
 **What worked, and it is the useful half.** The tool was called through a real MCP client with no
 shell and returned the corpus correctly:
@@ -4723,9 +4734,13 @@ only report what the CLIENT chose to render. That asymmetry is the same shape as
 the only witness to a client behaviour is someone standing at the client — and it means "the model
 did not see it" must never be recorded as "the server did not send it".
 
-**Consistent with, and not a substitute for, the 2026-08-29 Desktop 1.40609.0 measurement**
-(ADR-012's Out of Scope), which found the client does not render instructions at all. Two surfaces,
-same outcome, neither able to say why. If a Desktop run also reports "none", that CONFIRMS
-1.40609.0 rather than invalidating it.
+**THE SHARPER VERSION OF THE SAME POINT**, which the observing session supplied after its
+retraction and which is better than what I had written: having the TOOLS and receiving the server's
+INSTRUCTIONS are two separate channels. Tools arrive as a listing the client renders into context;
+`server.WithInstructions` arrives at initialization and the client decides independently whether to
+pass it on. Working tools are therefore evidence the TRANSPORT is fine — which makes "the server
+sent nothing" much LESS likely and "the client received it and dropped it" much MORE likely. That
+is a stronger inference than "cannot distinguish three cases", and it points the same way ADR-012
+already points.
 
-**T4 remains `pending` with its `Blocked-on` intact**, because what it asks for is Desktop.
+**So the record needs no update. The measurement stands, confirmed on its own build.**

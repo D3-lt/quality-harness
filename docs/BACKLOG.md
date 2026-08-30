@@ -4585,8 +4585,27 @@ header, `adr-debt` could ask the question that actually matters: *this has been 
 decision for 30 days; has anyone been asked?* That is the same escalation ADR-014 T3 already built
 for `Blocked-on`, pointed at a different kind of wait.
 
-**ONE INSTANCE. Deliberately left as a note**, on this corpus's own rule — §61 and §53 sit at one
-instance each for the same reason. The reporter's caution is the right one: two records shipped
+**TWO INDEPENDENT INSTANCES as of 2026-08-30, in different repositories.** The second came from
+klientams-front-v2-01 within the hour, unprompted by the first and phrased the same way — from their
+ADR-001 Follow-ups:
+
+    `DeliveryDetailsFormModal.tsx` adopts the extracted schema — requires deciding the `.trim()`
+    divergence first (it is a validation behaviour change, not a refactor).
+
+They then measured the divergence and closed the investigation: adopting the extracted schema is a
+LOOSENING, verified by executing `safeParse`, bounded by the payload builder's per-type whitelist to
+validation-UX rather than data integrity. **And it is still blocked** — what remains is not
+information, it is a human choosing whether to accept a loosening in a money-adjacent path. Their
+words: *"there is no command that returns 0 when someone has made up their mind."*
+
+That is the shape wcag-43 described, arrived at independently, and it defeats the obvious
+cheap answer: this is NOT a `Blocked-on` whose event is "a person decides X", because `Blocked-on`
+as shipped asks for an event a reader can check, and a decision has no such check. Two instances,
+two repositories, and the design question already answered — so this is a record's work now, not a
+note's.
+
+**Originally left as a note on this corpus's own rule** — §61 and §53 sit at one instance each for
+the same reason. The reporter's caution is the right one: two records shipped
 today each rested on a single instance, and the discipline that made those work was that the
 instance came from a corpus that was not this one AND the shape was independently measured. This has
 the first and not the second.
@@ -4595,3 +4614,76 @@ the first and not the second.
 on a choice rather than on work or on the world. If one appears, this becomes a record, and the
 design question it must answer first is whether it is a third header or a `Blocked-on` whose event
 is "a person decides X", since the latter costs no vocabulary and the escalation already exists.
+
+## 84. `partial` does not catch the vacuous-fence class, and I said it did
+
+**Reported 2026-08-30 by klientams-front-v2-01, correcting a claim made in this session.** ADR-014's
+commit message and its memory entry both say the obligation following EVIDENCE rather than the
+author's knowledge is what makes their class derivable. **That is wrong, and they measured it.**
+
+**What the gate does get right, and it is more than I expected.** They reproduced their pre-audit
+tree at `caf5bf66` and ran the current `adr-lint`: all seven tasks FAIL, with
+
+    T1…: has passing acceptance evidence but no `mutant killed` entry — its log has 1 entry/entries,
+    none of them is a `killed` mutant for acceptance-sha256:734e1940…
+
+so a killed mutant not bound to the CURRENT fence digest earns no credit. They had assumed otherwise
+before measuring.
+
+**What it does not catch.** Today's T1 PASSES every current gate, carrying two killed mutants, one
+digest-bound. The second is theirs, from the audit, and it **survived on first run**: T1's fence
+passed with `ORDER_SELECT_RANK` permuted, because nothing compared the derived order against the
+historical literal. Had they recorded only the first mutant, T1 would have satisfied the obligation
+and shipped green — **while a mechanism its own headline claim rests on was unbound.**
+
+**The reason is a quantifier, not a wording.** The obligation is EXISTENTIAL — at least one killed
+mutant per fence. Vacuity is PER-MECHANISM. One killed mutant does not bind the others, and nothing
+in a record enumerates what a fence's claim rests on, so nothing can count them. `partial` cannot
+help: the evidence a vacuous fence lacks is a mutation nobody ran, and an absent measurement leaves
+no trace to derive from.
+
+**This project already documented the limitation and then forgot it.** `adr-verify`'s own header:
+*"What this does NOT prove: that the mutant was WELL CHOSEN. Uniqueness makes a trivial irrelevant
+line an available escape hatch, and only --why guards that, which is prose."*
+
+**Two live instances in their corpus** — T1 and T7, each the assertion the task's headline claim
+depended on. 4 of 9 fences could not fail at all before the audit.
+
+**Not fixed, and it is the largest open gap in this corpus's evidence model.** The reporter declined
+to propose a fix and sketched the shape: per-fence enumeration of the mechanisms a claim rests on —
+the Mutants table the template once asked for, made TOOL-WRITTEN rather than hand-filled. Note what
+that costs: the table was removed precisely because hand-filling it was the fabrication hole the
+Verification Log closed. Re-introducing it as a tool-written artifact is a record's work, and it must
+not re-open that hole.
+
+## 85. Two adr-debt and adr-lint messages that are true and unactionable
+
+**Reported 2026-08-30 by pirkiniukampelis-cms-laravel-3d and klientams-front-v2-01**, sorted by both
+into "TRUE but I could not tell what to do next". Recorded because a gate people cannot act on is a
+gate people switch off, which makes wording a defect here rather than a nicety.
+
+**85a — a dependency cycle names no edge provenance.** `tasks: dependency cycle: T3 → T5 → T3` is
+correct, and the edges were derived from a shared backticked token (`is_heavy`) appearing in several
+`Produces:`/`Consumes:` lines. The message names neither the token nor which header line created each
+edge, so the reporter diffed six task headers by hand to find it. `T3 → T5 via token \`is_heavy\` in
+T5's Consumes` makes the fix obvious.
+
+**85b — the deferred COUNT double-counts one debt.** `adr-debt` reports a deferred item at every
+location its disposition text appears, so an item written in both a task file and its parent ADR is
+counted twice or three times. In their corpus `9 deferred` was 4–5 distinct debts. Every ROW is true;
+the NUMBER misleads, and a reader triaging it plans for twice the work that exists. Dedupe by target,
+or label rows as citations of one debt.
+
+**85c — an inferred-authority line reads as a finding.** `adr-state.mjs` says *"No record declares a
+`Governs:` scope, so authority is inferred from what tasks touched."* Accurate, exits 0, and the
+remedy it names is conditional on a judgement it does not help the reader make.
+
+**What the same reporters named as the model to copy**, which is why 85 is worth fixing rather than
+tolerating — `adr-lint`'s existing advice:
+
+    every Verification Log entry passed, so nothing here shows the fence could fail — the first
+    entry should be the TDD red run. If the work predated the record, say so in the task rather
+    than leaving the log to imply a red-green cycle that did not happen
+
+It names the observation, why it matters, the remedy, AND the legitimate alternative for the case
+where the remedy does not apply. That last clause is what stops it nagging.

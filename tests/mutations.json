@@ -3345,6 +3345,15 @@
       ],
       "from": "            if not hits:\n                errs.append(f\"{label}: names `{sym}`, which appears nowhere in the repo — \"",
       "to": "            if False:\n                errs.append(f\"{label}: names `{sym}`, which appears nowhere in the repo — \""
+    },
+    {
+      "label": "arch: a symbol must be in the index, not just on disk",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "        if tracked is not None and q.resolve() not in tracked:\n            continue",
+      "to": "        if False:\n            continue"
     }
   ]
 }

@@ -3,12 +3,15 @@ rem ONE interpreter, and its exit code. `A && B || C` is not if/else in
 rem cmd: `||` fires on B failing, not only on A. So every FAILING gate ran
 rem twice - once under py -3, then again under python - and the caller got
 rem python's exit code, not the gate's. Measured 2026-08-30 on Windows 11:
-rem a failing adr-lint printed its whole FAIL block twice. `where /q py`
-rem sets errorlevel 0 when found, 1 when not, and a .cmd exits with its
-rem last command, so this runs exactly one and propagates it untouched.
-where /q py
-if errorlevel 1 (
-  python "%~dp0adr-judge" %*
-) else (
-  py -3 "%~dp0adr-judge" %*
-)
+rem a failing adr-lint printed its whole FAIL block twice.
+rem
+rem NO PARENTHESISED BLOCK. An unquoted argument containing `)` closes the
+rem block early - `C:\Program Files (x86)\...` is that argument, and this
+rem resolver already knows that path. Measured: the gate never ran and cmd
+rem exited 255. `goto` plus a bare `exit /b`, which preserves the preceding
+rem command status, selects one interpreter and propagates it untouched.
+where /q py && goto :usepy
+python "%~dp0adr-judge" %*
+exit /b
+:usepy
+py -3 "%~dp0adr-judge" %*

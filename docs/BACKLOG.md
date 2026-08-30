@@ -4825,6 +4825,15 @@ cannot hit them; a Windows contributor can.
 restoring the `run.error` condition and watching the test fail. No line of it has executed on
 Windows, and CI will not change that for the reason above.
 
+**The alias is not reliably dead, and that strengthens the fix rather than weakening it.**
+Measured later the same day on the same box: `python3 --version` returned `Python 3.14.7` and
+exit 0, where hours earlier it had returned "Python was not found" and 9009. A WindowsApps
+App Execution Alias is a 0-byte reparse point that may or may not have an installed target, and
+whether it does can change under you. So `python3` on Windows is not "a decoy" — it is an
+**unknown**, which is precisely the thing a name check and an `isfile()` check both answer
+confidently and wrongly. `resolvePython` asks the only question that survives this: did the
+thing answer as Python?
+
 ## 89. `.gitattributes` pins `*.mjs` but not `*.js`, and six more extensions go CRLF
 
 Found 2026-08-30 by a peer Claude session on Windows 11 with `core.autocrlf=true`, reading a
@@ -4978,10 +4987,22 @@ absence of, and it has been instructing every session not to re-check.
 The docstring calls these "same precedence", and they are — including the hole. Fix both or
 neither.
 
-**Fix shape, unjudged:** filter WindowsApps as System32 is filtered, reject a zero-byte
-candidate, or probe the candidate instead of trusting `isfile`. Probing is the form §90 and
-§88 both landed on. Note also the resolver has no canonical answer: the PATH scan returns
-`Git\usr\bin\bash.exe` and the fallback returns `Git\bin\bash.exe`.
+**Fixed** by filtering WindowsApps exactly as System32 is filtered, at both sites, with the
+reproduction above as its regression test.
+
+**That fixes the case and not the class, and the distinction is the peer's.** The check is
+unsound not because WindowsApps went unfiltered, but because `os.path.isfile()` on a 0-byte
+app-execution alias says **nothing about whether the target application exists**. Measured on
+the same box, same day: the WindowsApps `python3.exe` alias resolves and runs — `python3
+--version` → `Python 3.14.7`, exit 0 — while the WindowsApps `bash.exe` alias points at an app
+that is not installed. Both are 0-byte reparse points and `isfile()` is True for both. So a
+directory filter is a name-based answer to a question only a probe settles, and any other alias
+directory has the same property. Filtering is correct here because a WindowsApps `bash.exe` is
+never Git Bash whatever it points at — but the general rule is the one §88 landed on: probe.
+
+Note also the resolver has no canonical answer: the PATH scan returns `Git\usr\bin\bash.exe`
+and the fallback returns `Git\bin\bash.exe`. Nothing downstream depends on which — traced
+before the fix: `adr-verify:359` and `run-shell-hook.mjs:211` need a working shell and no more.
 
 ## 92. Every `.cmd` forwarder runs a failing gate twice, under two different interpreters
 
@@ -5002,9 +5023,32 @@ Measured: `adr-lint.cmd <an ADR>` printed its entire FAIL block twice, exit 1. R
 
 Consequences: every gate failure does double work and double output; and on a box with no
 `python` on PATH the `||` branch replaces the gate's real verdict with cmd's
-`'python' is not recognized` and exit 9009. A fence would still be nonzero, so nothing goes
-falsely green — but the diagnostic is destroyed, which §3 already names as the thing a gate
-must never do.
+`'python' is not recognized`. A fence would still be non-zero, so nothing goes falsely green —
+but the diagnostic is destroyed, which §3 already names as the thing a gate must never do.
+
+**Corrected 2026-08-30 by the reporting session, which retracted its own claim:** that branch
+does *not* surface as 9009 at the forwarder boundary. A bare unresolvable command inside a
+batch sets `ERRORLEVEL` 9009, but the batch's own status as seen by the caller is **1**.
+Measured: `cmd /d /c <forwarder>` → exit 1. So there is no collision with §88's 9009 and
+nothing to disambiguate — only the lost diagnostic, which is enough.
+
+**Verified on Windows, with the boundary stated.** The peer executed a hand-written copy of the
+replacement form against an installed gate: failing gate → one FAIL block and an exit matching
+a direct `py -3` run (was two blocks); passing gate → exit 0; `--help` → printed once (was
+twice); and with `py` hidden, the `python` branch reached and propagating on both a passing and
+a failing target. What was **not** run is this branch's files — neither the eleven rewritten
+`plugin/bin/*.cmd` nor `forwarderCmd`'s output, which additionally carries `setlocal`, the
+`for /f … do set` resolver and the `exit /b 4` fence. The control flow is verified; these files
+are not, and no Verification Log entry is written for them.
+
+**And the obvious repair was wrong too, which is why the form is a `goto`.** `if errorlevel 1
+(…) else (…)` fixes the double run and breaks on an unquoted argument containing `)`, because
+that closes the block early. Measured: `was unexpected at this time`, exit 255, gate never run.
+`C:\Program Files (x86)\…` is that argument, and the `ProgramFiles(x86)` root is already in
+`resolve_bash`'s own fallback list — so this is a path the tool knows about, not a contrived
+one. The shipped `&&`/`||` form had the same hazard, so it is not a regression; it is a defect
+not worth re-introducing while rewriting the line anyway. `where /q py && goto :usepy` with a
+bare `exit /b` (which preserves the preceding command's status) has neither problem.
 
 This is the same root as §88 from the other direction: `where /q py` succeeding is treated as
 evidence about a later command's exit code. The current form cannot distinguish "py is missing"

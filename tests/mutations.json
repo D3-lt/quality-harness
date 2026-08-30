@@ -3415,8 +3415,8 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "    'where /q py',\n    'if errorlevel 1 ('",
-      "to": "    'where /q py && (', \n    'if errorlevel 1 ('"
+      "from": "    'where /q py && goto :usepy',",
+      "to": "    'where /q py && (py -3 \"%QH_ROOT%\\\\bin\\\\' + gate + '\" %*) || (',"
     }
   ]
 }

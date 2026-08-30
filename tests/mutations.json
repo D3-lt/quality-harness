@@ -3381,6 +3381,24 @@
       ],
       "from": "/[\\\\/](?:system32|windowsapps)[\\\\/]?$/i",
       "to": "/[\\\\/]system32[\\\\/]?$/i"
+    },
+    {
+      "label": "windows: adr-verify treats a rooted path as rooted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(re.match(r\"^[A-Za-z]:\", text)) or text[:1] in (\"/\", \"\\\\\")",
+      "to": "    return Path(text).is_absolute()"
+    },
+    {
+      "label": "windows: adr-lint treats a rooted path as rooted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(re.match(r\"^[A-Za-z]:\", text)) or text[:1] in (\"/\", \"\\\\\")",
+      "to": "    return Path(text).is_absolute()"
     }
   ]
 }

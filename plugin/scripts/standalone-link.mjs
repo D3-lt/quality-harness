@@ -179,19 +179,26 @@ export function forwarderCmd(gate, homeDirectory = os.homedir()) {
     // The py launcher first: a Windows Python is `python.exe`, so `python3` —
     // the name the gate's shebang asks for — often does not exist there.
     //
-    // Written as an IF and not as `where /q py && (…) || (…)`, because that chain
-    // is not if/else: `||` fires when the GATE exits non-zero, not only when
-    // `where` fails. Every failing gate therefore ran twice under two different
-    // interpreters and the caller received the second one's exit code. Measured
-    // 2026-08-30 on Windows 11 by a peer session, with the whole FAIL block
-    // printed twice. A .cmd exits with its last command, so the form below runs
-    // exactly one interpreter and propagates its status untouched.
-    'where /q py',
-    'if errorlevel 1 (',
-    `  python "%QH_ROOT%\\bin\\${gate}" %*`,
-    ') else (',
-    `  py -3 "%QH_ROOT%\\bin\\${gate}" %*`,
-    ')',
+    // Written as a GOTO, not as `where /q py && (…) || (…)` and not as an IF
+    // block either. The chain is not if/else: `||` fires when the GATE exits
+    // non-zero, not only when `where` fails, so every failing gate ran twice
+    // under two interpreters and the caller received the second one's status.
+    // Measured 2026-08-30 on Windows 11, with the whole FAIL block printed twice.
+    //
+    // The obvious repair — `if errorlevel 1 (…) else (…)` — fixes that and
+    // introduces another: an unquoted argument containing `)` closes the block
+    // early. `C:\\Program Files (x86)\\…` is exactly that argument, and the
+    // ProgramFiles(x86) root is already in resolve_bash's own fallback list. It
+    // was measured failing with "was unexpected at this time" and exit 255,
+    // gate never run. The `&&` form has the same hazard; this one does not.
+    //
+    // A bare `exit /b` preserves the preceding command's status, so the python
+    // branch propagates exactly as the py branch does.
+    'where /q py && goto :usepy',
+    `python "%QH_ROOT%\\bin\\${gate}" %*`,
+    'exit /b',
+    ':usepy',
+    `py -3 "%QH_ROOT%\\bin\\${gate}" %*`,
     '',
   ].join('\r\n')
 }

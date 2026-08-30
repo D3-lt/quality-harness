@@ -3183,6 +3183,24 @@
       ],
       "from": "        if age is not None and age >= STALE_AFTER_DAYS:",
       "to": "        if False:"
+    },
+    {
+      "label": "ADR-014: Blocked-on cannot name a task this corpus owns",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif (sibling := next((d for d in re.findall(r\"\\bT\\d+\\b\", blocked_on)\n                               if any(id_matches(d, stem) for stem in all_stems)), None)):",
+      "to": "        elif False:"
+    },
+    {
+      "label": "ADR-013: a hand-reported diff must be reversible",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if to and to in body:",
+      "to": "    if False:"
     }
   ]
 }

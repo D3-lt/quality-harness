@@ -51,6 +51,12 @@ node --test tests/skill-contract.test.mjs 2>&1 | tee /tmp/acc-t3.out && ! grep -
 
 ## Mutation Log
 
+- 2026-08-30 · 7541736* · mutant survived · exit 0 · `plugin/templates/task-template.md` · the template must state the condition in the words the gate uses, or an author in the blocked case reads themselves out of the lane · acceptance-sha256:962a553e443081ec73729dfaf14c2d418b60743deac7df073677cdc732aef08a
+  ```
+  the fence passed with the mechanism broken
+  ```
+- 2026-08-30 · 7541736* · mutant killed · exit 1 · `plugin/templates/task-template.md` · the template must NAME the flag, or an author whose fence cannot run never finds the lane at all · acceptance-sha256:962a553e443081ec73729dfaf14c2d418b60743deac7df073677cdc732aef08a
+
 ## Invariants
 
 - A `done` row still requires a killed mutant. This record adds a way to record one, not a way to skip one.
@@ -69,3 +75,4 @@ more than the checks deliver is the "list kept beside the truth" this corpus exi
 - Changing what `partial` means. (deferred: docs/BACKLOG.md §60)
 
 ## Verification Log
+- 2026-08-30 · 7541736 · exit 0 · `set -o pipefail …` · acceptance-sha256:962a553e443081ec73729dfaf14c2d418b60743deac7df073677cdc732aef08a

@@ -7,7 +7,7 @@ file wins.
 |---|---|---|---|
 | 1 | T1 | none | done |
 | 2 | T2 | T1 | done |
-| 3 | T3 | T1, T2 | pending |
+| 3 | T3 | T1, T2 | done |
 
 ## Why the order is forced rather than preferred
 

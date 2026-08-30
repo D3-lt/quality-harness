@@ -3336,6 +3336,15 @@
       ],
       "from": "            if \"`\" not in check:",
       "to": "            if False:"
+    },
+    {
+      "label": "arch: a check citing a symbol the repo lacks is reported",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "            if not hits:\n                errs.append(f\"{label}: names `{sym}`, which appears nowhere in the repo — \"",
+      "to": "            if False:\n                errs.append(f\"{label}: names `{sym}`, which appears nowhere in the repo — \""
     }
   ]
 }

@@ -1032,3 +1032,56 @@ test('a human-reported kill records the mutation and does not unlock done', () =
   markDone(ok)
   expectExit(lint(ok), 0, 'a tool-written kill must still unlock done')
 })
+
+// ADR-014 T1. `partial` end to end, through the real adr-lint binary. The
+// pattern-level assertions live in tests/gate-regressions.py; these exist because
+// scripts/mutate.mjs runs node suites and cannot start a .py one, so a catalogue
+// entry naming that file reports a failing baseline rather than a verdict.
+const markPartial = copy => {
+  const readme = join(copy, 'tasks', 'README.md')
+  writeFileSync(readme, readFileSync(readme, 'utf8').replace('| pending |', '| partial |'))
+}
+
+test('a partial task is a status the reader acts on, not an unknown word', () => {
+  const copy = corpus()
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'and its mutant is killed')
+  markPartial(copy)
+
+  const said = `${lint(copy).stdout ?? ''}${lint(copy).stderr ?? ''}`
+  assert.ok(!/does not act on/.test(said),
+    `partial must not be reported as a status the checks skipped: ${said.slice(0, 400)}`)
+
+  // The must-fail direction (CLAUDE.md §4): a word genuinely outside the
+  // vocabulary is STILL reported, or §73 was undone rather than completed.
+  const unknown = corpus()
+  const readme = join(unknown, 'tasks', 'README.md')
+  writeFileSync(readme, readFileSync(readme, 'utf8').replace('| pending |', '| running |'))
+  const unknownSaid = `${lint(unknown).stdout ?? ''}${lint(unknown).stderr ?? ''}`
+  assert.match(unknownSaid, /does not act on/,
+    `a word outside the vocabulary must still say the checks did not run: ${unknownSaid.slice(0, 400)}`)
+})
+
+test('a partial task with a passing fence still owes a killed mutant', () => {
+  // The half that makes `partial` a status with obligations rather than a softer
+  // word for pending. Reported by klientams-front-v2-01 as the shape that bites:
+  // nine tasks read `done` for a week, then the mutation obligation arrived and
+  // four of nine fences turned out unable to fail. Nobody KNEW they were
+  // part-done — so the obligation must follow the EVIDENCE, not the author's
+  // knowledge, and a partial task carrying a green fence is carrying evidence.
+  const copy = corpus()
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
+  addMutationLog(copy)          // present and empty: the fence ran, nothing proved it can fail
+  markPartial(copy)
+
+  const got = lint(copy)
+  assert.notEqual(got.status, 0, 'a partial task with a green fence and no killed mutant must be reported')
+  const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
+  assert.match(said, /mutant/i, `and the finding must be the mutation obligation: ${said.slice(0, 400)}`)
+
+  // The must-fail direction: recording the killed mutant clears it. Without this,
+  // a check that refused every partial task would satisfy the assertion above.
+  expectExit(mutate(copy), 0, 'the mutant is killed')
+  expectExit(lint(copy), 0, 'and a partial task that met its obligation passes')
+})

@@ -1964,10 +1964,25 @@ def main():
                                           readme.format(value), errs)
         return [a for a in errs.advice if "does not act on" in a]
 
-    assert status_advice("partial"), "an unrecognised status must say the checks did not run"
-    # The must-fail direction (CLAUDE.md §4): the statuses this reader DOES act on
-    # must stay silent, or the advice fires on every task and means nothing.
-    for known in ("done", "pending", "blocked", "DONE"):
+    # ADR-014 T1 — `partial is no longer an unrecognised status`.
+    #
+    # §73 measured the cost of it NOT being one: a task whose README status read
+    # `partial` produced 0 findings where the same task marked `done` produced 2,
+    # so the honest word bought silence from the linter. §73 removed the silence
+    # by ADVISING on the unknown word. ADR-014 finishes the job by making it known
+    # — the advice was a placeholder for a decision nobody had made yet.
+    assert not status_advice("partial"), \
+        "partial is a status this reader acts on and must not be advised at"
+    # The must-fail direction (CLAUDE.md §4): a word genuinely outside the
+    # vocabulary must still be reported, or §73 has been undone rather than
+    # completed. `running`, `failed` and `deferred` were all observed in another
+    # corpus's legend and are deliberately NOT adopted (the record's Out of Scope).
+    for unknown in ("running", "failed", "deferred", "mostly-done"):
+        assert status_advice(unknown), \
+            f"{unknown} is outside the vocabulary and must say the checks did not run"
+    # The statuses this reader DOES act on stay silent, or the advice fires on
+    # every task and means nothing.
+    for known in ("done", "pending", "blocked", "DONE", "partial", "PARTIAL"):
         assert not status_advice(known), f"{known} is acted on and must not be advised at"
     # An empty or placeholder cell is not a claim, so it is not a finding either.
     for blank in ("", "—", "-"):
@@ -1982,15 +1997,15 @@ def main():
                     "`blocked` waiting on prod", "_pending_"):
         assert not status_advice(dressed), f"a dressed status is still its word: {dressed!r}"
     # And the emphasis must not hide an unrecognised one either.
-    dressed_advice = status_advice("**partial** — two of thirteen steps")
+    dressed_advice = status_advice("**running** — two of thirteen steps")
     assert dressed_advice, "emphasis is not an exemption"
     # The message names the WORD it acted on as well as the cell it read. Quoting
     # only the cell reads as though that whole string was treated as the status,
     # which invites the conclusion that the parser is naive in exactly the way it
     # is not (docs/BACKLOG.md §75).
-    assert "`partial` (from" in dressed_advice[0], dressed_advice
+    assert "`running` (from" in dressed_advice[0], dressed_advice
     # And when the cell IS the word, it is not repeated back twice.
-    assert "(from" not in status_advice("partial")[0], status_advice("partial")
+    assert "(from" not in status_advice("running")[0], status_advice("running")
 
     # BACKLOG §75. A README commonly holds TWO tables whose first column is
     # `| T1 |`: the status table, and a wave/ordering table whose third column is
@@ -2035,7 +2050,7 @@ def main():
     duplicated = (
         "| ID | Title | Status | Covers | Acceptance |\n|---|---|---|---|---|\n"
         "| T4 | the task | done | F-1 | something |\n"
-        "| T11 | partial one | **partial** — two of thirteen | F-2 | something |\n"
+        "| T11 | partial one | **running** — two of thirteen | F-2 | something |\n"
         "\n"
         "| Producer | Contract | Consumer(s) | Ordering note |\n|---|---|---|---|\n"
         "| T4 | the contract | T10 | T4 first |\n"
@@ -2053,14 +2068,57 @@ def main():
     errs = lint.Findings()
     lint.check_task_status_vocabulary(
         {"T1": {"path": Path("T1.md")}},
-        two_tables.replace("**done** (2026-07-20)", "**partial** — two of thirteen"), errs)
+        two_tables.replace("**done** (2026-07-20)", "**running** — two of thirteen"), errs)
     assert [a for a in errs.advice if "does not act on" in a], \
         "the status table must still be read when a second table follows it"
     # And a task the reader has no file for is not reported: the status belongs
     # to a row this corpus cannot resolve, which is a different finding.
     errs = lint.Findings()
-    lint.check_task_status_vocabulary({}, readme.format("partial"), errs)
+    lint.check_task_status_vocabulary({}, readme.format("running"), errs)
     assert not [a for a in errs.advice if "does not act on" in a], errs.advice
+
+    # ADR-014 T1 — `a partial task with passing evidence owes what a done task owes`.
+    #
+    # This is the half that makes `partial` a status with OBLIGATIONS rather than a
+    # softer word for pending. A task that landed real work, recorded a passing
+    # fence, and is honest that it is not finished must still be asked whether that
+    # fence can fail. Reported by klientams-front-v2-01 as the shape that actually
+    # bites: all nine of their tasks read `done` for a week, then 2.35.0 introduced
+    # the mutation obligation and seven turned FAIL without changing — and four of
+    # the nine fences could not fail at all. Nobody KNEW they were part-done. So
+    # `partial` cannot only be a word an author sets when they already know; the
+    # obligation has to be derivable from the evidence, and this is where it is.
+    partial_acc = "printf first"
+    partial_pass = (f"- 2026-08-22 · no-git · exit 0 · `printf first …` · "
+                    f"acceptance-sha256:{lint.acceptance_digest(partial_acc)}")
+    partial_info = {
+        "T1": {"human": False, "path": Path("T1.md"), "vlog": [partial_pass],
+               "mlog": [], "has_mlog": False, "acc_all": partial_acc}
+    }
+    errs = lint.Findings()
+    lint.check_mutation_evidence(partial_info, "| T1 | probe | partial |", errs)
+    assert errs or errs.advice, \
+        "a partial task with a passing fence must still be asked to show that fence can fail"
+
+    # `a partial task is not asked for a done row's evidence`. The exit-0
+    # requirement belongs to a claim of completion, and `partial` does not make one.
+    # Without this the new status would be `done` under another name.
+    errs = lint.Findings()
+    lint.check_verification({"T1": {"human": False, "vlog": [], "mlog": [],
+                                    "acc_all": partial_acc,
+                                    "acc_first": partial_acc}},
+                            "| T1 | probe | partial |", errs)
+    assert not [e for e in errs if "no exit-0" in e or "hand-declare" in e], \
+        f"a partial task claims no completion and must not be asked for a done row's evidence: {list(errs)}"
+    # The must-fail direction: a `done` row with no evidence IS still refused, or
+    # this task loosened `done` instead of adding a status beside it.
+    errs = lint.Findings()
+    lint.check_verification({"T1": {"human": False, "vlog": [], "mlog": [],
+                                    "acc_all": partial_acc,
+                                    "acc_first": partial_acc}},
+                            "| T1 | probe | done |", errs)
+    assert [e for e in errs if "exit-0" in e or "hand-declare" in e], \
+        f"done must still require its evidence: {list(errs)}"
 
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem

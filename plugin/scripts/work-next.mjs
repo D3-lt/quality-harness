@@ -138,8 +138,24 @@ export function observe(directory) {
   const executable = file => owner.get(path.resolve(file))?.kind === 'governing'
   const unfinished = file => {
     const text = read(file)
-    return !/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)
-      && /^##\s+Acceptance/im.test(text)
+    if (!/^##\s+Acceptance/im.test(text)) return false
+    // Tool-run evidence: a fence that exited 0.
+    if (/^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(text)) return false
+    // A HUMAN-OBSERVED acceptance has no fence to exit 0, so testing only for that
+    // row made every such task permanently ready — adr-lint, adr-debt and the task
+    // index would all call it done while this router went on naming it as the next
+    // thing to do. Found 2026-08-30 by finishing ADR-012 T4, whose acceptance is
+    // human-observed by design: the observation is a person watching another
+    // program on their own machine.
+    //
+    // The sign-off is the evidence, and it is the SAME rule adr-lint applies —
+    // such a task needs a `human-observed` Verification Log entry and nothing else
+    // satisfies it. This is not a way to hand-declare done: an ordinary fenced task
+    // is unaffected, because the acceptance must say so in the words the writer
+    // uses (`adr-verify --human` exists for exactly these).
+    if (/^\s*Acceptance is human-observed:/im.test(text)
+      && /^- \d{4}-\d{2}-\d{2} · human-observed · \S/m.test(text)) return false
+    return true
   }
   const ready = tasks.filter(file => unfinished(file) && executable(file))
   // Named rather than dropped in silence: a corpus whose only unfinished work

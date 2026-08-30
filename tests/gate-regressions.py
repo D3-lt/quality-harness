@@ -2120,6 +2120,77 @@ def main():
     assert [e for e in errs if "exit-0" in e or "hand-declare" in e], \
         f"done must still require its evidence: {list(errs)}"
 
+    # ADR-014 T2 — `Blocked-on requires a human-observed acceptance`.
+    def blocked_on_findings(header, acceptance="```bash\ntrue\n```"):
+        with tempfile.TemporaryDirectory() as td:
+            probe = Path(td) / "T9-probe.md"
+            probe.write_text(
+                "# Task X-T9: probe\n\n"
+                "**Depends-on:** none\n**Covers:** none\n**Produces:** none\n"
+                "**Consumes:** none\n" + header +
+                "\n## Goal\n\ng\n\n"
+                "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+                "| `x.py` | edit | w |\n\n"
+                "## Ordered Steps\n\n1. Write the failing test first.\n2. Then the rest.\n\n"
+                "## Acceptance\n\n" + acceptance + "\n\n"
+                "## Tests\n\n| Test name | File | Verifies | Covers |\n|---|---|---|---|\n"
+                "| t | f | v | — |\n\n"
+                "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                "## Verification Log\n", encoding="utf-8")
+            errs = lint.Findings()
+            lint.check_task(probe, set(), errs)
+            return ([e for e in errs if "Blocked-on" in e],
+                    [a for a in errs.advice if "Blocked-on" in a])
+
+    human_acc = "Acceptance is human-observed: a person restarts the client and reports."
+    event = "**Blocked-on:** commit 3f97d0ba is an ancestor of master (git merge-base --is-ancestor 3f97d0ba master)\n"
+
+    # A task genuinely waiting on the outside world declares it, and its Acceptance
+    # is human-observed — there is no fence to run, which is what waiting MEANS.
+    blocking, _ = blocked_on_findings(event, human_acc)
+    assert blocking == [], f"Blocked-on on a human-observed task must be accepted: {blocking}"
+
+    # The same header on a task with a RUNNABLE fence is refused. A task that can
+    # run its own acceptance is not waiting on the outside world; it is unfinished,
+    # which is `pending` or `partial`. The distinction is structural — a bash fence
+    # or the explicit human-observed sentence — never a reading of the fence's text,
+    # which is the heuristic docs/BACKLOG.md §67 refused.
+    blocking, _ = blocked_on_findings(event)
+    assert blocking, "Blocked-on on a task with a runnable bash fence must be refused"
+    assert "human-observed" in blocking[0], \
+        f"and the refusal must say what would make it legitimate: {blocking[0]}"
+
+    # `a task without Blocked-on is unaffected`. The header is OPTIONAL: every task
+    # file valid before this change stays valid, or the corpus turns red overnight.
+    blocking, advice = blocked_on_findings("")
+    assert blocking == [] and advice == [], \
+        f"a task without the header must be untouched: {blocking} {advice}"
+
+    # ADVICE, not a refusal: a Blocked-on that names no CHECKABLE event.
+    #
+    # Reported by klientams-front-v2-01, who supplied both the good shape and the
+    # reason it will not happen by itself. Their real one is a command that exits
+    # 0 or 1 — `git merge-base --is-ancestor 3f97d0ba master` — and their warning
+    # is that all nine of their tasks already carry a `## Stop Condition`, which is
+    # prose about when to abandon. If `Blocked-on` lands beside those it gets
+    # filled in the same register unless the difference is said out loud.
+    #
+    # It is ADVICE because they also named a class this cannot resolve: an event
+    # only checkable by someone with access the local reader lacks ("an accepted
+    # client-verify-assets appears in the router audit log on both prod nodes").
+    # That is a legitimate Blocked-on that no command here can run, so refusing it
+    # would punish the honest case.
+    _, advice = blocked_on_findings(
+        "**Blocked-on:** the upstream team getting round to it\n", human_acc)
+    assert advice, "a Blocked-on naming no checkable event must be advised at"
+    assert "exits 0" in advice[0] or "command" in advice[0], \
+        f"and the advice must say what a checkable event looks like: {advice[0]}"
+    # The must-fail direction: a header that DOES name a check stays silent, or the
+    # advice fires on every Blocked-on and means nothing.
+    _, advice = blocked_on_findings(event, human_acc)
+    assert advice == [], f"a Blocked-on naming a runnable check must not be advised at: {advice}"
+
     postmortem = Path(sys.argv[2]).read_text().lower()
     assert "any severity" not in postmortem and "after any bug" not in postmortem
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))

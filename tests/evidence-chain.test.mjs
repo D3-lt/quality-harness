@@ -1085,3 +1085,23 @@ test('a partial task with a passing fence still owes a killed mutant', () => {
   expectExit(mutate(copy), 0, 'the mutant is killed')
   expectExit(lint(copy), 0, 'and a partial task that met its obligation passes')
 })
+
+// ADR-014 T2, end to end through the real binary, so the catalogue has a suite
+// scripts/mutate.mjs can start.
+test('Blocked-on is refused on a task that can run its own acceptance', () => {
+  const copy = corpus()
+  const withHeader = readTask(copy).replace('**Depends-on:**',
+    '**Blocked-on:** commit 3f97d0ba is an ancestor of master'
+    + ' (git merge-base --is-ancestor 3f97d0ba master)\n**Depends-on:**')
+  writeTask(copy, withHeader)
+
+  const got = lint(copy)
+  assert.notEqual(got.status, 0, 'the fixture has a runnable fence, so the header must be refused')
+  const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
+  assert.match(said, /Blocked-on/, `and the finding must name the header: ${said.slice(0, 300)}`)
+  assert.match(said, /human-observed/, 'and say what would make it legitimate')
+
+  // The must-fail direction: without the header the same corpus is clean, so the
+  // refusal is caused by what this task added and not by the fixture.
+  expectExit(lint(corpus()), 0, 'a task without Blocked-on must be untouched')
+})

@@ -994,7 +994,7 @@ CLAIM_RE = re.compile(
 # differently.
 ENTRY_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
-    r"human-observed · mutant killed · test exit [1-9]\d* · `[^`]+` · line \d+ · "
+    r"human-observed · mutant killed · test exit [1-9]\d* · `[^`]+` · line [1-9]\d* · "
     # Bounded, backreference-free code spans — the same shape adr-lint reads, and
     # for the same reason: the backreferenced version is catastrophically slow on
     # input it rejects (see adr-lint::_code_span).

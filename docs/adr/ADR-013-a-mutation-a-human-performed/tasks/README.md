@@ -6,7 +6,7 @@ file wins.
 | Order | Task | Depends-on | Status |
 |---|---|---|---|
 | 1 | T1 | none | done |
-| 2 | T2 | T1 | pending |
+| 2 | T2 | T1 | done |
 | 3 | T3 | T1, T2 | pending |
 
 ## Why the order is forced rather than preferred

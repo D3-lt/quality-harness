@@ -106,6 +106,31 @@ MLOG_TOOL_ARM = (
 # that is routine (Go raw strings, JS template literals, shell, Markdown) are what this
 # plugin ships to. Reported by wcag-43 before any row existed; changing a delimiter
 # after rows exist costs a migration or a second grammar.
+
+def looks_absolute(pointer):
+    """True for a path the user meant as rooted, on every platform and Python.
+
+    `Path.is_absolute()` is False for a rooted, driveless path on Windows:
+    `/etc/passwd` is drive-RELATIVE there, so pathlib is right and the callers
+    were not. They joined it to the working directory and re-rooted it onto
+    whichever drive the run happened to be on — measured 2026-08-30 from
+    `Y:\\Projects`, where `/etc/passwd` became `Y:\\etc\\passwd`, so the same input
+    behaved differently per drive letter and the diagnostic named a path nobody
+    typed.
+
+    Do not reach for `os.path.isabs` instead. It agrees with pathlib on 3.14 and
+    DISAGREES on 3.10 — `ntpath.isabs` changed in 3.13 to stop calling a rooted,
+    driveless path absolute — so the answer would depend on which interpreter the
+    `#!/usr/bin/env python3` shebang happened to find, and a box with both
+    installed can select either. Test the property directly instead: a drive
+    prefix, or a leading separator in either spelling. That is CLAUDE.md §7's
+    "reject a drive prefix as well as a leading slash" rule in the mirror
+    direction, and it does not ask the interpreter what "absolute" means.
+    """
+    text = str(pointer)
+    return bool(re.match(r"^[A-Za-z]:", text)) or text[:1] in ("/", "\\")
+
+
 def _code_span(quant):
     """A Markdown code span of 1-3 backticks, written WITHOUT a backreference.
 
@@ -471,7 +496,7 @@ def check_adr(adr_path, errors):
     if spec.lower().startswith("none"):
         return None
     spec_file = Path(spec)
-    if not spec_file.is_absolute():
+    if not looks_absolute(spec):
         candidates = [adr_path.parent / spec_file]
         root = git_root(adr_path.parent)
         if root:

@@ -303,6 +303,42 @@ test('adr-verify resolves Git Bash on Windows, never either bash.exe decoy', () 
   expectExit(run('python3', ['-c', probe, join(bin, 'adr-verify')]), 0, 'Windows bash resolution')
 })
 
+test('a rooted path is rooted on every platform, not re-rooted onto the cwd drive', () => {
+  // Path("/etc/passwd").is_absolute() is False on Windows: a rooted, driveless
+  // path is drive-RELATIVE there, so pathlib is right and the three callers were
+  // not. They joined it to cwd and re-rooted it onto whichever drive the run was
+  // on. Measured 2026-08-30 from Y:\Projects on Windows 11: /etc/passwd became
+  // Y:\etc\passwd, so the same input behaved differently by drive letter and the
+  // "file not found" named a path nobody typed.
+  //
+  // os.path.isabs is NOT the fix: it agrees with pathlib on 3.14 and disagrees on
+  // 3.10 (ntpath.isabs changed in 3.13), so the answer would depend on which
+  // interpreter the shebang found — and the reporting box had both installed.
+  // The predicate tests the property directly, which is why it is assertable here.
+  const probe = gate => [
+    'import runpy, sys',
+    `looks = runpy.run_path(sys.argv[1])["looks_absolute"]`,
+    'B = chr(92)',
+    'bad = []',
+    // Rooted, either separator, with or without a drive.
+    'for p in ["/etc/passwd", B + "Windows" + B + "System32", "C:" + B + "x", "C:/x", "Y:/Projects/x", "y:" + B + "p"]:',
+    '    bad += [] if looks(p) else [f"treated as relative: {p!r}"]',
+    // Relative, both spellings — or the predicate is just returning True.
+    'for p in ["docs/adr/x.md", "docs" + B + "adr" + B + "x.md", ".." + B + "dir" + B + "file", "../dir/file", "x.md"]:',
+    '    bad += [] if not looks(p) else [f"treated as rooted: {p!r}"]',
+    // A Path, not just a str: the callers pass both.
+    'from pathlib import PurePosixPath',
+    'bad += [] if looks(PurePosixPath("/etc/passwd")) else ["a Path argument was not handled"]',
+    'print("failures:", bad)',
+    'raise SystemExit(1 if bad else 0)',
+  ].join('\n')
+  // Both gates carry the predicate; they are standalone scripts and share no
+  // module, the same way resolve_bash is duplicated across Python and Node.
+  for (const gate of ['adr-verify', 'adr-lint']) {
+    expectExit(run('python3', ['-c', probe(gate), join(bin, gate)]), 0, `${gate} rooted-path predicate`)
+  }
+})
+
 test('adr-verify names an environment failure without excusing it', () => {
   // A fence that cannot reach its tools exits non-zero exactly like a fence whose
   // code is wrong. Reported 2026-08-25: four tasks read as failing implementations

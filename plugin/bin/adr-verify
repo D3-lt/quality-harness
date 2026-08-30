@@ -215,6 +215,30 @@ LINE_COMMENT = {
     ".jsx": "//", ".rs": "//", ".java": "//", ".c": "//", ".h": "//",
 }
 
+def looks_absolute(pointer):
+    """True for a path the user meant as rooted, on every platform and Python.
+
+    `Path.is_absolute()` is False for a rooted, driveless path on Windows:
+    `/etc/passwd` is drive-RELATIVE there, so pathlib is right and the callers
+    were not. They joined it to the working directory and re-rooted it onto
+    whichever drive the run happened to be on — measured 2026-08-30 from
+    `Y:\\Projects`, where `/etc/passwd` became `Y:\\etc\\passwd`, so the same input
+    behaved differently per drive letter and the diagnostic named a path nobody
+    typed.
+
+    Do not reach for `os.path.isabs` instead. It agrees with pathlib on 3.14 and
+    DISAGREES on 3.10 — `ntpath.isabs` changed in 3.13 to stop calling a rooted,
+    driveless path absolute — so the answer would depend on which interpreter the
+    `#!/usr/bin/env python3` shebang happened to find, and a box with both
+    installed can select either. Test the property directly instead: a drive
+    prefix, or a leading separator in either spelling. That is CLAUDE.md §7's
+    "reject a drive prefix as well as a leading slash" rule in the mirror
+    direction, and it does not ask the interpreter what "absolute" means.
+    """
+    text = str(pointer)
+    return bool(re.match(r"^[A-Za-z]:", text)) or text[:1] in ("/", "\\")
+
+
 def resolve_bash(platform=sys.platform, env=None, exists=None):
     """Absolute Git Bash on Windows; plain `bash` everywhere else. None if absent.
 
@@ -690,7 +714,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
         fail(f"{task.name}: no ## Mutation Log section — add one (see "
              f"the bundled task-template.md) before recording mutants.")
 
-    target = (cwd / rel) if not Path(rel).is_absolute() else Path(rel)
+    target = Path(rel) if looks_absolute(rel) else (cwd / rel)
     if not target.exists():
         fail(f"--mutant file not found: {target}")
 
@@ -925,7 +949,7 @@ def write_human_mutant(task, text, cwd, today, target, frm, to, test, test_exit,
     What it cannot check, and does not pretend to: that the diff was ever applied.
     Nothing observed it. ADR-013 records that as the cost of the lane.
     """
-    path = (cwd / target) if not Path(target).is_absolute() else Path(target)
+    path = Path(target) if looks_absolute(target) else (cwd / target)
     if not path.exists():
         fail(f"--human-mutant file not found: {target}")
     body = path.read_text(errors="replace", encoding="utf-8")

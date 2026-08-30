@@ -54,6 +54,8 @@ python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 
 ## Mutation Log
 
+- 2026-08-30 · 50eef5f* · mutant killed · exit 1 · `plugin/bin/adr-lint` · partial must be a status the reader acts on, or the honest word buys silence from the linter again · acceptance-sha256:5990e824d3fbcb86f9aa84dba98de77445a557256a216d30a80c7d356f2a1629
+
 ## Invariants
 
 - `done` still requires a matching exit-0 entry. This task adds a status, it does not weaken one.
@@ -74,3 +76,4 @@ requires. Those must stay independent, and if they cannot be, this decision is w
 - Any other status word. (permanent: named in the record's Out of Scope, with the reason.)
 
 ## Verification Log
+- 2026-08-30 · 50eef5f · exit 0 · `set -o pipefail …` · acceptance-sha256:5990e824d3fbcb86f9aa84dba98de77445a557256a216d30a80c7d356f2a1629

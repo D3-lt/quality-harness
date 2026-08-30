@@ -27,7 +27,7 @@ test.after(() => { for (const t of temps) rmSync(t, { recursive: true, force: tr
 
 // Spawned through the interpreter: the gates are `#!/usr/bin/env python3` and
 // Windows cannot exec them (CLAUDE.md §7).
-function lint(doc, files = {}) {
+function lint(doc, files = {}, afterCommit = {}) {
   const dir = mkdtempSync(join(tmpdir(), 'qh-arch-')); temps.push(dir)
   writeFileSync(join(dir, 'architecture.md'), doc)
   for (const [name, body] of Object.entries(files)) writeFileSync(join(dir, name), body)
@@ -42,6 +42,8 @@ function lint(doc, files = {}) {
     const g = spawnSync('git', args, { cwd: dir, env, encoding: 'utf8' })
     assert.equal(g.status, 0, `git ${args.join(' ')}: ${g.stderr}`)
   }
+  // Written AFTER the commit, so they are on disk and not in the index.
+  for (const [name, body] of Object.entries(afterCommit)) writeFileSync(join(dir, name), body)
   const r = spawnSync('python3', [gate, join(dir, 'architecture.md')],
     { encoding: 'utf8', cwd: dir, env })
   return `${r.stdout ?? ''}${r.stderr ?? ''}`
@@ -130,4 +132,28 @@ test('arch-lint reports a check cell citing a symbol the repo does not contain',
     lint(real, { 'rules.py': 'def assert_no_adapter_imports(tree):\n    raise AssertionError\n' }),
     /appears nowhere in the repo/,
     'a symbol the repo does contain must not be reported as absent')
+})
+
+test('a symbol that exists only on this machine does not satisfy a check', () => {
+  // CLAUDE.md §8: a check whose answer depends on who is asking is not a gate.
+  // Symbols resolved through Path.rglob, which reads the DISK, so an architecture
+  // document could cite a function that exists only in the author's working tree
+  // -- untracked, or gitignored -- and pass here while failing on a fresh clone.
+  // Found by a Codex review of the tests written for this gate.
+  const table = ['## Dependency Contracts', '',
+    '| Rule | Check |', '|------|-------|',
+    '| the domain layer imports no adapter | `assert_no_adapter_imports` |', ''].join('\n')
+  const doc = conforming.replace(
+    '## Dependency Contracts\n\nNone — fixture has no import graph.\n', table)
+
+  // Tracked: the symbol counts.
+  assert.doesNotMatch(
+    lint(doc, { 'rules.py': 'def assert_no_adapter_imports(tree):\n    raise AssertionError\n' }),
+    /appears nowhere in the repo/, 'a tracked definition must satisfy the check')
+
+  // Present on disk but NOT in the index: it must not.
+  assert.match(
+    lint(doc, {}, { 'untracked.py': 'def assert_no_adapter_imports(tree):\n    raise AssertionError\n' }),
+    /appears nowhere in the repo/,
+    'a symbol that exists only in the working tree must not satisfy an architecture check')
 })

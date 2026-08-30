@@ -194,15 +194,46 @@ def symbol_body(text, symbol):
     return text[start:]
 
 
+def tracked_paths(root):
+    """What git tracks under `root`, plus files staged or newly added but not ignored.
+
+    `rglob` answers "is this on THIS machine", not "is this in the repository"
+    (CLAUDE.md §8). An architecture document could cite a symbol that exists only
+    in the author's working tree — untracked, or gitignored — and pass here while
+    failing for everyone else. `--cached` covers tracked AND STAGED, so a file
+    being added in the same commit counts once it is `git add`ed.
+
+    Deliberately NOT `--others --exclude-standard`, which §8 offers for the
+    same-commit case: it admits every non-ignored file on disk, so it cannot tell a
+    file being added from one that only exists on this laptop — which is the defect
+    itself. Staging is the cheap, explicit signal that a file is meant to ship.
+
+    Returns None when git cannot answer, so the caller can SAY it fell back rather
+    than reporting a narrower search as a finding (ADR-005).
+    """
+    try:
+        r = subprocess.run(["git", "-C", str(root), "ls-files", "--cached"],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+    except OSError:
+        return None
+    if r.returncode != 0:
+        return None
+    return {(root / line).resolve() for line in r.stdout.splitlines() if line.strip()}
+
+
 def repo_files(root, limit=6000):
     """Text files under root, cheaply — enough to resolve a symbol name."""
     out = []
+    tracked = tracked_paths(root)
     for q in root.rglob("*"):
         if len(out) >= limit:
             break
         if not q.is_file():
             continue
         if any(part in SKIP_DIRS for part in q.parts):
+            continue
+        # A file git does not know about cannot satisfy an architecture claim.
+        if tracked is not None and q.resolve() not in tracked:
             continue
         if q.suffix.lower() in {".png", ".jpg", ".jpeg", ".gif", ".pdf", ".zip", ".gz",
                                 ".ico", ".woff", ".woff2", ".ttf", ".mp4", ".bin", ".so",

@@ -3273,6 +3273,24 @@
       ],
       "from": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\", \"partial\"}",
       "to": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\"}"
+    },
+    {
+      "label": "hook: the post-edit check acts only on the edit tools",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "  Edit|Write|MultiEdit|NotebookEdit) ;;",
+      "to": "  Edit|Write|MultiEdit|NotebookEdit|Bash) ;;"
+    },
+    {
+      "label": "hook: a broken shell script is reported after an edit",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "    bash -n \"$file_path\" 2>&1 | tail -30 || true",
+      "to": "    true"
     }
   ]
 }

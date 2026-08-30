@@ -648,6 +648,32 @@ test('every shipped gate carries at least one mutation', () => {
   assert.deepEqual(uncovered(['ghost-gate'], new Set([`${binPrefix}real-gate`])), ['ghost-gate'],
     'the check must be able to name an uncovered gate, or it asserts nothing')
 
+  // SHIPPED SCRIPTS TOO. The scope was bin/ alone, and plugin/scripts/ ships
+  // executable logic as well -- including post-edit-check.sh, a PostToolUse hook
+  // that runs after EVERY Edit/Write for every user. It carried no mutation and
+  // no behavioural test at all, and this check could not see it, because the one
+  // place a gate can hide from "a gate nothing mutates" is outside bin/.
+  //
+  // Trivial forwarders are excluded by size rather than by name: a wrapper has
+  // nothing to assert, and listing exemptions is how the list becomes the truth.
+  const scriptsDir = join(root, 'scripts')
+  const scriptPrefix = `${relative(repoRoot, scriptsDir).split(sep).join('/')}/`
+  const scripts = readdirSync(scriptsDir, { withFileTypes: true })
+    .filter(e => e.isFile() && /\.(sh|mjs)$/.test(e.name))
+    .filter(e => readFileSync(join(scriptsDir, e.name), 'utf8').split('\n').length >= 60)
+    .map(e => e.name).sort()
+  // Shown capable of naming one, for the same reason the bin/ predicate is: a
+  // complete catalogue and a predicate that returns nothing at all look identical.
+  assert.deepEqual(
+    ['ghost-script.sh'].filter(n => !new Set([`${scriptPrefix}real.sh`]).has(`${scriptPrefix}${n}`)),
+    ['ghost-script.sh'], 'the scripts predicate must be able to name an uncovered script')
+  assert.ok(scripts.length >= 5, `expected the shipped scripts, found ${scripts.length}`)
+  const bareScripts = scripts.filter(n => !covered.has(`${scriptPrefix}${n}`))
+  assert.deepEqual(bareScripts, [],
+    `these shipped scripts carry no mutation in tests/mutations.json: ${bareScripts.join(', ')}. `
+    + 'A shipped script nothing mutates has never been shown to assert anything, and a hook '
+    + 'that runs on every edit is the last place that should be true.')
+
   const bare = uncovered(gates, covered)
   // Name the gate. "expected 10 to be 11" makes the reader redo the enumeration
   // the test just did, which is how a failing check becomes a check people skip.

@@ -3399,6 +3399,15 @@
       ],
       "from": "    return bool(re.match(r\"^[A-Za-z]:\", text)) or text[:1] in (\"/\", \"\\\\\")",
       "to": "    return Path(text).is_absolute()"
+    },
+    {
+      "label": "windows: shipped .js and .py are pinned to LF",
+      "file": ".gitattributes",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "*.js text eol=lf\n*.py text eol=lf\n",
+      "to": ""
     }
   ]
 }

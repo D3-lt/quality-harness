@@ -612,6 +612,42 @@ test('a mutation that matches across lines targets a file git checks out with LF
     + `campaign goes STALE on Windows only: ${exposed.join(', ')}`)
 })
 
+// Asked of git, never read out of `.gitattributes`: what matters is the answer
+// git gives for the path, and a rule that stops matching does not warn.
+test('code that ships is checked out LF whatever its extension', () => {
+  // `*.mjs` was pinned and `*.js` was not, so plugin/scripts/*.mjs arrived LF on
+  // Windows while plugin/workflows/*.js arrived CRLF — same repository, same kind
+  // of code, opposite checkout. Measured 2026-08-30 on a Windows 11 box with
+  // core.autocrlf=true, which is the Git-for-Windows default and therefore what a
+  // contributor gets. The hazard is not today's behaviour; it is that anyone
+  // seeing .mjs pinned will assume .js is, and §1 records four things that break
+  // silently when a file moves — an unpinned extension is a fifth.
+  const eolOf = file => spawnSync('git', ['-C', repoRoot, 'check-attr', 'eol', '--', file],
+    { encoding: 'utf8' }).stdout.trim().split(': ').pop()
+
+  // Shown able to fire first, or the assertion below is `[] === []`. LICENSE has
+  // no eol rule and is deliberately not meant to.
+  assert.equal(eolOf('LICENSE'), 'unspecified',
+    'the check must be able to see an unattributed file, or it asserts nothing')
+
+  // Every tracked file whose extension implies executable source. Resolved
+  // against `git ls-files`, not the working tree: a check whose answer depends on
+  // what is on this disk is not a check (§8).
+  const tracked = spawnSync('git', ['-C', repoRoot, 'ls-files'], { encoding: 'utf8' })
+    .stdout.split('\n').filter(Boolean)
+  const source = tracked.filter(file => /\.(js|mjs|py|sh)$/.test(file))
+  assert.ok(source.length > 0, 'expected tracked source files to check')
+
+  const crlfRisk = source.filter(file => eolOf(file) !== 'lf')
+  assert.deepEqual(crlfRisk, [],
+    'these ship as source but git may hand them to a Windows checkout with CRLF: '
+    + crlfRisk.join(', '))
+
+  // The parity that was actually missing, stated so it cannot regress quietly.
+  assert.equal(eolOf('plugin/workflows/consensus.js'), eolOf('plugin/scripts/lifecycle.mjs'),
+    '.js and .mjs must be checked out the same way')
+})
+
 test('every shipped gate carries at least one mutation', () => {
   // ADR-003: a gate asserts behaviour, not shape. The floor beneath that rule is
   // that somebody wrote a mutation for each gate at all — and until this test the

@@ -52,6 +52,8 @@ python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 
 ## Mutation Log
 
+- 2026-08-30 · 52c4392* · mutant killed · exit 1 · `plugin/bin/adr-lint` · a task that can run its own acceptance is not waiting on the outside world, and must not be able to say it is · acceptance-sha256:66ef21708b501364aff172c6675d81f582a79393afc01c21423bb7102de0e754
+
 ## Invariants
 
 - The header is OPTIONAL. Every task file valid before this change stays valid.
@@ -72,3 +74,4 @@ a bash fence or the explicit human-observed sentence — so if it stops being st
 - Escalating a stale `Blocked-on`. (deferred: this record's T3)
 
 ## Verification Log
+- 2026-08-30 · 52c4392 · exit 0 · `set -o pipefail …` · acceptance-sha256:66ef21708b501364aff172c6675d81f582a79393afc01c21423bb7102de0e754

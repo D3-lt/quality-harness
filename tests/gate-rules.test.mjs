@@ -1273,6 +1273,9 @@ test('adr-retire-check --adopt reports what it finds on a tree adopting the life
   const ok = run('adr-retire-check',
     ['--adopt', join(clean, 'adr'), join(clean, 'adr-archive')], clean)
   const okOut = `${ok.stdout}${ok.stderr}`
+  // Excluding five message patterns is not the same as succeeding: an unrelated
+  // non-zero exit satisfies every doesNotMatch below.
+  assert.equal(ok.status, 0, `a clean adopting tree must pass: ${okOut}`)
   for (const p of [/overlap|recursive/i, /needs README\.md/i, /broken link/i,
     /exists \d+ times/i, /cannot classify/i]) {
     assert.doesNotMatch(okOut, p, `a clean adopting tree must be quiet: ${okOut}`)

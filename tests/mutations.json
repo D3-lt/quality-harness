@@ -3149,7 +3149,7 @@
       "to": "KNOWN_TASK_STATUS = {\"done\", \"pending\", \"blocked\"}"
     },
     {
-      "label": "ADR-014: a partial task's obligations follow its evidence",
+      "label": "ADR-014: a task is selected by its evidence not by its status word",
       "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/evidence-chain.test.mjs"

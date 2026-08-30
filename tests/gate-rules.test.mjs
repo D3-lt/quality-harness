@@ -1145,3 +1145,60 @@ test('a wait is dated by its evidence logs, not by a row-shaped line in prose', 
   assert.match(got.stdout, /already happened/,
     `a row-shaped line in prose must not reset the clock: ${got.stdout}`)
 })
+
+// --- adr-retire-check: the STRUCTURAL rules -----------------------------------
+//
+// scripts/unasserted.mjs measured 17 of 33 finding sites here surviving being
+// disabled entirely -- the worst ratio of any gate, in the one that guards ADR
+// retirement, where a finding that cannot fire loses decision authority silently.
+// The existing test above covers the catalog ROW rules; nothing covered the rules
+// about the two trees and how they point at each other.
+test('every adr-retire-check structural rule has a case that makes it fire', () => {
+  const dir = scratch('archive-structure')
+  const archive = join(dir, 'adr-archive')
+  const source = join(repoRoot, 'tests', 'fixtures', 'ok')
+  cpSync(join(source, 'adr-archive'), archive, { recursive: true })
+  cpSync(join(source, 'adr'), join(dir, 'adr'), { recursive: true })
+
+  const catalog = join(archive, 'README.md')
+  const good = readFileSync(catalog, 'utf8')
+  // A target for the id-less row below, so that case fails on the missing id and
+  // not on a link that does not resolve.
+  writeFileSync(join(archive, 'notes.md'), '# notes\n')
+  const check = text => {
+    writeFileSync(catalog, text)
+    return run('adr-retire-check', ['adr-archive/README.md'], dir)
+  }
+  // The positive control. Without it every "the broken one is reported" case below
+  // is satisfied by a gate that reports everything.
+  assert.equal(check(good).status, 0, `the fixture must be clean: ${check(good).stdout}`)
+
+  const cases = [
+    ['an Active corpus that resolves to nothing',
+      good.replace('**Active corpus:** ../adr', '**Active corpus:** ../no-such-corpus'),
+      /Active corpus|does not|exist/i],
+    ['an Active corpus that is the archive itself',
+      good.replace('**Active corpus:** ../adr', '**Active corpus:** .'),
+      /overlap|disjoint|sibling/i],
+    ['a catalog row naming no ADR id',
+      good + '| [a record](notes.md) | Untitled | governing | 2026-08-22 | why '
+           + '| `../adr/BACKLOG.md` | ' + 'd'.repeat(64) + ' |\n',
+      /no ADR id|ADR id/i],
+    ['an archive README with no lifecycle marker',
+      good.replace('**Lifecycle:** Frozen historical ADR records', ''),
+      /lifecycle marker|Lifecycle/i],
+    ['an obligations cell that links nothing that resolves',
+      good.replace('`../adr/BACKLOG.md`', '`../adr/NOT-THERE.md`'),
+      /broken link|does not resolve|obligation/i],
+  ]
+
+  for (const [label, text, expected] of cases) {
+    assert.notEqual(text, good, `${label}: the edit did not apply`)
+    const result = check(text)
+    const said = `${result.stdout ?? ''}${result.stderr ?? ''}`
+    assert.match(said, expected, `${label}: not reported — ${said.slice(0, 300)}`)
+    // Named, never a bare exit code: "exit 1" alone makes a reader redo the
+    // enumeration the gate just did.
+    assert.notEqual(said.trim(), '', `${label}: reported nothing at all`)
+  }
+})

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
-  chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readlinkSync, rmSync,
+  chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync,
   symlinkSync, writeFileSync,
 } from 'node:fs'
 import { tmpdir } from 'node:os'
@@ -43,6 +43,65 @@ function resolve(versions, directory) {
   }
   return spawnSync(process.execPath, ['-e', RESOLVER, cache], { encoding: 'utf8' }).stdout
 }
+
+
+// THIS IS A SHAPE CHECK, and it says so because ADR-003 forbids passing one off
+// as a behaviour check. A cmd fence has no seam: there is no way to execute
+// `where /q py && (…) || (…)` from macOS or Linux and observe that it is wrong.
+// The behavioural assertion lives on a Windows box and nowhere else, and until it
+// runs there this file records shape and the commit records that shape is all
+// that was proven.
+//
+// What was measured, 2026-08-30 on Windows 11 by a peer session: `A && B || C` in
+// cmd is not if/else — `||` fires when B exits non-zero, not only when A fails.
+// So every FAILING gate ran twice, once under `py -3` and again under `python`,
+// and the caller received the second interpreter's exit code rather than the
+// gate's. A failing adr-lint printed its entire FAIL block twice, verbatim.
+test('a cmd forwarder runs one interpreter and returns its exit code', () => {
+  const gates = readdirSync(path.join(root, 'bin'))
+    .filter(name => name.endsWith('.cmd'))
+  assert.ok(gates.length >= 11, `expected the shipped .cmd forwarders, saw ${gates.length}`)
+
+  const shipped = gates.map(name => [name, readFileSync(path.join(root, 'bin', name), 'utf8')])
+  const generated = forwarderCmd('adr-lint')
+
+  for (const [name, text] of [...shipped, ['<generated>', generated]]) {
+    // The exact defect, spelled the exact way it shipped.
+    assert.doesNotMatch(text, /&&\s*\(\s*py\s+-3/,
+      `${name}: chains the gate onto \`where /q py\` with && — a failing gate then runs twice`)
+    assert.doesNotMatch(text, /\|\|\s*\(\s*python\b/,
+      `${name}: falls back with || , which fires on the GATE's exit code, not on where's`)
+    // And the form that replaced it, so removing the chain without replacing the
+    // selection would not pass: `where` must be tested by errorlevel, not chained.
+    assert.match(text, /^where \/q py$/m, `${name}: must probe for the py launcher on its own line`)
+    assert.match(text, /^if errorlevel 1 \($/m, `${name}: must branch on where's errorlevel`)
+    assert.match(text, /^\) else \($/m, `${name}: must have a real else branch`)
+  }
+
+  // Both interpreters still reachable, one per branch — a fix that simply deleted
+  // the fallback would satisfy everything above.
+  // \r\n, not \n: the generator emits CRLF and `*.cmd text eol=crlf` keeps it that
+  // way, because cmd needs it. Matching \n here would have failed for the right
+  // reason and been "fixed" by loosening the assertion.
+  assert.match(generated, /\r\n {2}python "%QH_ROOT%\\bin\\adr-lint" %\*\r\n/)
+  assert.match(generated, /\r\n {2}py -3 "%QH_ROOT%\\bin\\adr-lint" %\*\r\n/)
+
+  // The generator writes into the standalone bin directory and the eleven above
+  // ship in the package. They are different files with the same job, so they
+  // drift unless something compares them.
+  // Sliced from `where /q py` onward: the generator has an earlier `)` closing its
+  // "no installed plugin" guard, and a filter that swept the whole file picked it
+  // up. Anchor on the block, then compare it.
+  const selection = text => {
+    const lines = text.split(/\r?\n/)
+    const start = lines.findIndex(line => line === 'where /q py')
+    assert.notEqual(start, -1, 'no interpreter-selection block found')
+    return lines.slice(start).filter(Boolean).map(line => line.replace(/"[^"]*"/, '"<gate>"').trim())
+  }
+  assert.deepEqual(selection(generated), selection(shipped[0][1]),
+    'the generated forwarder and the shipped ones must select the interpreter identically')
+})
+
 
 test('the resolver orders versions numerically, not lexically', () => {
   // The cache on the machine this was written for holds 2.0.4, 2.0.10, 2.1.7 and

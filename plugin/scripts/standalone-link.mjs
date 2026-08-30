@@ -178,7 +178,20 @@ export function forwarderCmd(gate, homeDirectory = os.homedir()) {
     ')',
     // The py launcher first: a Windows Python is `python.exe`, so `python3` —
     // the name the gate's shebang asks for — often does not exist there.
-    `where /q py && (py -3 "%QH_ROOT%\\bin\\${gate}" %*) || (python "%QH_ROOT%\\bin\\${gate}" %*)`,
+    //
+    // Written as an IF and not as `where /q py && (…) || (…)`, because that chain
+    // is not if/else: `||` fires when the GATE exits non-zero, not only when
+    // `where` fails. Every failing gate therefore ran twice under two different
+    // interpreters and the caller received the second one's exit code. Measured
+    // 2026-08-30 on Windows 11 by a peer session, with the whole FAIL block
+    // printed twice. A .cmd exits with its last command, so the form below runs
+    // exactly one interpreter and propagates its status untouched.
+    'where /q py',
+    'if errorlevel 1 (',
+    `  python "%QH_ROOT%\\bin\\${gate}" %*`,
+    ') else (',
+    `  py -3 "%QH_ROOT%\\bin\\${gate}" %*`,
+    ')',
     '',
   ].join('\r\n')
 }

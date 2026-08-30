@@ -54,6 +54,8 @@ python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 
 ## Mutation Log
 
+- 2026-08-30 · a77a8e4* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the arm must refuse a kill claimed on a passing test, or `killed` is a bare assertion · acceptance-sha256:ffcc02d6997db4e800958f0c1d2d30522a292281e78e9737ff6024121aac9ae9
+
 ## Invariants
 
 - A tool-written row that parses today parses identically after this change.
@@ -74,3 +76,4 @@ grammar needs a version rather than an arm, which is a different decision.
 - Deciding whether such a row counts as the `mutant killed` a `done` task needs. (deferred: this record's T3)
 
 ## Verification Log
+- 2026-08-30 · a77a8e4 · exit 0 · `set -o pipefail …` · acceptance-sha256:ffcc02d6997db4e800958f0c1d2d30522a292281e78e9737ff6024121aac9ae9

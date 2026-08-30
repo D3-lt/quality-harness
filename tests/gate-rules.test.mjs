@@ -1066,3 +1066,35 @@ test('an old wait asks whether the event has already happened', () => {
   assert.doesNotMatch(line, /rot|stale|overdue|neglect/i,
     `the wording must ask, not scold: ${line}`)
 })
+
+test('a wait is dated by its newest evidence row, not by prose', () => {
+  // The comment and the code must agree about WHICH dates count. Both logs are
+  // tool-written, so either means somebody looked; a date quoted in prose is not
+  // evidence that anyone did, and must not reset the clock.
+  const dir = scratch('waiting-dates')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(join(adrDir, 'ADR-001-probe', 'tasks'), { recursive: true })
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'), '# ADR-001: Probe\n')
+  writeFileSync(join(adrDir, 'ADR-001-probe', 'tasks', 'T1-dated.md'),
+    '# Task ADR-001-T1\n\n**Blocked-on:** the vendor enabling the account\n'
+    + '**Depends-on:** none\n\n## Goal\n\nAgreed on 2026-08-29 with the vendor.\n\n'
+    + '## Out of Scope\n\n- none\n\n'
+    + '## Verification Log\n\n- 2025-01-05 · no-git · human-observed · a person watched it\n')
+
+  // Only the 2025 evidence row counts; the 2026 date in the Goal prose does not.
+  const proseOnly = run('adr-debt', [adrDir], dir)
+  assert.match(proseOnly.stdout, /already happened/,
+    `a prose date must not reset the clock: ${proseOnly.stdout}`)
+
+  // Adding a RECENT Mutation Log row does count — it is tool-written evidence
+  // that somebody looked, and scoping age to the Verification Log alone would
+  // call this task stale while its mutation evidence was recorded days ago.
+  const today = new Date().toISOString().slice(0, 10)
+  writeFileSync(join(adrDir, 'ADR-001-probe', 'tasks', 'T1-dated.md'),
+    readFileSync(join(adrDir, 'ADR-001-probe', 'tasks', 'T1-dated.md'), 'utf8')
+    + `\n## Mutation Log\n\n- ${today} · no-git · mutant killed · exit 1 · \`x.py\` · probe\n`)
+  const recent = run('adr-debt', [adrDir], dir)
+  assert.doesNotMatch(recent.stdout, /already happened/,
+    `a recent Mutation Log row means somebody looked: ${recent.stdout}`)
+  assert.match(recent.stdout, /1 waiting/, 'and it is still waiting')
+})

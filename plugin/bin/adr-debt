@@ -421,9 +421,16 @@ def main():
                 if s.startswith("- [ ]"):
                     followups.append((scan_dir, rel, s[5:].strip()))
             # A task waiting on an external event, and how long it has waited.
-            # Age comes from the newest date the task's own Verification Log
-            # carries, because that is the last time anybody demonstrably looked.
-            # With no entry there is nothing to measure, and this SAYS SO rather
+            #
+            # Age comes from the newest dated EVIDENCE ROW anywhere in the task --
+            # Verification Log or Mutation Log, since both are tool-written and
+            # either one means somebody demonstrably looked at this task that day.
+            # Scoping it to the Verification Log alone would call a task stale
+            # while its mutation evidence was recorded last week. The regex is
+            # deliberately the evidence-row shape (`- <date> · `) rather than any
+            # date in the file, so a date QUOTED IN PROSE does not reset the clock.
+            #
+            # With no such row there is nothing to measure, and this SAYS SO rather
             # than assuming recency -- a gate must not report an observation it
             # did not make (ADR-005).
             bo = re.search(r"^\*\*Blocked-on:\*\*\s*(.+?)\s*$", text, re.M)

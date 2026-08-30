@@ -3237,6 +3237,15 @@
       ],
       "from": "            if rest != -1 and text[first + run:rest].strip():",
       "to": "            if True:"
+    },
+    {
+      "label": "next: a signed-off human-observed task is finished",
+      "file": "plugin/scripts/work-next.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (/^\\s*Acceptance is human-observed:/im.test(text)\n      && /^- \\d{4}-\\d{2}-\\d{2} · human-observed · \\S/m.test(text)) return false",
+      "to": "    if (false) return false"
     }
   ]
 }

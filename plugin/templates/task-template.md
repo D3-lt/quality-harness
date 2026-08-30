@@ -1,6 +1,13 @@
 # Task <ADR-NNN>-<slug-or-id>: <One-line goal>
 
 **Depends-on:** <task-ids comma-separated, or "none">
+**Blocked-on:** <OPTIONAL, and only where the Acceptance is human-observed: the event this task
+waits on, written so a later reader can check whether it has HAPPENED. A command that exits 0 once
+it has is the best form — `commit <sha> is an ancestor of master (git merge-base --is-ancestor
+<sha> master)`. Where only someone with other access can confirm it, say who. Not a mood, and not
+a second Stop Condition: that section says when to abandon, this one says what to wait for. A task
+with a runnable ```bash fence cannot use this header — a task that can run its own acceptance is
+not waiting, it is unfinished, which is `pending` or `partial`.>
 
 <An unqualified id names a SIBLING task in this ADR: `T2`. A QUALIFIED id names a task in another
 record and is written `ADR-003-T4` or `ADR-003/T4` — `adr-lint` resolves it against the corpus, and

@@ -2202,8 +2202,30 @@ def main():
         "commit abc is an ancestor of master (git merge-base --is-ancestor abc master)")
     assert lint.names_a_check("`git merge-base --is-ancestor abc master`")
     assert not lint.names_a_check("the upstream team getting round to it")
-    assert not lint.names_a_check("wait (see (this) thing)"), "nested parens are prose"
     assert not lint.names_a_check("waiting ()"), "an empty parenthesis names nothing"
+
+    # Four soundness cases from a Codex review, all confirmed live before fixing.
+    # The predicate cannot read prose, so each is settled by STRUCTURE or admitted
+    # as undetectable and handled in the wording instead (CLAUDE.md §3).
+    assert not lint.names_a_check("the upstream team gets round to it (eventually)"), \
+        "a one-word parenthetical is prose, not a command"
+    assert not lint.names_a_check("wait until someone cares `"), \
+        "an UNPAIRED backtick is a typo, not a code span"
+    assert not lint.names_a_check("waiting on `` "), \
+        "an empty code span names nothing"
+    # A command may legitimately contain parentheses, and a sentence may legitimately
+    # end in a full stop. Both were refused, which is the mirror failure: telling an
+    # author who DID name a check that they did not.
+    assert lint.names_a_check("probe exits zero (python -c SystemExit(0))."), \
+        "a command containing parentheses, after trailing punctuation, is still a command"
+    # The class this genuinely cannot detect: an event only a PERSON can confirm.
+    # klientams-front-v2-01 named it and it has no command by construction, so it
+    # gets an explicit marker rather than a guess at prose.
+    assert lint.names_a_check(
+        "the router audit log shows accepted on both prod nodes — checked by: SRE on call"), \
+        "an explicit observer marker is a way to check, even with no command"
+    assert not lint.names_a_check("SRE confirms the router audit log shows accepted"), \
+        "but naming a role in prose is NOT the marker — that is the part this cannot read"
     _t0 = time.perf_counter()
     assert not lint.names_a_check("(" + "a" * 200000)
     _dt = time.perf_counter() - _t0

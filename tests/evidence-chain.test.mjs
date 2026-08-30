@@ -1186,3 +1186,28 @@ test('a Tests row pointing outside the repository is unproven, not failed', () =
   expectExit(got, 0,
     `a task whose code lives elsewhere must not be permanently red: ${said.slice(0, 500)}`)
 })
+
+test('a Blocked-on with an unpaired backtick is still asked for a way to check', () => {
+  // A Codex soundness finding: ANY backtick suppressed the advice, so a value with
+  // a stray one — a typo, not a code span — silently passed as though it named a
+  // command. The advisory then said nothing about a Blocked-on that names nothing.
+  const copy = corpus()
+  writeTask(copy, readTask(copy)
+    .replace(/```bash\n[\s\S]*?```/, 'Acceptance is human-observed: a person watches it.')
+    .replace('**Depends-on:**', '**Blocked-on:** wait until someone cares `\n**Depends-on:**'))
+  const said = `${lint(copy).stdout ?? ''}${lint(copy).stderr ?? ''}`
+  assert.match(said, /Blocked-on/, `an unpaired backtick must not suppress the advice: ${said.slice(0, 400)}`)
+  assert.match(said, /could not find a way to check/,
+    `and the wording must say what it did not find, not that none exists: ${said.slice(0, 400)}`)
+
+  // The must-fail direction: a PAIRED, non-empty span does suppress it, or the
+  // advice fires on every Blocked-on and the assertion above proves nothing.
+  const ok = corpus()
+  writeTask(ok, readTask(ok)
+    .replace(/```bash\n[\s\S]*?```/, 'Acceptance is human-observed: a person watches it.')
+    .replace('**Depends-on:**',
+      '**Blocked-on:** the branch merges (`git merge-base --is-ancestor abc master`)\n**Depends-on:**'))
+  const quiet = `${lint(ok).stdout ?? ''}${lint(ok).stderr ?? ''}`
+  assert.doesNotMatch(quiet, /could not find a way to check/,
+    `a real command must silence it: ${quiet.slice(0, 400)}`)
+})

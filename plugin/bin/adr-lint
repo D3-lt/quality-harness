@@ -516,31 +516,69 @@ def check_reachability_consistency(task_files, errors):
 def names_a_check(value):
     r"""Whether a `Blocked-on` value offers a reader some way to check the event.
 
-    Either a backticked span, or a trailing parenthesis holding a command --
-    `commit <sha> is an ancestor of master (git merge-base --is-ancestor ...)`.
+    Three structural forms, and the third exists because the first two cannot
+    cover the honest case:
+
+      - a PAIRED, non-empty code span:  `git merge-base --is-ancestor <sha> master`
+      - a trailing parenthetical that looks like a command, i.e. holds whitespace:
+        `commit <sha> is an ancestor of master (git merge-base ... master)`
+      - an explicit observer marker, `checked by: <who>`, for an event only a
+        person with access this reader does not have can confirm. Reported by
+        klientams-front-v2-01: "an accepted client-verify-assets appears in the
+        router audit log on both prod nodes" is a legitimate Blocked-on that no
+        command here can run, and refusing it would punish the honest case.
+
+    WHAT THIS DELIBERATELY DOES NOT DO is read prose. A Codex review supplied four
+    cases, all of which were live: `(eventually)` passed because the parenthetical
+    held a letter; an UNPAIRED backtick passed because any backtick suppressed the
+    advice; `(python -c SystemExit(0)).` was refused for nested parens and trailing
+    punctuation; and `SRE confirms the router audit log shows accepted` was refused
+    though it names an observer. The first three are structure and are fixed here.
+    The fourth is not detectable, so it is handled by the MARKER above and by the
+    advisory's wording, which asks rather than asserting (CLAUDE.md §3): a check
+    that cannot determine something must not claim it did.
 
     WRITTEN WITHOUT A REGEX ON PURPOSE. The natural spelling of "ends with a
     parenthesis containing a letter" is `\(([^()]*[a-z][^()]*)\)\s*$`, and two
     unbounded classes either side of a required character backtrack quadratically
-    on a value that opens a parenthesis and never closes it. Measured 2026-08-30
-    on this exact pattern: 0.84s at 16 000 characters and 11.9s at 60 000, and the
-    cost falls on the REJECTING path, which is precisely the path that fires the
-    advisory. That is the same finding a review had just made about the Mutation
-    Log code span -- written again, the same day, by the session that had been
-    told. Scanning from the end is linear and needs no cleverness.
+    on a value that opens a parenthesis and never closes it -- 0.84s at 16 000
+    characters, 11.9s at 60 000, with the cost on the REJECTING path, which is the
+    path that fires the advisory. Same finding a review had just made about the
+    Mutation Log code span, written again the same day by the session that had been
+    told (docs/BACKLOG.md §81). Scanning is linear and needs no cleverness.
     """
-    if "`" in value:
-        return True
     text = value.strip()
+    if not text:
+        return False
+    # An explicit observer, for the event no command here can reach.
+    if re.search(r"\b(?:checked|confirmed|observed) by:", text, re.I):
+        return True
+    # A PAIRED, non-empty code span. A lone backtick is a typo, and treating it as
+    # a command silenced the advice on any value that contained one.
+    for run in (3, 2, 1):
+        fence = "`" * run
+        first = text.find(fence)
+        if first != -1:
+            rest = text.find(fence, first + run)
+            if rest != -1 and text[first + run:rest].strip():
+                return True
+    # A trailing parenthetical, balanced by depth from the end so a command may
+    # contain its own parentheses, and after trailing sentence punctuation.
+    text = text.rstrip(".,;: ")
     if not text.endswith(")"):
         return False
-    opened = text.rfind("(")
-    if opened == -1:
-        return False
-    inner = text[opened + 1:-1]
-    # A letter, and no nested parens -- `(see above)` is prose, `(cmd --flag x)`
-    # is something a reader can try.
-    return any(c.isalpha() for c in inner) and "(" not in inner and ")" not in inner
+    depth = 0
+    for i in range(len(text) - 1, -1, -1):
+        if text[i] == ")":
+            depth += 1
+        elif text[i] == "(":
+            depth -= 1
+            if depth == 0:
+                inner = text[i + 1:-1].strip()
+                # Whitespace is what separates a command from a word: `(eventually)`
+                # is prose, `(git merge-base --is-ancestor …)` is something to try.
+                return bool(inner) and any(c.isspace() for c in inner)
+    return False
 
 
 def where_it_stopped(pattern, line, width=70):
@@ -693,12 +731,14 @@ def check_task(path, all_stems, errors):
                 f"spellings for the same thing is how two headers drift apart.")
         elif not names_a_check(blocked_on):
             errors.advise(
-                f"{path.name}: Blocked-on names no way to check whether the thing has "
-                f"happened — `{blocked_on.strip()[:60]}`. Name a discrete event and, where a "
-                f"reader could run one, the command that exits 0 once it has, e.g. "
-                f"`commit <sha> is an ancestor of master (git merge-base --is-ancestor <sha> "
-                f"master)`. Where only someone with other access can confirm it, say who. A "
-                f"Blocked-on written as a mood is a second Stop Condition, and this corpus "
+                f"{path.name}: Blocked-on — this reader could not find a way to check whether "
+                f"the event has happened: `{blocked_on.strip()[:60]}`. It looks for a backticked "
+                f"command, a trailing parenthetical holding one, or an explicit `checked by: "
+                f"<who>`; it cannot read prose, so this is 'I did not find one', not 'there is "
+                f"none'. If a reader could run something, name it — e.g. `commit <sha> is an "
+                f"ancestor of master (git merge-base --is-ancestor <sha> master)`. If only "
+                f"someone with other access can confirm it, say who with `checked by:`. A "
+                f"Blocked-on written as a mood becomes a second Stop Condition, and this corpus "
                 f"already has one of those per task.")
     dep = header_val(text, "Depends-on") or ""
     # Qualified ids are taken out FIRST and whole. Left in the local scan they

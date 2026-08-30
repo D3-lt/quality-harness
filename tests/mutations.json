@@ -3408,6 +3408,15 @@
       ],
       "from": "*.js text eol=lf\n*.py text eol=lf\n",
       "to": ""
+    },
+    {
+      "label": "windows: a cmd forwarder selects one interpreter",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    'where /q py',\n    'if errorlevel 1 ('",
+      "to": "    'where /q py && (', \n    'if errorlevel 1 ('"
     }
   ]
 }

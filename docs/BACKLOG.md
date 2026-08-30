@@ -5026,20 +5026,59 @@ Consequences: every gate failure does double work and double output; and on a bo
 `'python' is not recognized`. A fence would still be non-zero, so nothing goes falsely green —
 but the diagnostic is destroyed, which §3 already names as the thing a gate must never do.
 
-**Corrected 2026-08-30 by the reporting session, which retracted its own claim:** that branch
-does *not* surface as 9009 at the forwarder boundary. A bare unresolvable command inside a
-batch sets `ERRORLEVEL` 9009, but the batch's own status as seen by the caller is **1**.
-Measured: `cmd /d /c <forwarder>` → exit 1. So there is no collision with §88's 9009 and
-nothing to disambiguate — only the lost diagnostic, which is enough.
+**Corrected, then corrected back — and the round trip is the finding.** The reporting session
+first said a missing `python` surfaces as 9009 at the forwarder boundary. It then retracted
+that, measuring `cmd /d /c <forwarder>` → exit 1, and this entry was edited to match. It has
+now measured all four forms back to back with one harness and one target, with neither `py` nor
+`python` on PATH:
+
+| form | exit |
+|---|---|
+| the shipped `&&`/`||` | 1 |
+| the `if errorlevel 1 (…) else (…)` repair | 1 |
+| **the `goto` form, shipped in cb227f5** | **9009** |
+| the generated forwarder | **9009** |
+
+The retraction was true of the OLD code and was over-generalised into a claim about batch files.
+It is not a property of cmd; it was a property of the **parenthesised block**. In the old form
+the unresolvable `python` sat inside one and the batch reported 1. In the goto form it is a bare
+line and the bare `exit /b` faithfully preserves its 9009 — which is exactly the property
+`exit /b` was chosen for, doing exactly what it says.
+
+So the boundary now returns 9009, and it does so because of this project's own change. That is
+arguably better — 9009 is distinguishable from a gate verdict, where 1 collides with every gate
+that exits 1 — but it is a behaviour change that must be stated rather than silently
+reintroduced, and it re-opens the collision with §88's alias exit code that this entry had
+declared closed.
+
+**A note deleted on a peer's retraction had to be restored on the peer's re-measurement.** Worth
+recording as a process fact: a correction is evidence like any other, and a correction to a
+correction is not noise. Neither edit was wrong given what was known; the record carries all
+three states because the last one is only trustworthy alongside the path to it.
 
 **Verified on Windows, with the boundary stated.** The peer executed a hand-written copy of the
 replacement form against an installed gate: failing gate → one FAIL block and an exit matching
 a direct `py -3` run (was two blocks); passing gate → exit 0; `--help` → printed once (was
 twice); and with `py` hidden, the `python` branch reached and propagating on both a passing and
-a failing target. What was **not** run is this branch's files — neither the eleven rewritten
-`plugin/bin/*.cmd` nor `forwarderCmd`'s output, which additionally carries `setlocal`, the
-`for /f … do set` resolver and the `exit /b 4` fence. The control flow is verified; these files
-are not, and no Verification Log entry is written for them.
+a failing target. **Now verified on this repository's own files**, after the reporting session's user authorized a
+clone of `main` at 418f6f0 (v2.41.0). All 11 `plugin/bin/*.cmd` carry the goto form, and both
+the static `adr-lint.cmd` and `forwarderCmd`'s real generated output were executed:
+
+| case | static | generated |
+|---|---|---|
+| failing gate | 1 FAIL block, exit 1 (was 2 blocks) | 1 block, exit 1 |
+| passing gate | exit 0 | exit 0 |
+| `--help` | printed once, exit 1 (was twice) | once, exit 1 |
+| `py` absent, `python` present | PASS 0 / FAIL 1 | PASS 0 / FAIL 1 |
+| unquoted arg containing `)` | exit 0 (was 255, gate never ran) | exit 0 |
+
+`setlocal` does not eat the exit code, `exit /b` propagates through it, and the
+`for /f … do set` resolver does not interact badly with the goto.
+
+**Still not executed:** the other ten gates behaviourally (control flow was checked across all
+11), the mutation campaign on Windows, and anything on a box without Git for Windows. The `)`
+case used a scratch directory named `paren(dir)`; `C:\Program Files (x86)` itself was not used,
+so it remains the argument for why the input is realistic rather than an observation of it.
 
 **And the obvious repair was wrong too, which is why the form is a `goto`.** `if errorlevel 1
 (…) else (…)` fixes the double run and breaks on an unquoted argument containing `)`, because
@@ -5084,3 +5123,43 @@ show up in the Verification Log instead of silently changing a verdict.
 consumer that records it, and there is no consumer yet. Building the plumbing first would be
 speculative. The task is: decide where an interpreter identity belongs in tool-written evidence
 (§4), then widen the probe to feed it.
+
+## 94. A missing `node` is reported as a missing plugin, and the advice does not help
+
+Found 2026-08-30 on Windows 11 while verifying §92, by accident: the peer's first `py`-absent
+harness also stripped `node` from PATH, which is why two cases came back exit 4 instead of
+exercising the interpreter branch at all.
+
+`forwarderCmd` (`plugin/scripts/standalone-link.mjs`) resolves the newest installed plugin by
+shelling out to `node -e` inside a `for /f … do set`. With node off PATH and the plugin **fully
+installed**:
+
+    'node' is not recognized as an internal or external command,
+    quality-harness: no installed plugin under …\cache\quality-harness\quality-harness, so this gate did NOT run.
+    quality-harness: this is not a pass - an absent checker certifies nothing.
+    quality-harness: install or update the plugin, then re-run.
+    exit 4
+
+Both 2.40.0 and 2.41.0 were sitting in that exact directory. `for /f` swallows the failed
+command's output, `QH_ROOT` stays empty, and the fence cannot distinguish **"the resolver could
+not run"** from **"the resolver found nothing"** — so it names the one remedy that cannot work.
+The user reinstalls the plugin, nothing changes, and the message goes on blaming the plugin.
+
+**The fence itself is correct and this is not a false pass.** Exit 4 is non-zero, the run does
+not go green, and "an absent checker certifies nothing" is the right posture — §3's rule is
+being honoured. What fails is the diagnosis.
+
+**It is the same shape as §92, eleven lines above it in the same file**: a control-flow
+construct that cannot tell two causes apart and confidently reports the wrong one. §92 was
+`where /q py` succeeding being read as evidence about a later command's exit code; this is a
+failed subprocess being read as an empty result. That both survived in one generator is the
+argument for looking at the whole file rather than the line.
+
+**Not fixed here.** It wants its own entry and its own fix — probe for `node` before the `for /f`
+and say which of the two happened, rather than folding a second cause into §92's commit. And
+like §92 it is a cmd fence, so it cannot be verified from macOS: the fix and a Windows run
+belong together.
+
+**Third name on the list.** §88 established `python3` cannot be trusted by name, §91 the same
+for `bash`. `node` is the third executable a Windows user needs resolvable for the gates to work
+at all, and it is the only one whose absence is currently reported as something else.

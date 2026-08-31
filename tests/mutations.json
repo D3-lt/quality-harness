@@ -87,8 +87,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        target.write_bytes(original_bytes)\n        journal.unlink(missing_ok=True)",
-      "to": "        target.write_text(original, encoding=\"utf-8\")\n        journal.unlink(missing_ok=True)"
+      "from": "                path.write_bytes(_member_original(member))",
+      "to": "                path.write_text(_member_original(member).decode(\"utf-8\"), encoding=\"utf-8\")"
     },
     {
       "label": "evidence: the seal survives a CRLF checkout",
@@ -1066,8 +1066,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    if now != mutated:",
-      "to": "    if False:"
+      "from": "                elif current == member[\"_mutated\"]:",
+      "to": "                elif True:"
     },
     {
       "label": "verify: an ordinary run recovers before it measures anything",
@@ -3057,6 +3057,15 @@
       ],
       "from": "        if not clean_usable:",
       "to": "        if False:"
+    },
+    {
+      "label": "verify: generated mutation outputs are restored with their source",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    members = transaction[\"members\"]",
+      "to": "    members = transaction[\"members\"][:1]"
     },
     {
       "label": "verify: a fence broken for a machine reason is not credited as a kill",

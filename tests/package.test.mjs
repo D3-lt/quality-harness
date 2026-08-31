@@ -257,6 +257,43 @@ test('the plugin contains the complete reusable decision lifecycle', () => {
   }
 })
 
+test('shipped guidance teaches generated restore transactions', () => {
+  const surfaces = [
+    ['task template', readFileSync(join(root, 'templates', 'task-template.md'), 'utf8')],
+    ['adr-execute skill', readFileSync(join(root, 'skills', 'adr-execute', 'SKILL.md'), 'utf8')],
+  ]
+  const nearEitherWay = (text, left, right, distance = 240) =>
+    new RegExp(`(?:${left})[\\s\\S]{0,${distance}}(?:${right})|(?:${right})[\\s\\S]{0,${distance}}(?:${left})`, 'i')
+      .test(text)
+
+  for (const [label, text] of surfaces) {
+    assert.match(text, /--also-restore\b/, `${label} does not expose the CLI option`)
+    assert.ok(nearEitherWay(text, '--also-restore', 'repeat(?:able|ed)|once per|for each'),
+      `${label} does not say --also-restore is repeatable`)
+    assert.ok(nearEitherWay(text, 'Acceptance (?:command|fence)|recorded Acceptance',
+      'materializ|generat|writ'),
+    `${label} does not require the recorded Acceptance fence itself to materialize the output`)
+    assert.match(text,
+      /(?:does not|doesn't|never|no)\s+(?:infer|guess|auto.?detect)|(?:suffix|auto.?detect)[\s\S]{0,100}(?:not|never)/i,
+      `${label} promises suffix inference or automatic discovery`)
+    assert.ok(nearEitherWay(text, 'undeclared', 'not restor|never restor|outside (?:the )?transaction'),
+      `${label} does not disclaim rollback of undeclared side effects`)
+    assert.ok(nearEitherWay(text, 'interrupt|killed', 'unknown|changed')
+      && nearEitherWay(text, 'unknown|changed', 'human|manual|reconcil'),
+    `${label} does not reserve interrupted unknown bytes for human reconciliation`)
+    assert.ok(nearEitherWay(text, 'declar(?:e|ing|ation)|--also-restore',
+      'grant(?:s|ed)?|authori[sz](?:e|es|ed|ation)', 320),
+    `${label} does not say declaration grants restore authority`)
+    assert.ok(nearEitherWay(text, 'live\\s+(?:run|cleanup)|in-process\\s+(?:run|cleanup)', 'overwrit', 320)
+      && nearEitherWay(text, 'live\\s+(?:run|cleanup)|in-process\\s+(?:run|cleanup)', 'delet', 320),
+    `${label} does not warn that live cleanup may overwrite existing bytes and delete an absent-at-entry leaf`)
+    assert.match(text, /concurrent(?:ly)?[\s-]*(?:edit|change|work)/i,
+      `${label} does not name the concurrent-edit risk`)
+    assert.ok(nearEitherWay(text, 'concurrent', 'overwrit|delet|discard|lost', 320),
+      `${label} does not warn that live restore authority can destroy a concurrent edit`)
+  }
+})
+
 /**
  * Sections whose BODY declares a closure that the HEADING never mentions.
  *

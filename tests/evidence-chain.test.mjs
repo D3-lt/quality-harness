@@ -10,12 +10,16 @@
 //
 // So every test here reads the file adr-verify wrote. None reconstructs it.
 import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { setTimeout } from 'node:timers/promises'
-import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import {
+  cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync,
+  rmSync, symlinkSync, writeFileSync,
+} from 'node:fs'
 import os from 'node:os'
-import { delimiter, dirname, join, resolve } from 'node:path'
+import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
@@ -486,6 +490,735 @@ test('adr-verify requires a clean fence before it mutates', () => {
       journalEmpty: true,
     },
   })
+})
+
+test('adr-verify restores declared generated outputs with their source', async () => {
+  const sourceEntry = Buffer.from('STATE = "clean"\n')
+  const generatedEntry = Buffer.from([0x00, 0xff, 0x45, 0x4e, 0x54, 0x52, 0x59, 0x0a])
+  const safeEntry = Buffer.from([0x53, 0x41, 0x46, 0x45, 0x00, 0xfe, 0x0a])
+  const mutationArgs = restores => [
+    'tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'view.templ',
+    '--from', 'STATE = "clean"', '--to', 'STATE = "broken"',
+    '--why', 'the generated consumer must reflect the deliberately broken source',
+    ...restores.flatMap(path => ['--also-restore', path]),
+  ]
+  const setFence = (copy, command) => writeTask(copy, readTask(copy).replace(
+    /## Acceptance\n\n```bash\n[\s\S]*?```/,
+    `## Acceptance\n\n\`\`\`bash\n${command}\n\`\`\``))
+  const newJournalHome = () => {
+    const home = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+    temps.push(home)
+    return home
+  }
+  const journalPath = (home, copy) => {
+    const key = createHash('sha256').update(realpathSync(copy)).digest('hex').slice(0, 16)
+    return join(home, `adr-verify-mutant-${key}.json`)
+  }
+  const mutationLog = copy => readTask(copy).split('## Mutation Log')[1]?.trim() ?? ''
+  const eventually = async predicate => {
+    for (let attempt = 0; attempt < 240; attempt += 1) {
+      if (predicate()) return true
+      await setTimeout(25)
+    }
+    return predicate()
+  }
+  const spawnWithJournal = (copy, journal, args) => {
+    const win = process.platform === 'win32'
+    const child = spawn(win ? 'python3' : join(bin, 'adr-verify'),
+      win ? [join(bin, 'adr-verify'), ...args] : args,
+      { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal } })
+    let output = ''
+    child.stdout.on('data', chunk => { output += chunk })
+    child.stderr.on('data', chunk => { output += chunk })
+    return { child, exited: once(child, 'exit'), output: () => output }
+  }
+
+  // The clean and mutant phases both run the real generator. Its trace records
+  // what it found BEFORE writing: the second pair proves the clean phase was
+  // rolled back before the mutant phase, not merely repaired at final cleanup.
+  const generated = corpus()
+  addMutationLog(generated)
+  writeFileSync(join(generated, 'view.templ'), sourceEntry)
+  writeFileSync(join(generated, 'view_templ.go'), generatedEntry)
+  writeFileSync(join(generated, 'generate.py'), `from pathlib import Path
+import sys
+
+source = Path("view.templ").read_bytes()
+existing = Path("view_templ.go")
+absent = Path("view_templ.map")
+entry = bytes([0, 255, 69, 78, 84, 82, 89, 10])
+with Path("phase-trace.txt").open("a", encoding="utf-8") as trace:
+    trace.write(("existing-entry" if existing.exists() and existing.read_bytes() == entry else "existing-dirty") + "\\n")
+    trace.write(("absent-entry" if not absent.exists() else "absent-dirty") + "\\n")
+existing.write_bytes(b"generated:" + source)
+absent.write_bytes(b"map:" + source)
+if b'"broken"' in existing.read_bytes():
+    print("test_generated_consumer FAILED")
+    print("1 failed in 0.01s")
+    sys.exit(1)
+print("test_generated_consumer PASSED")
+print("1 passed in 0.01s")
+`)
+  setFence(generated, 'python3 generate.py')
+  const generatedJournal = newJournalHome()
+  const generatedRun = runWith(generatedJournal,
+    mutationArgs(['view_templ.go', 'view_templ.map']), generated)
+  expectExit(generatedRun, 0, 'a generated consumer going red kills the source mutant')
+  assert.match(mutationLog(generated), /mutant killed/, 'the generated failure must be the verdict')
+  assert.deepEqual(readFileSync(join(generated, 'view.templ')), sourceEntry,
+    'the source must regain its exact entry bytes')
+  assert.deepEqual(readFileSync(join(generated, 'view_templ.go')), generatedEntry,
+    'an existing generated output must regain its exact entry bytes')
+  assert.equal(existsSync(join(generated, 'view_templ.map')), false,
+    'an output absent at entry must be absent after cleanup')
+  assert.deepEqual(readFileSync(join(generated, 'phase-trace.txt'), 'utf8').trim().split('\n'), [
+    'existing-entry', 'absent-entry', 'existing-entry', 'absent-entry',
+  ], 'the clean phase outputs must be reset before the mutant fence starts')
+  assert.deepEqual(readdirSync(generatedJournal), [], 'complete cleanup must remove its journal')
+
+  // An absent leaf may sit below parents that do not exist yet. The generator,
+  // not the restore transaction, owns creating those directories; cleanup owns
+  // only returning the explicitly declared leaf to absent.
+  {
+    const copy = corpus()
+    addMutationLog(copy)
+    writeFileSync(join(copy, 'view.templ'), sourceEntry)
+    writeFileSync(join(copy, 'generate_nested.py'), `from pathlib import Path
+import sys
+
+source = Path("view.templ").read_bytes()
+output = Path("generated/deep/view.go")
+with Path("nested-trace.txt").open("a", encoding="utf-8") as trace:
+    trace.write(("absent-entry" if not output.exists() else "dirty-entry") + "\\n")
+output.parent.mkdir(parents=True, exist_ok=True)
+output.write_bytes(b"generated:" + source)
+if b'"broken"' in output.read_bytes():
+    print("test_nested_generated_consumer FAILED")
+    print("1 failed in 0.01s")
+    sys.exit(1)
+print("test_nested_generated_consumer PASSED")
+print("1 passed in 0.01s")
+`)
+    setFence(copy, 'python3 generate_nested.py')
+    const journal = newJournalHome()
+    const result = runWith(journal, mutationArgs(['generated/deep/view.go']), copy)
+    expectExit(result, 0,
+      'a safe nearest ancestor permits a generated leaf below missing intermediate directories')
+    assert.match(mutationLog(copy), /mutant killed/,
+      'the nested generated consumer must kill the source mutant')
+    assert.deepEqual(readFileSync(join(copy, 'view.templ')), sourceEntry,
+      'nested generation did not restore the source')
+    assert.equal(existsSync(join(copy, 'generated', 'deep', 'view.go')), false,
+      'the absent-at-entry nested leaf survived cleanup')
+    assert.deepEqual(readFileSync(join(copy, 'nested-trace.txt'), 'utf8').trim().split('\n'), [
+      'absent-entry', 'absent-entry',
+    ], 'the clean-phase nested leaf was not removed before the mutant phase')
+    assert.deepEqual(readdirSync(journal), [], 'nested leaf cleanup left a journal')
+  }
+
+  // Catchable interruption is still an in-process transaction. Both signals
+  // arrive only after the mutant fence has changed both secondary members.
+  if (process.platform !== 'win32') {
+    for (const signal of ['SIGINT', 'SIGTERM']) {
+      const copy = corpus()
+      addMutationLog(copy)
+      writeFileSync(join(copy, 'view.templ'), sourceEntry)
+      writeFileSync(join(copy, 'view_templ.go'), generatedEntry)
+      writeFileSync(join(copy, 'interrupt.py'), `from pathlib import Path
+import sys
+import time
+
+source = Path("view.templ").read_bytes()
+Path("view_templ.go").write_bytes(b"generated:" + source)
+Path("view_templ.map").write_bytes(b"map:" + source)
+if b'"broken"' in source:
+    Path("mutant-ready").write_text("ready", encoding="utf-8")
+    time.sleep(60)
+    sys.exit(1)
+print("1 passed in 0.01s")
+`)
+      setFence(copy, 'python3 interrupt.py')
+      const journal = newJournalHome()
+      const running = spawnWithJournal(copy, journal,
+        mutationArgs(['view_templ.go', 'view_templ.map']))
+      const ready = await eventually(() => existsSync(join(copy, 'mutant-ready')))
+      if (!ready) running.child.kill('SIGKILL')
+      assert.ok(ready, `${signal}: the mutant fence never reached the interrupt point\n${running.output()}`)
+      running.child.kill(signal)
+      await running.exited
+      assert.deepEqual(readFileSync(join(copy, 'view.templ')), sourceEntry,
+        `${signal}: source bytes were not restored`)
+      assert.deepEqual(readFileSync(join(copy, 'view_templ.go')), generatedEntry,
+        `${signal}: existing generated bytes were not restored`)
+      assert.equal(existsSync(join(copy, 'view_templ.map')), false,
+        `${signal}: absent-at-entry output was not removed`)
+      assert.equal(mutationLog(copy), '', `${signal}: an interrupted mutant has no verdict`)
+      assert.deepEqual(readdirSync(journal), [], `${signal}: complete cleanup left a journal`)
+    }
+  }
+
+  // Compatibility is behavioral: seed the exact flat journal written by the
+  // prior release, then ask the shipped CLI to recover it.
+  {
+    const copy = corpus()
+    const journal = newJournalHome()
+    const target = join(copy, 'legacy.py')
+    const original = Buffer.from('VALUE = 1\n')
+    const mutant = Buffer.from('VALUE = 99\n')
+    writeFileSync(target, mutant)
+    const record = journalPath(journal, copy)
+    writeFileSync(record, JSON.stringify({
+      file: target,
+      original: original.toString('base64'),
+      mutated: mutant.toString('base64'),
+      from: 'VALUE = 1',
+      to: 'VALUE = 99',
+      why: 'legacy recovery control',
+      cmd: 'python3 legacy_test.py',
+    }))
+    const restored = runWith(journal, ['--restore', '--cwd', '.'], copy)
+    expectExit(restored, 0, 'a pre-version one-file journal remains recoverable')
+    assert.deepEqual(readFileSync(target), original, 'legacy recovery changed the original bytes')
+    assert.equal(existsSync(record), false, 'a completely recovered legacy journal must be removed')
+  }
+
+  const seedLegacyJournal = (journal, copy, file, original, mutant) => {
+    const record = journalPath(journal, copy)
+    writeFileSync(record, JSON.stringify({
+      file,
+      original: original.toString('base64'),
+      mutated: mutant.toString('base64'),
+      from: 'VALUE = 1',
+      to: 'VALUE = 99',
+      why: 'legacy relative-path recovery control',
+      cmd: 'python3 legacy_test.py',
+    }))
+    return record
+  }
+  const recoverLegacyFromElsewhere = (copy, journal) =>
+    runWith(journal, ['--restore', '--cwd', copy], repoRoot)
+  const ordinaryFromElsewhere = (copy, journal) =>
+    runWith(journal, [taskPath(copy), '--cwd', copy], repoRoot)
+
+  // Old journals could store a repository-relative target. Recovery authority
+  // comes from their declared --cwd, never from the launcher's working directory.
+  {
+    const copy = corpus()
+    const journal = newJournalHome()
+    const relative = 'legacy-relative.py'
+    const target = join(copy, relative)
+    const original = Buffer.from('VALUE = 1\n')
+    const mutant = Buffer.from('VALUE = 99\n')
+    writeFileSync(target, mutant)
+    const record = seedLegacyJournal(journal, copy, relative, original, mutant)
+    const restored = recoverLegacyFromElsewhere(copy, journal)
+    expectExit(restored, 0, 'a relative legacy target is anchored to its declared --cwd')
+    assert.deepEqual(readFileSync(target), original,
+      'relative legacy recovery looked in the launcher cwd instead of --cwd')
+    assert.equal(existsSync(record), false, 'resolved relative legacy recovery retained its journal')
+  }
+
+  // The prior release could persist a cwd-prefixed relative expression. Both
+  // root/file.py (historical launch-relative meaning) and root/root/file.py
+  // (repository-relative meaning) stay inside the declared cwd. Presence and
+  // known bytes cannot prove which identity the old process meant, so every
+  // shape remains blocked rather than guessed.
+  const cwdPrefixedShapes = [
+    { label: 'historical mutant and nested missing', historical: 'mutant', nested: 'missing' },
+    { label: 'historical moved-on and nested mutant', historical: 'moved', nested: 'mutant' },
+    { label: 'historical missing and nested original', historical: 'missing', nested: 'original' },
+  ]
+  for (const [index, shape] of cwdPrefixedShapes.entries()) {
+    const copy = corpus()
+    const launcher = dirname(copy)
+    const relativeCwd = basename(copy)
+    const journal = newJournalHome()
+    const leaf = `legacy-prefixed-${index}.py`
+    const relative = join(relativeCwd, leaf)
+    const historicalTarget = join(copy, leaf)
+    const rootRelativeTarget = join(copy, relativeCwd, leaf)
+    const original = Buffer.from('VALUE = 1\n')
+    const mutant = Buffer.from('VALUE = 99\n')
+    const moved = Buffer.from('VALUE = 7  # concurrent edit\n')
+    const bytes = { original, mutant, moved, missing: null }
+    const place = (path, state) => {
+      const value = bytes[state]
+      if (value === null) return
+      mkdirSync(dirname(path), { recursive: true })
+      writeFileSync(path, value)
+    }
+    const unchanged = (path, state, identity) => {
+      const value = bytes[state]
+      if (value === null) {
+        assert.equal(existsSync(path), false, `${shape.label}: ${identity} was created`)
+      } else {
+        assert.deepEqual(readFileSync(path), value, `${shape.label}: ${identity} was overwritten`)
+      }
+    }
+    place(historicalTarget, shape.historical)
+    place(rootRelativeTarget, shape.nested)
+    setFence(copy,
+      `python3 -c 'from pathlib import Path; Path("measured.txt").write_text("ran"); print("1 passed in 0.01s")'`)
+    const record = seedLegacyJournal(journal, copy, relative, original, mutant)
+
+    const explicit = runWith(journal, ['--restore', '--cwd', relativeCwd], launcher)
+    assert.notEqual(explicit.status, 0, `${shape.label}: ambiguous legacy identity was guessed`)
+    assert.match(`${explicit.stdout}${explicit.stderr}`, /ambig|multiple|candidate|reconcil/i,
+      `${shape.label}: recovery did not explain why it retained the journal`)
+    unchanged(historicalTarget, shape.historical, 'historical interpretation')
+    unchanged(rootRelativeTarget, shape.nested, 'nested interpretation')
+    assert.ok(existsSync(record), `${shape.label}: recovery discarded its journal`)
+
+    const ordinary = runWith(journal,
+      [taskPath(copy), '--cwd', relativeCwd], launcher)
+    assert.notEqual(ordinary.status, 0, `${shape.label}: ordinary verification ignored ambiguity`)
+    assert.equal(existsSync(join(copy, 'measured.txt')), false,
+      `${shape.label}: Acceptance ran before the journal was reconciled`)
+    unchanged(historicalTarget, shape.historical, 'historical interpretation')
+    unchanged(rootRelativeTarget, shape.nested, 'nested interpretation')
+    assert.ok(existsSync(record), `${shape.label}: ordinary recovery discarded the journal`)
+  }
+
+  // A cwd-prefixed traversal has one historical reading outside the declared
+  // repository and another normalized reading inside it. Neither containment
+  // nor known bytes grants authority to choose: legacy `..` is always refused.
+  {
+    const copy = corpus()
+    const launcher = dirname(copy)
+    const relativeCwd = basename(copy)
+    const journal = newJournalHome()
+    const relative = `${relativeCwd}/../outside.py`
+    const historicalOutside = join(launcher, 'outside.py')
+    const rootRelativeInside = join(copy, 'outside.py')
+    const original = Buffer.from('VALUE = 1\n')
+    const mutant = Buffer.from('VALUE = 99\n')
+    writeFileSync(historicalOutside, mutant)
+    writeFileSync(rootRelativeInside, original)
+    setFence(copy,
+      `python3 -c 'from pathlib import Path; Path("measured.txt").write_text("ran"); print("1 passed in 0.01s")'`)
+    const record = seedLegacyJournal(journal, copy, relative, original, mutant)
+
+    const explicit = runWith(journal, ['--restore', '--cwd', relativeCwd], launcher)
+    assert.notEqual(explicit.status, 0, 'legacy traversal was resolved by guessing a candidate')
+    assert.match(`${explicit.stdout}${explicit.stderr}`, /travers|outside|unsafe|reconcil|\.\./i,
+      'legacy traversal refusal did not explain the unsafe spelling')
+    assert.deepEqual(readFileSync(historicalOutside), mutant,
+      'legacy traversal recovery changed the outside historical candidate')
+    assert.deepEqual(readFileSync(rootRelativeInside), original,
+      'legacy traversal recovery changed the in-root candidate')
+    assert.ok(existsSync(record), 'legacy traversal recovery discarded its journal')
+
+    const ordinary = runWith(journal,
+      [taskPath(copy), '--cwd', relativeCwd], launcher)
+    assert.notEqual(ordinary.status, 0, 'ordinary verification ignored a legacy traversal journal')
+    assert.equal(existsSync(join(copy, 'measured.txt')), false,
+      'Acceptance ran before the legacy traversal was reconciled')
+    assert.deepEqual(readFileSync(historicalOutside), mutant,
+      'blocked ordinary recovery changed the outside historical candidate')
+    assert.deepEqual(readFileSync(rootRelativeInside), original,
+      'blocked ordinary recovery changed the in-root candidate')
+    assert.ok(existsSync(record), 'ordinary recovery discarded the legacy traversal journal')
+  }
+
+  const assertLegacyBlocks = ({ label, copy, journal, record, relative, preserved }) => {
+    setFence(copy,
+      `python3 -c 'from pathlib import Path; Path("measured.txt").write_text("ran"); print("1 passed in 0.01s")'`)
+    const explicit = recoverLegacyFromElsewhere(copy, journal)
+    assert.notEqual(explicit.status, 0, `${label}: --restore claimed an ambiguous legacy target was resolved`)
+    assert.match(`${explicit.stdout}${explicit.stderr}`,
+      new RegExp(`${relative.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}|legacy`, 'i'),
+    `${label}: recovery did not name the legacy target`)
+    assert.match(`${explicit.stdout}${explicit.stderr}`, /unresolved|reconcil|missing|changed|symlink|junction/i,
+      `${label}: recovery did not explain why it refused`)
+    assert.ok(existsSync(record), `${label}: recovery discarded the unresolved journal`)
+    preserved()
+
+    const ordinary = ordinaryFromElsewhere(copy, journal)
+    assert.notEqual(ordinary.status, 0, `${label}: an ordinary run ignored unresolved legacy state`)
+    assert.equal(existsSync(join(copy, 'measured.txt')), false,
+      `${label}: the ordinary Acceptance fence ran before legacy reconciliation`)
+    assert.ok(existsSync(record), `${label}: the ordinary run discarded the unresolved journal`)
+    preserved()
+  }
+
+  for (const state of ['missing', 'moved-on']) {
+    const copy = corpus()
+    const journal = newJournalHome()
+    const relative = `legacy-${state}.py`
+    const target = join(copy, relative)
+    const original = Buffer.from('VALUE = 1\n')
+    const mutant = Buffer.from('VALUE = 99\n')
+    const moved = Buffer.from('VALUE = 7  # concurrent edit\n')
+    if (state === 'moved-on') writeFileSync(target, moved)
+    const record = seedLegacyJournal(journal, copy, relative, original, mutant)
+    assertLegacyBlocks({
+      label: `${state} legacy mutant target`, copy, journal, record, relative,
+      preserved: () => state === 'missing'
+        ? assert.equal(existsSync(target), false, 'missing legacy target was recreated')
+        : assert.deepEqual(readFileSync(target), moved, 'moved-on legacy bytes were overwritten'),
+    })
+  }
+
+  if (process.platform !== 'win32') {
+    const legacySymlinkCase = (label, relative, swap, inspect) => {
+      const copy = corpus()
+      const journal = newJournalHome()
+      const target = join(copy, ...relative.split('/'))
+      const original = Buffer.from('VALUE = 1\n')
+      const mutant = Buffer.from('VALUE = 99\n')
+      mkdirSync(dirname(target), { recursive: true })
+      writeFileSync(target, mutant)
+      const record = seedLegacyJournal(journal, copy, relative, original, mutant)
+      swap(copy, target, mutant)
+      assertLegacyBlocks({
+        label, copy, journal, record, relative,
+        preserved: () => inspect(copy, mutant),
+      })
+    }
+
+    legacySymlinkCase('legacy target swapped to a direct symlink', 'legacy-direct.py',
+      (copy, target, mutant) => {
+        const outside = join(dirname(copy), 'legacy-direct-outside.py')
+        writeFileSync(outside, mutant)
+        rmSync(target)
+        symlinkSync(outside, target)
+      }, (copy, mutant) => {
+        const target = join(copy, 'legacy-direct.py')
+        const outside = join(dirname(copy), 'legacy-direct-outside.py')
+        assert.ok(lstatSync(target).isSymbolicLink(), 'direct legacy symlink was replaced')
+        assert.deepEqual(readFileSync(outside), mutant, 'legacy recovery followed a direct symlink')
+      })
+
+    legacySymlinkCase('legacy target swapped below a symlink ancestor', 'legacy-dir/legacy.py',
+      (copy, target, mutant) => {
+        const outside = mkdtempSync(join(os.tmpdir(), 'quality-harness-outside-'))
+        temps.push(outside)
+        writeFileSync(join(outside, 'legacy.py'), mutant)
+        rmSync(dirname(target), { recursive: true })
+        symlinkSync(outside, join(copy, 'legacy-dir'))
+      }, (copy, mutant) => {
+        const ancestor = join(copy, 'legacy-dir')
+        assert.ok(lstatSync(ancestor).isSymbolicLink(), 'legacy ancestor symlink was replaced')
+        assert.deepEqual(readFileSync(join(ancestor, 'legacy.py')), mutant,
+          'legacy recovery followed a symlink ancestor')
+      })
+  }
+
+  // pathlib.Path.is_junction() arrived after Python 3.11. The transaction must
+  // therefore classify the lstat result itself: every Windows reparse point is
+  // unsafe, even when an older Path object cannot name it as a junction.
+  {
+    const probe = `import importlib.machinery
+import importlib.util
+import stat
+import sys
+
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("adr_verify_junction_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+
+class Info:
+    def __init__(self, mode, attributes=None, tag=None):
+        self.st_mode = mode
+        if attributes is not None:
+            self.st_file_attributes = attributes
+        if tag is not None:
+            self.st_reparse_tag = tag
+
+cases = [
+    Info(stat.S_IFREG | 0o644),
+    Info(stat.S_IFLNK | 0o777),
+    Info(stat.S_IFDIR | 0o755, 0x0400, 0xA0000003),
+    Info(stat.S_IFREG | 0o644, 0x0400, 0xDEADBEEF),
+]
+print(",".join("1" if module._is_linklike(info) else "0" for info in cases))
+`
+    const junctions = run('python3', ['-c', probe, join(bin, 'adr-verify')], root)
+    expectExit(junctions, 0, 'junction classification must be injectable on every host')
+    assert.equal(junctions.stdout.trim(), '0,1,1,1',
+      'regular, symlink, junction, and unknown-reparse lstat results were misclassified')
+  }
+
+  // SIGKILL cannot unwind. The source has a known mutant value and may be put
+  // back; generated bytes do not, so recovery must preserve and name them and
+  // keep blocking every later measurement until a human reconciles the file.
+  let versionedJournal
+  {
+    const copy = corpus()
+    addMutationLog(copy)
+    writeFileSync(join(copy, 'view.templ'), sourceEntry)
+    writeFileSync(join(copy, 'view_templ.go'), generatedEntry)
+    writeFileSync(join(copy, 'killed.py'), `from pathlib import Path
+import sys
+import time
+
+source = Path("view.templ").read_bytes()
+if b'"broken"' in source:
+    Path("view_templ.go").write_bytes(b"unknown bytes written by killed generator")
+    Path("mutant-ready").write_text("ready", encoding="utf-8")
+    time.sleep(60)
+    sys.exit(1)
+Path("view_templ.go").write_bytes(b"clean generated bytes")
+print("1 passed in 0.01s")
+`)
+    setFence(copy, 'python3 killed.py')
+    const journal = newJournalHome()
+    const running = spawnWithJournal(copy, journal, mutationArgs(['view_templ.go']))
+    const ready = await eventually(() => existsSync(join(copy, 'mutant-ready')))
+    if (!ready) running.child.kill('SIGKILL')
+    assert.ok(ready, `the SIGKILL fixture never materialized its mutant output\n${running.output()}`)
+    running.child.kill('SIGKILL')
+    await running.exited
+
+    const record = journalPath(journal, copy)
+    assert.ok(existsSync(record), 'SIGKILL left no durable versioned transaction')
+    versionedJournal = JSON.parse(readFileSync(record, 'utf8'))
+    const versionKey = ['version', 'schema_version', 'journal_version']
+      .find(key => Object.hasOwn(versionedJournal, key))
+    assert.ok(versionKey, 'the multi-file journal does not identify its schema version')
+    versionedJournal.__versionKey = versionKey
+
+    const unknownBytes = readFileSync(join(copy, 'view_templ.go'))
+    const explicit = runWith(journal, ['--restore', '--cwd', '.'], copy)
+    assert.notEqual(explicit.status, 0, 'unknown generated bytes made --restore claim success')
+    assert.match(`${explicit.stdout}${explicit.stderr}`, /view_templ\.go/, 'recovery did not name the unresolved member')
+    assert.match(`${explicit.stdout}${explicit.stderr}`, /unresolved|reconcil/i,
+      'recovery did not say why the member was preserved')
+    assert.deepEqual(readFileSync(join(copy, 'view.templ')), sourceEntry,
+      'the known source mutant should still be safely restored')
+    assert.deepEqual(readFileSync(join(copy, 'view_templ.go')), unknownBytes,
+      'killed-run recovery overwrote generated bytes it does not own')
+    assert.ok(existsSync(record), 'unresolved recovery discarded its journal')
+
+    setFence(copy,
+      `python3 -c 'from pathlib import Path; Path("measured.txt").write_text("ran"); print("1 passed in 0.01s")'`)
+    const ordinary = runWith(journal, ['tasks/T1-fixture.md', '--cwd', '.'], copy)
+    assert.notEqual(ordinary.status, 0, 'an ordinary run measured a tree with unresolved recovery')
+    assert.equal(existsSync(join(copy, 'measured.txt')), false,
+      'the ordinary Acceptance fence ran despite unresolved recovery')
+    assert.deepEqual(readFileSync(join(copy, 'view_templ.go')), unknownBytes,
+      'the blocked ordinary run overwrote the unresolved member')
+    assert.ok(existsSync(record), 'the blocked ordinary run discarded the unresolved journal')
+  }
+
+  const blocksOnJournal = (label, contents, messagePattern) => {
+    const copy = corpus()
+    const journal = newJournalHome()
+    const record = journalPath(journal, copy)
+    setFence(copy,
+      `python3 -c 'from pathlib import Path; Path("measured.txt").write_text("ran"); print("1 passed in 0.01s")'`)
+    writeFileSync(record, contents)
+    const explicit = runWith(journal, ['--restore', '--cwd', '.'], copy)
+    assert.notEqual(explicit.status, 0, `${label}: --restore claimed success`)
+    assert.match(`${explicit.stdout}${explicit.stderr}`, messagePattern,
+      `${label}: --restore did not explain the retained journal`)
+    assert.ok(existsSync(record), `${label}: --restore discarded unresolved evidence`)
+    const ordinary = runWith(journal, ['tasks/T1-fixture.md', '--cwd', '.'], copy)
+    assert.notEqual(ordinary.status, 0, `${label}: an ordinary run ignored unresolved evidence`)
+    assert.equal(existsSync(join(copy, 'measured.txt')), false,
+      `${label}: the ordinary Acceptance fence ran`)
+    assert.ok(existsSync(record), `${label}: the ordinary run discarded unresolved evidence`)
+  }
+  const versionKey = versionedJournal.__versionKey
+  delete versionedJournal.__versionKey
+  blocksOnJournal('unknown version', JSON.stringify({
+    ...versionedJournal,
+    [versionKey]: 'unknown-t2-test-version',
+  }), /version|journal/i)
+  blocksOnJournal('corrupt versioned journal', '{"version":', /corrupt|invalid|journal|read/i)
+
+  const unsafeCleanup = (label, member, setup, mutate, inspect) => {
+    const copy = corpus()
+    addMutationLog(copy)
+    writeFileSync(join(copy, 'view.templ'), sourceEntry)
+    writeFileSync(join(copy, 'safe.go'), safeEntry)
+    setup(copy)
+    writeFileSync(join(copy, 'unsafe_cleanup.py'), `from pathlib import Path
+import os
+import sys
+
+source = Path("view.templ").read_bytes()
+if b'"broken"' in source:
+    Path("safe.go").write_bytes(b"changed safe output")
+${mutate.split('\n').map(line => `    ${line}`).join('\n')}
+    print("1 failed in 0.01s")
+    sys.exit(1)
+print("1 passed in 0.01s")
+`)
+    setFence(copy, 'python3 unsafe_cleanup.py')
+    const journal = newJournalHome()
+    const result = runWith(journal, mutationArgs(['safe.go', member]), copy)
+    expectExit(result, 2, `${label}: incomplete cleanup must refuse a verdict`)
+    const output = `${result.stdout}${result.stderr}`
+    assert.match(output, new RegExp(member.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      `${label}: the unsafe member was not named`)
+    assert.match(output, /unsafe|unresolved|restore|symlink|directory/i,
+      `${label}: the cleanup failure was not explained`)
+    assert.deepEqual(readFileSync(join(copy, 'view.templ')), sourceEntry,
+      `${label}: safe source restoration did not finish`)
+    assert.deepEqual(readFileSync(join(copy, 'safe.go')), safeEntry,
+      `${label}: safe secondary restoration did not finish`)
+    inspect(copy)
+    assert.equal(mutationLog(copy), '', `${label}: an incomplete transaction wrote a verdict`)
+    assert.ok(existsSync(journalPath(journal, copy)),
+      `${label}: incomplete cleanup discarded its journal`)
+  }
+
+  unsafeCleanup('secondary became a directory', 'unsafe.go', copy => {
+    writeFileSync(join(copy, 'unsafe.go'), Buffer.from('unsafe entry\n'))
+  }, [
+    'path = Path("unsafe.go")',
+    'path.unlink()',
+    'path.mkdir()',
+  ].join('\n'), copy => {
+    assert.ok(lstatSync(join(copy, 'unsafe.go')).isDirectory(),
+      'cleanup replaced the unsafe directory')
+  })
+
+  if (process.platform !== 'win32') {
+    const outsideFileRoot = mkdtempSync(join(os.tmpdir(), 'quality-harness-outside-'))
+    temps.push(outsideFileRoot)
+    const outsideFile = join(outsideFileRoot, 'outside.go')
+    const outsideFileBytes = Buffer.from('outside must remain untouched\n')
+    writeFileSync(outsideFile, outsideFileBytes)
+    unsafeCleanup('secondary became a symlink', 'unsafe.go', copy => {
+      writeFileSync(join(copy, 'unsafe.go'), Buffer.from('unsafe entry\n'))
+    }, [
+      'path = Path("unsafe.go")',
+      'path.unlink()',
+      `os.symlink(${JSON.stringify(outsideFile)}, path)`,
+    ].join('\n'), copy => {
+      assert.ok(lstatSync(join(copy, 'unsafe.go')).isSymbolicLink(),
+        'cleanup replaced the unsafe symlink')
+      assert.deepEqual(readFileSync(outsideFile), outsideFileBytes,
+        'cleanup followed the symlink outside cwd')
+    })
+
+    const outsideDir = mkdtempSync(join(os.tmpdir(), 'quality-harness-outside-'))
+    temps.push(outsideDir)
+    const outsideMember = join(outsideDir, 'generated.go')
+    const outsideMemberBytes = Buffer.from('outside ancestor target\n')
+    writeFileSync(outsideMember, outsideMemberBytes)
+    unsafeCleanup('secondary ancestor became a symlink', 'nested/generated.go', copy => {
+      mkdirSync(join(copy, 'nested'))
+      writeFileSync(join(copy, 'nested', 'generated.go'), Buffer.from('nested entry\n'))
+    }, [
+      'path = Path("nested/generated.go")',
+      'path.unlink()',
+      'Path("nested").rmdir()',
+      `os.symlink(${JSON.stringify(outsideDir)}, "nested", target_is_directory=True)`,
+    ].join('\n'), copy => {
+      assert.ok(lstatSync(join(copy, 'nested')).isSymbolicLink(),
+        'cleanup replaced the unsafe ancestor symlink')
+      assert.deepEqual(readFileSync(outsideMember), outsideMemberBytes,
+        'cleanup followed the ancestor symlink outside cwd')
+    })
+  }
+
+  const invalidManifest = (label, setup) => {
+    const copy = corpus()
+    addMutationLog(copy)
+    writeFileSync(join(copy, 'view.templ'), sourceEntry)
+    setFence(copy,
+      `python3 -c 'from pathlib import Path; Path("fence-ran.txt").write_text("ran"); print("1 passed in 0.01s")'`)
+    const journal = newJournalHome()
+    const { restores, unchanged } = setup(copy)
+    const targetBefore = readFileSync(join(copy, 'view.templ'))
+    const taskBefore = readTask(copy)
+    const result = runWith(journal, mutationArgs(restores), copy)
+    expectExit(result, 2, `${label}: invalid restore manifest must be a usage refusal`)
+    assert.match(`${result.stdout}${result.stderr}`, /also-restore|manifest|secondary|restore path/i,
+      `${label}: the refusal did not identify the restore manifest`)
+    assert.deepEqual(readFileSync(join(copy, 'view.templ')), targetBefore,
+      `${label}: refusal changed the mutation target`)
+    assert.equal(readTask(copy), taskBefore, `${label}: refusal wrote a log row`)
+    assert.equal(existsSync(join(copy, 'fence-ran.txt')), false,
+      `${label}: refusal ran an Acceptance fence`)
+    assert.deepEqual(readdirSync(journal), [], `${label}: refusal left a journal`)
+    unchanged()
+  }
+  const fileControl = (path, bytes) => {
+    writeFileSync(path, bytes)
+    return () => assert.deepEqual(readFileSync(path), bytes, `${path} changed during refusal`)
+  }
+
+  invalidManifest('absolute path', copy => {
+    const output = join(copy, 'absolute.go')
+    const unchanged = fileControl(output, Buffer.from('absolute entry\n'))
+    return { restores: [output], unchanged }
+  })
+  invalidManifest('forward-slash traversal', copy => {
+    const output = join(dirname(copy), 'escape.go')
+    const unchanged = fileControl(output, Buffer.from('traversal entry\n'))
+    return { restores: ['../escape.go'], unchanged }
+  })
+  invalidManifest('backslash traversal', copy => {
+    const output = join(dirname(copy), 'escape-backslash.go')
+    const unchanged = fileControl(output, Buffer.from('backslash traversal entry\n'))
+    return { restores: ['..\\escape-backslash.go'], unchanged }
+  })
+  invalidManifest('directory member', copy => {
+    const output = join(copy, 'generated-dir')
+    mkdirSync(output)
+    return {
+      restores: ['generated-dir'],
+      unchanged: () => assert.ok(lstatSync(output).isDirectory(), 'directory member was replaced'),
+    }
+  })
+  invalidManifest('duplicate member', copy => {
+    const output = join(copy, 'duplicate.go')
+    const unchanged = fileControl(output, Buffer.from('duplicate entry\n'))
+    return { restores: ['duplicate.go', 'duplicate.go'], unchanged }
+  })
+  invalidManifest('target repeated as secondary', () => ({
+    restores: ['view.templ'], unchanged: () => {},
+  }))
+
+  if (process.platform !== 'win32') {
+    invalidManifest('direct symlink member', copy => {
+      const outside = join(dirname(copy), 'direct-symlink-outside.go')
+      const bytes = Buffer.from('direct symlink outside\n')
+      writeFileSync(outside, bytes)
+      symlinkSync(outside, join(copy, 'linked.go'))
+      return {
+        restores: ['linked.go'],
+        unchanged: () => {
+          assert.ok(lstatSync(join(copy, 'linked.go')).isSymbolicLink(), 'direct symlink was replaced')
+          assert.deepEqual(readFileSync(outside), bytes, 'direct symlink target changed')
+        },
+      }
+    })
+    invalidManifest('existing member below symlink ancestor', copy => {
+      const outside = mkdtempSync(join(os.tmpdir(), 'quality-harness-outside-'))
+      temps.push(outside)
+      const member = join(outside, 'existing.go')
+      const bytes = Buffer.from('existing ancestor escape\n')
+      writeFileSync(member, bytes)
+      symlinkSync(outside, join(copy, 'linked-dir'))
+      return {
+        restores: ['linked-dir/existing.go'],
+        unchanged: () => {
+          assert.ok(lstatSync(join(copy, 'linked-dir')).isSymbolicLink(), 'ancestor symlink was replaced')
+          assert.deepEqual(readFileSync(member), bytes, 'existing escaped member changed')
+        },
+      }
+    })
+    invalidManifest('absent member below symlink ancestor', copy => {
+      const outside = mkdtempSync(join(os.tmpdir(), 'quality-harness-outside-'))
+      temps.push(outside)
+      symlinkSync(outside, join(copy, 'linked-dir'))
+      const absent = join(outside, 'absent.go')
+      return {
+        restores: ['linked-dir/absent.go'],
+        unchanged: () => {
+          assert.ok(lstatSync(join(copy, 'linked-dir')).isSymbolicLink(), 'ancestor symlink was replaced')
+          assert.equal(existsSync(absent), false, 'refusal created the escaped absent member')
+        },
+      }
+    })
+  }
 })
 
 test('a mutant the fence cannot notice is recorded as survived, and does not count', () => {
@@ -1010,11 +1743,11 @@ test('a restore never overwrites a file that moved on since the mutant', async (
   const record = join(copy, 'ADR-001-selftest.md')
   writeFileSync(record, `${readFileSync(record, 'utf8')}\n<!-- edited after the kill -->\n`)
   const result = runWith(journal, ['--restore', '--cwd', '.'], copy)
-  expectExit(result, 0, 'adr-verify --restore')
-  assert.match(result.stdout, /has changed since, so nothing was overwritten/)
+  expectExit(result, 2, 'adr-verify --restore')
+  assert.match(result.stdout, /unresolved mutant journal recovery/i)
   assert.match(readFileSync(record, 'utf8'), /edited after the kill/)
-  assert.match(result.stdout, /pre-mutation content is at/,
-    'refusing to overwrite must not also lose the original')
+  assert.equal(readdirSync(journal).length, 1,
+    'refusing to overwrite must retain the journal that holds the original')
 })
 
 test('--restore with nothing recorded says so rather than implying it repaired something', () => {

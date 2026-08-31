@@ -3,7 +3,8 @@
 
 Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --human "<who observed what>"
-       adr-verify <task.md> --mutant <file> --from <text> --to <text> --why <text>
+       adr-verify <task.md> --mutant <file> [--also-restore <file> ...]
+                  --from <text> --to <text> --why <text>
        adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
 Extracts the ```bash fence under ## Acceptance and runs it with bash
@@ -66,6 +67,15 @@ recovers it, and `adr-verify --restore [--cwd <repo>]` does it on demand. If the
 file has changed since, nothing is overwritten and the original is written out
 beside the journal instead.
 
+--also-restore is repeatable and names repository-relative generated outputs the
+Acceptance fence itself may materialize from the mutated source. Those explicit
+regular-file leaves join one versioned restore transaction. No suffix is
+inferred, undeclared side effects are untouched, and uncertain bytes left by an
+interrupted run are preserved for human reconciliation rather than overwritten.
+Declaring a path grants this live run authority to overwrite its bytes or delete
+it during cleanup, including over a concurrent edit; declare only disposable
+generated outputs whose command-entry state is the state to restore.
+
 Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
 --mutant; 0 for --restore) · 2 = usage, authoring, or transaction problem.
 """
@@ -77,6 +87,7 @@ import ntpath
 import os
 import re
 import signal
+import stat
 import subprocess
 import sys
 import tempfile
@@ -630,61 +641,389 @@ def mutant_journal(cwd):
     return Path(base) / f"adr-verify-mutant-{key}.json"
 
 
-def recover_mutant(cwd):
-    """Put back a mutant a killed run could not restore. True if it restored one.
+JOURNAL_VERSION = 2
+_WINDOWS_REPARSE_POINT = getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x0400)
 
-    The `finally` below unwinds on a normal exit, an exception and a Ctrl-C, and
-    NOT on the kill an agent harness sends when a fence outruns its timeout.
-    Measured 2026-08-27: SIGINT restored the file, SIGTERM and SIGKILL both left
-    the mutant on disk. Reported the same day from a Windows session whose fence
-    takes about eleven minutes against a ten-minute cap — twice — and noticed
-    only because those files had just become tracked. Untracked, a deliberate
-    defect sits in the tree silently, which is the one outcome this gate exists
-    to prevent.
+
+def _path_key(path):
+    """A local-platform identity key for duplicate transaction members."""
+    return os.path.normcase(os.path.normpath(str(Path(path))))
+
+
+def _is_linklike(path_stat):
+    """True for a symlink or Windows reparse point in one lstat result.
+
+    ``Path.is_junction`` arrived after the oldest Python this plugin supports.
+    Windows has exposed ``st_file_attributes`` for longer, so its reparse bit is
+    the compatibility seam. Non-Windows tests can exercise the same pure
+    predicate with a synthetic stat result.
     """
-    journal = mutant_journal(cwd)
-    if not journal.exists():
-        return False
+    return stat.S_ISLNK(path_stat.st_mode) or bool(
+        getattr(path_stat, "st_file_attributes", 0) & _WINDOWS_REPARSE_POINT
+    )
+
+
+def inspect_transaction_path(cwd, path):
+    """Return (absolute path, problem) without following a link component.
+
+    A missing leaf or intermediate directory is valid because a generator may
+    create it. Only the leaf joins the transaction; undeclared parent directories
+    remain outside its restore authority. The nearest existing ancestor still
+    has to be an ordinary directory inside the declared root.
+    """
+    root = Path(cwd).resolve()
+    candidate = Path(path)
+    if not candidate.is_absolute():
+        candidate = root / candidate
+    candidate = Path(os.path.abspath(str(candidate)))
     try:
-        data = json.loads(journal.read_text(encoding="utf-8"))
-        target = Path(data["file"])
-        original = base64.b64decode(data["original"])
-        mutated = base64.b64decode(data["mutated"])
-        phase = data.get("phase", "mutant")
-    except (OSError, ValueError, KeyError):
-        journal.unlink(missing_ok=True)
+        relative = candidate.relative_to(root)
+    except ValueError:
+        return candidate, f"escapes the declared cwd {root}"
+    if not relative.parts:
+        return candidate, "names the cwd directory rather than a regular file"
+
+    current = root
+    for index, part in enumerate(relative.parts):
+        current = current / part
+        last = index == len(relative.parts) - 1
+        try:
+            path_stat = current.lstat()
+        except FileNotFoundError:
+            # Nothing below the first absent component can exist yet. The
+            # existing prefix has already been checked without following links;
+            # a later live restore walks the newly materialized prefix again.
+            break
+        except OSError as exc:
+            return candidate, f"could not be inspected at {current}: {exc}"
+        mode = path_stat.st_mode
+        if _is_linklike(path_stat):
+            return candidate, f"crosses a symlink, junction, or reparse point at {current}"
+        if not last and not stat.S_ISDIR(mode):
+            return candidate, f"has a non-directory parent at {current}"
+        if last and not stat.S_ISREG(mode):
+            return candidate, f"is not a regular file at {current}"
+
+    try:
+        candidate.resolve(strict=False).relative_to(root)
+    except (OSError, ValueError):
+        return candidate, f"resolves outside the declared cwd {root}"
+    return candidate, None
+
+
+def _portable_relative_parts(raw):
+    """Repository-relative parts after checking both separator spellings."""
+    text = str(raw)
+    if not text:
+        fail("--also-restore needs a non-empty repository-relative file path")
+    if looks_absolute(text):
+        fail(f"--also-restore refuses absolute path {text!r}; name a file relative to --cwd")
+    portable = text.replace("\\", "/")
+    pieces = portable.split("/")
+    if any(piece == ".." for piece in pieces):
+        fail(f"--also-restore refuses traversal in {text!r}; the transaction cannot leave --cwd")
+    parts = [piece for piece in pieces if piece not in ("", ".")]
+    if not parts:
+        fail(f"--also-restore {text!r} names --cwd, which is a directory, not a generated file")
+    return parts
+
+
+def _same_file(left, right):
+    """Same lexical path or, when both exist, the same filesystem object."""
+    if _path_key(left) == _path_key(right):
+        return True
+    try:
+        return Path(left).samefile(right)
+    except (FileNotFoundError, OSError):
         return False
+
+
+def secondary_members(cwd, target, declared):
+    """Validate and snapshot every repeatable --also-restore value."""
+    root = Path(cwd).resolve()
+    members, seen = [], []
+    for raw in declared:
+        candidate, problem = inspect_transaction_path(root, root.joinpath(*_portable_relative_parts(raw)))
+        if problem:
+            fail(f"--also-restore {raw!r} {problem}")
+        if _same_file(candidate, target):
+            fail(f"--also-restore {raw!r} repeats the --mutant target; declare it only once")
+        if any(_same_file(candidate, prior) for prior in seen):
+            fail(f"--also-restore {raw!r} duplicates another generated output")
+        try:
+            existed = candidate.exists()
+            original = candidate.read_bytes() if existed else None
+        except OSError as exc:
+            fail(f"--also-restore could not snapshot {raw!r}: {exc}")
+        members.append({
+            "role": "secondary",
+            "path": str(candidate),
+            "existed": existed,
+            "original": base64.b64encode(original).decode("ascii") if existed else None,
+        })
+        seen.append(candidate)
+    return members
+
+
+def _member_original(member):
+    return base64.b64decode(member["original"], validate=True) if member["existed"] else None
+
+
+def restore_live_transaction(transaction, cwd):
+    """Restore every currently safe member; return unresolved descriptions.
+
+    Selection is intentionally one unique line. The mutation catalogue truncates
+    it to the source member, and the generated-output CLI fixture must then fail.
+    """
+    unresolved = []
+    members = transaction["members"]
+    for member in members:
+        path, problem = inspect_transaction_path(cwd, member["path"])
+        if problem:
+            unresolved.append(f"{member['path']}: {problem}")
+            continue
+        try:
+            if member["existed"]:
+                path.write_bytes(_member_original(member))
+            elif path.exists():
+                path.unlink()
+        except (OSError, ValueError, KeyError) as exc:
+            unresolved.append(f"{path}: restore failed: {exc}")
+    return unresolved
+
+
+def report_unresolved(journal, unresolved, context):
+    print(f"[adr-verify] UNRESOLVED {context}: the transaction could not safely restore:")
+    for item in unresolved:
+        print(f"  - {item}")
+    fail(f"[adr-verify] nothing uncertain was overwritten; the journal remains at {journal}. "
+         f"Reconcile the named paths before verifying again.")
+
+
+def _decode_v2_journal(data, cwd):
+    """Validate v2 structure without changing any recorded path."""
+    if not isinstance(data, dict) or data.get("version") != JOURNAL_VERSION:
+        raise ValueError("unsupported journal version")
+    if data.get("phase") not in ("baseline", "mutant"):
+        raise ValueError("phase must be baseline or mutant")
+    root = Path(cwd).resolve()
+    recorded_root = data.get("cwd")
+    if not isinstance(recorded_root, str) or _path_key(Path(recorded_root)) != _path_key(root):
+        raise ValueError("recorded cwd does not match this recovery root")
+    raw_members = data.get("members")
+    if not isinstance(raw_members, list) or not raw_members:
+        raise ValueError("members must be a non-empty list")
+
+    members, seen, targets = [], set(), 0
+    for raw in raw_members:
+        if not isinstance(raw, dict):
+            raise ValueError("every member must be an object")
+        role, named, existed = raw.get("role"), raw.get("path"), raw.get("existed")
+        if role not in ("target", "secondary") or not isinstance(named, str) or not named:
+            raise ValueError("every member needs a target/secondary role and path")
+        if type(existed) is not bool:
+            raise ValueError(f"{named}: existed must be a boolean")
+        path = Path(named)
+        if not path.is_absolute():
+            raise ValueError(f"{named}: recorded path is not absolute")
+        lexical = Path(os.path.abspath(str(path)))
+        try:
+            lexical.relative_to(root)
+        except ValueError:
+            raise ValueError(f"{named}: recorded path escapes cwd")
+        key = _path_key(lexical)
+        if key in seen:
+            raise ValueError(f"{named}: duplicate member")
+        seen.add(key)
+        if existed:
+            if not isinstance(raw.get("original"), str):
+                raise ValueError(f"{named}: existing member has no original bytes")
+            try:
+                original = base64.b64decode(raw["original"], validate=True)
+            except Exception as exc:
+                raise ValueError(f"{named}: invalid original bytes: {exc}")
+        else:
+            if raw.get("original") is not None:
+                raise ValueError(f"{named}: absent member unexpectedly has original bytes")
+            original = None
+        member = {**raw, "path": str(lexical), "_original": original}
+        if role == "target":
+            targets += 1
+            if not existed or not isinstance(raw.get("mutated"), str):
+                raise ValueError("target needs original and prospective mutant bytes")
+            try:
+                member["_mutated"] = base64.b64decode(raw["mutated"], validate=True)
+            except Exception as exc:
+                raise ValueError(f"{named}: invalid mutant bytes: {exc}")
+        members.append(member)
+    if targets != 1:
+        raise ValueError("journal must contain exactly one target")
+    return data["phase"], members
+
+
+def _entry_state(member, path):
+    if member["existed"]:
+        try:
+            return path.exists() and path.read_bytes() == member["_original"]
+        except OSError:
+            return False
+    return not path.exists()
+
+
+def _recover_v2(journal, data, cwd):
+    phase, members = _decode_v2_journal(data, cwd)
+    unresolved, restored = [], []
+    for member in members:
+        path, problem = inspect_transaction_path(cwd, member["path"])
+        if problem:
+            unresolved.append(f"{member['path']}: {problem}")
+            continue
+        if phase == "baseline":
+            if not _entry_state(member, path):
+                unresolved.append(f"{path}: differs from its command-entry state after the clean fence")
+            continue
+        if member["role"] == "secondary":
+            if not _entry_state(member, path):
+                unresolved.append(f"{path}: generated bytes are not known to belong to the killed process")
+            continue
+        try:
+            if not path.exists():
+                unresolved.append(f"{path}: target is missing")
+            else:
+                current = path.read_bytes()
+                if current == member["_original"]:
+                    pass
+                elif current == member["_mutated"]:
+                    path.write_bytes(member["_original"])
+                    restored.append(str(path))
+                else:
+                    unresolved.append(f"{path}: target differs from both known source states")
+        except OSError as exc:
+            unresolved.append(f"{path}: recovery failed: {exc}")
+
+    if unresolved:
+        report_unresolved(journal, unresolved, f"{phase} journal recovery")
+    try:
+        journal.unlink()
+    except OSError as exc:
+        fail(f"[adr-verify] transaction members are resolved but the journal could not be removed "
+             f"({exc}); it remains at {journal}, so verification is blocked.")
+    what = ", ".join(restored) if restored else "all members were already at entry state"
+    print(f"[adr-verify] RESTORED transaction: {what}. The recovery journal is clear.")
+    return "resolved"
+
+
+def _recover_legacy(journal, data, cwd):
+    """The one-target schema released before JOURNAL_VERSION existed."""
+    try:
+        named = data["file"]
+        if not isinstance(named, str) or not named:
+            raise ValueError("file must be a non-empty path")
+        root_input = Path(os.path.abspath(str(cwd)))
+        root = Path(cwd).resolve()
+        recorded = Path(named)
+        legacy_traversal = not recorded.is_absolute() and ".." in recorded.parts
+        original = base64.b64decode(data["original"], validate=True)
+        mutated = base64.b64decode(data["mutated"], validate=True)
+        phase = data.get("phase", "mutant")
+        if phase not in ("baseline", "mutant"):
+            raise ValueError("phase must be baseline or mutant")
+        candidates = []
+        if recorded.is_absolute():
+            # macOS commonly spells the same temporary root as both /var and
+            # /private/var. Translate only the declared root prefix; resolving
+            # the whole target here would follow exactly the in-tree symlink a
+            # recovery must inspect and refuse.
+            target = recorded
+            try:
+                target = root / target.relative_to(root_input)
+            except ValueError:
+                for ancestor in target.parents:
+                    try:
+                        if ancestor.resolve() == root:
+                            target = root / target.relative_to(ancestor)
+                            break
+                    except OSError:
+                        continue
+            candidates.append(target)
+        elif not legacy_traversal:
+            # The old writer stored str(cwd / rel) without resolving cwd. That
+            # produced both `file.py` for `--cwd .` and `repo/file.py` for
+            # `--cwd repo`. Consider the repository-relative reading, the old
+            # launch-directory reading, and a cwd prefix recoverable from the
+            # canonical root. More than one contained identity is ambiguous;
+            # matching bytes classify a chosen path's state, not its identity.
+            candidates.extend((root / recorded, Path.cwd() / recorded))
+            parts = recorded.parts
+            root_parts = root.parts
+            for count in range(1, len(parts)):
+                if count <= len(root_parts) and all(
+                        os.path.normcase(left) == os.path.normcase(right)
+                        for left, right in zip(parts[:count], root_parts[-count:])):
+                    candidates.append(root.joinpath(*parts[count:]))
+    except Exception as exc:
+        fail(f"[adr-verify] unreadable legacy mutant journal retained at {journal}: {exc}")
+
+    if legacy_traversal:
+        report_unresolved(journal,
+                          [f"{named}: relative traversal has no safe legacy path identity"],
+                          "legacy journal recovery")
+
+    identities, outside, seen = [], [], set()
+    for candidate in candidates:
+        target, problem = inspect_transaction_path(root, candidate)
+        key = _path_key(target)
+        if key in seen:
+            continue
+        seen.add(key)
+        try:
+            target.relative_to(root)
+        except ValueError:
+            outside.append(f"{target}: {problem or 'escapes the declared cwd'}")
+            continue
+        if problem:
+            state = problem
+        else:
+            try:
+                if not target.exists():
+                    state = "is missing"
+                else:
+                    current = target.read_bytes()
+                    if current == original:
+                        state = "matches the known original"
+                    elif current == mutated:
+                        state = "matches the known mutant"
+                    else:
+                        state = "differs from both known legacy states"
+            except OSError as read_error:
+                state = f"could not inspect candidate bytes: {read_error}"
+        identities.append((target, problem, state))
+
+    if len(identities) != 1:
+        unresolved = [f"{path}: {state}" for path, _, state in identities] + outside
+        report_unresolved(journal, unresolved or [f"{named}: no contained recovery candidate"],
+                          "ambiguous legacy journal recovery")
+    target, problem, _ = identities[0]
+    if problem:
+        report_unresolved(journal, [f"{target}: {problem}"], "legacy journal recovery")
 
     if not target.exists():
-        if phase == "baseline":
-            # The target existed when the transaction was armed. Its absence is
-            # therefore a baseline side effect or concurrent work, not a mutant
-            # this process owns and may silently reconstruct.
-            fail(f"[adr-verify] unresolved baseline journal: a killed clean fence removed "
-                 f"{target} before any mutant was applied. Nothing was recreated and the "
-                 f"journal remains at {journal}; reconcile the file before verifying again.")
-        print(f"[adr-verify] a killed run left a mutant recorded for {target}, "
-              f"which no longer exists; nothing restored.")
-        journal.unlink(missing_ok=True)
-        return False
+        before = "clean fence" if phase == "baseline" else "mutant run"
+        report_unresolved(journal, [f"{target}: a killed {before} left the target missing"],
+                          f"legacy {phase} journal recovery")
 
-    now = target.read_bytes()
+    try:
+        now = target.read_bytes()
+    except OSError as exc:
+        fail(f"[adr-verify] legacy recovery could not read {target}; journal retained: {exc}")
     if now == original:
         journal.unlink(missing_ok=True)
-        return False
+        return "resolved"
     if phase == "baseline":
-        # No deliberate mutant had landed yet, so a changed target belongs to
-        # the clean fence or to concurrent work. Neither gives this process
-        # authority to overwrite it. Keep the journal as the durable warning
-        # and block every later measurement until a person reconciles the file.
-        fail(f"[adr-verify] unresolved baseline journal: a killed clean fence changed "
-             f"{target} before any mutant was applied. Nothing was overwritten and the "
-             f"journal remains at {journal}; reconcile the file before verifying again.")
+        report_unresolved(journal,
+                          [f"{target}: a killed clean fence changed the target before mutation"],
+                          "legacy baseline journal recovery")
     if now != mutated:
-        # The file moved on. Overwriting would discard work that is not ours to
-        # discard, so the original is left where it can be read and applied by
-        # hand — a restore that destroys an edit is a worse bug than the one
-        # being fixed.
         kept = journal.with_name(journal.stem + "-original.txt")
         try:
             kept.write_bytes(original)
@@ -694,17 +1033,43 @@ def recover_mutant(cwd):
               f"changed since, so nothing was overwritten.")
         if kept:
             print(f"[adr-verify] the pre-mutation content is at {kept} — compare before you commit.")
-        journal.unlink(missing_ok=True)
-        return False
+        report_unresolved(journal,
+                          [f"{target}: differs from both known legacy source states"],
+                          "legacy mutant journal recovery")
 
     target.write_bytes(original)
     journal.unlink(missing_ok=True)
     print(f"[adr-verify] RESTORED {target}: a previous --mutant run was killed before it could "
           f"put the file back. Check nothing was committed in between.")
-    return True
+    return "resolved"
 
 
-def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
+def recover_mutant(cwd):
+    """Resolve a durable journal, or stop before an ambiguous tree is measured."""
+    journal = mutant_journal(cwd)
+    if not journal.exists():
+        return "absent"
+    try:
+        data = json.loads(journal.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as exc:
+        fail(f"[adr-verify] corrupt mutant journal retained at {journal}: {exc}. "
+             f"Verification is blocked until it is reconciled.")
+    if not isinstance(data, dict):
+        fail(f"[adr-verify] corrupt mutant journal retained at {journal}: expected an object. "
+             f"Verification is blocked until it is reconciled.")
+    if "version" not in data:
+        return _recover_legacy(journal, data, cwd)
+    if data.get("version") != JOURNAL_VERSION:
+        fail(f"[adr-verify] unknown mutant journal version {data.get('version')!r} retained at "
+             f"{journal}. Verification is blocked until a compatible tool or person resolves it.")
+    try:
+        return _recover_v2(journal, data, cwd)
+    except ValueError as exc:
+        fail(f"[adr-verify] corrupt versioned mutant journal retained at {journal}: {exc}. "
+             f"Verification is blocked until it is reconciled.")
+
+
+def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore):
     """Break one mechanism, run the task's own fence, and record whether it noticed.
 
     Never returns — every path exits. The file is restored in `finally`, which
@@ -731,9 +1096,13 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
         fail(f"{task.name}: no ## Mutation Log section — add one (see "
              f"the bundled task-template.md) before recording mutants.")
 
+    cwd = Path(cwd).resolve()
     target = Path(rel) if looks_absolute(rel) else (cwd / rel)
     if not target.exists():
         fail(f"--mutant file not found: {target}")
+    target, target_problem = inspect_transaction_path(cwd, target)
+    if target_problem:
+        fail(f"--mutant target {rel!r} {target_problem}; a restore transaction cannot own it")
 
     # Kept as BYTES so the restore below is a restore, not a re-encode.
     original_bytes = target.read_bytes()
@@ -778,15 +1147,25 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
              f"be expected to notice it, and a 'survived' verdict here would be "
              f"about the mutant, not the test.")
 
+    mutated_bytes = source_bytes(original.replace(frm, to, 1), target_newline)
+    members = [{
+        "role": "target",
+        "path": str(target),
+        "existed": True,
+        "original": base64.b64encode(original_bytes).decode("ascii"),
+        "mutated": base64.b64encode(mutated_bytes).decode("ascii"),
+    }]
+    members.extend(secondary_members(cwd, target, also_restore))
+
     verdict, code, detail = "inconclusive", 2, ""
     journal = mutant_journal(cwd)
     previous = None
-    mutated_bytes = source_bytes(original.replace(frm, to, 1), target_newline)
+    cleanup_failure = None
     journal_data = {
+        "version": JOURNAL_VERSION,
         "phase": "baseline",
-        "file": str(target),
-        "original": base64.b64encode(original_bytes).decode("ascii"),
-        "mutated": base64.b64encode(mutated_bytes).decode("ascii"),
+        "cwd": str(cwd),
+        "members": members,
         "from": frm, "to": to, "why": why.strip(), "cmd": cmd,
     }
 
@@ -851,9 +1230,13 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                 print(f"  {line}")
             sys.exit(1)
 
-        # The baseline itself may have touched the target. Re-establish command-
-        # entry bytes, then advance the durable phase BEFORE changing the file.
-        target.write_bytes(original_bytes)
+        # The baseline itself may have materialized outputs. Re-establish the
+        # complete command-entry state, then advance the durable phase BEFORE
+        # changing the source. The mutant fence must generate its own outputs.
+        cleanup_failure = restore_live_transaction(journal_data, cwd)
+        if cleanup_failure:
+            report_unresolved(journal, cleanup_failure, "cleanup after the clean fence")
+        cleanup_failure = None
         journal_data["phase"] = "mutant"
         try:
             journal.write_text(json.dumps(journal_data), encoding="utf-8")
@@ -924,13 +1307,20 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
         else:
             verdict, detail = "killed", "a test went red"
     finally:
-        target.write_bytes(original_bytes)
-        journal.unlink(missing_ok=True)
+        if cleanup_failure is None:
+            cleanup_failure = restore_live_transaction(journal_data, cwd)
         if previous is not None:
             try:
                 signal.signal(signal.SIGTERM, previous)
             except (OSError, ValueError):
                 pass
+        if cleanup_failure:
+            report_unresolved(journal, cleanup_failure, "live cleanup")
+        try:
+            journal.unlink(missing_ok=True)
+        except OSError as exc:
+            fail(f"[adr-verify] restored every transaction member but could not remove the "
+                 f"journal ({exc}); no Mutation Log row was written and {journal} remains.")
 
     digest = acceptance_digest(cmd)
     sha = git_sha(cwd)
@@ -1509,6 +1899,7 @@ def main():
     human_mutant = None
     test_name = None
     test_exit = None
+    also_restore = []
     timeout = SWEEP_TIMEOUT_DEFAULT
     as_json = False
     saw_timeout = False
@@ -1523,6 +1914,9 @@ def main():
         elif args[i] == "--mutant":
             i += 1
             mutant = value(i, "--mutant")
+        elif args[i] == "--also-restore":
+            i += 1
+            also_restore.append(value(i, "--also-restore"))
         elif args[i] == "--human-mutant":
             i += 1
             human_mutant = value(i, "--human-mutant")
@@ -1596,7 +1990,8 @@ def main():
         if not Path(sweep).is_dir():
             fail(f"not a directory: {sweep}")
         for flag, given in (("--human", human), ("--mutant", mutant),
-                            ("--human-mutant", human_mutant), ("--cwd", cwd)):
+                            ("--human-mutant", human_mutant), ("--cwd", cwd),
+                            ("--also-restore", also_restore or None)):
             if given is not None:
                 fail(f"{flag} cannot be combined with --sweep")
         if restore:
@@ -1604,8 +1999,11 @@ def main():
         sys.exit(sweep_corpus(sweep, timeout=timeout, as_json=as_json))
 
     if restore:
+        if also_restore:
+            fail("--also-restore cannot be combined with --restore; recovery reads the durable "
+                 "manifest already on disk")
         where = cwd if cwd is not None else Path.cwd()
-        if not recover_mutant(where):
+        if recover_mutant(where) == "absent":
             print(f"[adr-verify] no mutant is recorded for {Path(where).resolve()} — "
                   f"nothing to restore.")
         sys.exit(0)
@@ -1616,6 +2014,11 @@ def main():
         # `adr-verify task.md --timeout 1` would have run with no timeout at all,
         # and looked like it had one.
         fail("--timeout and --json apply to --sweep only")
+
+    if also_restore and mutant is None:
+        fail("--also-restore is valid only with the tool-run --mutant mode")
+    if also_restore and human is not None:
+        fail("--also-restore cannot be combined with --human; no source mutation runs there")
 
     if task is None:
         fail(__doc__)
@@ -1679,7 +2082,7 @@ def main():
     recover_mutant(cwd)
 
     if mutant is not None:
-        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why)
+        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore)
 
     try:
         r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,

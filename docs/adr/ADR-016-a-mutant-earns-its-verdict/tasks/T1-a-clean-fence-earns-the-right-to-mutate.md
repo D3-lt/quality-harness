@@ -51,8 +51,9 @@ Prevent a pre-existing red or vacuous Acceptance fence from lending its failure 
 
 ```bash
 set -o pipefail
-node --test --test-name-pattern='adr-verify requires a clean fence before it mutates' tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr016-t1-clean-baseline.out &&
+node --test --test-name-pattern='adr-verify requires a clean fence before it mutates|an interrupted clean baseline cannot silently lend its changed tree to a later run' tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr016-t1-clean-baseline.out &&
 grep -qF '✔ adr-verify requires a clean fence before it mutates' /tmp/adr016-t1-clean-baseline.out &&
+grep -qF '✔ an interrupted clean baseline cannot silently lend its changed tree to a later run' /tmp/adr016-t1-clean-baseline.out &&
 ! grep -qE '^✖|ℹ fail [1-9]' /tmp/adr016-t1-clean-baseline.out
 ```
 
@@ -68,6 +69,7 @@ node --test --test-name-pattern='every catalogue entry still matches the source 
 | Test name | File | Verifies | Covers |
 |-----------|------|----------|--------|
 | `adr-verify requires a clean fence before it mutates` | `tests/evidence-chain.test.mjs` | through the CLI: pre-red, timeout, missing-runner and no-tests clean fences produce `UNPROVEN` before mutation; a journal-arm failure runs neither fence; a clean-scored control proceeds; an unread target is a restored survivor with reachability wording; and a mutant-only timeout remains restored `UNRUN` with no row | — |
+| `an interrupted clean baseline cannot silently lend its changed tree to a later run` | `tests/evidence-chain.test.mjs` | a SIGKILL after the clean fence rewrites or removes the target leaves the baseline journal intact, preserves the unknown tree state, and blocks recovery from claiming it restored anything | — |
 | `every catalogue entry still matches the source it mutates, exactly once` | `tests/package.test.mjs` | the new source anchor remains unique before and after mutation work; preflight only | — |
 | `a mutation that matches across lines targets a file git checks out with LF` | `tests/package.test.mjs` | a multi-line Python anchor remains portable when used; preflight only | — |
 
@@ -96,6 +98,10 @@ subprocess path and add a control before marking the task done.
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-31 · 0c5c36e* · mutant killed · exit 1 · `plugin/bin/adr-verify` · disabling the clean-baseline guard must let the named CLI regression observe an unearned mutant verdict · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
+- 2026-08-31 · 0c5c36e* · mutant killed · exit 1 · `plugin/bin/adr-verify` · disabling the clean-baseline guard must let the named CLI regression observe an unearned mutant verdict · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
+- 2026-09-01 · 0c5c36e* · mutant killed · exit 1 · `plugin/bin/adr-verify` · disabling the clean-baseline guard must let the named CLI regression observe an unearned mutant verdict · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
+- 2026-09-01 · 0c5c36e* · mutant killed · exit 1 · `plugin/bin/adr-verify` · disabling the clean-baseline guard must let the named CLI regression observe an unearned mutant verdict · acceptance-sha256:7aa5a71679cbaef3c3632ac52b5ad60b9a0be35b0579a8c442e7475982c1d4ef
 
 ## Invariants
 
@@ -130,3 +136,21 @@ or if the change would require parsing shell to decide whether the target is com
 ## Verification Log
 
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-08-31 · 0c5c36e* · exit 1 · `set -o pipefail …` · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
+  ```
+  --- last 10 line(s) of stdout (of 100 after folding 100 raw)
+        at Test.run (node:internal/test_runner/test:1397:25)
+        at Test.start (node:internal/test_runner/test:1257:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:387:17) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: { baselineRefusals: [ [Object], [Object], [Object], [Object] ], journalFailure: { refused: true, namesJournal: true, mutantApplied: true, targetRestored: true, mutationLogEmpty: true }, survivor: { status: 1, mutantApplied: true, targetRestored: true, journalEmpty: true, rowWritten: true, namesReachabilitySeam: false }, mutantTimeout: { status: 2, unrun: true, mutantApplied: true, targetRestored: true, mutationLogEmpty: true, journalEmpty: true } },
+      expected: { baselineRefusals: [ [Object], [Object], [Object], [Object] ], journalFailure: { refused: true, namesJournal: true, mutantApplied: false, targetRestored: true, mutationLogEmpty: true }, survivor: { status: 1, mutantApplied: true, targetRestored: true, journalEmpty: true, rowWritten: true, namesReachabilitySeam: true }, mutantTimeout: { status: 2, unrun: true, mutantApplied: true, targetRestored: true, mutationLogEmpty: true, journalEmpty: true } },
+      operator: 'deepStrictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-08-31 · 0c5c36e* · exit 0 · `set -o pipefail …` · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
+- 2026-08-31 · 0c5c36e* · exit 0 · `set -o pipefail …` · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
+- 2026-09-01 · 0c5c36e* · exit 0 · `set -o pipefail …` · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
+- 2026-09-01 · 0c5c36e* · exit 0 · `set -o pipefail …` · acceptance-sha256:7aa5a71679cbaef3c3632ac52b5ad60b9a0be35b0579a8c442e7475982c1d4ef

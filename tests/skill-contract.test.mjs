@@ -154,6 +154,13 @@ const INVOCATIONS = [
   { shape: 'adr-verify --mutant --from --to --why', exit: 1,
     build: dir => ({ cwd: dir, args: ['adr-verify', 'tasks/T1-fixture.md', '--cwd', '.',
       '--mutant', 'unused.py', '--from', 'X = 1', '--to', 'X = 2', '--why', 'probe'] }) },
+  // A declared generated output joins the same restore transaction. The
+  // behavioural evidence-chain test proves the bytes roll back; this contract
+  // fixture proves the shipped multi-flag command remains runnable.
+  { shape: 'adr-verify --mutant --also-restore', exit: 1,
+    build: dir => ({ cwd: dir, args: ['adr-verify', 'tasks/T1-fixture.md', '--cwd', '.',
+      '--mutant', 'unused.py', '--also-restore', 'generated.py',
+      '--from', 'X = 1', '--to', 'X = 2', '--why', 'probe'] }) },
   // The human mutation lane. It runs NOTHING, so unlike --mutant above it exits 0
   // on a well-formed report: the exit code says the row was written, not that a
   // fence passed. `X = 1` occurs exactly once in the fixture, which is what the

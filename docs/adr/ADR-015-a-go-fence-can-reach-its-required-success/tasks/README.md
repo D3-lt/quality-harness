@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | lint the unreachable Go green path | pending | — | `node --test … tests/gates.test.mjs` |
+| T1 | lint the unreachable Go green path | done | — | `node --test … tests/gates.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

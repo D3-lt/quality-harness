@@ -58,15 +58,15 @@ checked.
 
 ```bash
 set -o pipefail
-node --test --test-name-pattern='adr-lint cross-checks every ordered step against an explicit proof' tests/gates.test.mjs 2>&1 | tee /tmp/adr018-t1-gates.out &&
+node tests/gates.test.mjs 2>&1 | tee /tmp/adr018-t1-gates.out &&
 grep -qF '✔ adr-lint cross-checks every ordered step against an explicit proof' /tmp/adr018-t1-gates.out &&
 ! grep -qE '^✖|ℹ fail [1-9]' /tmp/adr018-t1-gates.out &&
 python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md . &&
-node --test --test-name-pattern='every catalogue entry still matches the source it mutates, exactly once|a mutation that matches across lines targets a file git checks out with LF' tests/package.test.mjs
+node tests/package.test.mjs
 ```
 
-The positive CLI-result grep makes the fence red before the named test exists: Node's test-name
-filter may select nothing and still exit 0. Both catalogue checks are preflight controls. They may
+The positive CLI-result grep makes the fence red before the named test exists: the rest of the file
+may pass while that promised test is absent. Both catalogue checks are preflight controls. They may
 prevent an invalid mutation run, but neither is allowed to earn a behavioral kill; the named CLI
 test must observe both missing mechanisms.
 
@@ -104,6 +104,10 @@ add it to the matrix or name why it consumes a different contract before marking
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-09-01 · a410f02* · mutant killed · exit 1 · `plugin/bin/adr-lint` · pre-cover every parsed step so an unmapped step can disappear from the total-coverage finding · acceptance-sha256:0a6ce63df1b2291b7218da4e8ccd4f1971f443e58b4520f7952f58cf30da22e9
+- 2026-09-01 · a410f02* · mutant killed · exit 1 · `plugin/bin/adr-lint` · suppress the only visible legacy proof-map advice while preserving its non-blocking exit · acceptance-sha256:0a6ce63df1b2291b7218da4e8ccd4f1971f443e58b4520f7952f58cf30da22e9
+- 2026-09-01 · a410f02* · mutant killed · exit 1 · `plugin/bin/adr-lint` · pre-cover every parsed step so an unmapped step can disappear from the total-coverage finding · acceptance-sha256:869d4459419d1a2a6120dc804675a8b3bc56e62404c4305611abaa9962c99128
+- 2026-09-01 · a410f02* · mutant killed · exit 1 · `plugin/bin/adr-lint` · suppress the only visible legacy proof-map advice while preserving its non-blocking exit · acceptance-sha256:869d4459419d1a2a6120dc804675a8b3bc56e62404c4305611abaa9962c99128
 
 ## Invariants
 
@@ -150,3 +154,5 @@ that the focused CLI regression kills.
 ## Verification Log
 
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-09-01 · a410f02* · exit 0 · `set -o pipefail …` · acceptance-sha256:0a6ce63df1b2291b7218da4e8ccd4f1971f443e58b4520f7952f58cf30da22e9
+- 2026-09-01 · a410f02* · exit 0 · `set -o pipefail …` · acceptance-sha256:869d4459419d1a2a6120dc804675a8b3bc56e62404c4305611abaa9962c99128

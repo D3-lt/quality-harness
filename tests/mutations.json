@@ -3462,6 +3462,24 @@
       ],
       "from": "    if line > len(lines):\n        _permanent_advice(\n            errors, record,\n            f\"file citation `{receipt}` names line {line}, but that line does not exist\")",
       "to": "    if False:\n        _permanent_advice(\n            errors, record,\n            f\"file citation `{receipt}` names line {line}, but that line does not exist\")"
+    },
+    {
+      "label": "lint: every proof-map step is accounted for",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    covered = set()",
+      "to": "    covered = set(counts)"
+    },
+    {
+      "label": "lint: an unmarked task says its proof map was not checked",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if not headers:\n        errors.advise(PROOF_MAP_LEGACY_ADVICE.format(task=path.name))\n        return",
+      "to": "    if not headers:\n        return"
     }
   ]
 }

@@ -978,3 +978,253 @@ test('an unreadable or unusable strictFrom changes nothing, and says so', () => 
   expectExit(nonsense, 1, 'a cutoff naming no ADR number is not a cutoff')
   assert.match(nonsense.stdout, /names no ADR number/)
 })
+
+test('adr-lint cross-checks every ordered step against an explicit proof', (t) => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-proof-map-'))
+  t.after(() => rmSync(temp, { recursive: true, force: true }))
+  const copy = join(temp, 'ok')
+  cpSync(fixture, copy, { recursive: true })
+
+  const adr = join(copy, 'ADR-001-selftest.md')
+  const tasks = join(copy, 'tasks')
+  const task = join(tasks, 'T1-fixture.md')
+  const legacyTask = readFileSync(task, 'utf8')
+  const validTask = legacyTask
+    .replace('**Consumes:** none\n', '**Consumes:** none\n**Proof map:** v1\n')
+    .replace(
+      /## Ordered Steps\n[\s\S]*?\n## Acceptance/,
+      [
+        '## Ordered Steps', '',
+        '1. [S4] Write the failing test before changing the gate.',
+        '2. [S2] Wire the strict validator through the CLI. [proof: acceptance]',
+        '3. [S9] Keep the validator falsifiable. [proof: mutation]',
+        '4. [S7] Inspect the final authoring guidance.',
+        '   [proof: human: compare both shipped sources]',
+        '', '## Acceptance',
+      ].join('\n'),
+    )
+    .replace(
+      /## Tests\n[\s\S]*?\n## Invariants/,
+      [
+        '## Tests', '',
+        '| Test name | File | Verifies | Covers | Steps |',
+        '|-----------|------|----------|--------|-------|',
+        '| `adr-lint-positive` | `selftest.sh` | maps the failing test | — | S4 |',
+        '| supplementary | notes | preserves an escaped \\| pipe | — | — |',
+        '', '## Invariants',
+      ].join('\n'),
+    )
+
+  const lint = (source, label) => {
+    writeFileSync(task, source)
+    const result = run('adr-lint', [adr, tasks], copy)
+    assert.equal(result.signal, null, `${label}: gate was terminated\n${result.stderr}`)
+    return result
+  }
+  const expectRejected = (source, pattern, label) => {
+    const result = lint(source, label)
+    expectExit(result, 1, label)
+    assert.match(result.stdout, pattern, `${label}:\n${result.stdout}`)
+  }
+
+  const clean = lint(validTask, 'valid v1 proof map')
+  expectExit(clean, 0, 'valid v1 proof map')
+  assert.doesNotMatch(clean.stdout, /proof map.*not checked/i, clean.stdout)
+
+  // Identity is stable when order changes: moving a step must not retarget the
+  // Tests row, so the IDs deliberately do not match their list ordinals.
+  const moved = validTask.replace(
+    '1. [S4] Write the failing test before changing the gate.\n' +
+      '2. [S2] Wire the strict validator through the CLI. [proof: acceptance]',
+    '1. [S2] Wire the failing test through the CLI. [proof: acceptance]\n' +
+      '2. [S4] Write the gate regression before changing the gate.',
+  )
+  expectExit(lint(moved, 'stable IDs survive reordered steps'), 0,
+    'stable IDs survive reordered steps')
+
+  const indented = validTask.replace(/^([1-4]\. \[S)/gm, ' $1')
+  expectExit(lint(indented, 'CommonMark-indented top-level steps'), 0,
+    'CommonMark-indented top-level steps')
+
+  const evenBackslashes = validTask.replace(
+    'maps the failing test | — | S4 |', 'ends in \\\\| — | S4 |')
+  expectExit(lint(evenBackslashes, 'even backslashes leave the pipe structural'), 0,
+    'even backslashes leave the pipe structural')
+
+  expectRejected(validTask.replace('[S2]', 'without-an-id'),
+    /step 2.*\[S<n>\]/i, 'missing step identity')
+  expectRejected(validTask.replace('[S2]', '[S4]'),
+    /duplicate.*S4/i, 'duplicate step identity')
+  expectRejected(validTask.replace('| Covers | Steps |', '| Covers |'),
+    /Tests table.*Steps.*fifth/i, 'missing Steps column')
+  expectRejected(validTask.replace('| Covers | Steps |', '| Steps | Covers |'),
+    /Tests table.*Steps.*fifth/i, 'misplaced Steps column')
+  expectRejected(validTask.replace('| Covers | Steps |', '| Covers | Steps | Extra |'),
+    /Tests table.*exactly five.*Steps fifth/i, 'extra Tests column')
+  expectRejected(validTask.replace(
+    '|-----------|------|----------|--------|-------|',
+    '|-----------|------|----------|--------|'),
+  /Tests.*separator.*five/i, 'short Tests separator')
+  expectRejected(validTask.replace(
+    '|-----------|------|----------|--------|-------|\n', ''),
+  /Tests.*separator/i, 'missing Tests separator')
+
+  const fencedTable = validTask
+    .replace('## Tests\n\n| Test name', '## Tests\n\n```markdown\n| Test name')
+    .replace('| supplementary | notes | preserves an escaped \\| pipe | — | — |',
+      '| supplementary | notes | preserves an escaped \\| pipe | — | — |\n```')
+  expectRejected(fencedTable, /Tests table.*Steps.*fifth/i,
+    'a table shown inside a fence is not the Tests table')
+  expectRejected(fencedTable.replaceAll('```', '~~~'),
+    /Tests table.*Steps.*fifth/i,
+    'a table shown inside a tilde fence is not the Tests table')
+
+  const indentedCodeTable = validTask
+    .replace('| Test name | File | Verifies | Covers | Steps |',
+      '    | Test name | File | Verifies | Covers | Steps |')
+    .replace('|-----------|------|----------|--------|-------|',
+      '    |-----------|------|----------|--------|-------|')
+    .replace('| `adr-lint-positive` | `selftest.sh` | maps the failing test | — | S4 |',
+      '    | `adr-lint-positive` | `selftest.sh` | maps the failing test | — | S4 |')
+    .replace('| supplementary | notes | preserves an escaped \\| pipe | — | — |',
+      '    | supplementary | notes | preserves an escaped \\| pipe | — | — |')
+  expectRejected(indentedCodeTable, /Tests table.*Steps.*fifth/i,
+    'a four-space indented code block is not the Tests table')
+
+  const commentedTable = validTask
+    .replace('## Tests\n\n', '## Tests\n\n<!--\n')
+    .replace('| supplementary | notes | preserves an escaped \\| pipe | — | — |',
+      '| supplementary | notes | preserves an escaped \\| pipe | — | — |\n-->')
+  expectRejected(commentedTable, /Tests table.*Steps.*fifth/i,
+    'a table inside an HTML comment is not the Tests table')
+
+  for (const cell of ['S4-S9', 'all', 'S4, S4', 'S04']) {
+    expectRejected(validTask.replace('| — | S4 |', `| — | ${cell} |`),
+      /invalid Steps cell/i, `invalid Steps cell ${cell}`)
+  }
+  expectRejected(validTask.replace('| — | S4 |', '| — | S99 |'),
+    /S99.*no Ordered Step/i, 'dangling step reference')
+  expectRejected(validTask.replace('| — | S4 |', '| — | — |'),
+    /S4.*not referenced/i, 'uncovered ordered step')
+  expectRejected(validTask.replace(
+    '[proof: human: compare both shipped sources]', '[proof: human: ]'),
+  /S7.*no valid proof marker/i, 'empty human reason')
+  expectRejected(validTask.replace(
+    '[proof: human: compare both shipped sources]', '[proof: human:reason]'),
+  /S7.*no valid proof marker/i, 'human marker without the exact space')
+
+  expectRejected(validTask.replace('`adr-lint-positive` | `selftest.sh`',
+    'adr-lint-positive | selftest.sh'),
+  /Tests row .*does not retain it|S4.*not referenced/i,
+  'a row ignored by the Tests reader cannot cover a step')
+
+  const laterTable = validTask
+    .replace('| — | S4 |', '| — | — |')
+    .replace('\n\n## Invariants', [
+      '', 'A later explanatory table is not the Tests table.', '',
+      '| Test name | File | Verifies | Covers | Steps |',
+      '|-----------|------|----------|--------|-------|',
+      '| `late` | `late.py` | too late | — | S4 |',
+      '', '## Invariants',
+    ].join('\n'))
+  expectRejected(laterTable, /S4.*not referenced/i,
+    'a later explanatory table cannot cover a step')
+
+  const fencedOnly = validTask
+    .replace('| — | S4 |', '| — | — |')
+    .replace(
+      '1. [S4] Write the failing test before changing the gate.',
+      '1. [S4] Write the failing test before changing the gate.\n' +
+        '   ```text\n   [proof: acceptance]\n   ```',
+    )
+  expectRejected(fencedOnly, /S4.*no valid proof marker/i,
+    'a proof-marker example inside a fence is not evidence')
+  expectRejected(fencedOnly.replaceAll('```', '~~~'),
+    /S4.*no valid proof marker/i,
+    'a proof-marker example inside a tilde fence is not evidence')
+
+  const indentedFenced = validTask
+    .replace('| — | S4 |', '| — | — |')
+    .replace(
+      '1. [S4] Write the failing test before changing the gate.',
+      ' 1. [S4] Write the failing test before changing the gate.\n' +
+        '    ```text\n    [proof: acceptance]\n    ```',
+    )
+  expectRejected(indentedFenced, /S4.*no valid proof marker/i,
+    'a fence is indented relative to its CommonMark list item')
+
+  const misleadingClose = validTask
+    .replace('| — | S4 |', '| — | — |')
+    .replace(
+      '1. [S4] Write the failing test before changing the gate.',
+      '1. [S4] Write the failing test before changing the gate.\n' +
+        '   ````text\n   ````still code\n   [proof: acceptance]\n' +
+        '   ````also code\n   ````',
+    )
+  expectRejected(misleadingClose, /S4.*no valid proof marker/i,
+    'a fence marker with trailing text does not close an active fence')
+
+  const indentedCodeMarker = validTask
+    .replace('| — | S4 |', '| — | — |')
+    .replace(
+      '1. [S4] Write the failing test before changing the gate.',
+      '1. [S4] Write the failing test before changing the gate.\n' +
+        '       [proof: acceptance]',
+    )
+  expectRejected(indentedCodeMarker, /S4.*no valid proof marker/i,
+    'a marker inside an indented code block is not proof')
+
+  const commentedMarker = validTask
+    .replace('| — | S4 |', '| — | — |')
+    .replace(
+      '1. [S4] Write the failing test before changing the gate.',
+      '1. [S4] Write the failing test before changing the gate.\n' +
+        '   <!-- [proof: acceptance] -->',
+    )
+  expectRejected(commentedMarker, /S4.*no valid proof marker/i,
+    'a marker inside an HTML comment is not proof')
+
+  expectRejected(validTask.replace('**Proof map:** v1', '**Proof map:**'),
+    /Proof map.*empty.*v1/i, 'empty proof-map version')
+  expectRejected(validTask.replace('**Proof map:** v1', '**Proof map:** v2'),
+    /Proof map.*v2.*v1/i, 'unknown proof-map version')
+
+  const commentedHeader = validTask.replace(
+    '**Proof map:** v1', '<!--\n**Proof map:** v1\n-->',
+  )
+  const commentedLegacy = lint(commentedHeader, 'a commented header is absent')
+  expectExit(commentedLegacy, 0, 'a commented header is absent')
+  assert.equal(
+    commentedLegacy.stdout.match(/advice: .*Proof map: v1.*not checked/gi)?.length ?? 0,
+    1,
+    commentedLegacy.stdout,
+  )
+
+  const legacy = lint(legacyTask, 'legacy task remains non-blocking')
+  expectExit(legacy, 0, 'legacy task remains non-blocking')
+  const legacyAdvice = legacy.stdout.match(/advice: .*Proof map: v1.*not checked/gi) ?? []
+  assert.equal(legacyAdvice.length, 1, legacy.stdout)
+
+  const legacyExample = legacyTask.replace(
+    '## Stop Condition\n\n',
+    '## Stop Condition\n\n```text\n**Proof map:** v1\n```\n\n',
+  )
+  const shown = lint(legacyExample, 'a later proof-map example is still legacy')
+  expectExit(shown, 0, 'a later proof-map example is still legacy')
+  assert.equal(
+    shown.stdout.match(/advice: .*Proof map: v1.*not checked/gi)?.length ?? 0,
+    1,
+    shown.stdout,
+  )
+
+  // ADR-018 versions only its own proof-map parser. The historical section
+  // reader did not understand tilde fences, so changing that globally would
+  // silently change old task exit behavior under a compatibility feature.
+  const legacyTildeHeading = legacyTask.replace(
+    '\n## Tests',
+    '\n~~~markdown\n## Acceptance\nshown example only\n~~~\n\n## Tests',
+  )
+  const legacyParity = lint(legacyTildeHeading, 'legacy tilde-heading parity')
+  expectExit(legacyParity, 1, 'legacy tilde-heading parity')
+  assert.match(legacyParity.stdout, /Acceptance has no ```bash fence/)
+})

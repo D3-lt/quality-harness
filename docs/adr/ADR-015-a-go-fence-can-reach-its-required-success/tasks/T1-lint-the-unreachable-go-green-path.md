@@ -108,6 +108,8 @@ real member and run it through both findings before marking this task done.
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-08-31 · 61140e1 · mutant killed · exit 1 · `plugin/bin/adr-lint` · the CLI regression notices when the Go-fence advisory pass is no longer selected · acceptance-sha256:e6e2bafaab89bf5c89b65c33530bafd57d04509e18e30c63a79abeb6e2f48e96
+- 2026-08-31 · 61140e1* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the CLI regression notices when healthy no-test-files status advice is disabled · acceptance-sha256:e6e2bafaab89bf5c89b65c33530bafd57d04509e18e30c63a79abeb6e2f48e96
 
 ## Invariants
 
@@ -168,3 +170,4 @@ a compiling mutant that the CLI regression kills.
       diff: 'simple'
     }
   ```
+- 2026-08-31 · 61140e1* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6e2bafaab89bf5c89b65c33530bafd57d04509e18e30c63a79abeb6e2f48e96

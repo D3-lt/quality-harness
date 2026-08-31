@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | cross-check every step against explicit proof | pending | — | `node --test … tests/gates.test.mjs && python3 tests/gate-regressions.py …` |
+| T1 | cross-check every step against explicit proof | done | — | `node tests/gates.test.mjs && python3 tests/gate-regressions.py …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

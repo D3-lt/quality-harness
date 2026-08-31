@@ -152,6 +152,14 @@ leaving the reader to guess.
   killed` entry before a task recorded from 2026-08-22 can be `done`. The old hand-filled
   `## Mutants` table it replaces was the last piece of self-declared evidence in the pipeline.
 - A plan may not say "implement X" unless it also states how execution proves X is done.
+- Every new task retains `**Proof map:** v1`. Each top-level Ordered Step starts with a stable
+  `[S<n>]` identity, independent of its list ordinal, and the Tests table uses the exact header
+  `| Test name | File | Verifies | Covers | Steps |`. Each `Steps` cell is `—` or a comma-separated
+  list such as `S1, S3`. Every step is mapped there or carries at least one of the legitimate
+  non-test forms: `[proof: acceptance]`, `[proof: mutation]`, or
+  `[proof: human: <reason>]`. Do not invent a test for procedural or human proof. The linter checks
+  identities and references, not whether a mapped test or reason is semantically adequate; mutation
+  and review still own that judgement.
 - Ordered Steps start with the failing test (TDD red) for the task's `Covers:` IDs.
 - When a spec exists: `Spec:` header set, inherited sections by reference, and the union of task
   `Covers:` must include every @spec fact/scenario — `adr-lint` blocks Accepted on uncovered IDs.

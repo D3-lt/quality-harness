@@ -25,6 +25,7 @@ never the record that has to obey it.>
 **Produces:** <contracts other tasks consume, or none>
 **Consumes:** <contracts from sibling tasks, or none>
 **Data dependency:** hermetic | needs <what: a populated corpus, a live service, recorded traffic, a model>
+**Proof map:** v1
 
 <`hermetic` means every Ordered Step runs from a clean checkout with no external state. Anything else
 names what is required. This header exists because the gate cannot see the difference: a task whose
@@ -50,8 +51,15 @@ line selects this, and what fails if that line is deleted?>
 
 ## Ordered Steps
 
-1. Confirm the failing test(s) for `Covers:` IDs exist and are red (commit them if missing — TDD red). <If Covers is "none — no spec": write the failing test for this task's behavior first.>
-2. <step>
+1. [S1] Confirm the failing test(s) for `Covers:` IDs exist and are red (commit them if missing — TDD red). <If Covers is "none — no spec": write the failing test for this task's behavior first.>
+2. [S2] <step>
+
+<Keep each `[S<n>]` identity stable when steps move; list ordinals express order and IDs express
+identity. Map every step from the Tests table below, or put at least one exact non-test proof marker on the
+step: `[proof: acceptance]`, `[proof: mutation]`, or `[proof: human: <reason>]`. A human reason must
+name what a person inspects. Several tests may map one step, one test may map several steps, and a
+supplementary test maps `—`. The linter checks that every reference resolves; it does not infer that
+a test semantically proves the step.>
 
 ## Acceptance
 
@@ -119,9 +127,9 @@ If automated proof is impossible: `Acceptance is human-observed: <exact sign-off
 
 ## Tests
 
-| Test name | File | Verifies | Covers |
-|-----------|------|----------|--------|
-| <test> | <path> | <behavior/invariant> | <F-n / UCn-Sm or —> |
+| Test name | File | Verifies | Covers | Steps |
+|-----------|------|----------|--------|-------|
+| <test> | <path> | <behavior/invariant> | <F-n / UCn-Sm or —> | <S1, S2 or —> |
 
 <Before listing tests for a task that operates on EXISTING records, enumerate the shapes the
 creation path can already produce — more than one child row, an unchanged line, an optional leg

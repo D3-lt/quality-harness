@@ -13,7 +13,7 @@ import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { setTimeout } from 'node:timers/promises'
-import { cpSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -92,21 +92,22 @@ function addMutationLog(copy) {
 // (which lints this very corpus) goes red and the mutant is killed.
 const mutate = copy => verify(copy, [
   '--cwd', '.', '--mutant', 'ADR-001-selftest.md',
-  '--from', '## Decision', '--to', '## Decisiun',
-  '--why', 'adr-lint must notice a required section going missing',
+  '--from', '## Alternatives Considered', '--to', '## Alternatives Considred',
+  '--why', 'adr-lint must notice its required alternatives section going missing',
 ])
 
 test('adr-lint accepts the entry adr-verify wrote, as it wrote it', () => {
   const copy = corpus()
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'the mutant must be killed')
   expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
 
-  const entry = readTask(copy).split('## Verification Log')[1].trim()
+  const entry = readTask(copy).split('## Verification Log')[1]
+    .split('## Mutation Log')[0].trim()
   // The shape the readers parse, asserted on the real line rather than on a
   // reconstruction: date · sha · exit · command · digest.
   assert.match(entry, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · `[^`]+` · acceptance-sha256:[0-9a-f]{64}$/)
 
-  addMutationLog(copy)
-  expectExit(mutate(copy), 0, 'the mutant must be killed')
   const mutation = readTask(copy).split('## Mutation Log')[1].trim()
   assert.match(mutation, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · mutant killed · exit \d+ · `[^`]+` · [^·]+ · acceptance-sha256:[0-9a-f]{64}$/)
 
@@ -116,9 +117,9 @@ test('adr-lint accepts the entry adr-verify wrote, as it wrote it', () => {
 
 test('editing the Acceptance fence invalidates the evidence already written', () => {
   const copy = corpus()
-  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
   addMutationLog(copy)
   expectExit(mutate(copy), 0, 'the mutant must be killed')
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
   markDone(copy)
   expectExit(lint(copy), 0, 'baseline')
 
@@ -203,9 +204,22 @@ function gitCorpus() {
 
 test('the entry names the commit it was produced at, and says when the tree was dirty', () => {
   const copy = gitCorpus()
+  // Mutation evidence comes first in the execution protocol. Commit that row in
+  // this disposable repository so the first Verification entry can still prove
+  // the clean-tree SHA behavior this test owns.
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'mutant')
+  for (const args of [
+    ['add', '.'],
+    ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', 'commit', '-qm', 'mutation evidence'],
+  ]) {
+    const result = spawnSync('git', args, { cwd: copy, env, encoding: 'utf8' })
+    assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`)
+  }
   // Clean tree: a bare short sha, no marker.
   expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify on a clean tree')
-  const clean = readTask(copy).split('## Verification Log')[1].trim().split('\n')[0]
+  const clean = readTask(copy).split('## Verification Log')[1]
+    .split('## Mutation Log')[0].trim().split('\n')[0]
   const sha = /· ([0-9a-f]{7,40})(\*?) ·/.exec(clean)
   assert.ok(sha, `no sha field in: ${clean}`)
   assert.equal(sha[2], '', 'a clean tree must not carry the dirty marker')
@@ -214,12 +228,9 @@ test('the entry names the commit it was produced at, and says when the tree was 
   // produced against uncommitted code has to say so, or it points at a commit
   // that never contained what was tested.
   //
-  // The fence lints this very corpus, and passing evidence now obliges a killed
-  // mutant, so satisfy that before asking for a second verdict.
-  addMutationLog(copy)
-  expectExit(mutate(copy), 0, 'mutant')
   expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify on a dirty tree')
-  const dirty = readTask(copy).split('## Verification Log')[1].trim().split('\n').at(-1)
+  const dirty = readTask(copy).split('## Verification Log')[1]
+    .split('## Mutation Log')[0].trim().split('\n').at(-1)
   assert.match(dirty, /· [0-9a-f]{7,40}\* ·/)
   assert.equal(sha[1], /· ([0-9a-f]{7,40})\*? ·/.exec(dirty)[1], 'same commit either way')
 })
@@ -274,6 +285,8 @@ test('the template placeholders are removed rather than left above the evidence'
 <Tool-written by adr-verify: date, sha,
  exit code and acceptance digest>
 `)
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'mutant')
   expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
 
   const log = readTask(copy).split('## Verification Log')[1]
@@ -283,8 +296,6 @@ test('the template placeholders are removed rather than left above the evidence'
 
   // And the reader accepts what is left: a placeholder surviving here would sit
   // in the log as an unparseable line forever.
-  addMutationLog(copy)
-  expectExit(mutate(copy), 0, 'mutant')
   markDone(copy)
   expectExit(lint(copy), 0, 'adr-lint')
 })
@@ -312,6 +323,171 @@ function addBlindSpot(copy) {
   return path
 }
 
+test('adr-verify requires a clean fence before it mutates', () => {
+  const mutationArgs = [
+    'tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99',
+    '--why', 'nothing reads this, so nothing can go red',
+  ]
+  const execute = (label, fence, extraEnv = undefined, blockJournal = false) => {
+    const copy = corpus()
+    addMutationLog(copy)
+    const target = addBlindSpot(copy)
+    const before = readFileSync(target)
+    writeTask(copy, readTask(copy).replace(
+      /## Acceptance\n\n```bash\n[\s\S]*?```/,
+      `## Acceptance\n\n\`\`\`bash\n${fence}\n\`\`\``))
+
+    const journalRoot = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+    temps.push(journalRoot)
+    const journal = blockJournal ? join(journalRoot, 'not-a-directory') : journalRoot
+    if (blockJournal) writeFileSync(journal, 'this path prevents the journal directory being armed\n')
+    const result = runWith(journal, mutationArgs, copy, extraEnv)
+    const output = `${result.stdout ?? ''}${result.stderr ?? ''}`
+    return {
+      label,
+      status: result.status,
+      output,
+      mutationLog: readTask(copy).split('## Mutation Log')[1].trim(),
+      mutantApplied: /MUTANT APPLIED/.test(output),
+      targetRestored: readFileSync(target).equals(before),
+      journalEmpty: blockJournal ? null : readdirSync(journal).length === 0,
+      baselineRan: existsSync(join(copy, 'baseline-ran.txt')),
+    }
+  }
+
+  // Execute every control before asserting, so the RED report names the whole
+  // current contract gap instead of stopping after the first donated failure.
+  const preRed = execute('pre-red',
+    `python3 -c 'print("1 failed in 0.01s"); raise SystemExit(1)'`)
+  const noTests = execute('no-tests',
+    `python3 -c 'print("no tests ran in 0.01s")'`)
+  const missingRunner = execute('environment', 'nosuchrunner --run-everything')
+  const cleanTimeout = execute('clean-timeout', 'echo starting; sleep 30',
+    { QUALITY_HARNESS_FENCE_TIMEOUT: '1' })
+  const journalFailure = execute('journal-arm-failure',
+    [
+      `python3 -c 'from pathlib import Path; Path("baseline-ran.txt").write_text("ran")'`,
+      `python3 -c 'print("1 passed in 0.01s")'`,
+    ].join('\n'), undefined, true)
+  const survivor = execute('clean-pass',
+    `python3 -c 'print("1 passed in 0.01s")'`)
+  const mutantTimeout = execute('mutant-timeout', [
+    "if grep -q 'THRESHOLD = 99' unused.py; then",
+    '  echo mutant-started; sleep 30',
+    'else',
+    "  echo '1 passed in 0.01s'",
+    'fi',
+  ].join('\n'), { QUALITY_HARNESS_FENCE_TIMEOUT: '1' })
+  const mutantBuild = execute('mutant-build', [
+    "if grep -q 'THRESHOLD = 99' unused.py; then",
+    "  echo '[build failed]'; exit 1",
+    'else',
+    "  echo '1 passed in 0.01s'",
+    'fi',
+  ].join('\n'))
+  const mutantEnvironment = execute('mutant-environment', [
+    "if grep -q 'THRESHOLD = 99' unused.py; then",
+    "  echo 'Cannot connect to the Docker daemon'; exit 1",
+    'else',
+    "  echo '1 passed in 0.01s'",
+    'fi',
+  ].join('\n'))
+
+  const baselineRefusal = run => ({
+    label: run.label,
+    status: run.status,
+    unproven: /UNPROVEN/.test(run.output),
+    mutantApplied: run.mutantApplied,
+    targetRestored: run.targetRestored,
+    mutationLogEmpty: run.mutationLog === '',
+    journalEmpty: run.journalEmpty,
+  })
+  const survivorText = `${survivor.output}\n${survivor.mutationLog}`
+  assert.deepEqual({
+    baselineRefusals: [preRed, noTests, missingRunner, cleanTimeout].map(baselineRefusal),
+    journalFailure: {
+      refused: journalFailure.status !== 0,
+      namesJournal: /journal/i.test(journalFailure.output),
+      mutantApplied: journalFailure.mutantApplied,
+      targetRestored: journalFailure.targetRestored,
+      mutationLogEmpty: journalFailure.mutationLog === '',
+      baselineRan: journalFailure.baselineRan,
+    },
+    survivor: {
+      status: survivor.status,
+      mutantApplied: survivor.mutantApplied,
+      targetRestored: survivor.targetRestored,
+      journalEmpty: survivor.journalEmpty,
+      rowWritten: /mutant survived/.test(survivor.mutationLog),
+      namesReachabilitySeam: /may not materialize, compile, load, or assert on the changed path/.test(survivorText),
+    },
+    mutantTimeout: {
+      status: mutantTimeout.status,
+      unrun: /UNRUN/.test(mutantTimeout.output),
+      mutantApplied: mutantTimeout.mutantApplied,
+      targetRestored: mutantTimeout.targetRestored,
+      mutationLogEmpty: mutantTimeout.mutationLog === '',
+      journalEmpty: mutantTimeout.journalEmpty,
+    },
+    mutantBuild: {
+      status: mutantBuild.status,
+      inconclusive: /mutant inconclusive/.test(mutantBuild.mutationLog),
+      targetRestored: mutantBuild.targetRestored,
+      journalEmpty: mutantBuild.journalEmpty,
+    },
+    mutantEnvironment: {
+      status: mutantEnvironment.status,
+      inconclusive: /mutant inconclusive/.test(mutantEnvironment.mutationLog),
+      targetRestored: mutantEnvironment.targetRestored,
+      journalEmpty: mutantEnvironment.journalEmpty,
+    },
+  }, {
+    baselineRefusals: [
+      { label: 'pre-red', status: 1, unproven: true, mutantApplied: false, targetRestored: true, mutationLogEmpty: true, journalEmpty: true },
+      { label: 'no-tests', status: 1, unproven: true, mutantApplied: false, targetRestored: true, mutationLogEmpty: true, journalEmpty: true },
+      { label: 'environment', status: 1, unproven: true, mutantApplied: false, targetRestored: true, mutationLogEmpty: true, journalEmpty: true },
+      { label: 'clean-timeout', status: 1, unproven: true, mutantApplied: false, targetRestored: true, mutationLogEmpty: true, journalEmpty: true },
+    ],
+    journalFailure: {
+      refused: true,
+      namesJournal: true,
+      mutantApplied: false,
+      targetRestored: true,
+      mutationLogEmpty: true,
+      baselineRan: false,
+    },
+    survivor: {
+      status: 1,
+      mutantApplied: true,
+      targetRestored: true,
+      journalEmpty: true,
+      rowWritten: true,
+      namesReachabilitySeam: true,
+    },
+    mutantTimeout: {
+      status: 2,
+      unrun: true,
+      mutantApplied: true,
+      targetRestored: true,
+      mutationLogEmpty: true,
+      journalEmpty: true,
+    },
+    mutantBuild: {
+      status: 1,
+      inconclusive: true,
+      targetRestored: true,
+      journalEmpty: true,
+    },
+    mutantEnvironment: {
+      status: 1,
+      inconclusive: true,
+      targetRestored: true,
+      journalEmpty: true,
+    },
+  })
+})
+
 test('a mutant the fence cannot notice is recorded as survived, and does not count', () => {
   const copy = corpus()
   addMutationLog(copy)
@@ -329,7 +505,7 @@ test('a mutant the fence cannot notice is recorded as survived, and does not cou
   const log = readTask(copy).split('## Mutation Log')[1]
   assert.match(log, /· mutant survived · exit 0 ·/)
   // The explanation is fenced under the entry so a reader sees why it did not count.
-  assert.match(log, /\r?\n {2}```\r?\n {2}the fence passed with the mechanism broken\r?\n {2}```/)
+  assert.match(log, /\r?\n {2}```\r?\n {2}the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path\r?\n {2}```/)
 })
 
 test('a mutant that did not land, or landed twice, is refused instead of scored', () => {
@@ -411,7 +587,8 @@ test('a fence that never returns is UNRUN, and writes nothing', () => {
   const target = addBlindSpot(mutantHang)
   const pristine = readFileSync(target, 'utf8')
   writeTask(mutantHang, readTask(mutantHang).replace(/```bash\n[\s\S]*?\n```/,
-    '```bash\necho starting; sleep 30\n```'))
+    "```bash\nif grep -q 'THRESHOLD = 99' unused.py; then echo starting; sleep 30; "
+    + "else echo '1 passed in 0.01s'; fi\n```"))
   const hungMutant = run('adr-verify', [
     '--cwd', '.', 'tasks/T1-fixture.md',
     '--mutant', 'unused.py', '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99', '--why', 'probe',
@@ -494,12 +671,16 @@ test('a mutant that removes tests is killed, and a fence broken before it is not
   // mutation is to find out whether anything NOTICED. This case recorded
   // `mutant killed` before §71.
   const broken = build('nosuchrunner --run-everything')
-  run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md',
+  const before = readFileSync(join(broken, 'marker.txt'))
+  const unproven = run('adr-verify', ['--cwd', '.', 'tasks/T1-fixture.md',
     '--mutant', 'marker.txt', '--from', 'RUN', '--to', 'SKIP', '--why', 'probe'], broken)
-  const log = readTask(broken)
-  assert.doesNotMatch(log, /mutant killed/, `a broken fence is not a kill:\n${log}`)
-  assert.match(log, /mutant inconclusive/, log)
-  assert.match(log, /predates the mutant/, log)
+  expectExit(unproven, 1, 'a broken clean fence earns no mutant verdict')
+  assert.match(unproven.stdout + unproven.stderr, /UNPROVEN/)
+  assert.doesNotMatch(unproven.stdout + unproven.stderr, /MUTANT APPLIED/)
+  assert.deepEqual(readFileSync(join(broken, 'marker.txt')), before,
+    'the target must never change when the clean fence is unusable')
+  assert.equal(readTask(broken).split('## Mutation Log')[1].trim(), '',
+    'no mutant ran, so no Mutation Log row may be written')
 })
 
 test('a toolchain directive is not a comment-only mutant', () => {
@@ -572,12 +753,6 @@ test('writing evidence keeps the line endings the file already had', () => {
   writeTask(copy, crlf(readTask(copy)))
   addMutationLog(copy)
 
-  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
-  const written = readFileSync(taskPath(copy), 'utf8')
-  assert.ok(written.includes('\r\n'), 'a CRLF file must stay CRLF')
-  assert.doesNotMatch(written, /[^\r]\n/, 'and must not acquire bare LF lines')
-  assert.match(written, /· exit 0 · .*\r\n/, 'the appended entry uses the file\'s own ending')
-
   // A refused mutant must leave the target byte-identical — the restore is the
   // only thing standing between a rejected mutation and a corrupted working tree.
   const target = addBlindSpot(copy)
@@ -588,6 +763,12 @@ test('writing evidence keeps the line endings the file already had', () => {
     '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = = ', '--why', 'probe',
   ]), 2, 'the mutant does not parse')
   assert.deepEqual(readFileSync(target), before, 'byte-identical restore')
+
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
+  const written = readFileSync(taskPath(copy), 'utf8')
+  assert.ok(written.includes('\r\n'), 'a CRLF file must stay CRLF')
+  assert.doesNotMatch(written, /[^\r]\n/, 'and must not acquire bare LF lines')
+  assert.match(written, /· exit 0 · .*\r\n/, 'the appended entry uses the file\'s own ending')
 
   // An LF file must not be converted the other way either.
   const lf = corpus()
@@ -638,7 +819,9 @@ test('the mutated file the fence sees keeps its line endings too', () => {
 /** A task whose fence outlives the test, so the mutant is on disk when we kill. */
 function slowFence(copy, seconds = 60) {
   writeTask(copy, `${readTask(copy)}`.replace(/```bash\n[\s\S]*?```/,
-    `\`\`\`bash\nsleep ${seconds}; exit 1\n\`\`\``))
+    `\`\`\`bash\nif grep -q '## Decisiun' ADR-001-selftest.md; then\n`
+    + `  sleep ${seconds}; exit 1\n`
+    + `fi\necho '1 passed in 0.01s'\n\`\`\``))
   addMutationLog(copy)
 }
 
@@ -656,11 +839,16 @@ function spawnMutant(copy, journalHome) {
 /** adr-verify with a journal directory of this test's own, so runs cannot see
  *  each other's records — and so a restore is measured against the journal the
  *  killed run actually wrote, not whatever the ambient temp directory holds. */
-function runWith(journal, args, copy) {
+function runWith(journal, args, copy, extraEnv = undefined) {
   const win = process.platform === 'win32'
   return spawnSync(win ? 'python3' : join(bin, 'adr-verify'),
     win ? [join(bin, 'adr-verify'), ...args] : args,
-    { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal }, encoding: 'utf8', timeout: 60_000 })
+    {
+      cwd: copy,
+      env: { ...env, ...(extraEnv ?? {}), CLAUDE_PLUGIN_DATA: journal },
+      encoding: 'utf8',
+      timeout: 60_000,
+    })
 }
 
 const mutated = copy => readFileSync(join(copy, 'ADR-001-selftest.md'), 'utf8').includes('## Decisiun')
@@ -669,6 +857,51 @@ async function untilMutated(copy) {
   for (let i = 0; i < 200 && !mutated(copy); i += 1) await setTimeout(25)
   return mutated(copy)
 }
+
+test('an interrupted clean baseline cannot silently lend its changed tree to a later run', async () => {
+  const probe = async ({ label, sideEffect, expected }) => {
+    const copy = corpus()
+    const journal = mkdtempSync(join(os.tmpdir(), 'quality-harness-journal-'))
+    temps.push(journal)
+    addMutationLog(copy)
+    const target = addBlindSpot(copy)
+    writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?```/,
+      `\`\`\`bash\n${sideEffect}\nsleep 60\necho '1 passed in 0.01s'\n\`\`\``))
+
+    const args = ['tasks/T1-fixture.md', '--cwd', '.', '--mutant', 'unused.py',
+      '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99', '--why', `baseline ${label} probe`]
+    const child = spawn(process.platform === 'win32' ? 'python3' : join(bin, 'adr-verify'),
+      process.platform === 'win32' ? [join(bin, 'adr-verify'), ...args] : args,
+      { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal } })
+    const sideEffectLanded = () => expected === null
+      ? !existsSync(target)
+      : existsSync(target) && readFileSync(target).equals(expected)
+    for (let i = 0; i < 200 && !sideEffectLanded(); i += 1) await setTimeout(25)
+    assert.ok(sideEffectLanded(), `the clean fence never ${label} the target, so the kill proves nothing`)
+    child.kill('SIGKILL')
+    await once(child, 'exit')
+
+    const before = readdirSync(journal)
+    assert.equal(before.length, 1, 'the interrupted baseline left no durable recovery record')
+    const refused = runWith(journal, ['--restore', '--cwd', '.'], copy)
+    expectExit(refused, 2, `a baseline that ${label} the target is not safe to restore automatically`)
+    assert.match(`${refused.stdout}${refused.stderr}`, /unresolved baseline journal/i)
+    assert.ok(sideEffectLanded(), 'recovery overwrote a baseline change it did not own')
+    assert.deepEqual(readdirSync(journal), before, 'recovery discarded the unresolved warning')
+  }
+
+  const baselineBytes = Buffer.from('# written by the clean fence before it was killed\nTHRESHOLD = 7\n')
+  await probe({
+    label: 'rewrote',
+    sideEffect: `python3 -c 'from pathlib import Path; Path("unused.py").write_bytes(b"# written by the clean fence before it was killed\\nTHRESHOLD = 7\\n")'`,
+    expected: baselineBytes,
+  })
+  await probe({
+    label: 'removed',
+    sideEffect: `python3 -c 'from pathlib import Path; Path("unused.py").unlink()'`,
+    expected: null,
+  })
+})
 
 test('a SIGKILLed mutant run is restored by the next run, not left in the tree', async () => {
   const copy = corpus()
@@ -1026,9 +1259,9 @@ test('a human-reported kill records the mutation and does not unlock done', () =
   // Without this, a done gate that refused everything would satisfy the assertion
   // above (CLAUDE.md §4).
   const ok = corpus()
-  expectExit(verify(ok, ['--cwd', '.']), 0, 'fence passes')
   addMutationLog(ok)
   expectExit(mutate(ok), 0, 'and a tool-written mutant is killed')
+  expectExit(verify(ok, ['--cwd', '.']), 0, 'fence passes')
   markDone(ok)
   expectExit(lint(ok), 0, 'a tool-written kill must still unlock done')
 })
@@ -1044,9 +1277,9 @@ const markPartial = copy => {
 
 test('a partial task is a status the reader acts on, not an unknown word', () => {
   const copy = corpus()
-  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
   addMutationLog(copy)
   expectExit(mutate(copy), 0, 'and its mutant is killed')
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
   markPartial(copy)
 
   const said = `${lint(copy).stdout ?? ''}${lint(copy).stderr ?? ''}`
@@ -1080,10 +1313,15 @@ test('a partial task with a passing fence still owes a killed mutant', () => {
   const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
   assert.match(said, /mutant/i, `and the finding must be the mutation obligation: ${said.slice(0, 400)}`)
 
-  // The must-fail direction: recording the killed mutant clears it. Without this,
-  // a check that refused every partial task would satisfy the assertion above.
-  expectExit(mutate(copy), 0, 'the mutant is killed')
-  expectExit(lint(copy), 0, 'and a partial task that met its obligation passes')
+  // The must-fail direction: a fresh task that records the killed mutant before
+  // its final green fence clears the obligation. Without this, a check that
+  // refused every partial task would satisfy the assertion above.
+  const satisfied = corpus()
+  addMutationLog(satisfied)
+  expectExit(mutate(satisfied), 0, 'the mutant is killed')
+  expectExit(verify(satisfied, ['--cwd', '.']), 0, 'the fence passes after its mutation')
+  markPartial(satisfied)
+  expectExit(lint(satisfied), 0, 'and a partial task that met its obligation passes')
 })
 
 // ADR-014 T2, end to end through the real binary, so the catalogue has a suite
@@ -1154,9 +1392,9 @@ test('a Tests row pointing outside the repository is unproven, not failed', () =
   // nothing can run" and BLOCKED — while the test existed in the repo the path
   // names. A permanently-red gate is one people stop running.
   const copy = gitCorpus()
-  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
   addMutationLog(copy)
   expectExit(mutate(copy), 0, 'and its mutant is killed')
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'the fence passes')
 
   // Two rows naming ONE outside file, so the once-per-path dedupe is exercised.
   const outside = '../sibling_repo/tests/Unit/GuardTest.php'

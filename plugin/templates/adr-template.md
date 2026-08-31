@@ -149,8 +149,13 @@ Use inline tasks for <=3 tasks; otherwise reference `tasks/README.md`. Every tas
 
 <When a Spec exists: `Inherited from <spec> §Non-Goals; delta:` + new bullets only (or `none`).
 Every bullet ends with a disposition — untagged entries are rejected by `adr-lint`:
-`(permanent[: why])` = deliberate boundary, dies here by design;
+`(permanent: boundary: <reason>)` = a limit this ADR chooses;
+`(permanent: fact: <claim>; citation: <typed receipt>)` = an external premise with exactly one
+receipt: `file` followed by a backticked `<repository-path>:<line>`, `version` followed by a
+backticked `<name>@<version>`, or `url` followed by `https://<host>[/<path>]`;
 `(deferred: <pointer>)` = real work punted — pointer is an ADR id/path, spec fact, issue, or backlog file. `adr-debt <adr-dir>` sweeps deferred entries + open Follow-ups so they resurface at the next `/quality-harness:adr-write`.
+Legacy `(permanent)` and `(permanent: <reason>)` remain permanent but receive classification advice
+from `adr-lint`; do not author new entries in those forms.
 
 **A pointer that resolves is not a pointer that was honoured.** Writing `(deferred: docs/adr/BACKLOG.md)`
 does not put anything in BACKLOG.md; the pointer names a real file, `adr-debt` follows it, and the
@@ -160,7 +165,8 @@ finished and unreachable — the link exists, the receiving end does not know it
 at the destination in the SAME commit as the deferral, and name the source ADR there so the tie is
 greppable. `adr-debt` now reports `UNRECEIPTED` when it is not.>
 
-- <explicit non-goal> (permanent: <why this is a boundary, not a punt>)
+- <explicit non-goal> (permanent: boundary: <why this is a chosen limit, not a punt>)
+- <fact-based non-goal> (permanent: fact: <external claim>; citation: <typed receipt>)
 - <punted work> (deferred: <pointer>)
 
 ## Risks

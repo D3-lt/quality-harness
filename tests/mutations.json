@@ -3444,6 +3444,24 @@
       ],
       "from": "fence[\"rejects_no_test_files\"]",
       "to": "False and fence[\"rejects_no_test_files\"]"
+    },
+    {
+      "label": "lint: a permanent disposition names whether it is boundary or fact",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            check_permanent_disposition(\n                span[0], adr_path, errors, root, permanent_candidates)",
+      "to": "            pass"
+    },
+    {
+      "label": "lint: a permanent fact file citation resolves to a repository line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if line > len(lines):\n        _permanent_advice(\n            errors, record,\n            f\"file citation `{receipt}` names line {line}, but that line does not exist\")",
+      "to": "    if False:\n        _permanent_advice(\n            errors, record,\n            f\"file citation `{receipt}` names line {line}, but that line does not exist\")"
     }
   ]
 }

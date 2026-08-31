@@ -285,8 +285,9 @@ reading_tool(
     "qh_adr_debt",
     "Surface deferred scope and open follow-ups across an ADR corpus: every "
     "`(deferred: <pointer>)` and every unchecked follow-up, with the pointers "
-    "resolved. `(permanent: …)` entries are deliberate boundaries and are never "
-    "reported. Exit 0 = report printed and every pointer resolves; exit 1 = a "
+    "resolved. Permanent entries are chosen boundaries or cited facts; neither "
+    "kind is reported, including legacy permanent spellings. Exit 0 = report "
+    "printed and every pointer resolves; exit 1 = a "
     "pointer resolves to nothing. Reads only; changes nothing.",
     {
         "type": "object",

@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | lint typed permanent bases | pending | — | `python3 tests/gate-regressions.py … && grep …` |
+| T1 | lint typed permanent bases | done | — | `python3 tests/gate-regressions.py … && grep …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

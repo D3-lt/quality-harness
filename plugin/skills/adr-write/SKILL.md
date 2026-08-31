@@ -81,7 +81,9 @@ Ask one concise question for anything missing:
    - `${CLAUDE_PLUGIN_ROOT}/templates/tasks-readme-template.md` if task files are needed
    Then run `adr-debt <active-project-adr-dir>` and read the active `BACKLOG.md` — every reported deferred item or open
    follow-up relevant to this ADR is pulled into Context, re-deferred with a fresh pointer, or
-   promoted to `(permanent: <why>)`. Debt is surfaced at authoring time, never silently carried.
+   classified as `(permanent: boundary: <reason>)` for a choice this ADR owns or
+   `(permanent: fact: <claim>; citation: <typed receipt>)` for an external premise. Debt is
+   surfaced at authoring time, never silently carried.
    Keep a sibling historical archive outside this recursive scan; its obligations must already have
    receipts in the active backlog under the `adr-retire` contract.
    If the repo has an architecture doc (`docs/architecture.md` or repo convention): read it —
@@ -169,7 +171,13 @@ leaving the reader to guess.
   review-enforced (the lint does NOT check them): primitives audit, C4/bounded-context, Rollback,
   `None — <reason>` completeness — verify these by reading, don't assume the exit code covers them.
 - **Contract coupling scan is mandatory at any size.** If task A's `Produces` matches task B's `Consumes`, A must complete before B regardless of grouping. `adr-lint` catches the edges it can see (T-id refs and backticked tokens in `Consumes` matching a sibling's `Produces`) — write `Consumes` with the producing task's id in parens (`Resolver.resolve() (T2)`) so every edge is machine-visible; prose-only contract references are invisible to the gate.
-- **Out of Scope entries carry a disposition** — `(permanent[: why])` for deliberate boundaries, `(deferred: <pointer>)` for punted work. Untagged bullets are rejected by `adr-lint`; `adr-debt` sweeps deferred entries so they resurface.
+- **Out of Scope entries carry a disposition** — use `(permanent: boundary: <reason>)` for a
+  limit this ADR chooses, `(permanent: fact: <claim>; citation: <typed receipt>)` for an external
+  premise, and `(deferred: <pointer>)` for punted work. A typed receipt is `file` followed by a
+  backticked `<repository-path>:<line>`, `version` followed by a backticked `<name>@<version>`, or
+  `url` followed by `https://<host>[/<path>]`. `adr-lint` advises on legacy `(permanent)` /
+  `(permanent: <reason>)` spellings without changing their permanent meaning; `adr-debt` sweeps
+  only deferred entries so they resurface.
 
 ## Plan Quality Gate
 

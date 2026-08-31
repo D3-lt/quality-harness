@@ -23,20 +23,23 @@ exit code is not.
 
 ### 2026-08-20 — a `permanent` disposition is the only one nothing ever sweeps
 
-`adr-debt` resurfaces `(deferred: …)` at every `/quality-harness:adr-write`. It never resurfaces `(permanent: …)`,
-by design. So a `permanent` tag whose REASON is wrong does not merely mislead a reader — it removes
-the item from every future sweep, and nothing will ever bring it back.
+`adr-debt` resurfaces `(deferred: …)` at every `/quality-harness:adr-write`. It never resurfaces a
+permanent entry, by design. So a permanent factual premise that is wrong does not merely mislead a
+reader — it removes the item from every future sweep, and nothing will ever bring it back.
 
 Measured: an ADR shipped `(permanent: MCP is request/response here; a server cannot wake a session)`.
 The transport carries server-initiated notifications, the library in `go.mod` exposes three methods
 for sending them, and the repo calls none. The capability was ruled out forever on a premise nobody
 checked, and the maintainer described that same capability as the point of the product an hour later.
 
-The rule: **`permanent` requires a checked fact, not a recollection.** If the reason is a technical
-impossibility, open the library, the transport, the API — and cite `file:line` or the version. If
-you cannot check it inside a minute, it is `deferred`, because `deferred` is recoverable and
-`permanent` is not. Reserve `permanent` for boundaries you are CHOOSING ("this ADR is about X, not
-Y"), which are decisions and cannot be factually wrong.
+The rule: **a permanent entry names whether it is a chosen boundary or a factual premise.** Write
+`(permanent: boundary: <reason>)` when this decision is exercising its authority to stop at a limit.
+Write `(permanent: fact: <claim>; citation: <typed receipt>)` when the limit rests on something
+outside the decision's authority, using `file` followed by a backticked `path:line`, `version`
+followed by a backticked `name@version`, or `url` followed by an HTTPS URL. The receipt makes the
+premise re-checkable; it does not prove
+the claim. If you cannot name one, use `deferred`, because deferred is recoverable and permanent is
+not. Legacy `(permanent)` and `(permanent: <reason>)` stay permanent but receive authoring advice.
 
 ### 2026-08-20 — an ADR built on a design comparison must record what tried to kill it
 

@@ -6,6 +6,8 @@ import importlib.util
 import contextlib
 import io
 import io
+import os
+import re
 import subprocess
 import sys
 import time
@@ -157,6 +159,216 @@ def verification_errors(lint, acceptance, entries, mlog=()):
     return errors
 
 
+def test_permanent_disposition_citations(bin_dir, lint):
+    """Typed permanent bases are advised through the shipped CLI path."""
+    with tempfile.TemporaryDirectory() as tmp:
+        base = Path(tmp)
+        root = base / "repo"
+        root.mkdir()
+        subprocess.run(["git", "init", "-q", str(root)], check=True)
+        evidence = root / "docs" / "evidence.md"
+        evidence.parent.mkdir()
+        evidence.write_text("first line\nsecond line\n", encoding="utf-8")
+        deleted = root / "docs" / "deleted-after-index.md"
+        deleted.write_text("tracked, then removed\n", encoding="utf-8")
+        untracked = root / "docs" / "same-change.md"
+        untracked.write_text("new receipt\n", encoding="utf-8")
+        subprocess.run(
+            ["git", "-C", str(root), "add", "docs/evidence.md", "docs/deleted-after-index.md"],
+            check=True)
+        deleted.unlink()
+
+        def lint_disposition(disposition, repository=root, env=None):
+            record = repository / "ADR-001-probe.md"
+            record.write_text(
+                "# ADR-001: Probe\n\n"
+                "**Status:** Proposed\n"
+                "**Spec:** None — no spec stage\n"
+                "**Served-path change:** None — lint fixture only\n\n"
+                "## Alternatives Considered\n\n- Keep the old form.\n\n"
+                "## Wiring & Contract Changes\n\nNone — implementation-internal only.\n\n"
+                f"## Out of Scope\n\n- Probe entry ({disposition})\n",
+                encoding="utf-8")
+            return subprocess.run(
+                [sys.executable, str(Path(bin_dir).resolve() / "adr-lint"), str(record)],
+                cwd=repository, capture_output=True, text=True, env=env)
+
+        def assert_clean(disposition):
+            result = lint_disposition(disposition)
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert "permanent basis:" not in result.stdout, result.stdout
+
+        def assert_advice(disposition, *words):
+            result = lint_disposition(disposition)
+            assert result.returncode == 0, result.stdout + result.stderr
+            assert "permanent basis:" in result.stdout, result.stdout
+            lowered = result.stdout.lower()
+            assert all(word.lower() in lowered for word in words), result.stdout
+
+        for valid in (
+            "permanent: boundary: this decision chooses the limit",
+            "permanent: boundary: the `helper()` call remains outside (by design)",
+            "permanent: fact: the receipt has two lines; citation: file `docs/evidence.md:2`",
+            "permanent: fact: this file lands in the same change; citation: file `docs/same-change.md:1`",
+            "permanent: fact: the package behavior is versioned; citation: version `@scope/name@1.2.3`",
+            "permanent: fact: the publisher documents it; citation: url https://example.invalid",
+            "permanent: fact: the publisher documents it; citation: url https://example.invalid/receipt",
+        ):
+            assert_clean(valid)
+
+        deferred = lint_disposition("deferred: docs/BACKLOG.md §1")
+        assert deferred.returncode == 0, deferred.stdout + deferred.stderr
+        assert "permanent basis:" not in deferred.stdout, deferred.stdout
+
+        for legacy in ("permanent", "permanent: remembered reason"):
+            assert_advice(legacy, "classify", "boundary", "fact")
+
+        malformed = (
+            ("permanent: boundary:   ", ("accepted forms",)),
+            ("permanent: fact: ; citation: version `name@1`", ("non-empty",)),
+            ("permanent: boundary: chosen; citation: url https://example.invalid",
+             ("boundary", "citation")),
+            ("permanent: fact: unsupported claim", ("citation",)),
+            ("permanent: fact: unsupported claim; citation: docs/evidence.md:2",
+             ("typed receipt",)),
+            ("permanent: fact: unsupported; citation: file `docs/evidence.md:2`; citation: version `x@1`",
+             ("exactly one",)),
+            ("permanent: fact: unsupported; citation: file `docs/evidence.md:2` trailing",
+             ("typed receipt",)),
+            ("permanent: Boundary: chosen", ("accepted forms",)),
+            ("permanent:  boundary: chosen", ("accepted forms",)),
+            ("permanent: fact: unsupported; citation: url HTTPS://example.invalid",
+             ("lowercase", "https")),
+            ("permanent: fact: unsupported; citation: url https:///receipt",
+             ("host",)),
+            ("permanent: fact: unsupported; citation: url https://example.invalid\\evil",
+             ("host",)),
+            ("permanent: fact: unsupported; citation: url https://bad_host.invalid",
+             ("valid", "host")),
+            ("permanent: fact: unsupported; citation: url https://example.invalid/path?",
+             ("host", "optional path")),
+            ("permanent: fact: unsupported; citation: url https://example.invalid/path#",
+             ("host", "optional path")),
+            ("permanent: fact: unsupported; citation: url https://@example.invalid/path",
+             ("host", "optional path")),
+            ("permanent: fact: unsupported; citation: file `../outside.md:1`",
+             ("leaves the repository",)),
+            ("permanent: fact: unsupported; citation: file `docs/missing.md:1`",
+             ("not a repository candidate",)),
+            ("permanent: fact: unsupported; citation: file `docs/deleted-after-index.md:1`",
+             ("absent", "working tree")),
+            ("permanent: fact: unsupported; citation: file `docs/evidence.md:0`",
+             ("positive", "line")),
+            ("permanent: fact: unsupported; citation: file `docs/evidence.md:3`",
+             ("line 3", "does not exist")),
+        )
+        for disposition, words in malformed:
+            assert_advice(disposition, *words)
+        assert_advice(
+            "permanent: fact: unsupported; citation: file `docs/evidence.md:" +
+            "9" * 5000 + "`",
+            "line number", "too large")
+        low_limit_env = dict(os.environ, PYTHONINTMAXSTRDIGITS="640")
+        low_limit = lint_disposition(
+            "permanent: fact: unsupported; citation: file `docs/evidence.md:" +
+            "9" * 700 + "`",
+            env=low_limit_env)
+        assert low_limit.returncode == 0, low_limit.stdout + low_limit.stderr
+        assert "permanent basis:" in low_limit.stdout and "line" in low_limit.stdout.lower(), \
+            low_limit.stdout
+
+        outside = base / "outside"
+        outside.mkdir()
+        outside_evidence = outside / "evidence.md"
+        outside_evidence.write_text("outside\n", encoding="utf-8")
+        link = root / "linked"
+        if sys.platform == "win32":
+            junction = subprocess.run(
+                ["cmd.exe", "/d", "/c", "mklink", "/J", str(link), str(outside)],
+                capture_output=True, text=True)
+            assert junction.returncode == 0, junction.stdout + junction.stderr
+        else:
+            link.symlink_to(outside, target_is_directory=True)
+        blob = subprocess.run(
+            ["git", "-C", str(root), "hash-object", "-w", str(outside_evidence)],
+            check=True, capture_output=True, text=True).stdout.strip()
+        subprocess.run(
+            ["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
+             f"100644,{blob},linked/evidence.md"], check=True)
+        assert_advice(
+            "permanent: fact: the linked receipt escapes; citation: file `linked/evidence.md:1`",
+            "leaves the repository")
+
+        if sys.platform != "win32":
+            (root / "loop-a").symlink_to(root / "loop-b")
+            (root / "loop-b").symlink_to(root / "loop-a")
+            subprocess.run(
+                ["git", "-C", str(root), "update-index", "--add", "--cacheinfo",
+                 f"100644,{blob},loop-a/evidence.md"], check=True)
+            assert_advice(
+                "permanent: fact: this path loops; citation: file `loop-a/evidence.md:1`",
+                "could not")
+
+        no_git = base / "not-a-repository"
+        no_git.mkdir()
+        unknown = lint_disposition(
+            "permanent: fact: git cannot classify this; citation: file `docs/evidence.md:1`",
+            no_git)
+        assert unknown.returncode == 0, unknown.stdout + unknown.stderr
+        assert "could not validate" in unknown.stdout.lower(), unknown.stdout
+        assert "not a repository candidate" not in unknown.stdout.lower(), unknown.stdout
+
+        read_errors = lint.Findings()
+        lint._check_permanent_file_citation(
+            "docs/evidence.md:2", root, {"docs/evidence.md"}, read_errors,
+            read_text=lambda _path: (_ for _ in ()).throw(OSError("denied")))
+        assert any("could not read" in item.lower() for item in read_errors.advice), \
+            read_errors.advice
+        assert not any("not a repository candidate" in item.lower()
+                       for item in read_errors.advice), read_errors.advice
+
+        loop_errors = lint.Findings()
+        lint._check_permanent_file_citation(
+            "docs/evidence.md:2", root, {"docs/evidence.md"}, loop_errors,
+            resolve_path=lambda _path: (_ for _ in ()).throw(RuntimeError("symlink loop")))
+        assert any("could not validate" in item.lower() for item in loop_errors.advice), \
+            loop_errors.advice
+
+        def external_receipt_must_not_ask_git(inner):
+            findings = lint.Findings()
+            lint.check_permanent_disposition(
+                inner, root / "ADR-001-probe.md", findings, root,
+                lambda: (_ for _ in ()).throw(
+                    AssertionError("an external receipt asked git for file candidates")))
+            assert findings.advice == [], findings.advice
+
+        external_receipt_must_not_ask_git(
+            "permanent: fact: package behavior; citation: version `@scope/name@1.2.3`")
+        external_receipt_must_not_ask_git(
+            "permanent: fact: published behavior; citation: url https://example.invalid/path")
+
+        plugin_root = Path(bin_dir).resolve().parent
+        debt_text = (plugin_root / "bin" / "adr-debt").read_text(encoding="utf-8")
+        mcp_text = (plugin_root / "bin" / "qh-mcp").read_text(encoding="utf-8")
+        for text in (debt_text, mcp_text):
+            lowered = text.lower()
+            assert re.search(
+                r"chosen boundaries.*cited facts.*(?:not reported|unswept|neither.*reported)",
+                lowered, re.S), lowered
+        for relative in (
+            "templates/adr-template.md",
+            "skills/adr-write/SKILL.md",
+            "skills/adr-write/references/lessons.md",
+        ):
+            guidance = (plugin_root / relative).read_text(encoding="utf-8")
+            assert "(permanent: boundary: <reason>)" in guidance, relative
+            assert "(permanent: fact: <claim>; citation: <typed receipt>)" in guidance, relative
+            assert "(deferred: <pointer>)" in guidance or "`deferred`" in guidance, relative
+            assert "legacy" in guidance.lower() and "advice" in guidance.lower(), relative
+
+    print("PASS — permanent disposition citations")
+
+
 def main():
     if len(sys.argv) != 4:
         raise SystemExit(
@@ -173,6 +385,7 @@ def main():
     arch_gate = load_script("arch_lint_regressions", bin_dir / "arch-lint")
     retire = load_script("adr_retire_regressions", bin_dir / "adr-retire-check")
     debt = load_script("adr_debt_regressions", bin_dir / "adr-debt")
+    test_permanent_disposition_citations(bin_dir, lint)
 
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
@@ -1463,8 +1676,13 @@ def main():
             lint.check_adr(probe, errs)
         return [str(a) for a in errs.advice if "disposition" in str(a)]
 
-    assert dispositions("- Renaming it (permanent: the `archive()` helper keeps originals)") == [], (
-        "a nested paren inside a disposition is still a disposition")
+    nested_legacy = dispositions(
+        "- Renaming it (permanent: the `archive()` helper keeps originals)")
+    assert any("permanent basis:" in item and "classify" in item
+               for item in nested_legacy), nested_legacy
+    assert not any("ends with no machine-readable" in item for item in nested_legacy), (
+        "a nested paren is still one legacy disposition, so it gets classification advice "
+        f"rather than no-disposition advice: {nested_legacy}")
     named = dispositions("- Renaming it")
     assert any("Renaming it" in a for a in named), (
         f"and a bullet with no disposition is still named: {named}")

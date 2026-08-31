@@ -14,6 +14,7 @@ Checks:
   Tasks  : bash fence under ## Acceptance (or explicit human-observed sentence) ·
            required sections · Affected Files ≥1 row · Ordered Steps step 1 mentions a test ·
            Depends-on/Covers/Produces/Consumes headers present · Depends-on targets exist ·
+           every Proof map: v1 step resolves to a Tests row or exact non-test proof ·
            recognized Go fences can select the PASS marker they require
   README : listed task IDs ↔ task files match (task files are the source of truth) ·
            wave table required only for >5 tasks
@@ -61,6 +62,10 @@ for _s in (_sys.stdout, _sys.stderr):
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
 TASK_HEADERS = ["Depends-on", "Covers", "Produces", "Consumes"]
+PROOF_MAP_LEGACY_ADVICE = (
+    "{task}: Proof map: v1 was not checked because this legacy task has no "
+    "**Proof map:** header — add **Proof map:** v1, stable [S<n>] step IDs and "
+    "Tests-table Steps references when authoring a new task")
 # The sha field of a tool-written entry, in ONE place. It was five literal copies
 # here and a sixth in adr-verify, every one accepting 7 to 40 hex characters — and
 # adr-verify WRITES whatever `git rev-parse --short HEAD` returns, unvalidated.
@@ -314,6 +319,129 @@ def git_root(d):
 def header_val(text, name):
     m = re.search(rf"^\*\*{re.escape(name)}:\*\*\s*(.+)$", text, re.M)
     return m.group(1).strip() if m else None
+
+
+def markdown_table_cells(line, *, backslash_parity=False):
+    r"""Cells from one Markdown table line, preserving escaped `\|` content.
+
+    The task reader already used this split independently for Affected Files and
+    Tests. Proof map: v1 opts into CommonMark backslash parity; the default keeps
+    the historical one-backslash lookbehind so legacy task exit behavior does
+    not change under this record.
+    """
+    stripped = line.strip()
+    if not stripped.startswith("|"):
+        return []
+    if not backslash_parity:
+        return [cell.strip() for cell in re.split(r"(?<!\\)\|", stripped.strip("|"))]
+    cells, cell, backslashes = [], [], 0
+    for char in stripped:
+        if char == "|" and backslashes % 2 == 0:
+            cells.append("".join(cell).strip())
+            cell, backslashes = [], 0
+            continue
+        cell.append(char)
+        backslashes = backslashes + 1 if char == "\\" else 0
+    cells.append("".join(cell).strip())
+    if cells and cells[0] == "":
+        cells.pop(0)
+    if cells and cells[-1] == "":
+        cells.pop()
+    return cells
+
+
+def markdown_fence_state(line, active):
+    """Advance one CommonMark backtick/tilde fence, returning (state, marker-line)."""
+    match = re.match(r"^ {0,3}(?P<marker>`{3,}|~{3,})", line)
+    if not match:
+        return active, False
+    marker = match.group("marker")
+    candidate = (marker[0], len(marker))
+    if active is None:
+        return candidate, True
+    remainder = line[match.end():]
+    if (candidate[0] == active[0] and candidate[1] >= active[1]
+            and not remainder.strip()):
+        return None, True
+    return active, False
+
+
+def without_html_comments(line, active):
+    """Visible parts of one Markdown line plus multiline HTML-comment state."""
+    visible, offset = [], 0
+    while offset < len(line):
+        if active:
+            closing = line.find("-->", offset)
+            if closing < 0:
+                return "".join(visible), True
+            active, offset = False, closing + 3
+            continue
+        opening = line.find("<!--", offset)
+        if opening < 0:
+            visible.append(line[offset:])
+            break
+        visible.append(line[offset:opening])
+        active, offset = True, opening + 4
+    return "".join(visible), active
+
+
+def proof_map_sections(text):
+    """Fence-aware section view used only by the explicit v1 task contract."""
+    out, current, fence, html_comment = {}, None, None, False
+    for line in text.splitlines():
+        was_fenced = fence is not None
+        visible = line
+        if not was_fenced:
+            visible, html_comment = without_html_comments(line, html_comment)
+        fence, fence_line = markdown_fence_state(visible, fence)
+        heading = (None if fence is not None or fence_line
+                   else re.match(r"^## (.+?)\s*$", visible))
+        if heading:
+            current = heading.group(1)
+            out[current] = []
+        elif current is not None:
+            out[current].append(visible)
+    return out
+
+
+def task_tests_rows(secs, *, proof_map=False):
+    """Every ## Tests line with its cells split once for both consumers."""
+    rows = []
+    fenced = None
+    for line in secs.get("Tests", []):
+        was_fenced = fenced is not None
+        fenced, fence_line = markdown_fence_state(line, fenced)
+        indented_code = proof_map and re.match(r"^(?: {4}|\t)", line)
+        cells = ([] if indented_code else markdown_table_cells(
+            line, backslash_parity=proof_map))
+        rows.append((line.strip(), cells, was_fenced or fence_line
+                     or bool(indented_code)))
+    return rows
+
+
+def task_tests_table(rows):
+    """The one contiguous Markdown table headed `Test name` in ## Tests.
+
+    `rows` is also consumed in its original flattened form by the legacy
+    `(name, file)` reader. That preserves historical exit behavior while Proof
+    map: v1 binds only to the authored Tests table, not a later example.
+    """
+    table = []
+    started = False
+    for _line, cells, fenced in rows:
+        if fenced:
+            if started:
+                break
+            continue
+        if not started:
+            if cells and cells[0].lower() == "test name":
+                started = True
+                table.append(cells)
+            continue
+        if not cells:
+            break
+        table.append(cells)
+    return table
 
 
 def normalize_acceptance(raw):
@@ -889,9 +1017,177 @@ def where_it_stopped(pattern, line, width=70):
     return line[:width]
 
 
+def check_step_proof_map(path, text, secs, errors):
+    """Cross-check a task's ordered steps against its explicit Proof map: v1.
+
+    This check is intentionally referential. It validates identities and links;
+    it never infers from prose that a named test semantically proves a step.
+    """
+    metadata = []
+    fenced_metadata = None
+    html_comment = False
+    for line in text.splitlines():
+        was_fenced = fenced_metadata is not None
+        visible = line
+        if not was_fenced:
+            visible, html_comment = without_html_comments(line, html_comment)
+        fenced_metadata, fence_line = markdown_fence_state(visible, fenced_metadata)
+        if not was_fenced and not fence_line and re.match(r"^##\s+", visible):
+            break
+        if fence_line:
+            continue
+        if fenced_metadata is None:
+            metadata.append(visible)
+    headers = [match.group(1) for line in metadata
+               if (match := re.match(r"^\*\*Proof map:\*\*(.*)$", line))]
+    if not headers:
+        errors.advise(PROOF_MAP_LEGACY_ADVICE.format(task=path.name))
+        return
+    if len(headers) != 1:
+        errors.append(f"{path.name}: **Proof map:** appears {len(headers)} times; "
+                      f"a task selects exactly one proof-map version")
+        return
+
+    version = headers[0].strip()
+    if not version:
+        errors.append(f"{path.name}: **Proof map:** is present but empty; expected v1")
+        return
+    if version != "v1":
+        errors.append(f"{path.name}: **Proof map:** names unsupported version {version!r}; "
+                      f"the only supported version is v1")
+        return
+
+    proof_secs = proof_map_sections(text)
+    ordered_lines = proof_secs.get("Ordered Steps", [])
+    first = next((match for line in ordered_lines
+                  if (match := re.match(
+                      r"^(?P<indent> {0,3})(?P<ordinal>\d+)\.(?P<gap> +)(?P<body>.*)$",
+                      line))), None)
+    nesting_at = len(first.group("indent")) + 3 if first else 0
+    step_blocks = []
+    current = None
+    content_indent = 0
+    fenced = None
+    for line in ordered_lines:
+        relative = (line[content_indent:]
+                    if current is not None and line.startswith(" " * content_indent)
+                    else line)
+        was_fenced = fenced is not None
+        fenced, fence_line = markdown_fence_state(relative, fenced)
+        if fence_line or was_fenced or fenced is not None:
+            continue
+        ordered = re.match(
+            r"^(?P<indent> {0,3})(?P<ordinal>\d+)\.(?P<gap> +)(?P<body>.*)$", line)
+        if ordered and len(ordered.group("indent")) < nesting_at:
+            current = {
+                "ordinal": ordered.group("ordinal"),
+                "body": ordered.group("body"),
+                "proof_text": ordered.group("body"),
+            }
+            step_blocks.append(current)
+            content_indent = (len(ordered.group("indent"))
+                              + len(ordered.group("ordinal")) + 1
+                              + len(ordered.group("gap")))
+        elif current is not None and not re.match(r"^(?: {4}|\t)", relative):
+            current["proof_text"] += "\n" + line
+
+    step_rows = []
+    counts = {}
+    for block in step_blocks:
+        body = block["body"]
+        identity = re.match(r"^\[S(?P<number>[1-9]\d*)\](?:\s+|$)", body)
+        if not identity:
+            errors.append(
+                f"{path.name}: Ordered Steps step {block['ordinal']} must begin "
+                f"immediately with a stable [S<n>] identity using a positive, "
+                f"non-zero-padded integer")
+            continue
+        step_id = f"S{identity.group('number')}"
+        counts[step_id] = counts.get(step_id, 0) + 1
+        proof_text = block["proof_text"]
+        has_inline_proof = (
+            "[proof: acceptance]" in proof_text
+            or "[proof: mutation]" in proof_text
+            or any(match.group("reason").strip()
+                   for match in re.finditer(
+                       r"\[proof: human: (?P<reason>[^\]\r\n]*)\]", proof_text)))
+        step_rows.append((step_id, has_inline_proof))
+
+    if not step_rows:
+        errors.append(f"{path.name}: Proof map: v1 has no valid top-level Ordered Steps")
+    for step_id, count in sorted(counts.items()):
+        if count > 1:
+            errors.append(f"{path.name}: duplicate Ordered Steps identity {step_id}; "
+                          f"each stable ID must name exactly one step")
+
+    table = task_tests_table(task_tests_rows(proof_secs, proof_map=True))
+    header_index = 0 if table else None
+    header_ok = False
+    if header_index is None:
+        errors.append(f"{path.name}: Tests table must put Steps in its fifth column")
+    else:
+        header = table[header_index]
+        header_ok = len(header) == 5 and header[4] == "Steps"
+        if not header_ok:
+            errors.append(f"{path.name}: Tests table must have exactly five columns and put "
+                          f"Steps fifth")
+    if header_ok:
+        separator = table[1] if len(table) > 1 else []
+        separator_shape = (separator
+                           and all(re.fullmatch(r":?-{3,}:?", cell)
+                                   for cell in separator))
+        if not separator_shape:
+            errors.append(f"{path.name}: Tests table header must be followed immediately by "
+                          f"a five-cell Markdown separator")
+        elif len(separator) != 5:
+            errors.append(f"{path.name}: Tests table separator must have exactly five cells")
+
+    covered = set()
+    if header_ok:
+        for row_number, cells in enumerate(table[header_index + 1:], start=1):
+            if cells and all(re.fullmatch(r":?-{3,}:?", cell) for cell in cells):
+                continue
+            if len(cells) != 5:
+                errors.append(f"{path.name}: Tests data row {row_number} must have exactly "
+                              f"five cells, with Steps fifth")
+                continue
+            cell = cells[4]
+            if cell == "—":
+                continue
+            if not re.fullmatch(r"S[1-9]\d*(?:\s*,\s*S[1-9]\d*)*", cell):
+                errors.append(f"{path.name}: invalid Steps cell {cell!r}; use — or a "
+                              f"comma-separated list such as S1, S3")
+                continue
+            references = [token.strip() for token in cell.split(",")]
+            if len(references) != len(set(references)):
+                errors.append(f"{path.name}: invalid Steps cell {cell!r}; repeated tokens "
+                              f"do not name additional proof")
+                continue
+            test_name = re.search(r"`([^`]+)`", cells[0])
+            test_file = re.search(r"`([^`]+)`", cells[1])
+            if not (test_name and test_file):
+                errors.append(f"{path.name}: Tests row {row_number} cannot carry Steps "
+                              f"references because its test name and file are not both "
+                              f"backticked, so the task's Tests reader does not retain it")
+                continue
+            for step_id in references:
+                if counts.get(step_id, 0) != 1:
+                    errors.append(f"{path.name}: Tests Steps reference {step_id} names no "
+                                  f"Ordered Step with a unique identity")
+                else:
+                    covered.add(step_id)
+
+    for step_id, has_inline_proof in step_rows:
+        if counts.get(step_id) == 1 and step_id not in covered and not has_inline_proof:
+            errors.append(f"{path.name}: Ordered Step {step_id} is not referenced by any "
+                          f"Tests row and has no valid proof marker")
+
+
 def check_task(path, all_stems, errors):
     text = path.read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
+    test_rows = task_tests_rows(secs)
+    check_step_proof_map(path, text, secs, errors)
     for s in TASK_SECTIONS:
         if s not in secs:
             errors.advise(f"{path.name}: missing section ## {s}")
@@ -928,7 +1224,7 @@ def check_task(path, all_stems, errors):
            for ln in secs.get("Verification Log", [])):
         named = set()
         for ln in aff:
-            cells = [c.strip() for c in re.split(r"(?<!\\)\|", ln.strip().strip("|"))]
+            cells = markdown_table_cells(ln)
             pm = re.search(r"`([^`]+)`", cells[0]) if cells else None
             if pm and not pm.group(1).strip().startswith("`"):
                 named.add(pm.group(1).strip())
@@ -949,7 +1245,7 @@ def check_task(path, all_stems, errors):
 
     adds = set()
     for ln in aff:
-        cells = [c.strip() for c in re.split(r"(?<!\\)\|", ln.strip().strip("|"))]
+        cells = markdown_table_cells(ln)
         if len(cells) >= 2 and re.search(r"\badd\b", cells[1], re.I):
             pm = re.search(r"`([^`]+)`", cells[0])
             if pm:
@@ -1097,11 +1393,9 @@ def check_task(path, all_stems, errors):
     # the acceptance command filters on, so a name that exists only here is a
     # test nothing runs.
     tests = []
-    for ln in secs.get("Tests", []):
-        s2 = ln.strip()
+    for s2, cells, _fenced in test_rows:
         if not s2.startswith("|") or s2.startswith("|--") or "---" in s2.split("|")[1:2]:
             continue
-        cells = [c.strip() for c in re.split(r"(?<!\\)\|", s2.strip("|"))]
         if len(cells) < 2 or cells[0].lower().startswith("test name"):
             continue
         nm = re.search(r"`([^`]+)`", cells[0])

@@ -369,6 +369,276 @@ def test_permanent_disposition_citations(bin_dir, lint):
     print("PASS — permanent disposition citations")
 
 
+def test_proof_map_contract(bin_dir, lint):
+    """Proof-map v1 has one closed grammar shared by parser and guidance."""
+    def findings(ordered, rows, header="**Proof map:** v1", newline="\n"):
+        source = newline.join([
+            "# Task ADR-999-T1: proof-map probe",
+            "",
+            header,
+            "",
+            "## Ordered Steps",
+            "",
+            *ordered,
+            "",
+            "## Tests",
+            "",
+            "| Test name | File | Verifies | Covers | Steps |",
+            "|-----------|------|----------|--------|-------|",
+            *rows,
+        ])
+        errors = lint.Findings()
+        lint.check_step_proof_map(
+            Path("T1-proof-map-probe.md"), source, lint.sections_of(source), errors)
+        return errors
+
+    valid_steps = [
+        "1. [S10] Write the failing test first.",
+        "   1. [S999] This nested example is content, not a task step.",
+        "   Continuation text stays attached to S10.",
+        "2. [S2] Exercise the fence. [proof: acceptance]",
+        "3. [S7] Kill the behavioral mutant. [proof: mutation]",
+        "4. [S3] Inspect the rendered result.",
+        "   [proof: human: compare both outputs]",
+    ]
+    valid_rows = [
+        "| `test_red` | `tests/test_gate.py` | handles escaped \\| content | — | S10 |",
+        "| supplementary | `tests/test_gate.py` | extra coverage | — | — |",
+    ]
+    assert not findings(valid_steps, valid_rows), "the complete v1 map must pass"
+    assert not findings(valid_steps, valid_rows, newline="\r\n"), \
+        "CRLF must not change proof-map grammar"
+    indented_steps = [f" {line}" for line in valid_steps]
+    assert not findings(indented_steps, valid_rows), \
+        "CommonMark permits top-level list markers to be indented up to three spaces"
+    even_slashes = [
+        "| `test_red` | `tests/test_gate.py` | ends in \\\\| — | S10 |",
+        valid_rows[1],
+    ]
+    assert not findings(valid_steps, even_slashes), \
+        "an even backslash run does not escape the following table separator"
+
+    moved = [valid_steps[3], valid_steps[0], *valid_steps[1:3], *valid_steps[4:]]
+    assert not findings(moved, valid_rows), \
+        "step identity must survive list reordering independently of ordinals"
+
+    for bad_id in ("[S0]", "[S01]", "[s1]", "no-id"):
+        errors = findings([f"1. {bad_id} Write the failing test."], valid_rows)
+        assert errors, f"invalid stable step identity passed: {bad_id}"
+
+    errors = findings(
+        ["1. [S1] Write the failing test.", "2. [S1] Implement it. [proof: acceptance]"],
+        ["| `t` | `f` | v | — | S1 |"])
+    assert any("duplicate" in error.lower() for error in errors), errors
+
+    for cell in ("S1-S3", "S*", "all", "S1, S1", "S01", "S1 prose"):
+        errors = findings(["1. [S1] Write the failing test."],
+                          [f"| `t` | `f` | v | — | {cell} |"])
+        assert any("invalid Steps cell" in error for error in errors), (cell, errors)
+
+    dangling = findings(["1. [S1] Write the failing test."],
+                        ["| `t` | `f` | v | — | S9 |"])
+    assert any("S9" in error and "no Ordered Step" in error for error in dangling), dangling
+    uncovered = findings(["1. [S1] Write the failing test."],
+                         ["| t | f | v | — | — |"])
+    assert any("S1" in error and "not referenced" in error for error in uncovered), uncovered
+
+    empty_human = findings(
+        ["1. [S1] Write the failing test. [proof: human: ]"],
+        ["| t | f | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in empty_human), empty_human
+    no_space_human = findings(
+        ["1. [S1] Write the failing test. [proof: human:reason]"],
+        ["| `t` | `f` | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in no_space_human), no_space_human
+    unknown_marker = findings(
+        ["1. [S1] Write the failing test. [proof: review]"],
+        ["| t | f | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in unknown_marker), unknown_marker
+    fenced_marker = findings(
+        ["1. [S1] Write the failing test.", "   ```text",
+         "   [proof: acceptance]", "   ```"],
+        ["| t | f | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in fenced_marker), fenced_marker
+    tilde_marker = findings(
+        ["1. [S1] Write the failing test.", "   ~~~text",
+         "   [proof: acceptance]", "   ~~~"],
+        ["| `t` | `f` | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in tilde_marker), tilde_marker
+    indented_fence = findings(
+        [" 1. [S1] Write the failing test.", "    ```text",
+         "    [proof: acceptance]", "    ```"],
+        ["| `t` | `f` | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in indented_fence), indented_fence
+    misleading_close = findings(
+        ["1. [S1] Write the failing test.", "   ````text",
+         "   ````still code", "   [proof: acceptance]",
+         "   ````also code", "   ````"],
+        ["| `t` | `f` | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in misleading_close), misleading_close
+
+    unretained = findings(["1. [S1] Write the failing test."],
+                          ["| t | f | v | — | S1 |"])
+    assert any("does not retain it" in error for error in unretained), unretained
+
+    missing_column = findings(
+        ["1. [S1] Write the failing test. [proof: acceptance]"],
+        ["| t | f | v | — |"])
+    # Change the header independently: a short data row with a sound header has
+    # a different, row-specific finding.
+    short_source = "\n".join([
+        "**Proof map:** v1", "", "## Ordered Steps", "",
+        "1. [S1] Write the failing test. [proof: acceptance]", "", "## Tests", "",
+        "| Test name | File | Verifies | Covers |",
+        "|-----------|------|----------|--------|",
+        "| t | f | v | — |",
+    ])
+    column_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), short_source,
+                              lint.sections_of(short_source), column_errors)
+    assert any("Steps" in error and "fifth" in error for error in column_errors), column_errors
+    assert missing_column, "a v1 data row with no fifth cell must be rejected"
+
+    extra_source = short_source.replace(
+        "| Test name | File | Verifies | Covers |",
+        "| Test name | File | Verifies | Covers | Steps | Extra |").replace(
+        "|-----------|------|----------|--------|",
+        "|-----------|------|----------|--------|-------|-------|").replace(
+        "| t | f | v | — |", "| `t` | `f` | v | — | S1 | extra |")
+    extra_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), extra_source,
+                              lint.sections_of(extra_source), extra_errors)
+    assert any("exactly five" in error for error in extra_errors), extra_errors
+
+    short_separator = "\n".join([
+        "**Proof map:** v1", "", "## Ordered Steps", "",
+        "1. [S1] Write the failing test.", "", "## Tests", "",
+        "| Test name | File | Verifies | Covers | Steps |",
+        "|-----------|------|----------|--------|",
+        "| `t` | `f` | v | — | S1 |",
+    ])
+    separator_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), short_separator,
+                              lint.sections_of(short_separator), separator_errors)
+    assert any("separator" in error and "five" in error
+               for error in separator_errors), separator_errors
+
+    no_separator = short_separator.replace(
+        "|-----------|------|----------|--------|\n", "").replace(
+        "| Test name | File | Verifies | Covers | Steps |",
+        "| Test name | File | Verifies | Covers | Steps |")
+    no_separator_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), no_separator,
+                              lint.sections_of(no_separator), no_separator_errors)
+    assert any("separator" in error for error in no_separator_errors), no_separator_errors
+
+    fenced_table = "\n".join([
+        "**Proof map:** v1", "", "## Ordered Steps", "",
+        "1. [S1] Write the failing test.", "", "## Tests", "", "```markdown",
+        "| Test name | File | Verifies | Covers | Steps |",
+        "|-----------|------|----------|--------|-------|",
+        "| `t` | `f` | v | — | S1 |", "```",
+    ])
+    fenced_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), fenced_table,
+                              lint.sections_of(fenced_table), fenced_errors)
+    assert any("Tests table" in error for error in fenced_errors), fenced_errors
+    tilde_table = fenced_table.replace("```markdown", "~~~markdown").replace("```", "~~~")
+    tilde_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), tilde_table,
+                              lint.sections_of(tilde_table), tilde_errors)
+    assert any("Tests table" in error for error in tilde_errors), tilde_errors
+
+    indented_table = "\n".join([
+        "**Proof map:** v1", "", "## Ordered Steps", "",
+        "1. [S1] Write the failing test.", "", "## Tests", "",
+        "    | Test name | File | Verifies | Covers | Steps |",
+        "    |-----------|------|----------|--------|-------|",
+        "    | `t` | `f` | v | — | S1 |",
+    ])
+    indented_table_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), indented_table,
+                              lint.sections_of(indented_table), indented_table_errors)
+    assert any("Tests table" in error for error in indented_table_errors), \
+        indented_table_errors
+
+    commented_table = fenced_table.replace("```markdown", "<!--").replace("```", "-->")
+    commented_table_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), commented_table,
+                              lint.sections_of(commented_table), commented_table_errors)
+    assert any("Tests table" in error for error in commented_table_errors), \
+        commented_table_errors
+
+    indented_code_marker = findings(
+        ["1. [S1] Write the failing test.", "       [proof: acceptance]"],
+        ["| `t` | `f` | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in indented_code_marker), indented_code_marker
+    commented_marker = findings(
+        ["1. [S1] Write the failing test.", "   <!-- [proof: acceptance] -->"],
+        ["| `t` | `f` | v | — | — |"])
+    assert any("S1" in error and "no valid proof marker" in error
+               for error in commented_marker), commented_marker
+
+    for header in ("**Proof map:**", "**Proof map:** v2"):
+        errors = findings(valid_steps, valid_rows, header=header)
+        assert errors, f"a present unsupported proof-map header passed: {header}"
+
+    commented_header = "\n".join([
+        "<!--", "**Proof map:** v1", "-->", "", "## Ordered Steps", "",
+        *valid_steps, "", "## Tests", "",
+        "| Test name | File | Verifies | Covers | Steps |",
+        "|-----------|------|----------|--------|-------|", *valid_rows,
+    ])
+    commented_header_errors = lint.Findings()
+    lint.check_step_proof_map(Path("T1.md"), commented_header,
+                              lint.sections_of(commented_header), commented_header_errors)
+    assert not commented_header_errors, commented_header_errors
+    assert len(commented_header_errors.advice) == 1, commented_header_errors.advice
+
+    legacy = findings(valid_steps, valid_rows, header="")
+    assert not legacy, legacy
+    proof_advice = [item for item in legacy.advice
+                    if "Proof map: v1" in item and "not checked" in item]
+    assert len(proof_advice) == 1, legacy.advice
+    shown_later = findings(
+        [*valid_steps, "```text", "**Proof map:** v1", "```"],
+        valid_rows, header="")
+    assert not shown_later and len(shown_later.advice) == 1, shown_later.advice
+
+    legacy_tilde_heading = "\n".join([
+        "## Acceptance", "", "```bash", "true", "```", "~~~markdown",
+        "## Acceptance", "shown example only", "~~~", "", "## Tests", "",
+    ])
+    legacy_sections = lint.sections_of(legacy_tilde_heading)
+    assert "```bash" not in "\n".join(legacy_sections["Acceptance"])
+    assert "shown example only" in legacy_sections["Acceptance"]
+
+    plugin_root = Path(bin_dir).resolve().parent
+    template = (plugin_root / "templates" / "task-template.md").read_text(encoding="utf-8")
+    skill = (plugin_root / "skills" / "adr-write" / "SKILL.md").read_text(encoding="utf-8")
+    required = (
+        "**Proof map:** v1",
+        "[S<n>]",
+        "| Test name | File | Verifies | Covers | Steps |",
+        "[proof: acceptance]",
+        "[proof: mutation]",
+        "[proof: human: <reason>]",
+    )
+    for phrase in required:
+        assert phrase in template, (phrase, "task template")
+        assert phrase in skill, (phrase, "adr-write skill")
+
+    print("PASS — proof-map v1 contract")
+
+
 def main():
     if len(sys.argv) != 4:
         raise SystemExit(
@@ -386,6 +656,7 @@ def main():
     retire = load_script("adr_retire_regressions", bin_dir / "adr-retire-check")
     debt = load_script("adr_debt_regressions", bin_dir / "adr-debt")
     test_permanent_disposition_citations(bin_dir, lint)
+    test_proof_map_contract(bin_dir, lint)
 
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))

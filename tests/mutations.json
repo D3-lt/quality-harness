@@ -87,8 +87,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        target.write_bytes(original_bytes)",
-      "to": "        target.write_text(original, encoding=\"utf-8\")"
+      "from": "        target.write_bytes(original_bytes)\n        journal.unlink(missing_ok=True)",
+      "to": "        target.write_text(original, encoding=\"utf-8\")\n        journal.unlink(missing_ok=True)"
     },
     {
       "label": "evidence: the seal survives a CRLF checkout",
@@ -1048,8 +1048,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "            journal.write_text(json.dumps({",
-      "to": "            (lambda *a, **k: None)(json.dumps({"
+      "from": "        journal.write_text(json.dumps(journal_data), encoding=\"utf-8\")\n    except OSError as e:\n        try:",
+      "to": "        (lambda *a, **k: None)(json.dumps(journal_data), encoding=\"utf-8\")\n    except OSError as e:\n        try:"
     },
     {
       "label": "verify: the mutant warning is flushed, not left in the buffer",
@@ -3050,13 +3050,13 @@
       "to": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash)\\s*\\n(.*?)```\", re.S)"
     },
     {
-      "label": "verify: a fence that failed scoring nothing is decided by a baseline, not assumed",
+      "label": "verify: a mutant is judged only after its clean fence passes",
       "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        elif base.returncode == 0 and not scored_nothing(base.stdout + base.stderr):",
-      "to": "        elif False:"
+      "from": "        if not clean_usable:",
+      "to": "        if False:"
     },
     {
       "label": "verify: a fence broken for a machine reason is not credited as a kill",

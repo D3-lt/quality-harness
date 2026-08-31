@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | a clean fence earns the right to mutate | pending | — | `node --test … tests/evidence-chain.test.mjs` |
+| T1 | a clean fence earns the right to mutate | done | — | `node --test … tests/evidence-chain.test.mjs` |
 | T2 | generated outputs join the restore transaction | pending | — | `node --test … tests/evidence-chain.test.mjs tests/package.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.

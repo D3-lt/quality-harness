@@ -50,9 +50,10 @@ runs the Acceptance fence, restores the file whatever happens, and records:
 
 `killed` (non-zero exit, tests actually scored) is the only verdict that counts as
 evidence. `survived` means the fence passed with the mechanism broken — the test
-is decoration. `inconclusive` means the fence failed for a reason that was not a
-failing assertion (nothing ran, or the run did not build), which is a skipped
-mutant wearing a kill's exit code.
+is decoration. `inconclusive` means the mutant fence failed for a machine,
+build, or parse reason rather than a failing assertion. A mutant-only no-tests
+result is instead killed when the paired clean fence already scored tests; an
+unusable clean fence is `UNPROVEN`, runs no mutant, and writes no verdict.
 
 What this does NOT prove: that the mutant was WELL CHOSEN. Uniqueness makes a
 trivial irrelevant line an available escape hatch, and only --why guards that,
@@ -66,7 +67,7 @@ file has changed since, nothing is overwritten and the original is written out
 beside the journal instead.
 
 Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
---mutant; 0 for --restore) · 2 = usage/parse problem.
+--mutant; 0 for --restore) · 2 = usage, authoring, or transaction problem.
 """
 import base64
 import datetime
@@ -649,11 +650,19 @@ def recover_mutant(cwd):
         target = Path(data["file"])
         original = base64.b64decode(data["original"])
         mutated = base64.b64decode(data["mutated"])
+        phase = data.get("phase", "mutant")
     except (OSError, ValueError, KeyError):
         journal.unlink(missing_ok=True)
         return False
 
     if not target.exists():
+        if phase == "baseline":
+            # The target existed when the transaction was armed. Its absence is
+            # therefore a baseline side effect or concurrent work, not a mutant
+            # this process owns and may silently reconstruct.
+            fail(f"[adr-verify] unresolved baseline journal: a killed clean fence removed "
+                 f"{target} before any mutant was applied. Nothing was recreated and the "
+                 f"journal remains at {journal}; reconcile the file before verifying again.")
         print(f"[adr-verify] a killed run left a mutant recorded for {target}, "
               f"which no longer exists; nothing restored.")
         journal.unlink(missing_ok=True)
@@ -663,6 +672,14 @@ def recover_mutant(cwd):
     if now == original:
         journal.unlink(missing_ok=True)
         return False
+    if phase == "baseline":
+        # No deliberate mutant had landed yet, so a changed target belongs to
+        # the clean fence or to concurrent work. Neither gives this process
+        # authority to overwrite it. Keep the journal as the durable warning
+        # and block every later measurement until a person reconciles the file.
+        fail(f"[adr-verify] unresolved baseline journal: a killed clean fence changed "
+             f"{target} before any mutant was applied. Nothing was overwritten and the "
+             f"journal remains at {journal}; reconcile the file before verifying again.")
     if now != mutated:
         # The file moved on. Overwriting would discard work that is not ours to
         # discard, so the original is left where it can be read and applied by
@@ -765,25 +782,30 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
     journal = mutant_journal(cwd)
     previous = None
     mutated_bytes = source_bytes(original.replace(frm, to, 1), target_newline)
-    try:
-        # Both of these go in BEFORE the file is touched. A kill that lands in the
-        # window between mutating and arming leaves a mutant nothing knows about:
-        # measured 2026-08-27, a SIGTERM probe left the file broken while the very
-        # next identical run restored it, because the race is won or lost by
-        # microseconds and looks like a working fix half the time.
-        try:
-            journal.parent.mkdir(parents=True, exist_ok=True)
-            journal.write_text(json.dumps({
-                "file": str(target),
-                "original": base64.b64encode(original_bytes).decode("ascii"),
-                "mutated": base64.b64encode(mutated_bytes).decode("ascii"),
-                "from": frm, "to": to, "why": why.strip(), "cmd": cmd,
-            }), encoding="utf-8")
-        except OSError as e:
-            print(f"[adr-verify] could not journal the restore ({e}); a killed run will "
-                  f"leave the mutant in place. The line below says how to undo it by hand.",
-                  flush=True)
+    journal_data = {
+        "phase": "baseline",
+        "file": str(target),
+        "original": base64.b64encode(original_bytes).decode("ascii"),
+        "mutated": base64.b64encode(mutated_bytes).decode("ascii"),
+        "from": frm, "to": to, "why": why.strip(), "cmd": cmd,
+    }
 
+    # The journal protects the CLEAN run too: an Acceptance fence may generate or
+    # rewrite the target before a mutant is ever applied. If this write cannot be
+    # made, no fence is allowed to start. Continuing would knowingly open a
+    # side-effect window with no recovery record.
+    try:
+        journal.parent.mkdir(parents=True, exist_ok=True)
+        journal.write_text(json.dumps(journal_data), encoding="utf-8")
+    except OSError as e:
+        try:
+            journal.unlink(missing_ok=True)
+        except OSError:
+            pass
+        fail(f"[adr-verify] could not arm the mutant journal ({e}); refusing before the "
+             f"clean fence. No mutation was applied and no evidence was written.")
+
+    try:
         # Python default-terminates on SIGTERM without unwinding, so `finally`
         # never runs. Measured 2026-08-27: SIGINT restored, SIGTERM and SIGKILL
         # did not. Turning it into SystemExit gives the restore its chance;
@@ -792,6 +814,52 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
             previous = signal.signal(signal.SIGTERM, _restore_and_exit)
         except (OSError, ValueError, AttributeError):
             previous = None
+
+        # A failure that already exists cannot be donated to the mutant. Run the
+        # exact normalized fence first, with the same shell, cwd, environment and
+        # timeout the mutant will receive. This guard is deliberately one unique
+        # branch: the mutation catalogue disables it and the CLI regression must
+        # then catch the false verdict.
+        try:
+            clean = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
+                                   text=True, encoding="utf-8", errors="replace",
+                                   timeout=fence_timeout())
+        except subprocess.TimeoutExpired as expired:
+            partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
+            print(f"[adr-verify] UNPROVEN: the clean acceptance fence did not finish within "
+                  f"{fence_timeout()}s. No mutant was applied and no Mutation Log row was "
+                  f"written.")
+            if partial.strip():
+                print("[adr-verify] what the clean fence had produced when it was killed:")
+                for line in partial.strip().splitlines()[-10:]:
+                    print(f"  {line}")
+            sys.exit(1)
+
+        clean_out = (clean.stdout or "") + (clean.stderr or "")
+        clean_usable = clean.returncode == 0 and not scored_nothing(clean_out)
+        if not clean_usable:
+            machine_reason = environment_failure(clean_out, cmd)
+            if machine_reason:
+                observed = f"the clean fence failed for a machine reason: {machine_reason}"
+            elif clean.returncode != 0:
+                observed = f"the clean fence exited {clean.returncode} before any mutant ran"
+            else:
+                observed = "the clean fence exited 0 but reported that no tests ran"
+            print(f"[adr-verify] UNPROVEN: {observed}. No mutant was applied and no Mutation "
+                  f"Log row was written.")
+            for line in failure_tail(clean.stdout, clean.stderr):
+                print(f"  {line}")
+            sys.exit(1)
+
+        # The baseline itself may have touched the target. Re-establish command-
+        # entry bytes, then advance the durable phase BEFORE changing the file.
+        target.write_bytes(original_bytes)
+        journal_data["phase"] = "mutant"
+        try:
+            journal.write_text(json.dumps(journal_data), encoding="utf-8")
+        except OSError as e:
+            fail(f"[adr-verify] could not advance the mutant journal ({e}); refusing before "
+                 f"mutation. The clean fence ran, but no evidence was written.")
 
         write_source(target, original.replace(frm, to, 1), target_newline)
 
@@ -828,18 +896,18 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                  f"The file has been restored.")
         out, code = r.stdout + r.stderr, r.returncode
 
-        ambiguous = False
         if code == 0:
-            verdict, detail = "survived", "the fence passed with the mechanism broken"
+            verdict, detail = (
+                "survived",
+                "the fence passed with the mechanism broken; it may not materialize, compile, "
+                "load, or assert on the changed path",
+            )
         elif scored_nothing(out):
-            # AMBIGUOUS, and the baseline below is what settles it. A mutant whose
-            # whole effect is to REMOVE tests from a lane — a restored `//go:build`
-            # tag, an inserted `t.Skip`, a renamed `_test.go` — makes the fence
-            # fail BECAUSE it detected that nothing ran, and reporting that as
-            # inconclusive tells the author their strongest mutant proved nothing.
-            # Reported 2026-08-29 by the session whose task's entire deliverable
-            # was removing such a tag (docs/BACKLOG.md §71).
-            verdict, detail, ambiguous = "inconclusive", "the fence failed but scored no tests", True
+            # The already-measured clean fence passed and scored tests. If the
+            # mutant run now reports none, the mutation removed the runnable lane.
+            verdict = "killed"
+            detail = ("the mutant fence failed scoring no tests, while the clean fence passed "
+                      "scoring tests — so the mutant is what removed them")
         elif any(re.search(pat, out, re.M) for pat in BUILD_BROKE):
             verdict, detail = "inconclusive", "the fence failed on a build/parse error, not an assertion"
         elif environment_failure(out, cmd):
@@ -852,7 +920,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
             # (docs/BACKLOG.md §71). Crediting an unearned kill is the worst
             # outcome this tool has, because the whole point of a mutation is to
             # find out whether anything NOTICED.
-            verdict, detail, ambiguous = "inconclusive", "the fence failed for a machine reason", True
+            verdict, detail = "inconclusive", "the fence failed for a machine reason"
         else:
             verdict, detail = "killed", "a test went red"
     finally:
@@ -863,40 +931,6 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why):
                 signal.signal(signal.SIGTERM, previous)
             except (OSError, ValueError):
                 pass
-
-    # THE BASELINE, run only in the ambiguous case and only after the mutant is
-    # restored. "The fence failed and scored no tests" is two different runs
-    # wearing one verdict: the mutant removed the tests and the fence caught it
-    # (a kill), or the fence cannot run here at all — a missing runner, a typo,
-    # an environment that was broken before anyone mutated anything (genuinely
-    # inconclusive). Inferring which from the fence's TEXT would be the loose
-    # heuristic this project refused for the comment-only guard; running the
-    # clean fence answers it by measurement.
-    #
-    # A false KILL is the worst outcome available here — it credits a suite with
-    # catching something it never noticed — so the kill is granted only when the
-    # clean fence PASSES and scores tests. Anything else stays inconclusive and
-    # says which it was.
-    if ambiguous:
-        try:
-            base = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
-                                  text=True, encoding="utf-8", errors="replace",
-                                  timeout=fence_timeout())  # baseline
-        except subprocess.TimeoutExpired:
-            base = None
-        if base is None:
-            detail = ("the fence failed scoring no tests, and the clean fence did not finish, "
-                      "so nothing can be concluded about the mutant")
-        elif base.returncode == 0 and not scored_nothing(base.stdout + base.stderr):
-            verdict = "killed"
-            detail = ("the fence failed scoring no tests, and the same fence passes scoring tests "
-                      "on the restored file — so the mutant is what removed them")
-        elif base.returncode == 0:
-            detail = ("the fence failed scoring no tests, and the clean fence passes scoring "
-                      "nothing either — this fence cannot fail here, mutant or not")
-        else:
-            detail = ("the fence failed scoring no tests, and the clean fence fails too — the "
-                      "failure predates the mutant, so this run judged nothing")
 
     digest = acceptance_digest(cmd)
     sha = git_sha(cwd)

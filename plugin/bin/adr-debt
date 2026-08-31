@@ -10,7 +10,8 @@ Files named architecture.md are scanned line-by-line instead: any `(deferred: <p
 counts (rule rows whose check doesn't exist yet). Pass the arch doc's dir too when it lives
 outside the ADR dir: `adr-debt docs/adr docs`.
 
-`(permanent...)` entries are deliberate boundaries — never reported.
+Typed `(permanent...)` entries are either chosen boundaries or cited facts;
+neither kind is reported. Legacy permanent spellings remain unswept too.
 Pointers that look like a file path or an ADR id must resolve (relative to the
 file, the scanned dir, or the git root); prose/URL/F-n pointers are listed as-is.
 
@@ -19,9 +20,10 @@ Exit: 0 = report printed, every path/ADR pointer resolves
           a path/ADR pointer that resolves to nothing
 
 The loop: run this at /adr-write time. Every reported item is either pulled
-into the new ADR's Context, re-deferred with a fresh pointer, or promoted to
-`(permanent: <why>)`. Debt that is never surfaced is debt that was silently
-dropped — this report is the surfacing mechanism.
+into the new ADR's Context, re-deferred with a fresh pointer, or classified as
+`(permanent: boundary: <reason>)` / `(permanent: fact: <claim>; citation: <typed receipt>)`.
+Debt that is never surfaced is debt that was silently dropped — this report is the
+surfacing mechanism.
 """
 import datetime
 import re

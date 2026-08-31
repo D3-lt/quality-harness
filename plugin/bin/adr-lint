@@ -12,7 +12,8 @@ Checks:
            Out of Scope entries carry a disposition: (permanent[: why]) or (deferred: <pointer>)
   Tasks  : bash fence under ## Acceptance (or explicit human-observed sentence) ·
            required sections · Affected Files ≥1 row · Ordered Steps step 1 mentions a test ·
-           Depends-on/Covers/Produces/Consumes headers present · Depends-on targets exist
+           Depends-on/Covers/Produces/Consumes headers present · Depends-on targets exist ·
+           recognized Go fences can select the PASS marker they require
   README : listed task IDs ↔ task files match (task files are the source of truth) ·
            wave table required only for >5 tasks
   DAG    : edges from Depends-on + Consumes (T-id refs and backticked contract tokens
@@ -34,6 +35,7 @@ Exit: 0 pass · 1 failures found
 import hashlib
 import json
 import re
+import shlex
 import subprocess
 import sys
 from contextlib import contextmanager
@@ -2333,6 +2335,363 @@ def code_only(text, python=False):
     return text
 
 
+GO_TEST_BOOLEAN_FLAGS = {"-failfast", "-race", "-short"}
+GO_TEST_SELECTION_FLAGS = {"-bench", "-fuzz", "-json", "-list", "-run", "-skip"}
+
+
+def _literal_shell_chain(acc):
+    """Top-level commands joined only by load-bearing `&&`, or None.
+
+    This is intentionally smaller than shell. The check needs to know that a
+    grep reads the Go command's output and that its status contributes to the
+    fence's status; recognizing tokens without those relationships would turn
+    syntax into a claim about execution (ADR-005, docs/BACKLOG.md `78).
+    """
+    lines = [line for line in acc.splitlines() if line.strip()]
+    if lines and lines[0].strip() == "set -o pipefail":
+        lines.pop(0)
+    text = "\n".join(lines)
+    if not text:
+        return None
+
+    commands, current = [], []
+    quote = None
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        if quote == "'":
+            current.append(char)
+            if char == "'":
+                quote = None
+            index += 1
+            continue
+        if quote == '"':
+            if escaped:
+                current.append(char)
+                escaped = False
+            elif char == "\\":
+                current.append(char)
+                escaped = True
+            elif char == '"':
+                current.append(char)
+                quote = None
+            elif char in ("$", "`"):
+                return None
+            else:
+                current.append(char)
+            index += 1
+            continue
+        if char in ("'", '"'):
+            quote = char
+            current.append(char)
+        elif text.startswith("2>&1", index):
+            # The accepted Go pipeline owns exactly this redirection. Preserve
+            # it as a token; every other lone `&` is still ambiguous shell.
+            current.extend("2>&1")
+            index += 3
+        elif char in ("$", "`", ";", "(", ")", "#", "*", "?", "{", "}"):
+            return None
+        elif char == "\\":
+            return None
+        elif char == "|":
+            if text[index:index + 2] == "||":
+                return None
+            current.append(char)
+        elif char == "&":
+            if text[index:index + 2] != "&&":
+                return None
+            command = "".join(current).strip()
+            if not command or "\n" in command:
+                return None
+            commands.append(command)
+            current = []
+            index += 1
+        else:
+            current.append(char)
+        index += 1
+
+    command = "".join(current).strip()
+    if quote is not None or escaped or not command or "\n" in command:
+        return None
+    commands.append(command)
+    if commands and commands[0] == "set -o pipefail":
+        commands.pop(0)
+    return commands or None
+
+
+def _go_package_scope(token):
+    """Literal `.`/`./path`/`./path/...` as (display, directory parts, recursive)."""
+    if token == ".":
+        return token, (), False
+    if not token.startswith("./") or token == "./":
+        return None
+    parts = PurePosixPath(token[2:]).parts
+    if not parts or any(part in ("", ".", "..") for part in parts):
+        return None
+    recursive = parts[-1] == "..."
+    if "..." in parts[:-1]:
+        return None
+    base = parts[:-1] if recursive else parts
+    if any(re.fullmatch(r"[A-Za-z0-9_.-]+", part) is None for part in base):
+        return None
+    return token, tuple(base), recursive
+
+
+def _ordinary_output_sink(sink):
+    """Whether tee and grep both treat this literal as an ordinary stored file."""
+    normal = sink.replace("\\", "/")
+    if (not normal or normal.startswith(("-", "~", "/dev/", "/proc/self/fd/"))
+            or any(mark in normal for mark in ("|", ">", "<"))):
+        return False
+    raw_leaf = normal.rsplit("/", 1)[-1]
+    if raw_leaf in ("", ".", ".."):
+        return False
+    # Git Bash and native Windows both reserve these names, including forms
+    # such as NUL.txt. A device is not the persisted output relation we judge.
+    leaf = raw_leaf.split(".", 1)[0].rstrip(":").casefold()
+    return re.fullmatch(r"aux|con|nul|prn|com[1-9]|lpt[1-9]", leaf) is None
+
+
+def _go_pass_marker(pattern):
+    """A literal substring printed by verbose Go output, or None."""
+    marker = re.fullmatch(r"PASS: (Test[A-Za-z_][A-Za-z0-9_]*)", pattern)
+    return marker.group(1) if marker else None
+
+
+def _grep_rejects_no_test_files(option, pattern):
+    """Whether this exact grep form can match Go's lowercase healthy status."""
+    if option == "-qF":
+        return pattern in ("no test files", "[no test files]")
+    return pattern in ("no test files", r"\[no test files\]")
+
+
+def _parse_go_acceptance(acc):
+    """The one root-level Go → tee → same-sink grep shape ADR-015 accepts."""
+    chain = _literal_shell_chain(acc)
+    if not chain or len(chain) < 2:
+        return None
+    if len([part for part in chain if re.match(r"^go\s+test\b", part)]) != 1:
+        return None
+    if re.match(r"^go\s+test\b", chain[0]) is None:
+        return None
+
+    go = re.fullmatch(
+        r"go\s+test(?P<args>.*?)\s+2>&1\s*\|\s*tee\s+(?P<sink>.+)",
+        chain[0])
+    if go is None or any(mark in go.group("args") for mark in ("|", ">", "<")):
+        return None
+    try:
+        argv = shlex.split("go test" + go.group("args"), posix=True)
+        sinks = shlex.split(go.group("sink"), posix=True)
+    except ValueError:
+        return None
+    if argv[:2] != ["go", "test"] or len(sinks) != 1:
+        return None
+    sink = sinks[0]
+    if not _ordinary_output_sink(sink):
+        return None
+
+    scopes = []
+    verbose = False
+    for token in argv[2:]:
+        scope = _go_package_scope(token)
+        if scope is not None:
+            if scope not in scopes:
+                scopes.append(scope)
+            continue
+        if token in ("-args", "-exec") or token.startswith(("-args=", "-exec=")):
+            return None
+        if token == "-v":
+            verbose = True
+            continue
+        flag = token.partition("=")[0]
+        if flag in GO_TEST_SELECTION_FLAGS:
+            return None
+        if token in GO_TEST_BOOLEAN_FLAGS:
+            continue
+        return None
+    if not scopes or not verbose:
+        return None
+
+    required = set()
+    rejects_no_test_files = False
+    for command in chain[1:]:
+        try:
+            words = shlex.split(command, posix=True)
+        except ValueError:
+            return None
+        negated = bool(words and words[0] == "!")
+        if negated:
+            words = words[1:]
+        if len(words) != 4 or words[0] != "grep" or words[1] not in ("-q", "-qF", "-qE"):
+            return None
+        option = words[1]
+        pattern, source = words[2:]
+        if source != sink:
+            return None
+        if negated:
+            rejects_no_test_files |= _grep_rejects_no_test_files(option, pattern)
+            continue
+        marker = _go_pass_marker(pattern)
+        if marker:
+            required.add(marker)
+
+    if not required:
+        return None
+    return {
+        "scopes": tuple(scopes),
+        "required": tuple(sorted(required)),
+        "rejects_no_test_files": rejects_no_test_files,
+    }
+
+
+def _go_package_selects(scope, test_path, platform=None):
+    """Whether a normalized package scope contains a candidate test file."""
+    _display, package_parts, recursive = scope
+    normal = test_path.replace("\\", "/")
+    path = PurePosixPath(normal)
+    if path.is_absolute() or ".." in path.parts:
+        return False
+    directory = tuple(part for part in path.parent.parts if part not in ("", "."))
+    platform = sys.platform if platform is None else platform
+    if platform == "darwin" or platform.startswith("win"):
+        package_parts = tuple(part.casefold() for part in package_parts)
+        directory = tuple(part.casefold() for part in directory)
+    if recursive:
+        return directory[:len(package_parts)] == package_parts
+    return directory == package_parts
+
+
+def _go_code_only(text):
+    """Blank Go comments and literals without confusing delimiters inside strings."""
+    output = []
+    state = "code"
+    escaped = False
+    index = 0
+    while index < len(text):
+        char = text[index]
+        pair = text[index:index + 2]
+        if state == "code":
+            if pair == "//":
+                output.extend("  ")
+                state = "line-comment"
+                index += 2
+                continue
+            if pair == "/*":
+                output.extend("  ")
+                state = "block-comment"
+                index += 2
+                continue
+            if char in ('"', "'"):
+                output.append(" ")
+                state = char
+                escaped = False
+            elif char == "`":
+                output.append(" ")
+                state = "raw-string"
+            else:
+                output.append(char)
+        elif state == "line-comment":
+            output.append("\n" if char == "\n" else " ")
+            if char == "\n":
+                state = "code"
+        elif state == "block-comment":
+            if pair == "*/":
+                output.extend("  ")
+                state = "code"
+                index += 2
+                continue
+            output.append("\n" if char == "\n" else " ")
+        elif state == "raw-string":
+            output.append("\n" if char == "\n" else " ")
+            if char == "`":
+                state = "code"
+        else:
+            output.append("\n" if char == "\n" else " ")
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == state:
+                state = "code"
+        index += 1
+    return "".join(output)
+
+
+def _go_direct_test_definitions(root, tracked, names):
+    """Tracked direct top-level Go test definitions, or None when source was unreadable."""
+    if root is None or tracked is None:
+        return None
+    found = {name: [] for name in names}
+    for candidate in sorted(tracked):
+        normal = candidate.replace("\\", "/")
+        path = PurePosixPath(normal)
+        if path.is_absolute() or ".." in path.parts or not path.name.endswith("_test.go"):
+            continue
+        source_path = root.joinpath(*path.parts)
+        if not source_path.exists():
+            continue  # a tracked deletion is not a test the worktree can run
+        try:
+            source = _go_code_only(source_path.read_text(errors="replace", encoding="utf-8"))
+        except OSError:
+            return None
+        for name in names:
+            if re.search(rf"(?m)^[ \t]*func[ \t]+{re.escape(name)}[ \t]*\(", source):
+                found[name].append(normal)
+    return found
+
+
+def check_go_acceptance_fences(infos, errors, root, tracked):
+    """Advise on the two statically reachable Go-fence failures from ADR-015."""
+    parsed = []
+    for info in infos.values():
+        if info.get("human") or not info.get("acc_all"):
+            continue
+        fence = _parse_go_acceptance(info["acc_all"])
+        if fence is not None:
+            parsed.append((info, fence))
+    if not parsed:
+        return
+
+    names = {name for _info, fence in parsed for name in fence["required"]}
+    definitions = _go_direct_test_definitions(root, tracked, names)
+    if definitions is None:
+        for info, _fence in parsed:
+            errors.advise(
+                f"{info['path'].name}: could not read git's candidate `*_test.go` files, so "
+                f"the Go Acceptance package/result check did NOT run — no claim is made about "
+                f"which package can produce its required PASS marker")
+        return
+
+    for info, fence in parsed:
+        displays = ", ".join(f"`{scope[0]}`" for scope in fence["scopes"])
+        for name in fence["required"]:
+            paths = definitions[name]
+            if any(_go_package_selects(scope, path)
+                   for scope in fence["scopes"] for path in paths):
+                continue
+            if paths:
+                locations = ", ".join(f"`{path}`" for path in paths)
+                errors.advise(
+                    f"{info['path'].name}: Go Acceptance requires `PASS: {name}`, but literal "
+                    f"package scope(s) {displays} do not select its tracked direct definition "
+                    f"in {locations} — add that package scope or require a test the command "
+                    f"selects")
+            else:
+                errors.advise(
+                    f"{info['path'].name}: Go Acceptance requires `PASS: {name}`, but source "
+                    f"inspection found no tracked direct `func {name}(` definition under "
+                    f"literal package scope(s) {displays}; generated, build-tagged, wrapped, "
+                    f"or runtime-created tests were not evaluated")
+        if fence["rejects_no_test_files"]:
+            errors.advise(
+                f"{info['path'].name}: a load-bearing grep over the same Go output rejects "
+                f"Go's healthy `[no test files]` status, which is valid for a selected package "
+                f"containing no tests — retain the positive, exactly anchored PASS assertion "
+                f"or make the exclusion package-specific")
+
+
 def check_tests_can_fail(infos, readme_text, errors, root):
     """A test named by a `done` task must contain a failure path.
 
@@ -2676,6 +3035,7 @@ def main():
               "reads a directory")
         sys.exit(1)
     errors = Findings()
+    root = git_root(adr.parent)
     # Before any check runs, so every finding this record produces is judged the
     # same way. A record at or above the cutoff, or a corpus that declares none,
     # is checked exactly as it was before this existed.
@@ -2750,12 +3110,14 @@ def main():
         # The evidence chain, and the only checks strictFrom cannot reach. Held
         # here rather than tagged at each call site so the exclusion is visible
         # in one place and a new check inside these functions inherits it.
+        tracked = tracked_paths(root)
+        check_go_acceptance_fences(infos, errors, root, tracked)
         with errors.protected():
             check_verification(infos, readme_text, errors)
             check_task_status_vocabulary(infos, readme_text, errors)
             check_status_allows_execution(adr, readme_text, errors)
-            check_tests_exist(infos, readme_text, errors, git_root(tasks_dir))
-            check_tests_can_fail(infos, readme_text, errors, git_root(tasks_dir))
+            check_tests_exist(infos, readme_text, errors, root)
+            check_tests_can_fail(infos, readme_text, errors, root)
             check_mutation_evidence(infos, readme_text, errors)
             check_named_tests_are_run(infos, readme_text, errors)
         check_file_collisions(infos, errors)
@@ -2765,9 +3127,9 @@ def main():
     # to every record whether or not it has tasks, and it is advice — a pointer
     # to nothing is worth saying and is never worth blocking a record over.
     check_enforcement(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
-                      git_root(adr.parent))
+                      root)
     check_pointers(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
-                   git_root(adr.parent), adr.parent)
+                   root, adr.parent)
     check_cross_record_cycles(adr.parent, errors)
 
     if spec_file is not None:

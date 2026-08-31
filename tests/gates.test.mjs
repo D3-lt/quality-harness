@@ -538,6 +538,290 @@ test('focused false-green regressions remain closed', () => {
   expectExit(result, 0, 'gate regressions')
 })
 
+test('adr-lint reports Go fences whose required success is unreachable', (t) => {
+  // Reported from a consumer's ADR-008 T2. The fence required a PASS marker
+  // from internal/web while running only internal/billing, then rejected Go's
+  // healthy status for a selected embed-only package. Each fence rewrite
+  // invalidated its evidence digest, so this belongs at authoring time.
+  const repo = mkdtempSync(join(os.tmpdir(), 'quality-harness-go-fence-'))
+  t.after(() => rmSync(repo, { recursive: true, force: true }))
+  const unit = join(repo, 'docs', 'adr', 'ADR-015-green-path')
+  cpSync(fixture, unit, { recursive: true })
+
+  const billing = join(repo, 'internal', 'billing')
+  const assets = join(billing, 'assets')
+  const web = join(repo, 'internal', 'web')
+  mkdirSync(assets, { recursive: true })
+  mkdirSync(web, { recursive: true })
+  writeFileSync(join(repo, 'go.mod'), 'module example.invalid/green-path\n\ngo 1.22\n')
+  writeFileSync(join(billing, 'billing.go'), 'package billing\n')
+  const billingTest = join(billing, 'billing_test.go')
+  const selectedDefinition = [
+    'package billing', '',
+    'import "testing"', '',
+    'func TestBilling(t *testing.T) {}', '',
+  ].join('\n')
+  writeFileSync(billingTest, selectedDefinition)
+  writeFileSync(join(billing, 'strings_test.go'), [
+    'package billing', '',
+    'import "testing"', '',
+    'const commentStart = "/*"', '',
+    'func TestStringDelimiters(t *testing.T) {}', '',
+    'const commentEnd = "*/"', '',
+    '  /* generated */ func TestCommentPrefixed(t *testing.T) {}', '',
+    '// func TestLexicalOnly(t *testing.T) {}',
+    '/*',
+    'func TestLexicalOnly(t *testing.T) {}',
+    '*/',
+    'const quotedOnly = "func TestLexicalOnly(t *testing.T) {}"',
+    'const rawOnly = `',
+    'func TestLexicalOnly(t *testing.T) {}',
+    '`', '',
+  ].join('\n'))
+  writeFileSync(join(assets, 'assets.go'), 'package assets\n')
+  writeFileSync(join(web, 'web.go'), 'package web\n')
+  writeFileSync(join(web, 'web_test.go'), [
+    'package web', '',
+    'import "testing"', '',
+    'func TestOnlyWeb(t *testing.T) {}', '',
+  ].join('\n'))
+  expectExit(run('git', ['init', '-q'], repo), 0, 'Go-fence fixture git init')
+  expectExit(run('git', ['add', '--all'], repo), 0, 'Go-fence fixture git add')
+
+  const adr = join(unit, 'ADR-001-selftest.md')
+  const tasks = join(unit, 'tasks')
+  const task = join(tasks, 'T1-fixture.md')
+  const taskSource = readFileSync(task, 'utf8')
+  const acceptanceBlock = /(## Acceptance\n\n```bash\n)[\s\S]*?(\n```\n\n## Tests)/
+  const lint = (commands, label) => {
+    const rewritten = taskSource.replace(
+      acceptanceBlock,
+      (_whole, open, close) => `${open}${commands}${close}`,
+    )
+    assert.notEqual(rewritten, taskSource, `${label}: fixture Acceptance was not replaced`)
+    writeFileSync(task, rewritten)
+    const result = run('adr-lint', [adr, tasks], repo)
+    expectExit(result, 0, label)
+    return result.stdout
+  }
+
+  const unreachable = /advice: .*requires `PASS: Test[A-Za-z0-9_]+`/m
+  const noTestFiles = /advice: .*rejects Go's healthy `\[no test files\]` status/m
+  const expectNoGoAdvice = (output, label) => {
+    assert.doesNotMatch(output, unreachable, `${label}:\n${output}`)
+    assert.doesNotMatch(output, noTestFiles, `${label}:\n${output}`)
+  }
+
+  const dirty = lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestOnlyWeb' go-test.out &&",
+    "! grep -qF '[no test files]' go-test.out",
+  ].join('\n'), 'unreachable required success')
+  assert.match(dirty, /advice: .*requires `PASS: TestOnlyWeb`/m, dirty)
+  assert.match(dirty, /`internal\/web\/web_test\.go`/, dirty)
+  assert.match(dirty, /`\.\/internal\/billing\/\.\.\.`/, dirty)
+  assert.match(dirty, noTestFiles, dirty)
+
+  for (const [option, statusPattern] of [
+    ['-q', 'no test files'],
+    ['-qE', '\\[no test files\\]'],
+  ]) {
+    const regexDirty = lint([
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      `grep ${option} 'PASS: TestOnlyWeb' go-test.out &&`,
+      `! grep ${option} '${statusPattern}' go-test.out`,
+    ].join('\n'), `${option} grep forms`)
+    assert.match(regexDirty, unreachable, regexDirty)
+    assert.match(regexDirty, noTestFiles, regexDirty)
+  }
+
+  // Adding the package that owns the required test clears only that finding;
+  // the deliberately bad healthy-status exclusion remains independently red.
+  const correctedScope = lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... ./internal/web/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestOnlyWeb' go-test.out &&",
+    "! grep -qF '[no test files]' go-test.out",
+  ].join('\n'), 'corrected package scope')
+  assert.doesNotMatch(correctedScope, unreachable, correctedScope)
+  assert.match(correctedScope, noTestFiles, correctedScope)
+
+  // A direct definition under an already-selected package is the other
+  // positive control. Keep the out-of-scope copy too: one selected definition
+  // is enough, while the healthy-status finding remains observable.
+  writeFileSync(billingTest, `${selectedDefinition}func TestOnlyWeb(t *testing.T) {}\n`)
+  const selected = lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestOnlyWeb' go-test.out &&",
+    "! grep -qF '[no test files]' go-test.out",
+  ].join('\n'), 'selected direct definition')
+  assert.doesNotMatch(selected, unreachable, selected)
+  assert.match(selected, noTestFiles, selected)
+  writeFileSync(billingTest, selectedDefinition)
+
+  // A Go-aware source scan must not turn comment delimiters inside strings
+  // into a block comment that erases a real definition between them.
+  expectNoGoAdvice(lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestStringDelimiters' go-test.out",
+  ].join('\n'), 'Go strings containing comment delimiters'),
+    'Go strings containing comment delimiters')
+
+  expectNoGoAdvice(lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestCommentPrefixed' go-test.out",
+  ].join('\n'), 'comment-prefixed Go test definition'),
+    'comment-prefixed Go test definition')
+
+  const lexicalOnly = lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestLexicalOnly' go-test.out",
+  ].join('\n'), 'Go comments and strings are not definitions')
+  assert.match(lexicalOnly,
+    /requires `PASS: TestLexicalOnly`, but source inspection found no tracked direct/,
+    lexicalOnly)
+
+  const platformProbe = [
+    'import json, runpy, sys',
+    "module = runpy.run_path(sys.argv[1], run_name='adr_lint_case_probe')",
+    "scope = module['_go_package_scope']('./Internal/Web/...')",
+    "selects = module['_go_package_selects']",
+    "print(json.dumps([selects(scope, 'internal/web/web_test.go', platform) for platform in ('darwin', 'win32', 'linux')]))",
+  ].join('; ')
+  const platformResult = run('python3', ['-c', platformProbe, join(bin, 'adr-lint')], repo)
+  expectExit(platformResult, 0, 'simulated package path case semantics')
+  assert.deepEqual(JSON.parse(platformResult.stdout), [true, true, false])
+
+  // The selected embed-only package is unchanged. Removing only the invalid
+  // exclusion is enough to make this a clean, statically reachable fence.
+  expectNoGoAdvice(lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestBilling' go-test.out",
+  ].join('\n'), 'healthy embed-only package'), 'healthy embed-only package')
+
+  // `no tests to run` is Go's vacuity signal for a filter that selected
+  // nothing. It remains a valid exclusion and is not `[no test files]`.
+  expectNoGoAdvice(lint([
+    'set -o pipefail',
+    'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+    "grep -qF 'PASS: TestBilling' go-test.out &&",
+    "! grep -qF 'no tests to run' go-test.out",
+  ].join('\n'), 'no-tests-to-run guard'), 'no-tests-to-run guard')
+
+  for (const sink of ['.', '..', '/', 'out/']) {
+    expectNoGoAdvice(lint([
+      'set -o pipefail',
+      `go test -v ./internal/billing/... 2>&1 | tee ${sink} &&`,
+      `grep -qF 'PASS: TestOnlyWeb' ${sink}`,
+    ].join('\n'), `directory sink ${sink}`), `directory sink ${sink}`)
+  }
+
+  const noVerdictControls = new Map([
+    ['changed cwd', [
+      'set -o pipefail',
+      'cd internal &&',
+      'go test -v ./billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' go-test.out",
+    ].join('\n')],
+    ['unrelated sink', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' other.out",
+    ].join('\n')],
+    ['inert exclusion', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' go-test.out &&",
+      "! grep -qF '[no test files]' go-test.out || true",
+    ].join('\n')],
+    ['second Go command', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee billing.out &&',
+      'go test -v ./internal/web/... 2>&1 | tee web.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' web.out",
+    ].join('\n')],
+    ['dynamic package', [
+      'set -o pipefail',
+      'go test -v "$PACKAGES" 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' go-test.out",
+    ].join('\n')],
+    ['dynamic sink', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee "$OUT" &&',
+      "grep -qF 'PASS: TestOnlyWeb' \"$OUT\"",
+    ].join('\n')],
+    ['dynamic pattern', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      'grep -qF "PASS: $TEST_NAME" go-test.out',
+    ].join('\n')],
+    ['non-verbose output', [
+      'set -o pipefail',
+      'go test ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' go-test.out",
+    ].join('\n')],
+    ['list-only output', [
+      'set -o pipefail',
+      'go test -v -list TestOnlyWeb ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' go-test.out",
+    ].join('\n')],
+    ['uppercase healthy status', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestBilling' go-test.out &&",
+      "! grep -qF '[NO TEST FILES]' go-test.out",
+    ].join('\n')],
+    ['BRE unescaped bracket status', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestBilling' go-test.out &&",
+      "! grep -q '[no test files]' go-test.out",
+    ].join('\n')],
+    ['ERE unescaped bracket status', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestBilling' go-test.out &&",
+      "! grep -qE '[no test files]' go-test.out",
+    ].join('\n')],
+    ['prefixed healthy status', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestBilling' go-test.out &&",
+      "! grep -qF 'prefix [no test files]' go-test.out",
+    ].join('\n')],
+    ['double-space PASS marker', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS:  TestOnlyWeb' go-test.out",
+    ].join('\n')],
+    ['standard-stream sink', [
+      'set -o pipefail',
+      'go test -v ./internal/billing/... 2>&1 | tee - &&',
+      "grep -qF 'PASS: TestOnlyWeb' -",
+    ].join('\n')],
+    ['unknown joined flag', [
+      'set -o pipefail',
+      'go test -v -mystery=value ./internal/billing/... 2>&1 | tee go-test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' go-test.out",
+    ].join('\n')],
+    ['non-Go fence', [
+      'set -o pipefail',
+      'python3 -m unittest 2>&1 | tee test.out &&',
+      "grep -qF 'PASS: TestOnlyWeb' test.out",
+    ].join('\n')],
+  ])
+  for (const [label, commands] of noVerdictControls) {
+    expectNoGoAdvice(lint(commands, label), label)
+  }
+})
+
 // A corpus with history: the fixture copied into a repo of its own, with one
 // content rule broken and one evidence claim unbacked.
 function agedCorpus(prefix, config) {

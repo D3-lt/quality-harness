@@ -9,7 +9,8 @@ Without a tasks dir, only ADR-level checks run (inline-task ADRs).
 Checks:
   ADR    : Status line · Alternatives Considered ≥1 · Wiring section non-empty ·
            Spec: header present; if it names a file, the file must exist ·
-           Out of Scope entries carry a disposition: (permanent[: why]) or (deferred: <pointer>)
+           Out of Scope entries carry a disposition: (permanent: boundary: <reason>),
+           (permanent: fact: <claim>; citation: <typed receipt>), or (deferred: <pointer>)
   Tasks  : bash fence under ## Acceptance (or explicit human-observed sentence) ·
            required sections · Affected Files ≥1 row · Ordered Steps step 1 mentions a test ·
            Depends-on/Covers/Produces/Consumes headers present · Depends-on targets exist ·
@@ -33,6 +34,7 @@ Checks:
 Exit: 0 pass · 1 failures found
 """
 import hashlib
+import ipaddress
 import json
 import re
 import shlex
@@ -40,6 +42,7 @@ import subprocess
 import sys
 from contextlib import contextmanager
 from pathlib import Path, PurePosixPath
+from urllib.parse import urlsplit
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -452,8 +455,262 @@ def _carries_a_disposition(bullet):
     return bool(span) and closes_the_line(bullet, span[2]) and bool(DISPOSITION_TEXT.match(span[0]))
 
 
-def check_adr(adr_path, errors):
+PERMANENT_BASIS_FORMS = (
+    "`(permanent: boundary: <reason>)` or "
+    "(permanent: fact: <claim>; citation: file `<repository-path>:<line>`), "
+    "citation: version `<name>@<version>` or citation: url https://<host>[/<path>]"
+)
+
+
+def _permanent_advice(errors, record, detail):
+    """Report one typed-basis problem without changing the lint verdict."""
+    prefix = f"{record}: " if record else ""
+    errors.advise(
+        f"{prefix}permanent basis: {detail}. Accepted forms: {PERMANENT_BASIS_FORMS}")
+
+
+def _inside_repository(path, root):
+    """Whether a resolved path is the repository root or one of its descendants."""
+    return path == root or root in path.parents
+
+
+def _check_permanent_file_citation(receipt, root, tracked, errors, read_text=None,
+                                   resolve_path=None, record=""):
+    """Advise unless `receipt` locates a readable repository-candidate line.
+
+    `tracked` deliberately accepts None: that means git could not answer, which
+    is different from an empty repository. `read_text` is injectable because a
+    portable test cannot manufacture an unreadable file on every CI platform.
+    """
+    path_text, separator, line_text = receipt.rpartition(":")
+    if not separator or not re.fullmatch(r"[1-9]\d*", line_text):
+        _permanent_advice(
+            errors, record,
+            f"file citation `{receipt}` must end in a positive decimal line number")
+        return
+
+    normalized = path_text.replace("\\", "/")
+    parts = normalized.split("/")
+    if (looks_absolute(path_text) or not normalized or "" in parts or
+            any(part in (".", "..") for part in parts)):
+        _permanent_advice(
+            errors, record,
+            f"file citation `{receipt}` leaves the repository or is not repository-relative")
+        return
+    if root is None or tracked is None:
+        _permanent_advice(
+            errors, record,
+            f"could not validate file citation `{receipt}` because git could not provide "
+            "repository candidates")
+        return
+
+    candidates = {str(path).replace("\\", "/") for path in tracked}
+    if normalized not in candidates:
+        _permanent_advice(
+            errors, record,
+            f"file citation `{receipt}` is not a repository candidate (tracked or untracked "
+            "and non-ignored)")
+        return
+
+    candidate = Path(root).joinpath(*PurePosixPath(normalized).parts)
+    resolver = resolve_path or (lambda path: path.resolve())
+    try:
+        resolved_root = resolver(Path(root))
+        resolved_candidate = resolver(candidate)
+    except (OSError, RuntimeError) as exc:
+        _permanent_advice(
+            errors, record,
+            f"could not validate file citation `{receipt}` ({exc.__class__.__name__})")
+        return
+    if not _inside_repository(resolved_candidate, resolved_root):
+        _permanent_advice(
+            errors, record,
+            f"file citation `{receipt}` leaves the repository through its resolved path")
+        return
+
+    try:
+        candidate.stat()
+    except FileNotFoundError:
+        _permanent_advice(
+            errors, record,
+            f"file citation `{receipt}` is a repository candidate but is absent from the "
+            "working tree")
+        return
+    except OSError as exc:
+        _permanent_advice(
+            errors, record,
+            f"could not read file citation `{receipt}` ({exc.__class__.__name__})")
+        return
+
+    reader = read_text or (lambda path: path.read_text(encoding="utf-8"))
+    try:
+        lines = reader(candidate).splitlines()
+    except FileNotFoundError:
+        # The file can disappear after stat(); preserve the same observed state
+        # instead of changing the diagnosis merely because the race was narrow.
+        _permanent_advice(
+            errors, record,
+            f"file citation `{receipt}` is a repository candidate but is absent from the "
+            "working tree")
+        return
+    except (OSError, UnicodeError) as exc:
+        _permanent_advice(
+            errors, record,
+            f"could not read file citation `{receipt}` ({exc.__class__.__name__})")
+        return
+    if len(line_text) > 1000:
+        _permanent_advice(
+            errors, record,
+            f"file citation line number is too large to resolve ({len(line_text)} digits)")
+        return
+    try:
+        line = int(line_text)
+    except ValueError:
+        # Python 3.11+ lets the process lower its integer-string digit limit.
+        # A citation must not turn that runtime setting into a gate traceback.
+        _permanent_advice(
+            errors, record,
+            f"file citation line number is too large to resolve ({len(line_text)} digits)")
+        return
+    if line > len(lines):
+        _permanent_advice(
+            errors, record,
+            f"file citation `{receipt}` names line {line}, but that line does not exist")
+
+
+def _check_permanent_url_citation(receipt, errors, record):
+    """Advise unless `receipt` is an offline lowercase-HTTPS host/path URL."""
+    if not receipt.startswith("https://"):
+        _permanent_advice(
+            errors, record,
+            f"URL citation `{receipt}` must use the exact lowercase `https` scheme")
+        return
+    try:
+        parsed = urlsplit(receipt)
+        # Accessing port makes malformed bracket/port spellings observable.
+        parsed.port
+    except ValueError:
+        _permanent_advice(errors, record, f"URL citation `{receipt}` is malformed")
+        return
+    if (not parsed.hostname or any(char.isspace() or ord(char) < 32 for char in receipt) or
+            "\\" in receipt):
+        _permanent_advice(errors, record, f"URL citation `{receipt}` must name a host")
+        return
+    if (parsed.username or parsed.password or parsed.query or parsed.fragment or
+            "@" in parsed.netloc or "?" in receipt or "#" in receipt):
+        _permanent_advice(
+            errors, record,
+            f"URL citation `{receipt}` must contain only an HTTPS host and optional path")
+        return
+
+    authority = parsed.netloc
+    host = parsed.hostname
+    if ":" in host:
+        match = re.fullmatch(r"\[([^\]]+)\](?::[0-9]+)?", authority)
+        try:
+            address = ipaddress.ip_address(host)
+        except ValueError:
+            address = None
+        valid_host = bool(match and address and address.version == 6)
+    else:
+        match = re.fullmatch(r"([^:]+)(?::[0-9]+)?", authority)
+        labels = host[:-1].split(".") if host.endswith(".") else host.split(".")
+        valid_host = bool(
+            match and labels and
+            all(0 < len(label) <= 63 and
+                re.fullmatch(r"[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?", label)
+                for label in labels))
+    if not valid_host:
+        _permanent_advice(
+            errors, record,
+            f"URL citation `{receipt}` must name a syntactically valid HTTPS host")
+
+
+def check_permanent_disposition(inner, adr_path, errors, root, candidates):
+    """Classify one terminal permanent disposition and validate its typed receipt."""
+    record = Path(adr_path).name
+    boundary_prefix = "permanent: boundary:"
+    fact_prefix = "permanent: fact:"
+
+    if inner.startswith(boundary_prefix):
+        reason = inner[len(boundary_prefix):].strip()
+        if not reason:
+            _permanent_advice(errors, record, "a boundary needs a non-empty reason")
+        elif re.search(r";\s*citation\s*:", reason, re.I):
+            _permanent_advice(
+                errors, record,
+                "a boundary records this decision's choice and cannot carry a citation field")
+        return
+
+    if inner.startswith(fact_prefix):
+        fact = inner[len(fact_prefix):]
+        marker = "; citation:"
+        if fact.count(marker) != 1:
+            _permanent_advice(
+                errors, record,
+                "a fact needs exactly one exact `; citation:` suffix and one typed receipt")
+            return
+        claim, receipt = fact.rsplit(marker, 1)
+        if not claim.strip():
+            _permanent_advice(errors, record, "a fact needs a non-empty claim")
+            return
+        if not receipt.startswith(" ") or receipt.startswith("  "):
+            _permanent_advice(
+                errors, record,
+                "the citation suffix must be followed by exactly one typed receipt")
+            return
+        receipt = receipt[1:]
+
+        file_match = re.fullmatch(r"file `([^`\n]+)`", receipt)
+        if file_match:
+            _check_permanent_file_citation(
+                file_match.group(1), root, candidates(), errors, record=record)
+            return
+        version_match = re.fullmatch(r"version `([^`\n]+)`", receipt)
+        if version_match:
+            name, at, version = version_match.group(1).rpartition("@")
+            if not at or not name.strip() or not version.strip():
+                _permanent_advice(
+                    errors, record,
+                    f"version citation `{version_match.group(1)}` needs a non-empty name and version")
+            return
+        if receipt.startswith("url "):
+            _check_permanent_url_citation(receipt[4:], errors, record)
+            return
+        _permanent_advice(
+            errors, record,
+            "a fact citation must be one complete typed receipt: `file`, `version`, or `url`")
+        return
+
+    # Old free-form permanent reasons remain dispositions, but near-misses of
+    # either typed keyword get the grammar remedy rather than migration advice.
+    if inner == "permanent" or not re.match(
+            r"^permanent\s*:\s*(?:boundary|fact)\s*:", inner, re.I):
+        _permanent_advice(
+            errors, record,
+            "this legacy permanent disposition must classify itself as boundary or fact")
+    else:
+        _permanent_advice(
+            errors, record,
+            "the structural keywords and separators in a typed permanent disposition must be "
+            "exact lowercase text")
+
+
+_ROOT_UNSET = object()
+
+
+def check_adr(adr_path, errors, root=_ROOT_UNSET):
     text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
+    if root is _ROOT_UNSET:
+        root = git_root(Path(adr_path).parent)
+    permanent_paths = _ROOT_UNSET
+
+    def permanent_candidates():
+        nonlocal permanent_paths
+        if permanent_paths is _ROOT_UNSET:
+            permanent_paths = tracked_paths(root)
+        return permanent_paths
+
     if not re.search(r"^\*\*Status:\*\*", text, re.M):
         errors.advise(f"{adr_path.name}: no **Status:** line")
     secs = sections_of(text)
@@ -465,7 +722,12 @@ def check_adr(adr_path, errors):
         errors.append(f"{adr_path.name}: Wiring & Contract Changes empty "
                       f"(write 'None — implementation-internal only' if true)")
     for s in scope_bullets(secs.get("Out of Scope", [])):
-        if not _carries_a_disposition(s):
+        span = disposition_span(s)
+        if (span and closes_the_line(s, span[2]) and
+                re.match(r"^permanent\b", span[0])):
+            check_permanent_disposition(
+                span[0], adr_path, errors, root, permanent_candidates)
+        elif not _carries_a_disposition(s):
             # "needs a disposition" reads as "you gave no reason", and the reason is
             # very often right there in prose — the entry is missing the machine
             # -readable FORM, not the thinking. Reported 2026-08-29 by a reader on
@@ -474,7 +736,8 @@ def check_adr(adr_path, errors):
             # the old sentence let them read *reason absent*.
             errors.advise(f"{adr_path.name}: Out of Scope entry ends with no machine-readable "
                           f"disposition — a reason in prose is not one, and `adr-debt` cannot "
-                          f"sweep it. End the entry with '(permanent[: why])' or "
+                          f"sweep it. End the entry with '(permanent: boundary: <reason>)', "
+                          f"'(permanent: fact: <claim>; citation: <typed receipt>)', or "
                           f"'(deferred: <pointer>)': {s[:70]}")
     spec = header_val(text, "Spec")
     if spec is None:
@@ -500,7 +763,6 @@ def check_adr(adr_path, errors):
     spec_file = Path(spec)
     if not looks_absolute(spec):
         candidates = [adr_path.parent / spec_file]
-        root = git_root(adr_path.parent)
         if root:
             candidates.append(root / spec_file)
         spec_file = next((c for c in candidates if c.exists()), None)
@@ -3048,7 +3310,7 @@ def main():
         elif number < cutoff:
             errors.demotion = (f"ADR-{number:04d} predates strictFrom ADR-{cutoff:04d}; "
                                f"evidence checks still block")
-    spec_file = check_adr(adr, errors)
+    spec_file = check_adr(adr, errors, root=root)
 
     if len(sys.argv) > 2:
         tasks_dir = Path(sys.argv[2])

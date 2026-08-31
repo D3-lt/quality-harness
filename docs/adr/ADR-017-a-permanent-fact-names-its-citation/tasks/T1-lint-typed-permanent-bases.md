@@ -132,6 +132,8 @@ before calling the guidance coherent.
 ## Mutation Log
 
 <!-- tool-written by adr-verify --mutant; empty at authoring -->
+- 2026-09-01 · 8dbb8f8* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the ADR-level path must select typed permanent classification · acceptance-sha256:b3398f5172664c1600392b0abc1f69b3f49f68e8caccfe458ef6006b69b2f6d8
+- 2026-09-01 · 8dbb8f8* · mutant killed · exit 1 · `plugin/bin/adr-lint` · a file fact must resolve its positive line within the cited repository file · acceptance-sha256:b3398f5172664c1600392b0abc1f69b3f49f68e8caccfe458ef6006b69b2f6d8
 
 ## Invariants
 
@@ -182,3 +184,4 @@ kills.
 ## Verification Log
 
 <!-- tool-written by adr-verify; empty at authoring -->
+- 2026-09-01 · 8dbb8f8* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3398f5172664c1600392b0abc1f69b3f49f68e8caccfe458ef6006b69b2f6d8

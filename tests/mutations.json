@@ -3417,6 +3417,24 @@
       ],
       "from": "    'where /q py && goto :usepy',",
       "to": "    'where /q py && (py -3 \"%QH_ROOT%\\\\bin\\\\' + gate + '\" %*) || (',"
+    },
+    {
+      "label": "lint: a Go fence selects the test whose PASS line it requires",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "check_go_acceptance_fences(infos, errors, root, tracked)\n        with errors.protected():",
+      "to": "False and check_go_acceptance_fences(infos, errors, root, tracked)\n        with errors.protected():"
+    },
+    {
+      "label": "lint: no test files is a healthy Go status, not an exclusion",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "fence[\"rejects_no_test_files\"]",
+      "to": "False and fence[\"rejects_no_test_files\"]"
     }
   ]
 }

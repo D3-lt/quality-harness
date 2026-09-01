@@ -26,6 +26,25 @@ def load_script(name, path):
     return module
 
 
+def test_abnormal_mutant_termination(verify):
+    """A crashed fence is never mistaken for an assertion that killed a mutant."""
+    for code in (-11, 137, 139, 0xC0000005, 0xC0000409):
+        assert verify.abnormal_termination(code, ""), code
+    assert verify.abnormal_termination(
+        1, "/bin/bash: line 1: 42 Segmentation fault (core dumped) python3 test.py")
+    assert verify.abnormal_termination(1, "Fatal Python error: Aborted")
+    for code, output in (
+            (0, "1 passed"),
+            (1, "AssertionError: expected 1, got 2"),
+            (1, "expected output not to contain segmentation fault"),
+            (2, "SyntaxError: invalid syntax"),
+            (128, ""),
+            (193, "")):
+        assert not verify.abnormal_termination(code, output), (code, output)
+
+    print("PASS — abnormal mutant termination is inconclusive")
+
+
 # The one grammar both `Enforced-by:` parsers must implement. Mirrored verbatim
 # in tests/lifecycle.test.mjs — a rule with two implementations is only shared if
 # something compares them, and these two disagreed on three of these seven.
@@ -655,6 +674,7 @@ def main():
     arch_gate = load_script("arch_lint_regressions", bin_dir / "arch-lint")
     retire = load_script("adr_retire_regressions", bin_dir / "adr-retire-check")
     debt = load_script("adr_debt_regressions", bin_dir / "adr-debt")
+    test_abnormal_mutant_termination(verify)
     test_permanent_disposition_citations(bin_dir, lint)
     test_proof_map_contract(bin_dir, lint)
 

@@ -1,6 +1,6 @@
 # ADR-019: Make an orphan prove it is ours, and never act on it
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-01
 **Owner:** zy
 **Spec:** None — no spec stage
@@ -10,8 +10,8 @@
 
 <This mutation label does not resolve yet: T1 creates it. Named here rather than left as
 `None` because it is the check that fails when this decision is violated, and the campaign grades
-it RED or GREEN on every run once it exists. `adr-lint` will advise on the unresolved label until
-T1 lands, which is the correct report for a Proposed record.>
+it RED or GREEN on every run once it exists. `adr-lint` advises on the unresolved label until
+T1 lands, which is the correct report while the record is accepted and unexecuted.>
 
 **Invalidates:** none — checked. ADR-001 and ADR-004 both govern these files and both are about what `--link` and `--apply` INSTALL; this record is about what the tools SAY concerning a file already there, and changes neither installer. `replaceable()` — the primitive ADR-001 names as the reason the owner's own skills were never at risk — is reused unchanged and is not weakened.
 **Served-path change:** A user whose home directory holds a file from a past installer that this plugin no longer ships is told which file, on what evidence, and what the version history says about it — where today both scanners are silent and a fork-era script is left asserting a layout that no longer exists.

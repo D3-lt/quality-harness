@@ -71,6 +71,8 @@ the gate would let the shared function drift out from under the record's own mea
 
 ## Mutation Log
 
+- 2026-09-01 · 8a482bf* · mutant killed · exit 1 · `plugin/bin/adr-lint` · setup lines inflate every segment count · acceptance-sha256:5105a6920153a154c866b95b1eeb1e3da58c89ae429f6599961ad5cafa3f9182
+
 ## Invariants
 
 - The message never asserts how many mechanisms a fence rests on. It reports two counts it took.
@@ -100,3 +102,4 @@ Follow-up exists to find that out.
 - Any change to what `done` requires (permanent: boundary: the record keeps the obligation existential)
 
 ## Verification Log
+- 2026-09-01 · 8a482bf · exit 0 · `set -o pipefail …` · acceptance-sha256:5105a6920153a154c866b95b1eeb1e3da58c89ae429f6599961ad5cafa3f9182 · ms:5362

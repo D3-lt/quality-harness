@@ -4457,7 +4457,31 @@ assertion). Reporting the second as a defect is how a gate teaches people to ign
 **Not fixed here**, and no instance in this repository to fix. It belongs in a fence linter, and the
 reporter's 50-versus-0 measurement is the evidence for how to phrase the advisory.
 
-## 79. The mutant classifier cannot tell a vacuous fence from a kill whose signal is "no tests ran"
+## 79. CLOSED 2026-09-01 by ADR-016 — the mutant classifier cannot tell a vacuous fence from a kill whose signal is "no tests ran"
+
+**Closed 2026-09-01, by reading the code rather than the entry.** ADR-016 decided this case
+explicitly — *"mutant fence fails because no tests ran, while the clean fence passed with tests:
+`killed` by the existing missing-tests rule"* — and `plugin/bin/adr-verify:1320-1325` implements it:
+
+    elif scored_nothing(out):
+        # The already-measured clean fence passed and scored tests. If the
+        # mutant run now reports none, the mutation removed the runnable lane.
+        verdict = "killed"
+
+The clean-fence baseline ADR-016 part 1 introduced is what made the distinction computable: the
+exit code alone could not separate "the fence filter matched nothing" from "the mutant removed the
+lane", but a baseline that passed *scoring tests* can. That is the question this entry said the
+classifier does not ask.
+
+**Nothing marked this entry closed when the fix landed**, which is the same defect as the two others
+found the same day — the research doc's stale gap list and CLAUDE.md §7's `resolve_bash()` claim.
+Three prose records asserting a live defect that the code had already fixed, none of them checked by
+anything. See §103.
+
+The entry as filed follows.
+
+### As reported
+
 
 **Reported 2026-08-30 by agentsmemory-main-5b**, observed at their commit 25cd90b against
 quality-harness v2.36.0:
@@ -5593,3 +5617,46 @@ catalogue may be the smaller change than a new verdict class.
 
 **Scope, measured rather than guessed:** exactly ONE of the 416 catalogue entries has this property
 today.
+
+## 103. Three prose records asserted a live defect the code had already fixed, in one day
+
+Found 2026-09-01 while triaging this backlog, not by looking for it. Three separate records
+described an open defect that had already been closed, and nothing in this repository can notice
+that class:
+
+| record | asserted | actually |
+|---|---|---|
+| `docs/research/2026-08-28-verification-is-the-bottleneck.md` §8 "where the field is ahead" | 4 open gaps | 1 open; one closed by ADR-011 on 2026-08-29, one answerable on demand, one materially advanced |
+| `CLAUDE.md` §7 | "`resolve_bash()` excludes only the first \[stub]… BACKLOG §91 is the fix" — present tense | both stubs filtered at both sites since §91; executed through each resolver's seam on the exact PATH §91 measured, both return `C:\Program Files\Git\bin\bash.exe` |
+| `docs/BACKLOG.md` §79 | the classifier cannot tell a vacuous fence from a kill signalled by "no tests ran" | ADR-016 decided it and `plugin/bin/adr-verify:1320-1325` implements it |
+
+**The asymmetry is the finding.** This project has a gate for a prose record that claims MORE than
+happened — that is the whole evidence chain, and `adr-verify --sweep` re-checks 52 recorded claims
+against their own fences. It has nothing for a prose record that claims LESS than happened: a
+warning that outlived its defect. Both are the same error — a record disagreeing with the tree — and
+only one direction is instrumented.
+
+**The cost is measurable and was paid three times today.** CLAUDE.md §7's stale half was read as a
+live defect and the whole finding re-derived before anything executed the resolvers. §7's own
+closing rule already names the mechanism and only in one direction: *"A rule here that asserts a
+guard handles a case is a hypothesis until something executes it."* The mirror is equally true — a
+rule asserting a guard does NOT handle a case is a hypothesis too, and it is the more expensive one,
+because it recruits a session into fixing something already fixed.
+
+**Why nothing catches it.** A `Governs:` path is resolved against `git ls-files` (ADR-011), so a
+pointer to a missing file is reported. Nothing resolves a prose CLAIM against the code it is about.
+The three above were each found by a human or an agent reading carefully, which does not scale and
+did not happen for between one and three days in each case.
+
+**What a check could plausibly do, and what it cannot.** It cannot grade prose. What it can do is
+much narrower and might still have caught all three: a record that names a `file:line` and a
+quoted snippet is checkable the way agentsmemory's code anchors are — the snippet is present or it
+is not, and its absence marks the record STALE rather than wrong. §91's entry quotes
+`re.search(r"[\\/]system32[\\/]?$", …)`, which stopped being in the file the moment it was fixed.
+That is a mechanical signal and it was sitting there unread. Whether the cost of anchoring records
+is worth it is the decision, not whether the signal exists.
+
+**Related:** §49's "verdict changed its mind" is the opposite problem (the tool disagreeing with
+itself); this is the corpus disagreeing with the tool. Not the same class.
+
+**Three instances, one day, all closed as found. Left open as a class.**

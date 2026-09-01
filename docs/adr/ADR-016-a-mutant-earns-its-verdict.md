@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-006-a-verdict-that-names-its-own-reliability.md, docs/adr/ADR-009-a-decision-names-what-enforces-it.md, docs/adr/ADR-013-a-mutation-a-human-performed.md
 **Governs:** `plugin/bin/adr-verify`, `plugin/templates/task-template.md`, `plugin/skills/adr-execute/SKILL.md`, `tests/evidence-chain.test.mjs`, `tests/package.test.mjs`, `tests/mutations.json`
-**Enforced-by:** `verify: a mutant is judged only after its clean fence passes`, `verify: generated mutation outputs are restored with their source`
+**Enforced-by:** `verify: a mutant is judged only after its clean fence passes`, `verify: abnormal mutant termination is never credited as a kill`, `verify: generated mutation outputs are restored with their source`
 **Invalidates:** none — checked. ADR-002's journal-before-mutation and conservative recovery remain the governing order and are extended from one known target to an explicit transaction manifest; ADR-003 still requires behavioral mutants; ADR-005's observed-state vocabulary gains a pre-mutation `UNPROVEN` outcome; ADR-006's baseline principle is applied to `adr-verify` without claiming a baseline proves assertion quality; ADR-013's human-mutant lane is unchanged.
 **Served-path change:** `adr-verify --mutant` runs the clean Acceptance fence before changing a file, refuses to award a verdict when that baseline is unusable, and restores every explicitly declared generated output with the mutated source.
 
@@ -97,6 +97,8 @@ After a usable baseline, classification remains evidence-based:
   or assert on the changed path;
 - mutant fence fails because no tests ran, while the clean fence passed with tests: `killed` by the
   existing missing-tests rule;
+- mutant fence terminates by signal, crash status, or a recognized runtime-crash report:
+  `inconclusive`, because no ordinary assertion verdict was observed;
 - mutant fence fails on build/parse or an environment failure: `inconclusive`;
 - mutant fence does not return before the timeout: `UNRUN`, with no Mutation Log row, after restoring
   the declared transaction;

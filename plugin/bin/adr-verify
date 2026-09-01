@@ -206,6 +206,35 @@ BUILD_BROKE = [
     r"^\s*Fatal error: Uncaught Error",     # php
 ]
 
+# A process that crashed did not return an assertion verdict. Shells commonly
+# translate a signal into 128 + signal, while Windows exposes fatal NTSTATUS
+# values through the process exit code. Some wrappers normalize either class to
+# an ordinary non-zero code but retain the runtime's crash line, so keep that
+# narrow output fallback too. Conservatism is intentional here: an inconclusive
+# run costs a rerun; a false kill permanently credits proof nobody observed.
+CRASH_OUTPUT = re.compile(
+    r"^(?:[^:\n]+:\s*)?(?:line \d+:\s*)?(?:\d+\s+)?"
+    r"(?:segmentation fault|bus error|illegal instruction|floating point exception|"
+    r"abort trap(?:: \d+)?|stack overflow|fatal python error:|unhandled exception(?:[.:]|$))",
+    re.I | re.M,
+)
+
+
+def abnormal_termination(code, output):
+    """Whether a fence ended without an ordinary assertion-bearing exit."""
+    if code is None or code < 0:
+        return True
+    # POSIX shells report signal N as 128 + N. Signals are bounded to 64 on the
+    # platforms this plugin supports; 128 itself is not a signal verdict.
+    if 129 <= code <= 192:
+        return True
+    # Windows fatal exception statuses carry the high two bits (for example,
+    # 0xC0000005 for access violation). Python may expose them unsigned; signed
+    # forms were already caught by code < 0 above.
+    if code >= 0xC0000000:
+        return True
+    return bool(CRASH_OUTPUT.search(output or ""))
+
 # Comment syntax per file type, for the comment-only mutant refusal. A mutation
 # that changes only prose changes nothing the program does — and it is exactly
 # the mutant an author reaches for by accident when a test matches a file's
@@ -1285,6 +1314,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore):
                 "the fence passed with the mechanism broken; it may not materialize, compile, "
                 "load, or assert on the changed path",
             )
+        elif abnormal_termination(code, out):
+            verdict, detail = "inconclusive", "the fence terminated abnormally, not on an assertion"
         elif scored_nothing(out):
             # The already-measured clean fence passed and scored tests. If the
             # mutant run now reports none, the mutation removed the runnable lane.

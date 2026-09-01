@@ -3059,6 +3059,15 @@
       "to": "        if False:"
     },
     {
+      "label": "verify: abnormal mutant termination is never credited as a kill",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        elif abnormal_termination(code, out):",
+      "to": "        elif False:"
+    },
+    {
       "label": "verify: generated mutation outputs are restored with their source",
       "file": "plugin/bin/adr-verify",
       "tests": [

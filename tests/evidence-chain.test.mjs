@@ -397,6 +397,13 @@ test('adr-verify requires a clean fence before it mutates', () => {
     "  echo '1 passed in 0.01s'",
     'fi',
   ].join('\n'))
+  const mutantCrash = execute('mutant-crash', [
+    "if grep -q 'THRESHOLD = 99' unused.py; then",
+    "  echo 'Segmentation fault (core dumped)' >&2; exit 139",
+    'else',
+    "  echo '1 passed in 0.01s'",
+    'fi',
+  ].join('\n'))
 
   const baselineRefusal = run => ({
     label: run.label,
@@ -446,6 +453,13 @@ test('adr-verify requires a clean fence before it mutates', () => {
       targetRestored: mutantEnvironment.targetRestored,
       journalEmpty: mutantEnvironment.journalEmpty,
     },
+    mutantCrash: {
+      status: mutantCrash.status,
+      inconclusive: /mutant inconclusive/.test(mutantCrash.mutationLog),
+      killed: /mutant killed/.test(mutantCrash.mutationLog),
+      targetRestored: mutantCrash.targetRestored,
+      journalEmpty: mutantCrash.journalEmpty,
+    },
   }, {
     baselineRefusals: [
       { label: 'pre-red', status: 1, unproven: true, mutantApplied: false, targetRestored: true, mutationLogEmpty: true, journalEmpty: true },
@@ -486,6 +500,13 @@ test('adr-verify requires a clean fence before it mutates', () => {
     mutantEnvironment: {
       status: 1,
       inconclusive: true,
+      targetRestored: true,
+      journalEmpty: true,
+    },
+    mutantCrash: {
+      status: 1,
+      inconclusive: true,
+      killed: false,
       targetRestored: true,
       journalEmpty: true,
     },

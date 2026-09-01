@@ -2894,8 +2894,13 @@ def test_the_expected_digest_is_not_printed(lint):
             "T1": {
                 "human": False,
                 "vlog": [row],
-                "mlog": ["- 2026-09-01 · 6e26b88 · mutant survived · exit 1 · `x.mjs` · "
-                         "line 1 · from `a` · to `b` · test `t` · why"],
+                # Must MATCH MLOG_TOOL_ARM, or `other` is empty, the finding takes
+                # its "Mutation Log is empty" arm, and the disclosing branch is
+                # never rendered — which is why the first version of this test
+                # could not kill the mutation that restores the disclosure.
+                # `survived` pairs with `exit 0` in that grammar.
+                "mlog": ["- 2026-09-01 · 6e26b88 · mutant survived · exit 0 · `x.mjs` · "
+                         "broke the guard and the fence still passed"],
                 "has_mlog": True,
                 "acc_all": acceptance,
                 "acc_first": acceptance,

@@ -2848,7 +2848,7 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "    .filter(name => !/[\\\\/]|\\.(mjs|js|py|cjs)$/.test(name))",
+      "from": "    .filter(name => !(/^\\S+$/.test(name) && /\\.(mjs|js|py|cjs)$/.test(name)))",
       "to": "    .filter(() => true)"
     },
     {

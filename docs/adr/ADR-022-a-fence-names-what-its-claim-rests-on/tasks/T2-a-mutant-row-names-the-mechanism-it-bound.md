@@ -95,3 +95,4 @@ declaration is cheap prose rests on it being neither.
 
 ## Verification Log
 - 2026-09-01 · 49805ec · exit 0 · `set -o pipefail …` · acceptance-sha256:31355a86a97c63e251f0ab4d383c7946586a9ad70f370b8bf2360d764432c634 · ms:4787
+- 2026-09-01 · cb45a39 · exit 0 · `set -o pipefail …` · acceptance-sha256:31355a86a97c63e251f0ab4d383c7946586a9ad70f370b8bf2360d764432c634 · ms:5163

@@ -5194,3 +5194,62 @@ belong together.
 **Third name on the list.** §88 established `python3` cannot be trusted by name, §91 the same
 for `bash`. `node` is the third executable a Windows user needs resolvable for the gates to work
 at all, and it is the only one whose absence is currently reported as something else.
+---
+
+## 95. An orphan under the home directory is a different mechanism from a drifted copy, and neither scanner has one
+
+Reported 2026-09-01 on GitHub issue #1, as a follow-up to the scope-sharing fix in `bbd3f87`.
+That commit made `shadowInstallNotice` and `sync-standalone.mjs` read one `SHADOW_SCOPE`, which
+closed the `hooks/` gap the issue was filed about. The follow-up names a second file the shared
+scope still cannot see, and it is not a longer list — it is a state neither tool has.
+
+`~/.claude/tests/selftest.sh`, 113 lines, on the reporter's Windows box. It corresponds to no
+current upstream file: `scripts/selftest.sh` here today is a different, repository-scoped
+70-line script. The orphan asserts the fork-era layout directly —
+
+```sh
+for t in adr-template task-template ... ; do have "templates/$t.md" "$DEST/templates/$t.md"; done
+for s in work spec-write adr-write ... ; do have "skills/$s/SKILL.md" "$DEST/skills/$s/SKILL.md"; done
+have "hooks/facts-gate-dispatch.sh"  "$DEST/hooks/facts-gate-dispatch.sh" -x
+```
+
+— so after the reporter followed this plugin's own session-start guidance, which says a
+bare-name skill *"is better deleted than synced"*, it printed `FAIL — 14 of 39 checks failed. Fix
+these before authoring anything.` All fourteen are presence checks for artifacts the guidance had
+just told them to delete. Every functional check still passed, so it is asserting a LAYOUT rather
+than detecting breakage — but its summary line reads as a broken install and the obvious repair is
+to restore exactly what the guidance said to remove.
+
+**Why `SHADOW_SCOPE` cannot absorb it.** Every entry pairs a home directory with a `shipped` one,
+and per §1 of CLAUDE.md `tests/` stays at the repository root and never ships. `{ home: 'tests',
+shipped: 'tests' }` makes `readdirSync(path.join(source, 'tests'))` throw, `catch { continue }`
+swallows it, and the entry is a green no-op — the same failure the `hooks`→`scripts` pairing was
+shaped to avoid, recurring one field over. An orphan has no `shipped` counterpart by definition.
+
+**Why digest lineage cannot identify it either.** `knownDigests(relative)` recognises a file as
+ours when it matches any cached release's copy at the same relative path. Measured here
+2026-09-01 across 52 cached versions back to 2.0.0:
+
+    ls -d ~/.claude/plugins/cache/.../*/tests        -> 10+ versions have a tests/ directory
+    ls    ~/.claude/plugins/cache/.../*/tests/selftest.sh -> no matches, in any version
+
+Old releases shipped `tests/` (fixtures, gate-regressions.py, five `.test.mjs`) and never a
+`selftest.sh`. So for the exact file this report is about the known-digest set is EMPTY, and the
+lineage machinery that carries `replaceable()` cannot answer. Identification would need a content
+signature.
+
+**Three states, and only the middle one is new.** `replaceable()` already distinguishes
+ours-and-still-shipped (drift → refresh) from not-ours (`'not a file this plugin installed — it
+may be your own'` → leave alone). The gap is ours-and-no-longer-shipped (orphan → delete), and the
+whole risk sits on its boundary with not-ours: advising deletion of a file under someone's home
+that turns out to be theirs is worse than the silence being fixed, and copy mode does not archive,
+so it is unrecoverable.
+
+**This wants a record before code.** The tools' current posture is *never act on a file this
+plugin did not install*; recommending a deletion inverts it. That is a trust boundary and
+costly-to-reverse advice — the `adr-write` criteria — so the ADR comes first and decides how an
+orphan is identified without a digest to match. Not folded into `bbd3f87`, deliberately.
+
+Also open from the same issue, and deliberately unchanged: `--link` is a THIRD, narrower scope
+that installs gates only, via `gateNames()`. It already reports when copy mode has work it cannot
+do, so it is documented rather than merged into `SHADOW_SCOPE`.

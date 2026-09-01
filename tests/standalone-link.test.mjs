@@ -1060,3 +1060,49 @@ test('semver ordering puts 2.0.10 after 2.0.4 and keeps non-releases last', () =
   // releases — this machine's has a 2.0.0 full of `cuda-1.9` and `maximum`.
   assert.deepEqual(bySemver(['junk', '2.0.4', 'also-junk']), ['2.0.4', 'junk', 'also-junk'])
 })
+
+// BACKLOG §94. Both forwarders resolve the plugin by running a `node -e` program,
+// so without node the resolver does not run — and an unrun resolver yields an
+// empty root, which the next branch reported as "no installed plugin". Measured
+// 2026-08-30 on Windows 11 with the plugin FULLY INSTALLED, two versions in the
+// cache: the user was told to install what was already installed, and doing so
+// changed nothing. "I could not look" is not "there is nothing there".
+//
+// §94 named only the .cmd forwarder. The sh forwarder has the same hole for the
+// same reason — `2>/dev/null` discards node's own error — so both are asserted
+// here. That is the class, not the instance.
+test('a forwarder that cannot run its resolver says so, and blames neither the plugin', () => {
+  for (const [label, text] of [['cmd', forwarderCmd('adr-lint')], ['sh', forwarderScript('adr-lint')]]) {
+    // The probe comes BEFORE the resolver, or the wrong message is already printed.
+    const probe = label === 'cmd'
+      ? text.indexOf('where /q node')
+      : text.indexOf('command -v node')
+    assert.ok(probe >= 0, `${label}: node is never probed for`)
+    assert.ok(probe < text.indexOf('-e'), `${label}: node is probed after the resolver runs`)
+
+    // A DIFFERENT remedy, because that is the whole defect. "install or update
+    // the plugin" is the advice that cannot work when node is what is missing.
+    assert.match(text, /node is not on PATH/, `${label}: the absent thing is not named`)
+    assert.match(text, /install Node\.js/, `${label}: the message must name a remedy that can work`)
+
+    // A DIFFERENT exit code. Both mean the gate did not run and both stop an
+    // `&&` fence, but collapsing them is what made the two states
+    // indistinguishable to anything reading the code.
+    assert.match(text, label === 'cmd' ? /exit \/b 5/ : /exit 5/,
+      `${label}: "could not look" must not share exit 4 with "looked and found nothing"`)
+    assert.match(text, label === 'cmd' ? /exit \/b 4/ : /exit 4/,
+      `${label}: the found-nothing branch must still exit 4`)
+
+    // Still not a pass, in either branch. This is the line the whole forwarder
+    // exists for and a rewrite must not lose it.
+    assert.match(text, /this is not a pass/, `${label}: an absent checker certifies nothing`)
+  }
+
+  // And the cmd probe must not reintroduce the parenthesised block: an unquoted
+  // argument containing `)` closes it early, which is why the interpreter
+  // selection above is a goto rather than an if.
+  const cmd = forwarderCmd('adr-lint')
+  assert.match(cmd, /^where \/q node && goto :havenode$/m,
+    'the node probe must select by goto, not by a parenthesised block')
+  assert.match(cmd, /^:havenode$/m, 'missing the label the node probe jumps to')
+})

@@ -5422,3 +5422,58 @@ from a policy that was deliberately dropped, not an unreachable check.
 That distinction is the whole entry: this is NOT the ADR-020 class, where a check existed and could
 not fire. Nothing is unenforced by its absence. Delete it, or say in a comment what future caller it
 waits for — but do not diagnose it a second time as a missed call site.
+
+## 101. A Verification Log row deleted from a committed file is invisible
+
+Found 2026-09-01 while reading `yzhao062/awesome-auditable-ai`, whose "Audit Trails and Decision
+Records" section names hash-chained records. The question it prompted — can a row be REMOVED from
+one of our logs without anything noticing — was probed rather than assumed.
+
+**Probed through the `adr-lint` CLI on a git fixture**, against `HEAD`'s copy of the gate rather than
+the working tree's, because the mutation campaign was mutating that file at the time and a probe
+against a deliberately broken subject measures the mutant. Three rows committed (`exit 1`, then two
+`exit 0`, all carrying the current fence digest), then rows removed and the gate re-run:
+
+| removed from the committed log | what `adr-lint` said |
+|---|---|
+| nothing (baseline) | two findings, both about the fixture and unrelated |
+| the RED `exit 1` row | **identical to baseline** |
+| one of the two GREEN rows | **identical to baseline** |
+| every row | caught — `T1 marked done but its Verification Log has no exit-0 entry` |
+
+**The one that matters is the RED row.** Deleting it makes a log imply a red-green cycle that did not
+happen, which is the claim two task files in this corpus currently disclose BY HAND in prose because
+nothing checks it. The "every entry passed, so nothing shows the fence could fail" advisory does not
+fire, because a `## Mutation Log` entry suppresses it — a killed mutant is evidence the fence can
+fail, which is correct, and which is why it cannot also serve as the deletion detector.
+
+`grep -n "committed\|known" plugin/bin/adr-lint` returns one use of `known`: the digest-less notice.
+Nothing else reads the committed file. Deletion is unmodelled, not defended.
+
+### The fix, and the more elaborate one that lost to it
+
+**A hash chain is NOT the fix, and this entry exists partly to record why.** Each row carrying the
+digest of its predecessor would make deletion and reordering detectable, and it costs a new field, a
+cutover date, invalidation semantics, and a change to what `adr-verify` writes.
+
+`check_verification` **already calls `committed_lines()` two lines above the digest-less notice.**
+The committed rows are in hand at the point the present rows are being read. Detecting a deletion is
+comparing the two. No new field, no cutover, no writer change.
+
+A chain beats git in exactly one place: where `committed()` answers `None` — a corpus copied without
+its `.git`, a rewritten or squashed history. That is the boundary, and nothing has reported it, so it
+is named here and not built.
+
+**Two things the cheap version must get right**, both of them this repository's own rules:
+
+1. `known is not None` guards it, exactly as the digest-less notice is guarded. A naive
+   `for row in known: if row not in present` fires on every task in a corpus with no `.git`, which is
+   a filter that could not look reporting absence (CLAUDE.md §3, ADR-005). The regression needs an
+   arm proving SILENCE when `committed()` returns `None`.
+2. Compare only Verification Log rows. `committed_lines()` returns every line of the committed file,
+   so an unfiltered diff would fire on ordinary prose edits — including the correction notes this
+   corpus writes into task files routinely. Filter through `VLOG_RE` on both sides.
+
+ADR-shaped, extending ADR-010 (a claim is re-checked or it is not counted). The task's mutation is
+the call-site kind: delete the deletion-check call and confirm RED. `scratchpad/probe_delete.py` is
+the regression's skeleton and it already drives the CLI on a git fixture.

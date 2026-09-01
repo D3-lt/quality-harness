@@ -17,7 +17,7 @@ file, the task file wins and the README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Advise when a committed Verification Log row is gone from the file | pending | — | `python3 tests/gate-regressions.py plugin/bin …` |
+| T1 | Advise when a committed Verification Log row is gone from the file | done | — | `python3 tests/gate-regressions.py plugin/bin …` |
 
 ## Notes
 

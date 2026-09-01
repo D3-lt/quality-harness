@@ -68,6 +68,8 @@ gates on the campaign, not on this fence — the lesson ADR-020 T1 paid for twic
 
 ## Mutation Log
 
+- 2026-09-01 · b5c6809* · mutant killed · exit 1 · `plugin/bin/adr-lint` · an absent header read as an empty declaration · acceptance-sha256:9c01800fe70da6c6060d637dd974081fcac6ebd114a4635aea1fbebaa5bd3e2c
+
 ## Invariants
 
 - A task with no `Rests-on:` is read exactly as it is today, forever. This corpus has 40 such tasks and none of them may change behaviour.
@@ -95,3 +97,4 @@ its own decision.
 - Comparing the declaration against the fence's shape, which is T4's (permanent: boundary: separate advisory, separate proxy, separate risk of firing wrongly)
 
 ## Verification Log
+- 2026-09-01 · b5c6809 · exit 0 · `set -o pipefail …` · acceptance-sha256:9c01800fe70da6c6060d637dd974081fcac6ebd114a4635aea1fbebaa5bd3e2c · ms:6395

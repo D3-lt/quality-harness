@@ -20,6 +20,7 @@ speculative abstractions, configuration, and fallback paths.
 - `arch-write` — current-state architecture mapping and audit.
 - `execution` — bounded implementation with fresh evidence.
 - `review` — evidence-backed code review with risk routing.
+- `mutation-audit` — break a mechanism on purpose and measure whether anything notices.
 - `postmortem` — structured learning from material failures.
 - `codex-review` — fresh-context GPT-5.6 Sol verdict review.
 - `codex-advise` — fresh-context GPT-5.6 Sol technical advice.
@@ -33,16 +34,46 @@ Plugin skills are namespaced by Claude Code, for example
 The plugin's `bin/` directory is added to the Bash tool's `PATH` while the
 plugin is enabled:
 
-- `spec-verify`
-- `adr-lint`
-- `adr-verify`
-- `adr-debt`
-- `adr-retire-check`
-- `arch-lint`
-- `postmortem-verify`
+- `spec-verify` — requirements carry falsifiable facts bound to tests.
+- `adr-lint` — a record's own gate: grammar, coverage, evidence, and dangling pointers.
+- `adr-verify` — runs a task's Acceptance fence and writes the evidence itself.
+- `adr-judge` — the two axes a schema cannot see: does the record rest on anything observable.
+- `adr-next` — readiness computed from the task files, not from a status column.
+- `adr-debt` — deferred items and open follow-ups, swept so they resurface.
+- `adr-retire-check` — retirement without erasing authority or obligations.
+- `arch-lint` — architecture documents against the code they describe.
+- `postmortem-verify` — a postmortem's claims against its evidence.
+- `qh-mcp` — the reading gates over MCP, for clients with no shell.
+- `qh-root` — resolves the installed plugin root for a caller that has no placeholder.
+
+**Name the working-tree path when you are developing the plugin itself.** A bare
+gate name on `PATH` resolves to an installed release, which is not your edit.
+
+Three corpus readers ship as scripts rather than gates, because they judge nothing
+and exit 0 whatever they find:
+
+- `work-next.mjs` — which lifecycle stage is waiting, and the files that put it there.
+- `adr-state.mjs` — what governs what, contested areas, dangling supersessions.
+- `adr-context.mjs` — which records govern these files, including the ones that were killed.
 
 Canonical templates live in `templates/`. Skills locate them through
 `${CLAUDE_PLUGIN_ROOT}`; no user home path or project name is embedded.
+
+### Standalone install maintenance
+
+Some machines keep unnamespaced compatibility copies under the user's home so
+`/adr-write` works beside `/quality-harness:adr-write`. Nothing updates those, so
+the plugin reports on them and never acts:
+
+- A session-start notice names a copy that has drifted, and measures which one a
+  bare gate name actually reaches rather than asserting it.
+- It also names a file a past installer left that this plugin no longer ships —
+  but only when a digest, a forwarder mark, or lineage against a cached release
+  proves the plugin wrote it. Anything it cannot prove is counted, never named,
+  because a file it cannot identify may well be another tool's.
+- `sync-standalone.mjs` reports the same set the notice does, writes only with
+  `--apply`, and `--link` replaces each gate with a forwarder that no release can
+  leave behind. Neither mode touches a file reported as no longer shipped.
 
 ### Hooks and workflows
 

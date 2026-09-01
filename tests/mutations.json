@@ -3777,6 +3777,15 @@
       ],
       "from": "    m = re.search(r\"^\\*\\*Rests-on:\\*\\*(.*)$\", text, re.M)\n    if m is None:\n        return None",
       "to": "    m = re.search(r\"^\\*\\*Rests-on:\\*\\*(.*)$\", text, re.M)\n    if m is None:\n        return []"
+    },
+    {
+      "label": "verify: --covers refuses a mechanism the task did not declare",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if covers is not None:\n        declared = rests_on(text)",
+      "to": "    if False:\n        declared = rests_on(text)"
     }
   ]
 }

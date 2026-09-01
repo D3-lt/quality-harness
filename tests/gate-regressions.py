@@ -696,6 +696,8 @@ def main():
     test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
     test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint)
     test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root)
+    test_the_rests_on_grammar_has_one_meaning(lint, verify)
+    test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, verify, repo_root)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3378,6 +3380,154 @@ def test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root):
     assert not carried, f"no task in this corpus declares Rests-on yet: {carried}"
 
     print("PASS — a fence declaration is read, or reported as unreadable")
+
+
+# ADR-022 T2. One rule, two implementations — the shape that has already
+# disagreed three times in this repository (ENFORCEMENT_GRAMMAR's comment says
+# where). `adr-verify` must refuse an undeclared mechanism BEFORE it arms the
+# journal, so it has to read `Rests-on:` itself; the writer and the reader are
+# then held to this one table rather than to each other's good intentions.
+RESTS_ON_GRAMMAR = [
+    ("", None),
+    ("**Rests-on:** `a`, `b`", ["a", "b"]),
+    ("**Rests-on:** `a label, with a comma`", ["a label, with a comma"]),
+    ("**Rests-on:** `one`, two", ["one", "two"]),
+    ("**Rests-on:** none — one indivisible command", []),
+    ("**Rests-on:** nonetheless-a-mechanism", ["nonetheless-a-mechanism"]),
+    ("**Rests-on:** ", "UNREADABLE"),
+    ("**Rests-on:** `unclosed", "UNREADABLE"),
+    ("**Rests-on:** <the mechanism>", "UNREADABLE"),
+]
+
+
+def test_the_rests_on_grammar_has_one_meaning(lint, verify):
+    """Both parsers of `Rests-on:` answer the shared table identically."""
+    head = "# Task\n\n**Depends-on:** none\n\n"
+    for header, want in RESTS_ON_GRAMMAR:
+        text = head + (header + "\n" if header else "") + "\n## Goal\n\ng\n"
+        for module in (lint, verify):
+            got = module.rests_on(text)
+            if want == "UNREADABLE":
+                assert got is module.RESTS_ON_UNREADABLE, (module.__name__, header, got)
+            else:
+                assert got == want and (got is None) == (want is None), \
+                    (module.__name__, header, got, want)
+    print("PASS — the Rests-on grammar has one meaning in both gates")
+
+
+# ADR-022 T2. `--covers` records WHICH declared mechanism a killed mutant bound.
+# The refusal of an undeclared name has to land in the option-validation phase,
+# before the journal is armed and before either fence runs: ADR-016 put
+# transaction preflight ahead of the first fence because a refusal after the
+# mutation has been applied is a refusal that has already changed the tree.
+def test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, verify, repo_root):
+    """The option, its pre-flight refusal, the row suffix, and its optionality."""
+    fence = ("python3 -c \"import pathlib,sys; "
+             "sys.exit(1 if 'MUTATED' in pathlib.Path('x.py').read_text() else 0)\"")
+
+    def fixture(tmp, declaration):
+        root = Path(tmp) / "repo"
+        tasks = root / "docs" / "adr" / "ADR-001-probe" / "tasks"
+        tasks.mkdir(parents=True)
+        (root / "x.py").write_text("OK = 1\n", encoding="utf-8")
+        task = tasks / "T1-probe.md"
+        task.write_text(
+            "# Task ADR-001-T1: probe\n\n**Depends-on:** none\n**Covers:** none\n"
+            "**Produces:** none\n**Consumes:** none\n"
+            + (declaration + "\n" if declaration else "")
+            + "\n## Goal\n\ng\n\n"
+            "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+            "| `x.py` | edit | w |\n\n"
+            "## Ordered Steps\n\n1. Write the failing test first. [proof: acceptance]\n\n"
+            f"## Acceptance\n\n```bash\n{fence}\n```\n\n"
+            "## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n"
+            "|---|---|---|---|---|\n| `t` | `x.py` | v | — | 1 |\n\n"
+            "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+            "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+            "## Mutation Log\n\n## Verification Log\n", encoding="utf-8")
+        return root, task
+
+    def mutate(declaration, covers):
+        """Run `adr-verify --mutant` on a fresh fixture; return (result, root, task)."""
+        tmp = tempfile.mkdtemp()
+        root, task = fixture(tmp, declaration)
+        argv = [sys.executable, str(Path(bin_dir).resolve() / "adr-verify"), str(task),
+                "--cwd", str(root),
+                "--mutant", "x.py", "--from", "OK = 1", "--to", "MUTATED = 1",
+                "--why", "the fence stops reading the file"]
+        if covers is not None:
+            argv += ["--covers", covers]
+        result = subprocess.run(argv, cwd=root, capture_output=True, text=True)
+        return result, root, task
+
+    DECLARED = "**Rests-on:** `the fence reads x.py`, `the exit code`"
+
+    # THE REFUSAL. A name the task did not declare is not a name this tool may
+    # invent — the whole argument for a hand-written declaration is that it can
+    # only INCREASE what a record admits is unproven, and a mechanism the author
+    # never wrote would enter the coverage reading as if they had.
+    bad, root, task = mutate(DECLARED, "a mechanism nobody declared")
+    assert bad.returncode == 2, (bad.returncode, bad.stdout, bad.stderr)
+    assert "covers" in (bad.stdout + bad.stderr).lower(), (bad.stdout, bad.stderr)
+    # AND THE TREE IS UNCHANGED. This is the assertion S6's mutant is aimed at:
+    # a refusal that fires after the mutation has landed is not a pre-flight.
+    assert (root / "x.py").read_text(encoding="utf-8") == "OK = 1\n", \
+        "the refusal must happen before the mutation is applied"
+    assert "mutant" not in task.read_text(encoding="utf-8").split("## Mutation Log")[1], \
+        "and before any row is written"
+    journals = list(root.rglob("*.adr-verify-*")) + list(root.rglob("*journal*"))
+    assert not journals, f"and before the journal is armed: {journals}"
+
+    # THE RECORD. A declared name reaches the row, as a suffix on the grammar
+    # that was already there rather than as a second grammar.
+    good, _, task = mutate(DECLARED, "the exit code")
+    assert good.returncode == 0, (good.returncode, good.stdout, good.stderr)
+    rows = [ln for ln in task.read_text(encoding="utf-8").splitlines()
+            if ln.startswith("- ") and "mutant killed" in ln]
+    assert len(rows) == 1, rows
+    assert rows[0].endswith(" · covers:the exit code"), rows[0]
+    # The readers must accept what the writer just wrote. Four patterns describe
+    # this row across three gates, and the one time they drifted the writer
+    # refused to write what the readers already accepted.
+    assert lint.MLOG_RE.match(rows[0]), f"adr-lint must parse the row: {rows[0]}"
+    bound = lint.MLOG_DIGEST_RE.match(rows[0])
+    assert bound and bound.group("covers") == "the exit code", (
+        f"and the digest reader must still bind it, with the mechanism readable: {rows[0]}")
+
+    # OPTIONAL, byte for byte. A `--mutant` run with no `--covers` writes the row
+    # it writes today; anything else is a silent migration of the whole corpus.
+    plain, _, task = mutate(DECLARED, None)
+    assert plain.returncode == 0, (plain.stdout, plain.stderr)
+    unsuffixed = [ln for ln in task.read_text(encoding="utf-8").splitlines()
+                  if ln.startswith("- ") and "mutant killed" in ln]
+    assert len(unsuffixed) == 1 and "covers:" not in unsuffixed[0], unsuffixed
+    assert lint.MLOG_RE.match(unsuffixed[0]) and lint.MLOG_DIGEST_RE.match(unsuffixed[0])
+
+    # A task with NO declaration cannot use the option at all: there is nothing
+    # for the name to be checked against, and accepting it would make `--covers`
+    # a free-text field on exactly the tasks that declared nothing.
+    nodecl, _, _ = mutate(None, "the exit code")
+    assert nodecl.returncode == 2, (nodecl.returncode, nodecl.stdout, nodecl.stderr)
+
+    # EVERY ROW ALREADY RECORDED IN THIS CORPUS STILL PARSES. A grammar change
+    # that orphans recorded evidence is the one thing this suffix may never do,
+    # and the count is asserted so a glob that matched nothing cannot report
+    # "I could not look" as "every row parses" (ADR-005).
+    listed = subprocess.run(
+        ["git", "-C", str(repo_root), "ls-files", "docs/adr/*/tasks/*.md"],
+        capture_output=True, text=True)
+    recorded = []
+    for rel in [p for p in listed.stdout.split("\n") if p.strip()]:
+        body = (Path(repo_root) / rel).read_text(encoding="utf-8", errors="replace")
+        if "## Mutation Log" not in body:
+            continue
+        section = body.split("## Mutation Log", 1)[1].split("\n## ", 1)[0]
+        recorded += [ln for ln in section.splitlines() if ln.startswith("- ")]
+    assert len(recorded) >= 10, f"the parse claim needs rows to be about: {len(recorded)}"
+    orphaned = [r for r in recorded if not lint.MLOG_RE.match(r)]
+    assert not orphaned, f"the widened grammar orphans no recorded row: {orphaned}"
+
+    print("PASS — covers binds a killed mutant to a declared mechanism")
 
 
 if __name__ == "__main__":

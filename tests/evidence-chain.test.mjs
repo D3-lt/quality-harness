@@ -592,7 +592,7 @@ print("1 passed in 0.01s")
     'an existing generated output must regain its exact entry bytes')
   assert.equal(existsSync(join(generated, 'view_templ.map')), false,
     'an output absent at entry must be absent after cleanup')
-  assert.deepEqual(readFileSync(join(generated, 'phase-trace.txt'), 'utf8').trim().split('\n'), [
+  assert.deepEqual(readFileSync(join(generated, 'phase-trace.txt'), 'utf8').trim().split(/\r?\n/), [
     'existing-entry', 'absent-entry', 'existing-entry', 'absent-entry',
   ], 'the clean phase outputs must be reset before the mutant fence starts')
   assert.deepEqual(readdirSync(generatedJournal), [], 'complete cleanup must remove its journal')
@@ -631,7 +631,7 @@ print("1 passed in 0.01s")
       'nested generation did not restore the source')
     assert.equal(existsSync(join(copy, 'generated', 'deep', 'view.go')), false,
       'the absent-at-entry nested leaf survived cleanup')
-    assert.deepEqual(readFileSync(join(copy, 'nested-trace.txt'), 'utf8').trim().split('\n'), [
+    assert.deepEqual(readFileSync(join(copy, 'nested-trace.txt'), 'utf8').trim().split(/\r?\n/), [
       'absent-entry', 'absent-entry',
     ], 'the clean-phase nested leaf was not removed before the mutant phase')
     assert.deepEqual(readdirSync(journal), [], 'nested leaf cleanup left a journal')

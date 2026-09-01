@@ -5420,7 +5420,48 @@ for `bash`. `node` is the third executable a Windows user needs resolvable for t
 at all, and it is the only one whose absence is currently reported as something else.
 ---
 
-## 95. An orphan under the home directory is a different mechanism from a drifted copy, and neither scanner has one
+## 95. PARTLY CLOSED 2026-09-01 — an orphan under the home directory is a different mechanism from a drifted copy, and neither scanner has one
+
+**The scanning half is CLOSED, and the entry's premise for it was superseded before the entry was
+worked.** This entry argues `SHADOW_SCOPE` cannot absorb `tests/` because every entry pairs a home
+directory with a `shipped` one and `tests/` never ships. True, and no longer the mechanism:
+`scanSet()` is DERIVED from the union of every cached release's top-level directories plus the
+`SHADOW_SCOPE` home names, precisely so that a directory the current tree no longer has is still
+scanned. Measured here 2026-09-01:
+
+    SHADOW_SCOPE home names : bin, hooks, skills, templates, workflows
+    scanSet() derived       : bin, docs, evals, hooks, scripts, skills, templates, tests, workflows
+
+`tests` is in the second and not the first — the gap `scanSet`'s own docstring names.
+
+**Verified end to end on the reported file, not inferred.** A fabricated home holding
+`.claude/tests/selftest.sh` with fork-era content, scanned through `orphans(homeDirectory)`:
+
+    {"directory":"tests","name":"selftest.sh","state":"unidentified",
+     "evidence":{"state":"unidentified","route":null,"version":null,"first":null,"shared":null}}
+
+So the file is seen, and it is reported as `unidentified` with no route — exactly what ADR-019
+requires of a check that could not determine something, and never as ours. The "neither scanner has
+one" half of the headline is answered.
+
+**What is left is a DECISION, and ADR-019 has already taken it the other way.** ADR-019 is Accepted
+and says: *"naming it is all that ever happens"*, `--apply` deletes nothing and archives nothing, no
+code path removes a home file, and the user decides. This entry asks for an orphan to be identified
+well enough to advise DELETION, which inverts that posture. The entry says so itself — *"This wants
+a record before code"* — and it is right: it is a trust boundary and costly-to-reverse advice, and
+copy mode does not archive, so a wrong deletion is unrecoverable.
+
+That decision is the owner's and is not backlog work. It would supersede or amend ADR-019's
+never-act clause rather than sit beside it.
+
+**Still true and still unanswered by any of the above:** the reporter's 14 failing presence checks
+are the real user-facing harm, and they are not fixed by scanning or by identification — the orphan
+prints `FAIL — 14 of 39 checks failed` for artifacts this plugin's own guidance told them to delete.
+Nothing this project ships can silence somebody else's script. Only advising its removal would, which
+is the decision above.
+
+### As reported
+
 
 Reported 2026-09-01 on GitHub issue #1, as a follow-up to the scope-sharing fix in `bbd3f87`.
 That commit made `shadowInstallNotice` and `sync-standalone.mjs` read one `SHADOW_SCOPE`, which

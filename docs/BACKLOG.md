@@ -5677,7 +5677,7 @@ called at `plugin/scripts/lifecycle.mjs:1101` through the spread operator, `...e
 and the naive lookbehind read the `.` as property access. A check that reports an observation it did
 not make is CLAUDE.md §3's defect, and this one reported two.
 
-## 100. `gitBranch()` is dead code from the branch guard that was removed
+## 100. CLOSED 2026-09-01 — `gitBranch()` was dead code from the branch guard that was removed
 
 `plugin/scripts/lifecycle.mjs:143` defines `gitBranch()`. Nothing in the file, the plugin, or the
 tests calls it — found by §99's sweep on 2026-09-01. `lifecycle.mjs:3027` says why: *"No branch
@@ -5687,6 +5687,11 @@ from a policy that was deliberately dropped, not an unreachable check.
 That distinction is the whole entry: this is NOT the ADR-020 class, where a check existed and could
 not fire. Nothing is unenforced by its absence. Delete it, or say in a comment what future caller it
 waits for — but do not diagnose it a second time as a missed call site.
+
+**CLOSED 2026-09-01.** Deleted. `git grep gitBranch -- plugin/` returns nothing; the only remaining
+mentions are this entry, §99's sweep output above it, and ADR-020 T4's Out of Scope line that
+deferred here. `nearestExistingDirectory()`, its only helper, has eight other callers and stays.
+`bash scripts/selftest.sh` exit 0 after the deletion.
 
 ## 101. CLOSED 2026-09-01 by ADR-021 T1 — a Verification Log row deleted from a committed file was invisible
 

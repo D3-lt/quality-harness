@@ -245,6 +245,8 @@ latent rather than live. It becomes live the day one is added.
 | 16 | 96% of developers don't trust AI code | [thenewstack.io](https://thenewstack.io/agentic-ai-verification-impact/) |
 | 17 | Kimi K2 technical report | [arXiv 2507.20534](https://arxiv.org/pdf/2507.20534) |
 | 18 | Kimi K2.6 — benchmarks and independent commentary | [kili-technology.com](https://kili-technology.com/blog/data-story-kimi-k2-6) |
+| 19 | Li & Offutt — Test Oracle Strategies for Model-Based Testing (the RIP → RIPR extension) | IEEE TSE 43(4), 2017, 372–395 |
+| 20 | Mirian-Hosseinabadi — Formal Analysis of Reachability, Infection and Propagation Conditions in Mutation Testing | [arXiv 2410.21904](https://arxiv.org/abs/2410.21904) |
 
 ## 9. A counterweight: the harness as a trainable artifact
 
@@ -284,3 +286,55 @@ rather than re-searching:
 - *JIT-Agent* — arXiv 2608.25593, read 2026-08-28, summarized in §9
 - `yzhao062/awesome-auditable-ai` — curated list on failure attribution and decision records, which
   is this project's exact subject
+- *DCE-LLM: Dead Code Elimination with Large Language Models* — arXiv 2506.11076. Found while
+  looking for support for BACKLOG §99 and it is NOT that: it is a tool for eliminating dead code,
+  not a finding about agent-authored checks shipping unreachable. Search returned conflicting
+  identifiers for it. Read before citing.
+
+## 10. What this repository measured itself
+
+§8 is about DESIGN AGREEMENT — choices made on the strength of somebody else's
+result. This section is narrower and is the only part of this file that carries
+weight of its own: findings this repository produced by running something, with
+the artifact that holds the evidence.
+
+**Nothing here negates a published finding.** That column is empty and is left
+empty deliberately. A table where a null was promoted to fill a heading would be
+the confident closing language §2 is about.
+
+| Published claim | Source | What was measured here | Verdict |
+|---|---|---|---|
+| A green suite is weak evidence; mutation exposes semantically wrong work | 4, 5 | A 416-mutation campaign, run on every push across four CI shards. It has repeatedly returned survived mutants on code whose tests were green — most recently 2026-09-01, where a task's Acceptance fence ran only the readers and the mutant on the WRITER survived. | **Confirmed** |
+| Mutation-driven testing exposes blind spots a suite cannot see | 4 | **A limit the papers do not state.** On 2026-09-01 a predicate shipped defined, asserted three times directly, and called from nothing — and every mutant in it came back RED throughout, because the direct assertions kill a body mutant whether or not production invokes it. See below. | **Confirmed, and extended** |
+| Most agent failures are configuration failures rather than reasoning failures | 1 | Five separate defect classes in this repository were a path literal that was secretly an assertion about the operating system — separator, line ending, drive prefix, `PATH` semantics, home-directory spelling. Every one was invisible on the developer's machine and red on Windows. `docs/BACKLOG.md` §88, §90, §91, §92; the table in `CLAUDE.md` §7. | **Confirmed** |
+| Single-run eval numbers mislead; report variance and run counts | 11 | A measured Δ of **−0.40** on `gates-advise-never-block` was published in this backlog, then **retracted**: at five runs per arm it is 0.60 / 0.60, Δ 0.00. Later, across nine paired invocations, the with-arm alone spans the full 0–1 range. The power calculation was then done from the corpus's own spread (with-arm n=28, sd 0.39). `docs/BACKLOG.md` §35. | **Confirmed, including by our own retraction** |
+| Deterministic gates move behaviour where prose instructions do not | 3 | Three instructions measured given-vs-omitted. **None showed an effect — and the cases were too noisy to detect a small one.** The honest statement, and the one the entry now carries, is *"three instructions were measured on cases too noisy to detect a small effect, and none showed one"*. | **NULL, under-powered — not support** |
+| Gates that REFUSE the write are where the measured gain comes from | 3 | Not measured here, and not adopted: this project's rule is instruct-never-block. No action-boundary gate exists, so the tension is latent rather than tested. | **Open disagreement, stated in §8** |
+
+### The extension, stated precisely enough to be wrong
+
+The RIP model — Reachability, Infection, Propagation — and its RIPR extension
+(19, 20) say a fault is only observed when the test reaches the faulty location,
+corrupts the state, propagates that corruption to an output, and the oracle
+reveals it.
+
+**On 2026-09-01 all four conditions held and the check was still dead.** The
+predicate was reached — by the three assertions calling it directly. State was
+infected, propagated, and revealed: the mutants went RED. What did not exist was
+any path from the shipped entry point to that predicate at all.
+
+So the refinement is not "the Reachability condition failed". It is:
+
+> **A killed mutant proves reachability from the TEST SUITE. It never proves
+> reachability from the shipped entry point.**
+
+RIPR has no condition for that distinction because it models one program under
+one test, not a component that a suite reaches and `main` does not. For a gate —
+a program whose entire purpose is to be invoked on somebody else's artifact — the
+distinction is the whole difference between a check and a decoration.
+
+The countermeasures this bought, both cheap: register a mutant that deletes or
+redirects the CALL rather than the body, and ask the reachability question once
+per mechanism a change ships rather than once per task. `docs/BACKLOG.md` §99
+holds the third — a mechanical orphan sweep — with the open design question that
+keeps it from being a gate yet.

@@ -1,18 +1,18 @@
-# ADR-020: Bind an acceptance entry to the output the run produced
+# ADR-020: Bind an acceptance entry to something the file cannot produce
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-01
 **Owner:** zy
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-010-a-claim-is-re-checked-or-it-is-not-counted.md, docs/adr/ADR-016-a-mutant-earns-its-verdict.md, docs/BACKLOG.md §97
 **Governs:** `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `tests/gate-regressions.py`
-**Enforced-by:** `verify: an acceptance entry carries the digest of what the run printed`
+**Enforced-by:** `verify: an acceptance entry carries the time its run took`
 
 <T1 creates this label. `adr-lint` advises on it until then, which is the correct
 report for a record that is accepted and unexecuted.>
 
 **Invalidates:** none — checked. ADR-010 and ADR-016 both touch the evidence chain and neither is changed: ADR-010 is about re-checking claims and counting only the checkable, which this extends rather than contradicts, and ADR-016 governs when a mutant earns its verdict, which is untouched. The Verification Log grammar gains an optional-before-a-cutover field; no existing clause is withdrawn.
-**Served-path change:** A `done` task verified from 2026-09-02 onward carries a digest of what its acceptance command actually printed, and on the machine that ran it `adr-lint` can say whether the local run ledger agrees — where today every field in the entry is computable from the task file alone.
+**Served-path change:** A `done` task verified from 2026-09-02 onward records how long its acceptance command took, and `adr-lint` advises when that duration could not plausibly have run the fence it claims — where today every field in the entry is computable from the task file alone.
 
 ## Context
 
@@ -110,6 +110,46 @@ therefore a *checkable* claim about when the row was written, not a silent
 opt-out. That is the difference between this and #4, and it is the reason the
 field may live in the entry line at all.
 
+### THE MEASUREMENT FIRED THE STOP CONDITION, AND MOST OF THIS RECORD DOES NOT SHIP
+
+T1 S2 was written to run before the code, and it did. Measured 2026-09-01 against
+this repository's own corpus — 40 task files carrying a bash acceptance fence, each
+run twice on a clean tree:
+
+| runner | fences | repeated-run output |
+|---|---|---|
+| `node --test` | 25 | **differs on every line** — a per-test duration `(1.6575ms)` |
+| `gate-regressions.py` | 11 | byte-identical |
+| other, `selftest.sh` | 4 | — |
+
+48 of 56 lines differ between two runs of one `node --test` fence. This record's
+Decision said, in advance: *if fewer than all of them are stable, part 3 does not
+ship*. Twenty-five of forty are unstable, so it does not, and the rest follows:
+
+- **Part 3, the ledger cross-check: does not ship.** Its own falsifier fired.
+- **Part 2, the ledger: does not ship.** With no cross-check there is no reader,
+  and a store nothing reads is the speculative complexity YAGNI exists to refuse.
+- **Part 1, the output digest: does not ship.** With no reader it is an
+  unverifiable number that changes every run, bought with a grammar change across
+  three readers and a fourth place for the format to drift.
+
+**Normalising the timings out was measured too, and rejected.** Stripping node's
+`(N.NNNms)` does make the output byte-stable, so the mechanism is technically
+rescuable. It is rejected because the normaliser is per-runner — node's spelling,
+pytest's `in 0.12s`, Go's `0.004s`, PHPUnit's `Time: 00:01.234` — and a runner
+nobody wrote one for produces a digest that can never match, which fires the
+cross-check on honest work for exactly the corpora this plugin does not control.
+That is the ungradeable, silently rotting surface ADR-019 rejected a content
+signature for, one record later.
+
+**What survives is the half this record first threw away.** The duration floor
+needs no stability, no ledger and no second artifact, because it is refuted by
+REASONING about the fence rather than by comparison with another run: a claim of
+`exit 0` in 3ms against a fence that starts a container is wrong on its face. The
+argument for it came from GitHub issue #6 after this record had already dropped it
+as YAGNI, and the measurement that killed the alternative is what leaves it as the
+whole decision.
+
 ## Existing Primitives Audit
 
 - `mutant_journal(cwd)` in `plugin/bin/adr-verify` already keys per-repository
@@ -129,23 +169,30 @@ field may live in the entry line at all.
 
 ## Decision
 
-**An acceptance entry records a digest of what the run printed, and a ledger
-outside the repository records the same value — so forging requires two artifacts
-to agree rather than one line to be typed.**
+**An acceptance entry records how long its run took, and `adr-lint` advises when
+that duration could not plausibly have produced the result it claims.**
 
-Three parts:
+`adr-verify` appends `ms:<integer>` to the entry it writes. Entries dated on or
+after `DURATION_REQUIRED_FROM` must carry it; earlier entries need not, and
+`adr-lint`, `adr-verify` and `adr-next` change together.
 
-1. `adr-verify` appends `output-sha256:<64 hex>` to the entry it writes, over the
-   merged stdout/stderr it already captured, after the redaction it already
-   applies. Entries dated on or after `OUTPUT_REQUIRED_FROM` must carry it; earlier
-   entries need not, and `adr-lint`, `adr-verify` and `adr-next` change together.
-2. The same value is appended to a run ledger under `CLAUDE_PLUGIN_DATA`, falling
-   back to a per-user directory and **never** to the system temp directory.
-3. `adr-lint` cross-checks only when the ledger is readable AND holds an entry for
-   that task and acceptance digest. A ledger that is absent, unreadable, or silent
-   about this row produces NOTHING — not advice, not a finding. Only a ledger that
-   holds a DIFFERENT output digest for the same row is reported, and it is
-   reported as advice.
+The duration is never compared for equality, with anything, on any path. It is
+checked as a FLOOR: an entry claiming success in a time that could not have run the
+fence it names is advised. A floor never reddens honest work, because honest work
+is never absurdly fast, and it costs a forger either a real run or a plausible lie
+they must reason about rather than paste.
+
+**Why this meets the bar even though nothing can verify it.** The threat model is
+an agent taking the shortest path to `done`, not a determined human. The
+requirement is a value the agent cannot produce by reasoning over the file it
+holds, and a wall-clock duration is not in that file. Faced with one, an agent runs
+`adr-verify`, because invoking the tool is cheaper than inventing a number it would
+then have to defend against a floor.
+
+The three parts the first draft proposed — an output digest, a ledger, and a
+cross-check between them — do not ship. The measurement above is why, and it was
+the record's own pre-registered falsifier rather than a judgement made when the
+work turned out to be inconvenient.
 
 **What would make this decision wrong, and whether such data exists:** if honest
 re-runs routinely produce different output for the same fence, the disagreement
@@ -218,23 +265,19 @@ digest because both are fields of one entry and one grammar change.
 
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
-| Verification Log entry grammar | new trailing ` · output-sha256:<64 hex>`, required from a dated cutover | `adr-verify` | `adr-lint`, `adr-next` |
-| `OUTPUT_REQUIRED_FROM` | new constant, the cutover date | `adr-lint` | `adr-lint` |
-| run ledger file | new per-user append-only JSON-lines file | `adr-verify` | `adr-lint` |
-| `CLAUDE_PLUGIN_DATA` | existing env var, now also read for the ledger | the user | `adr-verify`, `adr-lint` |
+| Verification Log entry grammar | new trailing ` · ms:<integer>`, required from a dated cutover | `adr-verify` | `adr-lint`, `adr-next` |
+| `DURATION_REQUIRED_FROM` | new constant, the cutover date | `adr-lint` | `adr-lint` |
 
 No schema, no network, no change to any skill's instructions.
 
 ## Inter-task Contracts
 
-| Contract | Producing task | Consuming task(s) | Breaking? |
-|----------|----------------|-------------------|-----------|
-| `output_digest()` and the extended entry grammar | T1 | T2, T3 | No — additive, gated by a date |
-| `run_ledger()` and its append format | T2 | T3 | No — new file |
+None — one task. The first draft had three, and the two that would have consumed
+T1's contracts were deleted before they ran; see the measurement in Context.
 
 ## Implementation
 
-See `tasks/README.md`. Three tasks, sequential.
+See `tasks/README.md`. One task — the first draft's other two were deleted before they ran, for the reason recorded in Context.
 
 ## Consequences
 

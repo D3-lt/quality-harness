@@ -3624,6 +3624,24 @@
       ],
       "from": "  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null }",
       "to": "  if (false) return { state: 'ours-shipped', route: 'shipped', version: null }"
+    },
+    {
+      "label": "orphan: the scan set is derived from the releases, not written down",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const names = new Set(SHADOW_SCOPE.map(scope => scope.home))",
+      "to": "  const names = new Set(SHADOW_SCOPE.map(scope => scope.home))\n  return [...names].sort()\n  // eslint-disable-next-line no-unreachable"
+    },
+    {
+      "label": "orphan: an unidentified file still gets a row",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })",
+      "to": "      if (verdict.state !== 'unidentified') rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })"
     }
   ]
 }

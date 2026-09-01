@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, classifyHomeFile,
-  formerlyShipped, forwarderCmd, forwarderScript,
+  formerlyShipped, forwarderCmd, forwarderScript, orphans,
   barePathWinner,
   knownDigests, linkPlan, onSearchPath, replaceable, sameLineage, write,
 } from '../plugin/scripts/standalone-link.mjs'
@@ -881,4 +881,66 @@ test('a file the plugin ships today is never called an orphan', () => {
     file: path.join(directory, '.claude', 'bin', 'probe'),
     name: 'probe', shippedNow: true, homeDirectory: directory,
   }).state, 'ours-shipped', 'still shipped wins over every orphan route')
+})
+
+
+// ADR-019 T2. The scan set is DERIVED, and the derivation is the point: the
+// hand-written table missed `workflows` for four days after the hooks gap it was
+// written to close, so the set a PAST installer may have written into is computed
+// from the releases rather than remembered.
+test('the scan set is derived from what the releases shipped', () => {
+  const body = 'retired\n'
+  const directory = releases(home({
+    '.claude/attic/relic': body,   // only an OLD release shipped `attic`
+    '.claude/nowhere/thing': 'x\n', // no release ever shipped `nowhere`
+  }), { '2.1.0': { 'attic/relic': body } })
+
+  const rows = orphans(directory)
+  assert.ok(rows.some(row => row.directory === 'attic' && row.name === 'relic'),
+    `a directory only an old release shipped must be scanned: ${JSON.stringify(rows)}`)
+  assert.ok(!rows.some(row => row.directory === 'nowhere'),
+    'a directory no release ever shipped is not ours to look in')
+})
+
+test('a home directory SHADOW_SCOPE names is scanned though no release shipped that name', () => {
+  // The plugin ships its hook scripts under `scripts/` and they land in `hooks/`,
+  // so deriving from release directory names alone would never look there.
+  const body = '#!/bin/sh\n# an old dispatcher\n'
+  const directory = releases(home({ '.claude/hooks/facts.sh': body }), {
+    '2.1.0': { 'scripts/facts.sh': body },
+  })
+  assert.ok(orphans(directory).some(row => row.directory === 'hooks' && row.name === 'facts.sh'),
+    'the home hooks directory is in the scan set on SHADOW_SCOPE\'s account')
+})
+
+test('an unidentified file gets a row rather than being dropped', () => {
+  const directory = releases(home({ '.claude/bin/stranger': 'not ours\n' }),
+    { '2.1.0': { 'bin/probe': 'ours\n' } })
+  const row = orphans(directory).find(entry => entry.name === 'stranger')
+  assert.ok(row, 'the count must be available without a second walk')
+  assert.equal(row.state, 'unidentified')
+})
+
+test('an absent home directory is not an error', () => {
+  const body = 'x\n'
+  const directory = releases(home({ '.claude/bin/probe': body }),
+    { '2.1.0': { 'bin/probe': body, 'templates/t.md': body, 'attic/a': body } })
+  const rows = orphans(directory)
+  assert.ok(rows.some(row => row.name === 'probe'),
+    'directories the user does not have must not stop the ones they do')
+})
+
+test('a home with nothing of ours returns no orphan rows, and one planted returns one', () => {
+  // The clean answer shown able to be dirty, in the same test and on the same
+  // fixture. `deepEqual(orphans(home), [])` passes at 100% line and branch
+  // coverage against a function mutated to return [] (CLAUDE.md §4).
+  const body = 'retired\n'
+  const directory = releases(home({}), { '2.1.0': { 'bin/probe': body } })
+  assert.deepEqual(orphans(directory).filter(row => row.state === 'ours-orphan'), [])
+  mkdirSync(path.join(directory, '.claude', 'bin'), { recursive: true })
+  writeFileSync(path.join(directory, '.claude', 'bin', 'probe'), body)
+  const dirty = orphans(directory).filter(row => row.state === 'ours-orphan')
+  assert.equal(dirty.length, 1, `a planted orphan must be found: ${JSON.stringify(dirty)}`)
+  assert.equal(dirty[0].evidence.route, 'digest')
+  assert.equal(dirty[0].evidence.version, '2.1.0')
 })

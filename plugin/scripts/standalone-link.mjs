@@ -385,6 +385,102 @@ const firstMeaningfulLine = text => text.split(/\r?\n/).find(line => line.trim()
  * open with a title or a frontmatter fence that names the same thing. Those
  * survive edits to the body, which is exactly what "drifted" means.
  */
+/**
+ * Every cached release of THIS plugin whose tree holds a file of this basename.
+ *
+ * Keyed on BASENAME, not on a relative path, because the path is not stable
+ * across this project's own history: ADR-008 moved the gates under `plugin/` on
+ * 2026-08-28, and the home `hooks/` directory has never shared a name with the
+ * plugin directory that fills it. A lookup pinned to one relative path answers
+ * "no" for a file that shipped for a year under another.
+ *
+ * BOUND TO THIS PLUGIN'S CACHE NAMESPACE, and that bound is load-bearing rather
+ * than tidy. `sameLineage` compares opening docstrings and a `%~dp0` pattern,
+ * neither of which is specific to this plugin, so a walk over `cache/*` would let
+ * another vendor's same-named file satisfy the lineage route — and on the machine
+ * that authored ADR-019, four files in the home hooks directory belonged to
+ * autoresearch and codebase-memory, three of them wired and running.
+ *
+ * Reads only. Short-circuits per release on the first match, because the question
+ * is whether this release knew the name, not how many times.
+ */
+export function formerlyShipped(name, homeDirectory = os.homedir()) {
+  const cache = cacheDirectory(homeDirectory)
+  let versions = []
+  try { versions = readdirSync(cache) } catch { return [] }
+  const found = []
+  for (const version of versions.sort()) {
+    const hit = firstNamed(path.join(cache, version), name, 4)
+    if (!hit) continue
+    found.push({
+      version,
+      relative: path.relative(path.join(cache, version), hit).split(path.sep).join('/'),
+      digest: digest(hit),
+      file: hit,
+    })
+  }
+  return found
+}
+
+/** Depth-bounded search for a file of this basename. */
+function firstNamed(root, name, depth) {
+  if (depth < 0) return null
+  let entries = []
+  try { entries = readdirSync(root, { withFileTypes: true }) } catch { return null }
+  for (const entry of entries) {
+    if (entry.isFile() && entry.name === name) return path.join(root, entry.name)
+  }
+  for (const entry of entries) {
+    if (!entry.isDirectory()) continue
+    const deeper = firstNamed(path.join(root, entry.name), name, depth - 1)
+    if (deeper) return deeper
+  }
+  return null
+}
+
+/**
+ * What a file under the user's home IS, as far as this plugin can prove.
+ *
+ * Three states, and the middle one is the whole of ADR-019:
+ *
+ *   ours-shipped  the plugin ships this basename today -> drift, refresh it
+ *   ours-orphan   it does not, and something PROVES we wrote it -> say so
+ *   unidentified  nothing proves it -> never call it ours
+ *
+ * ABSENCE FROM THE CURRENT TREE IS A PRECONDITION, NEVER EVIDENCE. The residual
+ * rule — not shipped now, therefore ours — was measured wrong before this was
+ * written: it names another tool's live, wired hooks as orphans of this plugin.
+ * `unidentified` is the ADR-005 vocabulary for a check that could not determine
+ * something, and it is the honest answer for a file whose bytes and lineage
+ * markers were both edited. The reported `tests/selftest.sh` is a probable
+ * instance; this returns `unidentified` for it rather than guessing.
+ */
+export function classifyHomeFile({ file, name, shippedNow, homeDirectory = os.homedir() }) {
+  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null }
+  const mine = readOrEmpty(file)
+  if (mine.includes(FORWARDER_MARK)) {
+    return { state: 'ours-orphan', route: 'forwarder', version: null }
+  }
+  const history = formerlyShipped(name, homeDirectory)
+  const ours = digest(file)
+  const identical = history.find(found => found.digest && found.digest === ours)
+  if (identical) {
+    return { state: 'ours-orphan', route: 'digest', version: identical.version }
+  }
+  // Lineage LAST: it is the loose route, so a digest match must have had its
+  // chance first, and a `route` of `lineage` in a report means the bytes differ.
+  const kin = history.find(found => sameLineage(file, found.file, lineageKind(found.relative)))
+  if (kin) return { state: 'ours-orphan', route: 'lineage', version: kin.version }
+  return { state: 'unidentified', route: null, version: null }
+}
+
+/** Which `sameLineage` arm a formerly-shipped path is judged under. */
+function lineageKind(relative) {
+  if (relative.endsWith('.cmd')) return 'shim'
+  if (relative.startsWith('bin/')) return 'gate'
+  return 'file'
+}
+
 export function sameLineage(target, source, kind) {
   if (kind === 'skill') {
     const name = /^name:\s*(\S+)/m.exec(readOrEmpty(path.join(target, 'SKILL.md')))?.[1]

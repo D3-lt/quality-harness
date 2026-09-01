@@ -3597,6 +3597,33 @@
       ],
       "from": "                      f\"mutant against the current Acceptance digest\"",
       "to": "                      f\"mutant for acceptance-sha256:{want_digest}\""
+    },
+    {
+      "label": "orphan: a file this plugin cannot prove it wrote is never named",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  return { state: 'unidentified', route: null, version: null }",
+      "to": "  return { state: 'ours-orphan', route: 'residual', version: null }"
+    },
+    {
+      "label": "orphan: the history walk is bound to this plugin cache namespace",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const cache = cacheDirectory(homeDirectory)\n  let versions = []\n  try { versions = readdirSync(cache) } catch { return [] }\n  const found = []",
+      "to": "  const cache = path.join(homeDirectory, '.claude', 'plugins', 'cache')\n  let versions = []\n  try { versions = readdirSync(cache) } catch { return [] }\n  const found = []"
+    },
+    {
+      "label": "orphan: a still-shipped file is never called an orphan",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null }",
+      "to": "  if (false) return { state: 'ours-shipped', route: 'shipped', version: null }"
     }
   ]
 }

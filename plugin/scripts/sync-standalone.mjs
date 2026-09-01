@@ -23,7 +23,8 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  FORWARDER_MARK, SHADOW_SCOPE, backupRoot, linkPlan, onSearchPath, orphans, wiredInSettings,
+  FORWARDER_MARK, SHADOW_SCOPE, backupRoot, citeOrphan, linkPlan, onSearchPath, orphans,
+  wiredInSettings,
   write as writeLink,
 } from './standalone-link.mjs'
 
@@ -239,8 +240,7 @@ function reportOrphans(home) {
   process.stdout.write('\nNo longer shipped by this plugin:\n')
   for (const row of retired) {
     process.stdout.write(`  orphan   ${path.join('~', '.claude', row.directory, row.name)}`
-      + ` — last shipped in ${row.evidence.version ?? 'a release this cache no longer holds'}`
-      + `, matched by ${row.evidence.route}\n`)
+      + ` — ${citeOrphan(row.evidence)}\n`)
   }
   if (!retired.length) process.stdout.write('  none this tool can prove it wrote\n')
   if (unknown) {

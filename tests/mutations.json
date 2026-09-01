@@ -3604,8 +3604,8 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  return { state: 'unidentified', route: null, version: null }",
-      "to": "  return { state: 'ours-orphan', route: 'residual', version: null }"
+      "from": "  return { state: 'unidentified', route: null, version: null, first: null, shared: null }",
+      "to": "  return { state: 'ours-orphan', route: 'residual', version: null, first: null, shared: null }"
     },
     {
       "label": "orphan: the history walk is bound to this plugin cache namespace",
@@ -3622,8 +3622,8 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null }",
-      "to": "  if (false) return { state: 'ours-shipped', route: 'shipped', version: null }"
+      "from": "  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null, first: null, shared: null }",
+      "to": "  if (false) return { state: 'ours-shipped', route: 'shipped', version: null, first: null, shared: null }"
     },
     {
       "label": "orphan: the scan set is derived from the releases, not written down",
@@ -3687,6 +3687,33 @@
       ],
       "from": "    where = f\" in `{_excerpt(entry)}`\" if entry else \"\"",
       "to": "    where = \"\""
+    },
+    {
+      "label": "orphan: the cited release is the best match, not the first found",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "    .sort((a, b) => b.shared - a.shared)",
+      "to": ""
+    },
+    {
+      "label": "orphan: cached versions are ordered numerically, not lexically",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "export function bySemver(names) {\n  const parts = name => /^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(name)?.slice(1, 4).map(Number) ?? null",
+      "to": "export function bySemver(names) {\n  return [...names].sort()\n  // eslint-disable-next-line no-unreachable\n  const parts = name => /^(\\d+)\\.(\\d+)\\.(\\d+)$/.exec(name)?.slice(1, 4).map(Number) ?? null"
+    },
+    {
+      "label": "orphan: a citation says what matched",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const shared = evidence.shared\n    ? `, sharing ${evidence.shared} line(s) with it`\n    : ''",
+      "to": "  const shared = ''"
     }
   ]
 }

@@ -26,6 +26,17 @@ never the record that has to obey it.>
 **Consumes:** <contracts from sibling tasks, or none>
 **Data dependency:** hermetic | needs <what: a populated corpus, a live service, recorded traffic, a model>
 **Proof map:** v1
+**Rests-on:** <OPTIONAL: the mechanisms your Acceptance fence's claim depends on, as backticked
+names separated by commas — `the exit code`, `the redacted home path`. Or `none — <reason>` when the
+fence rests on one indivisible thing. Leave the header out entirely and nothing changes.>
+
+<WHY THIS IS SAFE TO HAND-WRITE when every row about a run is tool-written: it records an
+OBLIGATION, not evidence. `adr-lint` requires ONE killed mutant bound to your fence's digest before
+`done`, and that obligation is existential — a fence chaining three assertions with one bound mutant
+has been shown capable of failing for one reason, and nothing is known about the other two. Nothing
+in a task file says what the other two are, so nothing can count them. This header is that count,
+and declaring MORE can only make the record admit more than it has proved. The incentive runs
+backwards, which is why it may be prose.>
 
 <`hermetic` means every Ordered Step runs from a clean checkout with no external state. Anything else
 names what is required. This header exists because the gate cannot see the difference: a task whose

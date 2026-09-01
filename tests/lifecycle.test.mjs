@@ -2444,6 +2444,15 @@ test('what the drift notice reports is what the repair tool can act on', async (
   assert.equal(work[0].state, 'drifted')
   assert.equal(work[0].from, path.join(pluginDir, 'scripts', shipped),
     'and it must copy from scripts/, which is where the plugin actually ships hooks')
+
+  // `whenAbsent: 'skip'` for hooks, asserted rather than assumed. Only a GATE is
+  // created where it is missing; creating a hook installs a file this plugin
+  // wires through ${CLAUDE_PLUGIN_ROOT} and never invokes, which is the dead
+  // drift the notice already had removed once. A later edit flipping hooks to
+  // 'create' would install those silently.
+  await rm(path.join(home, '.claude', 'hooks', shipped))
+  assert.deepEqual(syncPlan(pluginDir, home).filter(entry => entry.to.includes('hooks')), [],
+    'a hook the user does not have is not created')
 })
 
 test('the corpus reader handles the spellings real repositories use', async () => {

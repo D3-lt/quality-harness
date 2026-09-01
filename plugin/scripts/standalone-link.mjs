@@ -129,8 +129,16 @@ export function searchPathIndex(directory, pathValue, platform = process.platfor
   return parts.findIndex(entry => normalisePathEntry(entry, windows) === want)
 }
 
+// Normalised by the TARGET platform's rules, not the host's. `path.normalize` is
+// the host's — on macOS it leaves `C:/x` alone, so `C:/x` and `C:\\x` compared
+// unequal however `platform` was set, and the seam that exists to make Windows
+// reachable from a laptop quietly answered with POSIX rules. Caught 2026-09-01 by
+// the first test that passed 'win32' from macOS; production was unaffected,
+// because on a real Windows box the host's rules ARE the target's — which is
+// exactly why nothing had contradicted it.
 const normalisePathEntry = (value, windows) => {
-  const trimmed = path.normalize(value).replace(/[\\/]+$/, '')
+  const rules = windows ? path.win32 : path.posix
+  const trimmed = rules.normalize(value).replace(/[\\/]+$/, '')
   return windows ? trimmed.toLowerCase() : trimmed
 }
 
@@ -156,7 +164,9 @@ export function barePathWinner(homeDirectory, pathValue, platform = process.plat
   const cacheRoot = normalisePathEntry(cacheDirectory(homeDirectory), windows)
   // Any version's bin under the cache counts: the question is which TREE answers,
   // and the loader injects whichever version the session pinned.
-  const plugin = parts.findIndex(entry => normalisePathEntry(entry, windows).startsWith(cacheRoot + path.sep))
+  const separator = windows ? path.win32.sep : path.posix.sep
+  const plugin = parts.findIndex(entry =>
+    normalisePathEntry(entry, windows).startsWith(cacheRoot + separator))
   const winner = standalone < 0 && plugin < 0 ? 'neither'
     : standalone < 0 ? 'plugin'
     : plugin < 0 ? 'standalone'

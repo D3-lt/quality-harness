@@ -3525,6 +3525,24 @@
       ],
       "from": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },",
       "to": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'create', wired: true },"
+    },
+    {
+      "label": "link: PATH entries are normalised by the target platform, not the host",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const rules = windows ? path.win32 : path.posix",
+      "to": "  const rules = path"
+    },
+    {
+      "label": "link: the cache prefix uses the target platform separator",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "  const separator = windows ? path.win32.sep : path.posix.sep",
+      "to": "  const separator = path.sep"
     }
   ]
 }

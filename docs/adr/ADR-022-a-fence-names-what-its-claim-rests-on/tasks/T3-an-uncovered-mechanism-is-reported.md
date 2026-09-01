@@ -64,6 +64,8 @@ python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 
 ## Mutation Log
 
+- 2026-09-01 · 403ac2b* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the uncovered reading is never reached · acceptance-sha256:e3415eed0a41797e8e821997e2301f35c8ce6f8b2a4328d35358135800afe548
+
 ## Invariants
 
 - `done` requires exactly what it requires today: at least one killed mutant bound to the current digest.
@@ -91,3 +93,4 @@ to remove the field rather than to soften the report.
 - Requiring full coverage before `done` (permanent: boundary: it makes honest declaration the expensive choice — the argument is in the record's Decision and Alternatives)
 
 ## Verification Log
+- 2026-09-01 · 403ac2b · exit 0 · `set -o pipefail …` · acceptance-sha256:e3415eed0a41797e8e821997e2301f35c8ce6f8b2a4328d35358135800afe548 · ms:6129

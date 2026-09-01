@@ -18,7 +18,8 @@ Prevent a pre-existing red or vacuous Acceptance fence from lending its failure 
 |------|--------|-----|
 | `plugin/bin/adr-verify` | edit | arm the journal, then run and classify the clean fence before applying a mutant, and sharpen the survivor wording |
 | `tests/evidence-chain.test.mjs` | edit | prove the contract through the real CLI with pre-red, vacuous, timeout and passing controls |
-| `tests/mutations.json` | edit | add a behavioral mutant that removes the clean-baseline selection point |
+| `tests/gate-regressions.py` | edit | pin POSIX signal, shell signal-exit, Windows exception-status and narrow crash-output classification directly |
+| `tests/mutations.json` | edit | add behavioral mutants for the clean-baseline selection point and abnormal-termination classifier |
 
 ## Ordered Steps
 
@@ -39,11 +40,14 @@ Prevent a pre-existing red or vacuous Acceptance fence from lending its failure 
    reason, restore and remove the journal, and write no row because no mutant ran. Preserve exit 2
    for usage/authoring errors.
 4. Reuse the clean result when the mutant removes all tests instead of running a second post-hoc
-   baseline. Preserve build/parse and machine failures as `inconclusive`, and preserve a mutant
-   timeout as `UNRUN` with no row; do not promote any of them merely because the baseline passed.
+   baseline. Preserve build/parse, machine and abnormal process-termination failures as
+   `inconclusive`, and preserve a mutant timeout as `UNRUN` with no row; do not promote any of them
+   merely because the baseline passed.
 5. Make a survivor explicitly say the fence may not materialize, compile, load, or assert on the
-   changed path. Add the exact catalogue label `verify: a mutant is judged only after its clean
-   fence passes` by disabling the unique baseline guard/call, and prove the CLI regression kills it.
+   changed path. Add the exact catalogue labels `verify: a mutant is judged only after its clean
+   fence passes` and `verify: abnormal mutant termination is never credited as a kill`; respectively
+   disable the unique baseline guard and abnormal-termination classifier, and prove the CLI
+   regression kills both.
 6. Run the focused catalogue-integrity checks outside this task's Acceptance, execute the mutant,
    restore, and run the full unpiped repository self-test before marking the task done.
 
@@ -68,7 +72,7 @@ node --test --test-name-pattern='every catalogue entry still matches the source 
 
 | Test name | File | Verifies | Covers |
 |-----------|------|----------|--------|
-| `adr-verify requires a clean fence before it mutates` | `tests/evidence-chain.test.mjs` | through the CLI: pre-red, timeout, missing-runner and no-tests clean fences produce `UNPROVEN` before mutation; a journal-arm failure runs neither fence; a clean-scored control proceeds; an unread target is a restored survivor with reachability wording; and a mutant-only timeout remains restored `UNRUN` with no row | — |
+| `adr-verify requires a clean fence before it mutates` | `tests/evidence-chain.test.mjs` | through the CLI: pre-red, timeout, missing-runner and no-tests clean fences produce `UNPROVEN` before mutation; a journal-arm failure runs neither fence; a clean-scored control proceeds; an unread target is a restored survivor with reachability wording; a crashing mutant is restored and recorded `inconclusive`; and a mutant-only timeout remains restored `UNRUN` with no row | — |
 | `an interrupted clean baseline cannot silently lend its changed tree to a later run` | `tests/evidence-chain.test.mjs` | a SIGKILL after the clean fence rewrites or removes the target leaves the baseline journal intact, preserves the unknown tree state, and blocks recovery from claiming it restored anything | — |
 | `every catalogue entry still matches the source it mutates, exactly once` | `tests/package.test.mjs` | the new source anchor remains unique before and after mutation work; preflight only | — |
 | `a mutation that matches across lines targets a file git checks out with LF` | `tests/package.test.mjs` | a multi-line Python anchor remains portable when used; preflight only | — |
@@ -102,6 +106,7 @@ subprocess path and add a control before marking the task done.
 - 2026-08-31 · 0c5c36e* · mutant killed · exit 1 · `plugin/bin/adr-verify` · disabling the clean-baseline guard must let the named CLI regression observe an unearned mutant verdict · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
 - 2026-09-01 · 0c5c36e* · mutant killed · exit 1 · `plugin/bin/adr-verify` · disabling the clean-baseline guard must let the named CLI regression observe an unearned mutant verdict · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
 - 2026-09-01 · 0c5c36e* · mutant killed · exit 1 · `plugin/bin/adr-verify` · disabling the clean-baseline guard must let the named CLI regression observe an unearned mutant verdict · acceptance-sha256:7aa5a71679cbaef3c3632ac52b5ad60b9a0be35b0579a8c442e7475982c1d4ef
+- 2026-09-01 · 128f5c1* · mutant killed · exit 1 · `plugin/bin/adr-verify` · bypassing abnormal-termination classification must not let a crashing fence earn a killed verdict · acceptance-sha256:7aa5a71679cbaef3c3632ac52b5ad60b9a0be35b0579a8c442e7475982c1d4ef
 
 ## Invariants
 
@@ -109,8 +114,9 @@ subprocess path and add a control before marking the task done.
   Log row.
 - A journal that cannot be written starts neither fence and grants no verdict.
 - No shell text is interpreted to guess whether a target is compiled.
-- A clean pass cannot turn a mutant build break, timeout, or machine failure into a kill; timeout
-  remains `UNRUN` and writes no row.
+- A clean pass cannot turn a mutant build break, timeout, machine failure, signal, or runtime crash
+  into a kill; timeout remains `UNRUN` and writes no row, while returned abnormal termination is
+  recorded `inconclusive`.
 - The exact task Acceptance command remains the command run in both phases and bound by the digest.
 
 ## Risks
@@ -154,3 +160,4 @@ or if the change would require parsing shell to decide whether the target is com
 - 2026-08-31 · 0c5c36e* · exit 0 · `set -o pipefail …` · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
 - 2026-09-01 · 0c5c36e* · exit 0 · `set -o pipefail …` · acceptance-sha256:10332fcd9d6f3369129b6f509cd60744157cdc0676ca956fd37a0176af582b63
 - 2026-09-01 · 0c5c36e* · exit 0 · `set -o pipefail …` · acceptance-sha256:7aa5a71679cbaef3c3632ac52b5ad60b9a0be35b0579a8c442e7475982c1d4ef
+- 2026-09-01 · 128f5c1* · exit 0 · `set -o pipefail …` · acceptance-sha256:7aa5a71679cbaef3c3632ac52b5ad60b9a0be35b0579a8c442e7475982c1d4ef

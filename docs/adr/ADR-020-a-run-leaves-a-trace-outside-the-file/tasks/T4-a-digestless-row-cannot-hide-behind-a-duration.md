@@ -104,8 +104,15 @@ its own layering and that is a decision, not an edit.
 - A repository-owned gate that fails when a plugin function is defined and never referenced (deferred: docs/BACKLOG.md §99)
 - `gitBranch()` in `plugin/scripts/lifecycle.mjs`, dead since the branch guard was removed (deferred: docs/BACKLOG.md §100)
 
+<THE LOG'S FIRST ENTRY IS NOT A RED RUN. The S1 red run happened and was observed
+in-session — both assertions failed against the shipped gate, the floor one
+reading `[FAIL] … no such file exists in the repo` with nothing about 3ms — but it
+was run by hand rather than through `adr-verify`, so nothing tool-written records
+it. Said here rather than left to imply a cycle the log does not show.>
+
 ## Verification Log
 
 - 2026-09-01 · 3d625f6 · exit 0 · `set -o pipefail …` · acceptance-sha256:1719b42f9ae1188b7e9e3db95f80cbd71a447dff58a0f3ac6054b3fd161650bb · ms:3465
 
 ## Mutation Log
+- 2026-09-01 · 7a37d01 · mutant killed · exit 1 · `plugin/bin/adr-lint` · the floor and the digest-less notice go back to seeing only digest rows, which is the defect this task closes · acceptance-sha256:1719b42f9ae1188b7e9e3db95f80cbd71a447dff58a0f3ac6054b3fd161650bb

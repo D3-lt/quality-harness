@@ -1892,6 +1892,26 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
         # costs a forger the price of running the command.
         known = committed(inf["path"]) if inf.get("path") is not None else None
         for row in entries:
+            # THE FLOOR IS CALLED HERE, and it shipped in 2.47.0 without this line.
+            # `implausibly_fast` was defined, asserted three times directly, and
+            # called from nothing — one grep hit in the whole plugin. A row
+            # claiming exit 0 in 3ms against a fence that starts a container
+            # passed clean. Reported on GitHub issue #6 and verified on Windows.
+            #
+            # It is this repository's own most-common shipped defect: the fence was
+            # satisfied by the component while the SELECTION did not exist, and
+            # the mutation evidence could not see it either, because a mutant in
+            # the predicate's body is killed by the direct assertions whether or
+            # not anything calls it.
+            timed = VLOG_DIGEST_RE.match(row)
+            if timed and timed.group("ms") and implausibly_fast(int(timed.group("ms")),
+                                                                inf.get("acc_all", "")):
+                errors.advise(
+                    f"{inf['path'].name}: {tid} records exit {timed.group('exit')} in "
+                    f"{timed.group('ms')}ms, which is too short to have run this task's "
+                    f"Acceptance fence at all. A duration is the one field in an entry the "
+                    f"task file cannot produce; this one could not have been produced by "
+                    f"the command it sits beside. Re-run `adr-verify <task.md>`")
             if VLOG_LEGACY_RE.match(row) and known is not None and row not in known:
                 errors.append(
                     f"{inf['path'].name}: {tid} has an acceptance entry carrying no "

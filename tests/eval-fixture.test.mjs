@@ -13,7 +13,13 @@ import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
 
+import { fileURLToPath } from 'node:url'
 import { CORPUS_PARTS, grantsFor, main, measure, render, snapshot, yamlPath } from '../plugin/scripts/eval-fixture.mjs'
+
+// The repository root, not the plugin root — the two are different directories
+// here (CLAUDE.md §1), and a test that injects a fake plugin root still needs
+// the real templates to render against.
+const REPO_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 function corpus(files) {
   const root = mkdtempSync(path.join(tmpdir(), 'qh-fixture-test-'))
@@ -157,13 +163,22 @@ test('a generate run snapshots the corpus and writes a runnable case', () => {
     'docs/specs/spec-a.md': '# spec\n',
     'src/main.rs': 'fn main() {}\n',
   })
-  const out = mkdtempSync(path.join(tmpdir(), 'qh-fixture-out-'))
+  // The out directory must sit INSIDE the plugin root, because `--eval-dir` is
+  // resolved against that root and refuses an absolute path or any `..`. This
+  // test used to write to a bare temp directory and assert the case was
+  // "runnable"; measured 2026-09-01, the command it printed was refused by the
+  // runner with "must stay inside the plugin root (no ..)", so the word in the
+  // test's own name was the one thing it did not check. The plugin root is
+  // injected rather than real so nothing is written into `plugin/`.
+  const pluginRoot = mkdtempSync(path.join(tmpdir(), 'qh-fixture-plugin-'))
+  const out = path.join(pluginRoot, 'evals', 'generated')
   const written = []
   const write = process.stdout.write.bind(process.stdout)
   process.stdout.write = chunk => { written.push(String(chunk)); return true }
   let code
   try {
-    code = main(['--corpus', source, '--out', out])
+    code = main(['--corpus', source, '--out', out,
+      '--template', path.join(REPO_ROOT, 'plugin', 'evals', 'templates')], pluginRoot)
   } finally {
     process.stdout.write = write
   }
@@ -199,9 +214,60 @@ test('a generate run snapshots the corpus and writes a runnable case', () => {
     assert.match(said, /--eval-dir \S*evals\/generated\/cases|--eval-dir \S*cases/)
     assert.match(said, /--allow-tools .*Write/, 'the grant the cases declare must be printed')
     assert.match(said, /not optional/i)
+
+    // RUNNABLE, which is what this test's name claims. Two things the runner
+    // enforces and this command has to satisfy, both measured 2026-09-01 by
+    // running it: the --eval-dir is relative and free of `..`, and the TARGET is
+    // the plugin rather than `.`. With `.` from the repository root the runner
+    // resolved `evals/generated/cases` against the REPOSITORY and reported "No
+    // eval cases found" — the two roots of CLAUDE.md §1 reaching the eval runner.
+    const printed = /claude plugin eval --eval-dir (\S+)[^\n]*?(\S+)\n/.exec(said)
+    assert.ok(printed, `a run command must be printed, got: ${said}`)
+    assert.ok(!printed[1].includes('..'),
+      `--eval-dir must not escape the plugin root, got ${printed[1]}`)
+    assert.ok(!path.isAbsolute(printed[1]),
+      `--eval-dir must be relative, got ${printed[1]}`)
+    assert.notEqual(printed[2], '.',
+      'the target must name the plugin, not the working directory')
+    assert.match(printed[2], /(^\.\/|\bplugin)/,
+      `the target must be a path to the plugin, got ${printed[2]}`)
   } finally {
     rmSync(source, { recursive: true, force: true })
-    rmSync(out, { recursive: true, force: true })
+    rmSync(pluginRoot, { recursive: true, force: true })
+  }
+})
+
+test('an out directory outside the plugin is refused, not printed as a command', () => {
+  // The failure this replaces was silent and total: the generator wrote correct
+  // cases and printed a command the runner refuses, so a generated case had
+  // never once been run. `--eval-dir` is resolved against the plugin root and
+  // takes neither an absolute path nor a `..`, so an out directory outside the
+  // plugin produces cases that cannot be named on a command line at all.
+  const source = corpus({ 'docs/adr/ADR-001-a.md': '# a\n\n**Status:** Accepted\n' })
+  const pluginRoot = mkdtempSync(path.join(tmpdir(), 'qh-fixture-plugin-'))
+  const outside = mkdtempSync(path.join(tmpdir(), 'qh-fixture-outside-'))
+  const errors = []
+  const write = process.stderr.write.bind(process.stderr)
+  process.stderr.write = chunk => { errors.push(String(chunk)); return true }
+  let code
+  try {
+    code = main(['--corpus', source, '--out', outside,
+      '--template', path.join(REPO_ROOT, 'plugin', 'evals', 'templates')], pluginRoot)
+  } finally {
+    process.stderr.write = write
+  }
+  try {
+    assert.equal(code, 2, 'an unusable out directory is a usage failure')
+    assert.match(errors.join(''), /--out must be inside the plugin/)
+    // Refused BEFORE the copy, the way the runner refuses before running: a
+    // generator that copies a corpus and then declines has still spent the work
+    // and left a snapshot behind.
+    assert.ok(!existsSync(path.join(outside, 'cases')),
+      'nothing is written under a refused out directory')
+  } finally {
+    rmSync(source, { recursive: true, force: true })
+    rmSync(pluginRoot, { recursive: true, force: true })
+    rmSync(outside, { recursive: true, force: true })
   }
 })
 

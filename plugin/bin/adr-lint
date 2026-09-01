@@ -629,11 +629,30 @@ PERMANENT_BASIS_FORMS = (
 )
 
 
-def _permanent_advice(errors, record, detail):
-    """Report one typed-basis problem without changing the lint verdict."""
+def _permanent_advice(errors, record, detail, entry=""):
+    """Report one typed-basis problem without changing the lint verdict.
+
+    NAMES THE ENTRY. Reported 2026-09-01 (GitHub issue #5): a record with four
+    legacy dispositions emitted four byte-identical lines — the right count, one
+    per entry, and no way to tell which bullet any of them was about. The reporter
+    filed it as a duplicate-diagnostics defect and had to count the dispositions to
+    find it was not one. The sibling Out of Scope advisory two lines away already
+    quotes its offending entry; this now does the same.
+
+    Excerpted rather than quoted whole: a disposition can be a paragraph, and four
+    paragraphs restating the grammar is the other way to make an advisory
+    unreadable.
+    """
     prefix = f"{record}: " if record else ""
+    where = f" in `{_excerpt(entry)}`" if entry else ""
     errors.advise(
-        f"{prefix}permanent basis: {detail}. Accepted forms: {PERMANENT_BASIS_FORMS}")
+        f"{prefix}permanent basis{where}: {detail}. Accepted forms: {PERMANENT_BASIS_FORMS}")
+
+
+def _excerpt(text, width=60):
+    """One line of `text`, truncated, for naming an entry inside a finding."""
+    flat = " ".join(str(text).split())
+    return flat if len(flat) <= width else flat[:width - 1] + "\u2026"
 
 
 def _inside_repository(path, root):
@@ -642,7 +661,7 @@ def _inside_repository(path, root):
 
 
 def _check_permanent_file_citation(receipt, root, tracked, errors, read_text=None,
-                                   resolve_path=None, record=""):
+                                   resolve_path=None, record="", entry=""):
     """Advise unless `receipt` locates a readable repository-candidate line.
 
     `tracked` deliberately accepts None: that means git could not answer, which
@@ -652,8 +671,8 @@ def _check_permanent_file_citation(receipt, root, tracked, errors, read_text=Non
     path_text, separator, line_text = receipt.rpartition(":")
     if not separator or not re.fullmatch(r"[1-9]\d*", line_text):
         _permanent_advice(
-            errors, record,
-            f"file citation `{receipt}` must end in a positive decimal line number")
+            errors, record, entry=entry,
+            detail=f"file citation `{receipt}` must end in a positive decimal line number")
         return
 
     normalized = path_text.replace("\\", "/")
@@ -661,21 +680,21 @@ def _check_permanent_file_citation(receipt, root, tracked, errors, read_text=Non
     if (looks_absolute(path_text) or not normalized or "" in parts or
             any(part in (".", "..") for part in parts)):
         _permanent_advice(
-            errors, record,
-            f"file citation `{receipt}` leaves the repository or is not repository-relative")
+            errors, record, entry=entry,
+            detail=f"file citation `{receipt}` leaves the repository or is not repository-relative")
         return
     if root is None or tracked is None:
         _permanent_advice(
-            errors, record,
-            f"could not validate file citation `{receipt}` because git could not provide "
+            errors, record, entry=entry,
+            detail=f"could not validate file citation `{receipt}` because git could not provide "
             "repository candidates")
         return
 
     candidates = {str(path).replace("\\", "/") for path in tracked}
     if normalized not in candidates:
         _permanent_advice(
-            errors, record,
-            f"file citation `{receipt}` is not a repository candidate (tracked or untracked "
+            errors, record, entry=entry,
+            detail=f"file citation `{receipt}` is not a repository candidate (tracked or untracked "
             "and non-ignored)")
         return
 
@@ -686,27 +705,27 @@ def _check_permanent_file_citation(receipt, root, tracked, errors, read_text=Non
         resolved_candidate = resolver(candidate)
     except (OSError, RuntimeError) as exc:
         _permanent_advice(
-            errors, record,
-            f"could not validate file citation `{receipt}` ({exc.__class__.__name__})")
+            errors, record, entry=entry,
+            detail=f"could not validate file citation `{receipt}` ({exc.__class__.__name__})")
         return
     if not _inside_repository(resolved_candidate, resolved_root):
         _permanent_advice(
-            errors, record,
-            f"file citation `{receipt}` leaves the repository through its resolved path")
+            errors, record, entry=entry,
+            detail=f"file citation `{receipt}` leaves the repository through its resolved path")
         return
 
     try:
         candidate.stat()
     except FileNotFoundError:
         _permanent_advice(
-            errors, record,
-            f"file citation `{receipt}` is a repository candidate but is absent from the "
+            errors, record, entry=entry,
+            detail=f"file citation `{receipt}` is a repository candidate but is absent from the "
             "working tree")
         return
     except OSError as exc:
         _permanent_advice(
-            errors, record,
-            f"could not read file citation `{receipt}` ({exc.__class__.__name__})")
+            errors, record, entry=entry,
+            detail=f"could not read file citation `{receipt}` ({exc.__class__.__name__})")
         return
 
     reader = read_text or (lambda path: path.read_text(encoding="utf-8"))
@@ -716,19 +735,19 @@ def _check_permanent_file_citation(receipt, root, tracked, errors, read_text=Non
         # The file can disappear after stat(); preserve the same observed state
         # instead of changing the diagnosis merely because the race was narrow.
         _permanent_advice(
-            errors, record,
-            f"file citation `{receipt}` is a repository candidate but is absent from the "
+            errors, record, entry=entry,
+            detail=f"file citation `{receipt}` is a repository candidate but is absent from the "
             "working tree")
         return
     except (OSError, UnicodeError) as exc:
         _permanent_advice(
-            errors, record,
-            f"could not read file citation `{receipt}` ({exc.__class__.__name__})")
+            errors, record, entry=entry,
+            detail=f"could not read file citation `{receipt}` ({exc.__class__.__name__})")
         return
     if len(line_text) > 1000:
         _permanent_advice(
-            errors, record,
-            f"file citation line number is too large to resolve ({len(line_text)} digits)")
+            errors, record, entry=entry,
+            detail=f"file citation line number is too large to resolve ({len(line_text)} digits)")
         return
     try:
         line = int(line_text)
@@ -736,38 +755,38 @@ def _check_permanent_file_citation(receipt, root, tracked, errors, read_text=Non
         # Python 3.11+ lets the process lower its integer-string digit limit.
         # A citation must not turn that runtime setting into a gate traceback.
         _permanent_advice(
-            errors, record,
-            f"file citation line number is too large to resolve ({len(line_text)} digits)")
+            errors, record, entry=entry,
+            detail=f"file citation line number is too large to resolve ({len(line_text)} digits)")
         return
     if line > len(lines):
         _permanent_advice(
-            errors, record,
-            f"file citation `{receipt}` names line {line}, but that line does not exist")
+            errors, record, entry=entry,
+            detail=f"file citation `{receipt}` names line {line}, but that line does not exist")
 
 
-def _check_permanent_url_citation(receipt, errors, record):
+def _check_permanent_url_citation(receipt, errors, record, entry=""):
     """Advise unless `receipt` is an offline lowercase-HTTPS host/path URL."""
     if not receipt.startswith("https://"):
         _permanent_advice(
-            errors, record,
-            f"URL citation `{receipt}` must use the exact lowercase `https` scheme")
+            errors, record, entry=entry,
+            detail=f"URL citation `{receipt}` must use the exact lowercase `https` scheme")
         return
     try:
         parsed = urlsplit(receipt)
         # Accessing port makes malformed bracket/port spellings observable.
         parsed.port
     except ValueError:
-        _permanent_advice(errors, record, f"URL citation `{receipt}` is malformed")
+        _permanent_advice(errors, record, f"URL citation `{receipt}` is malformed", entry=entry)
         return
     if (not parsed.hostname or any(char.isspace() or ord(char) < 32 for char in receipt) or
             "\\" in receipt):
-        _permanent_advice(errors, record, f"URL citation `{receipt}` must name a host")
+        _permanent_advice(errors, record, f"URL citation `{receipt}` must name a host", entry=entry)
         return
     if (parsed.username or parsed.password or parsed.query or parsed.fragment or
             "@" in parsed.netloc or "?" in receipt or "#" in receipt):
         _permanent_advice(
-            errors, record,
-            f"URL citation `{receipt}` must contain only an HTTPS host and optional path")
+            errors, record, entry=entry,
+            detail=f"URL citation `{receipt}` must contain only an HTTPS host and optional path")
         return
 
     authority = parsed.netloc
@@ -789,8 +808,8 @@ def _check_permanent_url_citation(receipt, errors, record):
                 for label in labels))
     if not valid_host:
         _permanent_advice(
-            errors, record,
-            f"URL citation `{receipt}` must name a syntactically valid HTTPS host")
+            errors, record, entry=entry,
+            detail=f"URL citation `{receipt}` must name a syntactically valid HTTPS host")
 
 
 def check_permanent_disposition(inner, adr_path, errors, root, candidates):
@@ -802,11 +821,11 @@ def check_permanent_disposition(inner, adr_path, errors, root, candidates):
     if inner.startswith(boundary_prefix):
         reason = inner[len(boundary_prefix):].strip()
         if not reason:
-            _permanent_advice(errors, record, "a boundary needs a non-empty reason")
+            _permanent_advice(errors, record, entry=inner, detail="a boundary needs a non-empty reason")
         elif re.search(r";\s*citation\s*:", reason, re.I):
             _permanent_advice(
-                errors, record,
-                "a boundary records this decision's choice and cannot carry a citation field")
+                errors, record, entry=inner,
+                detail="a boundary records this decision's choice and cannot carry a citation field")
         return
 
     if inner.startswith(fact_prefix):
@@ -814,39 +833,39 @@ def check_permanent_disposition(inner, adr_path, errors, root, candidates):
         marker = "; citation:"
         if fact.count(marker) != 1:
             _permanent_advice(
-                errors, record,
-                "a fact needs exactly one exact `; citation:` suffix and one typed receipt")
+                errors, record, entry=inner,
+                detail="a fact needs exactly one exact `; citation:` suffix and one typed receipt")
             return
         claim, receipt = fact.rsplit(marker, 1)
         if not claim.strip():
-            _permanent_advice(errors, record, "a fact needs a non-empty claim")
+            _permanent_advice(errors, record, entry=inner, detail="a fact needs a non-empty claim")
             return
         if not receipt.startswith(" ") or receipt.startswith("  "):
             _permanent_advice(
-                errors, record,
-                "the citation suffix must be followed by exactly one typed receipt")
+                errors, record, entry=inner,
+                detail="the citation suffix must be followed by exactly one typed receipt")
             return
         receipt = receipt[1:]
 
         file_match = re.fullmatch(r"file `([^`\n]+)`", receipt)
         if file_match:
             _check_permanent_file_citation(
-                file_match.group(1), root, candidates(), errors, record=record)
+                file_match.group(1), root, candidates(), errors, record=record, entry=inner)
             return
         version_match = re.fullmatch(r"version `([^`\n]+)`", receipt)
         if version_match:
             name, at, version = version_match.group(1).rpartition("@")
             if not at or not name.strip() or not version.strip():
                 _permanent_advice(
-                    errors, record,
-                    f"version citation `{version_match.group(1)}` needs a non-empty name and version")
+                    errors, record, entry=inner,
+                    detail=f"version citation `{version_match.group(1)}` needs a non-empty name and version")
             return
         if receipt.startswith("url "):
-            _check_permanent_url_citation(receipt[4:], errors, record)
+            _check_permanent_url_citation(receipt[4:], errors, record, entry=inner)
             return
         _permanent_advice(
-            errors, record,
-            "a fact citation must be one complete typed receipt: `file`, `version`, or `url`")
+            errors, record, entry=inner,
+            detail="a fact citation must be one complete typed receipt: `file`, `version`, or `url`")
         return
 
     # Old free-form permanent reasons remain dispositions, but near-misses of
@@ -854,12 +873,12 @@ def check_permanent_disposition(inner, adr_path, errors, root, candidates):
     if inner == "permanent" or not re.match(
             r"^permanent\s*:\s*(?:boundary|fact)\s*:", inner, re.I):
         _permanent_advice(
-            errors, record,
-            "this legacy permanent disposition must classify itself as boundary or fact")
+            errors, record, entry=inner,
+            detail="this legacy permanent disposition must classify itself as boundary or fact")
     else:
         _permanent_advice(
-            errors, record,
-            "the structural keywords and separators in a typed permanent disposition must be "
+            errors, record, entry=inner,
+            detail="the structural keywords and separators in a typed permanent disposition must be "
             "exact lowercase text")
 
 

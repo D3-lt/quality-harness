@@ -215,12 +215,15 @@ def test_permanent_disposition_citations(bin_dir, lint):
         def assert_clean(disposition):
             result = lint_disposition(disposition)
             assert result.returncode == 0, result.stdout + result.stderr
-            assert "permanent basis:" not in result.stdout, result.stdout
+            assert "permanent basis" not in result.stdout, result.stdout
 
         def assert_advice(disposition, *words):
             result = lint_disposition(disposition)
             assert result.returncode == 0, result.stdout + result.stderr
-            assert "permanent basis:" in result.stdout, result.stdout
+            # `permanent basis` now carries the entry it is about between it and
+            # the colon (GitHub issue #5), so the marker is the phrase rather
+            # than the phrase-plus-colon it used to be.
+            assert "permanent basis" in result.stdout, result.stdout
             lowered = result.stdout.lower()
             assert all(word.lower() in lowered for word in words), result.stdout
 
@@ -237,7 +240,7 @@ def test_permanent_disposition_citations(bin_dir, lint):
 
         deferred = lint_disposition("deferred: docs/BACKLOG.md §1")
         assert deferred.returncode == 0, deferred.stdout + deferred.stderr
-        assert "permanent basis:" not in deferred.stdout, deferred.stdout
+        assert "permanent basis" not in deferred.stdout, deferred.stdout
 
         for legacy in ("permanent", "permanent: remembered reason"):
             assert_advice(legacy, "classify", "boundary", "fact")
@@ -293,7 +296,7 @@ def test_permanent_disposition_citations(bin_dir, lint):
             "9" * 700 + "`",
             env=low_limit_env)
         assert low_limit.returncode == 0, low_limit.stdout + low_limit.stderr
-        assert "permanent basis:" in low_limit.stdout and "line" in low_limit.stdout.lower(), \
+        assert "permanent basis" in low_limit.stdout and "line" in low_limit.stdout.lower(), \
             low_limit.stdout
 
         outside = base / "outside"
@@ -679,6 +682,7 @@ def main():
     test_proof_map_contract(bin_dir, lint)
     test_a_digestless_row_must_already_be_committed(lint)
     test_the_expected_digest_is_not_printed(lint)
+    test_a_permanent_advisory_names_its_entry(lint)
 
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
@@ -1971,7 +1975,7 @@ def main():
 
     nested_legacy = dispositions(
         "- Renaming it (permanent: the `archive()` helper keeps originals)")
-    assert any("permanent basis:" in item and "classify" in item
+    assert any("permanent basis" in item and "classify" in item
                for item in nested_legacy), nested_legacy
     assert not any("ends with no machine-readable" in item for item in nested_legacy), (
         "a nested paren is still one legacy disposition, so it gets classification advice "
@@ -2928,6 +2932,42 @@ def test_the_expected_digest_is_not_printed(lint):
     assert "killed" in told, f"the mutation finding must still fire: {told}"
     assert not re.search(r"[0-9a-f]{64}", told), \
         f"the mutation finding discloses a digest: {told}"
+
+
+# Reported 2026-09-01 (GitHub issue #5), against 2.44.0. A record with four legacy
+# permanent dispositions produced four advisory lines — the right COUNT, one per
+# entry — and all four were byte-identical, because the advisory never named the
+# entry it came from:
+#
+#     adr-lint ... | grep -c 'permanent basis'          -> 4
+#     adr-lint ... | grep 'permanent basis' | sort -u   -> 1
+#
+# The author cannot tell which bullet to fix, and the output reads as a duplicated
+# message rather than as four findings. The reporter had recorded it as a
+# duplicate-diagnostics defect and had to go and count the dispositions to find it
+# was correct. An advisory that looks like a bug is one an author stops reading —
+# that second-order cost is the reason this is worth fixing rather than tolerating.
+def test_a_permanent_advisory_names_its_entry(lint):
+    """Two different dispositions produce two different advisory lines."""
+    entries = [
+        "permanent: the mechanism is the experiment that could justify reversing this ADR",
+        "permanent: this ADR removes a closet's vote in ranking, not the closet",
+        "permanent: each has its own arm and its own decision; this ADR moves one prior",
+    ]
+    errors = lint.Findings()
+    for inner in entries:
+        lint.check_permanent_disposition(
+            inner, "ADR-003-probe.md", errors, Path("."), lambda: frozenset())
+
+    said = [a for a in errors.advice if "permanent basis" in a]
+    assert len(said) == len(entries), \
+        f"one advisory per entry, which was never the defect: {said}"
+    assert len(set(said)) == len(entries), \
+        f"N entries must produce N DISTINCT lines, not N copies of one: {said}"
+    # Each line must carry enough of its own entry to find the bullet by eye.
+    for inner, line in zip(entries, said):
+        excerpt = inner[len("permanent: "):][:24]
+        assert excerpt in line, f"the advisory must name its entry: {excerpt!r} not in {line!r}"
 
 
 if __name__ == "__main__":

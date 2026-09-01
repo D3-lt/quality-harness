@@ -2855,6 +2855,50 @@ did not reproduce in the population sampled, which is the wrong order. It become
 first time a test-named claim in this corpus fails the probe — or when somebody measures the
 wrong-thing-kills-it candidate above.
 
+
+### MEASURED 2026-09-01 — the wrong-thing-kills-it candidate, and three defects in the instrument that was supposed to measure it
+
+This entry has been waiting since 2026-08-29 on one thing: *"it becomes worth doing … when somebody
+measures the wrong-thing-kills-it candidate above."* Measured now, over the full campaign — 416
+mutations, all RED, `416/416 mutations were noticed`. The instrument is `killedBy` at
+`scripts/mutate.mjs:205`, which exists for exactly this question and whose docstring says it
+**reports, never judges**.
+
+**The candidate is real, and there is one instance.** `state: a supersession chain is followed`
+replaces `supersededBy: /^superseded\s+by\b/i.test(status)` with `supersededBy: false &&`, which is
+a **syntax error**. Reproduced by hand: the module never parses, `tests/lifecycle.test.mjs` dies at
+import in 40ms with no subtest named, and the campaign counts it RED. Nothing but the JavaScript
+parser noticed it. That is a mutant killed by something other than the assertion it names, which is
+what this entry predicted and could not previously point at. Whether it should COUNT as noticed is a
+decision rather than a bug — filed separately as §102.
+
+**Three defects in the instrument, all found by trying to use it:**
+
+1. **`killedBy` discards a killer whose name contains a separator.** Its filter is
+   `!/[\\/]|\.(mjs|js|py|cjs)$/`, meant to drop the file-level row §49 describes. It also drops any
+   legitimate subtest whose NAME contains `/` — and three do: `a bin/ gate is spawned in a way
+   Windows can actually run`, `a docs/adr that yields nothing says so`, `a directory in bin/ is not a
+   gate, whatever it is named`. **Four of 416 mutants therefore reported RED with no killer at all
+   while a correctly-named assertion had killed them.** Verified by applying each mutant and reading
+   the raw reporter output, not inferred: `link:`, `hooks:`, `corpus:` and `next:`.
+2. **The printed killer list cannot be parsed back into names.** `mutate.mjs` joins killers with
+   `', '`, and **138 of the suite's 462 top-level subtest names contain `', '`**. So the report is
+   ambiguous by construction for 30% of the suite.
+3. Consequence of 2, and a retraction. Two figures were produced from that printed line by splitting
+   on `', '` — *"144 of 259"* and *"202 of 411 mutants are killed by more than one subtest"*. **Both
+   are artifacts of the separator, not measurements.** They are withdrawn. The same shape as §35's
+   own −0.40: a number computed from a report that could not carry it.
+
+**The arithmetic reconciles**: 411 parsed rows + 5 lines carrying no killer = 416 mutations.
+
+**What this does NOT establish.** Whether each of the other 411 mutants was killed by the assertion
+its label claims is still unread — and it cannot be read until defect 2 is fixed, because the killer
+names cannot be separated. The lexical triage built for it (`scratchpad/triage.py`) sorts by shared
+vocabulary and is TRIAGE, never a verdict: 117 rows share no term at all with their killers, which is
+expected — a label and the assertion proving it need not share words — and says nothing on its own.
+
+**So the honest state of this entry: the candidate reproduced, once. The population question stays
+open, now blocked on repairing the instrument rather than on nobody having looked.**
 ## 54. CLOSED 2026-08-29 — the recorded failure block could contain none of the failure
 
 **Reported 2026-08-29 by the infrastructure-06 session** from
@@ -5477,3 +5521,33 @@ is named here and not built.
 ADR-shaped, extending ADR-010 (a claim is re-checked or it is not counted). The task's mutation is
 the call-site kind: delete the deletion-check call and confirm RED. `scratchpad/probe_delete.py` is
 the regression's skeleton and it already drives the CLI on a git fixture.
+
+## 102. A mutant that does not PARSE counts as noticed, and only the parser noticed it
+
+Split out of §53's 2026-09-01 measurement because it is a decision about what the campaign's numbers
+mean, not a defect to repair.
+
+`state: a supersession chain is followed` rewrites `supersededBy: /^superseded\s+by\b/i.test(status)`
+to `supersededBy: false &&`. That does not parse. `tests/lifecycle.test.mjs` dies at import in 40ms
+with no subtest named, `mutate.mjs` reads a non-zero exit, and the mutant is counted RED — one of the
+`416/416 mutations were noticed`.
+
+**Nothing asserted anything.** The suite never ran. A syntax-error mutant proves the file is fed to a
+parser, which was never in doubt.
+
+**The precedent is already here and points the other way.** This repository decided that a mutant
+whose process ends abnormally is INCONCLUSIVE rather than killed —
+`tests/gate-regressions.py::abnormal mutant termination is inconclusive`, and `adr-verify`'s
+`CRASH_OUTPUT` / `abnormal_termination`. The reasoning was that a false survivor costs a rerun while
+a false kill permanently credits proof nobody observed. A mutant that cannot be parsed credits
+exactly that kind of proof.
+
+**The decision to make**, and why it is not obvious: classifying non-parsing mutants as inconclusive
+would change what the campaign's exit code and its `N/N noticed` headline mean, and it would put a
+burden on catalogue authors to write mutants that parse — which is arguably right, since a mutant is
+supposed to change BEHAVIOUR, and one that changes nothing but syntax tests nothing. Against it: a
+syntax-error mutant is trivially detectable and cheap to reject at authoring time, so a lint on the
+catalogue may be the smaller change than a new verdict class.
+
+**Scope, measured rather than guessed:** exactly ONE of the 416 catalogue entries has this property
+today.

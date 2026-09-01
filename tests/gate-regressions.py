@@ -698,6 +698,7 @@ def main():
     test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root)
     test_the_rests_on_grammar_has_one_meaning(lint, verify)
     test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, verify, repo_root)
+    test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3528,6 +3529,112 @@ def test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, ver
     assert not orphaned, f"the widened grammar orphans no recorded row: {orphaned}"
 
     print("PASS — covers binds a killed mutant to a declared mechanism")
+
+
+# ADR-022 T3. The record's Enforced-by, and the reading the corpus has never had:
+# `adr-lint` requires ONE killed mutant bound to the current fence digest, so a
+# fence chaining three assertions is shown capable of failing for one reason and
+# silent about the other two. With T1's declaration and T2's row field, the
+# difference between the two is finally computable.
+#
+# ADVISORY, and `done` unchanged. That is the record's central choice: requiring
+# full coverage would make honest declaration the expensive choice — declare one
+# mechanism and ship, declare four and be blocked — so the gate would select for
+# under-declaration and then report the resulting silence as coverage.
+def test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint):
+    """The uncovered reading, its three silences, and that `done` still passes."""
+    fence = "python3 -m pytest tests/"
+    digest = lint.acceptance_digest(lint.normalize_acceptance(fence))
+    stale = "0" * 64
+
+    def row(covers=None, sha256=digest, verdict="killed"):
+        entry = (f"- 2026-08-31 · bbb2222 · mutant {verdict} · exit 1 · `x.py` · why · "
+                 f"acceptance-sha256:{sha256}")
+        return entry + (f" · covers:{covers}" if covers else "")
+
+    def lint_task(declaration, mlog, status="done", mlog_section=True):
+        """Run the shipped CLI on a one-task fixture and return its stdout."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            tasks = root / "docs" / "adr" / "ADR-001-probe" / "tasks"
+            tasks.mkdir(parents=True)
+            (root / "x.py").write_text("def t():\n    assert True\n", encoding="utf-8")
+            record = root / "docs" / "adr" / "ADR-001-probe.md"
+            record.write_text(
+                "# ADR-001: Probe\n\n**Status:** Accepted\n**Spec:** None — no spec stage\n"
+                "**Enforced-by:** None — fixture\n**Served-path change:** None — fixture\n\n"
+                "## Alternatives Considered\n\n- Keep the old form.\n\n"
+                "## Wiring & Contract Changes\n\nNone — implementation-internal only.\n\n"
+                "## Out of Scope\n\n- none (permanent: boundary: fixture)\n", encoding="utf-8")
+            (tasks / "README.md").write_text(
+                "# Tasks\n\n## Task Index\n\n| ID | Title | Status | Covers | Acceptance |\n"
+                "|----|-------|--------|--------|------------|\n"
+                f"| T1 | probe | {status} | — | `{fence}` |\n", encoding="utf-8")
+            (tasks / "T1-probe.md").write_text(
+                "# Task ADR-001-T1: probe\n\n**Depends-on:** none\n**Covers:** none\n"
+                "**Produces:** none\n**Consumes:** none\n"
+                + (declaration + "\n" if declaration else "")
+                + "\n## Goal\n\ng\n\n"
+                "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+                "| `x.py` | edit | w |\n\n"
+                "## Ordered Steps\n\n1. Write the failing test first. [proof: acceptance]\n\n"
+                f"## Acceptance\n\n```bash\n{fence}\n```\n\n"
+                "## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n"
+                "|---|---|---|---|---|\n| `t` | `x.py` | v | — | 1 |\n\n"
+                "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                + (("## Mutation Log\n" + "".join(m + "\n" for m in mlog) + "\n")
+                   if mlog_section else "")
+                + "## Verification Log\n"
+                f"- 2026-08-31 · bbb2222 · exit 0 · `{fence}` · acceptance-sha256:{digest}\n",
+                encoding="utf-8")
+            return subprocess.run(
+                [sys.executable, str(Path(bin_dir).resolve() / "adr-lint"), str(record)],
+                cwd=root, capture_output=True, text=True).stdout
+
+    TWO = "**Rests-on:** `the exit code`, `the redacted home path`"
+    MARK = "and no `mutant killed` row bound to the current Acceptance digest names it"
+
+    # THE FINDING. One mechanism is bound, the other has never been shown to
+    # matter, and until this reading existed nothing anywhere could say so.
+    said = lint_task(TWO, [row(covers="the exit code")])
+    assert MARK in said and "the redacted home path" in said, said
+    assert "the exit code" not in said.split("declares `")[1].split("`")[0], (
+        f"the covered mechanism must not be reported: {said}")
+    # ACTIONABLE, not merely true (BACKLOG §85): the message names the flag.
+    assert "--covers 'the redacted home path'" in said, said
+
+    # ADVISORY, never blocking, asserted line by line rather than on the summary
+    # word — a fixture can carry other findings.
+    reported = [ln for ln in said.splitlines() if MARK in ln]
+    assert reported and all(ln.strip().startswith("advice:") for ln in reported), reported
+
+    # `done` IS UNCHANGED, and this is the record's central choice rather than an
+    # accident: three uncovered mechanisms against one bound killed mutant still
+    # passes. Asserted directly, because "we did not tighten it" is exactly the
+    # kind of claim that rots into an untested comment.
+    three = "**Rests-on:** `a`, `b`, `c`"
+    lenient = lint_task(three, [row()])
+    assert lenient.startswith("[PASS]"), f"an uncovered mechanism must not stop done: {lenient}"
+    assert sum(1 for ln in lenient.splitlines() if MARK in ln) == 3, lenient
+
+    # A ROW UNDER A SUPERSEDED FENCE DISCHARGES NOTHING. A fence edit already
+    # invalidates its evidence; letting a stale row cover a mechanism would be
+    # worse than not looking at all.
+    supers = lint_task(TWO, [row(covers="the exit code", sha256=stale), row()])
+    assert "the exit code" in supers and MARK in supers, (
+        f"a row bound to a superseded digest covers nothing: {supers}")
+
+    # SILENCE, three directions, each one a way this could become a gate
+    # reporting an observation it never made.
+    for label, out in (
+            ("no declaration", lint_task(None, [row()])),
+            ("every mechanism covered",
+             lint_task(TWO, [row(covers="the exit code"), row(covers="the redacted home path")])),
+            ("no Mutation Log at all", lint_task(TWO, [], mlog_section=False))):
+        assert MARK not in out, f"silence expected for {label}: {out}"
+
+    print("PASS — a declared mechanism with no bound mutant is reported")
 
 
 if __name__ == "__main__":

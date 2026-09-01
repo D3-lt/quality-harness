@@ -184,6 +184,53 @@ test at tests/gates.test.mjs:40:1
   assert.deepEqual(killedBy(undefined), [])
 })
 
+// Reported by BACKLOG §53's own measurement, 2026-09-01, over the full 416-mutation
+// campaign: the first filter dropped anything containing `/`, so a test whose NAME
+// mentions a directory was discarded and four mutants were reported killed by
+// nobody while a correctly-named assertion had killed them. Each was verified by
+// applying the mutant and reading the raw reporter output.
+//
+// The discriminator is "looks like a path" — no whitespace AND a source extension
+// — not "contains a separator".
+test('a test name that mentions a directory is a name, not a file path', () => {
+  const failed = `
+✖ failing tests:
+
+test at tests/standalone-link.test.mjs:676:1
+✖ a directory in bin/ is not a gate, whatever it is named (0.78ms)
+✖ a docs/adr that yields nothing says so (4.9ms)
+✖ tests/lifecycle.test.mjs (3266.79ms)
+✖ D:\\a\\quality-harness\\tests\\gates.test.mjs (12.0ms)
+`
+  assert.deepEqual(killedBy(failed), [
+    'a directory in bin/ is not a gate, whatever it is named',
+    'a docs/adr that yields nothing says so',
+  ], 'a slash inside an assertion name must not delete the name')
+
+  // §49's row is still dropped, on BOTH separators — the Windows job is where
+  // that path shape actually appears, and it is the reason this is not simply
+  // "drop anything ending in .mjs".
+  assert.deepEqual(
+    killedBy('✖ failing tests:\n✖ tests/lifecycle.test.mjs (1ms)\n'), [],
+    'a file-level row names no assertion and must stay dropped')
+})
+
+// 138 of this suite's 462 top-level test names contain `, ` themselves, so a
+// comma-joined killer list cannot be separated back into names. Two figures were
+// computed from one before anybody checked (BACKLOG §53, withdrawn there).
+test('killers are rendered one per line, because names contain commas', () => {
+  const line = renderLine({
+    verdict: 'RED',
+    label: 'evidence: the entry names its commit',
+    killers: ['the entry names the commit it was produced at, and says when the tree was dirty',
+              'a done row is the row'],
+  }, 40)
+  const rendered = line.split('killed by:')[1]
+  assert.equal(rendered.split('\n').filter(l => l.trim()).length, 2,
+    'two killers must render as two lines, whatever punctuation their names hold')
+  assert.match(line, /the commit it was produced at, and says when the tree was dirty/)
+})
+
 test('the report names the killer beside a RED verdict', () => {
   const line = renderLine(
     { verdict: 'RED', label: 'lint: a guard refuses traversal', killers: ['a traversal pointer is refused'] },

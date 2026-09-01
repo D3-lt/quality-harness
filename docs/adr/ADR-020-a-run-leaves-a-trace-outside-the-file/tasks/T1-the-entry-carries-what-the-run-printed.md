@@ -96,12 +96,22 @@ mutation label is half of what this task produces.>
 <Every name and file backticked: an unbackticked row is dropped by the Tests
 reader, and its step is then reported as unproven.>
 
+<THIS TABLE WAS FILLED IN FOR THE WRONG SUBJECT, and that is why the floor shipped
+unreachable in 2.47.0. The task delivered two things — a field and a check that
+reads it — and rung 2 answered about the field. `implausibly_fast` was defined,
+asserted three times directly, and called from nothing: one grep hit in the whole
+plugin. A row claiming `exit 0` in 3ms against a container fence passed clean.
+
+Reported on GitHub issue #6 and verified on Windows. The template asks "which line
+selects this, and what fails if that line is deleted?" — asked once for a task that
+shipped two mechanisms, and answered for the one that was wired.>
+
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the five tests above |
-| 2 — something selects it | `DURATION_REQUIRED_FROM` in `adr-lint` is what makes the field load-bearing rather than decorative; the S6 mutation fails if it stops being required |
+| 2 — something selects it | `DURATION_REQUIRED_FROM` makes the FIELD load-bearing, and `check_verification` calls `implausibly_fast` on every parsed `done` row — the mutation `lint: the duration floor is CALLED, not merely defined` deletes that call and goes red |
 | 3 — the caller can discover it | the entry grammar is documented in `adr-verify`'s module docstring, which the S4 change updates — a reader who hand-inspects a log needs it |
 | 4 — it is used | the ADR's Follow-up counts how often the cross-check fires once T3 ships |
 

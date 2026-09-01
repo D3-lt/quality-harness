@@ -3741,6 +3741,15 @@
       ],
       "from": "    return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or \"\"))",
       "to": "    return ms < 500"
+    },
+    {
+      "label": "lint: the duration floor is CALLED, not merely defined",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if timed and timed.group(\"ms\") and implausibly_fast(int(timed.group(\"ms\")),\n                                                                inf.get(\"acc_all\", \"\")):",
+      "to": "            if False:"
     }
   ]
 }

@@ -247,6 +247,10 @@ latent rather than live. It becomes live the day one is added.
 | 18 | Kimi K2.6 — benchmarks and independent commentary | [kili-technology.com](https://kili-technology.com/blog/data-story-kimi-k2-6) |
 | 19 | Li & Offutt — Test Oracle Strategies for Model-Based Testing (the RIP → RIPR extension) | IEEE TSE 43(4), 2017, 372–395 |
 | 20 | Mirian-Hosseinabadi — Formal Analysis of Reachability, Infection and Propagation Conditions in Mutation Testing | [arXiv 2410.21904](https://arxiv.org/abs/2410.21904) |
+| 21 | Ren et al. — SaaSBench: Coding Agents in Long-Horizon Enterprise SaaS Engineering | [arXiv 2605.17526](https://arxiv.org/abs/2605.17526) |
+| 22 | El Filali & Bedar — Towards More Standardized AI Evaluation: From Models to Agents | [arXiv 2602.18029](https://arxiv.org/abs/2602.18029) |
+| 23 | `yzhao062/awesome-auditable-ai` — failure attribution, audit trails and decision records | [github.com](https://github.com/yzhao062/awesome-auditable-ai) |
+| 24 | Murphy-Hill, Butler & Savelieva — Adoption and Impact of Command-Line AI Coding Agents (Microsoft, early 2026) | [arXiv 2607.01418](https://arxiv.org/abs/2607.01418) |
 
 ## 9. A counterweight: the harness as a trainable artifact
 
@@ -272,20 +276,33 @@ ours is "how would you know". Read together, the honest position is that generat
 exactly the kind of independent, deterministic verification this project builds, and that measuring
 them by the same benchmarks SWE-ABS discredited would repeat the error one level up.
 
-### Leads not yet read
+### Leads, and what reading them settled
 
 Found while searching, relevant, not yet opened — pick these up before starting the next round
 rather than re-searching:
 
-- *Agentic Coding Needs Proactivity, Not Just Autonomy* — arXiv 2605.06717
-- *SWE-EVO: Benchmarking Coding Agents in Long-Horizon Software Evolution* — arXiv 2512.18470
-- *SaaSBench: Coding Agents in Long-Horizon Enterprise SaaS Engineering* — arXiv 2605.17526
-- *Terminal-Bench: Benchmarking Agents on Hard, Realistic CLI Tasks* — arXiv 2601.11868
-- *Towards More Standardized AI Evaluation: From Models to Agents* — arXiv 2602.18029
-- *Adoption and Impact of Command-Line AI Coding Agents: Microsoft's Early 2026 Rollout* — arXiv 2607.01418
+- *Agentic Coding Needs Proactivity, Not Just Autonomy* — arXiv 2605.06717. **Read 2026-09-01: a
+  POSITION paper.** A three-level taxonomy and three proposed metrics, no experiment and no effect
+  size. Nothing to adopt; do not cite it as evidence for anything.
+- *SWE-EVO: Benchmarking Coding Agents in Long-Horizon Software Evolution* — arXiv 2512.18470.
+  **Read 2026-09-01.** 48 tasks from release notes, averaging 21 files and 874 tests each. GPT-5.4
+  with OpenHands scores **25%**, against 72.80% for GPT-5.2 on SWE-bench Verified — corroborating §3
+  from a different direction. Its `Fix Rate` partial-progress metric is the shape of our `partial`
+  task status, which already exists.
+- *SaaSBench* — arXiv 2605.17526. **Read 2026-09-01, and it earned a row in §10.**
+- *Terminal-Bench 2.0* — arXiv 2601.11868. **Read 2026-09-01.** 89 CLI tasks, each with a
+  human-written solution and tests; frontier agents score **under 65%**. Context, not something to
+  adopt — but the closest published environment to what this plugin actually runs in.
+- *Towards More Standardized AI Evaluation* — arXiv 2602.18029. **Read 2026-09-01, abstract only —
+  the recommendations are in the PDF and were not opened.** Its framing sentence earned a §10 row.
+- *Adoption and Impact of Command-Line AI Coding Agents* — arXiv 2607.01418. **Read 2026-09-01**,
+  quoted in §10. Tens of thousands of engineers; +24% merged PRs; the authors' own caveat kept.
 - *JIT-Agent* — arXiv 2608.25593, read 2026-08-28, summarized in §9
-- `yzhao062/awesome-auditable-ai` — curated list on failure attribution and decision records, which
-  is this project's exact subject
+- `yzhao062/awesome-auditable-ai` — **read 2026-09-01**, active through August 2026. Nine sections;
+  the two that bear on this project are Failure Attribution and Audit Trails / Decision Records. Its
+  hash-chained-records entries prompted the probe recorded as `docs/BACKLOG.md` §101 — a Verification
+  Log row deleted from a committed file is invisible, and the chain LOST to a three-line check
+  against git. Its BenchJack entry earned a §10 row.
 - *DCE-LLM: Dead Code Elimination with Large Language Models* — arXiv 2506.11076. Found while
   looking for support for BACKLOG §99 and it is NOT that: it is a tool for eliminating dead code,
   not a finding about agent-authored checks shipping unreachable. Search returned conflicting
@@ -310,6 +327,9 @@ the confident closing language §2 is about.
 | Single-run eval numbers mislead; report variance and run counts | 11 | A measured Δ of **−0.40** on `gates-advise-never-block` was published in this backlog, then **retracted**: at five runs per arm it is 0.60 / 0.60, Δ 0.00. Later, across nine paired invocations, the with-arm alone spans the full 0–1 range. The power calculation was then done from the corpus's own spread (with-arm n=28, sd 0.39). `docs/BACKLOG.md` §35. | **Confirmed, including by our own retraction** |
 | Deterministic gates move behaviour where prose instructions do not | 3 | Three instructions measured given-vs-omitted. **None showed an effect — and the cases were too noisy to detect a small one.** The honest statement, and the one the entry now carries, is *"three instructions were measured on cases too noisy to detect a small effect, and none showed one"*. | **NULL, under-powered — not support** |
 | Gates that REFUSE the write are where the measured gain comes from | 3 | Not measured here, and not adopted: this project's rule is instruct-never-block. No action-boundary gate exists, so the tension is latent rather than tested. | **Open disagreement, stated in §8** |
+| Failures cluster in configuration and integration, not in reasoning, and agents halt overconfidently before reaching the substance | 21 | Independent confirmation of the row above, on someone else's corpus: **over 95% of SaaSBench task failures occur before the agent reaches deep business logic**, and the two named failure modes are overconfident premature halting and debugging loops. Our five path-literal classes are the same shape, one layer down. | **Confirmed externally as well** |
+| Evaluation PIPELINES introduce silent failure modes of their own | 22 | Measured here, in the tool built to measure: `eval-deltas.mjs` read one of the suite's two results trees and silently reported a smaller corpus, dropping five paired invocations of the case with the most negative deltas. Nothing said anything was missing. Now asserted by `tests/eval-deltas.test.mjs::both results trees are read, not just the one named results`. | **Confirmed, in our own instrument** |
+| Agents can score perfectly without doing the task (benchmark gaming) | 23 | Present in our own eval corpus: a case scored identically in both arms with **`skill_calls=0` across all thirteen kept sandboxes** — no skill ever fired, and the score was about the model's prior, not the plugin. `docs/BACKLOG.md` §35. | **Confirmed** |
 
 ### The extension, stated precisely enough to be wrong
 
@@ -338,3 +358,15 @@ redirects the CALL rather than the body, and ask the reachability question once
 per mechanism a change ships rather than once per task. `docs/BACKLOG.md` §99
 holds the third — a mechanical orphan sweep — with the open design question that
 keeps it from being a gate yet.
+
+### The number that makes all of this worth paying for
+
+Microsoft's early-2026 rollout across tens of thousands of engineers (24) found that adopters of
+command-line coding agents **merged roughly 24% more pull requests** over four months than they
+otherwise would have. The authors state the caveat themselves: *"a merged PR is not the same as the
+value it delivers."*
+
+Nothing in that study says verification moved. Throughput rising while the evidence standard holds
+still is the situation this project is built for, and it is the honest reason to care about the rest
+of this file: the volume of work arriving at review went up by a quarter, and 75.8% of the failures
+in it announce themselves as successes.

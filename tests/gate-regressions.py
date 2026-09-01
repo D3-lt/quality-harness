@@ -692,6 +692,7 @@ def main():
     # and hand a session work that is already finished.
     nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
+    test_the_floor_runs_on_a_done_row(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3023,6 +3024,60 @@ def test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt):
     # killed duration from this record's first draft.
     assert not lint.implausibly_fast(3, "printf ok"), \
         "a fence that really is instant must never be advised"
+
+
+# Reported on GitHub issue #6, 2026-09-01, verified on Windows against v2.47.0:
+# `implausibly_fast` was defined, directly asserted three times, and CALLED FROM
+# NOTHING. One grep hit in the whole plugin — the definition. A row claiming
+# `exit 0` in 3ms against a fence that starts a container passed adr-lint clean.
+#
+# THIS TEST IS ABOUT THE CALL SITE, NOT THE PREDICATE. The three assertions that
+# shipped are good ones about the function and cannot fail while no production
+# path calls it: the fence was satisfied by the component while the selection did
+# not exist, which is this repository's own documented most-common defect. Delete
+# the `if implausibly_fast(...)` line and this goes red; delete the function and
+# the older assertions go red too, which is the difference that matters.
+def test_the_floor_runs_on_a_done_row(lint):
+    """check_verification actually calls the floor, on a real parsed row."""
+    acceptance = "docker run --rm golang:1 go vet ./..."
+    digest = lint.acceptance_digest(lint.normalize_acceptance(acceptance))
+    after = lint.DURATION_REQUIRED_FROM
+
+    def infos(ms):
+        row = (f"- {after} · abc1234 · exit 0 · `{acceptance}` · "
+               f"acceptance-sha256:{digest} · ms:{ms}")
+        return {
+            "T1": {
+                "human": False,
+                "vlog": [row],
+                "mlog": [f"- {after} · abc1234 · mutant killed · exit 1 · `x.py` · why · "
+                         f"acceptance-sha256:{digest}"],
+                "has_mlog": True,
+                "acc_all": acceptance,
+                "acc_first": acceptance,
+                "path": Path("tasks/T1-probe.md"),
+            }
+        }
+
+    fast = lint.Findings()
+    lint.check_verification(infos(3), "| T1 | probe | done |", fast,
+                            committed=lambda path: None)
+    said = "\n".join(str(e) for e in fast) + "\n".join(fast.advice)
+    assert "3ms" in said or "could not" in said.lower() or "implausib" in said.lower(), \
+        f"exit 0 in 3ms against a container fence must be reported: {said}"
+
+    # The same fixture, an honest duration, silent. A floor that speaks on both is
+    # not a floor.
+    slow = lint.Findings()
+    lint.check_verification(infos(180_000), "| T1 | probe | done |", slow,
+                            committed=lambda path: None)
+    quiet = "\n".join(str(e) for e in slow) + "\n".join(slow.advice)
+    assert "implausib" not in quiet.lower(), \
+        f"a slow honest run must not be reported: {quiet}"
+
+    # ADVISORY, never blocking (CLAUDE.md §3).
+    assert not [e for e in fast if "implausib" in str(e).lower()], \
+        "the floor advises; it must never enter the blocking channel"
 
 
 if __name__ == "__main__":

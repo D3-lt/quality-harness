@@ -94,3 +94,4 @@ to remove the field rather than to soften the report.
 
 ## Verification Log
 - 2026-09-01 · 403ac2b · exit 0 · `set -o pipefail …` · acceptance-sha256:e3415eed0a41797e8e821997e2301f35c8ce6f8b2a4328d35358135800afe548 · ms:6129
+- 2026-09-01 · e2ece70 · exit 0 · `set -o pipefail …` · acceptance-sha256:e3415eed0a41797e8e821997e2301f35c8ce6f8b2a4328d35358135800afe548 · ms:5391

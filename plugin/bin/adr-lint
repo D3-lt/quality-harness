@@ -1496,6 +1496,20 @@ def check_task(path, all_stems, errors):
     acc_match = re.search(r"```bash\s*\n(.*?)```", acc, re.S)
     acc_all = normalize_acceptance(acc_match.group(1)) if acc_match else ""
     acc_first = acc_all.splitlines()[0].strip() if acc_all else None
+    # ADR-022 T4. Under-declaration is the record's residual risk and this is the
+    # only hint available for it. SAYS WHAT IT COUNTED, never what that means:
+    # stating a segment count as a fact about mechanisms would be exactly the
+    # error the record exists to correct (ADR-005, CLAUDE.md §3).
+    if isinstance(declared, list) and declared:
+        segments = assertion_segments(acc_all)
+        if len(segments) > len(declared):
+            errors.advise(
+                f"{path.name}: the Acceptance fence chains {len(segments)} segments and "
+                f"declares {len(declared)} name(s) in **Rests-on:**. A segment is not a "
+                f"mechanism — several can rest on one, and one can rest on several — so "
+                f"this is a count of places worth looking, not a finding about the fence. "
+                f"If its claim rests on more than what is declared, naming the rest is what "
+                f"lets the gate say which of them nothing has proved")
     # acc_first is display/legacy compatibility only. acc_all is the WHOLE
     # normalized fence and is the sole input to current evidence digests: a
     # filter or second command often sits below line one.
@@ -2357,6 +2371,33 @@ class _Unreadable:
 
 
 RESTS_ON_UNREADABLE = _Unreadable()
+
+
+# ADR-022 T4. Shell that sets a run up rather than asserting anything about it.
+# `tee` is here because it is a pipe destination in this corpus's fences and
+# never a check.
+FENCE_SETUP_RE = re.compile(
+    r"^(set\b|cd\b|export\b|mkdir\b|rm\b|trap\b|cat\s*>|tee\b|PATH=|[A-Z_]+=|#|\)|\}|fi\b|done\b)")
+
+
+def assertion_segments(fence):
+    """Segments of an Acceptance fence that are not obviously setup.
+
+    ⚠ A PROXY, and the record that added it spends a paragraph saying so: a
+    fence's segments are NOT its mechanisms. Several segments can rest on one
+    mechanism and one segment can rest on several, and ADR-016 already settled
+    for this same command that structure cannot be safely inferred from
+    arbitrary shell. Read a count from here as "places worth looking", and never
+    write a message that states it as a fact about what a fence rests on.
+
+    ONE IMPLEMENTATION, TWO CALLERS. `scripts/fence-obligation-sweep.py` — the
+    record's own re-runnable measurement — imports this rather than carrying its
+    own copy, because two implementations of one proxy drift and then the
+    measurement and the gate disagree about the corpus without either being
+    wrong.
+    """
+    segments = [s.strip() for s in re.split(r"&&|\|\||\n", fence) if s.strip()]
+    return [s for s in segments if not FENCE_SETUP_RE.match(s)]
 
 
 def rests_on(text):

@@ -11,6 +11,7 @@ import { fileURLToPath } from 'node:url'
 
 import {
   FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, forwarderCmd, forwarderScript,
+  barePathWinner,
   knownDigests, linkPlan, onSearchPath, replaceable, sameLineage, write,
 } from '../plugin/scripts/standalone-link.mjs'
 
@@ -247,6 +248,44 @@ test('a forwarder in a directory nothing searches is reported, not assumed to wo
     'and POSIX does not — same input, different answer, which is the point')
   assert.equal(onSearchPath('/a', '', 'linux'), false, 'an empty PATH searches nothing')
   assert.equal(onSearchPath('/a', undefined, 'linux'), false, 'and an absent one does not throw')
+})
+
+test('which copy a bare gate name reaches is precedence, not presence', () => {
+  // Synthetic homes on purpose. The notice's own suite drives this through a real
+  // temp directory and therefore only ever sees the host's platform; the Windows
+  // rules — `;` as the separator, case-insensitive comparison, a drive prefix —
+  // are reachable from any machine only if the home is a string rather than a
+  // directory that had to be created. CLAUDE.md §7: a Windows-only branch with no
+  // injectable seam is a branch with no test.
+  const win = 'C:\\Users\\alice'
+  const winBin = 'C:\\Users\\alice\\.claude\\bin'
+  const winCache = 'C:\\Users\\alice\\.claude\\plugins\\cache\\'
+    + 'quality-harness\\quality-harness\\2.44.0\\bin'
+
+  // PRESENCE IS NOT PRECEDENCE, and the order is the whole answer.
+  assert.equal(barePathWinner(win, `${winBin};${winCache}`, 'win32').winner, 'standalone')
+  assert.equal(barePathWinner(win, `${winCache};${winBin}`, 'win32').winner, 'plugin')
+  // The machine that reported this had only the cache — the case the old notice
+  // asserted was impossible.
+  assert.equal(barePathWinner(win, `C:\\Windows;${winCache}`, 'win32').winner, 'plugin')
+  assert.equal(barePathWinner(win, 'C:\\Windows', 'win32').winner, 'neither')
+
+  // Windows compares case-insensitively and does not care which separator was
+  // typed; Linux is exact about both.
+  assert.equal(barePathWinner(win, winBin.toUpperCase(), 'win32').winner, 'standalone')
+  assert.equal(barePathWinner(win, winBin.replace(/\\/g, '/'), 'win32').winner, 'standalone')
+  assert.equal(barePathWinner('/home/alice', '/HOME/ALICE/.claude/bin', 'linux').winner, 'neither',
+    'a case-insensitive match on Linux would be wrong, not lenient')
+
+  // An unreadable PATH is a look that did not happen (CLAUDE.md §3). It must not
+  // be reported as a measured absence, and it must not be expressible only by
+  // omitting the argument — the default-parameter trap this seam was written to
+  // avoid.
+  assert.equal(barePathWinner(win, undefined, 'win32').known, false)
+  assert.equal(barePathWinner(win, null, 'win32').known, false)
+  assert.equal(barePathWinner(win, '', 'win32').known, true,
+    'an EMPTY PATH searches nothing, which is measured, not unknown')
+  assert.equal(barePathWinner(win, '', 'win32').winner, 'neither')
 })
 
 test('a forwarder that could not run the gate does not report a pass', { skip: process.platform === 'win32' }, () => {

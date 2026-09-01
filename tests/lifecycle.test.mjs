@@ -2287,35 +2287,40 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   const cacheBin = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness',
     'quality-harness', '2.43.0', 'bin')
   const homeBin = path.join(home, '.claude', 'bin')
-  const notice = shadowInstallNotice(home, pluginDir, { PATH: `${homeBin}:${cacheBin}` }, 'linux')
+  // The HOST's platform and delimiter, never a literal. The first version of
+  // this test built `${homeBin}:${cacheBin}` and asked for 'linux', which is a
+  // path literal that was secretly an assertion about the operating system
+  // (CLAUDE.md §7): on Windows the temp home is `C:\Users\...`, so splitting on
+  // `:` produced the entries `C` and `\Users\...`, neither directory was found,
+  // and the notice took its `neither` branch. Green on macOS, red on the one job
+  // that matters. Windows-specific comparison rules are asserted against
+  // synthetic paths in the standalone-link suite, where no real home is needed.
+  const PATHS = (...directories) => ({ PATH: directories.join(path.delimiter) })
+  const here = process.platform
+  const notice = shadowInstallNotice(home, pluginDir, PATHS(homeBin, cacheBin), here)
   assert.match(notice, /~[\\/]\.claude[\\/]bin[\\/]adr-lint/)
   assert.match(notice, /the old copy is answering/)
   assert.match(notice, /adr-verify just wrote/)
 
   // WHY the stale copy answers is MEASURED. Until 2026-09-01 the notice asserted
   // unconditionally that the home directory is on PATH and the plugin cache is
-  // not; reported from a Windows machine where the home `.claude/bin` appeared nowhere
-  // on PATH and the cache's bin did, so both halves were inverted and the advice
-  // built on them pointed at the wrong file. Every branch is asserted here, and
-  // each is asserted to EXCLUDE the others — a claim that can only be made is a
-  // claim no test can catch being wrong.
+  // not; reported from a Windows machine where the home `.claude/bin` appeared
+  // nowhere on PATH and the cache's bin did, so both halves were inverted and the
+  // advice built on them pointed at the wrong file. Every branch is asserted
+  // here, and each is asserted to EXCLUDE the others — a claim that can only be
+  // made is a claim no test can catch being wrong.
   assert.match(notice, /sits ahead of the plugin cache on this PATH/)
-  const cacheWins = shadowInstallNotice(home, pluginDir, { PATH: `${cacheBin}:${homeBin}` }, 'linux')
+  const cacheWins = shadowInstallNotice(home, pluginDir, PATHS(cacheBin, homeBin), here)
   assert.match(cacheWins, /reaches the PLUGIN, not that copy/)
   assert.doesNotMatch(cacheWins, /That copy WINS/,
     'the cache winning is the opposite claim and must not carry the old sentence')
-  assert.match(shadowInstallNotice(home, pluginDir, { PATH: '/usr/bin' }, 'linux'),
+  assert.match(shadowInstallNotice(home, pluginDir, PATHS(path.join(home, 'elsewhere')), here),
     /Neither .* is on this PATH/)
   // An absent PATH is "I could not look", never "not on PATH" (CLAUDE.md §3).
-  const blind = shadowInstallNotice(home, pluginDir, {}, 'linux')
+  const blind = shadowInstallNotice(home, pluginDir, {}, here)
   assert.match(blind, /could not read/)
   assert.doesNotMatch(blind, /Neither/,
     'an unreadable PATH must not be reported as a measured absence')
-  // Windows compares case-insensitively and splits on `;`, and this is the
-  // platform the report came from.
-  assert.match(
-    shadowInstallNotice(home, pluginDir, { PATH: `${homeBin.toUpperCase()};${cacheBin}` }, 'win32'),
-    /sits ahead of the plugin cache on this PATH/)
   // The notice must name a repair that can actually act on what it reported, and
   // must not invite deleting a forwarder — after `--link` those ARE the fix.
   assert.match(notice, /sync-standalone\.mjs/)

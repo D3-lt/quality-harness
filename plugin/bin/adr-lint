@@ -1519,7 +1519,10 @@ def check_task(path, all_stems, errors):
             "consumes": header_val(text, "Consumes") or "",
             "vlog": vlog, "mlog": mlog, "has_mlog": has_mlog_section,
             "acc_first": acc_first, "acc_all": acc_all,
-            "human": "Acceptance is human-observed:" in acc, "adds": adds}
+            "human": "Acceptance is human-observed:" in acc, "adds": adds,
+            # ADR-022 T3. Carried rather than re-read: the declaration was
+            # already parsed above to report a malformed one.
+            "rests_on": declared}
     return set(re.findall(r"(F-\d+|UC\d+-S\d+)", covers)), info
 
 
@@ -2113,6 +2116,46 @@ def resolve_test_file(root, rel):
     return hits[0] if len(hits) == 1 else None
 
 
+def report_uncovered_mechanisms(inf, tid, killed, errors):
+    """Which declared mechanisms no CURRENT-digest killed mutant names.
+
+    ADVISORY, and `done` is untouched — that is the record's central choice, not
+    timidity. Tightening `done` to demand full coverage would make honest
+    declaration the expensive choice: an author who declares one mechanism ships
+    and an author who declares four is blocked, so the gate would select for
+    under-declaration and then report the resulting silence as coverage. Keeping
+    the requirement existential and the coverage advisory is the only arrangement
+    under which the declaration stays truthful.
+
+    `killed` holds rows bound to the CURRENT digest only, which is why a row under
+    a superseded fence discharges nothing: a fence edit already invalidates its
+    evidence, and letting a stale row cover a mechanism would be worse than not
+    looking.
+
+    Silent for a task that declares nothing — every task in this corpus before
+    this record, so a mistake here shouts at an unmodified tree (BACKLOG §59).
+    """
+    declared = inf.get("rests_on")
+    if not isinstance(declared, list) or not declared:
+        return
+    bound = set()
+    for entry in killed:
+        row = MLOG_DIGEST_RE.match(entry)
+        if row and row.group("covers"):
+            bound.add(row.group("covers").strip())
+    for name in [d for d in declared if d not in bound]:
+        # NAMES THE FLAG that would bind it. A message that is true and leaves
+        # the reader with nothing to do is the defect BACKLOG §85 records for two
+        # others, and this one has an exact remedy to offer.
+        errors.advise(
+            f"{inf['path'].name}: {tid} declares `{name}` in **Rests-on:** and no "
+            f"`mutant killed` row bound to the current Acceptance digest names it — "
+            f"nothing has shown the fence can fail for that reason. Bind one with "
+            f"`adr-verify <task.md> --mutant <file> --from … --to … --why … "
+            f"--covers '{name}'`. This is advice: `done` asks for one killed mutant "
+            f"against the current fence, which this task already has.")
+
+
 def check_mutation_evidence(infos, readme_text, errors):
     """A task with passing acceptance must show that its fence CAN fail.
 
@@ -2144,6 +2187,7 @@ def check_mutation_evidence(infos, readme_text, errors):
             if current and current.group("digest") == want_digest:
                 killed.append(entry)
         if killed:
+            report_uncovered_mechanisms(inf, tid, killed, errors)
             continue
         if not inf.get("has_mlog"):
             errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence recorded on "

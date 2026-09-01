@@ -3786,6 +3786,15 @@
       ],
       "from": "    if covers is not None:\n        declared = rests_on(text)",
       "to": "    if False:\n        declared = rests_on(text)"
+    },
+    {
+      "label": "lint: a declared mechanism with no bound mutant is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            report_uncovered_mechanisms(inf, tid, killed, errors)",
+      "to": "            pass  # the uncovered reading is never called"
     }
   ]
 }

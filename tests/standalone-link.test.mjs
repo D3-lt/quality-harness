@@ -10,7 +10,8 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, forwarderCmd, forwarderScript,
+  FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, classifyHomeFile,
+  formerlyShipped, forwarderCmd, forwarderScript,
   barePathWinner,
   knownDigests, linkPlan, onSearchPath, replaceable, sameLineage, write,
 } from '../plugin/scripts/standalone-link.mjs'
@@ -748,4 +749,136 @@ test('the write still happens when the archive cannot make a link', {
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
+})
+
+
+// ADR-019 T1. The record's own Decision, asserted route by route.
+//
+// The rule this replaces would have been residual — "in a scanned directory and
+// not shipped now, therefore ours" — and it was measured WRONG before a line was
+// written: four of the six files in this machine's home hooks directory belong to
+// autoresearch and codebase-memory, and three of those were wired in the user's
+// settings and running. A residual rule names all four and advises deleting three
+// live hooks. So identification is positive, and every route is asserted alone.
+function releases(directory, tree) {
+  const cache = cacheDirectory(directory)
+  for (const [version, files] of Object.entries(tree)) {
+    for (const [relative, contents] of Object.entries(files)) {
+      const full = path.join(cache, version, relative)
+      mkdirSync(path.dirname(full), { recursive: true })
+      writeFileSync(full, contents)
+    }
+  }
+  return directory
+}
+
+test('a file the plugin no longer ships is ours only when something proves it', () => {
+  const body = '#!/usr/bin/env python3\n"""probe — a retired gate."""\n'
+  const directory = releases(home({ '.claude/bin/probe': body }), {
+    '2.1.0': { 'bin/probe': body },
+  })
+  // Route 1, digest. The basename is gone from the current tree, and a release
+  // carries a byte-identical copy.
+  assert.deepEqual(
+    formerlyShipped('probe', directory).map(found => found.version), ['2.1.0'])
+  assert.equal(classifyHomeFile({
+    file: path.join(directory, '.claude', 'bin', 'probe'),
+    name: 'probe', shippedNow: false, homeDirectory: directory,
+  }).state, 'ours-orphan')
+
+  // Route 2, the forwarder mark, with NO release holding the basename at all —
+  // so the digest route cannot be what answered.
+  const forwarder = home({ '.claude/bin/gone': `#!/bin/sh\n# ${FORWARDER_MARK}\n` })
+  assert.deepEqual(formerlyShipped('gone', forwarder), [])
+  assert.equal(classifyHomeFile({
+    file: path.join(forwarder, '.claude', 'bin', 'gone'),
+    name: 'gone', shippedNow: false, homeDirectory: forwarder,
+  }).state, 'ours-orphan')
+
+  // Route 3, lineage: same opening docstring, DIFFERENT bytes, so route 1 cannot
+  // answer for it.
+  const drifted = releases(home({
+    '.claude/bin/probe': body + '# edited locally\n',
+  }), { '2.1.0': { 'bin/probe': body } })
+  const found = classifyHomeFile({
+    file: path.join(drifted, '.claude', 'bin', 'probe'),
+    name: 'probe', shippedNow: false, homeDirectory: drifted,
+  })
+  assert.equal(found.state, 'ours-orphan')
+  assert.equal(found.route, 'lineage', `the digest route must not be what answered: ${found.route}`)
+})
+
+test('a file no release ever shipped is unidentified, not an orphan of ours', () => {
+  // The four measured on 2026-09-01 in this machine's home hooks directory. They
+  // belong to autoresearch and codebase-memory; three were wired and running.
+  const strangers = ['autoresearch-context.sh', 'cbm-code-discovery-gate',
+    'cbm-session-reminder', 'cbm-subagent-reminder']
+  const files = Object.fromEntries(
+    strangers.map(name => [`.claude/hooks/${name}`, `#!/bin/sh\n# ${name}\n`]))
+  const directory = releases(home(files), { '2.1.0': { 'scripts/post-edit-check.sh': 'ours\n' } })
+  for (const name of strangers) {
+    assert.equal(classifyHomeFile({
+      file: path.join(directory, '.claude', 'hooks', name),
+      name, shippedNow: false, homeDirectory: directory,
+    }).state, 'unidentified', `${name} belongs to another tool`)
+  }
+})
+
+test("another vendor's file is unidentified even when the basename is in some cache", () => {
+  // The fixture that actually reaches route 3. The previous test proves only that
+  // a basename ABSENT from the cache is unmatched, which lineage was never at risk
+  // of; this plants the collision. `sameLineage` compares opening docstrings and a
+  // `%~dp0` pattern, neither specific to this plugin, so the walk being bound to
+  // this plugin's own cache namespace is what stops another vendor's same-named
+  // file from satisfying it.
+  const body = '#!/usr/bin/env python3\n"""cbm-session-reminder — a probe."""\n'
+  const directory = home({ '.claude/hooks/cbm-session-reminder': body })
+  const foreign = path.join(directory, '.claude', 'plugins', 'cache',
+    'codebase-memory', 'codebase-memory', '1.0.0', 'hooks')
+  mkdirSync(foreign, { recursive: true })
+  writeFileSync(path.join(foreign, 'cbm-session-reminder'), body)
+
+  assert.deepEqual(formerlyShipped('cbm-session-reminder', directory), [],
+    "another vendor's cache is not this plugin's history")
+  assert.equal(classifyHomeFile({
+    file: path.join(directory, '.claude', 'hooks', 'cbm-session-reminder'),
+    name: 'cbm-session-reminder', shippedNow: false, homeDirectory: directory,
+  }).state, 'unidentified')
+})
+
+test('a basename that moved between releases is still recognised', () => {
+  // ADR-008 moved the gates under `plugin/` on 2026-08-28, and the home `hooks/`
+  // directory has never shared a name with the plugin directory that fills it. A
+  // lookup pinned to one relative path answers "no" for a file that shipped for a
+  // year under another.
+  const body = 'dispatch\n'
+  const directory = releases(home({ '.claude/hooks/facts.sh': body }), {
+    '2.0.0': { 'hooks/facts.sh': body },
+    '2.30.0': { 'scripts/facts.sh': body },
+  })
+  assert.deepEqual(formerlyShipped('facts.sh', directory).map(f => f.relative).sort(),
+    ['hooks/facts.sh', 'scripts/facts.sh'])
+})
+
+test('a cache directory that is not a release contributes nothing', () => {
+  // Real: this machine's cache holds a 2.0.0 directory with AUTHn, cuda-1.9 and
+  // maximum in it, which is not a release of this plugin (BACKLOG §96).
+  const directory = releases(home({ '.claude/bin/probe': 'x\n' }), {
+    '2.0.0': { 'cuda-1.9/AUTHn': 'x\n', 'maximum/QDRn': 'x\n' },
+  })
+  assert.deepEqual(formerlyShipped('probe', directory), [])
+  assert.equal(classifyHomeFile({
+    file: path.join(directory, '.claude', 'bin', 'probe'),
+    name: 'probe', shippedNow: false, homeDirectory: directory,
+  }).state, 'unidentified')
+})
+
+test('a file the plugin ships today is never called an orphan', () => {
+  const directory = releases(home({ '.claude/bin/probe': 'x\n' }), {
+    '2.1.0': { 'bin/probe': 'x\n' },
+  })
+  assert.equal(classifyHomeFile({
+    file: path.join(directory, '.claude', 'bin', 'probe'),
+    name: 'probe', shippedNow: true, homeDirectory: directory,
+  }).state, 'ours-shipped', 'still shipped wins over every orphan route')
 })

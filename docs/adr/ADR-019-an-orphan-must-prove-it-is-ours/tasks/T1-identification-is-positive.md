@@ -74,6 +74,8 @@ would then survive.>
 
 ## Mutation Log
 
+- 2026-09-01 · 700e185* · mutant killed · exit 1 · `plugin/scripts/standalone-link.mjs` · the residual rule that names another tool's live files as ours · acceptance-sha256:8c5d91b8aa9a4f381fb612c4467691e0b00327c7a620a8f7744f66001db28ab7
+
 ## Invariants
 
 - `replaceable()` is not modified. It is why another tool's files were never at risk (ADR-001).
@@ -101,3 +103,4 @@ three routes are the wrong set, which is a decision change and not an implementa
 - Any code path that deletes or moves a file (permanent: boundary: the parent ADR's Decision)
 
 ## Verification Log
+- 2026-09-01 · 700e185 · exit 0 · `set -o pipefail …` · acceptance-sha256:8c5d91b8aa9a4f381fb612c4467691e0b00327c7a620a8f7744f66001db28ab7

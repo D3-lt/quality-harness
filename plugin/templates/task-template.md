@@ -209,8 +209,10 @@ against the file; "the fence could not run" is prose. Do not build `done` on the
 Why the table that used to live here became a tool: every other check in this pipeline proves a
 command exited 0, and nothing proved a command CAN exit non-zero — so a test bound to nothing passes
 exactly like a test bound to the mechanism. The old `| Mutation | Compiles? | Test that goes red |`
-table was hand-filled, which is the same fabrication hole the Verification Log was built to close,
-one section further down. Measured 2026-08-21: a harness whose edit silently no-opped printed
+table was hand-filled, which is the same hole the Verification Log narrows — narrows rather than
+closes: a local gate reading local files cannot tell a run from a transcription, and issue #4
+reproduced a full hand-typed `pending` -> `done` on 2026-09-01. What both sections buy is cost, and
+drift-binding to the fence they were taken against. Measured 2026-08-21: a harness whose edit silently no-opped printed
 "mutant applied" for a file that never changed, and an assertion matching a config file's COMMENTS
 survived deletion of the real key. Both were declared mutation-checked; neither had been.
 

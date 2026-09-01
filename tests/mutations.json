@@ -3561,6 +3561,42 @@
       ],
       "from": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'skip', wired: false },",
       "to": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'create', wired: false },"
+    },
+    {
+      "label": "lint: a digest-less acceptance row that is not committed is refused",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if VLOG_LEGACY_RE.match(row) and known is not None and row not in known:",
+      "to": "            if False:"
+    },
+    {
+      "label": "lint: a git lookup that could not answer tolerates rather than convicts",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if VLOG_LEGACY_RE.match(row) and known is not None and row not in known:",
+      "to": "            if VLOG_LEGACY_RE.match(row) and row not in (known or frozenset()):"
+    },
+    {
+      "label": "lint: the fence-drift finding does not name the digest it demands",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                              f\"current Acceptance digest.\"",
+      "to": "                              f\"current Acceptance digest acceptance-sha256:{want_digest}.\""
+    },
+    {
+      "label": "lint: the mutation finding does not name the digest it demands",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                      f\"mutant against the current Acceptance digest\"",
+      "to": "                      f\"mutant for acceptance-sha256:{want_digest}\""
     }
   ]
 }

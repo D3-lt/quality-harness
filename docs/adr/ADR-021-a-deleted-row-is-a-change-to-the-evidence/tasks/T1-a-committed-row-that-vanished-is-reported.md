@@ -90,4 +90,6 @@ alternative was not actually rejected and the record is wrong.
 
 ## Verification Log
 
+- 2026-09-01 · b3dc300 · exit 0 · `set -o pipefail …` · acceptance-sha256:96af55fba369048cffd7cff9d6bdea315448bbe9e67faff8bffd30cf00cacc52 · ms:3774
+
 ## Mutation Log

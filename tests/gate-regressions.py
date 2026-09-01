@@ -699,6 +699,7 @@ def main():
     test_the_rests_on_grammar_has_one_meaning(lint, verify)
     test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, verify, repo_root)
     test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint)
+    test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint, repo_root)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3376,9 +3377,20 @@ def test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root):
         capture_output=True, text=True)
     corpus = [Path(repo_root) / p for p in listed.stdout.split("\n") if p.strip()]
     assert len(corpus) >= 20, f"the silence claim needs a corpus to be silent about: {len(corpus)}"
-    carried = [p.name for p in corpus
-               if lint.rests_on(p.read_text(encoding="utf-8", errors="replace")) is not None]
-    assert not carried, f"no task in this corpus declares Rests-on yet: {carried}"
+    # The INVARIANT, not the current census. Asserting that no task carries the
+    # header would be a gate that goes red the first time somebody uses the
+    # feature this record added — green today, and a landmine for the next
+    # author. What must hold forever is that a task WITHOUT the header reads as
+    # `None`, and that a task WITH one is well-formed.
+    absent = [p for p in corpus
+              if "**Rests-on:**" not in p.read_text(encoding="utf-8", errors="replace")]
+    assert len(absent) >= 20, f"and most of it must still be header-free: {len(absent)}"
+    for path in absent:
+        assert lint.rests_on(path.read_text(encoding="utf-8", errors="replace")) is None, path
+    malformed = [p.name for p in corpus
+                 if lint.rests_on(p.read_text(encoding="utf-8", errors="replace"))
+                 is lint.RESTS_ON_UNREADABLE]
+    assert not malformed, f"and no declaration in this corpus is unreadable: {malformed}"
 
     print("PASS — a fence declaration is read, or reported as unreadable")
 
@@ -3635,6 +3647,128 @@ def test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint):
         assert MARK not in out, f"silence expected for {label}: {out}"
 
     print("PASS — a declared mechanism with no bound mutant is reported")
+
+
+# ADR-022 T4. Under-declaration is the record's residual risk: the declaration is
+# voluntary, a lazy one is cheap, and an author who declares one mechanism
+# against a five-segment fence silences T3 entirely. The only hint available is
+# the fence's segment count — and a segment is NOT a mechanism, which is the
+# thing this record establishes cannot be derived from the file.
+#
+# So the advisory says what was COUNTED and never what it means. That distinction
+# is ADR-005's whole vocabulary, and asserting the absence of the overclaiming
+# phrasing is the only way a later softening goes red rather than quiet.
+SEGMENT_GRAMMAR = [
+    ("python3 -m pytest tests/", 1),
+    ("set -o pipefail\npython3 a.py && grep -q x out", 2),
+    ("set -o pipefail\ncd repo\nexport X=1\npython3 a.py", 1),
+    ("a && b || c", 3),
+    ("python3 a.py 2>&1 | tee /tmp/o && grep -q x /tmp/o", 2),
+]
+
+
+def test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint, repo_root):
+    """The segment proxy, its wording obligations, and one rule for two callers."""
+    def lint_with(fence, declaration):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            tasks = root / "docs" / "adr" / "ADR-001-probe" / "tasks"
+            tasks.mkdir(parents=True)
+            (root / "x.py").write_text("def t():\n    assert True\n", encoding="utf-8")
+            record = root / "docs" / "adr" / "ADR-001-probe.md"
+            record.write_text(
+                "# ADR-001: Probe\n\n**Status:** Accepted\n**Spec:** None — no spec stage\n"
+                "**Enforced-by:** None — fixture\n**Served-path change:** None — fixture\n\n"
+                "## Alternatives Considered\n\n- Keep the old form.\n\n"
+                "## Wiring & Contract Changes\n\nNone — implementation-internal only.\n\n"
+                "## Out of Scope\n\n- none (permanent: boundary: fixture)\n", encoding="utf-8")
+            (tasks / "README.md").write_text(
+                "# Tasks\n\n## Task Index\n\n| ID | Title | Status | Covers | Acceptance |\n"
+                "|----|-------|--------|--------|------------|\n"
+                "| T1 | probe | pending | — | `probe` |\n", encoding="utf-8")
+            (tasks / "T1-probe.md").write_text(
+                "# Task ADR-001-T1: probe\n\n**Depends-on:** none\n**Covers:** none\n"
+                "**Produces:** none\n**Consumes:** none\n"
+                + (declaration + "\n" if declaration else "")
+                + "\n## Goal\n\ng\n\n"
+                "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+                "| `x.py` | edit | w |\n\n"
+                "## Ordered Steps\n\n1. Write the failing test first. [proof: acceptance]\n\n"
+                f"## Acceptance\n\n```bash\n{fence}\n```\n\n"
+                "## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n"
+                "|---|---|---|---|---|\n| `t` | `x.py` | v | — | 1 |\n\n"
+                "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                "## Mutation Log\n\n## Verification Log\n", encoding="utf-8")
+            return subprocess.run(
+                [sys.executable, str(Path(bin_dir).resolve() / "adr-lint"), str(record)],
+                cwd=root, capture_output=True, text=True).stdout
+
+    THREE = "set -o pipefail\npython3 a.py && grep -q one out && grep -q two out"
+    MARK = "segments and declares"
+
+    # THE FINDING, and BOTH COUNTS in it — a ratio with one number in it tells an
+    # author nothing they can act on.
+    said = lint_with(THREE, "**Rests-on:** `the exit code`")
+    assert MARK in said, f"a declaration smaller than the segment count is reported: {said}"
+    assert "3 segments" in said and "1 name" in said, f"both counts must be named: {said}"
+
+    # WHAT IT MUST NEVER SAY. The record's own Context spends a paragraph on this:
+    # the segment count is a proxy, and stating it as a fact about mechanisms
+    # would be the exact error the record exists to correct. Asserting the string
+    # is present is not asserting the document says the right thing (BACKLOG §80),
+    # so the overclaiming phrasings are asserted ABSENT.
+    for wrong in (r"rests on \d", r"\d+ mechanisms", r"has \d+ mechanism"):
+        assert not re.search(wrong, said), f"the advisory must not claim {wrong!r}: {said}"
+    assert "not a mechanism" in said or "is not a mechanism" in said, (
+        f"and it must say so in the message, where the reader is: {said}")
+
+    # ADVISORY, never blocking.
+    reported = [ln for ln in said.splitlines() if MARK in ln]
+    assert reported and all(ln.strip().startswith("advice:") for ln in reported), reported
+
+    # SILENCE where the counts do not warrant advice.
+    for label, out in (
+            ("a declaration at least as large",
+             lint_with(THREE, "**Rests-on:** `a`, `b`, `c`")),
+            ("no declaration at all", lint_with(THREE, None)),
+            ("a single-segment fence",
+             lint_with("python3 -m pytest tests/", "**Rests-on:** `the exit code`")),
+            ("an explicit none", lint_with(THREE, "**Rests-on:** none — one command"))):
+        assert MARK not in out, f"silence expected for {label}: {out}"
+
+    # ONE SEGMENT RULE, TWO CALLERS. Two implementations of one proxy drift, and
+    # then the record's own measurement and the gate disagree about the corpus
+    # without either being wrong.
+    sweep = load_script("fence_sweep_regressions",
+                        Path(repo_root) / "scripts" / "fence-obligation-sweep.py")
+    assert sweep.assertion_segments.__globals__.get("__name__") != "fence_sweep_regressions", (
+        "the sweep must CALL the gate's rule, not define a second one — a shared "
+        "table both happen to satisfy today is not one implementation")
+    for fence, want in SEGMENT_GRAMMAR:
+        for module in (lint, sweep):
+            assert len(module.assertion_segments(fence)) == want, (
+                module.__name__, fence, module.assertion_segments(fence), want)
+
+    # SETUP IS NOT AN ASSERTION, which is the branch S6's mutant removes: without
+    # the filter every count is inflated and this advisory fires on honest work.
+    assert lint.assertion_segments("set -o pipefail\ncd x\npython3 a.py") == ["python3 a.py"]
+
+    # AND THE SHARING LEAVES NO TRACE. Loading a gate through SourceFileLoader
+    # writes a `__pycache__` beside it, and a .pyc embeds the absolute source
+    # path of the machine that built it — which this repository publishes
+    # (CLAUDE.md §6). Caught by tests/package.test.mjs the first time the sweep
+    # imported the gate, so the regression is at the boundary the report came
+    # through: run the sweep, then look for the directory.
+    cache = Path(repo_root) / "plugin" / "bin" / "__pycache__"
+    before = cache.exists()
+    subprocess.run([sys.executable, str(Path(repo_root) / "scripts" / "fence-obligation-sweep.py")],
+                   cwd=repo_root, capture_output=True, text=True)
+    assert cache.exists() == before, (
+        "sharing the gate's segment rule must not write a .pyc beside a shipped "
+        f"gate: {cache}")
+
+    print("PASS — a declaration smaller than the segment count is reported, in the counts taken")
 
 
 if __name__ == "__main__":

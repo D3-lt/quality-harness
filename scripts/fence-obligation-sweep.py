@@ -17,35 +17,41 @@ declare it. Read a number here as "worth looking at", never as a defect count.
 
 Usage:  python3 scripts/fence-obligation-sweep.py [--json]
 """
+import importlib.machinery
+import importlib.util
 import json
 import re
 import subprocess
 import sys
+from pathlib import Path
 
 FENCE = re.compile(r"^## Acceptance\s*\n+```(?:bash)?\n(.*?)\n```", re.S | re.M)
 KILL = re.compile(r"^- .*·\s*mutant killed\s*·.*?acceptance-sha256:([0-9a-f]{64})", re.M)
 VLOG = re.compile(r"^- .*·\s*exit 0\s*·.*?acceptance-sha256:([0-9a-f]{64})", re.M)
 
-# Shell that sets the run up rather than asserting anything about it. `tee` is
-# here because it is a pipe destination in this corpus's fences, never a check.
-SETUP = re.compile(
-    r"^(set\b|cd\b|export\b|mkdir\b|rm\b|trap\b|cat\s*>|tee\b|PATH=|[A-Z_]+=|#|\)|\}|fi\b|done\b)")
+# ONE SEGMENT RULE, and it lives in the gate. This sweep is the record's own
+# re-runnable measurement, so a second copy here would let the number in ADR-022
+# and the number `adr-lint` advises on drift apart without either being wrong.
+# The gate is a standalone script with no import path, hence the loader.
+def _load_gate(path):
+    # No .pyc beside a shipped gate: the cache embeds this machine's absolute
+    # path, and this repository publishes its own tree (CLAUDE.md §6).
+    sys.dont_write_bytecode = True
+    loader = importlib.machinery.SourceFileLoader("adr_lint_for_sweep", str(path))
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+
+
+_GATE = _load_gate(Path(__file__).resolve().parent.parent / "plugin" / "bin" / "adr-lint")
+assertion_segments = _GATE.assertion_segments
 
 
 def tracked_task_files():
     out = subprocess.run(["git", "ls-files", "docs/adr/*/tasks/*.md"],
                          capture_output=True, text=True, check=True).stdout
     return [p for p in out.split() if not p.endswith("README.md")]
-
-
-def assertion_segments(fence):
-    """Segments of a fence that are not obviously setup.
-
-    Split on `&&`, `||` and newlines — the three ways this corpus chains a
-    fence. Deliberately crude: see the module docstring.
-    """
-    segments = [s.strip() for s in re.split(r"&&|\|\||\n", fence) if s.strip()]
-    return [s for s in segments if not SETUP.match(s)]
 
 
 def survey(paths):

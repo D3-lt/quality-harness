@@ -3669,6 +3669,15 @@
       ],
       "from": "  const retired = found.filter(row => row.state === 'ours-orphan')",
       "to": "  const retired = found.filter(row => row.state !== 'ours-shipped')"
+    },
+    {
+      "label": "readme: the feature list is checked against what ships",
+      "file": "README.md",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "- `mutation-audit` — break a mechanism on purpose and measure whether anything notices.\n",
+      "to": ""
     }
   ]
 }

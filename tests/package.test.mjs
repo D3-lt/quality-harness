@@ -766,3 +766,32 @@ test('every shipped gate carries at least one mutation', () => {
   // and tests/standalone-link.test.mjs already asserts every gate has one.
   assert.ok(!covered.has(`${binPrefix}adr-lint.cmd`), 'shims carry no logic and are not in this class')
 })
+
+test('the README names every skill and gate this plugin ships', () => {
+  // A feature list kept BESIDE the truth is a thing somebody has to remember, and
+  // this one had stopped being remembered: measured 2026-09-01, nine shipped
+  // components appeared nowhere in it — the `mutation-audit` skill, four gates
+  // (`adr-judge`, `adr-next`, `qh-mcp`, `qh-root`) and three corpus readers.
+  // Same class as the hand-written SHADOW_SCOPE that missed `workflows`, and the
+  // fix is the same shape: derive the expectation from what ships.
+  //
+  // README, not the plugin: this file never ships (ADR-008), which is exactly why
+  // nothing else checks it.
+  const readme = readFileSync(join(repoRoot, 'README.md'), 'utf8')
+  const shipped = readdirSync(join(root, 'skills'), { withFileTypes: true })
+    .filter(entry => entry.isDirectory()).map(entry => entry.name)
+  const gates = readdirSync(join(root, 'bin'), { withFileTypes: true })
+    .filter(entry => entry.isFile() && !entry.name.endsWith('.cmd'))
+    .map(entry => entry.name)
+
+  const missing = [...shipped, ...gates].filter(name => !readme.includes(name))
+  assert.deepEqual(missing, [],
+    `these ship and the README never names them: ${missing.join(', ')}`)
+
+  // And the list must be shown able to be wrong, or it passes for any README that
+  // happens to contain a lot of words (CLAUDE.md §4).
+  assert.ok(!readme.includes('adr-nonexistent-gate'),
+    'the check reads the real README rather than a fixture')
+  assert.ok(shipped.length > 5 && gates.length > 5,
+    `the expectation must be derived from a real tree: ${shipped.length}/${gates.length}`)
+})

@@ -5080,7 +5080,7 @@ Verified clean by the same probe, so the sweep is not vacuous: every extensionle
 `plugin/bin/` is 0 CR bytes, all of `plugin/scripts/`, `.gitignore` and `.gitattributes` are
 pinned `eol: lf` and clean on disk.
 
-## 90. `Path.is_absolute()` is False for a rooted path on Windows, and three sites join it to cwd
+## 90. CLOSED 2026-09-01 — `Path.is_absolute()` was False for a rooted path on Windows, and three sites joined it to cwd
 
 Found 2026-08-30 by the same peer session, from `Y:\Projects\zeus` — a non-`C:` drive this
 project has never been able to test on.
@@ -5129,6 +5129,27 @@ returned True for `..\dir\file`, `Y:\…`, `Y:/…`, `C:\…`, `/etc/passwd` and
 not returning True for everything. adr-lint's enforcement path is protected by it;
 `adr-verify:688/923` are the sites to look at, and whether their inputs are pre-filtered is not
 yet traced.
+
+**CLOSED 2026-09-01, and the heading was stale in the §103 direction — it read as a live defect
+against code that already carried the fix.** Verified by executing the tree, not by reading this
+entry:
+
+```bash
+git grep -n "looks_absolute" -- plugin/bin
+```
+
+`looks_absolute(pointer)` exists in BOTH gates (`plugin/bin/adr-lint:120`,
+`plugin/bin/adr-verify:260`) and tests the property directly — a drive prefix, or a leading
+separator in either spelling — exactly as this entry asked, with the 3.10-vs-3.14 `ntpath.isabs`
+divergence written into its docstring so nobody re-proposes the swap. All three sites this entry
+named now call it: the spec-file join at `adr-lint:985`, and `adr-verify:1154` and `:1434`.
+`tests/gates.test.mjs` drives it.
+
+Two `is_absolute()` calls remain in `adr-verify` and NEITHER is this defect, checked rather than
+assumed. `:706` joins a driveless rooted path to the declared root and then requires
+`relative_to(root)`, so a re-rooted path is refused by the containment guard rather than acted on;
+`:857` REQUIRES a recorded journal path to be absolute, so a driveless rooted path is rejected
+there, which is the conservative direction.
 
 **Also recorded, because the margin is invisible:** every containment check in `plugin/bin`
 uses `Path` semantics (`parent in child.parents`, `relative_to`), never `startswith(str(...))`

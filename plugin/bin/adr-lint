@@ -1282,6 +1282,23 @@ def check_task(path, all_stems, errors):
     for h in TASK_HEADERS:
         if header_val(text, h) is None:
             errors.advise(f"{path.name}: missing **{h}:** header")
+    # ADR-022 T1. Advisory throughout, and SILENT for a task with no header —
+    # which is every task in this corpus, so a mistake here fires forty times on
+    # an unmodified tree (BACKLOG §59).
+    declared = rests_on(text)
+    if declared is RESTS_ON_UNREADABLE:
+        line = next((ln for ln in text.splitlines()
+                     if ln.startswith("**Rests-on:**")), "**Rests-on:**")
+        errors.advise(
+            f"{path.name}: **Rests-on:** could not be read as a declaration of mechanisms — "
+            f"expected backticked names separated by commas, or `none — <reason>`. "
+            f"Got: {_excerpt(line)}")
+    elif declared:
+        for name in sorted({n for n in declared if declared.count(n) > 1}):
+            errors.advise(
+                f"{path.name}: **Rests-on:** names `{name}` more than once. A mechanism "
+                f"declared twice is counted twice, so what the record admits is unproven "
+                f"would be wrong in the direction that flatters it")
     acc = "\n".join(secs.get("Acceptance", []))
     if "```bash" not in acc and "Acceptance is human-observed:" not in acc:
         errors.append(f"{path.name}: ## Acceptance has no ```bash fence and no explicit "
@@ -2279,6 +2296,71 @@ def strip_comments(text):
             out.append(char)
             i += 1
     return "".join(out)
+
+
+class _Unreadable:
+    """The third answer `rests_on()` can give, distinct from both other two."""
+
+    __slots__ = ()
+
+    def __repr__(self):
+        return "RESTS_ON_UNREADABLE"
+
+
+RESTS_ON_UNREADABLE = _Unreadable()
+
+
+def rests_on(text):
+    """The mechanisms a task declares its Acceptance fence's claim rests on.
+
+    FOUR answers, and they are four because ADR-005 forbids collapsing "I could
+    not read it" into "there is nothing there":
+
+      - `None`                — no `**Rests-on:**` header at all. Every task in
+                                this corpus today, and the state that must stay
+                                silent forever.
+      - `[]`                  — the header is present and declares nothing
+                                (`none — <reason>`): an author saying the fence
+                                rests on one indivisible thing.
+      - `RESTS_ON_UNREADABLE` — the header is present and its value is not a
+                                declaration.
+      - a list of names       — what it declares, in written order.
+
+    The value grammar is `Enforced-by`'s: a backticked span is one item, commas
+    inside it included, and whatever falls outside the backticks is then
+    comma-separated. Reusing it is the point — an author who has written one of
+    these headers has already written the other.
+
+    ⚠ NOT `header_val`, which needs `(.+)` and so reads an EMPTY value as an
+    absent header. Empty is the commonest way to leave a declaration half-written
+    and it is exactly the case worth reporting, so the presence of the header and
+    the readability of its value are decided separately here.
+    """
+    m = re.search(r"^\*\*Rests-on:\*\*(.*)$", text, re.M)
+    if m is None:
+        return None
+    value = m.group(1).strip()
+    if not value:
+        return RESTS_ON_UNREADABLE
+    if re.match(r"none\b", value, re.I):
+        return []
+    # An UNPAIRED backtick is a typo, and the span-splitting below would quietly
+    # turn one into items that look plausible. A guessed mechanism is worse than
+    # a reported one: it enters the coverage reading as something nobody wrote.
+    if value.count("`") % 2:
+        return RESTS_ON_UNREADABLE
+    names = []
+    rest = []
+    position = 0
+    for span in re.finditer(r"`([^`]*)`", value):
+        rest.append(value[position:span.start()])
+        names.append(span.group(1).strip())
+        position = span.end()
+    rest.append(value[position:])
+    names += [p.strip() for p in ",".join(rest).split(",")]
+    # `<the mechanism>` is the template placeholder, not a declaration.
+    names = [n for n in names if n and not re.match(r"[<(]", n)]
+    return names or RESTS_ON_UNREADABLE
 
 
 def enforcement_pointers(text):

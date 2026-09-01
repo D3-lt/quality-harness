@@ -695,6 +695,7 @@ def main():
     test_the_floor_runs_on_a_done_row(lint)
     test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
     test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint)
+    test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3270,6 +3271,113 @@ def test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lin
     # corpus writes routinely. Both sides are filtered through VLOG_RE.
     prose = lint_after(lambda text: text.replace("PROSE-MARKER", "a sentence that was rewritten"))
     assert MARK not in prose, f"only Verification Log rows are compared: {prose}"
+
+
+# ADR-022 T1. `adr-lint` requires ONE killed mutant bound to a fence's digest
+# before a task may be `done`. The obligation is existential and vacuity is
+# per-mechanism: a fence chaining three assertions with one bound mutant has been
+# shown capable of failing for one reason, and nothing is known about the other
+# two. Nothing in a task file enumerates what its fence's claim rests on, so
+# nothing — tool or reader — can count what is unproven, and ADR-016 already
+# settled that the structure cannot be inferred from arbitrary shell.
+#
+# `**Rests-on:**` is that enumeration. It is prose, and it is safe as prose for
+# one reason only: it records an OBLIGATION, not evidence. Hand-filling it can
+# only make the record admit more than it has proved, which is the opposite
+# incentive to the hand-filled `## Mutants` table the Verification Log replaced.
+def test_a_fence_declaration_is_read_or_reported(bin_dir, lint, repo_root):
+    """The `Rests-on:` parser, its two advisories, and silence everywhere else."""
+    fence = "python3 -m pytest tests/"
+
+    def lint_with(header):
+        """Run the shipped CLI on a one-task fixture carrying `header` verbatim."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            tasks = root / "docs" / "adr" / "ADR-001-probe" / "tasks"
+            tasks.mkdir(parents=True)
+            (root / "x.py").write_text("def t():\n    assert True\n", encoding="utf-8")
+            record = root / "docs" / "adr" / "ADR-001-probe.md"
+            record.write_text(
+                "# ADR-001: Probe\n\n**Status:** Accepted\n**Spec:** None — no spec stage\n"
+                "**Enforced-by:** None — fixture\n**Served-path change:** None — fixture\n\n"
+                "## Alternatives Considered\n\n- Keep the old form.\n\n"
+                "## Wiring & Contract Changes\n\nNone — implementation-internal only.\n\n"
+                "## Out of Scope\n\n- none (permanent: boundary: fixture)\n", encoding="utf-8")
+            (tasks / "README.md").write_text(
+                "# Tasks\n\n## Task Index\n\n| ID | Title | Status | Covers | Acceptance |\n"
+                "|----|-------|--------|--------|------------|\n"
+                f"| T1 | probe | pending | — | `{fence}` |\n", encoding="utf-8")
+            (tasks / "T1-probe.md").write_text(
+                "# Task ADR-001-T1: probe\n\n**Depends-on:** none\n**Covers:** none\n"
+                "**Produces:** none\n**Consumes:** none\n"
+                + (header + "\n" if header is not None else "")
+                + "\n## Goal\n\ng\n\n"
+                "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+                "| `x.py` | edit | w |\n\n"
+                "## Ordered Steps\n\n1. Write the failing test first. [proof: acceptance]\n\n"
+                f"## Acceptance\n\n```bash\n{fence}\n```\n\n"
+                "## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n"
+                "|---|---|---|---|---|\n| `t` | `x.py` | v | — | 1 |\n\n"
+                "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                "## Mutation Log\n\n## Verification Log\n", encoding="utf-8")
+            return subprocess.run(
+                [sys.executable, str(Path(bin_dir).resolve() / "adr-lint"), str(record)],
+                cwd=root, capture_output=True, text=True).stdout
+
+    UNREADABLE = "could not be read as a declaration"
+    TWICE = "more than once"
+
+    # THE FINDING, first arm: a value with no mechanism in it at all.
+    for bad in ("**Rests-on:** ", "**Rests-on:** `unclosed", "**Rests-on:** <name>"):
+        said = lint_with(bad)
+        assert UNREADABLE in said, f"a declaration that cannot be read must be named: {bad!r} -> {said}"
+
+    # THE FINDING, second arm: the same mechanism declared twice. The count is
+    # what the coverage reading in T3 divides by, so a repeat makes it wrong.
+    said = lint_with("**Rests-on:** `the exit code`, `the exit code`")
+    assert TWICE in said and "the exit code" in said, f"a repeated mechanism must be named: {said}"
+
+    # CAPABLE OF CLEAN on the same fixture. Without this, both assertions above
+    # pass against a gate that shouts at every task it is given.
+    quiet = lint_with("**Rests-on:** `the exit code`, `the printed digest`")
+    assert UNREADABLE not in quiet and TWICE not in quiet, (
+        f"a well-formed declaration must draw nothing: {quiet}")
+
+    # ADVISORY, never blocking (CLAUDE.md §3). The CHANNEL is asserted line by
+    # line, not the summary word, which a fixture's other findings could set.
+    said = lint_with("**Rests-on:** `unclosed")
+    reported = [ln for ln in said.splitlines() if UNREADABLE in ln]
+    assert reported and all(ln.strip().startswith("advice:") for ln in reported), (
+        f"the declaration findings are advisory: {reported}")
+
+    # `None` (no header) and `[]` (a header declaring nothing) are DIFFERENT
+    # STATES and ADR-005 forbids collapsing them: one is "the author said
+    # nothing", the other is "the author said there is nothing". This is the
+    # branch S4's silence rests on, and the registered mutant breaks it.
+    without = "# Task\n\n**Depends-on:** none\n\n## Goal\n\ng\n"
+    assert lint.rests_on(without) is None, "an absent header is not an empty declaration"
+    assert lint.rests_on(without + "**Rests-on:** none — one indivisible command\n") == [], \
+        "an explicit `none` declares nothing, which is not the same as declaring nothing readable"
+    assert lint.rests_on(without + "**Rests-on:** `a`, `b`\n") == ["a", "b"]
+    assert lint.rests_on(without + "**Rests-on:** `unclosed\n") is lint.RESTS_ON_UNREADABLE, \
+        "and a value the parser could not read is a third answer, not either of the first two"
+
+    # SILENCE ACROSS THE CORPUS AS IT STANDS. A new advisory that fires on an
+    # unmodified tree is the defect BACKLOG §59 records. Resolved through
+    # `git ls-files` rather than the filesystem (CLAUDE.md §8), and the count is
+    # asserted in the same breath — a glob that matched nothing would otherwise
+    # report "I could not look" as "the corpus is clean" (ADR-005).
+    listed = subprocess.run(
+        ["git", "-C", str(repo_root), "ls-files", "docs/adr/*/tasks/*.md"],
+        capture_output=True, text=True)
+    corpus = [Path(repo_root) / p for p in listed.stdout.split("\n") if p.strip()]
+    assert len(corpus) >= 20, f"the silence claim needs a corpus to be silent about: {len(corpus)}"
+    carried = [p.name for p in corpus
+               if lint.rests_on(p.read_text(encoding="utf-8", errors="replace")) is not None]
+    assert not carried, f"no task in this corpus declares Rests-on yet: {carried}"
+
+    print("PASS — a fence declaration is read, or reported as unreadable")
 
 
 if __name__ == "__main__":

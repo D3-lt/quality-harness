@@ -3768,6 +3768,15 @@
       ],
       "from": "            if timed and timed.group(\"ms\") and implausibly_fast(int(timed.group(\"ms\")),\n                                                                inf.get(\"acc_all\", \"\")):",
       "to": "            if False:"
+    },
+    {
+      "label": "lint: a declaration that cannot be read is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    m = re.search(r\"^\\*\\*Rests-on:\\*\\*(.*)$\", text, re.M)\n    if m is None:\n        return None",
+      "to": "    m = re.search(r\"^\\*\\*Rests-on:\\*\\*(.*)$\", text, re.M)\n    if m is None:\n        return []"
     }
   ]
 }

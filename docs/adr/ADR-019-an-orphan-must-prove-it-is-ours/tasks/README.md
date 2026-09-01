@@ -21,7 +21,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | Identify a home file by what proves it is ours, never by what is missing | done | — | `node --test tests/standalone-link.test.mjs` |
 | T2 | Scan the directories a past installer may have written, and cost the walk | done | — | `node --test tests/standalone-link.test.mjs` |
-| T3 | Say what was found, and make sure nothing acts on it | pending | — | `node --test tests/lifecycle.test.mjs tests/standalone-link.test.mjs` |
+| T3 | Say what was found, and make sure nothing acts on it | done | — | `node --test tests/lifecycle.test.mjs tests/standalone-link.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

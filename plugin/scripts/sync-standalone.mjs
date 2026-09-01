@@ -22,7 +22,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { FORWARDER_MARK, backupRoot, linkPlan, onSearchPath, write as writeLink } from './standalone-link.mjs'
+import {
+  FORWARDER_MARK, SHADOW_SCOPE, backupRoot, linkPlan, onSearchPath, wiredInSettings,
+  write as writeLink,
+} from './standalone-link.mjs'
 
 const HERE = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -59,47 +62,52 @@ const digest = file => {
   try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
 }
 
-// Every pairing the standalone install mirrors. Skills are directories whose
-// comparable file is one level down.
+// Every pairing the standalone install mirrors comes from SHADOW_SCOPE, shared
+// with the session-start drift notice in lifecycle.mjs. It used to be a local
+// list here, and the two drifted apart: reported 2026-09-01, the notice named a
+// stale `facts-gate-dispatch.sh` under the home `.claude/hooks/` and this tool
+// answered "Nothing
+// to do", because `hooks` was in the notice's list and not in this one. What was
+// stale was a gate dispatcher running three of the plugin's five gates, wired in
+// the user's own settings — so the notice was right, the remediation path could
+// not act on it, and nothing could reconcile them.
 function pairs(source, home) {
   const out = []
-  const add = (from, to) => {
-    if (existsSync(from)) out.push({ from, to })
-  }
-  // A GATE is created wherever it is missing: the standalone set exists so a
-  // bare-name gate resolves, and one that is absent resolves to nothing.
-  //
-  // A TEMPLATE is refreshed only where one already exists, the same rule skills
-  // follow below and for the same reason — a deletion has to stay deleted, or
-  // the next sync undoes the user's decision and calls it an update. Nothing
-  // reads the home templates directory once the bare-name skills are gone —
-  // every skill names its template under the plugin root, which is always the
-  // running version — so creating them is a chore that repoints every release.
-  // Refreshing one the user chose to keep is still worth doing, and on Windows
-  // those are real files rather than links, so this is the only thing serving
-  // them at all.
-  for (const [dir, whenAbsent] of [['bin', 'create'], ['templates', 'skip']]) {
+  const wired = wiredInSettings(home)
+  for (const scope of SHADOW_SCOPE) {
+    // The home directory's name and the plugin's are NOT always the same: hooks
+    // ship under `scripts/`. Reading one name for both walks a directory that
+    // does not exist and `continue`s out of it silently.
     let entries = []
-    try { entries = readdirSync(path.join(source, dir)) } catch { continue }
+    try { entries = readdirSync(path.join(source, scope.shipped)) } catch { continue }
     for (const name of entries) {
-      if (!statSync(path.join(source, dir, name)).isFile()) continue
-      const to = path.join(home, '.claude', dir, name)
-      if (whenAbsent === 'skip' && !existsSync(to)) continue
-      add(path.join(source, dir, name), to)
+      const from = scope.leaf
+        ? path.join(source, scope.shipped, name, scope.leaf)
+        : path.join(source, scope.shipped, name)
+      if (!existsSync(from)) continue
+      try { if (!statSync(from).isFile()) continue } catch { continue }
+      const to = scope.leaf
+        ? path.join(home, '.claude', scope.home, name, scope.leaf)
+        : path.join(home, '.claude', scope.home, name)
+      // A GATE is created wherever it is missing: the standalone set exists so a
+      // bare-name gate resolves, and one that is absent resolves to nothing.
+      //
+      // Everything else is refreshed only where one ALREADY exists. A deletion
+      // has to stay deleted, or the next sync undoes the user's decision and
+      // calls it an update — and creating a skill produces a second copy of one
+      // the plugin already serves, which shadows the namespaced
+      // `quality-harness:<name>` it duplicates. Home templates are read by
+      // nothing once the bare-name skills are gone; refreshing one the user
+      // chose to keep is still worth doing, and on Windows those are real files
+      // rather than links, so this is the only thing serving them at all.
+      if (scope.whenAbsent === 'skip' && !existsSync(to)) continue
+      // A hook the user's settings do not name cannot answer, so it is not work.
+      // The notice applies the same filter; if only one of them did, this tool
+      // would offer work the notice calls none, which is the same disagreement
+      // pointed the other way.
+      if (scope.wired && !wired(name)) continue
+      out.push({ from, to })
     }
-  }
-  // A skill is refreshed only where one ALREADY exists. Creating one is what
-  // produces a second copy of a skill the plugin already serves, and a personal
-  // skill shadows the namespaced `quality-harness:<name>` it duplicates — by
-  // path identity when linked, which removes the namespaced entrypoint outright.
-  // Removing a bare-name skill has to stay removed, or the next sync undoes the
-  // user's decision and calls it an update.
-  let skills = []
-  try { skills = readdirSync(path.join(source, 'skills')) } catch { skills = [] }
-  for (const name of skills) {
-    const to = path.join(home, '.claude', 'skills', name, 'SKILL.md')
-    if (!existsSync(to)) continue
-    add(path.join(source, 'skills', name, 'SKILL.md'), to)
   }
   return out
 }

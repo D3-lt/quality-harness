@@ -789,8 +789,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (theirs && theirs !== digest(ours)) stale.push(path.join('~', '.claude', relative, name))",
-      "to": "      if (false) stale.push(path.join('~', '.claude', relative, name))"
+      "from": "      if (theirs && theirs !== digest(ours)) {",
+      "to": "      if (false) {"
     },
     {
       "label": "context: scratch corpora are not the project's records",
@@ -963,21 +963,21 @@
     },
     {
       "label": "context: a drifted template is named too",
-      "file": "plugin/scripts/lifecycle.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    ['templates', path.join(pluginRoot, 'templates'), () => true],",
+      "from": "  { home: 'templates', shipped: 'templates', whenAbsent: 'skip', wired: false },",
       "to": ""
     },
     {
       "label": "context: a drifted skill is named too",
-      "file": "plugin/scripts/lifecycle.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    const ours = path.join(pluginRoot, 'skills', name, 'SKILL.md')",
-      "to": "    const ours = path.join(pluginRoot, 'skills', name, 'ABSENT.md')"
+      "from": "  { home: 'skills', shipped: 'skills', leaf: 'SKILL.md', whenAbsent: 'skip', wired: false },",
+      "to": "  { home: 'skills', shipped: 'skills', leaf: 'ABSENT.md', whenAbsent: 'skip', wired: false },"
     },
     {
       "label": "sync: a cached newer version outranks the running one",
@@ -1030,8 +1030,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (!existsSync(to)) continue",
-      "to": "    if (false) continue"
+      "from": "      if (scope.whenAbsent === 'skip' && !existsSync(to)) continue",
+      "to": "      if (false) continue"
     },
     {
       "label": "link: no skill is ever linked",
@@ -1498,8 +1498,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (current(path.join(shadow, name)) || !reachable(name)) continue",
-      "to": "      if (!reachable(name)) continue"
+      "from": "      if (current(theirPath)) continue\n",
+      "to": ""
     },
     {
       "label": "notice: a hook nothing wires cannot answer",
@@ -1507,8 +1507,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    ['hooks', path.join(pluginRoot, 'scripts'), wired],",
-      "to": "    ['hooks', path.join(pluginRoot, 'scripts'), () => true],"
+      "from": "      if (scope.wired && !wired(name)) continue",
+      "to": "      if (false) continue"
     },
     {
       "label": "link: an archive that cannot link records the target instead",
@@ -1818,21 +1818,21 @@
     },
     {
       "label": "sync: a template the user does not have is not created",
-      "file": "plugin/scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "['templates', 'skip']",
-      "to": "['templates', 'create']"
+      "from": "  { home: 'templates', shipped: 'templates', whenAbsent: 'skip', wired: false },",
+      "to": "  { home: 'templates', shipped: 'templates', whenAbsent: 'create', wired: false },"
     },
     {
       "label": "sync: a gate the user does not have IS created",
-      "file": "plugin/scripts/sync-standalone.mjs",
+      "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "['bin', 'create']",
-      "to": "['bin', 'skip']"
+      "from": "  { home: 'bin', shipped: 'bin', whenAbsent: 'create', wired: false },",
+      "to": "  { home: 'bin', shipped: 'bin', whenAbsent: 'skip', wired: false },"
     },
     {
       "label": "package: a catalogue entry that matches nothing is named",
@@ -2020,7 +2020,7 @@
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "  return parts.some(entry => normalise(entry) === want)",
+      "from": "  return searchPathIndex(directory, pathValue, platform) >= 0",
       "to": "  return true"
     },
     {
@@ -3489,6 +3489,33 @@
       ],
       "from": "    if not headers:\n        errors.advise(PROOF_MAP_LEGACY_ADVICE.format(task=path.name))\n        return",
       "to": "    if not headers:\n        return"
+    },
+    {
+      "label": "notice: an unreadable PATH is unknown, not an absence",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (pathValue === undefined || pathValue === null) return { known: false, winner: null }",
+      "to": "  if (false) return { known: false, winner: null }"
+    },
+    {
+      "label": "notice: which copy answers is precedence, not presence",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    : standalone < plugin ? 'standalone' : 'plugin'",
+      "to": "    : 'standalone'"
+    },
+    {
+      "label": "scope: hooks ship under scripts/, not under hooks/",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },",
+      "to": "  { home: 'hooks', shipped: 'hooks', whenAbsent: 'skip', wired: true },"
     }
   ]
 }

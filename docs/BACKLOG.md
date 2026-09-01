@@ -5253,3 +5253,52 @@ orphan is identified without a digest to match. Not folded into `bbd3f87`, delib
 Also open from the same issue, and deliberately unchanged: `--link` is a THIRD, narrower scope
 that installs gates only, via `gateNames()`. It already reports when copy mode has work it cannot
 do, so it is documented rather than merged into `SHADOW_SCOPE`.
+
+---
+
+## 96. `SHADOW_SCOPE` is hand-listed, and two of this machine's home workflow files are drifted where nothing looks
+
+Deferred out of ADR-019 (`docs/adr/ADR-019-an-orphan-must-prove-it-is-ours.md`, Out of Scope), which
+covers ORPHANS — files this plugin no longer ships. This entry is the other half: a file the plugin
+ships **today**, in a home directory the scanners do not look in.
+
+`SHADOW_SCOPE` (added 2026-09-01, `bbd3f87`) lists four home directories: `bin`, `hooks`,
+`templates`, `skills`. Measured 2026-09-01, the plugin's own releases have shipped nine top-level
+directories between them:
+
+    ls -d ~/.claude/plugins/cache/quality-harness/quality-harness/*/*/ | xargs -n1 basename | sort -u
+    bin docs evals hooks scripts skills templates tests workflows
+
+`workflows` is one of the five outside the scope, and it is not hypothetical here:
+
+    ~/.claude/workflows/consensus.js    home 6115389c22c4  plugin c7299c812b19  DRIFTED
+    ~/.claude/workflows/review-ring.js  home 5f5f40ab0b61  plugin 3206965c71f7  DRIFTED
+
+Both are ours by name and still shipped (`plugin/workflows/` holds `consensus.js`,
+`quality-cycle.js`, `review-ring.js`). Neither scanner reports them, and `grep -n workflows` over
+`standalone-link.mjs`, `sync-standalone.mjs` and `lifecycle.mjs` returns nothing. This is exactly
+GitHub issue #1 — the notice and the repair tool blind to a directory — one directory over, still
+open, four days after that issue was filed.
+
+**The fix is a derivation, not a longer list.** The scope should come from what the plugin currently
+ships (a `readdirSync` over the plugin root, minus what never installs home-side), so the tenth
+directory is not missed the way the fifth through ninth were. That is a different mechanism from
+ADR-019's: derivation can only ever see the CURRENT tree, so it cannot find an orphan, and an orphan
+scan's directory set is a superset. Two mechanisms, deliberately separate records.
+
+**Open first:** whether anything reads `~/.claude/workflows/*.js` at all. ADR-004's general rule
+turns on it — *install a personal copy only where it is both reachable by something and cheaper to
+maintain than the plugin's own copy*. If those two files are live, this is a drift fix. If nothing
+reads them, they are ADR-004's case (an unread home copy that is a standing chore) and the answer is
+that they should not exist, which routes back to ADR-019 rather than here. `~/.claude/skills` holds
+none of ours and `~/.claude/commands` holds `M.md`, `am.md`, `autoresearch.md`, `load-skill.md`, so
+whatever serves the bare `/consensus` in a live skill listing is not a home `SKILL.md` — find what
+loads the `.js` before classifying them.
+
+**Second item, same area.** `~/.claude/plugins/cache/quality-harness/quality-harness/2.0.0/` holds
+`AUTHn`, `CHRn`, `cuda-1.9`, `maximum` and a dozen similar entries alongside `bin`, `hooks` and
+`scripts`. It does not look like a release of this plugin. Any mechanism that walks cached versions
+— `knownDigests()` today, ADR-019's `formerlyShipped()` next — must tolerate it without producing a
+match, and the phrase "52 cached versions" used in GitHub issue #3 and §95 rests on counting it.
+ADR-019 T1 carries a test for a junk directory; this entry is the note that the junk is real and
+sitting in the cache now, not a hypothetical.

@@ -3743,6 +3743,15 @@
       "to": "    return ms < 500"
     },
     {
+      "label": "lint: a committed evidence row that has gone missing is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if known is not None:\n            for gone in [b for b in known if VLOG_RE.match(b) and b not in inf[\"vlog\"]]:",
+      "to": "        if False:\n            for gone in []:"
+    },
+    {
       "label": "lint: the floor reads every row that claims a machine run",
       "file": "plugin/bin/adr-lint",
       "tests": [

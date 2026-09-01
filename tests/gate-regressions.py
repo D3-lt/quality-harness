@@ -694,6 +694,7 @@ def main():
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
     test_the_floor_runs_on_a_done_row(lint)
     test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
+    test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3173,6 +3174,102 @@ def test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint):
     assert not lint.VLOG_TIMED_RE.match(
         "- 2026-09-03 · human-observed · Zy read it end to end"), \
         "a human sign-off claims no machine run and has no duration to floor"
+
+
+# ADR-021 T1. Every field in an entry is defended — the digest binds a row to the
+# fence it proved, the duration is a value the file cannot produce — and all of it
+# defends what a row SAYS. Nothing defended the log against a row being taken OUT.
+#
+# Measured 2026-09-01 through this CLI before any code was written: removing the
+# RED exit-1 row, or one of two GREEN rows, produced output identical to the
+# baseline. Only removing every row was caught. The RED one is what matters —
+# deleting it makes the log imply a red-green cycle that did not happen, which two
+# task files in this corpus disclose BY HAND in prose because nothing checked it.
+def test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint):
+    """check_verification compares the rows HEAD holds against the rows present."""
+    fence = "python3 -m pytest tests/"
+    digest = lint.acceptance_digest(lint.normalize_acceptance(fence))
+    red = f"- 2026-08-30 · aaa1111 · exit 1 · `{fence}` · acceptance-sha256:{digest} · ms:9100"
+    green = f"- 2026-08-31 · bbb2222 · exit 0 · `{fence}` · acceptance-sha256:{digest} · ms:9400"
+
+    def lint_after(edit, git=True):
+        """Commit a three-row log, apply `edit` to the task text, run the gate."""
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            tasks = root / "docs" / "adr" / "ADR-001-probe" / "tasks"
+            tasks.mkdir(parents=True)
+            # The Tests table names this file, and a task whose named test cannot
+            # exist draws a BLOCKING finding of its own — which would drown the one
+            # this test is about and make `[PASS]` unreadable as a channel check.
+            (root / "x.py").write_text("def t():\n    assert True\n", encoding="utf-8")
+            record = root / "docs" / "adr" / "ADR-001-probe.md"
+            record.write_text(
+                "# ADR-001: Probe\n\n**Status:** Accepted\n**Spec:** None — no spec stage\n"
+                "**Enforced-by:** None — fixture\n**Served-path change:** None — fixture\n\n"
+                "## Alternatives Considered\n\n- Keep the old form.\n\n"
+                "## Wiring & Contract Changes\n\nNone — implementation-internal only.\n\n"
+                "## Out of Scope\n\n- none (permanent: boundary: fixture)\n", encoding="utf-8")
+            (tasks / "README.md").write_text(
+                "# Tasks\n\n## Task Index\n\n| ID | Title | Status | Covers | Acceptance |\n"
+                f"|----|-------|--------|--------|------------|\n| T1 | probe | done | — | `{fence}` |\n",
+                encoding="utf-8")
+            head = ("# Task ADR-001-T1: probe\n\n**Depends-on:** none\n**Covers:** none\n"
+                    "**Produces:** none\n**Consumes:** none\n\n## Goal\n\nPROSE-MARKER\n\n"
+                    "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n| `x.py` | edit | w |\n\n"
+                    "## Ordered Steps\n\n1. Write the failing test first. [proof: acceptance]\n\n"
+                    f"## Acceptance\n\n```bash\n{fence}\n```\n\n"
+                    "## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n|---|---|---|---|---|\n"
+                    "| `t` | `x.py` | v | — | 1 |\n\n## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                    "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                    "## Mutation Log\n- 2026-08-31 · bbb2222 · mutant killed · exit 1 · `x.py` · why · "
+                    f"acceptance-sha256:{digest}\n\n## Verification Log\n")
+            task = tasks / "T1-probe.md"
+            committed = head + red + "\n" + green + "\n"
+            task.write_text(committed, encoding="utf-8")
+            if git:
+                subprocess.run(["git", "init", "-q", str(root)], check=True)
+                subprocess.run(["git", "-C", str(root), "add", "-A"], check=True,
+                               capture_output=True)
+                subprocess.run(["git", "-C", str(root), "-c", "user.email=t@e",
+                                "-c", "user.name=t", "commit", "-qm", "base"], check=True,
+                               capture_output=True)
+            task.write_text(edit(committed), encoding="utf-8")
+            return subprocess.run(
+                [sys.executable, str(Path(bin_dir).resolve() / "adr-lint"), str(record)],
+                cwd=root, capture_output=True, text=True).stdout
+
+    MARK = "no longer in this file"
+
+    # THE FINDING. The red run is removed after it was committed.
+    said = lint_after(lambda text: text.replace(red + "\n", ""))
+    assert MARK in said and "aaa1111" in said, (
+        f"a committed entry that has gone missing must be named: {said}")
+    # ADVISORY, never blocking (CLAUDE.md §3): legitimate deletions exist — a log
+    # rewritten because its fence changed, a record being retired. The CHANNEL is
+    # what is asserted, not the overall exit: a fixture can carry other findings,
+    # and reading the summary line would let this pass for the wrong reason.
+    reported = [line for line in said.splitlines() if MARK in line]
+    assert reported and all(line.strip().startswith("advice:") for line in reported), (
+        f"the missing-row report must be advice, never a blocking finding: {reported}")
+    assert said.startswith("[PASS]"), f"and nothing else in this fixture blocks: {said}"
+
+    # CAPABLE OF CLEAN, on the same fixture — without this the assertion above
+    # passes against a gate that shouts at every corpus.
+    quiet = lint_after(lambda text: text)
+    assert MARK not in quiet, f"a log nobody touched must draw nothing: {quiet}"
+
+    # SILENCE WHEN GIT COULD NOT ANSWER. `committed_lines` returns None for "I
+    # could not look", and a filter that could not look must never report absence
+    # (ADR-005). Without a repository every task would otherwise be accused.
+    nogit = lint_after(lambda text: text.replace(red + "\n", ""), git=False)
+    assert MARK not in nogit, (
+        f"no repository means 'I could not look', never 'the row is absent': {nogit}")
+
+    # PROSE MAY CHANGE. `committed_lines` returns EVERY line of the committed
+    # file, so an unfiltered comparison would accuse the correction notes this
+    # corpus writes routinely. Both sides are filtered through VLOG_RE.
+    prose = lint_after(lambda text: text.replace("PROSE-MARKER", "a sentence that was rewritten"))
+    assert MARK not in prose, f"only Verification Log rows are compared: {prose}"
 
 
 if __name__ == "__main__":

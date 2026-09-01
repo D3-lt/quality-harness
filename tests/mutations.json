@@ -3469,8 +3469,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if line > len(lines):\n        _permanent_advice(\n            errors, record,\n            f\"file citation `{receipt}` names line {line}, but that line does not exist\")",
-      "to": "    if False:\n        _permanent_advice(\n            errors, record,\n            f\"file citation `{receipt}` names line {line}, but that line does not exist\")"
+      "from": "    if line > len(lines):\n        _permanent_advice(\n            errors, record, entry=entry,\n            detail=f\"file citation `{receipt}` names line {line}, but that line does not exist\")",
+      "to": "    if False:\n        _permanent_advice(\n            errors, record, entry=entry,\n            detail=f\"file citation `{receipt}` names line {line}, but that line does not exist\")"
     },
     {
       "label": "lint: every proof-map step is accounted for",
@@ -3678,6 +3678,15 @@
       ],
       "from": "- `mutation-audit` — break a mechanism on purpose and measure whether anything notices.\n",
       "to": ""
+    },
+    {
+      "label": "lint: a permanent-basis advisory names the entry it came from",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    where = f\" in `{_excerpt(entry)}`\" if entry else \"\"",
+      "to": "    where = \"\""
     }
   ]
 }

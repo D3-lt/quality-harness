@@ -208,11 +208,26 @@ MS_FIELD = r"(?: · ms:(?P<ms>\d+))?"
 
 VLOG_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
-    r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?"
-    r"(?: · ms:\d+)?$")
+    r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?" + MS_FIELD + r"$")
 VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})" + MS_FIELD + r"$")
+
+# EVERY row that claims a MACHINE RAN SOMETHING — an exit code and a command —
+# whether or not it carries the acceptance digest. The floor and the digest-less
+# notice both read this, because each was written against a pattern of its own and
+# the two were never asked to agree: `VLOG_DIGEST_RE` requires the digest, so
+# appending ` · ms:3` to a digest-less row walked through the gap between them and
+# neither check saw it. Found 2026-09-01 auditing the class GitHub issue #6 named.
+#
+# The DONE-proving path deliberately keeps `VLOG_LEGACY_RE` below and must not be
+# widened to this: a legacy row can carry a task to `done` on a single-line fence,
+# and admitting a duration-bearing row there would loosen what proves completion
+# while trying to check it.
+VLOG_TIMED_RE = re.compile(
+    r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
+    r"`(?P<command>[^`]+)`(?: · acceptance-sha256:(?P<digest>[0-9a-f]{64}))?"
+    + MS_FIELD + r"$")
 def committed_lines(path, run=None):
     """The lines HEAD holds for `path`, or None when git could not answer.
 
@@ -1903,7 +1918,7 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
             # the mutation evidence could not see it either, because a mutant in
             # the predicate's body is killed by the direct assertions whether or
             # not anything calls it.
-            timed = VLOG_DIGEST_RE.match(row)
+            timed = VLOG_TIMED_RE.match(row)
             if timed and timed.group("ms") and implausibly_fast(int(timed.group("ms")),
                                                                 inf.get("acc_all", "")):
                 errors.advise(
@@ -1912,7 +1927,8 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                     f"Acceptance fence at all. A duration is the one field in an entry the "
                     f"task file cannot produce; this one could not have been produced by "
                     f"the command it sits beside. Re-run `adr-verify <task.md>`")
-            if VLOG_LEGACY_RE.match(row) and known is not None and row not in known:
+            if timed and not timed.group("digest") \
+                    and known is not None and row not in known:
                 errors.append(
                     f"{inf['path'].name}: {tid} has an acceptance entry carrying no "
                     f"acceptance-sha256 that is not in the committed file — a row with no "

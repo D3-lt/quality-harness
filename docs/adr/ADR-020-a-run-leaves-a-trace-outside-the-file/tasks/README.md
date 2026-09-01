@@ -12,12 +12,14 @@ file, the task file wins and the README must be regenerated.
 | Order | Task | Depends-on |
 |-------|------|------------|
 | 1 | T1 | none |
+| 2 | T4 | T1 |
 
 ## Task Index
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Record how long the run took, and refuse a duration that could not have produced it | done | — | `python3 tests/gate-regressions.py plugin/bin …` |
+| T4 | The floor reads every row that claims a machine run, digest or not | pending | — | `python3 tests/gate-regressions.py plugin/bin …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -35,7 +37,10 @@ None — one task.
 
 ## Notes
 
-- **T2 and T3 were deleted rather than executed.** They were the ledger and its
+- **T2 and T3 were deleted rather than executed, and their ids are not reused** —
+  the task after T1 is T4, so a reader meeting a `T2` in this record's history is
+  never handed a different task under the same name.
+- **T2 and T3, for the record.** They were the ledger and its
   cross-check, and T1 S2's measurement fired the record's Stop Condition before
   either was written: 25 of this corpus's 40 acceptance fences produce different
   output on every run, so the digest they were built around can never be compared.

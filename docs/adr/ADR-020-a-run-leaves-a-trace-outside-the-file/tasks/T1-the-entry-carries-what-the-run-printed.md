@@ -111,7 +111,7 @@ shipped two mechanisms, and answered for the one that was wired.>
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the five tests above |
-| 2 — something selects it | `DURATION_REQUIRED_FROM` makes the FIELD load-bearing, and `check_verification` calls `implausibly_fast` on every parsed `done` row — the mutation `lint: the duration floor is CALLED, not merely defined` deletes that call and goes red |
+| 2 — something selects it | `DURATION_REQUIRED_FROM` makes the FIELD load-bearing, and `check_verification` calls `implausibly_fast` on each `done` row that parses as a machine run AND carries `ms:` — the mutation `lint: the duration floor is CALLED, not merely defined` deletes that call and goes red. A row with no duration is not floored, correctly: there is nothing to check. This line said "every parsed `done` row" until 2026-09-01, which was false in the direction that matters — the call was gated on `VLOG_DIGEST_RE`, so a digest-less row carrying `ms:` was floored by nothing. T4 widens it to `VLOG_TIMED_RE`. |
 | 3 — the caller can discover it | the entry grammar is documented in `adr-verify`'s module docstring, which the S4 change updates — a reader who hand-inspects a log needs it |
 | 4 — it is used | the ADR's Follow-up counts how often the cross-check fires once T3 ships |
 

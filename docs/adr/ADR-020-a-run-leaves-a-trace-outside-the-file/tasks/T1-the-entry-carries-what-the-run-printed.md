@@ -62,7 +62,19 @@ suite that drives `adr-verify` end to end and reads the entry it produced is
 That is the "which of these subjects could carry the verdict by itself" question
 this template asks, answered the wrong way at authoring time and caught by a
 survived mutant rather than by review. Both suites are chained with `&&` now, so
-neither can stand in for the other.>
+neither can stand in for the other.
+
+AND THE SAME MISTAKE HAD A SECOND HOME, which CI found after the fence was fixed.
+A mutation catalogue entry names the tests the CAMPAIGN runs, and that field still
+said `tests/gates.test.mjs` — the reader harness. So `adr-verify --mutant` reported
+`killed`, because it runs THIS task's fence, while `node scripts/mutate.mjs`
+reported GREEN, because it runs the catalogue's. Both were right about different
+commands, and only the campaign's answer is the one the repository gates on.
+
+Widening a fence is therefore only half the fix: the catalogue entry has to name
+the same suite, or the campaign measures a subject the fence has already stopped
+relying on. Reported by CI's `mutations 4/4` shard on 2026-09-01 — 102 of 103
+noticed — after a local `adr-verify --mutant` had said `killed`.>
 
 <Red before the work: the harness's new arm asserts a cutover-dated entry without
 the field is rejected, and today every reader accepts it. The catalogue grep is

@@ -677,6 +677,8 @@ def main():
     test_abnormal_mutant_termination(verify)
     test_permanent_disposition_citations(bin_dir, lint)
     test_proof_map_contract(bin_dir, lint)
+    test_a_digestless_row_must_already_be_committed(lint)
+    test_the_expected_digest_is_not_printed(lint)
 
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
@@ -2812,6 +2814,109 @@ def main():
     assert all(term in postmortem for term in ("material", "recurrent", "production", "reusable"))
     print("PASS — acceptance digests, mutation consistency, test definitions, "
           "adr-lint DAG/contract/verification/filter engines, postmortem scope")
+
+
+
+
+# Reported 2026-09-01 (GitHub issue #4), reproduced on 2.44.0 against a scratch
+# copy of a real ADR: a task was driven pending -> done past `adr-lint` at exit 0
+# with hand-typed log entries and no command ever run. Step one of that chain was
+# free, because the digest the Verification Log grammar exists for was OPTIONAL:
+#
+#     r"(?: · acceptance-sha256:[0-9a-f]{64})?$"
+#
+# so the anti-fabrication field was opt-out by omission. A digest-less row is
+# still tolerated where it is ALREADY COMMITTED — corpora that predate the field
+# must not turn red — but a newly typed one is refused.
+#
+# Git is the authority, and it is asked the ADR-011 way rather than the disk
+# being read: `committed` returns the lines HEAD has for this file. When it
+# cannot answer — not a repository, git absent, file untracked — the answer is
+# None, and None must TOLERATE. "I could not look" is not "this row is forged"
+# (CLAUDE.md §3), and the reject arm may only fire on a positive answer.
+def test_a_digestless_row_must_already_be_committed(lint):
+    """A hand-typed digest-less acceptance row is refused; a committed one is not."""
+    acceptance = "node --test tests/probe.test.mjs"
+    forged = "- 2026-09-01 · 6e26b88 · exit 0 · `node --test tests/probe.test.mjs`"
+
+    def infos():
+        return {
+            "T1": {
+                "human": False,
+                "vlog": [forged],
+                "mlog": [],
+                "acc_all": acceptance,
+                "acc_first": acceptance,
+                "path": Path("tasks/T1-probe.md"),
+            }
+        }
+
+    # HEAD does not have this line: it was typed, not recorded. Refused.
+    errors = lint.Findings()
+    lint.check_verification(infos(), "| T1 | probe | done |", errors,
+                            committed=lambda path: frozenset())
+    assert any("acceptance-sha256" in str(e) and "not in the committed" in str(e)
+               for e in errors), f"a newly typed digest-less row must be refused: {list(errors)}"
+
+    # The same row, present in HEAD, is legacy evidence and is tolerated. Without
+    # this arm the check would be a flag day that turns every older corpus red.
+    kept = lint.Findings()
+    lint.check_verification(infos(), "| T1 | probe | done |", kept,
+                            committed=lambda path: frozenset([forged]))
+    assert not any("not in the committed" in str(e) for e in kept), \
+        f"a committed digest-less row is legacy evidence, not a forgery: {list(kept)}"
+
+    # Git could not answer. Tolerate: a check that cannot look must not convict.
+    blind = lint.Findings()
+    lint.check_verification(infos(), "| T1 | probe | done |", blind,
+                            committed=lambda path: None)
+    assert not any("not in the committed" in str(e) for e in blind), \
+        f"an unanswerable git lookup must not read as forgery: {list(blind)}"
+
+
+def test_the_expected_digest_is_not_printed(lint):
+    """Both findings say how to recompute the digest, and neither names it."""
+    # Reported in the same issue: supplying 64 zeros was correctly rejected, and
+    # the rejection printed the digest the forger needed. Pasting it back produced
+    # [PASS]. The value is derivable from the task file either way, so this is a
+    # convenience withdrawn rather than a secret kept — but there is no reason to
+    # hand it over, and both messages are just as actionable without it.
+    #
+    # BOTH sites are asserted. They are in different functions, and the issue's
+    # chain only had to get past one of them; fixing the one that happened to be
+    # quoted would leave the other handing the same value over.
+    import hashlib as _hh
+    acceptance = "node --test tests/probe.test.mjs"
+    want = _hh.sha256(lint.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
+    stale = "0" * 64
+    row = (f"- 2026-09-01 · 6e26b88 · exit 0 · `{acceptance}` · acceptance-sha256:{stale}")
+
+    def infos():
+        return {
+            "T1": {
+                "human": False,
+                "vlog": [row],
+                "mlog": ["- 2026-09-01 · 6e26b88 · mutant survived · exit 1 · `x.mjs` · "
+                         "line 1 · from `a` · to `b` · test `t` · why"],
+                "has_mlog": True,
+                "acc_all": acceptance,
+                "acc_first": acceptance,
+                "path": Path("tasks/T1-probe.md"),
+            }
+        }
+
+    drift = lint.Findings()
+    lint.check_verification(infos(), "| T1 | probe | done |", drift,
+                            committed=lambda path: None)
+    said = "\n".join(str(e) for e in drift)
+    assert "Acceptance digest" in said, f"the fence-drift finding must still fire: {said}"
+    assert want not in said, f"the drift finding discloses the digest it demands: {said}"
+
+    mutation = lint.Findings()
+    lint.check_mutation_evidence(infos(), "| T1 | probe | done |", mutation)
+    told = "\n".join(str(e) for e in mutation)
+    assert "killed" in told, f"the mutation finding must still fire: {told}"
+    assert want not in told, f"the mutation finding discloses the digest it demands: {told}"
 
 
 if __name__ == "__main__":

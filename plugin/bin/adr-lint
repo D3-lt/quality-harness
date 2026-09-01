@@ -198,6 +198,45 @@ VLOG_RE = re.compile(
 VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+def committed_lines(path, run=None):
+    """The lines HEAD holds for `path`, or None when git could not answer.
+
+    NONE IS A FIRST-CLASS ANSWER and every caller must render it as "I could not
+    look" rather than as "this row is absent" (CLAUDE.md §3, ADR-005). Not a
+    repository, git missing, a file never committed, a detached or empty HEAD —
+    all of them reach here, and convicting a row on any of them would turn a
+    perfectly good corpus red for having no `.git` beside it.
+
+    Asked of git rather than of the disk, for ADR-011's reason: the filesystem
+    answers "is this on THIS machine", which makes the verdict depend on who is
+    asking. `run` is injectable so the reject arm is reachable from a test that
+    does not have to build a repository to get at it.
+    """
+    # `encoding=` named explicitly: this decodes arbitrary child output, and on a
+    # cp1252 Windows box an implicit default either puts mojibake in a finding or
+    # raises UnicodeDecodeError and kills the gate instead of letting it judge.
+    runner = run or (lambda argv, cwd: subprocess.run(
+        argv, cwd=cwd, capture_output=True, text=True, timeout=10,
+        encoding="utf-8", errors="replace"))
+    target = Path(path)
+    directory = target.parent if target.parent != Path("") else Path(".")
+    try:
+        top = runner(["git", "-C", str(directory), "rev-parse", "--show-toplevel"], None)
+        if top.returncode != 0:
+            return None
+        root = Path(top.stdout.strip())
+        relative = target.resolve().relative_to(root.resolve()).as_posix()
+        blob = runner(["git", "-C", str(root), "show", f"HEAD:{relative}"], None)
+        if blob.returncode != 0:
+            return None
+        return frozenset(blob.stdout.splitlines())
+    except Exception:
+        # Any failure to LOOK is None. This deliberately swallows: a gate that
+        # crashes because git behaved unexpectedly is a gate that stops the user's
+        # work over its own plumbing.
+        return None
+
+
 VLOG_LEGACY_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)`$")
@@ -1762,7 +1801,7 @@ def check_task_status_vocabulary(infos, readme_text, errors):
             f"the task file what the status means.")
 
 
-def check_verification(infos, readme_text, errors):
+def check_verification(infos, readme_text, errors, committed=committed_lines):
     """README `done` status requires tool-written passing evidence in the task's log."""
     if not readme_text:
         return
@@ -1776,6 +1815,25 @@ def check_verification(infos, readme_text, errors):
                               f"'· human-observed ·' sign-off entry (adr-verify --human)")
             continue
         entries = [b for b in inf["vlog"] if VLOG_RE.match(b)]
+        # A digest-less row is legacy evidence, and legacy means ALREADY WRITTEN
+        # DOWN. Reported 2026-09-01 (GitHub issue #4), reproduced on 2.44.0: the
+        # digest was optional in this grammar, so the field that binds evidence to
+        # the fence it proved was opt-out by omission, and step one of a full
+        # pending -> done forgery was typing a line with the digest left off.
+        #
+        # Tolerated where HEAD already has it, because corpora written before the
+        # field existed must not turn red for having complied with the rules of
+        # their day. Refused where it is new, because nothing recorded it. The
+        # asymmetry is the whole fix: it costs an existing corpus nothing and
+        # costs a forger the price of running the command.
+        known = committed(inf["path"]) if inf.get("path") is not None else None
+        for row in entries:
+            if VLOG_LEGACY_RE.match(row) and known is not None and row not in known:
+                errors.append(
+                    f"{inf['path'].name}: {tid} has an acceptance entry carrying no "
+                    f"acceptance-sha256 that is not in the committed file — a row with no "
+                    f"digest is legacy evidence, and legacy means already recorded. Re-run "
+                    f"`adr-verify <task.md>`, which writes the entry and its digest itself")
         passing = [b for b in entries if "· exit 0 ·" in b]
         # TRAJECTORY, not just outcome. Everything else here asks whether the
         # check PASSED; this asks whether the sequence that produced the pass was
@@ -1820,10 +1878,17 @@ def check_verification(infos, readme_text, errors):
             if not digest_matches and not legacy_matches:
                 legacy_note = (" Legacy no-digest evidence cannot prove a multi-line fence."
                                if "\n" in inf["acc_all"] else "")
-                errors.append(f"README.md: {tid} marked done but no exit-0 entry has the "
-                              f"current Acceptance digest acceptance-sha256:{want_digest}."
+                # The digest is NOT named. It is derivable from the fence by anyone
+                # holding the file, so this is a convenience withdrawn rather than a
+                # secret kept — but the message that rejected a forged digest used to
+                # print the one that would have worked, and pasting it back produced
+                # [PASS] (GitHub issue #4). Saying how to recompute it is just as
+                # actionable and hands nothing over.
+                errors.append(f"README.md: {tid} marked done but no exit-0 entry carries the "
+                              f"current Acceptance digest."
                               f"{legacy_note} Acceptance changed after verification; re-run "
-                              f"adr-verify")
+                              f"`adr-verify <task.md>` to record an entry against the fence as "
+                              f"it now stands")
 
 
 def check_status_allows_execution(adr_path, readme_text, errors):
@@ -1942,8 +2007,9 @@ def check_mutation_evidence(infos, readme_text, errors):
                           f"record a mutant with `adr-verify <task.md> --mutant …`")
         else:
             other = [b for b in inf.get("mlog", []) if MLOG_RE.match(b)]
-            detail = (f"its log has {len(other)} entry/entries, none of them is a `killed` "
-                      f"mutant for acceptance-sha256:{want_digest}"
+            # Same rule as above: name the shortfall, never the value that fixes it.
+            detail = (f"its log has {len(other)} entry/entries, none of them a `killed` "
+                      f"mutant against the current Acceptance digest"
                       if other else "its Mutation Log is empty")
             errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence but no "
                           f"`mutant killed` entry — {detail}. A survived mutant means the fence "

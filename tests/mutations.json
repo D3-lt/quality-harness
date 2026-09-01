@@ -3516,6 +3516,15 @@
       ],
       "from": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },",
       "to": "  { home: 'hooks', shipped: 'hooks', whenAbsent: 'skip', wired: true },"
+    },
+    {
+      "label": "sync: a hook the user does not have is not created",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },",
+      "to": "  { home: 'hooks', shipped: 'scripts', whenAbsent: 'create', wired: true },"
     }
   ]
 }

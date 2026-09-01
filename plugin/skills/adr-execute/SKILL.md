@@ -90,8 +90,18 @@ harness's todo/task tool (TodoWrite where available, otherwise TaskCreate/TaskUp
 **Exception — the task file's `## Verification Log` section:** it is written by
 `adr-verify <task.md>`, never by hand. The tool runs the Acceptance fence, appends
 the entry (date · git-sha · exit code · displayed command · full-fence SHA-256) itself, and exits
-with the command's code. The digest binds multi-line evidence to every command in the fence;
-hand-pasted entries are the fabrication hole and `adr-lint` rejects any entry off-grammar. A
+with the command's code. The digest binds evidence to the fence it was taken against, so
+changing the Acceptance command invalidates every entry recorded under the old one — that is what
+it proves, and it is worth having.
+
+**What it does NOT prove is that a command ran.** The digest is a pure function of text already in
+the task file, so anyone holding the file can compute it; a local gate reading local files cannot
+distinguish a run from a transcription, and no version of this will. Reported 2026-09-01 (GitHub
+issue #4), reproduced end to end: a task was driven from `pending` to `done` past `adr-lint` at
+exit 0 with hand-typed entries and no command executed. What the pipeline does is raise the COST —
+`adr-lint` rejects any entry off-grammar, refuses a digest-less row that is not already committed,
+and requires a killed mutant beside the pass — so forging costs about as much as complying. Read a
+`done` as "evidence was recorded in the shape a run produces", never as "a run happened". A
 completed task with an empty Verification Log violates the global anti-pattern list; this is the
 one on-disk write the no-artifacts rule does not cover.
 

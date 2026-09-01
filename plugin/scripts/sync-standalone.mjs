@@ -23,7 +23,7 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import {
-  FORWARDER_MARK, SHADOW_SCOPE, backupRoot, linkPlan, onSearchPath, wiredInSettings,
+  FORWARDER_MARK, SHADOW_SCOPE, backupRoot, linkPlan, onSearchPath, orphans, wiredInSettings,
   write as writeLink,
 } from './standalone-link.mjs'
 
@@ -217,6 +217,40 @@ function linkMode(root, home, apply) {
   return written === writable.length ? 0 : 1
 }
 
+/**
+ * Print what a past installer left that this plugin no longer ships.
+ *
+ * A SECTION OF ITS OWN, separate from `drifted` and `missing`, because the right
+ * action differs and a reader acts on the section they are in: a drifted copy is
+ * refreshed by this tool, an orphan is not ours to touch. Nothing below writes,
+ * and `--apply` never reaches it — ADR-019 decided that naming a file is all that
+ * ever happens to it.
+ *
+ * `unidentified` is a COUNT. Measured 2026-09-01, four of the six files in this
+ * machine's home hooks directory belong to autoresearch and codebase-memory, and
+ * three were wired and running; printing their names under a heading about this
+ * plugin's leftovers would be an accusation the tool cannot support.
+ */
+function reportOrphans(home) {
+  const found = orphans(home)
+  const retired = found.filter(row => row.state === 'ours-orphan')
+  const unknown = found.filter(row => row.state === 'unidentified').length
+  if (!retired.length && !unknown) return
+  process.stdout.write('\nNo longer shipped by this plugin:\n')
+  for (const row of retired) {
+    process.stdout.write(`  orphan   ${path.join('~', '.claude', row.directory, row.name)}`
+      + ` — last shipped in ${row.evidence.version ?? 'a release this cache no longer holds'}`
+      + `, matched by ${row.evidence.route}\n`)
+  }
+  if (!retired.length) process.stdout.write('  none this tool can prove it wrote\n')
+  if (unknown) {
+    process.stdout.write(`  ${unknown} further file(s) could not be identified either way, and are `
+      + 'not listed: a file this plugin cannot prove it wrote may well be another tool\'s.\n')
+  }
+  process.stdout.write('This tool does not remove any of them. Neither --apply nor --link touches a '
+    + 'file in this section.\n')
+}
+
 function main() {
   const apply = process.argv.includes('--apply')
   const link = process.argv.includes('--link')
@@ -233,17 +267,23 @@ function main() {
     process.stdout.write(`Note: this script is running from ${running} but ${version} is installed; `
       + 'syncing from the newer one.\n')
   }
-  if (link) return linkMode(root, home, apply)
+  if (link) {
+    const code = linkMode(root, home, apply)
+    reportOrphans(home)
+    return code
+  }
   const work = plan(root, home)
   process.stdout.write(`source: ${root}\n`)
   if (!work.length) {
     process.stdout.write('The standalone install already matches this plugin. Nothing to do.\n')
+    reportOrphans(home)
     return 0
   }
   for (const entry of work) {
     process.stdout.write(`  ${entry.state.padEnd(8)} ${entry.to.replace(home, '~')}\n`)
   }
   if (!apply) {
+    reportOrphans(home)
     process.stdout.write(`\n${work.length} file(s) differ. Re-run with --apply to copy them, `
       + 'or with --link, which turns every gate into a forwarder that no release can leave '
       + 'behind.\n')
@@ -260,6 +300,9 @@ function main() {
     }
   }
   process.stdout.write(`\nCopied ${written} of ${work.length} file(s).\n`)
+  // Printed after acting too: an orphan is exactly what --apply did NOT touch,
+  // and a section that disappears once you act is a section nobody reads.
+  reportOrphans(home)
   // Executable bits are not copied by copyFileSync on every platform, and a
   // gate that is not executable is a gate that silently does not run.
   if (process.platform !== 'win32') {

@@ -944,3 +944,26 @@ test('a home with nothing of ours returns no orphan rows, and one planted return
   assert.equal(dirty[0].evidence.route, 'digest')
   assert.equal(dirty[0].evidence.version, '2.1.0')
 })
+
+
+// ADR-019 T3 S4. The negative the whole record rests on, asserted on the FILE
+// afterwards rather than by spying on a call: a spy proves the code's current
+// shape, reading the bytes proves the property, and survives a refactor that
+// reaches the filesystem another way.
+test('neither write mode touches a file it named as an orphan', () => {
+  const body = '#!/bin/sh\n# a retired checker\n'
+  const directory = releases(home({ '.claude/attic/relic.sh': body }), {
+    '2.1.0': { 'attic/relic.sh': body },
+  })
+  const target = path.join(directory, '.claude', 'attic', 'relic.sh')
+  const row = orphans(directory).find(entry => entry.name === 'relic.sh')
+  assert.equal(row.state, 'ours-orphan', 'the fixture must actually be named as one')
+
+  const sync = path.join(process.cwd(), 'plugin', 'scripts', 'sync-standalone.mjs')
+  for (const argv of [['--apply'], ['--link', '--apply']]) {
+    spawnSync(process.execPath, [sync, ...argv],
+      { encoding: 'utf8', env: { ...process.env, HOME: directory, USERPROFILE: directory } })
+    assert.equal(readFileSync(target, 'utf8'), body,
+      `${argv.join(' ')} must leave a named orphan present and byte-identical`)
+  }
+})

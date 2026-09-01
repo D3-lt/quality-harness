@@ -11,7 +11,9 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 
 // The standalone install's scope and PATH arithmetic live in one module, shared
 // with sync-standalone.mjs. Two copies of that list drifted apart once already.
-import { FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, wiredInSettings } from './standalone-link.mjs'
+import {
+  FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, orphans, wiredInSettings,
+} from './standalone-link.mjs'
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
@@ -2792,7 +2794,16 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
       }
     }
   }
-  if (!stale.length) return ''
+  // A file a PAST installer left that this plugin no longer ships is a different
+  // thing from a drifted copy, and the right action differs: a drifted copy is
+  // refreshed, an orphan is not ours to touch. ADR-019 decided that naming it is
+  // all that ever happens — identification is positive, and anything the three
+  // routes cannot answer is counted rather than named, because on a machine
+  // holding other tools' files a list of filenames is a list of accusations.
+  const found = orphans(homeDirectory, pluginRoot)
+  const retired = found.filter(row => row.state === 'ours-orphan')
+  const unknown = found.filter(row => row.state === 'unidentified').length
+  if (!stale.length && !retired.length) return ''
   const shown = stale.slice(0, 4).join(', ')
   const gates = stale.filter(entry => entry.includes(path.join('.claude', 'bin')))
   const hooks = stale.filter(entry => entry.includes(path.join('.claude', 'hooks')))
@@ -2848,6 +2859,19 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   if (stale.some(entry => entry.includes(path.join('.claude', 'skills')))) {
     why.push('A stale SKILL.md instructs an invocation the current gates no longer accept.')
   }
+  const orphanSentence = retired.length
+    ? `A past installer also left ${retired.length} file(s) here that this plugin NO LONGER SHIPS: `
+      + retired.slice(0, 4).map(row =>
+        `${path.join('~', '.claude', row.directory, row.name)} (last shipped in `
+        + `${row.evidence.version ?? 'a release this cache no longer holds'}, matched by `
+        + `${row.evidence.route})`).join(', ')
+      + `${retired.length > 4 ? `, +${retired.length - 4} more` : ''}. `
+      + 'The plugin will not remove them — that is your decision, and nothing here writes to your '
+      + `home directory.${unknown ? ` ${unknown} further file(s) in those directories could not be `
+        + 'identified as ours either way; they are counted rather than named, because a file this '
+        + 'plugin cannot prove it wrote may well be another tool\'s.' : ''}`
+    : ''
+  if (!stale.length) return orphanSentence
   return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `
     + `your home directory, which the plugin never updates — ${shown}`
     + `${stale.length > 4 ? `, +${stale.length - 4} more` : ''}. `
@@ -2856,7 +2880,7 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
     + 'reports the same set this notice does and writes only with --apply; `--link` replaces the '
     + 'gates with forwarders no release can leave behind. A file that already carries the '
     + `\`${FORWARDER_MARK}\` line is current by construction and is not named above — do not `
-    + 'delete it.'
+    + `delete it.${orphanSentence ? ` ${orphanSentence}` : ''}`
 }
 
 // The plugin that is RUNNING is not always the newest one installed. Claude Code

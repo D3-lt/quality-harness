@@ -106,4 +106,6 @@ its own layering and that is a decision, not an edit.
 
 ## Verification Log
 
+- 2026-09-01 · 3d625f6 · exit 0 · `set -o pipefail …` · acceptance-sha256:1719b42f9ae1188b7e9e3db95f80cbd71a447dff58a0f3ac6054b3fd161650bb · ms:3465
+
 ## Mutation Log

@@ -28,11 +28,18 @@
 // calls it, and it reports unless asked to write.
 import { createHash } from 'node:crypto'
 import {
-  cpSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync,
+  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync,
   symlinkSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
+import { fileURLToPath } from 'node:url'
+
+// This module's own plugin root, resolved the way every relocatable script here
+// does it (ADR-008: `plugin/` is the product, and a script must be correct
+// wherever it sits). Passed as a default rather than read at each call so a test
+// can point the scan at a fixture tree.
+const PLUGIN_ROOT = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 // The cache directory is built from the home directory rather than written
 // down, exactly as the drift notice does. A plugin that hardcodes a path under
@@ -422,6 +429,49 @@ export function formerlyShipped(name, homeDirectory = os.homedir()) {
   return found
 }
 
+/**
+ * Every basename any cached release of this plugin holds, to its releases.
+ *
+ * The same question `formerlyShipped` answers for one name, answered for all of
+ * them in one pass. `formerlyShipped` stays the contract a caller with a single
+ * name uses; this is what a SCAN uses, because asking it 34 times re-reads the
+ * whole cache 34 times.
+ *
+ * Digests are NOT computed here. Most entries are never consulted, and hashing
+ * every file in 52 releases to answer about 34 is the cost this exists to avoid.
+ */
+export function releaseIndex(homeDirectory = os.homedir()) {
+  const cache = cacheDirectory(homeDirectory)
+  const index = new Map()
+  let versions = []
+  try { versions = readdirSync(cache) } catch { return index }
+  for (const version of versions.sort()) {
+    const root = path.join(cache, version)
+    for (const file of filesBelow(root, 4)) {
+      const name = path.basename(file)
+      const relative = path.relative(root, file).split(path.sep).join('/')
+      const seen = index.get(name)
+      // First relative path per release is enough: the question is whether this
+      // release knew the name, not how many copies of it there were.
+      if (seen && seen[seen.length - 1].version === version) continue
+      ;(seen ?? index.set(name, []).get(name)).push({ version, relative, file, digest: null })
+    }
+  }
+  return index
+}
+
+/** Every file below `root`, to a bounded depth. */
+function* filesBelow(root, depth) {
+  if (depth < 0) return
+  let entries = []
+  try { entries = readdirSync(root, { withFileTypes: true }) } catch { return }
+  for (const entry of entries) {
+    const full = path.join(root, entry.name)
+    if (entry.isFile()) yield full
+    else if (entry.isDirectory() && !entry.name.startsWith('.')) yield* filesBelow(full, depth - 1)
+  }
+}
+
 /** Depth-bounded search for a file of this basename. */
 function firstNamed(root, name, depth) {
   if (depth < 0) return null
@@ -455,21 +505,24 @@ function firstNamed(root, name, depth) {
  * markers were both edited. The reported `tests/selftest.sh` is a probable
  * instance; this returns `unidentified` for it rather than guessing.
  */
-export function classifyHomeFile({ file, name, shippedNow, homeDirectory = os.homedir() }) {
+export function classifyHomeFile({ file, name, shippedNow, homeDirectory = os.homedir(),
+  history = null }) {
   if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null }
   const mine = readOrEmpty(file)
   if (mine.includes(FORWARDER_MARK)) {
     return { state: 'ours-orphan', route: 'forwarder', version: null }
   }
-  const history = formerlyShipped(name, homeDirectory)
+  // `history` is injectable so a scan can read each basename once rather than
+  // once per file; absent, this reads it itself and the answer is the same.
+  const shipped = history ?? formerlyShipped(name, homeDirectory)
   const ours = digest(file)
-  const identical = history.find(found => found.digest && found.digest === ours)
+  const identical = shipped.find(found => (found.digest ?? digest(found.file)) === ours)
   if (identical) {
     return { state: 'ours-orphan', route: 'digest', version: identical.version }
   }
   // Lineage LAST: it is the loose route, so a digest match must have had its
   // chance first, and a `route` of `lineage` in a report means the bytes differ.
-  const kin = history.find(found => sameLineage(file, found.file, lineageKind(found.relative)))
+  const kin = shipped.find(found => sameLineage(file, found.file, lineageKind(found.relative)))
   if (kin) return { state: 'ours-orphan', route: 'lineage', version: kin.version }
   return { state: 'unidentified', route: null, version: null }
 }
@@ -479,6 +532,100 @@ function lineageKind(relative) {
   if (relative.endsWith('.cmd')) return 'shim'
   if (relative.startsWith('bin/')) return 'gate'
   return 'file'
+}
+
+/**
+ * The home directories a PAST installer of this plugin may have written into.
+ *
+ * DERIVED, never written down. The hand-written SHADOW_SCOPE missed `workflows`
+ * for four days after the hooks gap it was written to close, and an orphan lives
+ * by definition in a directory the CURRENT tree may no longer have — so the set
+ * comes from the union of every cached release's top-level directories, plus the
+ * home names SHADOW_SCOPE already knows. That second half is not redundant: the
+ * plugin ships its hook scripts under `scripts/` and they land in `hooks/`, so
+ * deriving from release names alone would never look there.
+ *
+ * Measured 2026-09-01 against this machine's 52 cached releases: the union is
+ * nine — bin, docs, evals, hooks, scripts, skills, templates, tests, workflows —
+ * where SHADOW_SCOPE alone names four. `workflows` and `tests` are both in that
+ * gap, and both are files real machines actually hold.
+ */
+export function scanSet(homeDirectory = os.homedir()) {
+  const names = new Set(SHADOW_SCOPE.map(scope => scope.home))
+  const cache = cacheDirectory(homeDirectory)
+  let versions = []
+  try { versions = readdirSync(cache) } catch { versions = [] }
+  for (const version of versions) {
+    let entries = []
+    try { entries = readdirSync(path.join(cache, version), { withFileTypes: true }) } catch { continue }
+    // DOT-DIRECTORIES ARE NOT INSTALLABLE ARTIFACTS. Measured 2026-09-01: a raw
+    // union over this machine's cache yielded `.git`, `.github`, `.in_use` and
+    // `.claude-plugin` alongside the real seven, because some cached releases are
+    // checkouts rather than exports. Scanning the home `.git` would be absurd on
+    // its face, and `.claude-plugin` is a manifest directory that is never
+    // mirrored (see NEVER_MIRRORED).
+    for (const entry of entries) {
+      if (entry.isDirectory() && !entry.name.startsWith('.')) names.add(entry.name)
+    }
+  }
+  return [...names].sort()
+}
+
+/**
+ * Every file under the home that this scan can see, classified.
+ *
+ * Returns a row for `unidentified` too, so a caller can COUNT what it could not
+ * identify without walking again — and so the count is rendered rather than the
+ * filenames, which on a machine holding other tools' files is the difference
+ * between one line and a list of accusations.
+ *
+ * Reads. Opens files to digest and to match lineage, and writes nothing: ADR-019
+ * decided that naming a file is all that ever happens to it.
+ *
+ * COST, measured 2026-09-01 against this machine's cache of 52 releases and a
+ * home holding 34 files across the nine scanned directories: median 207ms over
+ * five runs, down from 781ms before the index was inverted. The figure is dated
+ * and names what it was taken against because the cache only grows — a bare
+ * number here would be unfalsifiable by the next reader.
+ *
+ * It grows with the SIZE of the cache, not with the home: every release is read
+ * once whatever the home holds.
+ */
+export function orphans(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT) {
+  const rows = []
+  // ONE WALK PER RELEASE, not one per file. The first version called
+  // `formerlyShipped` for every unidentified file, so each of them re-walked all
+  // 52 cached releases on this machine: measured 2026-09-01, median 781ms over
+  // five runs against a home holding 34 files. Memoising per basename bought
+  // nothing — the basenames are all distinct, which is the point of a filename.
+  // Inverting it does: each release is read once and answers for every name.
+  //
+  // This runs on the session-start path, so the figure is the requirement rather
+  // than a curiosity, and it is dated because the cache only grows.
+  const index = releaseIndex(homeDirectory)
+  for (const directory of scanSet(homeDirectory)) {
+    const shadow = path.join(homeDirectory, '.claude', directory)
+    let entries = []
+    // An absent directory is an absence of FILES, never an error. Most homes have
+    // only a few of the nine.
+    try { entries = readdirSync(shadow, { withFileTypes: true }) } catch { continue }
+    for (const entry of entries) {
+      if (!entry.isFile()) continue
+      const scope = SHADOW_SCOPE.find(known => known.home === directory)
+      const shippedNow = scope
+        ? existsSync(path.join(pluginRoot, scope.shipped, entry.name))
+        : false
+      const verdict = classifyHomeFile({
+        file: path.join(shadow, entry.name),
+        name: entry.name,
+        shippedNow,
+        homeDirectory,
+        history: index.get(entry.name) ?? [],
+      })
+      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })
+    }
+  }
+  return rows
 }
 
 export function sameLineage(target, source, kind) {

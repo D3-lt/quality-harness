@@ -5467,7 +5467,7 @@ That distinction is the whole entry: this is NOT the ADR-020 class, where a chec
 not fire. Nothing is unenforced by its absence. Delete it, or say in a comment what future caller it
 waits for — but do not diagnose it a second time as a missed call site.
 
-## 101. A Verification Log row deleted from a committed file is invisible
+## 101. CLOSED 2026-09-01 by ADR-021 T1 — a Verification Log row deleted from a committed file was invisible
 
 Found 2026-09-01 while reading `yzhao062/awesome-auditable-ai`, whose "Audit Trails and Decision
 Records" section names hash-chained records. The question it prompted — can a row be REMOVED from
@@ -5523,6 +5523,12 @@ extending ADR-010 (a claim is re-checked or it is not counted). Its one task car
 mutation and the two silence arms — `committed()` returning `None`, and a prose-only edit. The
 rejected hash chain is recorded in the record's Alternatives with the reason, so the next session
 meeting the idea does not re-derive it.
+
+**EXECUTED 2026-09-01.** `check_verification` now advises on a committed entry line absent from the
+file, guarded on `known is not None` and filtered through `VLOG_RE` on both sides. Both silence arms
+are asserted on the same fixture, the advisory CHANNEL is asserted rather than the summary line, and
+the mutation `lint: a committed evidence row that has gone missing is reported` deletes the CALL and
+is RED. Evidence written by `adr-verify` into T1's Verification and Mutation Logs.
 
 ## 102. A mutant that does not PARSE counts as noticed, and only the parser noticed it
 

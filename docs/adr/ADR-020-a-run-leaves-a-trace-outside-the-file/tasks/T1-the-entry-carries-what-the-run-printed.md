@@ -47,8 +47,22 @@ to find it rather than wonder.
 set -o pipefail
 python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md . 2>&1 | tee /tmp/adr020-t1.out \
   && ! grep -qiE "traceback|assertionerror" /tmp/adr020-t1.out \
+  && node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr020-t1b.out \
+  && ! grep -qE "^# fail [1-9]|tests 0" /tmp/adr020-t1b.out \
   && grep -q "an acceptance entry carries the time its run took" tests/mutations.json
 ```
+
+<THE FIRST VERSION OF THIS FENCE RAN ONLY THE READERS, and the mutation said so.
+Removing ` · ms:{elapsed_ms}` from what `adr-verify` WRITES came back `survived`:
+`gate-regressions.py` asserts the three readers accept the new shape and that the
+floor fires, none of which changes when the writer stops emitting the field. The
+suite that drives `adr-verify` end to end and reads the entry it produced is
+`evidence-chain.test.mjs`, and it was outside the command that had to pass.
+
+That is the "which of these subjects could carry the verdict by itself" question
+this template asks, answered the wrong way at authoring time and caught by a
+survived mutant rather than by review. Both suites are chained with `&&` now, so
+neither can stand in for the other.>
 
 <Red before the work: the harness's new arm asserts a cutover-dated entry without
 the field is rejected, and today every reader accepts it. The catalogue grep is
@@ -81,6 +95,11 @@ reader, and its step is then reported as unproven.>
 
 ## Mutation Log
 
+- 2026-09-01 · dab3afe* · mutant survived · exit 0 · `plugin/bin/adr-verify` · the entry dropping the one field the task file cannot produce · acceptance-sha256:885869b99f8c6bb350c5cc15036bebba9d33e27eb62e219f1af152e3802a0da9
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+
 ## Invariants
 
 - Both fields are appended at the END of the entry; no existing field moves.
@@ -107,4 +126,13 @@ that would be the same rotting surface, one mechanism over.
 - An output digest, a ledger, and a cross-check between them (permanent: fact: 25 of this corpus's 40 acceptance fences produce different output on every run, so a digest of it can never be compared; citation: file `docs/adr/ADR-020-a-run-leaves-a-trace-outside-the-file.md:60`)
 - Any binding on the Mutation Log (deferred: docs/BACKLOG.md §98)
 
+<THE LOG'S FIRST ENTRY IS NOT A RED RUN, and `adr-lint` advises on that correctly.
+The TDD red runs happened and were observed in-session — `AttributeError: module
+'adr_lint_regressions' has no attribute 'DURATION_REQUIRED_FROM'` before the
+constant existed, and `adr-next must still see a new-shape row as done` before the
+third reader was updated — but they were run by hand rather than through
+`adr-verify`, so nothing tool-written records them. Said here rather than left to
+imply a cycle the log does not show.>
+
 ## Verification Log
+- 2026-09-01 · dab3afe · exit 0 · `set -o pipefail …` · acceptance-sha256:885869b99f8c6bb350c5cc15036bebba9d33e27eb62e219f1af152e3802a0da9 · ms:3258

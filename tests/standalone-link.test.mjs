@@ -10,8 +10,8 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  FORWARDER_MARK, RESOLVER, archive, backupRoot, cacheDirectory, classifyHomeFile,
-  formerlyShipped, forwarderCmd, forwarderScript, orphans,
+  FORWARDER_MARK, RESOLVER, archive, backupRoot, bySemver, cacheDirectory, citeOrphan,
+  classifyHomeFile, formerlyShipped, forwarderCmd, forwarderScript, orphans,
   barePathWinner,
   knownDigests, linkPlan, onSearchPath, replaceable, sameLineage, write,
 } from '../plugin/scripts/standalone-link.mjs'
@@ -966,4 +966,97 @@ test('neither write mode touches a file it named as an orphan', () => {
     assert.equal(readFileSync(target, 'utf8'), body,
       `${argv.join(' ')} must leave a named orphan present and byte-identical`)
   }
+})
+
+
+// Reported 2026-09-01 on GitHub issue #3, after ADR-019 shipped and named the
+// reporter's file correctly. The VERDICT was right and the CITATION was wrong:
+//
+//   orphan   ~\.claude\tests\selftest.sh — last shipped in 2.0.0, matched by lineage
+//
+// Wrong on both readings. As "the last release that shipped this file" it is
+// false — `scripts/selftest.sh` ships through 2.28.0 on that machine, so 2.0.0 is
+// the FIRST. As "the release whose content matched" it is the worst available
+// pick: measured across every cached copy, 2.0.0 shares 0 of the file's 89 unique
+// non-blank lines while later releases share 4.
+//
+// That matters because the citation is the part a user acts on. Someone checking
+// "was this really mine?" diffs against 2.0.0, finds nothing in common, and
+// concludes the tool is wrong when its verdict is right.
+test('an orphan cites the release it best matches, not the first one found', () => {
+  const home = mkdtempSync(path.join(tmpdir(), 'link-cite-'))
+  const cache = cacheDirectory(home)
+  const mine = '#!/bin/sh\nhave adr-lint\nhave adr-verify\nhave spec-verify\nhave arch-lint\n'
+  const write = (version, relative, body) => {
+    const full = path.join(cache, version, relative)
+    mkdirSync(path.dirname(full), { recursive: true })
+    writeFileSync(full, body)
+  }
+  // The earliest release shares only the shebang; a later one shares almost all
+  // of it. Both are found by basename, and only one is worth citing.
+  write('2.0.0', 'scripts/probe.sh', '#!/bin/sh\nsomething else entirely\n')
+  write('2.28.0', 'scripts/probe.sh', mine.replace('have arch-lint\n', ''))
+  mkdirSync(path.join(home, '.claude', 'tests'), { recursive: true })
+  writeFileSync(path.join(home, '.claude', 'tests', 'probe.sh'), mine)
+
+  const verdict = classifyHomeFile({
+    file: path.join(home, '.claude', 'tests', 'probe.sh'),
+    name: 'probe.sh', shippedNow: false, homeDirectory: home,
+  })
+  assert.equal(verdict.state, 'ours-orphan')
+  assert.equal(verdict.route, 'lineage')
+  assert.equal(verdict.version, '2.28.0',
+    `the citation must name the best match, not the first found: ${JSON.stringify(verdict)}`)
+  assert.ok(verdict.shared > 0,
+    `and say what matched, so a reader can check it: ${JSON.stringify(verdict)}`)
+})
+
+test('a cached version list is ordered numerically, not lexically', () => {
+  // CLAUDE.md names this trap by name — "lexical order puts 2.0.4 above 2.0.10,
+  // and this cache holds both" — and the first version of formerlyShipped used a
+  // bare .sort() anyway. With a lexical order even "the first release found" is
+  // not reliably the first.
+  const home = mkdtempSync(path.join(tmpdir(), 'link-order-'))
+  const cache = cacheDirectory(home)
+  for (const version of ['2.0.4', '2.0.10', '2.1.0']) {
+    const full = path.join(cache, version, 'bin', 'probe')
+    mkdirSync(path.dirname(full), { recursive: true })
+    writeFileSync(full, `# ${version}\n`)
+  }
+  assert.deepEqual(formerlyShipped('probe', home).map(found => found.version),
+    ['2.0.4', '2.0.10', '2.1.0'],
+    '2.0.10 comes after 2.0.4, which a lexical sort gets backwards')
+})
+
+
+test('a citation says what matched, and never claims to be the last release', () => {
+  // The citation is the part a reader acts on, so its WORDING is asserted rather
+  // than left to whoever edits the renderer next. "last shipped in X" was false on
+  // both readings (GitHub issue #3): X was the earliest release holding the
+  // basename, and the one sharing none of the file's lines.
+  const lineage = citeOrphan({ route: 'lineage', version: '2.28.0', first: null, shared: 4 })
+  assert.match(lineage, /matched by lineage against 2\.28\.0/)
+  assert.match(lineage, /4 line\(s\)/, 'a reader must be able to check what matched')
+  assert.doesNotMatch(lineage, /last shipped/,
+    'the tool does not know the last release that shipped a file, and must not say it does')
+
+  // An exact match is exact, so it says so — and names the span rather than one
+  // end of it, because "shipped in 2.0.0" invites the question the span answers.
+  const span = citeOrphan({ route: 'digest', version: '2.28.0', first: '2.0.0', shared: null })
+  assert.match(span, /identical to the copy shipped in 2\.0\.0 through 2\.28\.0/)
+  const single = citeOrphan({ route: 'digest', version: '2.5.0', first: '2.5.0', shared: null })
+  assert.match(single, /identical to the copy shipped in 2\.5\.0/)
+  assert.doesNotMatch(single, /through/, 'one release is not a span')
+
+  // A forwarder carries no version at all, and the citation must not invent one.
+  assert.equal(citeOrphan({ route: 'forwarder', version: null, first: null, shared: null }),
+    'matched by forwarder')
+})
+
+test('semver ordering puts 2.0.10 after 2.0.4 and keeps non-releases last', () => {
+  assert.deepEqual(bySemver(['2.1.0', '2.0.10', '2.0.4', '2.0.0']),
+    ['2.0.0', '2.0.4', '2.0.10', '2.1.0'])
+  // The cache is a directory nothing prunes and it holds things that are not
+  // releases — this machine's has a 2.0.0 full of `cuda-1.9` and `maximum`.
+  assert.deepEqual(bySemver(['junk', '2.0.4', 'also-junk']), ['2.0.4', 'junk', 'also-junk'])
 })

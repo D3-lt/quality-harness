@@ -416,7 +416,7 @@ export function formerlyShipped(name, homeDirectory = os.homedir()) {
   let versions = []
   try { versions = readdirSync(cache) } catch { return [] }
   const found = []
-  for (const version of versions.sort()) {
+  for (const version of bySemver(versions)) {
     const hit = firstNamed(path.join(cache, version), name, 4)
     if (!hit) continue
     found.push({
@@ -445,7 +445,7 @@ export function releaseIndex(homeDirectory = os.homedir()) {
   const index = new Map()
   let versions = []
   try { versions = readdirSync(cache) } catch { return index }
-  for (const version of versions.sort()) {
+  for (const version of bySemver(versions)) {
     const root = path.join(cache, version)
     for (const file of filesBelow(root, 4)) {
       const name = path.basename(file)
@@ -470,6 +470,40 @@ function* filesBelow(root, depth) {
     if (entry.isFile()) yield full
     else if (entry.isDirectory() && !entry.name.startsWith('.')) yield* filesBelow(full, depth - 1)
   }
+}
+
+/**
+ * Cached version directory names, oldest first, ordered NUMERICALLY.
+ *
+ * A bare `.sort()` is lexical and CLAUDE.md names the trap by name: it puts
+ * `2.0.4` above `2.0.10`, and this cache holds both. The first version of this
+ * module used one anyway, so even "the earliest release that shipped this file"
+ * was not reliably the earliest. Reported 2026-09-01 on GitHub issue #3, where the
+ * citation was wrong for a second reason on top of this one.
+ *
+ * Names that do not parse as semver sort last and keep their relative order: the
+ * cache is a directory nothing prunes and it holds things that are not releases.
+ */
+export function bySemver(names) {
+  const parts = name => /^(\d+)\.(\d+)\.(\d+)$/.exec(name)?.slice(1, 4).map(Number) ?? null
+  return [...names].sort((a, b) => {
+    const left = parts(a)
+    const right = parts(b)
+    if (!left && !right) return 0
+    if (!left) return 1
+    if (!right) return -1
+    return left[0] - right[0] || left[1] - right[1] || left[2] - right[2]
+  })
+}
+
+/** How many of `target`'s unique non-blank lines also appear in `source`. */
+function sharedLines(target, source) {
+  const lines = text => new Set(
+    text.split(/\r?\n/).map(line => line.trim()).filter(Boolean))
+  const theirs = lines(readOrEmpty(source))
+  let shared = 0
+  for (const line of lines(readOrEmpty(target))) if (theirs.has(line)) shared += 1
+  return shared
 }
 
 /** Depth-bounded search for a file of this basename. */
@@ -507,24 +541,52 @@ function firstNamed(root, name, depth) {
  */
 export function classifyHomeFile({ file, name, shippedNow, homeDirectory = os.homedir(),
   history = null }) {
-  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null }
+  if (shippedNow) return { state: 'ours-shipped', route: 'shipped', version: null, first: null, shared: null }
   const mine = readOrEmpty(file)
   if (mine.includes(FORWARDER_MARK)) {
-    return { state: 'ours-orphan', route: 'forwarder', version: null }
+    return { state: 'ours-orphan', route: 'forwarder', version: null, first: null, shared: null }
   }
   // `history` is injectable so a scan can read each basename once rather than
   // once per file; absent, this reads it itself and the answer is the same.
   const shipped = history ?? formerlyShipped(name, homeDirectory)
   const ours = digest(file)
-  const identical = shipped.find(found => (found.digest ?? digest(found.file)) === ours)
-  if (identical) {
-    return { state: 'ours-orphan', route: 'digest', version: identical.version }
+  // A digest match is exact, so every release carrying it is equally right and
+  // the NEWEST is the most useful to cite — it is the copy a reader is likeliest
+  // to still have. The span is reported too, because "shipped in 2.0.0 through
+  // 2.28.0" answers a question "shipped in 2.0.0" invites.
+  const identical = shipped.filter(found => (found.digest ?? digest(found.file)) === ours)
+  if (identical.length) {
+    const newest = identical[identical.length - 1]
+    return {
+      state: 'ours-orphan',
+      route: 'digest',
+      version: newest.version,
+      first: identical[0].version,
+      shared: null,
+    }
   }
   // Lineage LAST: it is the loose route, so a digest match must have had its
   // chance first, and a `route` of `lineage` in a report means the bytes differ.
-  const kin = shipped.find(found => sameLineage(file, found.file, lineageKind(found.relative)))
-  if (kin) return { state: 'ours-orphan', route: 'lineage', version: kin.version }
-  return { state: 'unidentified', route: null, version: null }
+  // A lineage match is INEXACT, so which release is cited is a real choice and the
+  // first one found is the worst available answer. Reported 2026-09-01 (GitHub
+  // issue #3): the tool named 2.0.0, the one release sharing NONE of the file's 89
+  // unique lines, while later ones shared four — so a reader checking the verdict
+  // diffed against the single copy that would disprove it. The verdict was right
+  // and the citation sent them to the wrong place.
+  const kin = shipped
+    .filter(found => sameLineage(file, found.file, lineageKind(found.relative)))
+    .map(found => ({ ...found, shared: sharedLines(file, found.file) }))
+    .sort((a, b) => b.shared - a.shared)
+  if (kin.length) {
+    return {
+      state: 'ours-orphan',
+      route: 'lineage',
+      version: kin[0].version,
+      first: null,
+      shared: kin[0].shared,
+    }
+  }
+  return { state: 'unidentified', route: null, version: null, first: null, shared: null }
 }
 
 /** Which `sameLineage` arm a formerly-shipped path is judged under. */
@@ -591,6 +653,32 @@ export function scanSet(homeDirectory = os.homedir()) {
  * It grows with the SIZE of the cache, not with the home: every release is read
  * once whatever the home holds.
  */
+/**
+ * How an orphan's evidence reads to a user who will act on it.
+ *
+ * "last shipped in 2.0.0" was false on BOTH readings and reported as such on
+ * 2026-09-01: 2.0.0 was the earliest release holding the basename, not the last,
+ * and it was the one release sharing none of the file's lines. A citation is the
+ * part a reader checks, so a wrong one sends them to the copy that disproves a
+ * correct verdict.
+ *
+ * One function because the notice and the sync report both render this, and a
+ * phrasing written twice drifts — these two were already wrong identically.
+ */
+export function citeOrphan(evidence) {
+  if (!evidence.version) return `matched by ${evidence.route}`
+  if (evidence.route === 'digest') {
+    const span = evidence.first && evidence.first !== evidence.version
+      ? `${evidence.first} through ${evidence.version}`
+      : evidence.version
+    return `identical to the copy shipped in ${span}`
+  }
+  const shared = evidence.shared
+    ? `, sharing ${evidence.shared} line(s) with it`
+    : ''
+  return `matched by ${evidence.route} against ${evidence.version}${shared}`
+}
+
 export function orphans(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT) {
   const rows = []
   // ONE WALK PER RELEASE, not one per file. The first version called

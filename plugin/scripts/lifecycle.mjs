@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 // The standalone install's scope and PATH arithmetic live in one module, shared
 // with sync-standalone.mjs. Two copies of that list drifted apart once already.
 import {
-  FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, orphans, wiredInSettings,
+  FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, citeOrphan, orphans, wiredInSettings,
 } from './standalone-link.mjs'
 
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
@@ -2862,9 +2862,8 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   const orphanSentence = retired.length
     ? `A past installer also left ${retired.length} file(s) here that this plugin NO LONGER SHIPS: `
       + retired.slice(0, 4).map(row =>
-        `${path.join('~', '.claude', row.directory, row.name)} (last shipped in `
-        + `${row.evidence.version ?? 'a release this cache no longer holds'}, matched by `
-        + `${row.evidence.route})`).join(', ')
+        `${path.join('~', '.claude', row.directory, row.name)} (${citeOrphan(row.evidence)})`)
+        .join(', ')
       + `${retired.length > 4 ? `, +${retired.length - 4} more` : ''}. `
       + 'The plugin will not remove them — that is your decision, and nothing here writes to your '
       + `home directory.${unknown ? ` ${unknown} further file(s) in those directories could not be `

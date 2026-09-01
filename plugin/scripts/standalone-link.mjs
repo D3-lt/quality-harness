@@ -204,7 +204,40 @@ export const SHADOW_SCOPE = [
   { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },
   { home: 'templates', shipped: 'templates', whenAbsent: 'skip', wired: false },
   { home: 'skills', shipped: 'skills', leaf: 'SKILL.md', whenAbsent: 'skip', wired: false },
+  { home: 'workflows', shipped: 'workflows', whenAbsent: 'skip', wired: false },
 ]
+
+/**
+ * The directories this plugin ships that are deliberately NOT mirrored home-side.
+ *
+ * MIRRORING IS THE DEFAULT and this is the exception list, which is the whole
+ * point of the pairing. The table above was hand-written, so a shipped directory
+ * was covered only if somebody remembered it — and on 2026-09-01, the day the
+ * hooks gap shipped its fix, `workflows` was still missing: two files under the
+ * home were ours, still shipped and drifted, and `grep -n workflows` over the
+ * three scanning modules returned nothing. Same defect as GitHub issue #1, one
+ * directory over, found by enumerating the class instead of the instance.
+ *
+ * A test asserts that every shipped directory is either in SHADOW_SCOPE or named
+ * here, so the NEXT directory this plugin adds cannot be silently unscanned. It
+ * fails loudly and the author decides which list it joins; that decision is a
+ * judgement no derivation can make, and leaving it to memory is what produced
+ * this entry.
+ */
+export const NEVER_MIRRORED = new Set([
+  // The eval corpus is the plugin's own test fixtures. Nothing under the home
+  // reads it, and its results directory is gitignored (CLAUDE.md §6).
+  'evals',
+  // `hooks/hooks.json` is the plugin's own hook REGISTRATION, read by the loader
+  // from the plugin root. The home `hooks/` directory holds the scripts it points
+  // at, which ship under `scripts/` — that asymmetry is the SHADOW_SCOPE entry
+  // above, and copying the registration itself home-side would register a second
+  // set of hooks nobody asked for.
+  'hooks',
+  // The plugin manifest. One per installed plugin, resolved by the loader; a copy
+  // under the home is not a plugin.
+  '.claude-plugin',
+])
 
 /**
  * A predicate for "the user's settings name this file", read once per call.

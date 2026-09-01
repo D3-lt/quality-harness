@@ -3543,6 +3543,24 @@
       ],
       "from": "  const separator = windows ? path.win32.sep : path.posix.sep",
       "to": "  const separator = path.sep"
+    },
+    {
+      "label": "scope: a shipped directory is scanned unless it is excluded on purpose",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'skip', wired: false },\n",
+      "to": ""
+    },
+    {
+      "label": "scope: the exclusion list does not silence the coverage rule",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "export const NEVER_MIRRORED = new Set([\n  // The eval corpus is the plugin's own test fixtures. Nothing under the home\n  // reads it, and its results directory is gitignored (CLAUDE.md §6).\n  'evals',",
+      "to": "export const NEVER_MIRRORED = new Set([\n  'workflows',\n  'evals',"
     }
   ]
 }

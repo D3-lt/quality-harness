@@ -5374,3 +5374,51 @@ first thing this entry needs.
 **Do the acceptance half first and read the Follow-up.** ADR-020 commits to counting, after a month,
 how often its ledger cross-check fires on honest work. If that number is not zero the acceptance
 mechanism comes out, and this entry should never be started.
+
+## 99. Nothing checks that a function the plugin defines is ever called
+
+ADR-020 T1 shipped `implausibly_fast` defined, asserted three times and called from nothing
+(GitHub issue #6). Every gate this repository owns said it shipped correctly: the Acceptance fence
+called the predicate directly, and the mutation was killed by those direct assertions whether or not
+production invoked it — a mutant proves a test notices a change, never that the subject is reachable.
+The thing that found it was another session running the binary on a real corpus and grepping for
+callers.
+
+The class is mechanically checkable and the sweep is capable of dirty. Run 2026-09-01:
+
+```
+python3 <sweep> git:dcb7df4:plugin/bin/adr-lint plugin/bin/adr-lint plugin/bin/adr-verify \
+  plugin/bin/adr-next plugin/bin/adr-debt plugin/scripts/*.mjs
+  plugin/bin/adr-lint@dcb7df4 (v2.47.0): 1 orphan of 93 defs — line 1850: implausibly_fast
+  plugin/bin/adr-lint            HEAD  : 0 orphans of 93 defs
+  plugin/bin/adr-verify: 0 of 54   plugin/bin/adr-next: 0 of 14   plugin/bin/adr-debt: 0 of 14
+  plugin/scripts/lifecycle.mjs: 1 orphan of 69 — line 143: gitBranch (see §100)
+  the other five .mjs: 0
+```
+
+It finds the defect at the commit that shipped it and nothing at HEAD, which is the property that
+makes it worth turning into a gate rather than a script somebody ran once.
+
+**The open design question, and why this is not already a gate.** A legitimately uncalled function
+exists: `main`, the `_go_*` family reached through a dispatch table, and anything a future entry
+point will call. So the gate needs an exemption mechanism, and an exemption list is the shape that
+rots — a name added to silence a red run is indistinguishable from a name that belongs there.
+Decide that before writing the check; a sweep with a hand-kept allowlist beside it is the defect
+class ADR-011 named, one directory over.
+
+**The reference implementation must be a bare-identifier scan, not a `name(` scan.** The first
+version of this sweep matched `\bname\(` and reported `expandExistingGlob` as an orphan — it is
+called at `plugin/scripts/lifecycle.mjs:1101` through the spread operator, `...expandExistingGlob(`,
+and the naive lookbehind read the `.` as property access. A check that reports an observation it did
+not make is CLAUDE.md §3's defect, and this one reported two.
+
+## 100. `gitBranch()` is dead code from the branch guard that was removed
+
+`plugin/scripts/lifecycle.mjs:143` defines `gitBranch()`. Nothing in the file, the plugin, or the
+tests calls it — found by §99's sweep on 2026-09-01. `lifecycle.mjs:3027` says why: *"No branch
+guard. This harness is about the quality of a project's records"*, so the function is a leftover
+from a policy that was deliberately dropped, not an unreachable check.
+
+That distinction is the whole entry: this is NOT the ADR-020 class, where a check existed and could
+not fire. Nothing is unenforced by its absence. Delete it, or say in a comment what future caller it
+waits for — but do not diagnose it a second time as a missed call site.

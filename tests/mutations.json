@@ -3568,7 +3568,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if VLOG_LEGACY_RE.match(row) and known is not None and row not in known:",
+      "from": "            if timed and not timed.group(\"digest\") \\\n                    and known is not None and row not in known:",
       "to": "            if False:"
     },
     {
@@ -3577,8 +3577,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if VLOG_LEGACY_RE.match(row) and known is not None and row not in known:",
-      "to": "            if VLOG_LEGACY_RE.match(row) and row not in (known or frozenset()):"
+      "from": "            if timed and not timed.group(\"digest\") \\\n                    and known is not None and row not in known:",
+      "to": "            if timed and not timed.group(\"digest\") \\\n                    and row not in (known or frozenset()):"
     },
     {
       "label": "lint: the fence-drift finding does not name the digest it demands",
@@ -3741,6 +3741,15 @@
       ],
       "from": "    return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or \"\"))",
       "to": "    return ms < 500"
+    },
+    {
+      "label": "lint: the floor reads every row that claims a machine run",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            timed = VLOG_TIMED_RE.match(row)",
+      "to": "            timed = VLOG_DIGEST_RE.match(row)"
     },
     {
       "label": "lint: the duration floor is CALLED, not merely defined",

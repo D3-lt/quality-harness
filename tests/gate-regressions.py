@@ -693,6 +693,7 @@ def main():
     nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
     test_the_floor_runs_on_a_done_row(lint)
+    test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3078,6 +3079,100 @@ def test_the_floor_runs_on_a_done_row(lint):
     # ADVISORY, never blocking (CLAUDE.md §3).
     assert not [e for e in fast if "implausib" in str(e).lower()], \
         "the floor advises; it must never enter the blocking channel"
+
+
+# Reported 2026-09-01 while auditing the class GitHub issue #6 named: the floor
+# T1 shipped is CALLED now, but on a narrower set of rows than T1's own
+# Reachability table claimed. `VLOG_DIGEST_RE` requires the acceptance digest, so
+# a row that omits the digest and carries ` · ms:3` is seen by neither the floor
+# nor the digest-less notice issue #4 bought — it walks through the hole between
+# two patterns that were never asked to agree.
+#
+# NOT a route to a forged `done`: such a row proves nothing, and a task resting on
+# it is refused elsewhere for carrying no digest-bearing entry. What it does is sit
+# in a log claiming `exit 0` in 3ms against a fence that starts a container, with
+# every gate silent. Measured through this CLI before any code was written.
+def test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint):
+    """The floor and the digest-less notice read every row claiming a machine run."""
+    fence = "docker run --rm golang:1 go vet ./..."
+    digest = lint.acceptance_digest(lint.normalize_acceptance(fence))
+    honest = (f"- 2026-09-01 · abc1234 · exit 0 · `{fence}` · "
+              f"acceptance-sha256:{digest} · ms:41250")
+
+    def lint_with(extra_row):
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp) / "repo"
+            (root / "docs" / "adr" / "ADR-001-probe" / "tasks").mkdir(parents=True)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            record = root / "docs" / "adr" / "ADR-001-probe.md"
+            record.write_text(
+                "# ADR-001: Probe\n\n"
+                "**Status:** Accepted\n"
+                "**Spec:** None — no spec stage\n"
+                "**Enforced-by:** None — lint fixture only\n"
+                "**Served-path change:** None — lint fixture only\n\n"
+                "## Alternatives Considered\n\n- Keep the old form.\n\n"
+                "## Wiring & Contract Changes\n\nNone — implementation-internal only.\n\n"
+                "## Out of Scope\n\n- none (permanent: boundary: fixture)\n",
+                encoding="utf-8")
+            tasks = root / "docs" / "adr" / "ADR-001-probe" / "tasks"
+            (tasks / "README.md").write_text(
+                "# ADR-001 Tasks\n\n## Task Index\n\n"
+                "| ID | Title | Status | Covers | Acceptance |\n"
+                "|----|-------|--------|--------|------------|\n"
+                f"| T1 | probe | done | — | `{fence}` |\n", encoding="utf-8")
+            task = tasks / "T1-probe.md"
+            task.write_text(
+                "# Task ADR-001-T1: probe\n\n"
+                "**Depends-on:** none\n**Covers:** none\n**Produces:** none\n"
+                "**Consumes:** none\n\n## Goal\n\ng\n\n"
+                "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+                "| `x.py` | edit | w |\n\n"
+                "## Ordered Steps\n\n1. Write the failing test first. [proof: acceptance]\n"
+                "2. Then the rest. [proof: acceptance]\n\n"
+                f"## Acceptance\n\n```bash\n{fence}\n```\n\n"
+                "## Tests\n\n| Test name | File | Verifies | Covers | Steps |\n"
+                "|---|---|---|---|---|\n| `t` | `x.py` | v | — | 1, 2 |\n\n"
+                "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+                "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+                f"## Verification Log\n{honest}\n", encoding="utf-8")
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True,
+                           capture_output=True)
+            subprocess.run(["git", "-C", str(root), "-c", "user.email=t@e",
+                            "-c", "user.name=t", "commit", "-qm", "base"], check=True,
+                           capture_output=True)
+            # Appended AFTER the commit: `known` then holds the file without it,
+            # which is what "not already recorded" means to this check.
+            if extra_row:
+                with task.open("a", encoding="utf-8") as handle:
+                    handle.write(extra_row + "\n")
+            return subprocess.run(
+                [sys.executable, str(Path(bin_dir).resolve() / "adr-lint"), str(record)],
+                cwd=root, capture_output=True, text=True).stdout
+
+    forged = f"- 2026-09-03 · deadbee · exit 0 · `{fence}` · ms:3"
+    said = lint_with(forged)
+    assert "3ms" in said, (
+        "a row claiming exit 0 in 3ms against a container fence must be floored "
+        f"whether or not it carries a digest: {said}")
+    assert "no acceptance-sha256" in said, (
+        "and the digest-less notice must see it too — appending ` · ms:N` is not "
+        f"a way out of the check GitHub issue #4 bought: {said}")
+
+    # CAPABLE OF CLEAN, on the same fixture: the honest digest row with a duration
+    # that fits its fence draws neither finding. Without this the two assertions
+    # above pass against a gate that shouts at every corpus.
+    quiet = lint_with(None)
+    assert "3ms" not in quiet and "no acceptance-sha256" not in quiet, (
+        f"an honest log must stay silent: {quiet}")
+
+    # The wider pattern must never match a row the entry grammar rejects, or the
+    # notice would speak about something no reader considers an entry at all.
+    for row in (forged, honest, f"- 2026-09-03 · no-git · exit 1 · `{fence}`"):
+        assert lint.VLOG_TIMED_RE.match(row) and lint.VLOG_RE.match(row), row
+    assert not lint.VLOG_TIMED_RE.match(
+        "- 2026-09-03 · human-observed · Zy read it end to end"), \
+        "a human sign-off claims no machine run and has no duration to floor"
 
 
 if __name__ == "__main__":

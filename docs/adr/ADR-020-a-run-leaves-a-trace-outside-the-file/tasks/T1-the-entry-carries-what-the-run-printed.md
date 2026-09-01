@@ -99,6 +99,7 @@ reader, and its step is then reported as unproven.>
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-09-01 · ad7024f* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the entry dropping the one field the task file cannot produce · acceptance-sha256:bad982f40827bddcc0f9f77fe816068073ae2a9466190a67b0ff4617ed434313
 
 ## Invariants
 
@@ -136,3 +137,4 @@ imply a cycle the log does not show.>
 
 ## Verification Log
 - 2026-09-01 · dab3afe · exit 0 · `set -o pipefail …` · acceptance-sha256:885869b99f8c6bb350c5cc15036bebba9d33e27eb62e219f1af152e3802a0da9 · ms:3258
+- 2026-09-01 · ad7024f · exit 0 · `set -o pipefail …` · acceptance-sha256:bad982f40827bddcc0f9f77fe816068073ae2a9466190a67b0ff4617ed434313 · ms:25537

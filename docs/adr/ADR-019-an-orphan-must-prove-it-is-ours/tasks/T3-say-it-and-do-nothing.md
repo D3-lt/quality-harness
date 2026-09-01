@@ -73,6 +73,8 @@ a refactor that reaches the filesystem another way.>
 
 ## Mutation Log
 
+- 2026-09-01 · f0cf3d9* · mutant killed · exit 1 · `plugin/scripts/standalone-link.mjs` · the report becoming a write, which the record forbids · acceptance-sha256:17606c571ec4fccfb5196b4fc07791c49e55587109c678016a78f9d5d7a190ba
+
 ## Invariants
 
 - No file under the user's home is written, moved, archived or deleted by any path this task touches.
@@ -98,3 +100,4 @@ is the finding, and it goes back to the ADR.
 - Anything about drift scope or `SHADOW_SCOPE` derivation (deferred: docs/BACKLOG.md §96)
 
 ## Verification Log
+- 2026-09-01 · f0cf3d9 · exit 0 · `set -o pipefail …` · acceptance-sha256:17606c571ec4fccfb5196b4fc07791c49e55587109c678016a78f9d5d7a190ba

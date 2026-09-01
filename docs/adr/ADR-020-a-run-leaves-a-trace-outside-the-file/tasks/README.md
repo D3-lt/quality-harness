@@ -19,7 +19,7 @@ file, the task file wins and the README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Record how long the run took, and refuse a duration that could not have produced it | done | — | `python3 tests/gate-regressions.py plugin/bin …` |
-| T4 | The floor reads every row that claims a machine run, digest or not | pending | — | `python3 tests/gate-regressions.py plugin/bin …` |
+| T4 | The floor reads every row that claims a machine run, digest or not | done | — | `python3 tests/gate-regressions.py plugin/bin …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

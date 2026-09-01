@@ -206,6 +206,28 @@ See `tasks/README.md`. Three tasks, sequential.
 - **Negative:** a home file whose bytes and lineage markers were both edited is reported as
   `unidentified` and the user gets no explanation of it. The reported `tests/selftest.sh` is a
   probable instance, so this record does not close its own trigger case, and says so.
+
+  **THAT PREDICTION WAS WRONG, AND IS LEFT ABOVE RATHER THAN EDITED.** Measured by the reporter on
+  2026-09-01 against the shipped code: their file was NAMED, `matched by lineage`, not reported as
+  `unidentified`. The estimate came from looking for `*/tests/selftest.sh` across the cache — a
+  PATH — while the mechanism keys on BASENAME, which is the decision this record makes two sections
+  above, for exactly the path-instability reason. Ten of their thirty cached releases ship
+  `scripts/selftest.sh`, so the lookup found it and `sameLineage` matched it. The fix reached
+  further than the pessimistic estimate in the report it was answering, and the estimate was
+  pessimistic because it was measured against the wrong key.
+
+  The reporter also tried to break the rule this record rests on, which is worth more than the
+  correction: they planted a foreign file (`gate-regressions.py`, content *"Wholly unrelated tool.
+  Not quality-harness."*) at a genuinely shipped basename in a scanned directory. The unidentified
+  count rose and **the plant was not claimed**. Basename alone does not convict — tested by someone
+  trying to make it fail.
+- **Negative, found in use:** the citation was wrong while the verdict was right. The report read
+  `last shipped in 2.0.0`, false on both readings — 2.0.0 was the EARLIEST release holding the
+  basename, and the one sharing none of the file's 89 unique lines while later releases shared
+  four. A citation is the part a reader checks, so a wrong one sends them to the single copy that
+  disproves a correct answer. Fixed 2026-09-01: releases are ordered numerically (the bare `.sort()`
+  was lexical, the trap CLAUDE.md names), the cited release is the best match rather than the first
+  found, and the wording says what matched.
 - **Negative:** the historical lookup reads every cached release's tree. On the authoring machine
   that is 52 directories; it runs on the session-start path, so T2 owns showing the cost.
 - **Neutral:** `--apply` gains no behaviour. Users who expect a report to be actionable by the same

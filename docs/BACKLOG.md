@@ -5518,9 +5518,11 @@ is named here and not built.
    so an unfiltered diff would fire on ordinary prose edits — including the correction notes this
    corpus writes into task files routinely. Filter through `VLOG_RE` on both sides.
 
-ADR-shaped, extending ADR-010 (a claim is re-checked or it is not counted). The task's mutation is
-the call-site kind: delete the deletion-check call and confirm RED. `scratchpad/probe_delete.py` is
-the regression's skeleton and it already drives the CLI on a git fixture.
+**WRITTEN UP 2026-09-01 as `docs/adr/ADR-021-a-deleted-row-is-a-change-to-the-evidence.md`**, Proposed,
+extending ADR-010 (a claim is re-checked or it is not counted). Its one task carries the call-site
+mutation and the two silence arms — `committed()` returning `None`, and a prose-only edit. The
+rejected hash chain is recorded in the record's Alternatives with the reason, so the next session
+meeting the idea does not re-derive it.
 
 ## 102. A mutant that does not PARSE counts as noticed, and only the parser noticed it
 

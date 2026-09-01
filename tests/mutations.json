@@ -3554,13 +3554,13 @@
       "to": ""
     },
     {
-      "label": "scope: the exclusion list does not silence the coverage rule",
+      "label": "scope: a workflow the user does not have is not created",
       "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "export const NEVER_MIRRORED = new Set([\n  // The eval corpus is the plugin's own test fixtures. Nothing under the home\n  // reads it, and its results directory is gitignored (CLAUDE.md §6).\n  'evals',",
-      "to": "export const NEVER_MIRRORED = new Set([\n  'workflows',\n  'evals',"
+      "from": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'skip', wired: false },",
+      "to": "  { home: 'workflows', shipped: 'workflows', whenAbsent: 'create', wired: false },"
     }
   ]
 }

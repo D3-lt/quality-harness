@@ -223,6 +223,14 @@ export const SHADOW_SCOPE = [
  * fails loudly and the author decides which list it joins; that decision is a
  * judgement no derivation can make, and leaving it to memory is what produced
  * this entry.
+ *
+ * WHAT THE RULE CANNOT CATCH, said out loud because a mutation measured it: moving
+ * a directory OUT of SHADOW_SCOPE and INTO this set in the same edit is invisible
+ * to the check, since that is exactly what a legitimate exclusion looks like. A
+ * mutation adding `workflows` here came back GREEN on 2026-09-01 — it changes
+ * nothing while SHADOW_SCOPE still covers it, so it was a no-op rather than a gap
+ * in the test. The gap it points at is real and is a review question, not a
+ * mechanical one: every entry below has to carry the reason it is here.
  */
 export const NEVER_MIRRORED = new Set([
   // The eval corpus is the plugin's own test fixtures. Nothing under the home

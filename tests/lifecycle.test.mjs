@@ -36,6 +36,7 @@ import {
   shellSegments,
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
+import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
 import {
   HOOK_SCRIPTS,
   hookArguments,
@@ -2407,6 +2408,56 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   await writeFile(path.join(home, '.claude', 'bin', 'some-other-tool'), 'x\n')
   assert.equal(shadowInstallNotice(home, pluginDir), '',
     `an unshipped file is not the plugin's business: ${shadowInstallNotice(home, pluginDir)}`)
+})
+
+test('every directory the plugin ships is a directory the scanners look in', async () => {
+  // Issue #1 was `hooks`: the notice and the repair tool disagreed because their
+  // directory lists were written by hand and drifted apart. `bbd3f87` merged the
+  // two lists; it did not stop them being hand-written, so the SAME defect was
+  // still live one directory over on the day it shipped.
+  //
+  // Measured 2026-09-01 on the authoring machine, against the four-entry table:
+  //
+  //   the home workflows/consensus.js    home 6115389c22c4  plugin c7299c812b19
+  //   the home workflows/review-ring.js  home 5f5f40ab0b61  plugin 3206965c71f7
+  //
+  // Both ours, both still shipped, both drifted, and `grep -n workflows` over
+  // standalone-link.mjs, sync-standalone.mjs and lifecycle.mjs returned nothing.
+  // They are reachable rather than dead: a live skill listing on that machine
+  // offers bare `consensus` and `review-ring` — the two files in the home — beside
+  // their `quality-harness:` twins, and offers NO bare `quality-cycle`, which the
+  // plugin ships and the home does not have. Home workflows become bare names.
+  //
+  // So this asserts the PROPERTY rather than the membership: every directory the
+  // plugin actually ships is scanned unless it is excluded on purpose. A test that
+  // checked for a `workflows` entry would pass against a fifth hand-written line
+  // and go quiet again at the sixth.
+  const home = await mkdtemp(path.join(testTmp, 'quality-shipped-'))
+  const shipped = (await readdir(pluginDir, { withFileTypes: true }))
+    .filter(entry => entry.isDirectory())
+    .map(entry => entry.name)
+  const covered = new Set(SHADOW_SCOPE.map(scope => scope.shipped))
+  const unexplained = shipped.filter(name => !covered.has(name) && !NEVER_MIRRORED.has(name))
+  assert.deepEqual(unexplained, [],
+    `these shipped directories are neither scanned nor deliberately excluded: ${unexplained.join(', ')}`)
+
+  // And the property has to be shown able to fail, or it is a set-comparison that
+  // passes because both sides were edited together. A real drifted file in the
+  // directory this test was written for must reach BOTH consumers.
+  await mkdir(path.join(home, '.claude', 'workflows'), { recursive: true })
+  const workflow = (await readdir(path.join(pluginDir, 'workflows')))[0]
+  await writeFile(path.join(home, '.claude', 'workflows', workflow), '// an old local copy\n')
+  assert.match(shadowInstallNotice(home, pluginDir, {}, 'linux'),
+    new RegExp(`workflows[\\\\/]${workflow.replace(/\./g, '\\.')}`))
+  const work = syncPlan(pluginDir, home).filter(entry => entry.to.includes('workflows'))
+  assert.equal(work.length, 1, `the repair tool must be able to act on it: ${JSON.stringify(work)}`)
+  assert.equal(work[0].state, 'drifted')
+
+  // A workflow the user does not have is not created, the rule every non-gate
+  // entry follows: a deletion has to stay deleted.
+  await rm(path.join(home, '.claude', 'workflows', workflow))
+  assert.deepEqual(syncPlan(pluginDir, home).filter(entry => entry.to.includes('workflows')), [],
+    'a workflow the user does not have is not created')
 })
 
 test('what the drift notice reports is what the repair tool can act on', async () => {

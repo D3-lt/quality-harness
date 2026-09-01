@@ -39,8 +39,7 @@ None — one task.
 
 - **T2 and T3 were deleted rather than executed, and their ids are not reused** —
   the task after T1 is T4, so a reader meeting a `T2` in this record's history is
-  never handed a different task under the same name.
-- **T2 and T3, for the record.** They were the ledger and its
+  never handed a different task under the same name. They were the ledger and its
   cross-check, and T1 S2's measurement fired the record's Stop Condition before
   either was written: 25 of this corpus's 40 acceptance fences produce different
   output on every run, so the digest they were built around can never be compared.

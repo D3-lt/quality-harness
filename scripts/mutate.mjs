@@ -209,9 +209,20 @@ export function killedBy(stdout) {
   // The reporter prints "✖ <name> (1.2ms)" per failure. A file-level failure
   // repeats the file's own path with no subtest — BACKLOG §49's shape — and is
   // dropped here rather than reported as an assertion name it is not.
+  //
+  // THE DISCRIMINATOR IS "LOOKS LIKE A PATH", NOT "CONTAINS A SEPARATOR". The
+  // first version dropped anything holding `/`, which took three real assertion
+  // names with it — `a bin/ gate is spawned…`, `a docs/adr that yields nothing
+  // says so`, `a directory in bin/ is not a gate…` — and four mutants were
+  // reported killed by nobody while a correctly-named test had killed them
+  // (BACKLOG §53, measured 2026-09-01 over the full campaign).
+  //
+  // A path the reporter prints has no whitespace in it; a test name in this
+  // suite always does. Requiring BOTH — no whitespace AND a source extension —
+  // keeps §49's row out without eating names that merely mention a directory.
   return [...block.matchAll(/^\s*\u2716 (.+?) \(\d[\d.]*ms\)\s*$/gm)]
     .map(m => m[1])
-    .filter(name => !/[\\/]|\.(mjs|js|py|cjs)$/.test(name))
+    .filter(name => !(/^\S+$/.test(name) && /\.(mjs|js|py|cjs)$/.test(name)))
 }
 
 /** One report line. UNPROVEN names the failing set and what to do about it. */
@@ -222,8 +233,11 @@ export function renderLine(result, width) {
     // A kill names its killer where the reporter gave one. Silence when it did
     // not: an empty list is "the names were not recoverable", never a claim that
     // nothing fired.
+    // ONE PER LINE, not comma-joined. 138 of this suite's 462 test names contain
+    // `, ` themselves, so a joined list cannot be separated back into names —
+    // and two figures were computed from one before anybody checked (§53).
     : result.verdict === 'RED' && result.killers?.length
-      ? `  <- killed by: ${result.killers.join(', ')}`
+      ? `  <- killed by:\n${result.killers.map(k => `       ${k}`).join('\n')}`
     // The verdict the tests produced stays visible beside the warning, and the
     // line says what to CHANGE rather than only what is wrong — the lesson
     // ADR-005 applied to spec-verify, one tool over.

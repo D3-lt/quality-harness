@@ -229,20 +229,24 @@ file — what matters is the answer git gives for the path.
 - The gates are `#!/usr/bin/env python3` scripts. **Windows cannot exec them**: a direct spawn returns
   status `null`, which is not an error and not a failure. Spawn through the interpreter.
 - Git Bash resolution must exclude the `System32` WSL stub and the WindowsApps launcher — both are
-  named `bash` and neither is one. **`resolve_bash()` excludes only the first.** Its docstring
-  names both; its PATH loop matches `system32` and nothing else, so on a stock Windows box it
-  returns the 0-byte Store alias and never reaches the `ProgramFiles\Git` fallback below it.
-  `resolveBashExecutable` in `plugin/scripts/run-shell-hook.mjs` has the identical hole. Measured
-  2026-08-30 on Windows 11, and reproduced from macOS in four lines through the resolver's own
-  `(platform, env, exists)` seam — no Windows box was needed, and none had ever been pointed at
-  it. BACKLOG §91 is the fix.
+  named `bash` and neither is one. Both are filtered today, at both sites, by one pattern:
+  `[\\/](?:system32|windowsapps)[\\/]?$` in `resolve_bash()` (`plugin/bin/adr-verify`) and in
+  `resolveBashExecutable` (`plugin/scripts/run-shell-hook.mjs`). **What makes that sentence usable
+  is not this file — it is `tests/gates.test.mjs` and `tests/lifecycle.test.mjs`, which drive each
+  resolver through its `(platform, env, exists)` seam on the PATH §91 measured and assert the real
+  `ProgramFiles\Git` answer comes back.** Each also asserts a `WindowsAppsX` directory is NOT
+  filtered, so the guard is shown capable of the other answer rather than of matching everything.
+  Re-run those, not this paragraph.
 
-  This line previously read "`resolve_bash()` does this; do not reimplement it", which was false
-  for the WindowsApps half from the day it was written. It is left visible rather than quietly
-  edited because the failure mode is the point: an instruction telling every session not to
-  re-check is worse than the defect it describes, and this file is read as fact by sessions that
-  cannot run the platform it is about. **A rule here that asserts a guard handles a case is a
-  hypothesis until something executes it.**
+  **This entry has now been wrong in both directions, which is the part to keep.** It first read
+  "`resolve_bash()` does this; do not reimplement it" — false for the WindowsApps half from the day
+  it was written, and measured false on Windows 11 on 2026-08-30 (BACKLOG §91). It was then
+  rewritten to say the hole was open, and went stale the other way when §91 landed: on 2026-09-01 a
+  session read it as a live defect and re-derived the whole thing before executing the resolvers and
+  finding them already correct. A stale instruction costs a session either way — it either stops
+  people re-checking something broken, or sends them fixing something already fixed. **A rule here
+  that asserts a guard handles a case is a hypothesis until something executes it**, which is why
+  the sentence above names the tests instead of asking to be believed.
 - **`PATH` differs in separator (`:` vs `;`), in resolution (`which` vs `where`), and in what an
   invalid value does.** To test "the tool is absent", empty `PATH` rather than pointing it somewhere
   that only looks absent on your machine.

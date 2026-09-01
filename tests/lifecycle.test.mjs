@@ -35,6 +35,7 @@ import {
   runArtifactGates,
   shellSegments,
 } from '../plugin/scripts/lifecycle.mjs'
+import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import {
   HOOK_SCRIPTS,
   hookArguments,
@@ -2283,10 +2284,42 @@ test('reported: a stale standalone copy answering instead of the plugin is named
 
   // A copy that has drifted is exactly the case that cost the session.
   await writeFile(path.join(home, '.claude', 'bin', 'adr-lint'), '#!/usr/bin/env python3\n# July\n')
-  const notice = shadowInstallNotice(home, pluginDir)
+  const cacheBin = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness',
+    'quality-harness', '2.43.0', 'bin')
+  const homeBin = path.join(home, '.claude', 'bin')
+  const notice = shadowInstallNotice(home, pluginDir, { PATH: `${homeBin}:${cacheBin}` }, 'linux')
   assert.match(notice, /~[\\/]\.claude[\\/]bin[\\/]adr-lint/)
   assert.match(notice, /the old copy is answering/)
   assert.match(notice, /adr-verify just wrote/)
+
+  // WHY the stale copy answers is MEASURED. Until 2026-09-01 the notice asserted
+  // unconditionally that the home directory is on PATH and the plugin cache is
+  // not; reported from a Windows machine where the home `.claude/bin` appeared nowhere
+  // on PATH and the cache's bin did, so both halves were inverted and the advice
+  // built on them pointed at the wrong file. Every branch is asserted here, and
+  // each is asserted to EXCLUDE the others — a claim that can only be made is a
+  // claim no test can catch being wrong.
+  assert.match(notice, /sits ahead of the plugin cache on this PATH/)
+  const cacheWins = shadowInstallNotice(home, pluginDir, { PATH: `${cacheBin}:${homeBin}` }, 'linux')
+  assert.match(cacheWins, /reaches the PLUGIN, not that copy/)
+  assert.doesNotMatch(cacheWins, /That copy WINS/,
+    'the cache winning is the opposite claim and must not carry the old sentence')
+  assert.match(shadowInstallNotice(home, pluginDir, { PATH: '/usr/bin' }, 'linux'),
+    /Neither .* is on this PATH/)
+  // An absent PATH is "I could not look", never "not on PATH" (CLAUDE.md §3).
+  const blind = shadowInstallNotice(home, pluginDir, {}, 'linux')
+  assert.match(blind, /could not read/)
+  assert.doesNotMatch(blind, /Neither/,
+    'an unreadable PATH must not be reported as a measured absence')
+  // Windows compares case-insensitively and splits on `;`, and this is the
+  // platform the report came from.
+  assert.match(
+    shadowInstallNotice(home, pluginDir, { PATH: `${homeBin.toUpperCase()};${cacheBin}` }, 'win32'),
+    /sits ahead of the plugin cache on this PATH/)
+  // The notice must name a repair that can actually act on what it reported, and
+  // must not invite deleting a forwarder — after `--link` those ARE the fix.
+  assert.match(notice, /sync-standalone\.mjs/)
+  assert.match(notice, /do not delete it/)
 
   // Templates and skills drift too, and templates is the one that actually bit:
   // an ADR authored from a stale adr-template.md is missing headers the current
@@ -2310,9 +2343,6 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   // than saying nothing.
   assert.match(shadowInstallNotice(home, pluginDir), /^Your plugin is up to date\./)
   assert.match(shadowInstallNotice(home, pluginDir), /SEPARATE copy/)
-  // And why the stale copy is the one that answers, which is the fact that makes
-  // the whole notice actionable rather than trivia.
-  assert.match(shadowInstallNotice(home, pluginDir), /on PATH and the plugin cache is not/)
 
   // A forwarder is CURRENT BY CONSTRUCTION — it carries no version and runs the
   // newest installed plugin — so comparing its bytes to the gate it stands in
@@ -2372,6 +2402,48 @@ test('reported: a stale standalone copy answering instead of the plugin is named
   await writeFile(path.join(home, '.claude', 'bin', 'some-other-tool'), 'x\n')
   assert.equal(shadowInstallNotice(home, pluginDir), '',
     `an unshipped file is not the plugin's business: ${shadowInstallNotice(home, pluginDir)}`)
+})
+
+test('what the drift notice reports is what the repair tool can act on', async () => {
+  // Reported 2026-09-01, Windows 11, 2.43.0: the session-start notice named a
+  // stale `facts-gate-dispatch.sh` under the home `.claude/hooks/` and told the
+  // operator to run
+  // sync-standalone.mjs, which answered "The standalone install already matches
+  // this plugin. Nothing to do." The two carried SEPARATE directory lists and
+  // `hooks` was in only one of them. What was stale was a gate dispatcher
+  // running three of the plugin's five gates, registered in the user's own
+  // settings — so a weaker gate ran beside the stronger one with no route to
+  // notice or repair it.
+  //
+  // This asserts the BEHAVIOUR, not that two lists match. Comparing the lists
+  // would pass against a shared table that walks a directory neither the plugin
+  // nor the home has — the exact way this fix can no-op, since the plugin ships
+  // hooks under `scripts/` and they land in the home `.claude/hooks/`. Coverage cannot
+  // see a vacuous assertion (CLAUDE.md §4), so each half is also shown able to
+  // go silent.
+  const home = await mkdtemp(path.join(testTmp, 'quality-scope-'))
+  await mkdir(path.join(home, '.claude', 'hooks'), { recursive: true })
+  const shipped = (await readdir(path.join(pluginDir, 'scripts')))
+    .find(name => name.endsWith('.sh'))
+  assert.ok(shipped, 'the plugin ships at least one hook script under scripts/')
+  await writeFile(path.join(home, '.claude', 'hooks', shipped), '# an old local patch\n')
+
+  // Unwired, the copy cannot answer: neither side calls it work.
+  assert.equal(shadowInstallNotice(home, pluginDir, {}, 'linux'), '',
+    'a hook nothing invokes is drift nobody can act on')
+  assert.deepEqual(syncPlan(pluginDir, home).filter(entry => entry.to.includes('hooks')), [],
+    'and the repair tool must not offer work the notice calls none')
+
+  // Wired in the user's own settings, it runs — and both sides say so.
+  await writeFile(path.join(home, '.claude', 'settings.json'),
+    JSON.stringify({ hooks: { PostToolUse: [{ hooks: [{ command: shipped }] }] } }))
+  assert.match(shadowInstallNotice(home, pluginDir, {}, 'linux'),
+    new RegExp(`hooks[\\\\/]${shipped.replace(/\./g, '\\.')}`))
+  const work = syncPlan(pluginDir, home).filter(entry => entry.to.includes('hooks'))
+  assert.equal(work.length, 1, `the repair tool must be able to act on it: ${JSON.stringify(work)}`)
+  assert.equal(work[0].state, 'drifted')
+  assert.equal(work[0].from, path.join(pluginDir, 'scripts', shipped),
+    'and it must copy from scripts/, which is where the plugin actually ships hooks')
 })
 
 test('the corpus reader handles the spellings real repositories use', async () => {

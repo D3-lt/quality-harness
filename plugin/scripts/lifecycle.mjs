@@ -9,6 +9,10 @@ import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+// The standalone install's scope and PATH arithmetic live in one module, shared
+// with sync-standalone.mjs. Two copies of that list drifted apart once already.
+import { FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, wiredInSettings } from './standalone-link.mjs'
+
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -2730,7 +2734,12 @@ function firstMentionThisSession(sessionId, key) {
 //
 // Nothing here is enforced. The harness cannot uninstall a copy it does not own;
 // it can say which one it is and what differs, which is the whole cost of the bug.
-export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT) {
+// `environment` rather than a bare PATH string: a default parameter cannot carry
+// "there is no PATH", because passing `undefined` is what SELECTS the default.
+// The unmeasurable case is the one §3 is about, so it has to be reachable from a
+// test, and an env object is the seam that makes it so.
+export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT,
+  environment = process.env, platform = process.platform) {
   const digest = file => {
     try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
   }
@@ -2746,71 +2755,108 @@ export function shadowInstallNotice(homeDirectory = os.homedir(), pluginRoot = P
   // reads through the link — and a mutation deleting the special case stayed
   // green precisely because it was doing nothing a live link needed.
   const current = target => {
-    try { return readFileSync(target, 'utf8').includes('quality-harness-forwarder') } catch { return false }
+    try { return readFileSync(target, 'utf8').includes(FORWARDER_MARK) } catch { return false }
   }
   const stale = []
-  // Every directory the plugin ships that a standalone install also has. The
-  // first version checked only bin and hooks, and templates was the one that
-  // actually bit: an ADR authored against a drifted adr-template.md is missing
-  // headers the current gates require, so the gate reports a malformed record
-  // and the author has no way to see that they were writing to last month's
-  // shape. Reported 2026-08-26, where a standalone template had no Governs:,
-  // no **Data dependency:**, no ## Mutation Log and no ## Reachability table.
-  // Skills too: a stale SKILL.md instructs an invocation the gates no longer
-  // accept, which is the same failure one layer up.
-  // A hook under the home directory can only answer if the user's own settings
-  // name it: this plugin wires its hooks through ${CLAUDE_PLUGIN_ROOT} and never
-  // looks there. Reporting one nothing invokes is drift that cannot be acted on,
-  // and it was doing exactly that here — two files, every session, both dead.
-  const wired = (() => {
-    const text = ['settings.json', 'settings.local.json']
-      .map(name => { try { return readFileSync(path.join(homeDirectory, '.claude', name), 'utf8') } catch { return '' } })
-      .join('\n')
-    return name => text.includes(name)
-  })()
-
-  for (const [relative, shipped, reachable] of [
-    ['bin', path.join(pluginRoot, 'bin'), () => true],
-    ['hooks', path.join(pluginRoot, 'scripts'), wired],
-    ['templates', path.join(pluginRoot, 'templates'), () => true],
-  ]) {
-    const shadow = path.join(homeDirectory, '.claude', relative)
+  // The scope is SHADOW_SCOPE, shared with sync-standalone.mjs rather than
+  // restated here. The two carried separate lists until 2026-09-01, when this
+  // notice named a stale `facts-gate-dispatch.sh` under the home `.claude/hooks/`
+  // — a wired gate
+  // dispatcher running three of five gates — and the repair tool the notice
+  // sends people to answered "Nothing to do", because `hooks` was in one list
+  // and not the other.
+  const wired = wiredInSettings(homeDirectory)
+  for (const scope of SHADOW_SCOPE) {
+    const shadow = path.join(homeDirectory, '.claude', scope.home)
     let entries = []
     try { entries = readdirSync(shadow) } catch { continue }
     for (const name of entries) {
-      const ours = path.join(shipped, name)
+      // A skill is a directory, so the comparable file is one level down.
+      const ours = scope.leaf
+        ? path.join(pluginRoot, scope.shipped, name, scope.leaf)
+        : path.join(pluginRoot, scope.shipped, name)
+      const theirPath = scope.leaf
+        ? path.join(shadow, name, scope.leaf)
+        : path.join(shadow, name)
       if (!existsSync(ours)) continue
-      if (current(path.join(shadow, name)) || !reachable(name)) continue
-      const theirs = digest(path.join(shadow, name))
-      if (theirs && theirs !== digest(ours)) stale.push(path.join('~', '.claude', relative, name))
-    }
-  }
-  // Skills are directories, so the comparable file is one level down.
-  const shadowSkills = path.join(homeDirectory, '.claude', 'skills')
-  let skillEntries = []
-  try { skillEntries = readdirSync(shadowSkills) } catch {}
-  for (const name of skillEntries) {
-    const ours = path.join(pluginRoot, 'skills', name, 'SKILL.md')
-    if (!existsSync(ours)) continue
-    const theirs = digest(path.join(shadowSkills, name, 'SKILL.md'))
-    if (theirs && theirs !== digest(ours)) {
-      stale.push(path.join('~', '.claude', 'skills', name, 'SKILL.md'))
+      if (current(theirPath)) continue
+      // A hook under the home directory can only answer if the user's own
+      // settings name it: this plugin wires its hooks through
+      // ${CLAUDE_PLUGIN_ROOT} and never looks there. Reporting one nothing
+      // invokes is drift that cannot be acted on, and it was doing exactly that
+      // here — two files, every session, both dead.
+      if (scope.wired && !wired(name)) continue
+      const theirs = digest(theirPath)
+      if (theirs && theirs !== digest(ours)) {
+        stale.push(path.join('~', '.claude', scope.home, ...(scope.leaf ? [name, scope.leaf] : [name])))
+      }
     }
   }
   if (!stale.length) return ''
   const shown = stale.slice(0, 4).join(', ')
-  // Lead with the plugin being current. The first version opened with "a second
-  // copy has drifted", and the owner read that on 2026-08-27 as "the plugin is
-  // behind" — after updating and restarting twice. A notice that sends someone
-  // to re-update the thing that is already correct is worse than silence.
+  const gates = stale.filter(entry => entry.includes(path.join('.claude', 'bin')))
+  const hooks = stale.filter(entry => entry.includes(path.join('.claude', 'hooks')))
+  // WHY the stale copy answers is measured, not asserted. Until 2026-09-01 this
+  // sentence claimed unconditionally that the home directory is on PATH and the
+  // plugin cache is not; reported from a Windows machine where both halves were
+  // inverted — the home `.claude/bin` appeared nowhere on PATH and the cache's bin did,
+  // so a bare gate name reached the PLUGIN. Read literally the old wording
+  // invited deleting the home `.claude/bin`, which after `--link` is the forwarder set
+  // that keeps bare names current — the opposite of the repair.
+  //
+  // `known: false` is rendered as unknown rather than as "not on PATH" (§3): an
+  // absent PATH is a look that could not happen.
+  const path_ = barePathWinner(homeDirectory, environment?.PATH, platform)
+  // Assembled rather than written down: a literal home path may not appear in
+  // anything this repository publishes (CLAUDE.md §6).
+  const homeBin = path.join('~', '.claude', 'bin')
+  const why = []
+  if (gates.length) {
+    if (!path_.known) {
+      why.push('Which copy answers a gate invoked by BARE NAME depends on your PATH, which this '
+        + 'session could not read, so compare the two yourself: `type adr-lint`.')
+    } else if (path_.winner === 'standalone') {
+      why.push('That copy WINS whenever a gate is invoked by bare name: `' + homeBin + '` sits ahead '
+        + 'of the plugin cache on this PATH. So if a gate rejects something adr-verify just wrote, '
+        + 'or a hook disagrees with the same tool run by hand, the old copy is answering.')
+    } else if (path_.winner === 'plugin') {
+      why.push('A bare gate name on this PATH reaches the PLUGIN, not that copy — the plugin cache '
+        + 'sits ahead of `' + homeBin + '`. The stale copy still answers wherever it is named by its '
+        + 'own path.')
+    } else {
+      why.push('Neither `' + homeBin + '` nor the plugin cache is on this PATH, so a bare gate name '
+        + 'reaches no gate of ours at all; the stale copy answers only where it is named by path.')
+    }
+  }
+  if (hooks.length) {
+    why.push('The stale hook is wired in your own settings, so it runs alongside the plugin\'s — '
+      + 'PATH does not come into it.')
+  }
+  // Templates were the drift that actually bit, and PATH has nothing to do with
+  // it: an ADR authored from a stale adr-template.md is missing headers the
+  // current gates require, so the gate reports a malformed record and the author
+  // has no way to see they were writing to last month's shape. Reported
+  // 2026-08-26 — a standalone template with no Governs:, no
+  // **Data dependency:**, no ## Mutation Log and no ## Reachability table.
+  if (stale.some(entry => entry.includes(path.join('.claude', 'templates')))) {
+    why.push('A record authored from that template is missing headers the gates require, so the '
+      + 'gate reports a malformed record and the author cannot see they were writing to last '
+      + "month's shape.")
+  }
+  // Same failure one layer up: a stale SKILL.md instructs an invocation the
+  // current gates no longer accept.
+  if (stale.some(entry => entry.includes(path.join('.claude', 'skills')))) {
+    why.push('A stale SKILL.md instructs an invocation the current gates no longer accept.')
+  }
   return `Your plugin is up to date. What is behind is a SEPARATE copy of this toolkit under `
     + `your home directory, which the plugin never updates — ${shown}`
     + `${stale.length > 4 ? `, +${stale.length - 4} more` : ''}. `
-    + 'That copy wins whenever a gate is invoked by bare name, because its directory is on PATH '
-    + 'and the plugin cache is not. So if a gate rejects something adr-verify just wrote, a hook '
-    + 'disagrees with the same tool run by hand, or a record you authored from a template is '
-    + 'missing headers the gates require, the old copy is answering: compare against '
-    + `\`${path.join(pluginRoot, 'bin')}\`.`
+    + (why.length ? `${why.join(' ')} ` : '')
+    + 'To repair, run `node ' + path.join(pluginRoot, 'scripts', 'sync-standalone.mjs') + '`, which '
+    + 'reports the same set this notice does and writes only with --apply; `--link` replaces the '
+    + 'gates with forwarders no release can leave behind. A file that already carries the '
+    + `\`${FORWARDER_MARK}\` line is current by construction and is not named above — do not `
+    + 'delete it.'
 }
 
 // The plugin that is RUNNING is not always the newest one installed. Claude Code

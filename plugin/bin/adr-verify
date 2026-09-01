@@ -4,7 +4,7 @@
 Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --human "<who observed what>"
        adr-verify <task.md> --mutant <file> [--also-restore <file> ...]
-                  --from <text> --to <text> --why <text>
+                  --from <text> --to <text> --why <text> [--covers <mechanism>]
        adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
 Extracts the ```bash fence under ## Acceptance and runs it with bash
@@ -1099,7 +1099,8 @@ def recover_mutant(cwd):
              f"Verification is blocked until it is reconciled.")
 
 
-def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore):
+def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
+               covers=None):
     """Break one mechanism, run the task's own fence, and record whether it noticed.
 
     Never returns — every path exits. The file is restored in `finally`, which
@@ -1116,6 +1117,29 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore):
     if not why or not why.strip():
         fail("--mutant needs --why '<what this mutant kills>' — a recorded mutant "
              "with no stated target is a row, not evidence.")
+
+    # ADR-022 T2. BEFORE the destination check, before the journal, before either
+    # fence — a refusal that fires after the mutation has been applied is a
+    # refusal that has already changed the tree (ADR-016's preflight order).
+    #
+    # This tool never INVENTS a mechanism name. The record's whole argument for a
+    # hand-written declaration is that it can only increase what a task admits is
+    # unproven; a name the author never wrote would enter the coverage reading as
+    # though they had, which is the direction that flatters.
+    if covers is not None:
+        declared = rests_on(text)
+        if declared is None:
+            fail(f"--covers {covers!r} but {task.name} has no **Rests-on:** header — "
+                 f"there is nothing for the name to be checked against. Declare the "
+                 f"mechanisms the Acceptance fence's claim rests on first.")
+        if declared is RESTS_ON_UNREADABLE:
+            fail(f"--covers {covers!r} but {task.name}'s **Rests-on:** could not be read "
+                 f"as a declaration of mechanisms; adr-lint says what it expected.")
+        if covers.strip() not in declared:
+            listed = ", ".join(f"`{d}`" for d in declared) or "nothing"
+            fail(f"--covers {covers!r} names no mechanism {task.name} declared. "
+                 f"**Rests-on:** declares {listed}. A mutant may only bind a mechanism "
+                 f"the task already admits its fence rests on.")
 
     # Check the destination BEFORE mutating anything. Discovered the hard way while
     # building this: a missing section surfaced only at append time, i.e. after the
@@ -1358,6 +1382,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore):
     sha = git_sha(cwd)
     entry = (f"- {today} · {sha} · mutant {verdict} · exit {code} · "
              f"`{rel}` · {why.strip()} · acceptance-sha256:{digest}")
+    if covers is not None:
+        entry += f" · covers:{covers.strip()}"
     refuse_unreadable(entry, sha)
     block = entry
     if verdict != "killed":
@@ -1501,7 +1527,60 @@ ENTRY_RE = re.compile(
     # writer holding itself to the readers'. The evidence-chain test caught it
     # when the other three had been updated and this had not, which is exactly
     # what it is for: the writer refused to write what the readers now accept.
-    r"(?: · acceptance-sha256:[0-9a-f]{64})?(?: · ms:\d+)?$")
+    r"(?: · acceptance-sha256:[0-9a-f]{64})?(?: · ms:\d+)?"
+    # ADR-022 T2. The declared mechanism a killed mutant bound.
+    r"(?: · covers:[^·\n]+)?$")
+
+
+class _Unreadable:
+    """The third answer `rests_on()` can give, distinct from both other two."""
+
+    __slots__ = ()
+
+    def __repr__(self):
+        return "RESTS_ON_UNREADABLE"
+
+
+RESTS_ON_UNREADABLE = _Unreadable()
+
+
+def rests_on(text):
+    """The mechanisms a task declares its Acceptance fence's claim rests on.
+
+    THE SECOND IMPLEMENTATION of adr-lint's parser, and deliberately so. The
+    refusal of an undeclared `--covers` name has to land before the journal is
+    armed (ADR-016's preflight order), so this file cannot ask the linter — it
+    has to read the header itself. One rule with two implementations is only
+    shared if something compares them, and three such pairs have already
+    disagreed here, so tests/gate-regressions.py::RESTS_ON_GRAMMAR is a single
+    table both are driven through.
+
+    Four answers: `None` (no header), `[]` (an explicit `none — <reason>`),
+    `RESTS_ON_UNREADABLE`, or the declared names in written order. See
+    `adr-lint::rests_on` for why the third is a sentinel rather than an empty
+    list, and why this does not go through the `**Header:**` value reader.
+    """
+    m = re.search(r"^\*\*Rests-on:\*\*(.*)$", text, re.M)
+    if m is None:
+        return None
+    value = m.group(1).strip()
+    if not value:
+        return RESTS_ON_UNREADABLE
+    if re.match(r"none\b", value, re.I):
+        return []
+    if value.count("`") % 2:
+        return RESTS_ON_UNREADABLE
+    names = []
+    rest = []
+    position = 0
+    for span in re.finditer(r"`([^`]*)`", value):
+        rest.append(value[position:span.start()])
+        names.append(span.group(1).strip())
+        position = span.end()
+    rest.append(value[position:])
+    names += [p.strip() for p in ",".join(rest).split(",")]
+    names = [n for n in names if n and not re.match(r"[<(]", n)]
+    return names or RESTS_ON_UNREADABLE
 
 
 def refuse_unreadable(entry, sha):
@@ -1938,6 +2017,7 @@ def main():
     test_exit = None
     also_restore = []
     timeout = SWEEP_TIMEOUT_DEFAULT
+    covers = None
     as_json = False
     saw_timeout = False
     i = 0
@@ -1984,6 +2064,9 @@ def main():
         elif args[i] == "--why":
             i += 1
             why = value(i, "--why")
+        elif args[i] == "--covers":
+            i += 1
+            covers = value(i, "--covers")
         elif args[i] == "--sweep":
             i += 1
             sweep = value(i, "--sweep")
@@ -2028,6 +2111,7 @@ def main():
             fail(f"not a directory: {sweep}")
         for flag, given in (("--human", human), ("--mutant", mutant),
                             ("--human-mutant", human_mutant), ("--cwd", cwd),
+                            ("--covers", covers),
                             ("--also-restore", also_restore or None)):
             if given is not None:
                 fail(f"{flag} cannot be combined with --sweep")
@@ -2054,6 +2138,12 @@ def main():
 
     if also_restore and mutant is None:
         fail("--also-restore is valid only with the tool-run --mutant mode")
+    # ADR-022 T2. `--covers` names which declared mechanism a KILLED MUTANT bound,
+    # so it means nothing where no mutant runs. Accepting and ignoring it is the
+    # worse failure: the author would believe a binding was recorded.
+    if covers is not None and mutant is None:
+        fail("--covers is valid only with the tool-run --mutant mode; it records which "
+             "declared mechanism a killed mutant bound, and nothing else writes that row")
     if also_restore and human is not None:
         fail("--also-restore cannot be combined with --human; no source mutation runs there")
 
@@ -2119,7 +2209,8 @@ def main():
     recover_mutant(cwd)
 
     if mutant is not None:
-        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore)
+        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore,
+                   covers=covers)
 
     # MONOTONIC, not wall-clock. `time.time()` goes backwards over an NTP step or a
     # DST change, and a negative duration handed to the floor is a finding about

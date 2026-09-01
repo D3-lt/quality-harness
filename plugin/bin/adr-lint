@@ -175,16 +175,21 @@ MLOG_HUMAN_ARM = (
     r"test `[^`]+` · .+?")
 # One fragment, two readers. Written twice, a mutation on either copy comes back GREEN
 # because the other carries the load — the finding class CLAUDE.md §4 names.
+# ADR-022 T2. The mechanism a killed mutant bound, as a SUFFIX on the grammar
+# that was already there rather than a second grammar: every row recorded before
+# this record still parses, which tests/gate-regressions.py asserts across every
+# row git tracks rather than across a sample.
+COVERS_FIELD = r"(?: · covers:(?P<covers>[^·\n]+))?"
 MLOG_HUMAN_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + MLOG_HUMAN_ARM +
-    r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
+    r"(?: · acceptance-sha256:[0-9a-f]{64})?" + COVERS_FIELD.replace("?P<covers>", "") + r"$")
 MLOG_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:" + MLOG_TOOL_ARM + r"|" + MLOG_HUMAN_ARM + r")"
-    r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
+    r"(?: · acceptance-sha256:[0-9a-f]{64})?" + COVERS_FIELD.replace("?P<covers>", "") + r"$")
 MLOG_DIGEST_RE = re.compile(
     r"^- (?P<date>\d{4}-\d{2}-\d{2}) · " + SHA_FIELD + r" · "
     r"mutant (?P<verdict>killed|survived|inconclusive) · exit (?P<exit>\d+) · "
-    r"`[^`]+` · .+? · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+    r"`[^`]+` · .+? · acceptance-sha256:(?P<digest>[0-9a-f]{64})" + COVERS_FIELD + r"$")
 
 # Tasks whose acceptance was first recorded on or after this date must carry mutation
 # evidence. A cutover rather than a flag day: every task file predating it was written

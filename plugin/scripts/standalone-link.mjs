@@ -108,14 +108,107 @@ export const FORWARDER_MARK = 'quality-harness-forwarder'
  * `;` and compares case-insensitively, POSIX splits on `:` and does not.
  */
 export function onSearchPath(directory, pathValue, platform = process.platform) {
+  return searchPathIndex(directory, pathValue, platform) >= 0
+}
+
+/**
+ * Where `directory` sits on `pathValue`, or -1 when nothing searches it.
+ *
+ * PRESENCE IS NOT PRECEDENCE. `onSearchPath` answers "could a bare name reach
+ * this", which is the question a freshly written forwarder asks. "Which copy
+ * ANSWERS a bare name" is a different question, and answering it with presence
+ * is how the drift notice came to assert that a home directory always wins:
+ * reported 2026-09-01 from a Windows machine where the home `.claude/bin` was on no
+ * PATH at all and the plugin cache was, so both halves of the claim were
+ * inverted and the advice built on them pointed at the wrong file.
+ */
+export function searchPathIndex(directory, pathValue, platform = process.platform) {
   const windows = platform === 'win32'
   const parts = String(pathValue ?? '').split(windows ? ';' : ':').filter(Boolean)
-  const normalise = value => {
-    const trimmed = path.normalize(value).replace(/[\\/]+$/, '')
-    return windows ? trimmed.toLowerCase() : trimmed
-  }
-  const want = normalise(directory)
-  return parts.some(entry => normalise(entry) === want)
+  const want = normalisePathEntry(directory, windows)
+  return parts.findIndex(entry => normalisePathEntry(entry, windows) === want)
+}
+
+const normalisePathEntry = (value, windows) => {
+  const trimmed = path.normalize(value).replace(/[\\/]+$/, '')
+  return windows ? trimmed.toLowerCase() : trimmed
+}
+
+/**
+ * Which copy of the gates a BARE name reaches, measured against a real PATH.
+ *
+ * `known: false` is a first-class answer and the reason this returns an object
+ * rather than a boolean. An absent `PATH` is "I could not look", never "the
+ * directory is absent" — CLAUDE.md §3: a filter that matched nothing must not
+ * borrow the vocabulary of a verdict. Every caller has to render that case as
+ * unknown, so it is not possible to reach one by accident.
+ *
+ * `pathValue` takes NO DEFAULT, deliberately. A default parameter cannot express
+ * an absent PATH — passing `undefined` is exactly what selects the default — so a
+ * defaulted seam reports the machine's real PATH in the one case the caller meant
+ * to say it had none. Caught here 2026-09-01 while writing the test for it.
+ */
+export function barePathWinner(homeDirectory, pathValue, platform = process.platform) {
+  if (pathValue === undefined || pathValue === null) return { known: false, winner: null }
+  const windows = platform === 'win32'
+  const parts = String(pathValue).split(windows ? ';' : ':').filter(Boolean)
+  const standalone = searchPathIndex(path.join(homeDirectory, '.claude', 'bin'), pathValue, platform)
+  const cacheRoot = normalisePathEntry(cacheDirectory(homeDirectory), windows)
+  // Any version's bin under the cache counts: the question is which TREE answers,
+  // and the loader injects whichever version the session pinned.
+  const plugin = parts.findIndex(entry => normalisePathEntry(entry, windows).startsWith(cacheRoot + path.sep))
+  const winner = standalone < 0 && plugin < 0 ? 'neither'
+    : standalone < 0 ? 'plugin'
+    : plugin < 0 ? 'standalone'
+    : standalone < plugin ? 'standalone' : 'plugin'
+  return { known: true, winner, standalone, plugin }
+}
+
+/**
+ * Every directory pairing a standalone install mirrors, as ONE table.
+ *
+ * The drift notice and the sync tool used to carry separate lists, and they
+ * drifted apart exactly as two lists do: reported 2026-09-01, the notice named a
+ * stale `facts-gate-dispatch.sh` under the home `.claude/hooks/`, and
+ * `sync-standalone.mjs`
+ * answered "Nothing to do", because its loop knew only `bin` and `templates`.
+ * The file was a gate dispatcher running three of the plugin's five gates, wired
+ * in the user's own settings, with no route to notice or repair it.
+ *
+ * `home` and `shipped` are DIFFERENT NAMES on purpose — the plugin's hooks live
+ * under `scripts/` and land in the home `.claude/hooks/`. A single `dir` string reads
+ * fine and silently walks a directory the plugin does not have.
+ *
+ * `whenAbsent: 'create'` belongs to gates alone. A gate that is absent resolves
+ * to nothing, so creating it is the point; everything else is refreshed only
+ * where the user already keeps one, because a deletion has to stay deleted.
+ *
+ * `wired` marks the entries that can only answer when the user's own settings
+ * name them. This plugin wires its hooks through `${CLAUDE_PLUGIN_ROOT}` and
+ * never looks under the home directory, so an unwired copy there is dead — drift
+ * nobody can act on, and both consumers must agree about that or one of them
+ * offers work the other says is none.
+ */
+export const SHADOW_SCOPE = [
+  { home: 'bin', shipped: 'bin', whenAbsent: 'create', wired: false },
+  { home: 'hooks', shipped: 'scripts', whenAbsent: 'skip', wired: true },
+  { home: 'templates', shipped: 'templates', whenAbsent: 'skip', wired: false },
+  { home: 'skills', shipped: 'skills', leaf: 'SKILL.md', whenAbsent: 'skip', wired: false },
+]
+
+/**
+ * A predicate for "the user's settings name this file", read once per call.
+ *
+ * Both settings spellings are read and concatenated: a hook wired in
+ * `settings.local.json` is as live as one in `settings.json`.
+ */
+export function wiredInSettings(homeDirectory = os.homedir()) {
+  const text = ['settings.json', 'settings.local.json']
+    .map(name => {
+      try { return readFileSync(path.join(homeDirectory, '.claude', name), 'utf8') } catch { return '' }
+    })
+    .join('\n')
+  return name => text.includes(name)
 }
 
 export function forwarderScript(gate, homeDirectory = os.homedir()) {

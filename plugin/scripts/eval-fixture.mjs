@@ -117,7 +117,7 @@ export function render(body, values) {
     (Object.hasOwn(values, key) ? String(values[key]) : whole))
 }
 
-export function main(argv = process.argv.slice(2)) {
+export function main(argv = process.argv.slice(2), pluginRoot = undefined) {
   const unknown = argv.filter(a => a.startsWith('--') && !KNOWN.has(a))
   if (unknown.length) {
     process.stderr.write(`eval-fixture: unknown option: ${unknown[0]}\n`
@@ -133,7 +133,11 @@ export function main(argv = process.argv.slice(2)) {
   // CI caught it 2026-08-27 — the templates lookup failed, so `main([])` returned
   // "no template directory" where the test expected "--corpus is required", and
   // the failure named the assertion rather than the platform.
-  const here = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
+  // The plugin root is a PARAMETER so the inside-the-plugin rule below is
+  // reachable from a test. Without the seam a test can only exercise it by
+  // writing into the real `plugin/` tree, which is the shape CLAUDE.md §9
+  // warns about — and an unreachable branch is an untested one.
+  const here = pluginRoot ?? path.dirname(path.dirname(fileURLToPath(import.meta.url)))
   const templates = path.resolve(value('--template') ?? path.join(here, 'evals', 'templates'))
   if (!existsSync(templates)) {
     process.stderr.write(`eval-fixture: no template directory at ${templates}\n`)
@@ -169,6 +173,20 @@ export function main(argv = process.argv.slice(2)) {
   // `add_dirs` takes an absolute path, so it stays in temp where a stale copy
   // cannot accumulate in the repository.
   const out = path.resolve(value('--out') ?? path.join(here, 'evals', 'generated'))
+  // Refuse before copying anything, rather than printing a command the runner
+  // rejects. `--eval-dir` is resolved against the PLUGIN root and refuses an
+  // absolute path and any `..`, so cases written outside the plugin can never be
+  // named: measured 2026-09-01, an absolute --eval-dir gave "must be a relative
+  // path inside the plugin" and a ..-escaping one "must stay inside the plugin
+  // root (no ..)". The default --out is already inside; only an explicit one can
+  // land here.
+  const escape = path.relative(here, out)
+  if (!escape || escape.startsWith('..') || path.isAbsolute(escape)) {
+    process.stderr.write(`eval-fixture: --out must be inside the plugin (${here}), not ${out}\n`
+      + '`--eval-dir` is resolved against the plugin root and refuses an absolute path or any `..`,\n'
+      + 'so cases written outside it cannot be named on the command line at all.\n')
+    return 2
+  }
   const fixture = mkdtempSync(path.join(os.tmpdir(), 'qh-corpus-'))
   const taken = snapshot(source, fixture)
   if (!taken.length) {
@@ -195,8 +213,16 @@ export function main(argv = process.argv.slice(2)) {
   const relative = path.relative(here, cases).split(path.sep).join('/')
   process.stdout.write(`cases:    ${cases} (${names.length})\n\n`)
   process.stdout.write('Run them with:\n')
+  // The TARGET is the plugin, never `.`. `--eval-dir` is resolved against the
+  // target's plugin root, and in this repository the plugin is `plugin/` while
+  // `.` is the repository — the two roots CLAUDE.md §1 is about. Measured
+  // 2026-09-01 from the repository root: with `.` the runner looked for
+  // `<repo>/evals/generated/cases` and reported "No eval cases found", and the
+  // same command against `./plugin` loaded the case and started running it.
+  const target = path.relative(process.cwd(), here).split(path.sep).join('/') || '.'
   process.stdout.write(`  claude plugin eval --eval-dir ${relative} --runs 3`
-    + `${grants.length ? ` --allow-tools ${grants.join(' ')}` : ''} .\n`)
+    + `${grants.length ? ` --allow-tools ${grants.join(' ')}` : ''} `
+    + `${target === '.' || target.startsWith('.') ? target : `./${target}`}\n`)
   if (grants.length) {
     process.stdout.write(`\nThe grant is not optional: these cases DECLARE ${grants.join(', ')}, and a\n`
       + 'declaration is not a grant — without it the runner says "not granted" on its\n'

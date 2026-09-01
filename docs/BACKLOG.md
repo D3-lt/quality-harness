@@ -1195,7 +1195,53 @@ The narrow shape of the fix, for whoever takes it: join a bullet with the indent
 it before applying `REJECTION` and `ALTERNATIVE_CLAUSE`, then re-run against a real corpus and
 confirm nothing that used to fail now passes for the wrong reason.
 
-## 30. The eval suite has no working fixture mechanism
+## 30. PARTLY CLOSED 2026-09-01 — the eval suite has no working fixture mechanism
+
+**Route 1 was taken, and this entry never said so** — the fourth record found stale in one direction
+in a single day (§103). `plugin/scripts/eval-fixture.mjs` exists and does exactly what the "Two ways
+out, neither taken yet" paragraph below proposes: it snapshots the corpus to temp and renders
+`evals/templates/*.case.yaml` with the machine's own absolute path. Verified 2026-09-01 by running
+it, not by reading it — exit 0, 22 records and 67 task files copied, every placeholder resolved.
+
+**But no generated case had ever been RUN, and the printed command is why.** Measured the same day
+by executing what the script prints:
+
+    --eval-dir <absolute>     -> "must be a relative path inside the plugin"
+    --eval-dir ../../../...   -> "must stay inside the plugin root (no ..)"
+    --eval-dir evals/generated/cases <target `.`>  -> "No eval cases found"
+
+The last one is CLAUDE.md §1's two roots reaching the eval runner: `--eval-dir` resolves against the
+TARGET's plugin root, and from the repository root `.` is the repository while the plugin is
+`plugin/`. Against `./plugin` the same command loaded the case and started running it.
+
+**Fixed here.** `--out` outside the plugin is now refused before anything is copied, and the printed
+target names the plugin instead of `.`. Both are covered by tests shown capable of failing: mutating
+the target back to `.` reddens `a generate run snapshots the corpus and writes a runnable case`, and
+disabling the refusal reddens `an out directory outside the plugin is refused, not printed as a
+command`. The plugin root became a parameter of `main()` so the second is reachable without writing
+into the real `plugin/` tree.
+
+**The test was asserting a word it never checked.** `tests/eval-fixture.test.mjs::a generate run
+snapshots the corpus and writes a runnable case` asserted `--eval-dir` matched a loose regex and
+never looked at the target or at `..`, so "runnable" — the claim in its own name — was the one
+property untested. Same shape as §80, in this repository's own suite.
+
+**STILL OPEN, and it is the actual blocker on research gap 4.** The grader types the runner accepts,
+read off its own rejection message rather than inferred:
+
+    regex | tool_order | tool_used | file_exists | llm | baseline
+
+**There is no command grader.** So the shape this entry calls the point — *"does what the model wrote
+pass `adr-lint` with exit 0"* — cannot be expressed as a grader at all. The route left is two-phase:
+run with `--keep-temp`, then run the real gate over the preserved sandbox and score that outside the
+runner. That is arguably better, because the gate is then the actual shipped gate rather than a
+re-implementation of it, but it is a design with choices and it needs its own record. **Nothing about
+that is decided, and no gate-graded case exists.**
+
+The entry as filed follows.
+
+### As reported
+
 
 This is finding C above, chased down 2026-08-27 and left unresolved on purpose.
 

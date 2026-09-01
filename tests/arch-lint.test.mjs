@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { runPython } from '../scripts/python-interpreter.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -44,7 +45,7 @@ function lint(doc, files = {}, afterCommit = {}) {
   }
   // Written AFTER the commit, so they are on disk and not in the index.
   for (const [name, body] of Object.entries(afterCommit)) writeFileSync(join(dir, name), body)
-  const r = spawnSync('python3', [gate, join(dir, 'architecture.md')],
+  const r = runPython([gate, join(dir, 'architecture.md')],
     { encoding: 'utf8', cwd: dir, env })
   return `${r.stdout ?? ''}${r.stderr ?? ''}`
 }

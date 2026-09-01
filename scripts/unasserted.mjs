@@ -22,6 +22,7 @@ import { spawnSync } from 'node:child_process'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
+import { runPython } from './python-interpreter.mjs'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 const [target, ...suites] = process.argv.slice(2)
@@ -67,7 +68,7 @@ if (dirty.status === 0 && dirty.stdout.trim()) {
 }
 writeFileSync(journalPath, JSON.stringify({ file, original }))
 const neuter = path.join(root, 'scripts', 'neuter.py')
-const py = (...args) => spawnSync('python3', [neuter, ...args], { input: original, encoding: 'utf8' })
+const py = (...args) => runPython([neuter, ...args], { input: original, encoding: 'utf8' })
 
 const listed = py('list')
 if (listed.status !== 0) {
@@ -84,8 +85,7 @@ const run = () => (suites.length
 ).status !== 0
 
 /** Whether the file still parses, so a broken edit is never read as a verdict. */
-const parses = f => spawnSync('python3',
-  ['-c', 'import ast,sys;ast.parse(open(sys.argv[1],encoding="utf-8").read())', f],
+const parses = f => runPython(['-c', 'import ast,sys;ast.parse(open(sys.argv[1],encoding="utf-8").read())', f],
   { encoding: 'utf8' }).status === 0
 
 const survivors = []

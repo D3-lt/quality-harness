@@ -6,6 +6,7 @@ import os from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { runPython } from '../scripts/python-interpreter.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -69,7 +70,7 @@ function rawTask(dir, name, { fence, lines }) {
 }
 
 function sweep(dir, extra = []) {
-  return spawnSync('python3', [verify, '--sweep', dir, ...extra],
+  return runPython([verify, '--sweep', dir, ...extra],
     { encoding: 'utf8', timeout: 120_000 })
 }
 
@@ -254,7 +255,7 @@ test('a sweep leaves the corpus byte-identical', () => {
 })
 
 test('--sweep is named in the usage text', () => {
-  const run = spawnSync('python3', [verify], { encoding: 'utf8' })
+  const run = runPython([verify], { encoding: 'utf8' })
   assert.match(run.stdout + run.stderr, /--sweep/,
     'a mode the parser honours and the usage never advertises is discoverable only by reading source')
 })
@@ -674,7 +675,7 @@ test('an empty Acceptance fence is not a claim that held', () => {
 // --- A. invocation ----------------------------------------------------------
 
 test('--sweep with no directory after it is refused', () => {
-  const run = spawnSync('python3', [verify, '--sweep'], { encoding: 'utf8' })
+  const run = runPython([verify, '--sweep'], { encoding: 'utf8' })
   assert.notEqual(run.status, 0)
   assert.doesNotMatch(run.stderr, /Traceback/, 'a missing operand is a usage error, not a crash')
 })
@@ -1104,7 +1105,7 @@ test('sweep-only flags are refused in the recording modes rather than ignored', 
   const dir = corpus()
   const path = task(dir, 'T1', { fence: 'exit 0' })
   for (const flag of [['--timeout', '1'], ['--json']]) {
-    const run = spawnSync('python3', [verify, path, ...flag], { encoding: 'utf8' })
+    const run = runPython([verify, path, ...flag], { encoding: 'utf8' })
     assert.notEqual(run.status, 0, `${flag[0]} must not be silently ignored`)
   }
 })

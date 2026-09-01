@@ -4960,6 +4960,33 @@ from macOS at all.
 
 **Two siblings left, both new tasks.**
 
+**CLOSED 2026-09-01.** Both siblings are done, and the class re-enumerated with §88's own command
+rather than from this entry's counts — which had drifted, as they do: 17 sites across 6 files, not
+the 18 across 9 recorded below (files have come and gone since).
+
+    git grep -nE "spawn(Sync)?\(\s*['\"]python"     ->  17 before, 0 after
+
+`scripts/python-interpreter.mjs` resolves the interpreter once per process and IMPORTS
+`resolvePython` from `plugin/scripts/lifecycle.mjs` rather than repeating it — there is one rule
+about which interpreter is real and it lives in the plugin. Every call site became `runPython(args,
+options)`, a drop-in for the `spawnSync('python3', args, options)` they all shared.
+
+**The helper refuses rather than falling back, and that is the whole of it.** On win32 with nothing
+answering the probe it THROWS. Returning a plausible `['python3']` would reproduce the Store-alias
+defect inside the helper written to avoid it: the spawn succeeds, prints "Python was not found" to
+stdout, exits 9009, and the suite reports a gate that FAILED rather than a gate that never RAN.
+`tests/python-interpreter.test.mjs` asserts that, and was shown capable of failing — replacing the
+throw with `return ['python3']` reddens two tests, restoring it greens them.
+
+The win32 branch is reachable from macOS through `pythonArgv(platform, resolve)`, for the reason
+§88 already gave: CI cannot close this gap, because `actions/setup-python` puts a real `python3` on
+the Windows job's PATH and the alias is structurally unreachable there.
+
+Gate: `bash scripts/selftest.sh` exit 0, 479 pass, 0 fail.
+
+### As reported
+
+
 *The 16 in `tests/`* are why `bash scripts/selftest.sh` cannot run on that Windows box as-is,
 which is the next thing anyone will try. They are not a product defect — CI's Windows job has
 a real `python3` — but they make the suite unrunnable on a stock developer machine, which is

@@ -5256,7 +5256,18 @@ do, so it is documented rather than merged into `SHADOW_SCOPE`.
 
 ---
 
-## 96. `SHADOW_SCOPE` is hand-listed, and two of this machine's home workflow files are drifted where nothing looks
+## 96. PARTLY CLOSED 2026-09-01 — `SHADOW_SCOPE` was hand-listed, and two home workflow files were drifted where nothing looks
+
+**The scope half is CLOSED 2026-09-01 (v2.45.0, `7f5394d` and `022f39d`).** Mirroring is now the
+default and `NEVER_MIRRORED` is the exception list; a test asserts that every directory the plugin
+ships is either scanned or excluded on purpose. The rule earned its place on the first run — it
+failed on `hooks` and `.claude-plugin` as well, neither of which anyone had considered. The
+reachability question below was settled before the fix: a live skill listing offers bare `consensus`
+and `review-ring` (the two files in the home) and no bare `quality-cycle` (shipped, not in the home),
+so home workflows become bare names and the drifted pair was live. The `2.0.0` junk-cache note below
+remains open and belongs to ADR-019 T1.
+
+
 
 Deferred out of ADR-019 (`docs/adr/ADR-019-an-orphan-must-prove-it-is-ours.md`, Out of Scope), which
 covers ORPHANS — files this plugin no longer ships. This entry is the other half: a file the plugin

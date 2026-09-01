@@ -4922,7 +4922,7 @@ each copy separately doubles the tests to keep a duplication nobody wants.
 **Not fixed here.** Deduplicating a gate's rules is a change to what it reports, and it
 wants its own evidence rather than being folded into a hardening pass.
 
-## 88. Bare `python3` is a decoy on stock Windows, and 18 sites still spawn it
+## 88. CLOSED 2026-09-01 — bare `python3` is a decoy on stock Windows, and 18 sites still spawn it
 
 Found 2026-08-30 by a peer Claude session on a real Windows 11 box (build 26200.9168) that
 this repository has never been able to reach. Stock Windows ships `python3` as an App
@@ -5191,7 +5191,28 @@ Note also the resolver has no canonical answer: the PATH scan returns `Git\usr\b
 and the fallback returns `Git\bin\bash.exe`. Nothing downstream depends on which — traced
 before the fix: `adr-verify:359` and `run-shell-hook.mjs:211` need a working shell and no more.
 
-## 92. Every `.cmd` forwarder runs a failing gate twice, under two different interpreters
+## 92. CLOSED 2026-09-01 — every `.cmd` forwarder runs a failing gate twice, under two different interpreters
+
+**Closed by verifying the tree, not by new work.** The goto form this entry describes as "shipped in
+cb227f5" is in fact what all eleven forwarders and the generator carry today, and the headline
+"Not fixed here" outlived it. Enumerated rather than sampled:
+
+    git grep -l '&& ('  -- 'plugin/bin/*.cmd'              -> none
+    every plugin/bin/*.cmd contains `goto :usepy`           -> 11 of 11
+    plugin/scripts/standalone-link.mjs:348                  -> the same form
+
+It is also bound: `tests/standalone-link.test.mjs::a cmd forwarder runs one interpreter and returns
+its exit code` reads all eleven SHIPPED files and the GENERATED one, asserts neither the `&&`
+chain nor the `||` fallback survives, asserts no line expanding `%*` sits inside a parenthesised
+block, and compares the shipped selection against the generator's so the two cannot drift.
+
+Sixth record found stale in one direction this day — see §103. The entry below is kept in full
+because its measurement table (four forwarder forms against exit codes, including the 9009 the goto
+form correctly propagates) is the reasoning behind the shipped shape and is not recorded anywhere
+else.
+
+### As reported
+
 
 Found 2026-08-30 by the same peer, with verbatim doubled output from a real run.
 
@@ -5311,7 +5332,35 @@ consumer that records it, and there is no consumer yet. Building the plumbing fi
 speculative. The task is: decide where an interpreter identity belongs in tool-written evidence
 (§4), then widen the probe to feed it.
 
-## 94. A missing `node` is reported as a missing plugin, and the advice does not help
+## 94. CLOSED 2026-09-01 — a missing `node` is reported as a missing plugin, and the advice does not help
+
+**Fixed, and in BOTH forwarders — the entry named one and the class had two.** `forwarderScript`
+has the identical hole for the identical reason: `node -e ... 2>/dev/null` discards node's own
+error, so an absent node yields an empty `root` and the sh forwarder printed the same
+"no installed plugin" message the cmd one did.
+
+Both now probe for node BEFORE running the resolver, and report it as its own state:
+
+    node is not on PATH, so the plugin resolver did NOT run.
+    this is not a pass, and it is not a finding about the plugin.
+    install Node.js, then re-run. The plugin may be perfectly fine.
+
+**Exit 5, not 4, and that is the substance rather than a detail.** Both mean the gate did not run
+and both stop an `&&` fence. They have DIFFERENT REMEDIES, and collapsing them is exactly what sent
+a user to reinstall a plugin that was already installed twice over in the cache. 4 keeps its
+ADR-005 meaning — the resolver looked and found no plugin; 5 is the resolver could not look at all.
+
+The cmd probe is a `goto`, not a parenthesised block, for the reason §92 paid for: an unquoted
+argument containing `)` closes a block early, and `C:\Program Files (x86)\…` is that argument.
+
+Bound by `tests/standalone-link.test.mjs::a forwarder that cannot run its resolver says so, and
+blames neither the plugin`, which asserts the probe precedes the resolver, that the remedy named is
+one that can work, that the two exit codes stay distinct, and that "this is not a pass" survives in
+both branches. Shown capable of failing: deleting the cmd probe reddens it, and collapsing the sh
+exit code back to 4 reddens it.
+
+### As reported
+
 
 Found 2026-08-30 on Windows 11 while verifying §92, by accident: the peer's first `py`-absent
 harness also stripped `node` from PATH, which is why two cases came back exit 4 instead of
@@ -5728,6 +5777,14 @@ is not, and its absence marks the record STALE rather than wrong. §91's entry q
 `re.search(r"[\\/]system32[\\/]?$", …)`, which stopped being in the file the moment it was fixed.
 That is a mechanical signal and it was sitting there unread. Whether the cost of anchoring records
 is worth it is the decision, not whether the signal exists.
+
+**One direction IS instrumented, narrowly, and it fired on this very session.**
+`tests/package.test.mjs::the backlog index does not undersell what the backlog says it finished`
+caught a §88 body that announced a closure its heading never mentioned — written by the session
+filing this entry, minutes after filing it. That gate compares a section's BODY against its own
+HEADING and nothing else; it cannot see a body that disagrees with the CODE, which is the class
+here. Worth knowing that the shape of the check already exists and that its subject is one level
+short.
 
 **Related:** §49's "verdict changed its mind" is the opposite problem (the tool disagreeing with
 itself); this is the corpus disagreeing with the tool. Not the same class.

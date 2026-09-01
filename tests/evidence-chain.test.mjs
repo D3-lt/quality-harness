@@ -10,12 +10,11 @@
 //
 // So every test here reads the file adr-verify wrote. None reconstructs it.
 import assert from 'node:assert/strict'
-import { createHash } from 'node:crypto'
 import { spawn, spawnSync } from 'node:child_process'
 import { once } from 'node:events'
 import { setTimeout } from 'node:timers/promises'
 import {
-  cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync,
+  cpSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync,
   rmSync, symlinkSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
@@ -532,7 +531,17 @@ test('adr-verify restores declared generated outputs with their source', async (
     return home
   }
   const journalPath = (home, copy) => {
-    const key = createHash('sha256').update(realpathSync(copy)).digest('hex').slice(0, 16)
+    // A legacy journal was named by Python's resolved cwd. Node and Python can
+    // spell the same Windows temp path differently, so seed the fixture with
+    // the writer's runtime instead of reproducing its path semantics in Node.
+    const keyed = run('python3', ['-c', [
+      'import hashlib',
+      'from pathlib import Path',
+      'print(hashlib.sha256(str(Path.cwd().resolve()).encode("utf-8")).hexdigest()[:16])',
+    ].join('; ')], copy)
+    expectExit(keyed, 0, 'Python must resolve the cwd used to name the legacy journal')
+    const key = keyed.stdout.trim()
+    assert.match(key, /^[0-9a-f]{16}$/, 'legacy journal key must be one complete digest prefix')
     return join(home, `adr-verify-mutant-${key}.json`)
   }
   const mutationLog = copy => readTask(copy).split('## Mutation Log')[1]?.trim() ?? ''

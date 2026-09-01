@@ -1,6 +1,6 @@
 # ADR-021: A row removed from an evidence log is a change to the evidence
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-01
 **Owner:** zy
 **Spec:** None — no spec stage

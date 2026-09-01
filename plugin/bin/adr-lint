@@ -1906,6 +1906,29 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
         # asymmetry is the whole fix: it costs an existing corpus nothing and
         # costs a forger the price of running the command.
         known = committed(inf["path"]) if inf.get("path") is not None else None
+        # A ROW TAKEN OUT IS A CHANGE TO THE EVIDENCE (ADR-021). Every field in an
+        # entry is defended — the digest binds a row to the fence it proved, the
+        # duration is a value the file cannot produce — and all of it defends what
+        # a row SAYS. Nothing defended the log against a row being removed, which
+        # was measured through this CLI on 2026-09-01: deleting the red `exit 1`
+        # run produced output identical to the baseline, and the log then implies
+        # a red-green cycle that did not happen.
+        #
+        # `known is not None` because None is "I could not look" — no repository,
+        # no git, a file never committed. Accusing every task in a corpus that has
+        # no `.git` would be a filter reporting absence it never observed (ADR-005).
+        #
+        # Filtered through VLOG_RE on BOTH sides because `committed` returns every
+        # line of the committed file, and an unfiltered comparison would accuse the
+        # correction notes this corpus writes into task files routinely.
+        if known is not None:
+            for gone in [b for b in known if VLOG_RE.match(b) and b not in inf["vlog"]]:
+                errors.advise(
+                    f"{inf['path'].name}: {tid} had an acceptance entry that the committed "
+                    f"file still holds and this file no longer has — `{gone.strip()}` is no "
+                    f"longer in this file. A row is evidence of a run that happened; removing "
+                    f"one changes what the log claims about the work. If the fence changed, "
+                    f"re-run `adr-verify <task.md>` on a clean tree rather than editing the log")
         for row in entries:
             # THE FLOOR IS CALLED HERE, and it shipped in 2.47.0 without this line.
             # `implausibly_fast` was defined, asserted three times directly, and

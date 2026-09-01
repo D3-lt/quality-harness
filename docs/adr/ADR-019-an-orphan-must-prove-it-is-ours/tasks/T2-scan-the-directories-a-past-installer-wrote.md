@@ -67,6 +67,8 @@ asserted in the same test, on the same fixture.>
 
 ## Mutation Log
 
+- 2026-09-01 · a336dd7* · mutant killed · exit 1 · `plugin/scripts/standalone-link.mjs` · the scan set falling back to the hand-written table, which is what missed workflows · acceptance-sha256:0ca45d738d059771d009087cfc5f61fa4ac797b9c3c1e4bb89e58fc6338864a0
+
 ## Invariants
 
 - The scan set is derived, never a literal; a directory a future release adds is covered with no edit here.
@@ -92,3 +94,4 @@ this runs is a decision, not an implementation detail, and belongs back in the p
 - Any write path (permanent: boundary: the parent ADR's Decision — the tool names and never acts)
 
 ## Verification Log
+- 2026-09-01 · a336dd7 · exit 0 · `set -o pipefail …` · acceptance-sha256:0ca45d738d059771d009087cfc5f61fa4ac797b9c3c1e4bb89e58fc6338864a0

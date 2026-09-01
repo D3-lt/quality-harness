@@ -42,6 +42,41 @@ record in a second artifact*, on the machine where the work is claimed to have
 happened. A forger who deletes the ledger, or who works on a machine that never
 had one, pays nothing extra. That is a modest claim and it must not be rounded up.
 
+### Who this is against, which the first draft did not say
+
+Reported on GitHub issue #6, 2026-09-01, by the person who filed the original: this
+record was judging every option against an implicit adversary, and it was the wrong
+one.
+
+**The realistic forger is an agent taking the shortest path to `done`, not a person
+who wants to defeat a gate.** The reporter is the data point — they produced the
+chain in three lines of Python, deliberately, as a test — but the same edit is what
+an agent under pressure to close a task writes with no adversarial intent at all.
+It has the fence text in context, it knows the grammar from the template, and
+typing the row is cheaper than starting Docker. No malice is required, which is
+exactly why the Verification Log exists.
+
+That changes the bar, and lowers it. Against a determined human nothing local
+works, and this record already said so — but it said it in a way that made the
+whole mechanism sound marginal. Against an agent the requirement is precise:
+
+> the entry must carry a value the agent cannot produce by reasoning over the file
+> it is holding.
+
+Faced with such a field, an agent runs `adr-verify`, because invoking the tool is
+cheaper than deriving the value. The acceptance digest fails that test for exactly
+one reason — it is derivable — and that is a far smaller gap than "cannot
+distinguish a run from a transcription" implies.
+
+### Why a flap is not the cost it looks like
+
+The first draft rejected duration partly because a binding that flaps is a gate
+people switch off. That is true of people and false of agents, and the asymmetry
+was pointed out in the same report: **an agent does not switch a gate off, it
+re-runs the command** — which is the behaviour this record wants. So the cost of a
+flap is one re-run, and the cost of no binding is a fabricated `done`. Those are
+not the same size, and the first draft weighed them as if they were.
+
 ### What decided the location
 
 `mutant_journal()` already keeps state outside the repository, and the ADR-002
@@ -121,8 +156,25 @@ the repository's own fences across repeated runs and records how many are stable
 **If fewer than all of them are stable, part 3 does not ship** — the record's own
 Stop Condition, not a judgement call at the time.
 
-Duration is deliberately not recorded. Nothing would read it, no check could fail
-on it, and it is the field most likely to make an honest re-run disagree.
+**Duration is recorded too, and checked as a FLOOR rather than as a match.** The
+first draft dropped it on the grounds that nothing would read it and no check could
+fail on it. Both were wrong, and the counter-argument is the reporter's:
+
+- A wall-clock duration is **not derivable from the file**, which is the only
+  property the bar above actually requires.
+- It needs no normalisation and does not have to reproduce, because nothing
+  compares it for equality.
+- A check CAN fail on it. An entry claiming `exit 0` in 3ms against a fence that
+  starts a container and runs a full suite is not a flap, it is a fabrication.
+
+So `adr-lint` advises when a recorded duration is implausibly short for the fence
+it claims to have run. A floor never reddens honest work — honest work never comes
+in absurdly fast — and it costs a forger either a real run or a plausible lie they
+must now reason about rather than paste.
+
+It is weaker than an output digest and much cheaper, and it composes with the
+ledger rather than competing with it. It ships in the same task as the output
+digest because both are fields of one entry and one grammar change.
 
 ## Alternatives Considered
 
@@ -139,6 +191,15 @@ on it, and it is the field most likely to make an honest re-run disagree.
 - **Keep the ledger in `tempfile.gettempdir()`, as `mutant_journal` does.**
   Rejected on the difference in lifetime: a journal spans seconds, a ledger spans
   days, and a check whose evidence is routinely absent trains its reader to skim.
+- **Drop duration entirely, as this record's first draft did.** Rejected on
+  2026-09-01 after GitHub issue #6 argued the case against it was wrong twice
+  over: nothing would read it (false — a floor reads it), and it would flap (true,
+  and irrelevant to a floor). The exclusion is gone from Out of Scope rather than
+  quietly reworded, because it was a decision this record made and then reversed.
+- **Check duration for equality rather than as a floor.** Rejected because that is
+  the version that flaps: identical work legitimately takes different times, so an
+  equality check reddens honest runs, which is the objection that killed duration
+  in the first draft and is answered only by the floor.
 - **Do nothing and document the limit.** Partly taken already — the templates and
   `adr-execute` were corrected on 2026-09-01 to stop claiming the Verification Log
   closes the fabrication hole. Rejected as sufficient on its own, because the
@@ -193,8 +254,8 @@ See `tasks/README.md`. Three tasks, sequential.
 ## Out of Scope
 
 - Proving that a command ran (permanent: fact: every artifact adr-verify writes, a human can write, so a local gate reading local files cannot distinguish a run from a transcription; citation: file `plugin/bin/adr-verify:186`)
-- Recording a run's duration (permanent: boundary: nothing would read it, no check could fail on it, and it is the field most likely to make an honest re-run disagree)
 - Signing entries, or any mechanism needing a key or a service (permanent: boundary: a key the tool can read is a key its runner can read, and a remote one makes this a service rather than a gate)
+- Comparing two durations for EQUALITY, or reddening a build on a slow or fast run (permanent: boundary: the check is a floor, not a match; equality is what would make duration flap, and flapping is what the first draft wrongly rejected the whole field for)
 - Cross-machine verification of a ledger (permanent: boundary: the ledger is per-user local state by construction; a reviewer elsewhere sees the entry and not the ledger)
 - Applying the same binding to the Mutation Log (deferred: docs/BACKLOG.md §98)
 
@@ -202,7 +263,7 @@ See `tasks/README.md`. Three tasks, sequential.
 
 | Risk | Likelihood | Impact | Mitigation |
 |------|------------|--------|------------|
-| Honest re-runs produce different output, so the advisory fires on correct work | Med | High | T1 measures this repository's own fences before part 3 is written; the Stop Condition drops part 3 rather than shipping a noisy check |
+| Honest re-runs produce different output, so the output advisory fires on correct work | Med | Med — an agent re-runs rather than switching the gate off, so a flap costs one re-run against a fabricated `done` | T1 measures this repository's own fences before part 3 is written; the Stop Condition drops part 3 rather than shipping a noisy check |
 | The ledger's absence is read as forgery by a later reader | Med | High | Absence produces NOTHING — no advice, no finding — and T3 asserts silence on an absent, unreadable and silent-about-this-row ledger separately |
 | A fourth reader of the entry grammar drifts | Med | Med | `tests/gate-regressions.py` already asserts three-way agreement on the acceptance digest; T1 extends it to the new field |
 | The ledger grows without bound | Low | Low | Append-only JSON lines keyed by task and digest; T2 caps it and says what is dropped |

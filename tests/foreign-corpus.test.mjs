@@ -22,6 +22,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { runPython } from '../scripts/python-interpreter.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -48,7 +49,7 @@ const adrDir = join(corpus, 'adr')
 // Spawned through the interpreter: the gates are `#!/usr/bin/env python3` scripts
 // and Windows cannot exec them (CLAUDE.md §7).
 const gate = (name, args) =>
-  spawnSync('python3', [join(bin, name), ...args], { cwd: corpus, encoding: 'utf8' })
+  runPython([join(bin, name), ...args], { cwd: corpus, encoding: 'utf8' })
 const said = r => `${r.stdout ?? ''}${r.stderr ?? ''}`
 
 test('a consumer-shaped corpus draws no verdict the gates did not earn', () => {

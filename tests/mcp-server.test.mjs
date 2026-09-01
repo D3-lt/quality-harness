@@ -3,12 +3,12 @@
 // Calling `dispatch()` directly would test the dispatch and not the transport,
 // and the framing is exactly where a hand-written JSON-RPC server goes wrong.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
+import { runPython } from '../scripts/python-interpreter.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = join(testDir, '..')
@@ -19,7 +19,7 @@ const server = join(repoRoot, 'plugin', 'bin', 'qh-mcp')
 // rather than on the property it is about (CLAUDE.md §7). Name the interpreter.
 function talk(requests) {
   const input = requests.map(request => JSON.stringify(request)).join('\n') + '\n'
-  const result = spawnSync('python3', [server], { input, encoding: 'utf8', timeout: 60_000 })
+  const result = runPython([server], { input, encoding: 'utf8', timeout: 60_000 })
   assert.equal(result.error, undefined, `the server did not start: ${result.error}`)
   assert.notEqual(result.status, null,
     `the server was not executed at all (status null); stderr:\n${result.stderr}`)
@@ -91,7 +91,7 @@ test('a malformed request is answered, not crashed on', () => {
   const input = '{not json\n' + JSON.stringify({ jsonrpc: '2.0', id: 2, method: 'no/such/method' })
     + '\n' + JSON.stringify({ jsonrpc: '2.0', id: 3, method: 'tools/call', params: { name: 'nope' } })
     + '\n' + JSON.stringify({ ...INIT, id: 4 }) + '\n'
-  const result = spawnSync('python3', [server], { input, encoding: 'utf8', timeout: 60_000 })
+  const result = runPython([server], { input, encoding: 'utf8', timeout: 60_000 })
   assert.notEqual(result.status, null, `the server was not executed: ${result.stderr}`)
   assert.equal(result.status, 0, `the server died: ${result.stderr}`)
   const replies = result.stdout.split('\n').filter(Boolean).map(line => JSON.parse(line))
@@ -192,7 +192,7 @@ test("every reading gate is listed, and calling it returns that gate's own outpu
     const reply = call(tool, args)
     assert.equal(reply.error, undefined, `${tool}: ${JSON.stringify(reply.error)}`)
     const text = reply.result.content.map(part => part.text).join('')
-    const direct = spawnSync('python3', [join(bin, gate), ...argv], { encoding: 'utf8', timeout: 60_000 })
+    const direct = runPython([join(bin, gate), ...argv], { encoding: 'utf8', timeout: 60_000 })
     assert.notEqual(direct.status, null, `${gate} was not executed`)
     assert.ok(lf(text).includes(lf(direct.stdout).trim().split('\n')[0]),
       `${tool} did not return the gate output\nMCP:\n${text}\ndirect:\n${direct.stdout}`)
@@ -233,7 +233,7 @@ test('a gate is spawned through the interpreter, never as a bare path', () => {
   // -B: importing the server as a module would otherwise leave a __pycache__
   // beside the gates, and a .pyc embeds the absolute source path — which is a
   // personal filesystem path inside the plugin tree (CLAUDE.md §6).
-  const result = spawnSync('python3', ['-B', '-c', probe], { encoding: 'utf8', timeout: 60_000 })
+  const result = runPython(['-B', '-c', probe], { encoding: 'utf8', timeout: 60_000 })
   assert.notEqual(result.status, null, result.stderr)
   assert.equal(result.status, 0, result.stderr)
   const [argv, executable] = JSON.parse(result.stdout)
@@ -292,7 +292,7 @@ test('gate output is returned verbatim', () => {
   const adr = join(fixture, 'ADR-001-selftest.md')
   const reply = call('qh_adr_lint', { adr, tasks_dir: join(fixture, 'tasks') })
   const text = reply.result.content.map(part => part.text).join('')
-  const direct = spawnSync('python3', [join(bin, 'adr-lint'), adr, join(fixture, 'tasks')],
+  const direct = runPython([join(bin, 'adr-lint'), adr, join(fixture, 'tasks')],
     { encoding: 'utf8', timeout: 60_000 })
   assert.ok(lf(text).includes(lf(direct.stdout)), 'the server modified, summarised or graded the gate output')
   assert.ok(text.includes('exit 0'))

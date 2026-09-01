@@ -16,6 +16,7 @@ import test from 'node:test'
 
 import { parse } from '../plugin/scripts/verify.mjs'
 import { fileURLToPath } from 'node:url'
+import { runPython } from '../scripts/python-interpreter.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -958,14 +959,14 @@ test('qh-root answers with a plugin directory, or with nothing at all', () => {
     // happens to have installed. The first version of this read the ambient
     // environment and passed only on a developer's box: CI has no plugin cache,
     // so qh-root correctly exited 1 and four jobs went red on 2026-08-27.
-    const told = spawnSync('python3', [join(bin, 'qh-root')],
+    const told = runPython([join(bin, 'qh-root')],
       { encoding: 'utf8', timeout: 60_000, env: { ...env, CLAUDE_PLUGIN_ROOT: root } })
     assert.equal(told.status, 0, told.stderr)
     assert.equal(told.stdout.trim(), root,
       'a caller who names a root already knows the answer; do not go looking past it')
 
     // A named root that holds no gates is not an answer either, so the search runs.
-    const bogus = spawnSync('python3', [join(bin, 'qh-root')],
+    const bogus = runPython([join(bin, 'qh-root')],
       { encoding: 'utf8', timeout: 60_000,
         env: { ...env, CLAUDE_PLUGIN_ROOT: empty, HOME: empty, USERPROFILE: empty } })
     assert.notEqual(bogus.stdout.trim(), empty,
@@ -982,7 +983,7 @@ test('qh-root answers with a plugin directory, or with nothing at all', () => {
       mkdirSync(join(cache, version, hasGates ? 'bin' : 'docs'), { recursive: true })
     }
     const home = { ...env, HOME: empty, USERPROFILE: empty, CLAUDE_PLUGIN_ROOT: '' }
-    const picked = spawnSync('python3', [join(bin, 'qh-root')],
+    const picked = runPython([join(bin, 'qh-root')],
       { encoding: 'utf8', timeout: 60_000, env: home })
     assert.equal(picked.status, 0, picked.stderr)
     assert.equal(basename(picked.stdout.trim()), '2.15.0',
@@ -993,7 +994,7 @@ test('qh-root answers with a plugin directory, or with nothing at all', () => {
 
     // Nothing installed and nothing in the environment: say so, do not guess.
     const bare = mkdtempSync(join(os.tmpdir(), 'qh-root-bare-'))
-    const nowhere = spawnSync('python3', [join(bin, 'qh-root')],
+    const nowhere = runPython([join(bin, 'qh-root')],
       { encoding: 'utf8', timeout: 60_000,
         env: { ...env, HOME: bare, USERPROFILE: bare, CLAUDE_PLUGIN_ROOT: '' } })
     rmSync(bare, { recursive: true, force: true })

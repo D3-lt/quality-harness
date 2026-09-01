@@ -2737,6 +2737,40 @@ the variable set, and the ordinary run unchanged without it.
 the next occurrence arrives with something to read. Record that occurrence here with its run id and
 attach what the transcript said.
 
+### 2026-09-01 — a second occurrence, on macOS, and it is INCONCLUSIVE
+
+`bash scripts/selftest.sh` exited **1** with a nine-line log containing only the `plugin validate`
+output and no failing test anywhere in it. The immediate rerun on the identical tree exited **0**
+with the full 474-test output. No file changed between the two.
+
+**Named confound, and it is why this is not filed as a second data point for the Windows flake.** A
+`python3 plugin/bin/adr-verify --sweep docs/adr` had been running in the background minutes earlier;
+it executes every acceptance fence in the corpus, and several of those fences write fixed paths under
+`/tmp` (`/tmp/adr020-t1.out`, `/tmp/adr021-t1.out`) and drive the same gates. Two suites sharing a
+fixed temp path is a collision this repository has not ruled out, and it is a much likelier
+explanation on a developer machine than the Windows spawn hypothesis above.
+
+**What it does establish**: this is the second time a run has changed its mind with nothing to read,
+now on a second platform. `QUALITY_HARNESS_TAP` was not set for either run, which is the diagnostic
+that exists for exactly this and which nobody remembered — including this session. Worth making the
+selftest set it by default when a run fails, rather than leaving it to a person who has already lost
+the transcript.
+
+**The concrete lead, checked in the same session rather than left dangling.** A fence that writes a
+FIXED `/tmp` path cannot be run twice concurrently, so the question is whether two DIFFERENT fences
+share one:
+
+    grep -ho "/tmp/[A-Za-z0-9._-]*" docs/adr/*/tasks/T*.md | sort | uniq -c | sort -rn
+
+Every path is unique to its own task — `/tmp/adr003-t1.out`, `/tmp/adr016-t1-clean-baseline.out` and
+so on — and the repeat counts are the same file naming its own path two to four times (`tee`, then
+`grep`). **So cross-fence collision is ruled out**, and the naming convention that made it safe was
+deliberate.
+
+What is NOT ruled out is the same fence running concurrently with ITSELF: a corpus sweep re-runs
+every fence, and a person running one of those fences at the same moment writes the same path. That
+is the shape to look for the next time a run changes its mind while a sweep is in flight.
+
 ## 52. CLOSED 2026-08-29 — a step-1 check that read the sentence instead of the step, found by Desktop
 
 **Found by pointing the gates at their own corpus from a client that had never seen it.** ADR-012 T4

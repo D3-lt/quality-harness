@@ -64,6 +64,8 @@ python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 
 ## Mutation Log
 
+- 2026-09-01 · 49805ec* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the pre-flight refusal is never reached · acceptance-sha256:31355a86a97c63e251f0ab4d383c7946586a9ad70f370b8bf2360d764432c634
+
 ## Invariants
 
 - A `--mutant` run without `--covers` writes the row it writes today, unchanged, forever.
@@ -92,3 +94,4 @@ declaration is cheap prose rests on it being neither.
 - Any change to what `done` requires (permanent: boundary: the record keeps the obligation existential, and this task adds a field, not a condition)
 
 ## Verification Log
+- 2026-09-01 · 49805ec · exit 0 · `set -o pipefail …` · acceptance-sha256:31355a86a97c63e251f0ab4d383c7946586a9ad70f370b8bf2360d764432c634 · ms:4787

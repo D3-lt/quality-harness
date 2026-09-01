@@ -19,7 +19,7 @@ record's `Enforced-by` and is worth landing first.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | Let a task declare the mechanisms its fence's claim rests on | done | — | `python3 tests/gate-regressions.py …` |
-| T2 | Record which declared mechanism a killed mutant bound | pending | — | `python3 tests/gate-regressions.py …` |
+| T2 | Record which declared mechanism a killed mutant bound | done | — | `python3 tests/gate-regressions.py …` |
 | T3 | Report the declared mechanisms no bound mutant has covered | pending | — | `python3 tests/gate-regressions.py …` |
 | T4 | Advise on a declaration smaller than the fence's segment count, in the counts observed | pending | — | `python3 tests/gate-regressions.py …` |
 

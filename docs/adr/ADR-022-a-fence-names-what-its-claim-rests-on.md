@@ -1,6 +1,6 @@
 # ADR-022: A fence names what its claim rests on
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-01
 **Owner:** zy
 **Spec:** None — no spec stage

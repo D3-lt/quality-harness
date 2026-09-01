@@ -42,8 +42,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest}\")",
-      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest}\")"
+      "from": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha256:{digest} · ms:{elapsed_ms}\")",
+      "to": "    entry = (f\"- {today} · {sha} · exit {code} · `{first}` · \"\n             f\"acceptance-sha:{digest} · ms:{elapsed_ms}\")"
     },
     {
       "label": "evidence: the dirty-tree marker",
@@ -3714,6 +3714,33 @@
       ],
       "from": "  const shared = evidence.shared\n    ? `, sharing ${evidence.shared} line(s) with it`\n    : ''",
       "to": "  const shared = ''"
+    },
+    {
+      "label": "verify: an acceptance entry carries the time its run took",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "             f\"acceptance-sha256:{digest} · ms:{elapsed_ms}\")",
+      "to": "             f\"acceptance-sha256:{digest}\")"
+    },
+    {
+      "label": "lint: a duration that could not have run the fence is advised",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or \"\"))",
+      "to": "    return False"
+    },
+    {
+      "label": "lint: an unrecognised fence gets no floor at all",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or \"\"))",
+      "to": "    return ms < 500"
     }
   ]
 }

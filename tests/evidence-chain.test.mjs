@@ -109,7 +109,15 @@ test('adr-lint accepts the entry adr-verify wrote, as it wrote it', () => {
     .split('## Mutation Log')[0].trim()
   // The shape the readers parse, asserted on the real line rather than on a
   // reconstruction: date · sha · exit · command · digest.
-  assert.match(entry, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · `[^`]+` · acceptance-sha256:[0-9a-f]{64}$/)
+  // ADR-020 appends ` · ms:<integer>`, and the field is asserted rather than
+  // made optional here: this test is about what adr-verify ACTUALLY WROTE, so a
+  // pattern that tolerated its absence would stop noticing if the writer dropped
+  // it. The optional-before-a-cutover spelling belongs in the readers.
+  //
+  // This was the FIFTH place the entry grammar is written down — two patterns in
+  // adr-lint, one in adr-next, the writer's own refusal check, and here. The
+  // parent record predicted a fourth. That count is the real cost of the field.
+  assert.match(entry, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · `[^`]+` · acceptance-sha256:[0-9a-f]{64} · ms:\d+$/)
 
   const mutation = readTask(copy).split('## Mutation Log')[1].trim()
   assert.match(mutation, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · mutant killed · exit \d+ · `[^`]+` · [^·]+ · acceptance-sha256:[0-9a-f]{64}$/)

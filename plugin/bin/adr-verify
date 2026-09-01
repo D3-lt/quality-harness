@@ -91,6 +91,7 @@ import stat
 import subprocess
 import sys
 import tempfile
+import time
 from pathlib import Path
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
@@ -1495,7 +1496,12 @@ ENTRY_RE = re.compile(
     r"from (?:`[^`\n]+`|``(?:[^`\n]|`(?!`))+``|```(?:[^`\n]|`(?!``))+```) · to (?:`[^`\n]*`|``(?:[^`\n]|`(?!`))*``|```(?:[^`\n]|`(?!``))*```) · "
     r"test `[^`]+` · .+?|"
     r"human-observed · .+|" + SHA_FIELD + r" · mutant \w+ · exit \d+ · `[^`]+` · .+?)"
-    r"(?: · acceptance-sha256:[0-9a-f]{64})?$")
+    # ADR-020's ` · ms:<integer>`. This is the FOURTH place the entry grammar is
+    # written down — adr-lint has two patterns, adr-next one, and this is the
+    # writer holding itself to the readers'. The evidence-chain test caught it
+    # when the other three had been updated and this had not, which is exactly
+    # what it is for: the writer refused to write what the readers now accept.
+    r"(?: · acceptance-sha256:[0-9a-f]{64})?(?: · ms:\d+)?$")
 
 
 def refuse_unreadable(entry, sha):
@@ -2115,6 +2121,10 @@ def main():
     if mutant is not None:
         run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore)
 
+    # MONOTONIC, not wall-clock. `time.time()` goes backwards over an NTP step or a
+    # DST change, and a negative duration handed to the floor is a finding about
+    # the clock reported as a finding about the work.
+    started = time.monotonic()
     try:
         r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
                            encoding="utf-8", errors="replace", timeout=fence_timeout())
@@ -2166,8 +2176,14 @@ def main():
     lines = cmd.splitlines()
     first = lines[0].strip().replace("`", "'") + (" …" if len(lines) > 1 else "")
     digest = acceptance_digest(cmd)
+    # ADR-020: a value the task file cannot produce. Every other field in this
+    # entry is computable by anyone holding the file, which makes the acceptance
+    # digest a fence-drift detector and not evidence that a command ran. A
+    # duration is not in the file, so an agent that would rather type the row than
+    # run the fence has to invent one — and an invented one has to survive a floor.
+    elapsed_ms = max(0, round((time.monotonic() - started) * 1000))
     entry = (f"- {today} · {sha} · exit {code} · `{first}` · "
-             f"acceptance-sha256:{digest}")
+             f"acceptance-sha256:{digest} · ms:{elapsed_ms}")
     refuse_unreadable(entry, sha)
     block = entry
     if code != 0:

@@ -207,6 +207,23 @@ AA-Omniscience fell from 65% (K2.5) to 39% (K2.6)**. Calibration, not capability
 4. **Evals measure the skills, not the harness's effect on false success.** The eval corpus asks
    whether a skill fires; nothing yet asks whether the harness reduces confidently-wrong claims.
 
+### STATUS 2026-09-01 — the list above is four days old and two of its four items have moved
+
+**Re-checked against the code rather than from memory**, because a document that lists a closed gap
+as open teaches every reader to go and build something that exists. That is the same defect as
+CLAUDE.md §7's claim about `resolve_bash()`, one file over, and this file is read as the reason for
+design decisions.
+
+| # | Gap as written 2026-08-28 | Verified state 2026-09-01 |
+|---|---|---|
+| 1 | No false-success rate is reported | **Mechanism shipped, and now a number.** `adr-verify --sweep` re-checks every recorded claim against its own fence into four disjoint, total buckets, with `superseded` and `unrunnable` in NEITHER half of the ratio. Run against this corpus: **52 claims — 37 held, 0 false, 15 superseded, 0 unrunnable.** Narrower than the literature's metric, and the difference matters: this measures RECORDED claims re-checked later, not an agent's status assertions mid-task, which is what the 75.8% figure is about. |
+| 2 | Trajectory evaluation is thin — one advisory | **Materially advanced, still not a metric class.** Five process-shape checks now exist where there was one: step 1 must establish a failing test; every-entry-passed with no mutant killed; `MUTATION_REQUIRED_FROM`; `DURATION_REQUIRED_FROM` (ADR-020, a duration that could not have run the fence); and a committed entry gone missing (ADR-021). All are per-record advisories. Nothing AGGREGATES them, so there is still no trajectory score to report — which is what Google and OpenAI mean by a metric class. |
+| 3 | `Governs:`, `Cross-references:` and `Invalidates:` resolve to nothing | **CLOSED** by ADR-011, 2026-08-29. `check_pointers` resolves every declared path against `tracked_paths()` — `git ls-files` plus untracked-and-not-ignored — and advises when one matches nothing. BACKLOG §44 and §45 both closed. |
+| 4 | Evals measure the skills, not the harness's effect on false success | **OPEN, unchanged.** Seven cases, all asking whether a skill fires or whether an instruction moves an answer. None asks whether the harness reduces confidently-wrong claims. This is now the oldest untouched item on this list. |
+
+**So the standing gap is item 4, and item 2's aggregation.** Item 1 is answerable on demand and the
+answer today is zero false successes over 37 re-checkable claims; item 3 is gone.
+
 ### The one genuine tension, to be raised before someone else raises it
 
 This project's rule is **instruct, never block** — a blocked user cannot tell what to do next, which

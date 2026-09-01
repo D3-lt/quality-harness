@@ -192,12 +192,27 @@ MLOG_DIGEST_RE = re.compile(
 # people switch off rather than a gate that catches anything.
 MUTATION_REQUIRED_FROM = "2026-08-22"
 
+# ADR-020. A duration is the one field in an entry that the task file cannot
+# produce, which is what makes it worth carrying: the acceptance digest is a pure
+# function of the fence text, so an agent that would rather type the row than run
+# it can derive every other field by reasoning over what it is holding.
+#
+# Required from a DATE, not always, and that distinction is the whole reason it may
+# live in the entry at all. GitHub issue #4's finding was that the acceptance
+# digest was optional, so the anti-fabrication field was opt-out by omission. A
+# missing duration is instead a checkable claim about when the row was written —
+# the same shape as MUTATION_REQUIRED_FROM above.
+DURATION_REQUIRED_FROM = "2026-09-02"
+
+MS_FIELD = r"(?: · ms:(?P<ms>\d+))?"
+
 VLOG_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
-    r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?$")
+    r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?"
+    r"(?: · ms:\d+)?$")
 VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
-    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})" + MS_FIELD + r"$")
 def committed_lines(path, run=None):
     """The lines HEAD holds for `path`, or None when git could not answer.
 
@@ -1818,6 +1833,36 @@ def check_task_status_vocabulary(infos, readme_text, errors):
             f"Verification Log backs what it claims and whether it carries a Mutation Log. That is "
             f"'not looked at', not 'nothing found'. Use `done`, `pending` or `blocked`, or say in "
             f"the task file what the status means.")
+
+
+# What a fence CANNOT do faster than, by its own shape. Deliberately a short list
+# of things whose cost is structural — starting a container, reaching a network,
+# compiling — rather than a per-runner table of expected timings, which is the
+# rotting surface ADR-020 rejected an output digest for.
+_FLOOR_MS = (
+    (re.compile(r"\bdocker\s+(?:run|build|compose)\b"), 500),
+    (re.compile(r"\b(?:go|cargo)\s+(?:build|vet|test)\b"), 200),
+    (re.compile(r"\b(?:npm|pnpm|yarn)\s+(?:ci|install)\b"), 500),
+    (re.compile(r"\bgit\s+clone\b"), 200),
+)
+
+
+def implausibly_fast(ms, command):
+    """Whether `ms` is too short to have run `command` at all.
+
+    A FLOOR, never an equality check, and that is the difference between this and
+    the mechanism ADR-020 measured and dropped. Nothing here compares two runs, so
+    nothing flaps: a slow machine, a fast machine and a warm cache all pass. It
+    only answers the one question a reader can settle by looking at the fence —
+    could this command have finished in this time at all.
+
+    Silent by default. A fence this does not recognise gets no floor, because an
+    invented threshold for an unknown command is how a check starts reddening
+    honest work. `printf ok` really does finish in 3ms and must never be advised.
+    """
+    if not isinstance(ms, int) or ms < 0:
+        return False
+    return any(ms < floor for pattern, floor in _FLOOR_MS if pattern.search(command or ""))
 
 
 def check_verification(infos, readme_text, errors, committed=committed_lines):

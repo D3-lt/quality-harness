@@ -691,6 +691,7 @@ def main():
     # third implementation drifting would make it call verified tasks unverified
     # and hand a session work that is already finished.
     nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
+    test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -2968,6 +2969,60 @@ def test_a_permanent_advisory_names_its_entry(lint):
     for inner, line in zip(entries, said):
         excerpt = inner[len("permanent: "):][:24]
         assert excerpt in line, f"the advisory must name its entry: {excerpt!r} not in {line!r}"
+
+
+# ADR-020 T1. The record's falsifier fired on its own first measurement — 25 of
+# this corpus's 40 acceptance fences print a per-test duration, so a digest of a
+# run's OUTPUT can never be compared. What survives is a duration and a FLOOR:
+# a value the file cannot produce, checked by reasoning about the fence rather
+# than by comparison with another run.
+def test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt):
+    """The duration is required from a cutover, and an impossible one is advised."""
+    acceptance = "docker run --rm golang:1 go vet ./..."
+    digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
+
+    # THE FIELD IS NOT OPTIONAL-BY-OMISSION, which was issue #4's finding about
+    # the acceptance digest. It is gated on the row's own date instead, the way
+    # MUTATION_REQUIRED_FROM already gates mutation evidence, so a missing field
+    # is a checkable claim about when the row was written.
+    after = lint.DURATION_REQUIRED_FROM
+    assert lint.VLOG_RE.match(
+        f"- {after} · abc1234 · exit 0 · `probe` · acceptance-sha256:{digest} · ms:1200"), \
+        "a new-shape entry must parse"
+    assert lint.VLOG_RE.match(f"- 2026-08-01 · abc1234 · exit 0 · `probe` · "
+                              f"acceptance-sha256:{digest}"), \
+        "and every entry already in the corpus must keep parsing, forever"
+
+    # All THREE readers, because a third drifting is what makes adr-next call a
+    # verified task unverified and hand a session work that is finished.
+    row = f"- {after} · abc1234 · exit 0 · `{acceptance}` · acceptance-sha256:{digest} · ms:1200"
+    assert lint.VLOG_DIGEST_RE.match(row), "adr-lint reads the digest out of a new-shape row"
+    assert nxt.is_done(f"## Verification Log\n{row}\n", digest, False), \
+        "adr-next must still see a new-shape row as done"
+
+    # THE DOWNGRADE PATH. A corpus verified under this version and read by the
+    # PREVIOUS gate must not read as malformed. The field is appended at the end
+    # for exactly this reason, and this asserts it against the released pattern
+    # rather than trusting that it was.
+    released = re.compile(
+        r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,}\*?|no-git) · exit (?P<exit>\d+) · "
+        r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+    assert not released.match(row), (
+        "the 2.45.0 pattern is anchored, so it does NOT match a longer row — which is "
+        "why the cutover is dated: an older gate treats a new row as no-digest legacy "
+        "rather than as malformed, and legacy rows are tolerated")
+
+    # THE FLOOR. It speaks only about a duration that could not have produced the
+    # result claimed, and it is never an equality check.
+    assert lint.implausibly_fast(3, acceptance), \
+        "exit 0 in 3ms cannot have started a container and run go vet"
+    assert not lint.implausibly_fast(180_000, acceptance), \
+        "a slow honest run is not a finding"
+    # And a genuinely quick fence is silent on the SAME function — a floor that
+    # fires on `true` would redden honest work, which is the objection that
+    # killed duration from this record's first draft.
+    assert not lint.implausibly_fast(3, "printf ok"), \
+        "a fence that really is instant must never be advised"
 
 
 if __name__ == "__main__":

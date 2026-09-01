@@ -39,7 +39,11 @@ for _s in (_sys.stdout, _sys.stderr):
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit (?P<exit>\d+) · "
-    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})$")
+    # ADR-020 appends an optional ` · ms:<integer>`. THREE gates read this grammar
+    # and tests/gate-regressions.py asserts they agree, because a third drifting is
+    # what makes this tool call a verified task unverified and hand a session work
+    # that is already finished.
+    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · ms:\d+)?$")
 VLOG_HUMAN_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · human-observed · (?P<note>.+)$")
 # An entry written before acceptance digests existed. `adr-lint` has always
 # accepted these under a narrow allowance its own help text documents, and

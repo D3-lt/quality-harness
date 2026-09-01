@@ -140,20 +140,6 @@ function nearestExistingDirectory(candidate) {
   return current
 }
 
-function gitBranch(candidate) {
-  const directory = nearestExistingDirectory(candidate)
-  if (!directory) return null
-  let run = spawnSync('git', ['-C', directory, 'rev-parse', '--abbrev-ref', 'HEAD'], {
-    encoding: 'utf8', timeout: 5_000,
-  })
-  if (run.status !== 0) {
-    run = spawnSync('git', ['-C', directory, 'symbolic-ref', '--short', 'HEAD'], {
-      encoding: 'utf8', timeout: 5_000,
-    })
-  }
-  return run.status === 0 ? run.stdout.trim() : null
-}
-
 function resolveToolPath(value, cwd) {
   if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) return null
   if (value.startsWith('~/')) return path.join(os.homedir(), value.slice(2))

@@ -2885,9 +2885,7 @@ def test_the_expected_digest_is_not_printed(lint):
     # BOTH sites are asserted. They are in different functions, and the issue's
     # chain only had to get past one of them; fixing the one that happened to be
     # quoted would leave the other handing the same value over.
-    import hashlib as _hh
     acceptance = "node --test tests/probe.test.mjs"
-    want = _hh.sha256(lint.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     stale = "0" * 64
     row = (f"- 2026-09-01 · 6e26b88 · exit 0 · `{acceptance}` · acceptance-sha256:{stale}")
 
@@ -2910,13 +2908,21 @@ def test_the_expected_digest_is_not_printed(lint):
                             committed=lambda path: None)
     said = "\n".join(str(e) for e in drift)
     assert "Acceptance digest" in said, f"the fence-drift finding must still fire: {said}"
-    assert want not in said, f"the drift finding discloses the digest it demands: {said}"
+    # ANY 64-hex run, not the one this test computed. The first version of this
+    # assertion derived the expected digest through `normalize_acceptance` while
+    # the gate derives it without — so `want not in said` was true whether or not
+    # a digest was printed, and the mutation restoring the disclosure came back
+    # GREEN. A test whose expected value is computed a second way can be
+    # vacuous without ever looking wrong (CLAUDE.md §4).
+    assert not re.search(r"[0-9a-f]{64}", said), \
+        f"the drift finding discloses a digest: {said}"
 
     mutation = lint.Findings()
     lint.check_mutation_evidence(infos(), "| T1 | probe | done |", mutation)
     told = "\n".join(str(e) for e in mutation)
     assert "killed" in told, f"the mutation finding must still fire: {told}"
-    assert want not in told, f"the mutation finding discloses the digest it demands: {told}"
+    assert not re.search(r"[0-9a-f]{64}", told), \
+        f"the mutation finding discloses a digest: {told}"
 
 
 if __name__ == "__main__":

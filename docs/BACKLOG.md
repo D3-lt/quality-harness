@@ -5347,3 +5347,30 @@ what a missing ledger means, and it wants a record.
 They say what it actually buys — cost, and drift-binding to the fence the evidence was taken
 against — because a reader who believed the stronger claim would trust a `done` they should have
 questioned.
+
+---
+
+## 98. The Mutation Log carries the same acceptance digest and no trace of the run that produced it
+
+Deferred out of ADR-020 (`docs/adr/ADR-020-a-run-leaves-a-trace-outside-the-file.md`, Out of Scope),
+which binds an ACCEPTANCE entry to the output its run printed. A mutation row is the other half of
+the evidence chain and it has the identical property: every field is derivable from the task file
+plus the mutated source, so a row asserting `mutant killed · exit 1` is as cheap to type as the
+acceptance row GitHub issue #4 reproduced.
+
+    - YYYY-MM-DD · <sha[*]> · mutant killed · exit N · `<file>` · <why> · acceptance-sha256:<digest>
+
+The digest at the end is the ACCEPTANCE fence's, not the mutant's. Two rows for two different
+mutants against the same fence therefore end in the same 64 characters, and nothing in the row is
+specific to the run that produced it.
+
+**Not folded into ADR-020, deliberately.** The two are not symmetric. An acceptance run's output is
+the fence's own; a mutant run's output is the fence's output *with a deliberate break in the source*,
+so it is the thing most likely to embed a file path, a line number or a diff — the fields ADR-020
+excluded from its digest because they make honest re-runs disagree. Whether a mutant run's output is
+stable enough to bind is a separate measurement from the one ADR-020 T1 takes, and taking it is the
+first thing this entry needs.
+
+**Do the acceptance half first and read the Follow-up.** ADR-020 commits to counting, after a month,
+how often its ledger cross-check fires on honest work. If that number is not zero the acceptance
+mechanism comes out, and this entry should never be started.

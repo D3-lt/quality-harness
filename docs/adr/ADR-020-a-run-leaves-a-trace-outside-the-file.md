@@ -1,0 +1,222 @@
+# ADR-020: Bind an acceptance entry to the output the run produced
+
+**Status:** Proposed
+**Date:** 2026-09-01
+**Owner:** zy
+**Spec:** None — no spec stage
+**Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-010-a-claim-is-re-checked-or-it-is-not-counted.md, docs/adr/ADR-016-a-mutant-earns-its-verdict.md, docs/BACKLOG.md §97
+**Governs:** `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/bin/adr-next`, `tests/gate-regressions.py`
+**Enforced-by:** `verify: an acceptance entry carries the digest of what the run printed`
+
+<T1 creates this label. `adr-lint` advises on it until then, which is the correct
+report for a record that is accepted and unexecuted.>
+
+**Invalidates:** none — checked. ADR-010 and ADR-016 both touch the evidence chain and neither is changed: ADR-010 is about re-checking claims and counting only the checkable, which this extends rather than contradicts, and ADR-016 governs when a mutant earns its verdict, which is untouched. The Verification Log grammar gains an optional-before-a-cutover field; no existing clause is withdrawn.
+**Served-path change:** A `done` task verified from 2026-09-02 onward carries a digest of what its acceptance command actually printed, and on the machine that ran it `adr-lint` can say whether the local run ledger agrees — where today every field in the entry is computable from the task file alone.
+
+## Context
+
+Reported 2026-09-01 as GitHub issue #4, carried to #6 and `docs/BACKLOG.md` §97. A
+task was driven from `pending` to `done` past `adr-lint` at exit 0 with hand-typed
+entries and no command run. Two of the three steps in that chain now cost
+something: a digest-less acceptance row is refused unless HEAD already has it, and
+neither finding prints the digest it demands.
+
+The third step is untouched, and it is the structural one. Every field in an
+acceptance entry is derivable from the task file by anyone holding it:
+
+    def acceptance_digest(command):
+        """SHA-256 of the complete normalized Acceptance fence."""
+        return hashlib.sha256(command.encode("utf-8")).hexdigest()
+
+The reporter reproduced the digest independently from the file alone. So the
+digest is a genuine FENCE-DRIFT detector — change the Acceptance command and prior
+evidence stops matching, which is worth keeping — and it is not, and cannot be,
+evidence that a command ran.
+
+**The honest bound, stated first because the rest of this record depends on it:**
+a local gate reading local files can never prove a command ran. Every artifact
+`adr-verify` writes, a human can write. This record does not close that; it raises
+the cost of forging from *typing one line* to *typing one line and a matching
+record in a second artifact*, on the machine where the work is claimed to have
+happened. A forger who deletes the ledger, or who works on a machine that never
+had one, pays nothing extra. That is a modest claim and it must not be rounded up.
+
+### What decided the location
+
+`mutant_journal()` already keeps state outside the repository, and the ADR-002
+reasoning behind it holds here too — a gate that runs in other people's
+repositories does not get to leave files in them:
+
+    base = os.environ.get("CLAUDE_PLUGIN_DATA") or tempfile.gettempdir()
+
+That fallback is wrong for a ledger, and noticing it is what shaped this decision.
+A mutant journal is *meant* to be transient: it exists for the seconds between
+applying a mutant and restoring it, and `tempfile.gettempdir()` is exactly right.
+A run ledger is consulted days later. Under the same fallback its absence would be
+the NORMAL case, the cross-check would be silent almost always, and an advisory
+that fires at random is one an author learns to skim — the second-order cost
+GitHub issue #5 named on 2026-09-01, in this same corpus, about this same gate.
+
+### Why the grammar addition is not the defect issue #4 reported
+
+Issue #4's finding was that the acceptance digest was OPTIONAL, so the
+anti-fabrication field was opt-out by omission. Adding another optional field
+would repeat that exactly.
+
+It is not optional. `adr-lint` already carries the mechanism for this precise
+situation — a field that could not exist before a date:
+
+    MUTATION_REQUIRED_FROM = "2026-08-22"
+
+An entry dated on or after the cutover must carry the output digest; an earlier
+one need not, and the row's own date says which it is. A missing field is
+therefore a *checkable* claim about when the row was written, not a silent
+opt-out. That is the difference between this and #4, and it is the reason the
+field may live in the entry line at all.
+
+## Existing Primitives Audit
+
+- `mutant_journal(cwd)` in `plugin/bin/adr-verify` already keys per-repository
+  state by a digest of the resolved path, outside the repository. **Reshaped:**
+  the keying is reused; the `tempfile` fallback is not, for the reason above.
+- `MUTATION_REQUIRED_FROM` in `plugin/bin/adr-lint` already expresses "required
+  from a date, tolerated before it". **Reused unchanged** in shape, with its own
+  constant.
+- `normalize_acceptance()` and `acceptance_digest()` exist in three gates and
+  `tests/gate-regressions.py` asserts all three agree. **Reused unchanged.** The
+  new digest is a fourth value, not a change to these.
+- `VLOG_RE` / `VLOG_DIGEST_RE` / `VLOG_LEGACY_RE` in `adr-lint` and `is_done()` in
+  `adr-next` read the entry grammar. **Reshaped together**, because a third
+  implementation drifting is what makes `adr-next` call verified tasks unverified.
+- `refuse_unreadable()` and `append_entry()` already own writing an entry.
+  **Reused unchanged.**
+
+## Decision
+
+**An acceptance entry records a digest of what the run printed, and a ledger
+outside the repository records the same value — so forging requires two artifacts
+to agree rather than one line to be typed.**
+
+Three parts:
+
+1. `adr-verify` appends `output-sha256:<64 hex>` to the entry it writes, over the
+   merged stdout/stderr it already captured, after the redaction it already
+   applies. Entries dated on or after `OUTPUT_REQUIRED_FROM` must carry it; earlier
+   entries need not, and `adr-lint`, `adr-verify` and `adr-next` change together.
+2. The same value is appended to a run ledger under `CLAUDE_PLUGIN_DATA`, falling
+   back to a per-user directory and **never** to the system temp directory.
+3. `adr-lint` cross-checks only when the ledger is readable AND holds an entry for
+   that task and acceptance digest. A ledger that is absent, unreadable, or silent
+   about this row produces NOTHING — not advice, not a finding. Only a ledger that
+   holds a DIFFERENT output digest for the same row is reported, and it is
+   reported as advice.
+
+**What would make this decision wrong, and whether such data exists:** if honest
+re-runs routinely produce different output for the same fence, the disagreement
+advisory fires on correct work and the mechanism is worse than nothing. Output
+that embeds a duration, a temp path, a random seed or a wall-clock time will do
+exactly that. This is falsifiable and the data does not exist yet: T1 measures
+the repository's own fences across repeated runs and records how many are stable.
+**If fewer than all of them are stable, part 3 does not ship** — the record's own
+Stop Condition, not a judgement call at the time.
+
+Duration is deliberately not recorded. Nothing would read it, no check could fail
+on it, and it is the field most likely to make an honest re-run disagree.
+
+## Alternatives Considered
+
+- **Record the output digest in the ledger only, not in the entry.** Rejected
+  because the entry is what travels with the corpus and what a reviewer on another
+  machine can see; a ledger-only value is invisible to everyone but the machine
+  that wrote it, and gives a forger nothing to have to keep consistent.
+- **Record it in the entry only, with no ledger.** Rejected because it buys
+  nothing against the reported attack: an unverifiable number in a file the forger
+  is already editing is one more line to type.
+- **Sign entries with a key.** Rejected as the same problem one level up: a local
+  key readable by the tool is readable by whoever runs the tool, and a key that is
+  not local makes this a service rather than a gate.
+- **Keep the ledger in `tempfile.gettempdir()`, as `mutant_journal` does.**
+  Rejected on the difference in lifetime: a journal spans seconds, a ledger spans
+  days, and a check whose evidence is routinely absent trains its reader to skim.
+- **Do nothing and document the limit.** Partly taken already — the templates and
+  `adr-execute` were corrected on 2026-09-01 to stop claiming the Verification Log
+  closes the fabrication hole. Rejected as sufficient on its own, because the
+  reported chain is cheap enough that documentation alone leaves it cheap.
+
+## Component / Boundary Impact
+
+- `plugin/bin/adr-verify` — owns writing the entry and now the ledger. One reason
+  to change: what a recorded run consists of.
+- `plugin/bin/adr-lint` — owns reading entries and now the optional cross-check.
+- `plugin/bin/adr-next` — owns readiness; changes only so its grammar does not
+  reject an entry the other two accept.
+- No new component. The ledger is per-user state, not a shared service.
+
+## Wiring & Contract Changes
+
+| Surface | Change | Producer | Consumer(s) |
+|---------|--------|----------|-------------|
+| Verification Log entry grammar | new trailing ` · output-sha256:<64 hex>`, required from a dated cutover | `adr-verify` | `adr-lint`, `adr-next` |
+| `OUTPUT_REQUIRED_FROM` | new constant, the cutover date | `adr-lint` | `adr-lint` |
+| run ledger file | new per-user append-only JSON-lines file | `adr-verify` | `adr-lint` |
+| `CLAUDE_PLUGIN_DATA` | existing env var, now also read for the ledger | the user | `adr-verify`, `adr-lint` |
+
+No schema, no network, no change to any skill's instructions.
+
+## Inter-task Contracts
+
+| Contract | Producing task | Consuming task(s) | Breaking? |
+|----------|----------------|-------------------|-----------|
+| `output_digest()` and the extended entry grammar | T1 | T2, T3 | No — additive, gated by a date |
+| `run_ledger()` and its append format | T2 | T3 | No — new file |
+
+## Implementation
+
+See `tasks/README.md`. Three tasks, sequential.
+
+## Consequences
+
+- **Positive:** forging a `done` on the machine where the work is claimed requires
+  editing two artifacts consistently rather than typing one line.
+- **Positive:** the stability measurement in T1 is worth having on its own — a
+  fence whose output changes between identical runs is a fence worth knowing about.
+- **Negative, and the same size as the positive:** a forger who deletes the ledger,
+  or who never had one, pays nothing extra. A reviewer on a different machine gains
+  nothing at all. This raises a cost; it does not close a hole, and the
+  documentation corrected on 2026-09-01 must keep saying so.
+- **Negative:** one more field in a grammar four readers share, and a fourth place
+  the entry format can drift.
+- **Neutral:** entries written before the cutover stay valid forever, so the corpus
+  contains two shapes and will for as long as it keeps its history.
+
+## Out of Scope
+
+- Proving that a command ran (permanent: fact: every artifact adr-verify writes, a human can write, so a local gate reading local files cannot distinguish a run from a transcription; citation: file `plugin/bin/adr-verify:186`)
+- Recording a run's duration (permanent: boundary: nothing would read it, no check could fail on it, and it is the field most likely to make an honest re-run disagree)
+- Signing entries, or any mechanism needing a key or a service (permanent: boundary: a key the tool can read is a key its runner can read, and a remote one makes this a service rather than a gate)
+- Cross-machine verification of a ledger (permanent: boundary: the ledger is per-user local state by construction; a reviewer elsewhere sees the entry and not the ledger)
+- Applying the same binding to the Mutation Log (deferred: docs/BACKLOG.md §98)
+
+## Risks
+
+| Risk | Likelihood | Impact | Mitigation |
+|------|------------|--------|------------|
+| Honest re-runs produce different output, so the advisory fires on correct work | Med | High | T1 measures this repository's own fences before part 3 is written; the Stop Condition drops part 3 rather than shipping a noisy check |
+| The ledger's absence is read as forgery by a later reader | Med | High | Absence produces NOTHING — no advice, no finding — and T3 asserts silence on an absent, unreadable and silent-about-this-row ledger separately |
+| A fourth reader of the entry grammar drifts | Med | Med | `tests/gate-regressions.py` already asserts three-way agreement on the acceptance digest; T1 extends it to the new field |
+| The ledger grows without bound | Low | Low | Append-only JSON lines keyed by task and digest; T2 caps it and says what is dropped |
+| A 2.45 gate reads a 2.46 entry as malformed | Med | High | See Rollback — the field is appended at the END of the line, and older readers' patterns are checked against a 2.46-shaped entry in T1 |
+
+## Rollback
+
+Revert the three commits. Entries already written keep their `output-sha256:`
+field, so a reverted (older) `adr-lint` must still accept them — that is the real
+downgrade path and it is why T1 verifies the CURRENT released patterns against a
+new-shape entry before the writer ships. The ledger is per-user state outside every
+repository; deleting it affects nothing but the optional cross-check. No corpus
+data is lost by rolling back, and no task's `done` status changes.
+
+## Follow-ups
+
+- [ ] After a month, count how often the ledger cross-check actually fires on real corpora, and how often it fires on honest work. If the second number is not zero, part 3 comes out.

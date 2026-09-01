@@ -5313,3 +5313,37 @@ loads the `.js` before classifying them.
 match, and the phrase "52 cached versions" used in GitHub issue #3 and §95 rests on counting it.
 ADR-019 T1 carries a test for a junk directory; this entry is the note that the junk is real and
 sitting in the cache now, not a hypothetical.
+
+---
+
+## 97. Nothing binds an acceptance entry to anything outside the file it is written in
+
+Ask 3 of GitHub issue #4, deferred out of the fix that shipped in v2.45.0 (`68b5072`). The reporter
+was explicit that this is a raise-the-cost problem rather than a closeable one, and was right: a
+local gate reading local files cannot distinguish a run from a transcription, because every artifact
+`adr-verify` writes, a human can write.
+
+What shipped narrows two of the three steps they reproduced. A digest-less acceptance row is now
+refused unless HEAD already has it, so typing one costs a commit that a reader can see; and neither
+finding prints the digest it demands any more. What did not change is the third: `acceptance_digest`
+is a pure function of the fence text, so anyone holding the task file can compute it, and the
+mutation log's digest is the same value.
+
+**The candidate, in the reporter's words:** bind an entry to something not derivable from the file.
+The strongest cheap option is a digest of the command's OUTPUT plus its duration, recorded alongside
+— still forgeable by someone who runs the command, which is the point, because forging then costs
+what complying costs. `mutant_journal()` already keeps state outside the repository, so an
+append-only run ledger keyed the same way and cross-checked by `adr-lint` would mean a forger has to
+edit two artifacts consistently rather than paste one line.
+
+**Why it is not a patch.** Output digests are not stable across machines, clocks or terminal widths;
+a ledger outside the repository is state a fresh checkout does not have, so every check that reads
+it must degrade to "I could not look" rather than to a verdict (CLAUDE.md §3), and a corpus cloned
+onto a second machine must not read as forged. That is a decision about where evidence lives and
+what a missing ledger means, and it wants a record.
+
+**Also from that issue, and already done:** `plugin/templates/task-template.md` and
+`plugin/skills/adr-execute/SKILL.md` no longer say the Verification Log closes the fabrication hole.
+They say what it actually buys — cost, and drift-binding to the fence the evidence was taken
+against — because a reader who believed the stronger claim would trust a `done` they should have
+questioned.

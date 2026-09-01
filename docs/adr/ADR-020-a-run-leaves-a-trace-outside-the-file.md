@@ -289,8 +289,12 @@ See `tasks/README.md`. One task — the first draft's other two were deleted bef
   or who never had one, pays nothing extra. A reviewer on a different machine gains
   nothing at all. This raises a cost; it does not close a hole, and the
   documentation corrected on 2026-09-01 must keep saying so.
-- **Negative:** one more field in a grammar four readers share, and a fourth place
-  the entry format can drift.
+- **Negative, and it was underestimated:** this said "a fourth place the entry
+  format can drift". Executing T1 found **five** — two patterns in `adr-lint`, one
+  in `adr-next`, `adr-verify`'s own refusal check holding the writer to the
+  readers' grammar, and the evidence-chain test that asserts what was actually
+  written. The writer's self-check and the test each caught the omission in turn,
+  which is the system working; the count is still the honest cost of the field.
 - **Neutral:** entries written before the cutover stay valid forever, so the corpus
   contains two shapes and will for as long as it keeps its history.
 

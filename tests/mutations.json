@@ -3795,6 +3795,15 @@
       ],
       "from": "            report_uncovered_mechanisms(inf, tid, killed, errors)",
       "to": "            pass  # the uncovered reading is never called"
+    },
+    {
+      "label": "lint: a segment rule shared by the gate and the sweep",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return [s for s in segments if not FENCE_SETUP_RE.match(s)]",
+      "to": "    return segments  # setup lines counted as assertions"
     }
   ]
 }

@@ -3693,3 +3693,53 @@ test('a signed-off human-observed task is finished, not ready forever', async ()
   assert.ok(!after.ready.some(f => f.endsWith('T1.md')),
     `a signed-off human-observed task must not stay ready forever:\n${after.ready.join('\n')}`)
 })
+
+
+// ADR-019 T3. The notice and the repair report name an orphan; nothing acts on it.
+test('an orphan is named at session start, with its evidence', async () => {
+  // A file a past installer left that this plugin no longer ships. Reported
+  // 2026-09-01 (GitHub issue #3) as `tests/selftest.sh`, 113 lines, asserting a
+  // fork-era layout — after the plugin's own guidance said to delete the
+  // artifacts it checks for, it printed `FAIL — 14 of 39`.
+  const home = await mkdtemp(path.join(testTmp, 'quality-orphan-'))
+  const cache = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness',
+    'quality-harness', '2.1.0', 'attic')
+  await mkdir(cache, { recursive: true })
+  await mkdir(path.join(home, '.claude', 'attic'), { recursive: true })
+  const body = '#!/bin/sh\n# a retired checker\n'
+  await writeFile(path.join(cache, 'relic.sh'), body)
+  await writeFile(path.join(home, '.claude', 'attic', 'relic.sh'), body)
+
+  const notice = shadowInstallNotice(home, pluginDir, {}, 'linux')
+  assert.match(notice, /attic[\\/]relic\.sh/, `the file must be named: ${notice}`)
+  assert.match(notice, /2\.1\.0/, 'and the release it was last shipped in')
+  // The clause the record rests on. A reader who takes "orphan" as an
+  // instruction to delete is the failure this wording exists to prevent, so it
+  // is asserted specifically rather than left to the filename being present.
+  assert.match(notice, /will not remove|does not remove|yours to decide|your decision/i,
+    `the notice must say the plugin will not remove it: ${notice}`)
+
+  // The clean answer, shown able to be dirty on the same fixture.
+  await rm(path.join(home, '.claude', 'attic', 'relic.sh'))
+  assert.doesNotMatch(shadowInstallNotice(home, pluginDir, {}, 'linux'), /relic\.sh/,
+    'a home with no orphan says nothing about orphans')
+})
+
+test('unidentified files are counted, never listed', async () => {
+  // Measured 2026-09-01: four files in this machine's home hooks directory belong
+  // to autoresearch and codebase-memory, three of them wired and running. Naming
+  // them would be an accusation the plugin cannot support.
+  const home = await mkdtemp(path.join(testTmp, 'quality-unknown-'))
+  await mkdir(path.join(home, '.claude', 'plugins', 'cache', 'quality-harness',
+    'quality-harness', '2.1.0', 'bin'), { recursive: true })
+  await mkdir(path.join(home, '.claude', 'hooks'), { recursive: true })
+  const strangers = ['cbm-session-reminder', 'autoresearch-context.sh']
+  for (const name of strangers) {
+    await writeFile(path.join(home, '.claude', 'hooks', name), `# ${name}\n`)
+  }
+  const notice = shadowInstallNotice(home, pluginDir, {}, 'linux')
+  for (const name of strangers) {
+    assert.doesNotMatch(notice, new RegExp(name.replace(/\./g, '\\.')),
+      `a file this plugin cannot prove it wrote must not be named: ${notice}`)
+  }
+})

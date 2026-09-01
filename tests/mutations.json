@@ -3642,6 +3642,33 @@
       ],
       "from": "      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })",
       "to": "      if (verdict.state !== 'unidentified') rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })"
+    },
+    {
+      "label": "orphan: the report never becomes a write",
+      "file": "plugin/scripts/standalone-link.mjs",
+      "tests": [
+        "tests/standalone-link.test.mjs"
+      ],
+      "from": "      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })",
+      "to": "      if (verdict.state === 'ours-orphan') rmSync(path.join(shadow, entry.name), { force: true })\n      rows.push({ directory, name: entry.name, state: verdict.state, evidence: verdict })"
+    },
+    {
+      "label": "orphan: an orphan is named at session start",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!stale.length && !retired.length) return ''",
+      "to": "  if (!stale.length) return ''"
+    },
+    {
+      "label": "orphan: an unidentified file is counted, never named",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const retired = found.filter(row => row.state === 'ours-orphan')",
+      "to": "  const retired = found.filter(row => row.state !== 'ours-shipped')"
     }
   ]
 }

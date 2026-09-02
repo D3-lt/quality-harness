@@ -55,6 +55,8 @@ node --test tests/package.test.mjs 2>&1 | tee /tmp/adr023-t1.out \
 
 ## Mutation Log
 
+- 2026-09-02 · 884edcb · mutant killed · exit 1 · `.github/workflows/selftest.yml` · the --shard argument disagreeing with the job name skips half the catalogue while reporting success · acceptance-sha256:4cc7d302e5139649fffb517c3e04ebfee88a61bba42df353d493ff30caa8cda3
+
 ## Invariants
 
 - The three places the shard count appears never disagree — a job named `x/8` running `--shard x/4` silently skips half the catalogue while reporting success.

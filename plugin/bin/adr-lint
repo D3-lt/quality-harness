@@ -1510,6 +1510,20 @@ def check_task(path, all_stems, errors):
                 f"this is a count of places worth looking, not a finding about the fence. "
                 f"If its claim rests on more than what is declared, naming the rest is what "
                 f"lets the gate say which of them nothing has proved")
+    # docs/BACKLOG.md §78. Reported by a peer session that measured 50 of these
+    # in its own corpus; this one has zero, because every fence here opens with
+    # `set -o pipefail` and never `set -e`. The check ships anyway because
+    # `adr-lint` runs on corpora that did not adopt that convention, and because
+    # the first fence written here without a positive assertion beside it would
+    # lose its vacuity check in silence.
+    for guard in inert_negated_guards(acc_all):
+        errors.advise(
+            f"{path.name}: `{guard}` cannot fail this Acceptance fence. POSIX `set -e` does "
+            f"not apply to a command whose status is inverted with `!`, so a negated guard "
+            f"that is not the fence's last command is inert — the script carries on and "
+            f"exits on whatever follows. It READS like the vacuity guard while checking "
+            f"nothing. The un-negated form costs nothing and does fail: "
+            f"`if grep -qE \"no tests to run|^FAIL|^--- FAIL\" out; then exit 1; fi`")
     # acc_first is display/legacy compatibility only. acc_all is the WHOLE
     # normalized fence and is the sole input to current evidence digests: a
     # filter or second command often sits below line one.
@@ -2398,6 +2412,58 @@ def assertion_segments(fence):
     """
     segments = [s.strip() for s in re.split(r"&&|\|\||\n", fence) if s.strip()]
     return [s for s in segments if not FENCE_SETUP_RE.match(s)]
+
+
+# `set -e`, and deliberately NOT `set -o pipefail`. The short-option spellings
+# (`set -e`, `set -eu`, `set -euo pipefail`) and the long one are errexit; the
+# pipefail-only opener every fence in this corpus uses is not, which is exactly
+# why this corpus has zero instances of the defect below.
+# The `e` may sit ANYWHERE in the option cluster — `-e`, `-eu`, `-euo` — which
+# is why the trailing \b goes after the whole cluster and not after the `e`.
+# Written the other way first, and `set -eu` slipped through: \b between `e` and
+# `u` is not a boundary, so the commonest hardening spelling of all was missed.
+ERREXIT_RE = re.compile(r"^\s*set\s+(?:-[a-zA-Z]*e[a-zA-Z]*|-o\s+errexit)\b", re.M)
+# A negated grep guard: `! grep …`, the standard vacuity check.
+NEGATED_GREP_RE = re.compile(r"^\s*!\s*grep\b")
+
+
+def inert_negated_guards(fence):
+    """Negated-grep guards that CANNOT fail their fence, with the reason.
+
+    POSIX: `set -e` does not apply to a command whose status is inverted with
+    `!`. So `! grep -q FAIL out` under `set -e` is inert wherever it is not the
+    last command — the script carries on and exits on whatever follows.
+    Reproduced 2026-08-30 in both `sh` and `bash`:
+
+        sh -c 'set -e; ! grep -q FAIL /tmp/x.out; echo REACHED; exit 7' -> rc=7
+
+    ⚠ WHAT THIS DELIBERATELY DOES NOT REPORT is the whole design. A negated
+    guard that IS the fence's last command is load-bearing — its status becomes
+    the script's — and one sitting beside a positive assertion is redundant but
+    harmless. docs/BACKLOG.md §78 measured both: of 50 instances in the
+    reporting corpus, ZERO were the only detector. Reporting a harmless one as a
+    defect is how a gate teaches people to ignore it (CLAUDE.md §3), so the
+    guard must be BOTH under errexit AND not last before it is named.
+
+    ⚠ A PROXY over arbitrary shell, like `assertion_segments` above, and it is
+    the same caveat: ADR-016 settled that structure cannot be safely inferred
+    from a shell fence. Read a hit as "this line cannot fail the script", which
+    is checkable, and never as "the fence proves nothing".
+
+    Returns the offending segments in written order; empty when the fence opens
+    with `set -o pipefail` and no errexit, which is this corpus's convention.
+    """
+    if not ERREXIT_RE.search(fence):
+        return []
+    # Split on the separators that end a command's status. `;` and a newline
+    # both leave the previous status discarded; `&&` short-circuits, which is
+    # the second inertness route §78 names — a `! grep … && next` never reaches
+    # `next` and never fails either.
+    segments = [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]
+    if not segments:
+        return []
+    # The LAST segment's status is the script's exit status, negated or not.
+    return [s for s in segments[:-1] if NEGATED_GREP_RE.match(s)]
 
 
 def rests_on(text):

@@ -700,7 +700,7 @@ def main():
     test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, verify, repo_root)
     test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint)
     test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint, repo_root)
-    test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint)
+    test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint, verify)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3772,24 +3772,50 @@ def test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint,
     print("PASS — a declaration smaller than the segment count is reported, in the counts taken")
 
 
-def test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint):
+def test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint, verify):
     """docs/BACKLOG.md §78 — inert is reported, load-bearing and redundant are not."""
     # THE SHELL FIRST, because the whole advisory rests on a POSIX claim and a
     # regex agreeing with itself proves nothing. `set -e` does not apply to a
     # command whose status is inverted with `!`, so the guard is skipped and the
     # script exits on what follows; the un-negated control does fail.
+    #
+    # ⚠ THROUGH resolve_bash(), NEVER a bare "bash". This test failed on the
+    # Windows CI job the first time it ran, in exactly the way CLAUDE.md §7
+    # describes: `subprocess.run(["bash", ...])` picked
+    # C:\Windows\System32\bash.exe, the WSL launcher, which has no distro
+    # installed and answered with UTF-16LE error text and rc=1. A test ABOUT
+    # shell behaviour, defeated by shell resolution — the resolver this
+    # repository already owns exists for precisely that, so it is used here.
+    shell = verify.resolve_bash()
     with tempfile.TemporaryDirectory() as tmp:
         out = Path(tmp) / "x.out"
         out.write_text("x\n", encoding="utf-8")
-        for shell in ("sh", "bash"):
-            r = subprocess.run(
-                [shell, "-c", f"set -e; ! grep -q FAIL {out}; echo REACHED; exit 7"],
-                capture_output=True, text=True)
-            assert r.returncode == 7 and "REACHED" in r.stdout, (shell, r.returncode, r.stdout)
-        control = subprocess.run(
-            ["sh", "-c", f"set -e; grep -q NOPE {out}; echo REACHED; exit 7"],
-            capture_output=True, text=True)
-        assert control.returncode == 1 and "REACHED" not in control.stdout, control.returncode
+        # POSIX path separators: the fence text is shell source, not a Windows
+        # argument, and a backslash in it would be an escape rather than a path.
+        target = out.as_posix()
+        if shell is None:
+            # ADR-005: say the check did not run rather than passing quietly. No
+            # POSIX shell is a real state on a bare Windows box, and a silent
+            # skip here would read exactly like a verified claim.
+            print("UNRUN — no POSIX shell resolved; the set -e claim was not executed here")
+        else:
+            # `sh` as well, but only off Windows — §78 recorded the claim in both
+            # shells and a bare `sh` there is the same WSL-stub gamble as `bash`.
+            shells = [shell] if sys.platform == "win32" else [shell, "sh"]
+            for sh in shells:
+                r = subprocess.run(
+                    [sh, "-c", f"set -e; ! grep -q FAIL {target}; echo REACHED; exit 7"],
+                    capture_output=True, text=True)
+                assert r.returncode == 7 and "REACHED" in r.stdout, (sh, r.returncode, r.stdout)
+                # The CONTROL, and it is what makes the pair evidence: the same
+                # command un-negated DOES fail under `set -e`. Without it the
+                # assertion above is satisfied by any shell that ignores `set -e`
+                # entirely, which proves nothing about the negation.
+                control = subprocess.run(
+                    [sh, "-c", f"set -e; grep -q NOPE {target}; echo REACHED; exit 7"],
+                    capture_output=True, text=True)
+                assert control.returncode == 1 and "REACHED" not in control.stdout, (
+                    sh, control.returncode, control.stdout)
 
     # INERT — errexit is on and the guard is not the last command. Reported.
     inert = "set -e\n! grep -q FAIL out\npython3 -m pytest x.py"

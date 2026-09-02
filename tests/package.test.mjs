@@ -324,7 +324,12 @@ function backlogHeadingsThatUndersell(text) {
   for (const [index, section] of sections.entries()) {
     const end = sections[index + 1]?.index ?? text.length
     const body = text.slice(section.index + section[0].length, end)
-    if (declaresClosure.test(body) && !new RegExp(words, 'i').test(section[2])) {
+    // WORD-BOUNDED on the heading side. Unanchored, `unresolved` matches
+    // RESOLVED and `incomplete` matches COMPLETE, so a section exempts itself by
+    // accident of wording — §1 did exactly that ("one unresolved Bash path")
+    // and hid a `**Done — a48c608**` body for weeks. Widening the vocabulary
+    // made the trap bigger, which is how it was found.
+    if (declaresClosure.test(body) && !new RegExp(`\\b(?:${words})\\b`, 'i').test(section[2])) {
       found.push(`§${section[1]} ${section[2].slice(0, 60)}`)
     }
   }

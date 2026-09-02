@@ -102,7 +102,7 @@ half remains deliberately unchanged.
 
 ---
 
-## 1. Commit gate: one unresolved Bash path bricks committing for the whole session
+## 1. CLOSED — a commit gate where one unresolved Bash path bricked committing for the whole session (`a48c608`)
 
 **Done — `a48c608`.** Neither of the two directions below: the sentinel is now resolved
 against the repository instead of being scoped or aged. An unresolved deletion records
@@ -256,7 +256,7 @@ source whose docstrings contain unbalanced backticks and assert the assertions *
 the docstrings survive; and a negative twin asserting the JS path still strips template
 literals.
 
-## 6. Found while fixing 2, 3 and 5 — not fixed
+## 6. CLOSED 2026-09-02 — three found while fixing §2, §3 and §5; the fourth was left on purpose
 
 None of these blocked the work above, and each is its own decision.
 
@@ -284,6 +284,27 @@ table item 3 added.
 **`tests/gate-regressions.py` has ~33 implicit-encoding `write_text` calls.** Deliberately
 left: it is the harness, and its fixtures are ASCII it wrote itself. Fixing them would let
 the strict flags run with no exception at all, which is the only reason to bother.
+
+---
+
+**CLOSED 2026-09-02.** Verified against the code rather than read off the entry, because this
+corpus keeps producing records that assert a defect already fixed:
+
+    isPotentialMutationCommand('git fsck 2>&-')      -> false   (was: read as a write)
+    isPotentialMutationCommand('echo x > /dev/null') -> false   (was: exclusion never applied)
+    isPotentialMutationCommand('git fsck 2>&1')      -> false   (§3's control, still closed)
+    isPotentialMutationCommand('echo x > out.txt')   -> true    (a real write still mutates)
+
+The last line is the one that makes the other three mean something: without it the result is
+equally consistent with a classifier that stopped reporting anything.
+
+The first item was already `**Done — 2913b57**`; the fourth is a deliberate boundary, not debt.
+
+**Why this sat unnoticed, and it is the finding worth keeping.** The heading read *"Found while
+fixing 2, 3 and 5 — not fixed"*. `tests/package.test.mjs::the backlog index does not undersell`
+exempts any section whose heading carries a closure word — and `fixed` is one, so the phrase **"not
+fixed"** exempted this section from the check written to catch exactly it. The gate cannot see
+negation, and the entry that says so most loudly is the one it skips.
 
 **Windows execution of the gate tests is unverified.**
 **Measured 2026-08-25, run `32882955305` — and the suite was the problem.** The first

@@ -368,6 +368,39 @@ test('every adr-retire-check row rule has a case that makes it fire', () => {
 
 // --- adr-debt: the pointer classifier and every failure report --------------
 
+test('the deferred headline counts debts, not the places they are written', () => {
+  // BACKLOG §85b, reported by two adopting corpora and sorted by both into
+  // "TRUE but I could not tell what to do next". One debt written in a task file
+  // AND its parent ADR is a row per location, and the headline counted rows: the
+  // reporting corpus read `9 deferred` and had 4-5 real debts, so a reader
+  // triaging it plans for twice the work that exists. Every ROW was true; the
+  // NUMBER misled.
+  const dir = scratch('debt-count')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(join(adrDir, 'ADR-001-probe', 'tasks'), { recursive: true })
+  writeFileSync(join(adrDir, 'notes.md'), '# Notes\n')
+  const punt = '- Rate limiting (deferred: notes.md)'
+
+  // The SAME debt, cited from a task file and from its parent record — which is
+  // what the template tells an author to do.
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'), `# ADR-001: Probe\n\n## Out of Scope\n\n${punt}\n`)
+  writeFileSync(join(adrDir, 'ADR-001-probe', 'tasks', 'T1-a.md'),
+    `# Task ADR-001-T1: a\n\n## Out of Scope\n\n${punt}\n`)
+  const twice = run('adr-debt', [adrDir], dir)
+  assert.match(twice.stdout, /2 deferred rows \(1 distinct\)/,
+    `one debt cited twice must not read as two: ${twice.stdout}`)
+
+  // ...and the plain count survives when the rows really are different debts, or
+  // the assertion above is satisfied by a gate that always says "distinct".
+  writeFileSync(join(adrDir, 'ADR-001-probe', 'tasks', 'T1-a.md'),
+    '# Task ADR-001-T1: a\n\n## Out of Scope\n\n- Retry policy (deferred: notes.md)\n')
+  const two = run('adr-debt', [adrDir], dir)
+  assert.match(two.stdout, /2 deferred ·/,
+    `two genuinely different debts keep the plain count: ${two.stdout}`)
+  assert.doesNotMatch(two.stdout, /distinct/,
+    'the distinct form must appear only when rows actually collapse')
+})
+
 test('adr-debt resolves the pointers it can, and reports the ones it cannot', () => {
   const dir = scratch('debt')
   const adrDir = join(dir, 'adr')

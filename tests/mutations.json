@@ -3840,6 +3840,24 @@
       ],
       "from": "  if (run.status !== 'completed' || unfinished.length) {",
       "to": "  if (run.status !== 'completed') {"
+    },
+    {
+      "label": "orphan: tests and records do not make a function reachable",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": [
+        "tests/orphan-sweep.test.mjs"
+      ],
+      "from": "const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')",
+      "to": "const SHIPPED = f => (f.startsWith('plugin/') || f.startsWith('tests/') || f === 'README.md')"
+    },
+    {
+      "label": "orphan: a definition is reached at two occurrences, not one",
+      "file": "scripts/orphan-sweep.mjs",
+      "tests": [
+        "tests/orphan-sweep.test.mjs"
+      ],
+      "from": "      if ((uses.get(m[1]) ?? 0) <= 1) found.push({ path, name: m[1] })",
+      "to": "      if ((uses.get(m[1]) ?? 0) <= 0) found.push({ path, name: m[1] })"
     }
   ]
 }

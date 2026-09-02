@@ -1101,6 +1101,11 @@ def recover_mutant(cwd):
 
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                covers=None):
+    # ADR-025: taken HERE, before this function writes anything at all. The
+    # journal below and the verification entry this run records both modify the
+    # tree, so a sha read later would carry the dirty marker `*` earned by our
+    # own writes — evidence saying the code was uncommitted when it was not.
+    entry_sha = git_sha(cwd)
     """Break one mechanism, run the task's own fence, and record whether it noticed.
 
     Never returns — every path exits. The file is restored in `finally`, which
@@ -1253,6 +1258,10 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # timeout the mutant will receive. This guard is deliberately one unique
         # branch: the mutation catalogue disables it and the CLI regression must
         # then catch the false verdict.
+        # ADR-025: time it, because this run is about to be RECORDED rather than
+        # discarded. Monotonic for the reason main() gives — a clock that steps
+        # backwards turns a finding about NTP into a finding about the work.
+        clean_started = time.monotonic()
         try:
             clean = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
                                    text=True, encoding="utf-8", errors="replace",
@@ -1270,6 +1279,30 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
 
         clean_out = (clean.stdout or "") + (clean.stderr or "")
         clean_usable = clean.returncode == 0 and not scored_nothing(clean_out)
+        # ADR-025. This run happened: the exact normalized fence, same shell, cwd,
+        # environment and timeout the mutant will get. That is the observation a
+        # Verification Log entry records, and until now it was checked and thrown
+        # away while adr-execute had the agent run the identical fence on
+        # identical bytes seconds earlier — 94 of 281 executions in this corpus.
+        # Nothing is reused, cached or skipped; the row is written from THIS run,
+        # which is why ADR-010 needs no narrowing for it.
+        #
+        # ⚠ ORDERING, AND IT IS THE WHOLE CORRECTNESS ARGUMENT. The entry is
+        # written only on a path where NO MUTANT FENCE WILL RUN AFTERWARDS.
+        #
+        # Written before the mutant instead, this file's own bookkeeping joins
+        # the tree the mutant's fence reads, so the clean run and the mutant run
+        # differ in TWO things rather than one — and ADR-016's premise is that
+        # they differ only in the mutation. The existing suite caught it inside
+        # an hour: `a mutant the fence cannot notice is recorded as survived`
+        # went from exit 1 to exit 0, a survivor credited as a KILL by our own
+        # write, which is precisely the fabricated evidence this tool exists to
+        # make impossible. The clean-fence-failed path below runs no mutant, so
+        # it records here; the path that does run one records after its verdict.
+        # fails is still an observation, and today the UNPROVEN path exits having
+        # recorded nothing at all — losing the one thing the run did establish.
+        # It is also written before the source is mutated, so ADR-002's restore
+        # this file's own bookkeeping out of the tree the mutant's fence reads.
         if not clean_usable:
             machine_reason = environment_failure(clean_out, cmd)
             if machine_reason:
@@ -1282,6 +1315,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                   f"Log row was written.")
             for line in failure_tail(clean.stdout, clean.stderr):
                 print(f"  {line}")
+            # No mutant ran on this path, so recording here cannot contaminate one.
+            record_run(task, text, cmd, today, clean, clean_started, entry_sha)
             sys.exit(1)
 
         # The baseline itself may have materialized outputs. Re-establish the
@@ -1403,6 +1438,13 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         print(f"[adr-verify] NOT evidence: {detail}. Only `killed` counts "
               f"(adr-verify exits 1; the `exit 0` in the row above is the FENCE's code, "
               f"which is what a survivor means).")
+    # The mutant has been judged and its source restored. Now the clean run that
+    # made this verdict possible is recorded — the same observation the plain
+    # path writes, from a run this process really took, on the tree in front of
+    # it. `text` is re-read because the Mutation Log row above already changed
+    # the file, and appending from a stale copy would drop it.
+    record_run(task, task.read_text(encoding="utf-8"), cmd, today, clean,
+               clean_started, entry_sha)
     sys.exit(0 if verdict == "killed" else 1)
 
 
@@ -1992,6 +2034,79 @@ def runs_nothing(fence):
     return not any(line.strip() and not line.strip().startswith("#")
                    for line in (fence or "").splitlines())
 
+def record_run(task, text, cmd, today, result, started, sha):
+    """Append the `## Verification Log` entry for a fence run that HAPPENED.
+
+    ADR-025. Extracted from `main()` so the `--mutant` path can record the clean
+    fence it already runs instead of discarding it. ONE writer, deliberately:
+    the entry grammar lives in several places already (ADR-020's note on the
+    `ms:` field says four), and a fifth spelling is how two paths come to write
+    different rows for the same observation. The pre-registered criterion of
+    ADR-025 is exactly that drift, so this function is the mitigation.
+
+    ⚠ It records; it never decides whether a run was ALLOWED. Callers keep their
+    own refusals — `--mutant` still exits UNPROVEN on an unusable clean fence,
+    and the entry it wrote first is the observation that run genuinely made,
+    which today is thrown away in silence.
+
+    Returns the exit code the run earned, which is not always the subprocess's:
+    a fence that exits 0 having scored no tests is recorded as a failure,
+    because a filter matching nothing is not a passing gate.
+    """
+    output = result.stdout + result.stderr
+    code = result.returncode
+    stdout_text, stderr_text = result.stdout or "", result.stderr or ""
+    empty = code == 0 and scored_nothing(output)
+    if empty:
+        # Recorded as a failure, because that is what it is. The task's tests do
+        # not exist yet, or the filter no longer matches their names.
+        code = 1
+        stderr_text += ("\n[adr-verify] the acceptance command exited 0 but scored NO tests. "
+                   "A filter that matches nothing is not a passing gate — write the tests "
+                   "the Tests table names, or fix the filter so it selects them.")
+
+    if code != 0:
+        diagnosis = environment_failure(output, cmd)
+        if diagnosis:
+            note = (f"\n[adr-verify] ENVIRONMENT: {diagnosis}\n"
+                    "             This is a machine problem, not a verdict about the code. "
+                    "The run still counts as failed.")
+            output += note
+            # Into stderr_text too, or the note is printed and not RECORDED: the
+            # block is built per stream now, so anything appended to the merged
+            # text alone reaches the reader and never the task file
+            # (docs/BACKLOG.md §54).
+            stderr_text += note
+
+    lines = cmd.splitlines()
+    first = lines[0].strip().replace("`", "'") + (" …" if len(lines) > 1 else "")
+    digest = acceptance_digest(cmd)
+    # ADR-020: a value the task file cannot produce. Every other field in this
+    # entry is computable by anyone holding the file, which makes the acceptance
+    # digest a fence-drift detector and not evidence that a command ran. A
+    # duration is not in the file, so an agent that would rather type the row than
+    # run the fence has to invent one — and an invented one has to survive a floor.
+    elapsed_ms = max(0, round((time.monotonic() - started) * 1000))
+    entry = (f"- {today} · {sha} · exit {code} · `{first}` · "
+             f"acceptance-sha256:{digest} · ms:{elapsed_ms}")
+    refuse_unreadable(entry, sha)
+    block = entry
+    if code != 0:
+        out = failure_tail(stdout_text, stderr_text)
+        block += "\n" + "\n".join(["  ```"] + ["  " + ln for ln in out] + ["  ```"])
+    append_entry(task, text, block)
+    # Say that the file was WRITTEN. Recording the run is the point of this tool —
+    # evidence is tool-written or it is not evidence — but nothing said so, and a
+    # session that ran it on a hint from the session hook watched `git status` go
+    # dirty from what read as a read-only verification. Reported 2026-08-29
+    # (docs/BACKLOG.md §57). The surprise is not the write; it is the silence.
+    print(f"[adr-verify] WROTE this entry into {task}'s ## Verification Log — "
+          f"recording the run IS this tool's job, so the file is now modified; "
+          f"commit it with the work it evidences.")
+    print(block)
+    return code
+
+
 
 def main():
     args, task, cwd, human = sys.argv[1:], None, None, None
@@ -2239,57 +2354,7 @@ def main():
 
     sha = git_sha(cwd)
 
-    output = r.stdout + r.stderr
-    code = r.returncode
-    stdout_text, stderr_text = r.stdout or "", r.stderr or ""
-    empty = code == 0 and scored_nothing(output)
-    if empty:
-        # Recorded as a failure, because that is what it is. The task's tests do
-        # not exist yet, or the filter no longer matches their names.
-        code = 1
-        stderr_text += ("\n[adr-verify] the acceptance command exited 0 but scored NO tests. "
-                   "A filter that matches nothing is not a passing gate — write the tests "
-                   "the Tests table names, or fix the filter so it selects them.")
-
-    if code != 0:
-        diagnosis = environment_failure(output, cmd)
-        if diagnosis:
-            note = (f"\n[adr-verify] ENVIRONMENT: {diagnosis}\n"
-                    "             This is a machine problem, not a verdict about the code. "
-                    "The run still counts as failed.")
-            output += note
-            # Into stderr_text too, or the note is printed and not RECORDED: the
-            # block is built per stream now, so anything appended to the merged
-            # text alone reaches the reader and never the task file
-            # (docs/BACKLOG.md §54).
-            stderr_text += note
-
-    lines = cmd.splitlines()
-    first = lines[0].strip().replace("`", "'") + (" …" if len(lines) > 1 else "")
-    digest = acceptance_digest(cmd)
-    # ADR-020: a value the task file cannot produce. Every other field in this
-    # entry is computable by anyone holding the file, which makes the acceptance
-    # digest a fence-drift detector and not evidence that a command ran. A
-    # duration is not in the file, so an agent that would rather type the row than
-    # run the fence has to invent one — and an invented one has to survive a floor.
-    elapsed_ms = max(0, round((time.monotonic() - started) * 1000))
-    entry = (f"- {today} · {sha} · exit {code} · `{first}` · "
-             f"acceptance-sha256:{digest} · ms:{elapsed_ms}")
-    refuse_unreadable(entry, sha)
-    block = entry
-    if code != 0:
-        out = failure_tail(stdout_text, stderr_text)
-        block += "\n" + "\n".join(["  ```"] + ["  " + ln for ln in out] + ["  ```"])
-    append_entry(task, text, block)
-    # Say that the file was WRITTEN. Recording the run is the point of this tool —
-    # evidence is tool-written or it is not evidence — but nothing said so, and a
-    # session that ran it on a hint from the session hook watched `git status` go
-    # dirty from what read as a read-only verification. Reported 2026-08-29
-    # (docs/BACKLOG.md §57). The surprise is not the write; it is the silence.
-    print(f"[adr-verify] WROTE this entry into {task}'s ## Verification Log — "
-          f"recording the run IS this tool's job, so the file is now modified; "
-          f"commit it with the work it evidences.")
-    print(block)
+    code = record_run(task, text, cmd, today, r, started, sha)
     sys.exit(code)
 
 

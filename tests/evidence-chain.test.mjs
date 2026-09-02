@@ -117,7 +117,15 @@ test('adr-lint accepts the entry adr-verify wrote, as it wrote it', () => {
   // This was the FIFTH place the entry grammar is written down — two patterns in
   // adr-lint, one in adr-next, the writer's own refusal check, and here. The
   // parent record predicted a fourth. That count is the real cost of the field.
-  assert.match(entry, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · `[^`]+` · acceptance-sha256:[0-9a-f]{64} · ms:\d+$/)
+  // EVERY line, not the section as one blob. Since ADR-025 the `--mutant` run
+  // records the clean fence it takes, so this task now carries two entries — two
+  // runs really happened — and a whole-section match would only ever assert the
+  // single-entry case. Asserting each line is the stronger form anyway.
+  const written = entry.split('\n').filter(l => l.startsWith('- '))
+  assert.equal(written.length, 2, `expected the mutant's entry and the plain one:\n${entry}`)
+  for (const line of written) {
+    assert.match(line, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · `[^`]+` · acceptance-sha256:[0-9a-f]{64} · ms:\d+$/)
+  }
 
   const mutation = readTask(copy).split('## Mutation Log')[1].trim()
   assert.match(mutation, /^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · mutant killed · exit \d+ · `[^`]+` · [^·]+ · acceptance-sha256:[0-9a-f]{64}$/)
@@ -230,7 +238,12 @@ test('the entry names the commit it was produced at, and says when the tree was 
   // Clean tree: a bare short sha, no marker.
   expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify on a clean tree')
   const clean = readTask(copy).split('## Verification Log')[1]
-    .split('## Mutation Log')[0].trim().split('\n')[0]
+  // The LAST entry is the one the run above wrote. Since ADR-025 the mutation
+  // pass records its own clean run too, and that earlier entry is legitimately
+  // marked dirty: addMutationLog() edited the task file before it ran, so the
+  // tree really was uncommitted. Reading `[0]` here would assert the dirty
+  // marker against an entry that is correct to carry it.
+    .split('## Mutation Log')[0].trim().split('\n').filter(l => l.startsWith('- ')).at(-1)
   const sha = /· ([0-9a-f]{7,40})(\*?) ·/.exec(clean)
   assert.ok(sha, `no sha field in: ${clean}`)
   assert.equal(sha[2], '', 'a clean tree must not carry the dirty marker')
@@ -2219,4 +2232,95 @@ test('a Blocked-on with an unpaired backtick is still asked for a way to check',
   const quiet = `${lint(ok).stdout ?? ''}${lint(ok).stderr ?? ''}`
   assert.doesNotMatch(quiet, /could not find a way to check/,
     `a real command must silence it: ${quiet.slice(0, 400)}`)
+})
+
+// ADR-025. `--mutant` already runs the acceptance fence CLEAN before it applies
+// the mutant (ADR-016: a failure that already exists cannot be donated), and
+// then throws the result away — while adr-execute step 4 has the agent run the
+// identical fence on identical bytes seconds earlier. Measured 2026-09-02 across
+// this corpus: 94 of 281 fence executions, a third, are that duplicate.
+// Nothing here reuses, caches or skips a run. The run happened; it is recorded.
+const ENTRY_RE =
+  // `no-git` is what git_sha() returns in a temp corpus that is not a repository,
+  // and the entry grammar accepts it — a regex that only allowed hex made this
+  // suite blind to every entry it was about to assert on.
+  /^- \d{4}-\d\d-\d\d · (?:[0-9a-f]{7,40}|no-git)\*? · exit \d+ · `[^`]+` · acceptance-sha256:[0-9a-f]{64} · ms:\d+$/m
+const sectionOf = (text, heading) => {
+  const body = text.split(`## ${heading}`)[1] ?? ''
+  return body.split(/^## /m)[0]
+}
+const entriesIn = text => sectionOf(text, 'Verification Log')
+  .split('\n').filter(l => ENTRY_RE.test(l))
+
+test('a mutant run records the verification entry its clean fence earned', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  assert.equal(entriesIn(readTask(copy)).length, 0, 'fixture starts with no entry')
+
+  const result = mutate(copy)
+  expectExit(result, 0, 'the mutant is killed as before')
+  const after = readTask(copy)
+
+  // Exactly one, and in the plain path's grammar — one writer, not a second
+  // spelling. A drifted row is the pre-registered failure of this record.
+  assert.equal(entriesIn(after).length, 1, `expected one entry:\n${entriesIn(after).join('\n')}`)
+  assert.match(sectionOf(after, 'Mutation Log'), /mutant killed/, 'the mutation row is still written')
+})
+
+// The ordering this asserts was WRONG in the first draft of ADR-025, and the
+// existing suite is what caught it: the entry was written before the mutant, so
+// the mutant's fence read a tree that differed from the clean baseline in two
+// things — the mutation AND our own bookkeeping — and a survivor came back
+// credited as a kill. ADR-016's premise is that they differ only in the
+// mutation, so the entry is now written after the verdict. This test exists to
+// keep it there.
+test('recording the run does not change the verdict the mutant earned', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  addBlindSpot(copy)
+  // A mutant nothing reads: it MUST survive, and a survivor is exit 1. If the
+  // entry write leaked into the tree the mutant fence reads, this comes back 0.
+  const survived = verify(copy, [
+    '--cwd', '.', '--mutant', 'unused.py',
+    '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99',
+    '--why', 'nothing reads this, so nothing can go red',
+  ])
+  expectExit(survived, 1, `a survivor must not be credited as a kill:\n${survived.stdout}`)
+  // And the run was still recorded — the point of the record, not just its safety.
+  assert.equal(entriesIn(readTask(copy)).length, 1, 'the clean run is recorded anyway')
+})
+
+test('the verification entry outlives the restore', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'mutant killed')
+  assert.equal(entriesIn(readTask(copy)).length, 1, 'the entry outlived the restore')
+  assert.match(readFileSync(join(copy, 'ADR-001-selftest.md'), 'utf8'),
+    /## Alternatives Considered/, 'the mutated file was restored')
+})
+
+test('a failing clean fence is recorded before it is refused', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  // Break the fence itself. The clean run now fails, so no mutant may be judged
+  // — but the run is a real observation and today it is discarded in silence.
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/,
+    '```bash\nexit 3\n```'))
+  const result = mutate(copy)
+  assert.notEqual(result.status, 0, `the refusal is unchanged:\n${result.stdout}`)
+  assert.match(result.stdout, /UNPROVEN/, result.stdout)
+  const after = readTask(copy)
+  assert.equal(entriesIn(after).length, 1, 'the observation the run made is kept')
+  assert.match(entriesIn(after)[0], /exit 3/, entriesIn(after)[0])
+  assert.doesNotMatch(sectionOf(after, 'Mutation Log'), /mutant/, 'no mutation row for a refused run')
+})
+
+test('a plain run still writes no mutation row', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'the plain path is unchanged')
+  const after = readTask(copy)
+  assert.equal(entriesIn(after).length, 1, 'one entry, as always')
+  assert.doesNotMatch(sectionOf(after, 'Mutation Log'), /mutant/,
+    'the two paths did not collapse into one command')
 })

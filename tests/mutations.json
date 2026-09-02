@@ -4020,6 +4020,15 @@
       ],
       "from": "    match = BARE_WAIT_RE.search(fence)\n    return match.group(0) if match else None",
       "to": "    return None"
+    },
+    {
+      "label": "verify: a mutant run records the verification entry its clean fence earned",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_started, entry_sha)",
+      "to": "    pass"
     }
   ]
 }

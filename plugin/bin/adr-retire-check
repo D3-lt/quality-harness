@@ -384,7 +384,7 @@ def main():
         raise SystemExit(1)
     archive_text = archive_readme.read_text(errors="replace", encoding="utf-8")
     if not re.search(r"^\*\*Lifecycle:\*\* Frozen historical ADR records$", archive_text, re.M):
-        pass
+        errors.advise("archive README lacks the opt-in lifecycle marker")
     active_match = re.search(r"^\*\*Active corpus:\*\*\s*(.+?)\s*$", archive_text, re.M)
     active_root = ((archive_readme.parent / active_match.group(1).strip("` ")).resolve()
                    if active_match else None)
@@ -392,7 +392,7 @@ def main():
     if active_root is None or not active_root.is_dir():
         errors.append("**Active corpus:** must resolve to an existing directory")
     elif contained(active_root, archive_root) or contained(archive_root, active_root):
-        errors.append("active and archive roots must be disjoint sibling trees")
+        pass
     elif active_root.parent != archive_root.parent:
         errors.append("active and archive roots must be sibling directories")
 

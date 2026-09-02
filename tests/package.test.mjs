@@ -526,6 +526,21 @@ test('continuous integration runs the checks this repository owns', () => {
   // check in this repository that could silently stop being run.
   assert.match(workflow, /node scripts\/mutate\.mjs/)
   assert.match(workflow, /^ {2}mutations:$/m)
+  // ADR-023 T1. The shard count appears in THREE places — the job name, the
+  // matrix list, and the `--shard i/n` argument — and a job named `x/8` running
+  // `--shard x/4` silently skips half the catalogue while reporting success.
+  // Derived from the file rather than hardcoded, so raising the count again is
+  // one edit and this still checks that the three agree.
+  const shardName = workflow.match(/^ {4}name: mutations \$\{\{ matrix\.shard \}\}\/(\d+)$/m)
+  const shardArg = workflow.match(/--shard \$\{\{ matrix\.shard \}\}\/(\d+)/)
+  const shardList = workflow.match(/^ {8}shard: \[([\d, ]+)\]$/m)
+  assert.ok(shardName && shardArg && shardList, 'the mutation job must name its shard count in all three places')
+  const declared = Number(shardName[1])
+  assert.equal(Number(shardArg[1]), declared, 'the --shard argument disagrees with the job name')
+  assert.equal(shardList[1].split(',').length, declared, 'the matrix has a different number of shards than the job name claims')
+  assert.deepEqual(shardList[1].split(',').map(s => Number(s.trim())),
+    Array.from({ length: declared }, (_, i) => i + 1),
+    'the matrix must list every shard from 1 to n exactly once — a gap drops entries silently')
   assert.match(workflow, /QUALITY_HARNESS_COVERAGE_STRICT: '1'/)
   // Pull requests must be covered; a workflow that only runs on push to main
   // reports regressions after they land.

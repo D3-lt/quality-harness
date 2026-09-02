@@ -123,6 +123,29 @@ chained so both must pass:
 The general form, worth asking of any aggregate gate: which of these subjects could carry the
 verdict by itself?
 
+⚠ **THE FENCE IS RUN AT LEAST TWICE PER TASK, BY DESIGN — so its cost is multiplied, not paid
+once.** Green runs it, then `adr-verify` runs it AGAIN to record what it observed, and a
+`--mutant` run is a third. A whole-repository default therefore costs three times what it looks
+like, per task, and again for every task in the wave.
+
+Reported 2026-09-02 from an adopting corpus that had been waiting half an hour: their fence was
+`go test ./...`, and their own output shows what scoping was available and unused —
+
+    FAIL  …/internal/web        43.837s
+    ok    …/internal/web/assets  0.020s
+    ok    …/migrations          (cached)
+
+**Name the package or path this task changed.** `go test ./internal/web/...`, `pytest tests/web`,
+`node --test tests/web.test.mjs` — the same fence, scoped to the code the task touched. This is not
+in tension with the regression half above: the second command still runs the suites that could
+break, and both still have to pass. What comes out is the packages this task could not have
+affected, which is where a whole-repo default spends its time.
+
+**Scoping is not narrowing the claim.** The rules above still hold — the new unit must be able to
+carry the verdict alone, and the falsifiability fixture must be INSIDE the command. A fence that
+runs less code proves the same thing faster; a fence that asserts less proves less. Only the first
+is what this asks for.
+
 And the inverse, which is worse because it reads as success. A fence narrow enough to name ONE test
 leaves everything else outside it — including the fixture that proves the test can fail. Reported
 2026-08-27 from a Go corpus: the falsifiability case had to become a SUBTEST rather than a sibling,

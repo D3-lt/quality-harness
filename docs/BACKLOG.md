@@ -4962,7 +4962,7 @@ so that if a corpus ever feeds this gate a machine-generated line, the number is
 anyone's memory: candidates by pattern shape, then timing on input the regex REJECTS. The second
 half is the part that matters; the first half alone would have flagged sixteen innocents.
 
-## 82. `BROKEN` is the wrong word for "the target is in another repository"
+## 82. CLOSED 2026-09-02 by ADR-024 — `BROKEN` was the wrong word for "the target is in another repository"
 
 **Reported 2026-08-30 by klientams-front-v2-01**, who ran the current gates from this working tree
 against their own finished corpus. Both `adr-lint` runs passed. `adr-debt` exited 1, and the whole
@@ -5007,6 +5007,37 @@ pointer that resolves is not a pointer that was honoured, and nothing here can c
 a cross-repo edge); and whether "external" is a property of the pointer or of the corpus.
 
 **Not fixed. It wants its own record**, because it changes a shared vocabulary three tools read.
+
+
+---
+
+**CLOSED 2026-09-02 by ADR-024 T1 and T2**, both with tool-written acceptance and a killed mutant.
+
+    UNRESOLVED [adr] …: ('ADR-007') A CourierInterface/registry …
+      (a typo, or a record owned by another repository. This gate reads one tree and
+       cannot tell those apart — fix the id, or declare the target with
+       `(external: <where>: <pointer>)`)
+
+    external → backend repo: ADR-007 — A CourierInterface/registry     [exit 0]
+
+The entry declined to propose a spelling and asked that it be designed. What decided it is the
+question it raised: *how does a reader distinguish a genuinely external target from a typo that
+merely looks external?* They cannot, and neither can the gate. So the design refuses to guess — the
+author DECLARES, and a typo does not produce a declaration. `<where>` is required, because the
+column exists to answer who owns it.
+
+**Both gates read one grammar.** A spelling `adr-debt` accepts and `adr-lint` rejects would be worse
+than none: the author would be told to fix something that already works.
+
+**Two defects in the implementation, each caught by exercising it rather than by review:**
+
+- An `external:` with no owner was **silently dropped** — it now reports `external-no-owner` and
+  exits 1. Letting a half-written declaration read as a settled one is precisely the state this
+  disposition exists to prevent.
+- The tasks' own Acceptance fences ran `gate-regressions.py` and `gates.test.mjs` while every
+  assertion lives in `gate-rules.test.mjs`, so **both mutants survived the fence while coming back
+  RED under the campaign**. `adr-lint` refused the `done` rows until the fences were corrected and
+  the evidence re-taken, which is the evidence chain working on its own author.
 
 ## 83. A task waiting on a DECISION nobody has made has no header, and rots silently
 

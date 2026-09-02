@@ -53,6 +53,50 @@ function lint(doc, files = {}, afterCommit = {}) {
 // The positive control, asserted ONCE rather than per-test: if the conforming
 // fixture drew findings, every "the broken one is reported" assertion below would
 // be satisfied by a gate that reports everything.
+// Issue #7, reported from outside against 2.50.0 and re-verified on 2.52.0.
+// AT THE BOUNDARY THE REPORT CAME THROUGH — the real `arch-lint` binary over a
+// real architecture doc and a real Go file — because CLAUDE.md §4 says a fix
+// verified only by its own new unit assertions has been tested at the FUNCTION
+// and not at the entry point. `symbol_body` and `code_only` were both correct in
+// isolation; the defect lived in the ORDER their caller composed them.
+const RULE = /## Concept Ownership \(DRY\)\n\nNone — fixture owns no shared concept\.\n/
+const cites = (test_) => conforming.replace(RULE,
+  `## Concept Ownership (DRY)\n\n| Concept | Owner | Check |\n|---|---|---|\n`
+  + `| paths | \`sep.go\` | \`${test_}\` |\n`)
+
+test('a test whose only assertion follows a "//" literal is not called unable to fail', () => {
+  // The FALSE ALARM direction. The literal `"//"` used to eat its own closing
+  // quote and the `{` after it, truncating the body above the t.Errorf.
+  const go = 'package a\n\nfunc TestGuard(t *testing.T) {\n'
+    + '\tif strings.HasPrefix(s, "//") {\n\t\treturn\n\t}\n\tt.Errorf("real")\n}\n'
+  assert.doesNotMatch(lint(cites('TestGuard'), { 'sep_test.go': go, 'sep.go': 'package a\n' }),
+    /no failure call is reachable/,
+    'a test that demonstrably goes red must not be reported as unable to')
+})
+
+test('a vacuous test cannot borrow a later test\'s assertion through a "//" literal', () => {
+  // The FALSE PASS direction, and the severe one: `arch-lint` exists to say that
+  // a test which cannot go red is evidence of nothing, and this signed off on
+  // exactly that. The eaten `}` left the brace count unbalanced, so symbol_body
+  // returned the rest of the file and read TestLater's t.Fatal as TestVacuous's.
+  const go = 'package a\n\nfunc TestVacuous(t *testing.T) {\n'
+    + '\tseps := []string{"/", "//"}\n\t_ = seps\n}\n\n'
+    + 'func TestLater(t *testing.T) {\n\tt.Fatal("real")\n}\n'
+  assert.match(lint(cites('TestVacuous'), { 'sep_test.go': go, 'sep.go': 'package a\n' }),
+    /names the test `TestVacuous`, but no failure call is reachable/,
+    'a test asserting nothing must not be certified able to fail')
+})
+
+test('an assertion that appears only inside a comment still does not count', () => {
+  // The property `code_only` was added for, asserted here so the reordering
+  // cannot quietly trade one defect for the other. Stripping the EXTRACTED body
+  // keeps this true while letting the extractor see real braces.
+  const go = 'package a\n\nfunc TestCommented(t *testing.T) {\n'
+    + '\t// t.Errorf("not real")\n\t_ = 1\n}\n'
+  assert.match(lint(cites('TestCommented'), { 'sep_test.go': go, 'sep.go': 'package a\n' }),
+    /names the test `TestCommented`, but no failure call is reachable/)
+})
+
 test('the conforming fixture draws none of the findings under test', () => {
   const clean = lint(conforming)
   for (const pattern of [/no \*\*Status:\*\*/, /no \*\*Gate command:\*\*/, /missing section/,

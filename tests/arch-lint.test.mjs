@@ -111,6 +111,29 @@ test('an assertion that appears only inside a comment still does not count', () 
     /names the test `TestCommented`, but no failure call is reachable/)
 })
 
+test('a test that delegates its assertions to a same-file helper is not called unable to fail', () => {
+  // Issue #7 point 2, the half left open when the "//" defect was fixed.
+  // `adr-lint` already follows one level into a same-file helper and says so in
+  // its message; `arch-lint` did not, so a test whose assertions live in a
+  // shared helper read as unable to go red. Same divergence, same direction as
+  // the ordering defect: one gate hardened, its sibling left carrying the hole.
+  const go = 'package a\n\nfunc TestDelegates(t *testing.T) {\n\tcheckIt(t, 1)\n}\n'
+    + '\nfunc checkIt(t *testing.T, n int) {\n\tif n != 1 {\n\t\tt.Errorf("real")\n\t}\n}\n'
+  assert.doesNotMatch(lint(cites('TestDelegates'), { 'sep_test.go': go, 'sep.go': 'package a\n' }),
+    /no failure call is reachable/,
+    'a test whose assertions live in a helper it hands the handle to can still go red')
+})
+
+test('delegating to a helper that asserts nothing is still reported', () => {
+  // The other direction, and without it the change above is satisfied by a gate
+  // that stopped reporting anything. The helper exists and is called; it simply
+  // cannot fail, which is exactly what this check is for.
+  const go = 'package a\n\nfunc TestHollow(t *testing.T) {\n\tnoop(t, 1)\n}\n'
+    + '\nfunc noop(t *testing.T, n int) {\n\t_ = n\n}\n'
+  assert.match(lint(cites('TestHollow'), { 'sep_test.go': go, 'sep.go': 'package a\n' }),
+    /names the test `TestHollow`, but no failure call is reachable/)
+})
+
 test('the conforming fixture draws none of the findings under test', () => {
   const clean = lint(conforming)
   for (const pattern of [/no \*\*Status:\*\*/, /no \*\*Gate command:\*\*/, /missing section/,

@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-002-a-mutant-restore-outlives-its-process.md, docs/adr/ADR-003-a-gate-asserts-behaviour-not-shape.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-014-a-task-that-is-honestly-unfinished.md, docs/BACKLOG.md §74, docs/BACKLOG.md §60
 **Governs:** `plugin/bin/adr-verify`, `plugin/bin/adr-lint`, `plugin/templates/task-template.md`
-**Enforced-by:** ADR-013: the human mutation arm still refuses a kill on a passing test, ADR-013: from/to are code spans so a mutated line may hold a backtick
+**Enforced-by:** ADR-013: the human mutation arm still refuses a kill on a passing test, `ADR-013: from/to are code spans, so a mutated line may hold a backtick`
 **Served-path change:** A task whose Acceptance cannot run — because a clause of it is blocked — can record a mutation it genuinely performed, and a reader can check that record without trusting the author.
 
 ## Context

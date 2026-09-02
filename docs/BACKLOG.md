@@ -4377,7 +4377,7 @@ the same distinction this project holds its gates to, applied by a reporter to t
 - Nothing in 2.0.12-2.0.15 was verified live, for the reason in item 12: the hooks acting
   on a session run from a different clone than the one being edited.
 
-## 76. `Enforced-by:` splits on comma, and 80 of 345 mutation labels contain one
+## 76. CLOSED 2026-09-02 — `Enforced-by:` split on comma, and 80 of 345 mutation labels contained one
 
 **Found 2026-08-30 while executing ADR-013 T1**, by trying to name a new mutation in the record's
 own `Enforced-by:` header and watching the gate report two pointers where one was written.
@@ -4419,6 +4419,39 @@ pricing first.
 **Sibling left open deliberately:** whether the same split is used by any other header that names
 a check. Not swept — the class is "a structured header whose separator can occur inside its
 values", and `Enforced-by:` is the only member confirmed.
+
+---
+
+**CLOSED 2026-09-02 — the mechanism was already fixed; what was left was the workaround.**
+
+`enforcement_pointers()` in `plugin/bin/adr-lint` takes the third option this entry priced as worth
+pricing first, in the shape of the second: **a backticked span is one item, commas inside it
+included**, and whatever falls outside the backticks is then comma-separated. Its own comment
+records the intermediate mistake — a first fix that split on all commas and broke every label
+containing one — and both cases are in the shared truth table. `Rests-on:` (ADR-022) reuses the
+same grammar, so an author who has written one header has written the other.
+
+Verified rather than read, 2026-09-02:
+
+    bare (as this entry wrote it): ['ADR-013: from/to are code spans', 'so a mutated line may…']
+    backticked:                    ['ADR-013: from/to are code spans, so a mutated line may…']
+    mixed `x, y`, adr-lint:        ['x, y', 'adr-lint']
+
+**But this entry's own scar was still in the corpus.** ADR-013's `Enforced-by:` still carried the
+renamed, comma-free label — the workaround this entry describes making. It has been restored to
+the descriptive form and backticked, so the fix is now exercised on real corpus content and not
+only on fixtures. `adr-lint` resolves it, exit 0, with no pointer advisory.
+
+**The class, swept rather than assumed** — every `Enforced-by:` pointer in all 22 records:
+
+    for f in docs/adr/ADR-*.md; do python3 plugin/bin/adr-lint "$f" | grep -i "Enforced-by names"; done
+    → no output: every pointer in the corpus resolves
+
+The backticked form is already the house convention — 8 of the 9 multi-pointer headers use it. The
+count today is **90 of 425**, up from 80 of 345, so the naming convention this entry defended has
+gone on being used, which is the outcome it wanted.
+
+**The sibling above stays open**: no other header with the same shape has been swept.
 
 ## 77. The backtracking fix has a regression test and no catalogue mutation
 

@@ -1179,6 +1179,28 @@ def main():
     lint.check_dag(infos, "", errors)
     assert errors and "cycle" in errors[0], errors
 
+    # BACKLOG §85a. A cycle message must name WHERE each edge came from. The
+    # reporter got `T3 -> T5 -> T3`, correct and unactionable: the edges were
+    # derived from a shared backticked token in several Produces/Consumes lines,
+    # so they diffed six task headers by hand to find which line made the edge.
+    # `dag_edges` already computed a reason per edge; the message dropped it.
+    infos = {"T1": task("T1", produces="`is_heavy`", consumes="`ready`"),
+             "T2": task("T2", produces="`ready`", consumes="`is_heavy`")}
+    errors = []
+    lint.check_dag(infos, "", errors)
+    assert errors and "cycle" in errors[0], errors
+    assert "is_heavy" in errors[0] and "ready" in errors[0], (
+        "a cycle message must name the tokens that created its edges: " + errors[0])
+    assert "Consumes" in errors[0], (
+        "and which header line made each edge: " + errors[0])
+
+    # ...and a Depends-on cycle still reads plainly, so the reason text does not
+    # turn a simple message into noise.
+    infos = {"T1": task("T1", dep="T2"), "T2": task("T2", dep="T1")}
+    errors = []
+    lint.check_dag(infos, "", errors)
+    assert "Depends-on" in errors[0], errors[0]
+
     # An ordering edge with no Depends-on anywhere: T2 consumes a token T1
     # produces. This is the edge a hand-written README cannot be expected to know
     # about, which is exactly why the gate derives it.

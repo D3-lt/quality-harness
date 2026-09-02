@@ -1650,7 +1650,16 @@ def check_dag(infos, readme_text, errors):
     edges = dag_edges(infos)
     cyc = find_cycle(edges, infos.keys())
     if cyc:
-        errors.append(f"tasks: dependency cycle: {' → '.join(cyc)}")
+        # BACKLOG §85a. The node list alone is true and unactionable: the reporter
+        # got `T3 → T5 → T3`, and the edges came from a shared backticked token in
+        # several Produces/Consumes lines, so they diffed six task headers by hand
+        # to find which one created the edge. `dag_edges` already computes a reason
+        # per edge — it was simply dropped here.
+        why = {(a, b): reason for a, b, reason in edges}
+        steps = [f"{cyc[i]} → {cyc[i + 1]}"
+                 + (f" ({why[(cyc[i], cyc[i + 1])]})" if (cyc[i], cyc[i + 1]) in why else "")
+                 for i in range(len(cyc) - 1)]
+        errors.append("tasks: dependency cycle: " + ", ".join(steps))
         return
     if not readme_text:
         return

@@ -1,55 +1,83 @@
 # Quality Harness
 
-A self-contained Claude Code plugin for project-neutral development discipline:
-requirements, ADR authoring and execution, architecture, executable evidence,
-retirement, review, and scope control.
+**An AI coding agent will tell you it is finished. Sometimes it is not — and the
+message looks exactly the same either way.**
 
-The plugin prefers small verified changes over feature breadth. It applies SOLID
-and DRY only to demonstrated boundaries and duplicated knowledge; YAGNI wins over
-speculative abstractions, configuration, and fallback paths.
+Quality Harness is a plugin for [Claude Code](https://claude.com/claude-code) that
+stops taking the agent's word for it. When work claims to be done, the plugin runs
+the check itself and writes down what actually happened.
 
-## Why you would install this
+## The problem, in one example
 
-**The failure mode this exists for is an agent that says it is done and is not.**
-That is not a hunch; it is the dominant one. Among self-assessing coding agents
-making explicit status claims, **75.8% of failures are false successes** — the work
-did not happen and the report says it did. Asking another model to catch it does
-not work: **LLM judges never exceed AUROC 0.65**, because they grade the confident
-closing language rather than the state change. Cheap deterministic detectors reach
-**0.83–0.95** on the same task. And a suite passing is weaker evidence than it
-looks: **one in five "solved" patches on SWE-bench Verified is semantically wrong**,
-passing only because the tests were too weak to expose it.
+You ask an agent to fix a bug. It edits a few files and reports:
 
-Sources and effect sizes: [`docs/research/2026-08-28-verification-is-the-bottleneck.md`](docs/research/2026-08-28-verification-is-the-bottleneck.md).
-Its §10 is the narrower list — what this repository measured itself, including a null it will not promote to support, a retraction of its own published number, and the column for findings it negated, left empty because it has negated none.
+> ✅ All tests pass. Task complete.
 
-So the plugin does not ask a model whether the work is finished. It makes the
-claim expensive to fabricate:
+Any of these could be true:
 
-| Instead of | You get |
-|---|---|
-| An agent writing "✅ all tests pass" into a task file | `adr-verify` **runs the fence itself** and writes the date, git sha, exit code, duration and a SHA-256 of the fence it ran. Edit the fence and every entry taken under the old one is invalidated. |
-| A green suite you hope means something | A **416-mutation campaign** that breaks each mechanism on purpose and fails if nothing notices. A test that cannot fail is found before you trust it. |
-| A gate that blocks you and cannot say why | Gates that **advise and never block**. A blocked agent produces a user who cannot tell what to do next, which is worse than not having the plugin. |
-| "I checked, it's fine" | A check that **cannot determine something says so** — `UNRUN`, `PARTIAL`, `UNPROVEN` — and never borrows the vocabulary of a verdict. A filter that matched nothing is "I could not look", not "the thing is absent". |
-| Decisions living in a chat log | An **executable ADR corpus**: 20 records whose readiness, coverage, dangling pointers and open debt are computed from the task files by `adr-next`, `adr-state.mjs` and `adr-debt` — not from a status column somebody typed. |
+- it ran the tests and they passed — good
+- it ran the wrong tests, and they passed because they never touched your bug
+- it ran nothing at all and typed the sentence
 
-**What it costs, stated plainly**, because a page that only lists upsides is the
-tone the research above says not to trust:
+**You cannot tell which from the message.** Neither can another AI you ask to
+review it — that has been measured, and it grades how confident the writing sounds
+rather than whether anything happened.
 
-- The full mutation campaign takes about 40 minutes. It is meant for CI and for
-  release gates, not for every edit.
-- The discipline is real work. A task carries a fence, a Tests table, a
-  Reachability answer and a Stop Condition before it carries code.
-- It ships no project policy — no ADR locations, test commands, or allowlists —
-  so it adopts your repository rather than configuring itself.
+This is not a rare glitch. Among coding agents that report their own status, it is
+the *most common* way they fail.
 
-**It holds itself to the same bar.** This repository is the plugin's own first
-user: 474 tests, 416 registered mutations, three platforms blocking in CI, and a
-public ADR corpus recording the times its own gates were wrong — including a check
-that shipped defined, tested three times, and called from nothing, which its own
-mutation evidence could not see. If that record were absent, the claims above
-would be exactly the confident closing language the research warns about.
+## What the plugin does about it
+
+Instead of asking the agent whether it finished, it makes saying "finished" hard
+to fake:
+
+- **It runs the check itself.** Not the agent — the tool. It records the command,
+  the exit code, the date and the commit, into the task file. If someone later
+  edits the command, every earlier record of it is marked invalid, because it no
+  longer proves what it claimed.
+- **It checks that your tests can actually fail.** A test that passes no matter
+  what is worse than no test, because it looks like safety. The plugin breaks each
+  piece of your code on purpose and reports any test that did not notice.
+- **It never blocks you.** Every check gives advice and lets the work continue. A
+  tool that stops you without explaining leaves you worse off than no tool.
+- **It says "I do not know" when it does not know.** If a check could not run, it
+  says so, rather than reporting a clean result it never actually observed.
+- **It keeps decisions where you can find them.** Why something was built a
+  certain way lives in files next to the code, not in a chat log nobody can search
+  six months later.
+
+## What it costs you
+
+A page that only lists benefits is exactly the tone this project tells you not to
+trust, so:
+
+- The full "can your tests fail" run takes about **40 minutes**. It is for CI and
+  releases, not for every edit.
+- **It is real work.** Before code, a task has to say how it will be checked and
+  what would make you stop.
+- **It brings no opinions about your project** — no folder layout, no test command,
+  no configuration. It adapts to your repository, which also means it does not
+  guess for you.
+
+## Is it for you?
+
+**Probably yes if** you work with AI agents on code you have to maintain, and you
+have ever merged something an agent called done and later found it was not.
+
+**Probably not if** you want a linter or a formatter — this is not that — or if
+the project is a throwaway prototype where nobody will read the history.
+
+## It holds itself to the same standard
+
+This repository is the plugin's own first user: 474 tests, 416 deliberate
+breakages checked in CI, three operating systems, and a public record of every
+time its own checks turned out to be wrong — including one that shipped, was
+tested three times, and was never actually called by anything.
+
+That last part is the point. If the failures were missing from this page, the
+claims above would be exactly the confident writing the research warns you about.
+
+---
 
 ## Install
 
@@ -64,6 +92,40 @@ development, or a narrower skill when the task already names its stage
 
 Requirements are in full below; the short version is Claude Code 2.1.154+, Python
 3.9+, Node.js, Bash (Git Bash on Windows) and Git.
+
+## The evidence behind those claims
+
+*Everything above in the terms a sceptical engineer would want. Skip it if the
+summary was enough.*
+
+**False success is the dominant agent failure mode.** Among self-assessing coding
+agents making explicit status claims, **75.8% of failures are false successes** —
+the work did not happen and the report says it did. Asking another model to catch
+it does not work: **LLM judges never exceed AUROC 0.65**, because they grade the
+confident closing language rather than the state change. Cheap deterministic
+detectors reach **0.83–0.95** on the same task. And a passing suite is weaker
+evidence than it looks: **one in five "solved" patches on SWE-bench Verified is
+semantically wrong**, passing only because the tests were too weak to expose it.
+
+Sources and effect sizes: [`docs/research/2026-08-28-verification-is-the-bottleneck.md`](docs/research/2026-08-28-verification-is-the-bottleneck.md).
+Its §10 is the narrower list — what this repository measured itself, including a
+null it will not promote to support, a retraction of its own published number, and
+a column for findings it negated, left empty because it has negated none.
+
+### The mechanisms, precisely
+
+| Instead of | You get |
+|---|---|
+| An agent writing "✅ all tests pass" into a task file | `adr-verify` **runs the fence itself** and writes the date, git sha, exit code, duration and a SHA-256 of the fence it ran. Edit the fence and every entry taken under the old one is invalidated. |
+| A green suite you hope means something | A **436-mutation campaign** that breaks each mechanism on purpose and fails if nothing notices. A test that cannot fail is found before you trust it. |
+| A gate that blocks you and cannot say why | Gates that **advise and never block**. A blocked agent produces a user who cannot tell what to do next, which is worse than not having the plugin. |
+| "I checked, it's fine" | A check that **cannot determine something says so** — `UNRUN`, `PARTIAL`, `UNPROVEN` — and never borrows the vocabulary of a verdict. A filter that matched nothing is "I could not look", not "the thing is absent". |
+| Decisions living in a chat log | An **executable ADR corpus** — Architecture Decision Records, one file per decision — whose readiness, coverage, dangling pointers and open debt are computed from the task files by `adr-next`, `adr-state.mjs` and `adr-debt`, not from a status column somebody typed. |
+
+**A note on the words.** An *ADR* is a short file recording one decision and why it
+was made. A *fence* is the exact command a task must pass. A *mutation* is a
+deliberate break introduced to see whether any test notices. If those three are
+clear, the rest of this page reads normally.
 
 ## What it includes
 

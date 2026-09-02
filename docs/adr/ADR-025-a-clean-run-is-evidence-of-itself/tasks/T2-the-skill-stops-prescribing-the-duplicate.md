@@ -54,6 +54,8 @@ node --test tests/package.test.mjs 2>&1 | tee /tmp/adr025-t2.out \
 
 ## Mutation Log
 
+- 2026-09-02 · 4d9033c · mutant killed · exit 1 · `plugin/skills/adr-execute/SKILL.md` · without this sentence the skill never tells the agent the duplicate is gone · acceptance-sha256:138ef1f0dd9db50cd7ba47d1306ea62bb81032be93208daf93e75ad02fb7c662
+
 ## Invariants
 
 - The skill never advises skipping a verification entry — only skipping a second invocation that would produce an identical one.
@@ -74,3 +76,4 @@ keep prescribing both runs, and this task is wrong rather than incomplete.
 - Fence scoping advice, which is already in the task template
 
 ## Verification Log
+- 2026-09-02 · 4d9033c · exit 0 · `set -o pipefail …` · acceptance-sha256:138ef1f0dd9db50cd7ba47d1306ea62bb81032be93208daf93e75ad02fb7c662 · ms:24932

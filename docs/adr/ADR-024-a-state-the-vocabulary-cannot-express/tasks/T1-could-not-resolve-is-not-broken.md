@@ -19,7 +19,7 @@ declaration that settles them, and keeps `BROKEN` for the defects it can actuall
 | File | Change | Why |
 |------|--------|-----|
 | `plugin/bin/adr-debt` | edit | the single print site that chooses the word from `resolve()`'s `kind`, and the summary line that counts it |
-| `tests/gate-regressions.py` | edit | the fixtures; this corpus has zero such pointers, so a fixture is the only way to reach the branch |
+| `tests/gate-rules.test.mjs` | edit | the fixtures; this corpus has zero such pointers, so a fixture is the only way to reach the branch |
 
 ## Ordered Steps
 
@@ -32,17 +32,16 @@ declaration that settles them, and keeps `BROKEN` for the defects it can actuall
 
 ```bash
 set -o pipefail
-python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md . 2>&1 | tee /tmp/adr024-t1.out \
-  && ! grep -qE "Traceback|AssertionError" /tmp/adr024-t1.out \
-  && grep -q "PASS" /tmp/adr024-t1.out
+node --test tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr024-t1.out \
+  && ! grep -qE "no tests to run|^not ok|# fail [1-9]" /tmp/adr024-t1.out
 ```
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `test_an_unresolvable_pointer_is_not_called_broken` | `tests/gate-regressions.py` | an unresolved record id reports UNRESOLVED, names both readings, and still exits 1 | — | S1, S2, S3, S4 |
-| `test_a_defect_the_gate_can_determine_still_says_broken` | `tests/gate-regressions.py` | empty and malformed keep BROKEN, so the change is not "stop reporting" | — | S1, S2 |
+| `adr-debt resolves the pointers it can, and reports the ones it cannot` | `tests/gate-rules.test.mjs` | an unresolved record id reports UNRESOLVED, names both readings, and still exits 1 | — | S1, S2, S3, S4 |
+| `a target another repository owns is declared, not called broken` | `tests/gate-rules.test.mjs` | empty and malformed keep BROKEN, so the change is not "stop reporting" | — | S1, S2 |
 
 ## Reachability
 
@@ -54,6 +53,11 @@ python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 | 4 — it is used | this corpus has zero such pointers by measurement, so nothing here will exercise it — the reporting corpora will. Stated rather than glossed: no telemetry, and the next report is the signal |
 
 ## Mutation Log
+
+- 2026-09-02 · 6973422 · mutant survived · exit 0 · `plugin/bin/adr-debt` · an unresolvable record id would go back to being called BROKEN, a claim the gate cannot make · acceptance-sha256:1f3fcfc5517aec32b1415531ba9f7bf8ee4373fd91b4f335ad67afd9965c473b
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Invariants
 

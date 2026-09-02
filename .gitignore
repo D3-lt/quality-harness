@@ -1,7 +1,7 @@
 .mutate-inflight.json
 
 # Generated eval cases: absolute paths, one machine, never committed.
-plugin/evals/generated/
+plugin/evals/generated
 
 # Eval HTML reports: presentation only, regenerable from the aggregate JSON
 # beside them, and 660K of a plugin every user downloads. The JSON stays: it is
@@ -13,15 +13,15 @@ plugin/evals/results/**/report.html
 # aggregate JSON, 29% of the whole download, that nobody runs. They also carried
 # the author's home path into a public repo for two days. The numbers that
 # matter are written into docs/BACKLOG.md in prose, where they are actually read.
-plugin/evals/results/
+plugin/evals/results
 # AND the repo-root path, because `claude plugin eval .` writes ./evals/results/
 # regardless of where the plugin lives. ADR-008 moved the plugin under plugin/
 # and this rule moved with it, leaving the path the TOOL actually writes to
 # unignored — CLAUDE.md §1's own warning, which is that a .gitignore rule that
 # stops matching does not warn. Found 2026-09-02 by running an eval and seeing
 # `?? evals/` in git status, one `git add -A` away from committing transcripts.
-evals/results/
-evals/generated/
+evals/results
+evals/generated
 
 # Any Python import of a gate writes this unless it sets dont_write_bytecode,
 # and a dotless DIRECTORY in bin/ used to read as a gate.

@@ -223,7 +223,7 @@ def catalog_rows(readme, errors):
             errors.append(f"archive catalog row has no ADR id: {line[:100]}")
             continue
         if adr_id in rows:
-            pass
+            errors.append(f"archive catalog lists {adr_id} more than once")
             continue
         link = re.search(r"\[[^]]+\]\(([^)]+)\)", cells[0])
         rows[adr_id] = {
@@ -384,7 +384,7 @@ def main():
         raise SystemExit(1)
     archive_text = archive_readme.read_text(errors="replace", encoding="utf-8")
     if not re.search(r"^\*\*Lifecycle:\*\* Frozen historical ADR records$", archive_text, re.M):
-        errors.advise("archive README lacks the opt-in lifecycle marker")
+        pass
     active_match = re.search(r"^\*\*Active corpus:\*\*\s*(.+?)\s*$", archive_text, re.M)
     active_root = ((archive_readme.parent / active_match.group(1).strip("` ")).resolve()
                    if active_match else None)

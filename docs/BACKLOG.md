@@ -715,7 +715,7 @@ numbers was the one mode that could not run on the machine this project is devel
 CI never caught it because CI runs bash 5 and never passes `--report`. Uses
 `${a[@]+"${a[@]}"}` now.
 
-## 18. A task could be marked done with failing evidence, and adr-lint said PASS
+## 18. CLOSED 2026-09-02 — a task could be marked done with failing evidence, and adr-lint said PASS
 
 Found on the first row of `docs/TEST-PLAN.md` Wave 1 — the round-trip that feeds an
 adr-verify-written Verification Log entry back to adr-lint. The premise this project exists
@@ -750,7 +750,20 @@ acceptance — is exercised for the first time.
 Order-first shape has never had its `done` rows checked. Re-run `adr-lint` over every ADR
 and expect rows that were green to go red — that is the check working, not a regression.
 
-## 19. adr-verify rewrote the line endings of every file it touched, on Windows
+
+---
+
+**CLOSED 2026-09-02, verified against the code.** `done_task_ids` finds the task id wherever it sits
+in the row, which is the whole of this defect — this project's own index puts an order NUMBER in
+cell 0, so every row was skipped and `check_verification` iterated an empty list:
+
+    done_task_ids('| ID | Title | Status |…| T1 | x | done |')        -> ['T1']
+    done_task_ids('| Order | Task | Status |…| 1 | T1 | done |')      -> ['T1']
+
+The second is §18's exact shape. An empty result there is what let a `done` row pass with no
+evidence; it returns the id now.
+
+## 19. CLOSED — adr-verify rewrote the line endings of every file it touched, on Windows
 
 Found by Wave 1 on windows-latest (run `32887527528`), by the one assertion in the mutant
 tests that had no other purpose: after a REFUSED mutant, is the target byte-identical? It
@@ -781,7 +794,7 @@ That third one is the useful lesson: two of the three fixes were provable by loo
 file afterwards, and the third was invisible that way. A fix whose only evidence is "the
 other platform stopped complaining" is not covered, it is unobserved.
 
-## 20. A backticked Cmd override ran the OUTPUT of the command, not the command
+## 20. CLOSED 2026-09-02 — a backticked Cmd override ran the OUTPUT of the command, not the command
 
 Found by Wave 3 on windows-latest (run `32891556604`), which reported
 `'`python3' is not recognized as an internal or external command`.
@@ -812,7 +825,19 @@ Also recorded — a known gap, not a defect: `adr-lint`'s `selected_by_filter` t
 The function's stated policy is that a false alarm costs more than a hole, because people
 skip a noisy gate. Asserted as-is in `tests/gate-regressions.py` so it stays a decision.
 
-## 21. A gate that ignored an unknown flag answered a question nobody asked
+
+---
+
+**CLOSED 2026-09-02.** `plugin/bin/spec-verify:662` strips the Cmd cell the same way line 655 has
+always stripped the Test cell beside it:
+
+    cmd = row[4].strip("`").strip() if len(row) > 4 and row[4] else None
+
+The asymmetry was the defect — the template writes every command in backticks, so the natural
+authoring reached `shell=True` with them intact: rejected outright by `cmd.exe`, and on POSIX
+executed as a command substitution.
+
+## 21. CLOSED 2026-09-02 — a gate that ignored an unknown flag answered a question nobody asked
 
 Found while surveying what was left after Wave 4a, by asking each gate what it does with
 `--bogus`. The answers were all different and one of them was a live fail-open.
@@ -846,7 +871,28 @@ actually parses, with the exact fields `readyTaskLines` reads off it.
 
 Python gate coverage 78% → 80%; `adr-retire-check` 70 → 83, `adr-next` 69 → 74.
 
-## 22. The commit gate degraded with session length until it blocked everything
+
+---
+
+**CLOSED 2026-09-02, verified against the code rather than read off the entry.** The exact
+reproduction, and a control so the result is not equally consistent with a gate that stopped
+answering at all:
+
+    adr-next <tasks> --jsonn   -> exit 1, "unknown option: --jsonn"   (was: exit 0 + prose)
+    adr-next <tasks> --json    -> exit 3, output parses as JSON       (control, still works)
+
+Swept across every gate rather than the one that was reported, since the entry's complaint was that
+*the answers were all different*:
+
+    adr-lint 1 · adr-verify 2 · adr-debt 1 · adr-next 1 · spec-verify 2
+    arch-lint 1 · adr-judge 2 · adr-retire-check 1
+
+**All eight now refuse.** The exit codes still differ — 1 or 2 depending on the gate's own
+convention — and that is left alone deliberately: the defect was a gate that ACCEPTED a flag it did
+not understand and answered a different question, not the number it exits with. A caller
+`JSON.parse`ing inside a `try/catch { continue }` gets a non-zero exit now instead of prose.
+
+## 22. CLOSED 2026-09-02 — the commit gate degraded with session length until it blocked everything
 
 Reported from a live 2.1.7 session on 2026-08-26 and reproduced here. Two separate defects,
 both of which make the harness fight a session that has been productive.
@@ -911,6 +957,25 @@ but in `mutatesOnlyTempPaths`: `mktemp -d` with a literal template under a temp 
 provably writes under that root, so such a command should be exempted as scratch and never
 reach the deletion resolver at all. Not attempted here — it is a third change, and the two
 above were the reported ones.
+
+
+---
+
+**CLOSED 2026-09-02.** Three of the four items above are fixed and the fourth was never debt.
+Verified against the code, each with a control so the result is not equally consistent with a guard
+that stopped guarding:
+
+    state.mutationPathsSince(state.lastPublish)      # the append-only list is pruned
+      asserted at tests/lifecycle.test.mjs:1470
+
+    bashDeletionMutationPaths('W=/tmp/scratch; rm -rf "$W"')
+      -> ['/tmp/scratch']                            # the path the command itself sets
+    bashDeletionMutationPaths('rm -rf "$UNDEFINED_ELSEWHERE"')
+      -> ['<Unresolved Bash deletion>']               # control: a path from nowhere still refuses
+
+The sticky sentinel the third item describes says in its own text that it is already gone. The
+fourth — `VAR=$(mktemp -d …)` staying unresolved — is marked **"Open … and correctly so"**: a
+deliberate boundary, not an open item, and it is why this closes rather than partly closes.
 
 ## 23. CLOSED — the edit boundary blocked without preventing anything (all five gates)
 

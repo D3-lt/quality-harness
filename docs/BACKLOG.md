@@ -5716,7 +5716,7 @@ first thing this entry needs.
 how often its ledger cross-check fires on honest work. If that number is not zero the acceptance
 mechanism comes out, and this entry should never be started.
 
-## 99. Nothing checks that a function the plugin defines is ever called
+## 99. CLOSED 2026-09-02 — nothing checked that a function the plugin defines is ever called
 
 ADR-020 T1 shipped `implausibly_fast` defined, asserted three times and called from nothing
 (GitHub issue #6). Every gate this repository owns said it shipped correctly: the Acceptance fence
@@ -5752,6 +5752,42 @@ version of this sweep matched `\bname\(` and reported `expandExistingGlob` as an
 called at `plugin/scripts/lifecycle.mjs:1101` through the spread operator, `...expandExistingGlob(`,
 and the naive lookbehind read the `.` as property access. A check that reports an observation it did
 not make is CLAUDE.md §3's defect, and this one reported two.
+
+---
+
+**CLOSED 2026-09-02 (0e457fa, fdc0636, ed0dffd).** `scripts/orphan-sweep.mjs`, with
+`tests/orphan-sweep.test.mjs` proving it can fail on this repository's own history rather than on a
+fixture:
+
+    dcb7df4 (v2.47.0): 2 orphans of 436 -> implausibly_fast, gitBranch
+    cb45a39^         : 1 orphan  of 440 -> gitBranch
+    HEAD             : 0 orphans of 440
+
+**The scope was the whole mechanism, and the first attempt got it wrong in the direction that
+looks clean.** Counting uses across every tracked file reported dcb7df4 CLEAN, because
+`implausibly_fast` appears three times in `tests/gate-regressions.py` and twice in an ADR task. A
+sweep reporting 0 at HEAD and 0 where the known defect lives is measuring nothing and is
+indistinguishable from one that works. The corpus is `plugin/**` plus `README.md` — what a user
+downloads. Tests do not make a function reachable; that is the entire defect this entry names.
+
+**The open design question is answered by measurement, and the answer is that there is no
+allowlist.** This entry worried that `main` and dispatch-table arms would force an exemption
+mechanism whose shape rots. With the scope above, HEAD is 0 of 440 with no exemptions at all:
+`main` occurs 72 times in the shipped tree, and the `_go_*` helpers are called directly rather than
+dispatched. Because the scan counts BARE IDENTIFIERS, a name reached only through a string literal
+counts as reached — so a genuine dispatch table resolves itself. A future legitimate orphan is
+deleted or wired, never listed.
+
+**Two mutation findings in the gate's own tests, and they point opposite ways.** The first was
+real: the test declared its own copy of the `SHIPPED` predicate, so a mutation on the script's copy
+went GREEN — one rule, two implementations, the drift `assertion_segments` already fixed once. The
+second was not: the repointed mutant added `tests/` to the prefix while leaving the extension
+filter, which excludes `.py`, so it broke nothing and GREEN meant "no behaviour changed". **Before
+believing a GREEN, ask whether the mutant could have produced the failure at all** — an ineffective
+mutant and a vacuous test give the same verdict.
+
+**Left open, one level up:** this covers FUNCTIONS. Whether every shipped SKILL, gate and workflow
+is reached is §105.
 
 ## 100. CLOSED 2026-09-01 — `gitBranch()` was dead code from the branch guard that was removed
 
@@ -6057,3 +6093,44 @@ from "found a problem" is pointless if the caller collapses them again: a watche
 unreadable answer and wake only on `success` or `failed`. Fixed in the poller; recorded here
 because the same mistake is available to anyone scripting the release.
 
+## 105. Every shipped skill is statically reachable and nine of thirteen have no eval that runs them
+
+Found 2026-09-02, prompted by an observation that "some of the skills and capabilities are never
+called or used" and measured before being believed.
+
+**Statically, nothing is orphaned.** A bare-identifier sweep over the shipped tree finds a referrer
+for every skill, gate, workflow and script — the artifact-level twin of §99's function sweep:
+
+    for f in $(git ls-files 'plugin/*' | grep -vE 'evals/|\.cmd$'); do …done
+    → no unreferenced artifact
+
+So this is not §99's class one level up. Every skill is named by the `work` router, by a sibling
+skill, by `work-next.mjs`, or by the README.
+
+**What is missing is rung 4 of this project's own reachability ladder** — the task template asks
+each task to say how real usage would be observed, or to state the absence of telemetry. For the
+skills themselves, that evidence does not exist. Counting eval cases per skill, 2026-09-02:
+
+| eval files | skills |
+|---|---|
+| 6 | `work` |
+| 2 | `adr-write` |
+| 1 | `execution` |
+| **0** | `adr-execute`, `adr-retire`, `arch-write`, `codex-advise`, `codex-review`, `mutation-audit`, `postmortem`, `quality-policy`, `review`, `spec-write` |
+
+**Nine of thirteen skills have no eval that exercises them**, and three of those — `review`,
+`quality-policy`, `mutation-audit` — are the ones this project's own CLAUDE.md leans on hardest.
+
+**Why this is a finding rather than a shrug.** ADR-009's rule is that naming a check that cannot
+fail is worse than naming none, and the same holds for a skill: one nothing ever runs is a claim
+about the lifecycle that nothing tests. `work` routes to `review` for a whole risk tier, and no eval
+has ever observed that route being taken. The routing table is prose, and prose is what §103's whole
+class is about.
+
+**The honest limit, stated rather than glossed:** an eval measures whether a skill FIRES on a
+prompt, not whether its advice was good. §80 is the entry about that gap and §30 is the graders it
+needs, so this is bounded by both. A firing test is still strictly more than nothing.
+
+**Not fixed here.** Writing nine eval cases is real work with a real cost — the eval runner spends
+model calls — and the ordering question (which three matter most) is a judgement about where the
+lifecycle is load-bearing, not a mechanical sweep. `review` first is the obvious candidate.

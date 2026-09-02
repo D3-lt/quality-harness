@@ -3309,12 +3309,17 @@ def code_only(text, python=False):
         text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
         text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
         return text
+    # ⚠ LITERALS FIRST — see issue #7. This gate never FIRED the defect, because
+    # its caller brace-matches raw source and strips the extracted body, but the
+    # helper itself carried it: a bare `"//"` literal ate the rest of its line.
+    # Protected by call order is not protected by construction, and arch-lint
+    # inherited exactly that difference.
+    text = re.sub(r"`(?:[^`])*`", "``", text)
+    text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
+    text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
     text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
     text = re.sub(r"(?m)(^|[^:])//.*$", r"\1 ", text)
     text = re.sub(r"(?m)#.*$", " ", text)
-    text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
-    text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
-    text = re.sub(r"`(?:[^`])*`", "``", text)
     return text
 
 

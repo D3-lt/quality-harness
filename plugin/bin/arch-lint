@@ -159,12 +159,23 @@ SKIP_DIRS = {".git", "node_modules", "vendor", "dist", "target", "build", ".clau
 
 def code_only(text):
     """Remove comments and string bodies before resolving definitions/assertions."""
+    # ⚠ LITERALS FIRST, COMMENT MARKERS SECOND. Reported 2026-09-02 (issue #7):
+    # with comments stripped first, a bare `"//"` literal is read as the start of
+    # a comment and everything to end of line is deleted — the closing quote, and
+    # any `}` or `{` that followed it. `symbol_body` then brace-matches mangled
+    # text and either returns the REST OF THE FILE (a vacuous test borrows a later
+    # test's assertion and is certified able to fail) or a truncated body (a real
+    # assertion below the cut is invisible). The `(^|[^:])` guard protects
+    # `"https://…"` and nothing protects the scheme-less form.
+    #
+    # Blanking literals first also fixes the same class for `/*` and `*/` inside
+    # strings, which the old order paired across unrelated lines.
+    text = re.sub(r"`(?:[^`])*`", "``", text)
+    text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
+    text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
     text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
     text = re.sub(r"(?m)(^|[^:])//.*$", r"\1 ", text)
     text = re.sub(r"(?m)#(?!\s*\[).*?$", " ", text)
-    text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
-    text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
-    text = re.sub(r"`(?:[^`])*`", "``", text)
     return text
 
 
@@ -310,8 +321,16 @@ def symbol_errors(label, cell, roots, index):
             continue
         body = None
         for f in hits:
-            text = code_only(f.read_text(errors="replace", encoding="utf-8"))
-            body = symbol_body(text, sym)
+            # RAW for the brace match, stripped afterwards — mirroring adr-lint,
+            # which is why adr-lint never carried this defect (issue #7). Braces
+            # are balanced in the source; they are not balanced in text that has
+            # had comment-stripping run over string literals. Stripping the
+            # EXTRACTED body still keeps what code_only was added for: a failure
+            # call sitting in a comment must not count as an assertion.
+            raw = f.read_text(errors="replace", encoding="utf-8")
+            body = symbol_body(raw, sym)
+            if body is not None:
+                body = code_only(body)
             if body is None:
                 continue
             break

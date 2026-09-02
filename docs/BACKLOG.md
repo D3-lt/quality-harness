@@ -6688,3 +6688,54 @@ cloned beside it is the machine-dependence CLAUDE.md §8 forbids. So a typed `<w
 real question, and a decision about what a typed target is FOR if nothing may follow it. Neither
 exists yet — ADR-024's own criterion says the disposition comes out entirely if ten records pass
 without a use, and this entry should not outlive that.
+
+## 108. `adr-write` prescribes eight serial round trips before a word is drafted, and never says they can be batched
+
+**Reported 2026-09-02 by a second user running the lifecycle on their own project** (`brolis-lizdai`),
+in wall-clock terms: *"jis kazkaip neefektyviai ta ADR vykdo, ten labai labai daug laiko sugaistama,
+laike matuojant"* — it executes the ADR inefficiently, a great deal of time is lost, measured in
+time. Specifically the authoring: *"labaaaai ilgai generuoja tuos adr pirmoj vietoj."*
+
+The counter-argument was made in the same conversation and accepted — quality takes time — so this
+entry is not "make it fast". It is that a measurable part of the cost buys nothing.
+
+**MEASURED, and the measurement moves the target.** The six commands `adr-write` tells an author to
+run before drafting, on this corpus:
+
+    six calls, serial          1.87s
+    six calls, one round trip  1.34s
+
+**Half a second.** The compute is not the cost. What costs is that the skill lists them as separate
+steps, and each separate step is a model TURN — think, call, read the result, think again. Six to
+eight turns before a word is written, at tens of seconds each, is where the minutes go, and the
+skill says nothing about batching them.
+
+**The user's own agent found the fix unprompted**, which is the strongest evidence it is a gap in the
+instructions rather than in the reader. From the same transcript:
+
+    ● Fair correction, and I'd drifted — I've been doing one Edit per hunk with separate test
+      runs. Adopting the batched form: plan the whole edit set up front, then write +
+      regenerate + test chained in one command.
+
+    T=docs/adr/ADR-029-…/tasks/T4-….md   # then every command in one call, on $T
+
+The observer's comment was *"man sitas patiko jo metodas"* — I liked this method of his. An agent
+had to discover, mid-task and after being corrected, a working pattern the skill could simply have
+stated.
+
+**What this entry is NOT.** It is not a case for shortening the record, dropping a section, or
+loosening the evidence chain — the time that produces a fence, a Tests table and a Stop Condition is
+the time this project exists to spend. It is only about the turns spent BEFORE that, on reads whose
+results are independent of each other.
+
+**The shape of a fix**, not a decision: the pre-draft reads in `adr-write` step 1 are independent —
+`adr-state`, `adr-context`, `adr-debt`, and three templates — and nothing about them requires
+separate turns. Saying so in the skill, with the `T=<file>` chaining form the reporter's agent
+arrived at, costs one paragraph. Whether the same applies to `adr-execute` and `arch-write` is
+unmeasured and should be measured before it is claimed.
+
+**Open questions a record would have to answer:** whether turn count is actually the dominant term
+(this entry measured only that COMPUTE is not, which is not the same thing); whether a batched read
+degrades the author's attention to what each command returned; and whether any of these six can be
+dropped rather than merely batched, which would be worth more than batching them.
+

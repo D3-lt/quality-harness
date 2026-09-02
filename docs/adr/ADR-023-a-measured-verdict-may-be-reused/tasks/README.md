@@ -21,7 +21,7 @@ evidence, only a bigger matrix.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Split the campaign across eight shards instead of four | pending | — | `node --test tests/package.test.mjs && node scripts/mutate.mjs --shard 8/8 --list` |
+| T1 | Split the campaign across eight shards instead of four | done | — | `node --test tests/package.test.mjs && node scripts/mutate.mjs --shard 8/8 --list` |
 | T2 | Key a verdict on its inputs, and reuse it only on an exact match | pending | — | `node --test tests/mutate-runner.test.mjs && node scripts/mutate.mjs --case 'a reused verdict is refused'` |
 | T3 | Force a full campaign for a release, and prove the forcing works | pending | — | `node --test tests/package.test.mjs tests/mutate-runner.test.mjs && node scripts/mutate.mjs --case 'a forced run reuses nothing'` |
 

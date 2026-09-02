@@ -6784,3 +6784,49 @@ precisely how both real instances got through.
 **The first line is not the hook.** It is: do not run a mutation tool and edit the tree at the same
 time. All three of that day's self-inflicted defects trace to doing exactly that.
 
+## 110. Should a task be edited through a tool rather than rewritten as a file?
+
+**Raised 2026-09-02 by the same user as §108**, from watching the lifecycle run on their own
+project, and recorded at their framing rather than above it: *"failai - db, ir irankiai ja
+administruot"* — the files are the database, and the tools administer it. *"ka already partly ir
+daro adr toolingas"* — which the ADR tooling already partly does.
+
+The concrete shape they proposed:
+
+    ./tool adr5 task5 --mark-in-progress      instead of read-whole-file, patch, write-whole-file
+    ./tool adr5 --get-in-progress-tasks       instead of the model reconstructing state from files
+    adr-add-task --title --body               instead of composing a task file from the template
+
+**Their stated hypothesis, and it is a hypothesis:** *"gal jam sunku daug output i 1 faila uztai
+jis cia 15 min generuoja tuos adr … butu 5 tool gabaliukais su kita mintim gal butu lengviau
+reasonint"* — perhaps a large single-file output is what costs, and five small tool calls would be
+easier to reason with.
+
+**What is already measured, and it does not settle this.** §108 established that the six pre-draft
+commands cost 1.87s serial against 1.34s batched — the COMPUTE is not the cost — and named turn
+count as the likely dominant term without establishing it. This proposal points the other way: it
+would REPLACE one large write with several small tool calls, which is more turns and fewer output
+tokens. §108 and §110 therefore disagree about which resource is scarce, and neither has the
+measurement that would settle it.
+
+**And it is in tension with `mrw`**, the tool this same machine's instructions now mandate for
+multi-file work, whose rule 3 is *"One call, not N"* and whose rule 4 is *"One plan, not N writes"*.
+`mrw` exists because a batched edit is cheaper AND because a silent no-op write is the failure it
+catches. A per-task CLI is the opposite trade. Both cannot be right in general; which is right here
+depends on whether the cost is turns or tokens, and on whether a small typed operation is less
+error-prone than a plan `mrw` verifies hunk by hunk.
+
+**The half that is not in tension and is worth taking on its own:** the READ side. `./tool adr5
+--get-in-progress-tasks` replaces a model walking files and inferring state with one query and a
+typed answer. That is `adr-next`, `adr-state.mjs` and `adr-debt` already, and the gap is that they
+are not addressable per-record-per-task. Nothing about adding a query argues against `mrw`, and it
+removes the reconstruction §108 measured as turns.
+
+**Open questions a record would have to answer**, none of which are answered by preference:
+which resource is actually scarce (turns, output tokens, or author attention); whether a typed
+`--mark-in-progress` can maintain the evidence chain, since a status word is exactly what
+`adr-verify` refuses to let anyone type; and whether the write side can be a `mrw` plan the tool
+GENERATES rather than a second write path beside it.
+
+**Do not start this before §108's turn-count measurement exists.** Both entries rest on the same
+unmeasured claim, and building either on it would be the speculative complexity this corpus refuses.

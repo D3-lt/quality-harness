@@ -1553,6 +1553,20 @@ def check_task(path, all_stems, errors):
             f"exits on whatever follows. It READS like the vacuity guard while checking "
             f"nothing. The un-negated form costs nothing and does fail: "
             f"`if grep -qE \"no tests to run|^FAIL|^--- FAIL\" out; then exit 1; fi`")
+    # Reported 2026-09-02 from an adopting corpus that had just parallelised its
+    # fences to cut a 45s suite to 4.5s — the right optimisation, and one `wait`
+    # away from a fence that always passes. Zero instances here today; it ships
+    # because the fence-scoping advice in the task template will produce more
+    # parallel fences, and this is the trap waiting at the end of that advice.
+    bare = uncollected_background_jobs(acc_all)
+    if bare:
+        errors.advise(
+            f"{path.name}: this Acceptance fence backgrounds work with `&` and collects it "
+            f"with a bare `{bare}`, so it CANNOT FAIL. Bash returns 0 from an argument-less "
+            f"`wait` whatever the children exited with, and `set -e`/`set -o pipefail` do not "
+            f"change that. Collect each status: "
+            f"`cmd1 & p1=$!; cmd2 & p2=$!; rc=0; for p in $p1 $p2; do wait $p || rc=1; done; "
+            f"exit $rc`")
     # acc_first is display/legacy compatibility only. acc_all is the WHOLE
     # normalized fence and is the sole input to current evidence digests: a
     # filter or second command often sits below line one.
@@ -2503,6 +2517,58 @@ def inert_negated_guards(fence):
     # The LAST segment's status is the script's exit status, negated or not.
     return [s for s in segments[:-1] if NEGATED_GREP_RE.match(s)]
 
+
+# A command backgrounded with `&`. Deliberately NOT `&&`, and not the redirection
+# spellings `>&`, `&>`, `2>&1`, all of which contain the same character. The
+# lookahead for whitespace-or-end is what keeps a quoted `a&b` inside a grep
+# pattern out of the set: a backgrounding `&` is followed by end-of-line, `;`, or
+# a space before the next command.
+BACKGROUND_RE = re.compile(r"(?<![&>])&(?![&>])(?=\s|;|$)", re.M)
+# `wait $p`, `wait "$p"`, `wait ${p}` — a status actually collected FROM a pid.
+COLLECTED_WAIT_RE = re.compile(r"\bwait\s+[\"']?\$")
+# `wait` with nothing after it. Waits for every child and returns ZERO.
+BARE_WAIT_RE = re.compile(r"\bwait\b(?!\s*[\"']?\$)")
+
+
+def uncollected_background_jobs(fence):
+    """Why a PARALLELISED Acceptance fence cannot fail, or None.
+
+    Bash: `wait` with no argument waits for every child and its status is
+    ZERO regardless of what those children exited with. So the obvious way to
+    make a slow fence faster produces a fence that CANNOT FAIL — the defect this
+    project exists to demonstrate the absence of, arrived at by an author doing
+    something entirely reasonable. Reproduced 2026-09-02:
+
+        bash -c 'true & false & wait; echo $?'                        -> 0
+        bash -c 'set -eo pipefail; true & false & wait; echo $?'      -> 0
+        bash -c 'true & p=$!; false & q=$!;
+                 rc=0; for x in $p $q; do wait $x || rc=1; done'      -> 1
+
+    ⚠ THE SECOND LINE IS THE REASON THIS SHIPS. Every fence in this corpus opens
+    with `set -o pipefail`, so an author has every reason to believe hardening is
+    in place. It is not: errexit does not fire on a bare `wait` that returned 0,
+    and pipefail has nothing to do with it. The safe form is not longer or
+    cleverer, it is just less obvious — collect each pid's status yourself.
+
+    ⚠ A PROXY over arbitrary shell, the same caveat `assertion_segments` and
+    `inert_negated_guards` carry, and ADR-016 settled it for this same command:
+    structure cannot be safely inferred from a shell fence. Read a hit as "this
+    fence backgrounds work and never reads its status", which is checkable.
+
+    ⚠ WHAT IT DELIBERATELY DOES NOT REPORT, so it stays worth reading: a fence
+    that collects per-pid, a fence with no backgrounded job, and — for `&` with
+    no `wait` at all — nothing, because an unquoted `&` inside a grep pattern is
+    indistinguishable from a backgrounded command without parsing shell, and a
+    gate that cries wolf is a gate people stop reading (CLAUDE.md §3).
+
+    Returns the offending `wait` spelling, or None.
+    """
+    if not BACKGROUND_RE.search(fence):
+        return None
+    if COLLECTED_WAIT_RE.search(fence):
+        return None
+    match = BARE_WAIT_RE.search(fence)
+    return match.group(0) if match else None
 
 def rests_on(text):
     """The mechanisms a task declares its Acceptance fence's claim rests on.

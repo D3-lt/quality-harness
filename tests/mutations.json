@@ -3867,6 +3867,24 @@
       ],
       "from": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)",
       "to": "    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)"
+    },
+    {
+      "label": "lint: the sentinel is checked before a record reference is extracted",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if not value or re.match(r\"(?:none|nothing)\\b\", value, re.I):",
+      "to": "    if not value or re.match(r\"(?:none)\\b\", value, re.I):"
+    },
+    {
+      "label": "lint: Invalidates resolves a reference anywhere, not the leading token",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    reference = re.search(r\"\\bADR-\\d{1,4}\\b\", value, re.I)",
+      "to": "    reference = re.match(r\"\\bADR-\\d{1,4}\\b\", value, re.I)"
     }
   ]
 }

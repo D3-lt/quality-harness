@@ -153,6 +153,8 @@ Every bullet ends with a disposition — untagged entries are rejected by `adr-l
 `(permanent: fact: <claim>; citation: <typed receipt>)` = an external premise with exactly one
 receipt: `file` followed by a backticked `<repository-path>:<line>`, `version` followed by a
 backticked `<name>@<version>`, or `url` followed by `https://<host>[/<path>]`;
+`(external: <where>: <pointer>)` = a target another repository owns — real work, not this
+corpus's to pay, and `<where>` is required because the column exists to answer who owns it;
 `(deferred: <pointer>)` = real work punted — pointer is an ADR id/path, spec fact, issue, or backlog file. `adr-debt <adr-dir>` sweeps deferred entries + open Follow-ups so they resurface at the next `/quality-harness:adr-write`.
 Legacy `(permanent)` and `(permanent: <reason>)` remain permanent but receive classification advice
 from `adr-lint`; do not author new entries in those forms.

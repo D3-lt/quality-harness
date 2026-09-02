@@ -297,7 +297,7 @@ def disposition_span(text):
     holds the one truth table all three are checked against, the way ADR-009
     binds `enforcement_pointers` to `declaredEnforcement`.
     """
-    for opening in re.finditer(r"\((?=permanent\b|deferred\b)", text):
+    for opening in re.finditer(r"\((?=permanent\b|deferred\b|external\b)", text):
         depth = 0
         for i in range(opening.start(), len(text)):
             if text[i] == "(":
@@ -643,7 +643,8 @@ def closes_the_line(text, end):
     return text[end:].strip(" \t.,;:") == ""
 
 
-DISPOSITION_TEXT = re.compile(r"^(?:permanent(?::.*)?|deferred:\s*\S.*)$")
+DISPOSITION_TEXT = re.compile(
+    r"^(?:permanent(?::.*)?|deferred:\s*\S.*|external:\s*[^:]+:\s*\S.*)$")
 
 
 def _carries_a_disposition(bullet):
@@ -958,6 +959,8 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
             errors.advise(f"{adr_path.name}: Out of Scope entry ends with no machine-readable "
                           f"disposition — a reason in prose is not one, and `adr-debt` cannot "
                           f"sweep it. End the entry with '(permanent: boundary: <reason>)', "
+                          f"'(external: <where>: <pointer>)' for a target another repository "
+                          f"owns, "
                           f"'(permanent: fact: <claim>; citation: <typed receipt>)', or "
                           f"'(deferred: <pointer>)': {s[:70]}")
     spec = header_val(text, "Spec")

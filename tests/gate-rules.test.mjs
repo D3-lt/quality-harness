@@ -485,6 +485,57 @@ test('every adr-retire-check row rule has a case that makes it fire', () => {
 
 // --- adr-debt: the pointer classifier and every failure report --------------
 
+test('a target another repository owns is declared, not called broken', () => {
+  // ADR-024 T2, from BACKLOG §82: a corpus that is one half of a two-repo
+  // decision cites a record this tree cannot hold. It was permanently red, and
+  // the author ended up writing the excuse INTO the pointer text — a comment
+  // addressed to a linter, inside a value the linter cannot read.
+  const dir = scratch('debt-external')
+  const adrDir = join(dir, 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  const write = body =>
+    writeFileSync(join(adrDir, 'ADR-001-probe.md'), `# ADR-001: Probe\n\n## Out of Scope\n\n${body}\n`)
+  const scan = () => run('adr-debt', [adrDir], dir)
+
+  // DECLARED: counted in its own column, not resolved, and the run passes.
+  write('- A courier registry (external: backend repo: ADR-007)')
+  const declared = scan()
+  assert.equal(declared.status, 0, `a declared external target must not fail the run: ${declared.stdout}`)
+  assert.match(declared.stdout, /1 external/)
+  assert.match(declared.stdout, /external → backend repo: ADR-007/,
+    'the row must carry the owner, which is the reader\'s only question')
+  assert.doesNotMatch(declared.stdout, /UNRESOLVED|BROKEN/)
+
+  // UNDECLARED: the same pointer without the declaration still needs action.
+  write('- A courier registry (deferred: ADR-007)')
+  const bare = scan()
+  assert.equal(bare.status, 1, 'an undeclared unresolvable pointer still fails')
+  assert.match(bare.stdout, /UNRESOLVED \[adr\]/)
+
+  // ⚠ NO OWNER, NO DECLARATION. The column exists to answer "who owns this", so
+  // an `external:` without one is not a declaration — and reporting it is the
+  // point: silently ignoring it would let a half-written declaration read as a
+  // settled one, which is the state this disposition exists to make impossible.
+  write('- A courier registry (external: ADR-007)')
+  const ownerless = scan()
+  assert.equal(ownerless.status, 1, 'an ownerless declaration must not pass')
+  assert.match(ownerless.stdout, /external-no-owner/)
+
+  // ONE GRAMMAR, BOTH GATES. A spelling adr-debt accepts and adr-lint rejects is
+  // worse than no spelling at all — the author would be told to fix something
+  // that already works.
+  const record = join(adrDir, 'ADR-002-lint.md')
+  writeFileSync(record, ['# ADR-002: Probe', '', '**Status:** Accepted',
+    '**Spec:** None — no spec stage', '**Enforced-by:** None — fixture',
+    '**Served-path change:** None — fixture', '', '## Alternatives Considered', '',
+    '- Keep it. Rejected because fixture.', '', '## Wiring & Contract Changes', '',
+    'None — implementation-internal only.', '', '## Out of Scope', '',
+    '- A courier registry (external: backend repo: ADR-007)', ''].join('\n'))
+  const linted = run('adr-lint', [record], dir)
+  assert.doesNotMatch(linted.stdout, /no machine-readable disposition/,
+    `adr-lint must accept the spelling adr-debt accepts: ${linted.stdout}`)
+})
+
 test('the deferred headline counts debts, not the places they are written', () => {
   // BACKLOG §85b, reported by two adopting corpora and sorted by both into
   // "TRUE but I could not tell what to do next". One debt written in a task file
@@ -554,7 +605,15 @@ test('adr-debt resolves the pointers it can, and reports the ones it cannot', ()
   adr('## Out of Scope\n\n- Rate limiting (deferred: ADR-404)\n')
   const brokenAdr = scan()
   assert.equal(brokenAdr.status, 1, brokenAdr.stdout)
-  assert.match(brokenAdr.stdout, /BROKEN \[adr\]/)
+  // ADR-024 T1: an unresolvable RECORD ID is UNRESOLVED, not BROKEN. The gate
+  // reads one tree and cannot tell a typo from a target another repository owns —
+  // `ADR-404` and `ADR-4O4` are equally unresolvable here — so it claims neither
+  // and names both readings. The exit code is unchanged: the row still needs
+  // action, and only the word changes.
+  assert.match(brokenAdr.stdout, /UNRESOLVED \[adr\]/)
+  assert.match(brokenAdr.stdout, /typo, or a record owned by another repository/,
+    'the finding must name both readings and the declaration that settles them')
+  assert.equal(brokenAdr.status, 1, 'an undeclared unresolvable pointer still fails')
 
   // `deferred:` with nothing after it — the shape of debt recorded by someone
   // who had not decided where it goes.
@@ -582,7 +641,7 @@ test('adr-debt resolves the pointers it can, and reports the ones it cannot', ()
   adr("## Out of Scope\n\n- Rate limiting (deferred: ADR-404 T4, in this record's "
     + "`tasks/` — and a sentence that keeps going about why)\n")
   const leadingMissing = scan()
-  assert.match(leadingMissing.stdout, /BROKEN \[adr\]/,
+  assert.match(leadingMissing.stdout, /UNRESOLVED \[adr\]/,
     `a leading id naming no record is still broken:\n${leadingMissing.stdout}`)
 
   // A DISPOSITION IN THE WRONG PLACE IS NOT AN EMPTY ONE. A bullet whose

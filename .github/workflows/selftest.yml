@@ -143,18 +143,26 @@ jobs:
           if-no-files-found: warn
 
   mutations:
-    name: mutations ${{ matrix.shard }}/4
+    name: mutations ${{ matrix.shard }}/8
     runs-on: ubuntu-latest
     # Sharded, and timed out on purpose. The campaign went from 145 entries to
     # 268 in two days and its job was killed at thirty minutes on 2026-08-28
     # with exit 143 — which reads as infrastructure noise rather than as "this
     # gate outgrew its slot". An explicit timeout makes the difference legible,
-    # and four shards keep each one well inside it.
+    # and eight shards keep each one well inside it.
+    #
+    # ADR-023 T1: four -> eight on 2026-09-02. The campaign is ~80 minutes of
+    # serial work at 430 entries, and index-sliced quarters came out 24.6 / 16.1
+    # / 18.1 / 21.3 minutes — the run waits on the slowest. Doubling the matrix
+    # changes no verdict and no total work; it only stops one shard being the
+    # wall-clock. The three places this number appears are asserted to agree by
+    # tests/package.test.mjs, because a job named `x/8` running `--shard x/4`
+    # skips half the catalogue and still reports success.
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8]
     # 145 catalogue entries that had never run anywhere but a laptop, in the
     # project whose own thesis is that a suite nobody runs is a claim. It is the
     # highest-value check here — it is the only one that measures whether the
@@ -184,7 +192,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Break each mechanism and check the tests notice
-        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/4
+        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/8
 
   plugin-validate:
     name: plugin validate

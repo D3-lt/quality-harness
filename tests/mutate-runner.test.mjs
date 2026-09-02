@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { baselineOf, cacheKey, classify, killedBy, renderLine, reusable, summarise, testSets } from '../scripts/mutate.mjs'
+import { baselineOf, cacheKey, classify, killedBy, renderLine, reusable, shardByCost, summarise, testSets } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -319,4 +319,53 @@ test('a forced run reuses nothing', () => {
   assert.notEqual(reusable(ENTRY, full, key), null, 'the cache would match, so the test is real')
   // The forced path is the empty cache the runner substitutes for --no-cache.
   assert.equal(reusable(ENTRY, {}, key), null, 'a forced run must consult nothing')
+})
+
+// ── BACKLOG §106: slice shards by measured cost, not by index ─────────────────
+//
+// Index slicing gave 24.6 / 16.1 / 18.1 / 21.3 minutes over four shards — even
+// counts, uneven cost, because three suites are 86% of the campaign. The
+// campaign waits for the slowest.
+//
+// ⚠ THE TIMINGS ARE MEASURED, NEVER TABULATED. §106 was deferred precisely
+// because the obvious fix is a hardcoded per-suite cost table, which is a list
+// kept beside the artifact: right the day it is written, silently wrong after
+// any suite changes, with nothing to report the drift. These come from the
+// campaign's own previous run, sharing ADR-023's store rather than adding one.
+
+test('shards are balanced by measured cost when timings exist', () => {
+  // Six entries whose costs are lopsided. Index slicing into two would put
+  // 30+20+10 against 5+3+2 — the classic imbalance. Cost slicing evens them.
+  const entries = [
+    { label: 'a', ms: 30000 }, { label: 'b', ms: 20000 }, { label: 'c', ms: 10000 },
+    { label: 'd', ms: 5000 }, { label: 'e', ms: 3000 }, { label: 'f', ms: 2000 },
+  ]
+  const cost = m => m.ms
+  const shards = [1, 2].map(i => shardByCost(entries, i, 2, cost))
+  const totals = shards.map(s => s.reduce((n, m) => n + m.ms, 0))
+  assert.deepEqual(shards.flat().map(m => m.label).sort(), ['a', 'b', 'c', 'd', 'e', 'f'],
+    'every entry lands in exactly one shard')
+  assert.ok(Math.max(...totals) - Math.min(...totals) <= 5000,
+    `expected balanced shards, got ${totals}`)
+})
+
+test('a partition stays a partition however the costs fall', () => {
+  // The property that matters more than balance: an overlap double-counts a
+  // verdict and a gap drops one silently, which is T1's Stop Condition.
+  const entries = Array.from({ length: 37 }, (_, i) => ({ label: `m${i}`, ms: (i * 7) % 11 }))
+  for (const n of [1, 2, 3, 8, 37, 40]) {
+    const all = Array.from({ length: n }, (_, i) => shardByCost(entries, i + 1, n, m => m.ms)).flat()
+    assert.equal(all.length, entries.length, `n=${n}: count`)
+    assert.equal(new Set(all.map(m => m.label)).size, entries.length, `n=${n}: unique`)
+  }
+})
+
+test('with no timings at all it still partitions, and says nothing about balance', () => {
+  // The first run on a fresh checkout has no cache. Falling back must not drop
+  // entries, and must not pretend the slices are balanced — an unmeasured
+  // campaign is "could not look", and the slicing simply degrades to even counts.
+  const entries = Array.from({ length: 10 }, (_, i) => ({ label: `m${i}` }))
+  const all = [1, 2, 3].map(i => shardByCost(entries, i, 3, () => undefined)).flat()
+  assert.equal(all.length, 10)
+  assert.equal(new Set(all.map(m => m.label)).size, 10)
 })

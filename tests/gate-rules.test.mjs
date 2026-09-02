@@ -485,6 +485,50 @@ test('every adr-retire-check row rule has a case that makes it fire', () => {
 
 // --- adr-debt: the pointer classifier and every failure report --------------
 
+test('a task waiting on a choice nobody has made says so, and names the choice', () => {
+  // ADR-024 T3, from BACKLOG §83. ADR-014 models waiting by OWNERSHIP —
+  // Depends-on (someone here can act) and Blocked-on (nobody here can). A task
+  // waiting on a decision nobody has made is neither: every prerequisite exists,
+  // no work unblocks it, no event resolves it, a human has to pick. It read as
+  // `partial` with the whole thing in Verification Log prose.
+  const dir = scratch('undecided')
+  const tasks = join(dir, 'adr', 'ADR-001-p', 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  writeFileSync(join(dir, 'adr', 'ADR-001-p.md'), '# ADR-001: Probe\n')
+  const task = header =>
+    writeFileSync(join(tasks, 'T1-a.md'), `# Task ADR-001-T1: a\n\n${header}\n`)
+
+  // COUNTED APART from deferred debt: an unmade decision is not punted work, and
+  // planning for it as such misleads.
+  task('**Awaiting-decision:** credit the nearer bearer, or pick one with a stated justification')
+  const seen = run('adr-debt', [join(dir, 'adr')], dir)
+  assert.match(seen.stdout, /1 awaiting a decision/)
+  assert.match(seen.stdout, /awaiting a decision → credit the nearer bearer/)
+  assert.doesNotMatch(seen.stdout, /1 deferred/, 'an unmade decision is not deferred debt')
+
+  // ⚠ THE HEADER MUST NAME THE CHOICE. "waiting on a decision" with no decision
+  // written down is the prose state it replaces, so accepting it would ship the
+  // defect under a new name.
+  const lint = body => {
+    const f = join(tasks, 'T2-b.md')
+    writeFileSync(f, `# Task ADR-001-T2: b\n\n${body}\n`)
+    return run('adr-lint', [join(dir, 'adr', 'ADR-001-p.md')], dir)
+  }
+  assert.match(lint('**Awaiting-decision:** waiting on a decision').stdout,
+    /does not name the choice/,
+    'a header with no choice in it must be reported')
+  assert.doesNotMatch(lint('**Awaiting-decision:** keep the arm, or delete it').stdout,
+    /does not name the choice/,
+    'a header naming two options must not be')
+  assert.doesNotMatch(lint('**Awaiting-decision:** should the arm stay?').stdout,
+    /does not name the choice/,
+    'a question is a choice a reader can answer')
+
+  // And a task with neither header is untouched — every file valid before this
+  // stays valid, or the corpus turns red for a header nobody wrote yet.
+  assert.doesNotMatch(lint('**Depends-on:** none').stdout, /Awaiting-decision/)
+})
+
 test('a target another repository owns is declared, not called broken', () => {
   // ADR-024 T2, from BACKLOG §82: a corpus that is one half of a two-repo
   // decision cites a record this tree cannot hold. It was permanently red, and

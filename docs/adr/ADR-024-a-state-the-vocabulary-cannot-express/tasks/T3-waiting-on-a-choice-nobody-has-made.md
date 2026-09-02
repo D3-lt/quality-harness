@@ -21,7 +21,7 @@ counts it apart from deferred debt.
 | `plugin/bin/adr-lint` | edit | accept the header, and require it to name a choice rather than a mood |
 | `plugin/bin/adr-debt` | edit | count these separately — nobody is notified when a choice continues not to be made, which is the whole complaint |
 | `plugin/templates/task-template.md` | edit | the header list a task author reads is what SELECTS this |
-| `tests/gate-regressions.py` | edit | fixtures |
+| `tests/gate-rules.test.mjs` | edit | fixtures |
 
 ## Ordered Steps
 
@@ -35,17 +35,16 @@ counts it apart from deferred debt.
 
 ```bash
 set -o pipefail
-python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md . 2>&1 | tee /tmp/adr024-t3.out \
-  && ! grep -qE "Traceback|AssertionError" /tmp/adr024-t3.out \
-  && grep -q "PASS" /tmp/adr024-t3.out
+node --test tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr024-t3.out \
+  && ! grep -qE "no tests to run|^not ok|# fail [1-9]" /tmp/adr024-t3.out
 ```
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `test_awaiting_decision_names_the_choice` | `tests/gate-regressions.py` | the header is accepted with options and advised without them | — | S1, S2, S3 |
-| `test_awaiting_decision_is_counted_apart_from_debt` | `tests/gate-regressions.py` | adr-debt reports it on its own line, not folded into deferred | — | S1, S4 |
+| `a task waiting on a choice nobody has made says so, and names the choice` | `tests/gate-rules.test.mjs` | the header is accepted with options and advised without them | — | S1, S2, S3 |
+| `a task waiting on a choice nobody has made says so, and names the choice` | `tests/gate-rules.test.mjs` | adr-debt reports it on its own line, not folded into deferred | — | S1, S4 |
 
 ## Reachability
 

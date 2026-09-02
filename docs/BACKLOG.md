@@ -6953,7 +6953,21 @@ on history or a commit range. What ADR-023 built lives in `scripts/mutate.mjs`, 
 repository-owned and **does not ship**. `plugin/bin/adr-verify` does ship, and is the thing every
 adopting corpus actually runs.
 
-**Why it matters more elsewhere than here.** Our fence is ~0.7s, so 5.5 runs is invisible. An
+**It is not invisible here either, and I asserted that it was.** This entry said "our fence is ~0.7s,
+so 5.5 runs is invisible", generalised from the two task files I happened to have open. The corpus
+records the timing, so it was checkable and I did not check it:
+
+    23 recorded fence timings · min 3ms · median 4,787ms · max 25,537ms
+
+At the median, 5.5 runs is **26s per task** and a five-task wave is **131s**. That is not invisible,
+it is just small enough that nobody filed it. The adopting corpus reporting `go test ./...` at
+43.837s (§108) pays **4 minutes per task** and twenty per wave — same multiplier, different base.
+
+**A second finding fell out of taking that measurement, and it is the one that blocks the others:
+only 21 of 93 verification entries carry an `ms:` field — 22%.** The other 72 are timing-blind. So
+this corpus cannot currently answer "did that change make the lifecycle faster", which makes every
+optimisation below unfalsifiable until it is fixed. Recording the number is cheaper than any of them
+and is the precondition for all of them.
 adopting corpus reported `go test ./...` at 43.837s (§108) — the same 5.5 becomes **4 minutes per
 task**, serial, and a five-task wave is twenty. That is the half hour that was reported as "the ADR
 tooling is slow", and this is the part of it that genuinely is ours.

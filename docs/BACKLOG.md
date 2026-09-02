@@ -629,7 +629,7 @@ directory. That is the largest untested surface in the product and it is not a C
 
 ---
 
-## 17. What Windows said once the suite stopped answering for it
+## 17. CLOSED 2026-08-25 — what Windows said once the suite stopped answering for it
 
 Run `32883938308`, windows-latest, after the suite fixes in item 6. **13 failures became
 4**, and the remaining four are about the harness, which is what the job was built to find.
@@ -5021,7 +5021,7 @@ whether it does can change under you. So `python3` on Windows is not "a decoy" �
 confidently and wrongly. `resolvePython` asks the only question that survives this: did the
 thing answer as Python?
 
-## 89. `.gitattributes` pins `*.mjs` but not `*.js`, and six more extensions go CRLF
+## 89. PARTLY CLOSED 2026-08-30 — `.gitattributes` pinned `*.mjs` but not `*.js`, and six more extensions go CRLF
 
 Found 2026-08-30 by a peer Claude session on Windows 11 with `core.autocrlf=true`, reading a
 real Windows checkout this repository cannot produce. Confirmed against this tree: our
@@ -5157,7 +5157,7 @@ uses `Path` semantics (`parent in child.parents`, `relative_to`), never `startsw
 case-insensitively and the mixed-case cases all passed. Anyone who "simplifies" one to a string
 comparison reintroduces a case bug on a machine where nothing fails.
 
-## 91. `resolve_bash()` returns the WindowsApps Store alias — and CLAUDE.md §7 says it does not
+## 91. PARTLY CLOSED 2026-08-30 — `resolve_bash()` returned the WindowsApps Store alias; the name-based check that allowed it stays
 
 Found 2026-08-30 by a peer Claude session on Windows 11. **Reproduced here from macOS** through
 the resolver's own injectable seam, so this needs no Windows box to confirm or to regress:

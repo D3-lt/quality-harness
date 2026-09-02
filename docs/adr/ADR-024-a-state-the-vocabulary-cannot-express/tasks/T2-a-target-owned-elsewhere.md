@@ -86,3 +86,4 @@ a grammar that needs a rewrite is a different decision from one that needs a sib
 
 ## Verification Log
 - 2026-09-02 · faacfb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:cb2093fae0f18bddc6a0e4075265e5bda416ad5c1d43ed05da79c66dacff30a5 · ms:19250
+- 2026-09-02 · 21a7a04* · exit 0 · `set -o pipefail …` · acceptance-sha256:de3382eb35667b78dd17fc6118f0eb327caae3220cc819a267a5d6dae10dbfd0 · ms:8801

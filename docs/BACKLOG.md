@@ -5064,7 +5064,7 @@ already points.
 
 **So the record needs no update. The measurement stands, confirmed on its own build.**
 
-## 87. Nine adr-retire-check findings still assert nothing
+## 87. CLOSED 2026-09-02 — eleven adr-retire-check findings asserted nothing
 
 Measured, not estimated:
 
@@ -5091,6 +5091,42 @@ each copy separately doubles the tests to keep a duplication nobody wants.
 
 **Not fixed here.** Deduplicating a gate's rules is a change to what it reports, and it
 wants its own evidence rather than being folded into a hardening pass.
+
+
+---
+
+**CLOSED 2026-09-02. Eleven of thirty-three, down to zero.**
+
+    before  11 of 33 assert nothing
+    after    1 of 33   <- and that one is an artifact, see below
+
+Eleven cases were written, in two groups. Three are in `--adopt`, the mode a corpus
+runs BEFORE it has an archive catalog, so they are the first findings a new adopter
+ever sees: roots in unrelated parents, an accepted archived record the active catalog
+never links, and an archived obligation with no receipt. The other eight are the
+STRUCTURAL rules around the catalog — where the corpora are, whether the catalog
+resolves, whether an obligation was carried across — which is what a retirement
+actually turns on, while the row rules already had cases.
+
+**The last survivor is not a gap.** `#20` is asserted at `tests/lifecycle.test.mjs:1071`,
+outside the two suites this sweep ran. Verified rather than assumed, because "it must
+be covered somewhere" is the reasoning this entry exists to refuse.
+
+**Three fixtures passed while asserting nothing before they were right**, and each is
+worth more than the case it enabled:
+
+- Editing a sealed record invalidates its SHA, and that check fires FIRST and skips
+  everything after it. Re-sealed with the gate's own `decision_unit_digest`, and the
+  case now asserts no SHA error appears — otherwise it tests the seal, not the rule.
+- An obligation comes from TWO places, a deferred `Out of Scope` entry AND an
+  unchecked `Follow-ups` box. Removing only the deferral left the count at 1 and the
+  case silently did not fire.
+- A replacement case first named `ADR-002`, which the fixture's active corpus already
+  holds, so the duplicate-id rule fired instead and the assertion passed for the wrong
+  reason.
+
+Each was caught by checking that the intended finding actually appeared, rather than
+by the test going green. A green test is what all three looked like.
 
 ## 88. CLOSED 2026-09-01 — bare `python3` is a decoy on stock Windows, and 18 sites still spawn it
 

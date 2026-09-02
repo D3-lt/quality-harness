@@ -3379,8 +3379,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (probe.status === 0 && (probe.stdout ?? '').trim() === '3') return [command, ...prefix]",
-      "to": "    if (!probe.error) return [command, ...prefix]"
+      "from": "    if (probe.status === 0 && /^3(\\.\\d+)?$/.test(answered)) {",
+      "to": "    if (!probe.error) {"
     },
     {
       "label": "windows: adr-verify refuses the WindowsApps bash alias",
@@ -3939,6 +3939,15 @@
       ],
       "from": "                helper = symbol_body(text, callee)\n                if helper and FAIL_CALLS.search(helper):",
       "to": "                helper = None\n                if helper and FAIL_CALLS.search(helper):"
+    },
+    {
+      "label": "windows: a failed probe does not leave the previous version readable",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  lastPythonVersion = null\n  if (platform !== 'win32') return null",
+      "to": "  if (platform !== 'win32') return null"
     }
   ]
 }

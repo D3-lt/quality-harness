@@ -2067,7 +2067,12 @@ function taskDirectories(root) {
 // only half-arrives: it skips the System32 WSL stub but NOT the WindowsApps
 // launcher its own docstring names, so on a stock PATH it returns a 0-byte Store
 // alias (BACKLOG §91). Probe; do not trust a name or an isfile().
-const PYTHON_PROBE = 'import sys;print(sys.version_info[0])'
+// BACKLOG §93. The probe asked for the MAJOR version and threw the rest away, so
+// a box with 3.14 and 3.10 both on PATH — four years and one semantic change
+// apart — answered `3` either way and nothing recorded which one ran. §90 is the
+// case where that mattered: the same guard returned different answers on each.
+// Costs one format string; the acceptance check below still turns on the major.
+const PYTHON_PROBE = 'import sys;print("%d.%d" % sys.version_info[:2])'
 
 // Preference order. `py -3` is the launcher Windows actually ships for this and
 // is the one standalone-link.mjs's cmd forwarder already reaches for; a bare
@@ -2085,13 +2090,32 @@ const WINDOWS_PYTHONS = [['py', '-3'], ['python'], ['python3']]
  * branch on boxes where `python3` happens to be genuine.
  */
 export function resolvePython(platform = process.platform, candidates = WINDOWS_PYTHONS, run = spawnSync) {
+  // CLEARED FIRST. Without this a failed resolve left the PREVIOUS run's version
+  // readable, so a caller recording "which Python answered" would record one that
+  // did not — stale evidence, which is worse than none and is the exact class §93
+  // is about.
+  lastPythonVersion = null
   if (platform !== 'win32') return null
   for (const [command, ...prefix] of candidates) {
     const probe = run(command, [...prefix, '-c', PYTHON_PROBE], { encoding: 'utf8', timeout: 10_000 })
-    if (probe.status === 0 && (probe.stdout ?? '').trim() === '3') return [command, ...prefix]
+    const answered = (probe.stdout ?? '').trim()
+    // Still keyed on the MAJOR — any 3.x is a real Python 3 — but the full answer
+    // is kept so a run can say which one it was.
+    if (probe.status === 0 && /^3(\.\d+)?$/.test(answered)) {
+      lastPythonVersion = answered
+      return [command, ...prefix]
+    }
   }
   return null
 }
+
+// What the last successful probe answered, e.g. `3.14`, or null if nothing has
+// been probed or nothing answered. Read by whatever wants to RECORD which
+// interpreter ran, which is the half §93 is actually about: the gates ship as
+// `#!/usr/bin/env python3`, so the environment picks, and until now nothing
+// pinned, probed or recorded the choice.
+let lastPythonVersion = null
+export const probedPythonVersion = () => lastPythonVersion
 
 // Resolved once per process: readyTaskLines calls spawnGate per task directory,
 // and re-probing three interpreters for each would cost more than the gates.

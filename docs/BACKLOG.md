@@ -1047,7 +1047,7 @@ postmortem — a document the gate cannot recognise as the kind of record it val
 a form problem. That joins the two the first pass found: an unfilled placeholder blocks,
 and a section present and EMPTY blocks.
 
-## 24. The skill recommended the one shape the evidence chain cannot cover
+## 24. CLOSED — the skill recommended the one shape the evidence chain cannot cover
 
 Found by a session working on another repository, which followed `/adr-write`, hit the
 contradiction, and did the right thing: it kept the task files the skill told it not to
@@ -1076,6 +1076,15 @@ its layout is what teaches people to stop running the gate.
 
 `tests/skill-contract.test.mjs` now asserts that no skill recommends a shape `adr-verify`
 cannot write evidence into, which is the general form of this bug.
+
+
+---
+
+**CLOSED, and the skill records its own correction.** `plugin/skills/adr-write/SKILL.md:200` now
+reads *"≤3 tasks: `tasks/` directory with task files and a flat `README.md`, same as 4–5"*, and the
+paragraph below it says what it used to say and why that routed small work into the one place the
+anti-fabrication guarantee does not apply. The session that hit this kept the task files the skill
+told it not to create, which was right.
 
 ## 25. Two things 2.18.2 made vestigial, kept deliberately
 
@@ -2218,7 +2227,7 @@ silently, since it takes no baseline at all — and ADR-006 makes the dependency
 set rather than fixing it. §34 is the precedent for what fixing it looks like: the coverage jitter
 was cured by finding the mechanism (`--test-concurrency=1`), not by widening a threshold.
 
-## 40. Two fixes that inherited the defect they were fixing
+## 40. CLOSED 2026-09-02 — two fixes that inherited the defect they were fixing
 
 Found 2026-08-28 by an independent review (Codex gpt-5.6-sol, xhigh, read-only) over the ten gates
 and an eighteen-commit diff. Both findings were in code written that same morning to remove exactly
@@ -2252,6 +2261,26 @@ independent read when the thing being audited is your own reasoning.
 was satisfied by the line-bound fix, so deleting it changed nothing observable. It turned out to be
 load-bearing for exactly one shape — a regex and a test definition sharing a line — which is now the
 test. A defence-in-depth branch nobody can make fail is indistinguishable from a dead one.
+
+
+---
+
+**CLOSED 2026-09-02.** Both findings verified against the code, each by feeding it the input that
+used to break it:
+
+    code_only("if (ready) /it's/.test(v)\nfunction TestX() { expect(1) }")
+      -> keeps TestX          (was: the apostrophe opened a phantom string and the tests vanished)
+
+    baselineOf({status: 1})                        -> {state: 'fail'}
+    baselineOf({status: null, signal: 'SIGTERM'})   -> {state: 'unrun', why: 'SIGTERM'}
+    baselineOf({status: 0})                        -> {state: 'pass'}
+
+The middle row is the second finding: a timed-out spawn is `unrun` with its reason rather than a
+plain failure, so a mutation measured against it is UNPROVEN instead of counted.
+
+The entry's own closing line — *"a fix for a class is not evidence that the class is gone from the
+fix"* — is the part worth keeping, and it kept being true today: five separate defects this session
+were in code written to remove the same class.
 
 ## 41. One of two closed; the relation-vocabulary question stays open
 

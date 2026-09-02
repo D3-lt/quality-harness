@@ -363,4 +363,10 @@ written the same day to fix the same class.
    sets `cancel-in-progress: true`, so the next push to `main` kills the run you are releasing on —
    correct for development, wrong for a release, and silent either way. Either wait, or re-run at
    the new head and release that. (BACKLOG §104.)
-6. `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.
+6. **A release campaign is always full.** `.github/workflows/selftest.yml` passes `--no-cache` for a
+   tag and for `main`, so every entry is measured rather than reused. ADR-023 lets an ordinary push
+   reuse a `RED` verdict whose subject and tests are byte-identical to the run that took it — that
+   is for iteration, and a released artifact is never partly evidenced by a verdict taken at another
+   commit. The record's own kill criterion depends on this: a wrong reuse surfaces at the next tag
+   precisely because tags keep running the whole catalogue.
+7. `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.

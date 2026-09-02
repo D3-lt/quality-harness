@@ -458,7 +458,20 @@ def main():
                 waiting.append((scan_dir, rel, bo.group(1).strip(),
                                 seen[-1] if seen else None))
 
-    print(f"[DEBT] {len(deferred)} deferred · {len(followups)} open follow-ups · "
+    # BACKLOG §85b. One debt written in BOTH a task file and its parent ADR is a
+    # row per location, and the headline counted rows. Every row is true and the
+    # NUMBER misleads: the reporting corpus read "9 deferred" and had 4-5 real
+    # debts, so a reader triaging it plans for twice the work that exists.
+    #
+    # Keyed on (pointer, text) rather than on the file, because that is what makes
+    # two rows the SAME debt — the same punt cited from two places. Two genuinely
+    # different debts that happen to share a destination keep their own counts,
+    # which is why the text is in the key.
+    distinct_debts = {(ptr, txt) for _sd, _rel, ptr, txt in deferred}
+    deferred_label = (f"{len(deferred)} deferred"
+                      if len(distinct_debts) == len(deferred)
+                      else f"{len(deferred)} deferred rows ({len(distinct_debts)} distinct)")
+    print(f"[DEBT] {deferred_label} · {len(followups)} open follow-ups · "
           f"{len(broken)} broken pointers · {len(unreceipted)} unreceipted · "
           f"{len(unswept_items)} into an archive · "
           f"{len(waiting)} waiting")

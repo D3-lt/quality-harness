@@ -130,9 +130,29 @@ export function main(argv) {
   }
   }
   if (!areas.size && touched.size) {
-  process.stdout.write('\nNo record declares a `Governs:` scope, so authority is inferred from what\n'
-    + 'tasks touched. Ask about one path with `adr-context <path>`, or add `Governs:`\n'
-    + 'to the records whose scope is broader than the files that first implemented them.\n')
+  // BACKLOG §85c. This is a STATE, not a finding — it exits 0 and nothing is
+  // wrong — but it read like one, and the remedy it named ("add Governs: to the
+  // records whose scope is broader than the files that first implemented them")
+  // asks for a judgement the line did not help anyone make. Two adopting corpora
+  // sorted it into "TRUE but I could not tell what to do next".
+  //
+  // So: say it is normal, and name the records where declaring would change the
+  // most, which is the judgement the reader was left to make unaided.
+  const widest = governing
+    .filter(record => record.governs.length)
+    .sort((a, b) => b.governs.length - a.governs.length)
+    .slice(0, 3)
+  process.stdout.write('\nNo record declares a `Governs:` scope. That is normal and nothing is wrong:\n'
+    + 'authority is inferred from the paths each record\'s tasks touched, and every\n'
+    + 'reader below works from that.\n')
+  if (widest.length) {
+    process.stdout.write('Declaring one changes what `adr-context` hands the next session to edit '
+      + 'those\npaths. These touch the most, so a declaration there is worth the most:\n')
+    for (const record of widest) {
+      process.stdout.write(`  ${label(record)}  ${record.governs.length} path(s)  ${record.title}\n`)
+    }
+  }
+  process.stdout.write('Ask about one path with `adr-context <path>`.\n')
   }
   if (areas.size) {
   process.stdout.write('\nWhat governs what, as it stands now:\n')

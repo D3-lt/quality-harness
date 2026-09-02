@@ -364,8 +364,21 @@ test('with no timings at all it still partitions, and says nothing about balance
   // The first run on a fresh checkout has no cache. Falling back must not drop
   // entries, and must not pretend the slices are balanced — an unmeasured
   // campaign is "could not look", and the slicing simply degrades to even counts.
-  const entries = Array.from({ length: 10 }, (_, i) => ({ label: `m${i}` }))
-  const all = [1, 2, 3].map(i => shardByCost(entries, i, 3, () => undefined)).flat()
-  assert.equal(all.length, 10)
-  assert.equal(new Set(all.map(m => m.label)).size, 10)
+  const entries = Array.from({ length: 443 }, (_, i) => ({ label: `m${i}` }))
+  const shards = Array.from({ length: 8 }, (_, i) => shardByCost(entries, i + 1, 8, () => undefined))
+  const all = shards.flat()
+  assert.equal(all.length, 443)
+  assert.equal(new Set(all.map(m => m.label)).size, 443)
+
+  // ⚠ AND NO SHARD IS EMPTY, which the partition assertions above CANNOT see:
+  // putting all 443 entries in bin 1 and leaving seven empty still sums to 443
+  // and is still unique. That is exactly what shipped — an unknown cost counted
+  // as 0, so every load stayed 0, `lightest` was always bin 0, and CI reported
+  // `shard 4/8: 0 of 443 mutations` on every shard but the first while this test
+  // passed. It passed locally too, because a cache with timings happened to
+  // exist (CLAUDE.md §8).
+  const sizes = shards.map(s => s.length)
+  assert.ok(Math.min(...sizes) > 0, `no shard may be empty when nothing is timed: ${sizes}`)
+  assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1,
+    `untimed slicing must be even, not merely non-empty: ${sizes}`)
 })

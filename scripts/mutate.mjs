@@ -360,7 +360,13 @@ export function shardByCost(mutations, index, total, cost) {
     let lightest = 0
     for (let i = 1; i < total; i += 1) if (loads[i] < loads[lightest]) lightest = i
     bins[lightest].push(entry)
-    loads[lightest] += entry.ms ?? 0
+    // ⚠ AN UNKNOWN COST IS ONE UNIT, NEVER ZERO. With `?? 0` every load stayed 0,
+    // `lightest` was always bin 0, and a campaign with no timings put ALL 443
+    // entries in shard 1 and left the other seven empty — `shard 4/8: 0 of 443`,
+    // which is what broke every mutation job in CI while passing here, where a
+    // cache happened to exist. The claim in this function's own docstring, that
+    // it degrades to round-robin, is only true with this line.
+    loads[lightest] += entry.ms ?? 1
   }
   // Back into catalogue order within the shard, so a campaign's log reads the
   // way the file does rather than by descending cost.

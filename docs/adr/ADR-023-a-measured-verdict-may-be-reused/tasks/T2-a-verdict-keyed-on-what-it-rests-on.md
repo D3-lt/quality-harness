@@ -92,3 +92,4 @@ code lands.
 - Deciding WHEN reuse is permitted — that is T3
 
 ## Verification Log
+- 2026-09-02 · 5bdb94b · exit 0 · `set -o pipefail …` · acceptance-sha256:881ddad4f97673dadd8232e9372de3858b1d6278a223700b6f04b2133d88f07b · ms:273

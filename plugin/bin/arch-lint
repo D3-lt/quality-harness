@@ -337,9 +337,25 @@ def symbol_errors(label, cell, roots, index):
             if body is None:
                 continue
             break
+        # A test that delegates its assertions to a helper still fails when the
+        # helper does. Follow ONE level: any same-file function the body calls
+        # that itself contains a failure call counts as part of the test.
+        #
+        # Ported from adr-lint, which has had this since its own version of the
+        # check and says so in its message. Issue #7 point 2: the two gates
+        # diverged here in the same direction as the comment-ordering defect —
+        # one hardened, its sibling left carrying the hole — so a Go test whose
+        # assertions live in a shared helper read as unable to go red.
+        if body is not None and not FAIL_CALLS.search(body):
+            for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
+                helper = symbol_body(text, callee)
+                if helper and FAIL_CALLS.search(helper):
+                    body += helper
+                    break
         if body is not None and not FAIL_CALLS.search(body):
             errs.append(f"{label}: names the test `{sym}`, but no failure call is reachable in "
-                        f"its body — a test that cannot go red is evidence of nothing")
+                        f"its body or in a same-file helper it calls — a test that cannot go red "
+                        f"is evidence of nothing")
     return errs
 
 

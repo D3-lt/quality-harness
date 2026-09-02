@@ -3930,6 +3930,15 @@
       ],
       "from": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}",
       "to": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') }}"
+    },
+    {
+      "label": "arch: a test may reach its failure call through a same-file helper",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/arch-lint.test.mjs"
+      ],
+      "from": "                helper = symbol_body(text, callee)\n                if helper and FAIL_CALLS.search(helper):",
+      "to": "                helper = None\n                if helper and FAIL_CALLS.search(helper):"
     }
   ]
 }

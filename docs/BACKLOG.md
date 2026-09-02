@@ -6134,3 +6134,36 @@ needs, so this is bounded by both. A firing test is still strictly more than not
 **Not fixed here.** Writing nine eval cases is real work with a real cost — the eval runner spends
 model calls — and the ordering question (which three matter most) is a judgement about where the
 lifecycle is load-bearing, not a mechanical sweep. `review` first is the obvious candidate.
+
+## 106. Mutation shards are sliced by index, so the slowest carries 53% more than the fastest
+
+Filed 2026-09-02 by ADR-023, which deferred it. `scripts/mutate.mjs --shard i/n` slices the
+catalogue by INDEX, so a shard's cost depends on which suites its entries happen to name. Measured
+at 430 entries over four shards, using per-suite runtimes taken the same day:
+
+    shard 1/4: 107 mutants, 24.6 min
+    shard 2/4: 108 mutants, 16.1 min
+    shard 3/4: 107 mutants, 18.1 min
+    shard 4/4: 108 mutants, 21.3 min
+
+Even counts, uneven cost, because three suites are 86% of the campaign
+(`lifecycle.test.mjs` 17.2s x 116, `gates.test.mjs` 14.1s x 96, `evidence-chain.test.mjs` 22.2s x
+34). The campaign waits for the slowest, so 8.5 of those minutes are pure wall-clock loss.
+
+ADR-023 T1 raised the matrix to eight, which shrinks the absolute gap without addressing the
+imbalance — the ratio is a property of the slicing, not of the count.
+
+**Why it was deferred rather than done.** The obvious fix is to slice by estimated cost, and the
+obvious estimate is a table of per-suite runtimes. **That table is a list kept beside the artifact**
+— the shape this corpus distrusts, and the one ADR-011 named: it is right on the day it is written
+and silently wrong after any suite changes, with nothing to report the drift. A number that decides
+scheduling and answers to nothing is worse than an uneven shard.
+
+**The honest version measures rather than remembers**: have the campaign record each entry's
+observed duration as it runs, and slice the next run from those. That makes the estimate a
+measurement with a provenance, and makes a stale one visible. It is also a bigger piece of work
+than raising a matrix number, needs somewhere durable to keep the timings, and interacts with
+ADR-023's verdict cache, which will be writing per-entry state anyway.
+
+**Do this after ADR-023 T2 lands**, and share its store rather than adding a second one.
+

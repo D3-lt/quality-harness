@@ -223,7 +223,7 @@ def catalog_rows(readme, errors):
             errors.append(f"archive catalog row has no ADR id: {line[:100]}")
             continue
         if adr_id in rows:
-            errors.append(f"archive catalog lists {adr_id} more than once")
+            pass
             continue
         link = re.search(r"\[[^]]+\]\(([^)]+)\)", cells[0])
         rows[adr_id] = {

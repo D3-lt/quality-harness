@@ -512,7 +512,8 @@ export function main(argv) {
     // would be measuring a different thing than the one it licenses.
     const run = spawnSync(process.execPath,
       ['--test', ...set.tests.map(t => path.join(root, t))],
-      { cwd: root, encoding: 'utf8', timeout: timeoutMs })
+      { cwd: root, encoding: 'utf8', timeout: timeoutMs,
+        env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
     baselines.set(set.tests.join('\0'), baselineOf(run))
   }
 
@@ -542,7 +543,8 @@ export function main(argv) {
     const startedAt = Date.now()
     const run = spawnSync(process.execPath,
       ['--test', ...mutation.tests.map(t => path.join(root, t))],
-      { cwd: root, encoding: 'utf8', timeout: timeoutMs })
+      { cwd: root, encoding: 'utf8', timeout: timeoutMs,
+        env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
     const elapsedMs = Date.now() - startedAt
     finish(file, original)
 

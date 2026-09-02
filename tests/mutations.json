@@ -3975,6 +3975,24 @@
       ],
       "from": "WHEN THE FENCE CANNOT RUN TO COMPLETION — and only then — a mutation you performed BY HAND has a",
       "to": "WHEN THE FENCE IS INCONVENIENT — and only then — a mutation you performed BY HAND has a"
+    },
+    {
+      "label": "debt: an unresolvable pointer is not called broken",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        if kind == \"adr\":",
+      "to": "        if False:"
+    },
+    {
+      "label": "debt: an external declaration without an owner is not a declaration",
+      "file": "plugin/bin/adr-debt",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    if not where.strip() or not pointer.strip():\n        return None",
+      "to": "    if not pointer.strip():\n        return None"
     }
   ]
 }

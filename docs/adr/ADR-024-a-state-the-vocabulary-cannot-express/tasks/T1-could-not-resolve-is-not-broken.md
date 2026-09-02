@@ -76,3 +76,4 @@ nothing — the two would need different words and this task assumes one call si
 - Following a pointer into another repository (the parent ADR's Out of Scope says why)
 
 ## Verification Log
+- 2026-09-02 · faacfb3 · exit 0 · `set -o pipefail …` · acceptance-sha256:1f3fcfc5517aec32b1415531ba9f7bf8ee4373fd91b4f335ad67afd9965c473b · ms:5120

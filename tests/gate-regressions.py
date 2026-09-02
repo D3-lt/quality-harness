@@ -700,6 +700,7 @@ def main():
     test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, verify, repo_root)
     test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint)
     test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint, repo_root)
+    test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3769,6 +3770,66 @@ def test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint,
         f"gate: {cache}")
 
     print("PASS — a declaration smaller than the segment count is reported, in the counts taken")
+
+
+def test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint):
+    """docs/BACKLOG.md §78 — inert is reported, load-bearing and redundant are not."""
+    # THE SHELL FIRST, because the whole advisory rests on a POSIX claim and a
+    # regex agreeing with itself proves nothing. `set -e` does not apply to a
+    # command whose status is inverted with `!`, so the guard is skipped and the
+    # script exits on what follows; the un-negated control does fail.
+    with tempfile.TemporaryDirectory() as tmp:
+        out = Path(tmp) / "x.out"
+        out.write_text("x\n", encoding="utf-8")
+        for shell in ("sh", "bash"):
+            r = subprocess.run(
+                [shell, "-c", f"set -e; ! grep -q FAIL {out}; echo REACHED; exit 7"],
+                capture_output=True, text=True)
+            assert r.returncode == 7 and "REACHED" in r.stdout, (shell, r.returncode, r.stdout)
+        control = subprocess.run(
+            ["sh", "-c", f"set -e; grep -q NOPE {out}; echo REACHED; exit 7"],
+            capture_output=True, text=True)
+        assert control.returncode == 1 and "REACHED" not in control.stdout, control.returncode
+
+    # INERT — errexit is on and the guard is not the last command. Reported.
+    inert = "set -e\n! grep -q FAIL out\npython3 -m pytest x.py"
+    assert lint.inert_negated_guards(inert) == ["! grep -q FAIL out"]
+
+    # Every errexit spelling reaches it, including the one bundled with pipefail.
+    for opener in ("set -e", "set -eu", "set -euo pipefail", "set -o errexit"):
+        assert lint.inert_negated_guards(f"{opener}\n! grep -q FAIL out\nrun") != [], opener
+
+    # The `&&` short-circuit route §78 names as the second inertness: the guard
+    # never fails and `next` is never reached.
+    assert lint.inert_negated_guards("set -e\n! grep -q FAIL out && run") == [
+        "! grep -q FAIL out"]
+
+    # ...AND THE THREE IT MUST STAY SILENT ON. Without these the check above
+    # passes just as well against a function returning every negated grep it
+    # sees, and an advisory that fires on a load-bearing guard is one people
+    # switch off (CLAUDE.md §3, and §78 measured 0 of 50 as the only detector).
+    #
+    # 1. LAST COMMAND — its status IS the script's, so the guard is load-bearing.
+    assert lint.inert_negated_guards("set -e\npython3 -m pytest x.py\n! grep -q FAIL out") == []
+    # 2. NO ERREXIT — this corpus's own convention, all 51 fences of it.
+    assert lint.inert_negated_guards("set -o pipefail\n! grep -q FAIL out\nrun") == []
+    # 3. NO NEGATION — the recommended form, which does fail under errexit.
+    assert lint.inert_negated_guards(
+        'set -e\nif grep -q FAIL out; then exit 1; fi\nrun') == []
+
+    # And the real corpus is clean, which is the claim §78 makes about it —
+    # asserted here rather than believed, so a fence that adopts `set -e` later
+    # is caught rather than assumed away.
+    root = Path(__file__).resolve().parent.parent
+    found = []
+    for task in sorted((root / "docs" / "adr").rglob("*.md")):
+        text = task.read_text(encoding="utf-8")
+        m = re.search(r"## Acceptance\s*\n+```bash\s*\n(.*?)```", text, re.S)
+        if m:
+            found += [(task.name, g) for g in lint.inert_negated_guards(m.group(1))]
+    assert found == [], found
+
+    print("PASS — a negated guard that cannot fail its fence is reported, and a working one is not")
 
 
 if __name__ == "__main__":

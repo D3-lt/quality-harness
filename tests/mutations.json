@@ -3804,6 +3804,24 @@
       ],
       "from": "    return [s for s in segments if not FENCE_SETUP_RE.match(s)]",
       "to": "    return segments  # setup lines counted as assertions"
+    },
+    {
+      "label": "lint: an inert negated guard is told from a load-bearing one",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return [s for s in segments[:-1] if NEGATED_GREP_RE.match(s)]",
+      "to": "    return [s for s in segments if NEGATED_GREP_RE.match(s)]  # last one too"
+    },
+    {
+      "label": "lint: errexit is detected in every option-cluster spelling",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "ERREXIT_RE = re.compile(r\"^\\s*set\\s+(?:-[a-zA-Z]*e[a-zA-Z]*|-o\\s+errexit)\\b\", re.M)",
+      "to": "ERREXIT_RE = re.compile(r\"^\\s*set\\s+(?:-[a-zA-Z]*e|-o\\s+errexit)\\b\", re.M)"
     }
   ]
 }

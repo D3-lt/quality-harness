@@ -302,7 +302,13 @@ test('shipped guidance teaches generated restore transactions', () => {
  * a check that only ever reports "clean" is a check nobody has seen work.
  */
 function backlogHeadingsThatUndersell(text) {
-  const words = 'CLOSED|FIXED|DECIDED|WITHDRAWN|SUPERSEDED|RESOLVED'
+  // The corpus's OWN closure vocabulary, widened 2026-09-02 after the case fix.
+  // `Done` is the commonest spelling in this file by a wide margin — eleven
+  // sections declared a closure with it, each naming the commit that did the
+  // work, and the six-word list saw none of them. Same defect as the case
+  // rule one vocabulary over: a gate whose words are not the corpus's words
+  // reports clean over the thing it was written to find.
+  const words = 'CLOSED|FIXED|DECIDED|WITHDRAWN|SUPERSEDED|RESOLVED|DONE|LANDED|SHIPPED|COMPLETE'
   // Case-INSENSITIVE on both sides, and the asymmetry it replaces was the defect:
   // the heading test below has always carried `i` while this one did not, so the
   // same six words were read under two different rules. The corpus writes its

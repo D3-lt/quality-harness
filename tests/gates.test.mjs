@@ -1228,3 +1228,48 @@ test('adr-lint cross-checks every ordered step against an explicit proof', (t) =
   expectExit(legacyParity, 1, 'legacy tilde-heading parity')
   assert.match(legacyParity.stdout, /Acceptance has no ```bash fence/)
 })
+
+// A parallelised Acceptance fence that collects its children with a bare `wait`
+// cannot fail: bash returns 0 from an argument-less `wait` whatever the children
+// exited with, and neither `set -e` nor `set -o pipefail` changes that.
+// Reported 2026-09-02 from an adopting corpus that had just cut a 45s suite to
+// 4.5s by parallelising — the right optimisation, one `wait` from a dead gate.
+// Driven through `adr-lint` on a real task file rather than against the helper,
+// because the report arrived as a fence in a task and that is the boundary it
+// has to be caught at (CLAUDE.md §4).
+test('a parallelised acceptance fence that never collects its children is reported', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-parallel-'))
+  cpSync(fixture, temp, { recursive: true })
+  const task = join(temp, 'tasks', 'T1-fixture.md')
+  const original = readFileSync(task, 'utf8')
+  const setFence = body => writeFileSync(task, original.replace(
+    /```bash\n[\s\S]*?\n```/,
+    `\`\`\`bash\n${body}\n\`\`\``,
+  ))
+  const lintCorpus = () => run('adr-lint', ['ADR-001-selftest.md', 'tasks'], temp)
+  const NOTICE = /backgrounds work with `&`.*cannot fail/is
+
+  // The trap, in the shape an author reaches for first.
+  setFence('set -eo pipefail\nadr-lint ADR-001-selftest.md tasks & python3 -c "pass" & wait')
+  const trapped = lintCorpus()
+  assert.match(trapped.stdout, NOTICE, trapped.stdout)
+  // Advisory, never blocking — CLAUDE.md §3. A gate that refuses the commit here
+  // would stop the person doing the correct optimisation.
+  expectExit(trapped, 0, 'the finding advises and does not block')
+
+  // The same parallelism, collected per pid. It must go quiet, or the check is
+  // one that matches every parallel fence and teaches people to ignore it.
+  setFence([
+    'set -o pipefail',
+    'adr-lint ADR-001-selftest.md tasks & p1=$!',
+    'python3 -c "pass" & p2=$!',
+    'rc=0; for p in $p1 $p2; do wait $p || rc=1; done',
+    'exit $rc',
+  ].join('\n'))
+  assert.doesNotMatch(lintCorpus().stdout, NOTICE, 'a collected fence must not be reported')
+
+  // And the serial fence the rest of this corpus uses stays silent too.
+  setFence(original.match(/```bash\n([\s\S]*?)\n```/)[1])
+  assert.doesNotMatch(lintCorpus().stdout, NOTICE, 'a serial fence must not be reported')
+  rmSync(temp, { recursive: true, force: true })
+})

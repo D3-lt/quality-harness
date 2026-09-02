@@ -108,3 +108,4 @@ at the next tag — rests on it.
   ℹ duration_ms 531.213875
   no mutation matches a forced run reuses nothing
   ```
+- 2026-09-02 · dba24d4 · exit 0 · `set -o pipefail …` · acceptance-sha256:71bb37921d33ea3fdd4583f682d723e342c2d6a1d69512bfa0eaad7821eb0b53 · ms:2534

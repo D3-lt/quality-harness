@@ -35,6 +35,14 @@ EVIDENCE — does the decision rest on observed facts rather than preference?
   E2  Every alternative names why it was NOT chosen, in its own terms.
   E3  A comparative claim ("faster", "cheaper", "safer") carries a number or a
       named source somewhere in the record.
+  E4  A named check can fail FOR THIS ARTIFACT, not merely in general. An
+      `Enforced-by:` header or a Reachability rung may name a real, passing,
+      correctly written gate whose universe does not contain the thing the record
+      is about — a struct-tag check cited for a conditional map entry, say. It
+      reads as enforcement and is decoration. Deleting the thing the record
+      protects should turn the named check red; if nobody has tried, the claim is
+      untested. Nothing can decide this mechanically (BACKLOG §53), which is why
+      it is a question here rather than a rule in adr-lint.
 
 CLARITY — will a reader in a year know what was decided?
   C1  The Decision commits. It says what will be done, not what might be.

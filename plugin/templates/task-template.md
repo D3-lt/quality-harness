@@ -164,6 +164,15 @@ mutant still compiles first — a mutant that does not build has not been tested
 | 3 — the caller can discover it | <the schema / flag / doc, and the check on it — or `n/a: no declared interface`> |
 | 4 — it is used | <how usage would be observed, or `nothing measures this yet`> |
 
+<⚠ RUNG 2 IS A CLAIM ABOUT A CHECK'S UNIVERSE, not about the check. A named gate
+can be real, passing and correctly written and still be unable to see the thing
+this task adds — a struct-tag check cited for a conditional map entry, a
+line-based rule cited for something spanning lines. It then reads as enforcement
+and is decoration. The test is cheap and nobody runs it: DELETE the thing this
+task protects and watch the named check go red. If it stays green, the rung names
+the wrong check. Nothing can decide this mechanically, which is why it is asked
+here rather than enforced (BACKLOG §53).>
+
 <Rung 3 is the one that is missed. A tool argument the handler honours but the schema never
 advertises works for anyone who sends it, so every behavioural test passes — and the caller who
 reads the schema never sends it. Only a source or schema check reaches that rung. Rung 4 is not a

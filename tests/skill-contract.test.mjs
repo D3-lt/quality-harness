@@ -441,6 +441,30 @@ test('the template and the execute skill agree about the human mutation lane', (
     // fence that starts fine and has one clause that cannot complete.
     assert.ok(/cannot run to completion/i.test(text),
       `${name} must state the condition as "cannot run to completion"`)
+    // BACKLOG §80. The line above asserts the phrase appears ANYWHERE, and a
+    // SURVIVED mutation during ADR-013 T3 showed what that misses: the phrase
+    // occurs twice in the template, so rewriting the HEADING to "WHEN THE FENCE
+    // IS INCONVENIENT" left the definition below still satisfying it. The
+    // document was then internally CONTRADICTORY — the heading invited the
+    // inconvenient case, the prose two lines down excluded it — and green.
+    //
+    // The two occurrences are not duplicates: one INVITES the lane and one
+    // CONSTRAINS it, and a reader who sees only the first gets the wrong rule.
+    // So assert each role, which is what makes a contradiction impossible rather
+    // than merely unlikely. Not "the string appears N times" — that is the same
+    // ceiling with a counter on it — and not grading meaning, which §80 rightly
+    // says needs graders that can run.
+    assert.ok(/(WHEN THE FENCE|If the Acceptance fence) CANNOT RUN TO COMPLETION/i.test(text),
+      `${name} must INVITE the lane in a heading an author reads, naming the condition`)
+    // Matched on the ROLE, not the wording: the constraint is "merely slow or
+    // inconvenient does NOT qualify", and the two documents say that in different
+    // words ("It does not mean slow, or awkward, or needing docker" in the
+    // template; "not a fence that is merely slow or needs docker" in the skill).
+    // Pinning either phrasing would be the ratchet-against-renames §80 warns is
+    // mistaken for a check on meaning.
+    assert.ok(/(?:not|does not mean)[^.]{0,80}\b(?:slow|awkward|inconvenient)\b/i.test(text),
+      `${name} must CONSTRAIN the lane where it is defined — the half that stops `
+      + '"merely inconvenient" being read into it')
     // The ceiling. The lane records a kill; it does not unlock `done`. Stated in
     // both places because an author who reads only one must not infer otherwise.
     assert.ok(/does not (?:make|satisfy|unlock)|raises the floor/i.test(text),

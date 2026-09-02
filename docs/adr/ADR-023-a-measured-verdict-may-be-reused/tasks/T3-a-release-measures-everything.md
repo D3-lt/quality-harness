@@ -58,6 +58,8 @@ node --test tests/package.test.mjs tests/mutate-runner.test.mjs 2>&1 | tee /tmp/
 
 ## Mutation Log
 
+- 2026-09-02 · bac8616 · mutant killed · exit 1 · `.github/workflows/selftest.yml` · main dropping out of the condition lets a release-quality branch reuse verdicts · acceptance-sha256:71bb37921d33ea3fdd4583f682d723e342c2d6a1d69512bfa0eaad7821eb0b53
+
 ## Invariants
 
 - A tag and `main` always measure the full catalogue. A released artifact is never partly evidenced by a verdict taken at another commit.

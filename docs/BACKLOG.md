@@ -5956,3 +5956,51 @@ never noticed either. Nothing mechanical covers it, the two out-of-backlog insta
 outside any such gate anyway, and every instance so far was found by a human or an agent
 reading carefully. Re-open the anchor mechanism if the count of would-have-been-caught
 instances reaches three; it is one.
+
+## 104. `gh run watch --exit-status` exits 0 on a CANCELLED run, and a push cancels the run you are releasing on
+
+Found 2026-09-02 while releasing v2.52.0, by nearly cutting the tag on it. Both halves are
+release-procedure defects and neither is visible from the command's output alone.
+
+**Half one: the watch reports success for a run that never finished.** `gh run watch <id>
+--exit-status` (gh 2.98.0) printed the cancellation and then exited 0:
+
+    X The operation was canceled.
+    mutations 1/4: .github#253
+
+    [exited with code 0]
+
+`--exit-status` documents itself as exiting non-zero "if the run fails". A cancelled run did not
+fail, so the flag is arguably behaving as written — which is precisely the trap. The vocabulary a
+release gate needs is *did every job succeed*, and `cancelled` answers neither `success` nor
+`failure`. This is CLAUDE.md §3's rule arriving from outside the repository: a tool that could not
+finish looking must not be read as having looked and found nothing wrong.
+
+The API does say it plainly, and is what a release must read:
+
+    gh run view <id> --json conclusion,jobs \
+      --jq '"\(.conclusion)", (.jobs[] | "\(.name): \(.conclusion)")'
+    RUN: completed cancelled at d866534
+      mutations 3/4: cancelled
+
+**Half two: pushing during the run is what cancelled it.** `.github/workflows/selftest.yml:21`
+sets `cancel-in-progress: true` on a concurrency group keyed by event and ref. So a second push to
+`main` kills the in-flight run for the first — by design, and correct for ordinary development,
+where only the newest commit matters. It is wrong for a release, where the run is EVIDENCE FOR A
+SPECIFIC SHA and the next push destroys it.
+
+The failure mode is quiet in the way this project cares about: the release run reaches six of nine
+jobs green, the three cancelled shards are the expensive ones (the full mutation campaign), and the
+watch says 0. A release cut there carries no mutation evidence at all while looking fully verified.
+
+**Two rules, both cheap, and CLAUDE.md §13 now carries them:** read `conclusion` per job rather
+than the watch's exit code, and do not push again until the release run is done or accept that the
+tag needs a fresh run at the new head.
+
+**Not a hypothetical.** The release was held and re-run at `b8e4e4c`; the tag was not cut on the
+cancelled evidence.
+
+**Still open:** nothing in this repository checks a release's evidence before `gh release create`.
+The check is mechanical — every job of the tagged sha's run must be `success` — and it belongs
+wherever the release procedure becomes a script rather than a numbered list in CLAUDE.md.
+

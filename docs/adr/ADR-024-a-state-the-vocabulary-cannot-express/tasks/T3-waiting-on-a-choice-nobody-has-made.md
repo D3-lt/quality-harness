@@ -78,3 +78,4 @@ that would mean the family is not a family, and the shape of the fix is wrong.
 - Notifying anyone when a decision goes unmade (permanent: boundary: these gates read a tree and print; nothing here has a channel to notify through, and inventing one is a different decision)
 
 ## Verification Log
+- 2026-09-02 · 6b7bb66 · exit 0 · `set -o pipefail …` · acceptance-sha256:d00adbd851c45a29b422437a6106bb65ecb512c493bed7b14a0211c9b92675f8 · ms:9316

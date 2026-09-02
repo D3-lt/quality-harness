@@ -30,6 +30,16 @@ jobs:
         os: [ubuntu-latest, macos-latest]
     steps:
       - uses: actions/checkout@v4
+        # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
+        # proves the sweep can FAIL by running it over the two commits that
+        # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
+        # not have them, so the whole falsifiability half died with
+        # `fatal: Not a valid object name dcb7df4` — green locally, red on all
+        # four platforms. A proof that only runs on the author's machine is the
+        # defect CLAUDE.md §8 names, one step over: the answer depended on which
+        # clone was asking.
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -60,6 +70,16 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
+        # proves the sweep can FAIL by running it over the two commits that
+        # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
+        # not have them, so the whole falsifiability half died with
+        # `fatal: Not a valid object name dcb7df4` — green locally, red on all
+        # four platforms. A proof that only runs on the author's machine is the
+        # defect CLAUDE.md §8 names, one step over: the answer depended on which
+        # clone was asking.
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -91,6 +111,16 @@ jobs:
         shell: bash
     steps:
       - uses: actions/checkout@v4
+        # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
+        # proves the sweep can FAIL by running it over the two commits that
+        # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
+        # not have them, so the whole falsifiability half died with
+        # `fatal: Not a valid object name dcb7df4` — green locally, red on all
+        # four platforms. A proof that only runs on the author's machine is the
+        # defect CLAUDE.md §8 names, one step over: the answer depended on which
+        # clone was asking.
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -137,6 +167,16 @@ jobs:
     # those — through cmd.exe and, since 2026-08-26, PowerShell.
     steps:
       - uses: actions/checkout@v4
+        # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
+        # proves the sweep can FAIL by running it over the two commits that
+        # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
+        # not have them, so the whole falsifiability half died with
+        # `fatal: Not a valid object name dcb7df4` — green locally, red on all
+        # four platforms. A proof that only runs on the author's machine is the
+        # defect CLAUDE.md §8 names, one step over: the answer depended on which
+        # clone was asking.
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'
@@ -155,6 +195,16 @@ jobs:
     # above, so an absent CLI fails instead of quietly downgrading to PARTIAL.
     steps:
       - uses: actions/checkout@v4
+        # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
+        # proves the sweep can FAIL by running it over the two commits that
+        # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
+        # not have them, so the whole falsifiability half died with
+        # `fatal: Not a valid object name dcb7df4` — green locally, red on all
+        # four platforms. A proof that only runs on the author's machine is the
+        # defect CLAUDE.md §8 names, one step over: the answer depended on which
+        # clone was asking.
+        with:
+          fetch-depth: 0
       - uses: actions/setup-node@v4
         with:
           node-version: '24'

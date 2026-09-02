@@ -6264,3 +6264,24 @@ The partition is asserted over the real catalogue at several shard counts, becau
 double-counts a verdict and a gap drops one silently: 436 entries, 436 unique, every entry in
 exactly one shard.
 
+## 107. `(external: <where>: …)` takes free text, so the owner of a cross-repo target is unsearchable
+
+Deferred out of ADR-024 T2, which introduced the disposition. `<where>` is prose — "backend repo",
+"the Laravel side", "platform-team monorepo" — chosen because the reader's question is *who owns
+this*, and a human sentence answers it immediately while a URL does not.
+
+What it costs: nothing can group, count or follow these. A team with a dozen cross-repo pointers
+cannot ask "what do we owe the backend repo", and a target that MOVES leaves every citation of it
+stale with nothing to report the drift — the `Governs:` rot ADR-011 closed, one field over.
+
+**The obvious fix is the one to be careful about.** A machine-readable form (a git remote, an HTTPS
+URL, an `org/repo#ADR-007` triple) is greppable and checkable — but checking it means reaching into
+another repository, which ADR-024 rules out permanently: a gate whose answer depends on what else is
+cloned beside it is the machine-dependence CLAUDE.md §8 forbids. So a typed `<where>` would be
+*shaped* like a resolvable pointer and resolve against nothing, which is a worse lie than prose.
+
+**What would make this worth doing:** a corpus with enough external pointers that grouping them is a
+real question, and a decision about what a typed target is FOR if nothing may follow it. Neither
+exists yet — ADR-024's own criterion says the disposition comes out entirely if ten records pass
+without a use, and this entry should not outlive that.
+

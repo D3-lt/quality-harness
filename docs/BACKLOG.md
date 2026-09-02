@@ -5691,7 +5691,7 @@ questioned.
 
 ---
 
-## 98. The Mutation Log carries the same acceptance digest and no trace of the run that produced it
+## 98. PARTLY CLOSED 2026-09-02 — the Mutation Log carries the same acceptance digest and no trace of the run that produced it
 
 Deferred out of ADR-020 (`docs/adr/ADR-020-a-run-leaves-a-trace-outside-the-file.md`, Out of Scope),
 which binds an ACCEPTANCE entry to the output its run printed. A mutation row is the other half of
@@ -5715,6 +5715,47 @@ first thing this entry needs.
 **Do the acceptance half first and read the Follow-up.** ADR-020 commits to counting, after a month,
 how often its ledger cross-check fires on honest work. If that number is not zero the acceptance
 mechanism comes out, and this entry should never be started.
+
+---
+
+**PARTLY CLOSED 2026-09-02. The measurement this entry named as its first need has been taken, and
+it answers the question in the negative. The binding stays unbuilt, and now for a measured reason
+rather than a deferred one.**
+
+This entry says: *"Whether a mutant run's output is stable enough to bind is a separate measurement
+from the one ADR-020 T1 takes, and taking it is the first thing this entry needs."* Taken, over four
+mutants spread across the campaign's largest suites, each applied and run **twice** on an otherwise
+unchanged tree:
+
+    mutate: a verdict against a failing baseline …   identical=False  abs-paths=2  timings=27
+    evidence: the seal survives a CRLF checkout       identical=False  abs-paths=2  timings=26
+    hooks: a bin/ gate is spawned so Windows can …    identical=False  abs-paths=1  timings=100
+    package: a gate with no mutation is named, not …  identical=False  abs-paths=2  timings=21
+
+**Zero of four were byte-identical between two runs of the same mutant on the same tree.** Every one
+carried absolute filesystem paths, and between 21 and 100 timing values — `duration_ms`, per-test
+`(N.NNNms)` — which differ on every run by construction.
+
+**So a mutant run's output cannot be bound the way ADR-020 binds an acceptance run's.** A digest over
+it would differ on every honest re-run, which is the precise failure ADR-020 excluded paths and line
+numbers from its own digest to avoid. This entry anticipated that risk in its "Not folded into
+ADR-020, deliberately" paragraph; the measurement confirms it rather than leaving it as a worry.
+
+**What would have to change first**, and neither is small: a normalisation that strips timings and
+absolute paths from captured output — which is most of what distinguishes one mutant run from
+another, so the residue may carry too little to bind — or a different binding target than the output
+entirely, such as the mutated file's own digest, which is checkable and stable but says nothing about
+whether the run happened.
+
+**Still blocked on the same Follow-up, and the block is now dated.** ADR-020 landed 2026-09-01 and
+commits to counting after a month how often its ledger cross-check fires on honest work. That is one
+day old at the time of writing; if the count is not zero, the acceptance mechanism comes out and this
+entry should never be started. **Do not begin the binding before 2026-10-01, and read that count
+first.**
+
+The residual defect is unchanged and worth restating: two rows for two different mutants against the
+same fence still end in the same 64 characters, because the digest is the ACCEPTANCE fence's. What
+this measurement establishes is that binding them to their own run's output is not the way out.
 
 ## 99. CLOSED 2026-09-02 — nothing checked that a function the plugin defines is ever called
 

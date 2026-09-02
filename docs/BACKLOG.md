@@ -6739,3 +6739,48 @@ unmeasured and should be measured before it is claimed.
 degrades the author's attention to what each command returned; and whether any of these six can be
 dropped rather than merely batched, which would be worth more than batching them.
 
+## 109. CLOSED 2026-09-02 — a commit taken mid-mutation captures a neutered gate, and nothing looked
+
+Found by doing it, twice, on `main` — then reproduced deliberately in a throwaway clone to confirm
+the mechanism rather than infer it.
+
+`scripts/unasserted.mjs` and `scripts/mutate.mjs` replace one `errors.append(...)` with `pass` at a
+time to ask whether anything asserts it, and restore afterwards. A `git add -A` inside that window
+commits a **shipped gate with a finding removed**:
+
+    050ee28  L387  errors.advise("archive README lacks…")  ->  pass
+    af618d0  L395  errors.append("active and archive…")    ->  pass
+
+Different lines, because each `add -A` caught a different instant of the sweep.
+
+**Reproduced 2026-09-02**, in a clone so nothing was risked: journal, neuter one finding,
+`git add -A && git commit -m "an innocent docs commit"` — and the commit captured
+`errors.append(…)` → `pass`, one file changed, subject says docs.
+
+**Why it is invisible where anyone would look**, which is the part worth keeping:
+
+- the journal is **gitignored**, so `git status` reads completely normally;
+- a neutered gate is **valid Python** that simply reports one thing less — nothing errors;
+- and it is one more modified file in a commit you are not inspecting, because you are committing
+  documentation.
+
+**ADR-002 does not cover this and was never meant to.** It guarantees a mutant restore outlives the
+PROCESS — journal first, signal handler, recovery on the next run — which protects against a kill.
+A concurrent commit is a different failure: the tool is working correctly, the tree is broken on
+purpose, and a third party captures it.
+
+**CLOSED with `.githooks/pre-commit`**, the only guard that fires at the moment of the mistake. It
+refuses while either journal exists, names the file that is neutered right now, and stands down when
+it is gone. Driven by `tests/package.test.mjs::the pre-commit hook refuses a commit taken
+mid-mutation, and only then` — run in a scratch repo rather than read, and asserting it does NOT
+refuse an honest tree, or it would pass equally against a hook that refuses everything.
+
+**Its limit, stated rather than assumed:** `core.hooksPath` is per-clone local config, so an
+uninstalled hook protects nobody. `CLAUDE.md` §2 now carries the one-line install beside the rule it
+enforces. The suite's sibling check (`no mutation tool left a gate neutered in this tree`) still
+exists and still only fires if someone runs the suite — which a docs commit does not, and that is
+precisely how both real instances got through.
+
+**The first line is not the hook.** It is: do not run a mutation tool and edit the tree at the same
+time. All three of that day's self-inflicted defects trace to doing exactly that.
+

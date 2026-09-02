@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { baselineOf, classify, killedBy, renderLine, summarise, testSets } from '../scripts/mutate.mjs'
+import { baselineOf, cacheKey, classify, killedBy, renderLine, reusable, summarise, testSets } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -238,4 +238,73 @@ test('the report names the killer beside a RED verdict', () => {
   assert.match(line, /a traversal pointer is refused/)
   // A RED with no names recoverable must not invent one, and must still render.
   assert.doesNotMatch(renderLine({ verdict: 'RED', label: 'x', killers: [] }, 4), /killed by/)
+})
+
+// ── ADR-023 T2: reuse a verdict only when nothing it rests on has changed ──────
+//
+// The key is CONTENT, never a timestamp, a run id or a commit range. ADR-010's
+// failure — a claim outliving its subject — is unrepresentable here rather than
+// merely unlikely: a changed subject is a different key, and a different key is
+// a miss. These tests are what hold that property.
+
+const reader = files => p => (p in files ? files[p] : null)
+const ENTRY = { label: 'x', file: 'plugin/bin/g', from: 'a', to: 'b', tests: ['tests/t.test.mjs'] }
+const FILES = { 'plugin/bin/g': 'def a(): pass\n', 'tests/t.test.mjs': 'assert(1)\n' }
+
+test('an exact content match reuses a RED verdict', () => {
+  const key = cacheKey(ENTRY, reader(FILES))
+  assert.ok(key, 'every input was readable, so the entry has a key')
+  const cache = { [key]: { verdict: 'RED', sha: 'abc1234' } }
+  assert.deepEqual(reusable(ENTRY, cache, key), { verdict: 'RED', sha: 'abc1234' })
+})
+
+test('a changed subject, test or edit is a different mutant', () => {
+  const key = cacheKey(ENTRY, reader(FILES))
+  // Each of the three inputs INDEPENDENTLY, because a key covering only the
+  // subject would reuse a stale verdict after a test changed — and this session
+  // produced two live examples of a test change flipping a verdict with the
+  // subject untouched.
+  const subject = cacheKey(ENTRY, reader({ ...FILES, 'plugin/bin/g': 'def a(): return 1\n' }))
+  const tests = cacheKey(ENTRY, reader({ ...FILES, 'tests/t.test.mjs': 'assert(2)\n' }))
+  const edit = cacheKey({ ...ENTRY, to: 'c' }, reader(FILES))
+  for (const [name, other] of [['subject', subject], ['tests', tests], ['edit', edit]]) {
+    assert.notEqual(other, key, `a changed ${name} must not reuse the old verdict`)
+    assert.equal(reusable(ENTRY, { [key]: { verdict: 'RED' } }, other), null, name)
+  }
+})
+
+test('only RED is reusable', () => {
+  // A GREEN mutant is an open finding about a test and must be re-run every time
+  // until it is fixed; caching it hides live work. UNPROVEN likewise — ADR-006
+  // already says a verdict against a failing baseline is evidence of nothing.
+  const key = cacheKey(ENTRY, reader(FILES))
+  for (const verdict of ['GREEN', 'UNPROVEN', 'STALE', 'HUNG', undefined]) {
+    assert.equal(reusable(ENTRY, { [key]: { verdict } }, key), null, String(verdict))
+  }
+})
+
+test('an unreadable input has no key, so it is measured', () => {
+  // "I could not look" is not "nothing changed" (ADR-005). A missing file must
+  // not hash to something stable, or a deleted test would freeze its verdict.
+  assert.equal(cacheKey(ENTRY, reader({ 'plugin/bin/g': 'x' })), null, 'test file absent')
+  assert.equal(cacheKey(ENTRY, reader({ 'tests/t.test.mjs': 'x' })), null, 'subject absent')
+  assert.equal(reusable(ENTRY, { anything: { verdict: 'RED' } }, null), null)
+})
+
+test('an absent or unreadable cache measures everything', () => {
+  const key = cacheKey(ENTRY, reader(FILES))
+  for (const cache of [null, undefined, {}, 'not-an-object', 42]) {
+    assert.equal(reusable(ENTRY, cache, key), null, JSON.stringify(cache) ?? 'undefined')
+  }
+})
+
+test('the summary distinguishes measured from reused', () => {
+  // A campaign printing 430/430 noticed while running six claims more than
+  // happened — the defect this repository exists to demonstrate the absence of.
+  const red = v => ({ verdict: v, tests: ['t'] })
+  const counts = summarise([red('RED'), { ...red('RED'), reused: true }, red('GREEN')])
+  assert.equal(counts.total, 3)
+  assert.equal(counts.noticed, 2)
+  assert.equal(counts.reused, 1, 'a reused entry is counted apart from one just measured')
+  assert.equal(counts.measured, 2, 'measured excludes the reused entry')
 })

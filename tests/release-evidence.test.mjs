@@ -84,6 +84,16 @@ test('an empty or unreadable answer is "could not look", never a pass', () => {
   assert.equal(evaluateRun({ status: 'completed', conclusion: 'success', jobs: [] }).verdict,
     'unreadable', 'a run with zero jobs must not read as nine green ones')
 
+  // ...but a run that has not STARTED listing its jobs is merely early, and
+  // saying "unreadable" there sends a releaser looking for a fault that will
+  // clear itself. Observed live on 2026-09-02: GitHub reports a freshly queued
+  // run with an empty jobs array for a few seconds after a push.
+  for (const status of ['queued', 'in_progress', 'pending', 'waiting']) {
+    const r = evaluateRun({ status, conclusion: null, jobs: [] })
+    assert.equal(r.verdict, 'incomplete', status)
+    assert.match(r.reason, new RegExp(`the run is ${status}`))
+  }
+
   for (const bad of [null, undefined, {}, { jobs: null }, { jobs: 'nine' }, 'success', 42]) {
     assert.equal(evaluateRun(bad).verdict, 'unreadable', JSON.stringify(bad) ?? 'undefined')
   }

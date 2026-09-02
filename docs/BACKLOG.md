@@ -5957,7 +5957,7 @@ outside any such gate anyway, and every instance so far was found by a human or 
 reading carefully. Re-open the anchor mechanism if the count of would-have-been-caught
 instances reaches three; it is one.
 
-## 104. `gh run watch --exit-status` exits 0 on a CANCELLED run, and a push cancels the run you are releasing on
+## 104. CLOSED 2026-09-02 — `gh run watch --exit-status` exits 0 on a CANCELLED run, and a push cancels the run you are releasing on
 
 Found 2026-09-02 while releasing v2.52.0, by nearly cutting the tag on it. Both halves are
 release-procedure defects and neither is visible from the command's output alone.
@@ -6000,7 +6000,27 @@ tag needs a fresh run at the new head.
 **Not a hypothetical.** The release was held and re-run at `b8e4e4c`; the tag was not cut on the
 cancelled evidence.
 
-**Still open:** nothing in this repository checks a release's evidence before `gh release create`.
-The check is mechanical — every job of the tagged sha's run must be `success` — and it belongs
-wherever the release procedure becomes a script rather than a numbered list in CLAUDE.md.
+**CLOSED 2026-09-02 (55fb0fd, 8a20265).** `scripts/release-evidence.mjs` is that check, and it
+gated the release it was written for — v2.52.0 was cut only after it reported nine of nine
+`success` at `77f020c`. Four verdicts, and only `success` clears a sha: `failed` names each job and
+its conclusion, `incomplete` stays distinct from `failed` per ADR-005, and `unreadable` is "I could
+not look". A run carrying ZERO jobs is `unreadable` by a named branch, because `[].every(...)` is
+true and an empty job list would otherwise clear every sha ever at full coverage.
+
+**Two more `gh` traps found while using it, and they are one finding: an abbreviated sha is
+accepted and then silently means nothing.**
+
+    gh run list --commit 57a1e76        -> []            (not an error — an empty list)
+    gh release create --target 77f020c  -> HTTP 422 "Release.target_commitish is invalid"
+
+The first is the dangerous one: `[]` reads exactly like "this commit has no runs", so a release
+check would report "could not look" forever while the run sat there. `release-evidence.mjs` expands
+the sha with `git rev-parse` before asking. The second at least fails loudly.
+
+**And a third, in the WATCHER rather than the check.** The first background poller treated exit 2
+(`unreadable`) as terminal, so a single `dial tcp … i/o timeout` to `api.github.com` ended it
+sixteen minutes early — after which two shards went green unobserved. Separating "could not look"
+from "found a problem" is pointless if the caller collapses them again: a watcher must RETRY an
+unreadable answer and wake only on `success` or `failed`. Fixed in the poller; recorded here
+because the same mistake is available to anyone scripting the release.
 

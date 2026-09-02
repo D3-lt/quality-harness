@@ -80,7 +80,14 @@ const sites = listed.stdout.split('\n').filter(Boolean)
 
 /** True when the suites FAILED — the only signal this tool has. */
 const run = () => (suites.length
-  ? spawnSync('node', ['--test', ...suites.map(s => path.join(root, s))], { cwd: root, encoding: 'utf8' })
+  // IN_FLIGHT is declared to the child, because this tool's own journal is
+  // present while it runs the suite — and a suite that refuses to pass while a
+  // journal exists would deadlock the tool that writes one. Added 2026-09-02
+  // after exactly that: the guard fired on the sweep's own baseline, the sweep
+  // refused, and the journal it had already written failed every later run.
+  ? spawnSync('node', ['--test', ...suites.map(s => path.join(root, s))],
+    { cwd: root, encoding: 'utf8',
+      env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
   : spawnSync('bash', [path.join(root, 'scripts', 'selftest.sh')], { cwd: root, encoding: 'utf8' })
 ).status !== 0
 

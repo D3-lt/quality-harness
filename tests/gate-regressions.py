@@ -2040,10 +2040,15 @@ def main():
     assert dispositions("- A wrapped one with no disposition", "  and more of it"), (
         "and a wrapped bullet that really has none is still named")
 
-    # `Invalidates:` takes the LEADING token and ignores the prose after it.
-    # Every real value in this corpus is either `none — checked. ADR-003 governs
-    # …` or `ADR-001 — the clause of its Decision reading "…"`; comma-splitting
-    # the second turns its prose into pointers.
+    # `Invalidates:` resolves the FIRST RECORD REFERENCE in the value, after the
+    # sentinel. It used to take the leading whitespace token, on the premise —
+    # written into its own docstring — that "every real value in this corpus is
+    # either `none …` or `ADR-001 …`". Issue #8 measured that premise false
+    # against a 42-record corpus: 7 of the 9 non-sentinel values were misread,
+    # and 3 of those cite a REAL record while being reported as naming one that
+    # was never written. A correct pointer called broken is this toolchain's
+    # usual concern running backwards, and an advisory wrong 7 times in 9 is one
+    # people learn to scroll past.
     assert lint.invalidates_pointer("**Invalidates:** none — checked. ADR-003 governs `bin/**`\n") is None
     assert lint.invalidates_pointer(
         '**Invalidates:** ADR-001 — the clause reading "`--link` installs gates, and templates"\n'
@@ -2053,6 +2058,41 @@ def main():
     assert not advice, f"ADR-001 exists and the prose is not a pointer: {advice}"
     _, advice = pointers("**Invalidates:** ADR-404 — a record that was never written\n")
     assert any("ADR-404" in a for a in advice), f"an invalidated record must exist: {advice}"
+
+    # ISSUE #8, all three causes, AT THE ADVISORY rather than at the parse — the
+    # advisory is what the report was about and what a reader sees.
+    #
+    # 1. Markdown emphasis. `strip("`,;:")` does not include `*`, so a bolded
+    #    citation kept its asterisks and matched no record. Authors bold these
+    #    precisely BECAUSE they are the consequential part of the header.
+    for bolded in ('**ADR-001, which this record supersedes** — see the note',
+                   "**ADR-001's categorical bar, narrowed by owner sign-off",
+                   '**ADR-001 T8\'s scoping, narrowly and deliberately.** T8 put'):
+        assert lint.invalidates_pointer(f"**Invalidates:** {bolded}\n") == "ADR-001", bolded
+        _, advice = pointers(f"**Invalidates:** {bolded}\n")
+        assert not advice, f"a bolded citation to a real record is not a broken pointer: {advice}"
+
+    # 2. `nothing` is the sentinel's English synonym; `re.match(r"none\b", …)`
+    #    never matched it because `nothing` begins `not`.
+    for sentinel in ("nothing.", "nothing yet, deliberately", "Nothing outright"):
+        assert lint.invalidates_pointer(f"**Invalidates:** {sentinel}\n") is None, sentinel
+
+    # ⚠ AND THE ORDER THAT MAKES THAT SAFE. This value names a record it
+    # explicitly does NOT invalidate. Resolving a reference before checking the
+    # sentinel would report ADR-001 as invalidated — and nothing would flag it,
+    # because the pointer RESOLVES. A silent misread, not a noisy one.
+    assert lint.invalidates_pointer(
+        "**Invalidates:** nothing outright, but it **reopens ADR-001's weight**\n") is None
+
+    # 3. A value naming no record is prose, not a dangling pointer. A decision
+    #    may retire a claim in a runbook or a tool description with no record
+    #    involved; the old parse turned that into a pointer named `the`.
+    assert lint.invalidates_pointer(
+        "**Invalidates:** the operator guidance that says `am_recompute_graph` rebuilds it\n"
+    ) is None
+    _, advice = pointers(
+        "**Invalidates:** the operator guidance that says `am_recompute_graph` rebuilds it\n")
+    assert not advice, f"prose naming no record is not a broken pointer: {advice}"
 
     # A record carrying none of the three headers is untouched.
     blocking, advice = pointers("# ADR-999: no headers at all\n")

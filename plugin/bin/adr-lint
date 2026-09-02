@@ -2850,10 +2850,33 @@ def invalidates_pointer(text):
     if raw is None:
         return None
     value = raw.strip()
-    if not value or re.match(r"none\b", value, re.I):
+    # THE SENTINEL FIRST, and `nothing` is one. Issue #8: three authors reached
+    # for the obvious English synonym and got a pointer diagnostic, because
+    # `re.match(r"none\b", "nothing …")` does not match — `nothing` begins `not`.
+    #
+    # ⚠ ORDER MATTERS HERE, and getting it backwards would be a SILENT misread
+    # rather than a noisy one: `nothing outright, but it reopens ADR-024's
+    # weight` names a record it explicitly does NOT invalidate. Extracting a
+    # reference before checking the sentinel would report that record as
+    # invalidated, which nothing would flag because the pointer resolves.
+    if not value or re.match(r"(?:none|nothing)\b", value, re.I):
         return None
-    lead = value.split()[0].strip("`,;:")
-    return lead or None
+    # THE FIRST RECORD REFERENCE ANYWHERE IN THE VALUE, not the leading token.
+    # The old parse took `value.split()[0]` and stripped "`,;:" — which does not
+    # include `*`, so a deliberately bolded citation like `**ADR-010, which this
+    # record supersedes**` yielded `**ADR-010` and was reported as naming a
+    # record that was never written. Measured by the reporter over 42 records:
+    # 7 of the 9 non-sentinel values were misread, and 3 of those cite a real
+    # record. An advisory wrong 7 times in 9 is one people learn to scroll past.
+    reference = re.search(r"\bADR-\d{1,4}\b", value, re.I)
+    if reference:
+        return reference.group(0)
+    # NO RECORD REFERENCE AT ALL is prose, not a dangling pointer, and saying
+    # otherwise describes the wrong problem (CLAUDE.md §3). A decision may retire
+    # a claim in a runbook or a tool description with no record involved —
+    # `Invalidates: the operator guidance that says …` is that, and the old parse
+    # turned it into a pointer named `the`.
+    return None
 
 
 def resolve_record_number(pointer, corpus_dir):

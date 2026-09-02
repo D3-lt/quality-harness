@@ -387,6 +387,31 @@ test('the backlog index does not undersell what the backlog says it finished', (
   assert.deepEqual(backlogHeadingsThatUndersell(conventional), [])
 })
 
+test('every path an eval run writes to is ignored, wherever it is run from', () => {
+  // CLAUDE.md §6 says eval results are never committed, and §1 says a .gitignore
+  // rule that stops matching does not warn. Both fired together on 2026-09-02:
+  // ADR-008 moved the plugin under `plugin/`, the ignore rule moved with it, and
+  // `claude plugin eval .` run from the repo root still writes `./evals/results/`
+  // — which was unignored and showed as `?? evals/`, one `git add -A` away from
+  // committing transcripts and whatever corpus they were taken against.
+  //
+  // ASKED OF GIT, never read out of the file: what matters is the answer git
+  // gives for the path, which is the same reason the line-ending test uses
+  // `git check-attr` rather than reading .gitattributes.
+  for (const path of ['evals/results', 'plugin/evals/results',
+    'evals/results/2026-01-01T00-00-00Z/report.html',
+    'plugin/evals/results/2026-01-01T00-00-00Z/report.html']) {
+    const asked = spawnSync('git', ['check-ignore', '-q', path], { cwd: repoRoot })
+    assert.equal(asked.status, 0,
+      `${path} is not ignored — an eval run writing there would be committable, and `
+      + 'the results carry transcripts and another corpus\'s content (CLAUDE.md §6)')
+  }
+  // ...and the check is shown capable of the other answer, or it passes equally
+  // against a `check-ignore` that always succeeds.
+  const tracked = spawnSync('git', ['check-ignore', '-q', 'README.md'], { cwd: repoRoot })
+  assert.notEqual(tracked.status, 0, 'a tracked file must not report as ignored')
+})
+
 test('no mutation tool left a gate neutered in this tree', () => {
   // Learned the hard way 2026-09-02, twice in one hour. `scripts/unasserted.mjs`
   // neuters one `errors.append(...)` at a time and restores it; `git add -A`

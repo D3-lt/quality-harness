@@ -3993,6 +3993,15 @@
       ],
       "from": "    if not where.strip() or not pointer.strip():\n        return None",
       "to": "    if not pointer.strip():\n        return None"
+    },
+    {
+      "label": "lint: an Awaiting-decision that names no choice is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        names_options = re.search(r\"\\bor\\b|\\bversus\\b|\\bvs\\.?\\b|\\?|;\", value)",
+      "to": "        names_options = True"
     }
   ]
 }

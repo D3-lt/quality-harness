@@ -382,6 +382,7 @@ def main():
 
     deferred, followups, broken, unreceipted = [], [], [], []
     externals = []
+    undecided = []
     unswept_items = []
     # ADR-014 T3. Waiting is not debt, and the two must not share a number.
     # `deferred` means work punted with a POINTER to where it was filed; a
@@ -496,6 +497,13 @@ def main():
                 seen = sorted(re.findall(r"^- (\d{4}-\d{2}-\d{2}) · ", logged, re.M))
                 waiting.append((scan_dir, rel, bo.group(1).strip(),
                                 seen[-1] if seen else None))
+            # ADR-024 T3 / BACKLOG §83. Counted apart from deferred debt: an
+            # unmade decision is not punted work, and planning for it as such
+            # misleads. Nobody is notified when a choice continues not to be made,
+            # which is the only reason this needs a line of its own.
+            ad = re.search(r"^\*\*Awaiting-decision:\*\*\s*(.+?)\s*$", text, re.M)
+            if ad:
+                undecided.append((scan_dir, rel, ad.group(1).strip()))
 
     # BACKLOG §85b. One debt written in BOTH a task file and its parent ADR is a
     # row per location, and the headline counted rows. Every row is true and the
@@ -513,8 +521,9 @@ def main():
     # ADR-024 T2: the external column appears only when there is one, so a corpus
     # that never declares an outside target reads exactly as it did before.
     external_label = f"{len(externals)} external · " if externals else ""
+    undecided_label = f"{len(undecided)} awaiting a decision · " if undecided else ""
     print(f"[DEBT] {deferred_label} · {len(followups)} open follow-ups · "
-          f"{external_label}"
+          f"{external_label}{undecided_label}"
           f"{len(broken)} broken pointers · {len(unreceipted)} unreceipted · "
           f"{len(unswept_items)} into an archive · "
           f"{len(waiting)} waiting")
@@ -569,6 +578,15 @@ def main():
         print("  (the destination is inside an archive, which every sweep deliberately skips — the "
               "item can never resurface, and writing it there would not help. Point it at a backlog "
               "the sweep covers; the archived ADR stays the decision record.)")
+    cur = None
+    for scan_dir, rel, choice in undecided:
+        if rel != cur:
+            print(f"  {scan_dir / rel}:")
+            cur = rel
+        print(f"    awaiting a decision → {choice}")
+    if undecided:
+        print("    (nobody is notified when a choice continues not to be made; this is the "
+              "notification)")
     cur = None
     for scan_dir, rel, where, ptr, txt in externals:
         if rel != cur:

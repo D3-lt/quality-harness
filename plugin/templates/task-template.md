@@ -19,6 +19,17 @@ resolve.
 Use the qualified form when your task must not start until another RECORD's task lands. Before this
 existed the constraint could only be written as prose, in whichever record noticed it — which is
 never the record that has to obey it.>
+**Awaiting-decision:** <OPTIONAL: the choice nobody has made yet, written so the person who can
+settle it does not have to reconstruct it — `keep the arm, or delete it`, or a question. The third
+kind of waiting, and it is a different KIND from the two above rather than a softer one:
+
+    Depends-on         another task IN THIS CORPUS must land — someone here can go and do it
+    Blocked-on         something OUTSIDE it must happen — nobody here can make it sooner
+    Awaiting-decision  a human has to CHOOSE — every prerequisite exists and no work unblocks it
+
+Written as "waiting on a decision" with no decision in it, this is the prose state it replaces, and
+`adr-lint` says so. `adr-debt` counts these apart from deferred debt, because an unmade decision is
+not punted work and nobody is notified when a choice continues not to be made.>
 **Covers:** <spec fact/scenario IDs this task implements (F-3, UC1-S2), or "none — no spec">
 **Estimated scope:** S (single file) | M (multi-file) | L (cross-boundary)
 **Owner:** <name | unassigned>

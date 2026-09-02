@@ -5039,7 +5039,7 @@ than none: the author would be told to fix something that already works.
   RED under the campaign**. `adr-lint` refused the `done` rows until the fences were corrected and
   the evidence re-taken, which is the evidence chain working on its own author.
 
-## 83. A task waiting on a DECISION nobody has made has no header, and rots silently
+## 83. CLOSED 2026-09-02 by ADR-024 — a task waiting on a DECISION nobody has made had no header, and rotted silently
 
 **Reported 2026-08-30 by wcag-43**, who explicitly declined to propose it: *"I have one instance and
 you have shipped two ADRs today on the strength of one instance each; a third on the same evidence
@@ -5093,6 +5093,37 @@ the first and not the second.
 on a choice rather than on work or on the world. If one appears, this becomes a record, and the
 design question it must answer first is whether it is a third header or a `Blocked-on` whose event
 is "a person decides X", since the latter costs no vocabulary and the escalation already exists.
+
+
+---
+
+**CLOSED 2026-09-02 by ADR-024 T3**, with tool-written acceptance and a killed mutant.
+
+    **Awaiting-decision:** credit the nearer bearer, or pick one with a stated justification
+
+    [DEBT] … · 1 awaiting a decision · …
+      awaiting a decision → credit the nearer bearer, or pick one with a stated justification
+      (nobody is notified when a choice continues not to be made; this is the notification)
+
+**A third KIND of waiting, not a softer one.** ADR-014's two are about ownership, and the template
+now states all three together because the distinction is the whole point:
+
+    Depends-on         another task IN THIS CORPUS must land — someone here can go and do it
+    Blocked-on         something OUTSIDE it must happen — nobody here can make it sooner
+    Awaiting-decision  a human has to CHOOSE — every prerequisite exists and no work unblocks it
+
+**The header must name the choice**, and that rule is what stops this shipping the defect under a
+new name: *"waiting on a decision"* with no decision written down is exactly the prose state it
+replaces. `adr-lint` advises when it reads that way — advice rather than refusal, because whether a
+choice is well stated is not a parser's judgement. The mutant that accepts anything comes back RED.
+
+**Counted apart from deferred debt** by `adr-debt`, because an unmade decision is not punted work
+and planning for it as such misleads.
+
+**The reporter was right to decline proposing it**, and said so: *"a third on the same evidence
+would be me pattern-matching my own case into your format."* What made it worth building anyway is
+that the state had no representation at all — and ADR-024 pre-registers removal if ten records pass
+with no use of it.
 
 ## 84. `partial` does not catch the vacuous-fence class, and I said it did
 

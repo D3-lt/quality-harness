@@ -57,6 +57,8 @@ node --test tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr024-t3.out \
 
 ## Mutation Log
 
+- 2026-09-02 · cbe69c0 · mutant killed · exit 1 · `plugin/bin/adr-lint` · a header reading "waiting on a decision" would be accepted, which is the prose state it replaces · acceptance-sha256:d00adbd851c45a29b422437a6106bb65ecb512c493bed7b14a0211c9b92675f8
+
 ## Invariants
 
 - The header must name a choice. A header that accepts "waiting on a decision" reproduces the prose state it replaces.

@@ -3885,6 +3885,15 @@
       ],
       "from": "    reference = re.search(r\"\\bADR-\\d{1,4}\\b\", value, re.I)",
       "to": "    reference = re.match(r\"\\bADR-\\d{1,4}\\b\", value, re.I)"
+    },
+    {
+      "label": "ci: the shard count agrees in the three places it appears",
+      "file": ".github/workflows/selftest.yml",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/8",
+      "to": "        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/4"
     }
   ]
 }

@@ -3865,8 +3865,8 @@
       "tests": [
         "tests/arch-lint.test.mjs"
       ],
-      "from": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)\n    text = re.sub(r\"'(?:[^'\\\\\\n]|\\\\.)*'\", \"''\", text)\n    text = re.sub(r\"/\\*.*?\\*/\", \" \", text, flags=re.S)",
-      "to": "    text = re.sub(r\"/\\*.*?\\*/\", \" \", text, flags=re.S)\n    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)\n    text = re.sub(r\"'(?:[^'\\\\\\n]|\\\\.)*'\", \"''\", text)"
+      "from": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)",
+      "to": "    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)"
     }
   ]
 }

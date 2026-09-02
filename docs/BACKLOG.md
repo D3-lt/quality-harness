@@ -149,7 +149,7 @@ command's cwd so markers rooted outside the repo being committed to are ignored.
 must keep the three regression tests above green and add a new one: *a session-temp
 unresolved deletion must not block a later commit in an unrelated repo*.
 
-## 2. Encoding: 13 `subprocess(text=True)` sites still decode with the locale codepage
+## 2. CLOSED — 13 `subprocess(text=True)` sites decoded with the locale codepage (`f26a4b3`)
 
 **Done — `f26a4b3`.** All 13 sites carry `encoding="utf-8", errors="replace"`, and
 `scripts/selftest.sh` reads with an explicit encoding. Gate spawns in
@@ -182,7 +182,7 @@ crashes at line 420 and the rest pass only because their subprocess calls are gi
 plumbing; after the fix all 8 pass under those flags. Add that env combination to the
 self-test so the class cannot regress.
 
-## 3. Branch guard false positives: `shellSegments` splits `2>&1` on the bare `&`
+## 3. CLOSED — branch-guard false positives: `shellSegments` split `2>&1` on the bare `&` (`c889429`)
 
 **Done — `c889429`.** `&` glued to a redirect (`2>&1`, `>&2`, `>&-`, `&>f`, `&>>f`) stays
 inside its segment; a background `&` and `&&` still separate. Keeping `&>f` whole would
@@ -209,7 +209,7 @@ branch guard mis-fires.
 (`&` splitting is not `&&` splitting). Test the guard **per-segment** — whole-command
 tests cannot see this bug.
 
-## 4. Self-test is branch-sensitive: fresh clone on `main` fails 1/51
+## 4. CLOSED — the self-test was branch-sensitive: a fresh clone on `main` failed 1/51 (`0479057`)
 
 **Done — `0479057`.** The first fix option, generalized: the suite no longer reads the
 host checkout at all. Every lifecycle spawn goes through one `runLifecycleHook()` helper
@@ -234,7 +234,7 @@ but the first thing a new contributor runs is red.
 branch-guard message when the *host* worktree is protected. Either way, add
 "self-test passes on a fresh clone of `main`" as an explicit case.
 
-## 5. D2 part 1 (`code_only` docstring/backtick fix) has no test
+## 5. CLOSED — D2 part 1 (`code_only` docstring/backtick fix) had no test (`b0d90a7`)
 
 **Done — `b0d90a7`.** A `runpy` probe feeds `code_only(python=True)` two multi-line
 docstrings holding one backtick each — the single-line string rules cannot reach across a
@@ -306,7 +306,7 @@ defect in the TESTS, not in the harness:
 `python3` resolves on the runner — the probes that already called it passed. The job stays
 `continue-on-error` until it is green, but what it reports from here is the harness.
 
-## 7. A `python`/`node`/`ruby` in a *filename* made reads look like interpreter runs
+## 7. CLOSED — a `python`/`node`/`ruby` in a *filename* made reads look like interpreter runs (`82f4758`)
 
 **Done — `82f4758`.** Reported live from `C:\Projects\blueprints` on 2.0.4, Windows.
 `interpreterCommandLooksMutating` tested `INTERPRETER_WORD` against the whole command, so
@@ -326,7 +326,7 @@ after a language. The command word is now resolved per region and per segment th
 existing `commandInvocation`, so wrappers and leading assignments are still followed and
 `bash -c "python rewrite.py"` and `$(python rewrite.py)` still count.
 
-## 8. A newline made the project's own gate stop counting as evidence
+## 8. CLOSED — a newline made the project's own gate stop counting as evidence (`6962cc7`)
 
 **Done — `6962cc7`.** Same report. `isValidationCommand` rejected any command containing a
 newline, so the ordinary shape — tool path on line 1, gate on line 2 — produced no
@@ -391,7 +391,7 @@ validation either, which is exactly the `neither` the selftest line already land
 Related to item 6: same family as `bash scripts/selftest.sh` not counting while
 `./scripts/selftest.sh` does. Both make the harness harder to satisfy than its own rules require.
 
-## 10. Set-level record gates blocked at the per-write boundary
+## 10. CLOSED — set-level record gates were blocked at the per-write boundary (`3b9c44e`)
 
 **Done — `3b9c44e`.** `adr-lint` and `adr-retire-check` judge a SET — an ADR with its task
 files and index, or an archive catalog with its records — and the PostToolUse dispatcher
@@ -413,7 +413,7 @@ still exits 2. `run-shell-hook.mjs` passes the hook event as the dispatcher's se
 argument, and the polarity is deliberate — only an explicit `PostToolUse` relaxes
 anything, so a caller arriving without an event still blocks.
 
-## 11. The branch guard blocked the escape it demands
+## 11. CLOSED — the branch guard blocked the escape it demands (`aaaaf31`)
 
 **Done — `aaaaf31`.** `git checkout task/work` on a protected branch was refused with
 "Create a task branch first", which is the thing that command does. `protectedBranchException`
@@ -558,7 +558,7 @@ re-verified with live reproductions) confirmed 23 findings. **Fixed in `2.0.18`:
   additionalContext notice is the mitigation — the model now SEES the set-level
   failure at edit time even though only commit/completion enforce it.
 
-## 15. The harness only ever said no
+## 15. CLOSED — the harness only ever said no (`2.1.0`)
 
 **Done — `2.1.0`.** Counted after the 2.0.18 release: one additive surface (the SubagentStart
 contract) against fourteen refusals. Worse, every refusal already knew the answer and withheld it —
@@ -588,7 +588,7 @@ times in the 2.0.12-2.0.18 session alone. Five additive changes, none of which c
   `adr-verify <task>` as a non-blocking `systemMessage`. adr-verify is the anti-fabrication
   mechanism; the friction was only ever remembering to call it.
 
-## 16. Nothing ran the checks except a person who remembered to
+## 16. CLOSED — nothing ran the checks except a person who remembered to (`2.1.1`)
 
 **Done — `2.1.1`.** There was no `.github` at all: `bash scripts/selftest.sh`, run on a laptop by
 whoever thought of it, was the only thing between a regression and `main`. Coverage had never been
@@ -891,7 +891,7 @@ provably writes under that root, so such a command should be exempted as scratch
 reach the deletion resolver at all. Not attempted here — it is a third change, and the two
 above were the reported ones.
 
-## 23. The edit boundary blocked without preventing anything
+## 23. CLOSED — the edit boundary blocked without preventing anything (all five gates)
 
 Raised by the user on 2026-08-26, after a session in which the harness refused legitimate
 work four separate times: *"the problem is we reject most of the things with tools that we

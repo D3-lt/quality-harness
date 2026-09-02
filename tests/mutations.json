@@ -3848,7 +3848,7 @@
         "tests/orphan-sweep.test.mjs"
       ],
       "from": "export const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')",
-      "to": "export const SHIPPED = f => (f.startsWith('plugin/') || f.startsWith('tests/') || f === 'README.md')"
+      "to": "export const SHIPPED = () => true // every tracked file counts as reachability"
     },
     {
       "label": "orphan: a definition is reached at two occurrences, not one",

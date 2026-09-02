@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -410,6 +410,47 @@ test('every path an eval run writes to is ignored, wherever it is run from', () 
   // against a `check-ignore` that always succeeds.
   const tracked = spawnSync('git', ['check-ignore', '-q', 'README.md'], { cwd: repoRoot })
   assert.notEqual(tracked.status, 0, 'a tracked file must not report as ignored')
+})
+
+test('the pre-commit hook refuses a commit taken mid-mutation, and only then', () => {
+  // The moment-of-mistake guard for a defect that reached `main` TWICE on
+  // 2026-09-02 and was then reproduced deliberately in a throwaway clone:
+  // `unasserted.mjs` neuters one `errors.append(...)` at a time, and a
+  // `git add -A` during that window commits a shipped gate with a finding
+  // replaced by `pass`.
+  //
+  // It is invisible where anyone would look: the journal is gitignored so
+  // `git status` reads normally, and the neutered gate is one more modified file
+  // in a commit whose subject says "docs". The suite's sibling check catches it,
+  // but a docs commit does not run the suite — which is exactly how both real
+  // instances got through.
+  //
+  // DRIVEN, not read. Asserting the file contains a string would be the contract
+  // test BACKLOG §80 is about; this runs the hook in a scratch repo and checks
+  // what it does.
+  const hook = join(repoRoot, '.githooks', 'pre-commit')
+  assert.ok(existsSync(hook), 'the hook must exist to be installable')
+
+  const scratch = mkdtempSync(join(tmpdir(), 'qh-hook-'))
+  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8' })
+  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
+  git('init', '-q', '-b', 'main', '.')
+
+  // NOTHING IN FLIGHT: the hook must stay out of the way. Without this the
+  // assertion below is satisfied by a hook that refuses every commit.
+  assert.equal(run().status, 0, 'an honest tree must commit freely')
+
+  for (const journal of ['.unasserted-inflight.json', '.mutate-inflight.json']) {
+    writeFileSync(join(scratch, journal), JSON.stringify({ file: 'plugin/bin/adr-lint' }))
+    const refused = run()
+    assert.equal(refused.status, 1, `${journal} must refuse the commit`)
+    assert.match(refused.stderr, /REFUSED/, journal)
+    assert.match(refused.stderr, /plugin\/bin\/adr-lint/,
+      'the refusal must name the file that is neutered right now, not just complain')
+    rmSync(join(scratch, journal))
+  }
+  assert.equal(run().status, 0, 'and it stands down again once the journal is gone')
+  rmSync(scratch, { recursive: true, force: true })
 })
 
 test('no mutation tool left a gate neutered in this tree', () => {

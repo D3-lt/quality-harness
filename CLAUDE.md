@@ -85,6 +85,20 @@ already fixed for exactly this reason, and the run looked entirely normal.
 
 Both traps are removed by the same habit: **name the working-tree path.**
 
+**Install the hooks once per clone.** `git config core.hooksPath .githooks` — one command, and
+without it `.githooks/pre-commit` protects nobody, which is worth saying plainly rather than
+assuming a committed file is an installed one.
+
+It refuses a commit taken while `scripts/unasserted.mjs` or `scripts/mutate.mjs` has the tree
+deliberately broken. Those tools replace one `errors.append(...)` with `pass` at a time to ask
+whether anything asserts it, and a `git add -A` in that window commits a SHIPPED GATE with a finding
+removed. It reached `main` twice on 2026-09-02 in commits whose subjects said "docs", and it is
+invisible where anyone would look: the journal is gitignored so `git status` reads normally, and a
+neutered gate is valid Python that reports one thing less.
+
+**Never run a mutation tool and edit the tree at the same time.** All three of that day's
+self-inflicted defects trace to it. The hook is the last line; not doing it is the first.
+
 **Never commit while a gate is red, and make sure you would notice.** Do not chain a commit after a
 test in one command; a `for` loop's exit status is its last iteration's `echo`, so a printed FAIL
 sails into a commit. This has happened here more than once. Run the gate, read it, then commit.

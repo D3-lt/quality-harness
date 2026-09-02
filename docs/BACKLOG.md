@@ -2960,7 +2960,7 @@ false positive that nobody had looked at, because the corpus is the authors' own
 line had become furniture. It took a reader with no history here to treat it as a claim. That is an
 argument for running the gates from a foreign client periodically, not only in CI.
 
-## 53. OPEN — a task can cite a gate whose universe does not contain the thing it claims is enforced
+## 53. CLOSED 2026-09-02 — a task could cite a gate whose universe does not contain the thing it claims is enforced
 
 **Reported 2026-08-29 by the agentsmemory session**, from its own ADR-044 T5, and filed here because
 the shape is about ADR task files in general rather than about that repository. A task file asserted
@@ -3094,6 +3094,30 @@ expected — a label and the assertion proving it need not share words — and s
 
 **So the honest state of this entry: the candidate reproduced, once. The population question stays
 open, now blocked on repairing the instrument rather than on nobody having looked.**
+
+---
+
+**CLOSED 2026-09-02, as the question this entry concluded it should be.**
+
+The entry's own analysis is what shaped the fix: *"Deciding whether a check's universe contains an
+artifact is close to undecidable in general, and the cheap approximations … are the mutation
+campaign, which this repository already runs for its own gates but cannot run inside a user's
+corpus. The tractable form is probably a QUESTION in the task template and in `adr-judge`'s
+rubric."* Both, now:
+
+- **`adr-judge --rubric` gains `E4`** — a named check must be able to fail FOR THIS ARTIFACT, not
+  merely in general, with the test that settles it: delete the thing the record protects and watch
+  the named check go red.
+- **The task template's Reachability rung 2** says the same where the claim is actually made, since
+  rung 2 is a claim about a check's UNIVERSE rather than about the check.
+
+**Deliberately not a gate**, and the rubric says so in its own text: nothing can decide this
+mechanically. `adr-judge` never blocks and its verdicts never enter the evidence chain, which is
+the right home for a question a model has to answer rather than a rule a parser can.
+
+**The test asserts the rubric's IDENTIFIERS, not its wording** — asserting the prose would be the
+contract test §80 is about, and rewording a question must stay free.
+
 ## 54. CLOSED 2026-08-29 — the recorded failure block could contain none of the failure
 
 **Reported 2026-08-29 by the infrastructure-06 session** from

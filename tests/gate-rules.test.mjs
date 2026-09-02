@@ -959,9 +959,18 @@ test('every adr-judge rule has a case that makes it fire, and a record that pass
   // The rubric is the model half: the questions, for the agent to answer.
   const rubric = run('adr-judge', ['--rubric'])
   assert.equal(rubric.status, 0)
-  for (const rule of ['E1', 'E2', 'E3', 'C1', 'C2', 'C3']) {
+  // E4 is BACKLOG §53: a named check can be real, passing and correctly written
+  // and still be unable to see the artifact the record is about, at which point
+  // it reads as enforcement and is decoration. Deciding that mechanically is
+  // close to undecidable, so it is a QUESTION here rather than a rule in
+  // adr-lint — which is what §53 itself concluded.
+  for (const rule of ['E1', 'E2', 'E3', 'E4', 'C1', 'C2', 'C3']) {
     assert.match(rubric.stdout, new RegExp(`\\b${rule}\\b`), `the rubric must name ${rule}`)
   }
+  // The IDENTIFIERS, deliberately, and not the wording. Asserting the prose would
+  // be the contract test BACKLOG §80 is about — a check that words appear rather
+  // than that the document says the right thing — and rewording a question must
+  // stay free.
 
   // A broken invocation is not a verdict about a record.
   assert.equal(run('adr-judge', ['--not-a-flag']).status, 2)

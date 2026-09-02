@@ -4819,7 +4819,7 @@ The reporter says their PR #117 carries the reproduction.
 one is a mutation the tool ran and classified wrongly. A row that belongs to §79 must not be routed
 into ADR-013's lane — that would launder a computable verdict into a hand-reported one.
 
-## 80. A contract test that asserts words appear, not that a document says the right thing
+## 80. CLOSED 2026-09-02 — a contract test that asserted words appear, not that a document says the right thing
 
 **Found 2026-08-30 by a SURVIVED mutation during ADR-013 T3** — recorded in that task's Mutation Log
 rather than deleted, because a survivor is a finding.
@@ -4856,6 +4856,45 @@ fence cannot run can find the lane at all". Both rows are in the task's Mutation
 and the kill — because the survivor is the more interesting of the two.
 
 **One instance. Left open.**
+
+
+---
+
+**CLOSED 2026-09-02, and by a third option this entry did not consider.**
+
+It framed the choice as: assert only the load-bearing occurrence — *"brittle, and it drifts with
+formatting"* — or grade the document's meaning, which needs graders that can run. Both true. But the
+entry's own diagnosis names a property that is neither:
+
+> The mutated template is not merely missing a phrase, it is CONTRADICTORY: the heading invites the
+> inconvenient case and the prose two lines down excludes it.
+
+**The two occurrences are not duplicates — they play different roles.** One INVITES the lane (the
+heading an author reads) and one CONSTRAINS it (the definition that stops "inconvenient" being read
+into it). A reader who sees only the first gets the wrong rule. Asserting each ROLE makes the
+contradiction impossible rather than merely unlikely, and needs no grader:
+
+    must INVITE     /(WHEN THE FENCE|If the Acceptance fence) CANNOT RUN TO COMPLETION/i
+    must CONSTRAIN  /(?:not|does not mean)[^.]{0,80}\b(?:slow|awkward|inconvenient)\b/i
+
+**Matched on the role rather than the wording**, which is this entry's own lesson applied to its fix:
+the two documents constrain the lane in different words — *"It does not mean slow, or awkward, or
+needing docker"* in the template, *"not a fence that is merely slow or needs docker"* in the skill —
+and pinning either phrasing would be exactly the ratchet-against-renames §80 warns is mistaken for a
+check on meaning.
+
+**Verified by re-running the original survivor.** The mutation recorded in ADR-013 T3's Mutation Log
+— `WHEN THE FENCE CANNOT RUN TO COMPLETION` → `WHEN THE FENCE IS INCONVENIENT` — is now a catalogue
+entry and comes back **RED**, killed by the same test that previously did not notice it.
+
+**The general form stands and is unchanged:** asserting that a string appears in a document is not
+asserting that the document tells the reader the right thing. What this shows is that the gap is
+sometimes narrower than it looks — where a document's correctness depends on two statements
+AGREEING, both can be asserted, and that is a check on structure rather than on prose.
+
+**Writing a similar assertion for every "the skill mentions X" check is NOT implied**, and would be
+the speculative work this corpus refuses: those are ratchets against renames, they were built for
+that, and they are fine provided nobody mistakes one for a check on meaning.
 
 ## 81. The same ReDoS class, written twice in one day, the second time after being told
 

@@ -5807,7 +5807,7 @@ catalogue may be the smaller change than a new verdict class.
 **Scope, measured rather than guessed:** exactly ONE of the 416 catalogue entries has this property
 today.
 
-## 103. Three prose records asserted a live defect the code had already fixed, in one day
+## 103. PARTLY CLOSED 2026-09-02 — three prose records asserted a live defect the code had already fixed, in one day
 
 Found 2026-09-01 while triaging this backlog, not by looking for it. Three separate records
 described an open defect that had already been closed, and nothing in this repository can notice
@@ -5857,3 +5857,80 @@ short.
 itself); this is the corpus disagreeing with the tool. Not the same class.
 
 **Three instances, one day, all closed as found. Left open as a class.**
+
+---
+
+**PARTLY CLOSED 2026-09-02. One of the two directions is now instrumented; the other was
+measured and declined.**
+
+**What shipped (60fcec9).** `backlogHeadingsThatUndersell` was reading the same six closure
+words under two different case rules — the heading test carried `i`, the body test did not.
+The corpus writes its bolded openers in sentence case and never in caps, so the body rule
+matched none of them. Measured over all 103 sections: **0 findings with `m`, 3 with `mi`**,
+and reading each body confirmed all three were real.
+
+| section | body said | heading said | stale for |
+|---|---|---|---|
+| §17 | `**Closed — Windows is green and the job blocks.**` | nothing | 8 days |
+| §89 | `**Partly fixed.**` | `*.js` still unpinned — it is pinned | 3 days |
+| §91 | `**Fixed** by filtering WindowsApps` | the defect, present tense | 3 days |
+
+So this class had a **second, cheaper direction nobody had looked for**: not a record that
+never noticed, but a record that noticed *in its body* and never fixed its heading. The
+existing gate was built for exactly that and could not see it, for one missing flag.
+
+**What was measured and NOT built: the anchor mechanism.** The paragraph above proposes
+pinning a record to a verbatim snippet, agentsmemory-style, so a snippet that leaves the tree
+marks the record STALE. It was scoped, then measured against the class it was meant to serve,
+and **the numbers do not support building it.**
+
+The enumerating command — for each section closed after its defect was fixed, reconstruct the
+body as it stood in the stale window and ask whether it held a verbatim snippet already gone
+from the tree at that revision:
+
+    for n in 79 30 88 92 90; do
+      h=$(grep -m1 "^## $n\." docs/BACKLOG.md | sed 's/^## //')
+      git log -S "$h" --format='%h %ad' --date=short --reverse -- docs/BACKLOG.md | head -1
+    done
+    # then, at each closing commit's parent: git show <sha>^:docs/BACKLOG.md, take the
+    # section body, match rows shaped `path:line<space><space>+<code>`, and test each
+    # snippet against git show <sha>^:<path>
+
+What it returned:
+
+    §79 af9a857^: NO anchor-shaped row in body -> gate could not have caught it
+    §30 1a34c0d^: NO anchor-shaped row in body -> gate could not have caught it
+    §88 fe7c7f3^: NO anchor-shaped row in body -> gate could not have caught it
+    §92 fe7c7f3^: NO anchor-shaped row in body -> gate could not have caught it
+    §90 fee9903^: ABSENT  plugin/bin/adr-lint:474  if not spec_file.is_absolute():
+    §90 fee9903^: ABSENT  plugin/bin/adr-verify:688  target = (cwd / rel) if not Path(rel)...
+    §90 fee9903^: ABSENT  plugin/bin/adr-verify:923  path = (cwd / target) if not Path(tar...
+
+**One of nine.** Only §90 would have been caught — its code was fixed by `eb696f4` on
+2026-08-30 and its heading closed by `fee9903` on 2026-09-01, a two-day window the check
+would have reported. Two of the nine (`docs/research/…` §8, `CLAUDE.md` §7) are not backlog
+sections at all and are outside any `docs/BACKLOG.md` gate's reach. Two more (§89, §91) are
+the ones the case fix now catches. The remaining four carried no machine-checkable snippet in
+any form.
+
+**And its universe is empty today.** The same probe over the current file returns four
+anchor-shaped rows, all in CLOSED sections, where quoting vanished "before" code is correct
+and must not fire. A gate over that set cannot fail from a fresh checkout — which is the
+defect this repository exists to demonstrate the absence of, and building it would have meant
+authoring a migration whose purpose was to manufacture a universe for it. That is the
+speculative complexity YAGNI rejects.
+
+**Why prose quoting cannot be scraped**, which is what killed the cheap version: §91 elides
+its quote with `…`, §37's block sits at column 0 inside a fence, and §88 and §91 put theirs in
+table cells. A scraper over this corpus is false-positive and false-negative at once.
+
+**Precision worth keeping.** `60fcec9`'s message says §91 is "now closed by a gate instead."
+True of the undersell gate. The anchor mechanism — the thing this section proposes — has a
+demonstrated catch count of **zero**, and saying otherwise here would be this section
+committing its own defect a second time.
+
+**What is left open.** The direction where a record asserts a live defect and its own body
+never noticed either. Nothing mechanical covers it, the two out-of-backlog instances are
+outside any such gate anyway, and every instance so far was found by a human or an agent
+reading carefully. Re-open the anchor mechanism if the count of would-have-been-caught
+instances reaches three; it is one.

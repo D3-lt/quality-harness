@@ -60,6 +60,8 @@ node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr025-t1.out \
 
 ## Mutation Log
 
+- 2026-09-02 · 13782c8 · mutant killed · exit 1 · `plugin/bin/adr-verify` · a failing clean fence must still be recorded before the UNPROVEN refusal · acceptance-sha256:4948a035d1d1ba4c130f9e361737c83103415f1e4380cefbef95d4f759c68492
+
 ## Invariants
 
 - One writer for the entry grammar. The `--mutant` path and the plain path never format a row independently, and ADR-020's `ms:` and the `acceptance-sha256` digest come from the same code on both.
@@ -81,3 +83,5 @@ record's central claim is then false rather than merely narrow.
 
 - Changing when the clean run is taken, or whether it gates the mutant — ADR-016 owns that
 - The `adr-execute` guidance, which is T2
+
+## Verification Log

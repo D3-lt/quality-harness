@@ -66,6 +66,9 @@ node --test tests/mutate-runner.test.mjs 2>&1 | tee /tmp/adr023-t2.out \
 
 ## Mutation Log
 
+- 2026-09-02 · 1335029 · mutant killed · exit 1 · `scripts/mutate.mjs` · reusing a GREEN verdict would hide an open finding about a test · acceptance-sha256:881ddad4f97673dadd8232e9372de3858b1d6278a223700b6f04b2133d88f07b
+- 2026-09-02 · 1335029* · mutant killed · exit 1 · `scripts/mutate.mjs` · an unreadable input must yield no key, or a deleted test freezes its verdict · acceptance-sha256:881ddad4f97673dadd8232e9372de3858b1d6278a223700b6f04b2133d88f07b
+
 ## Invariants
 
 - A verdict is reused only when every input it depends on is byte-identical. The key is content — never a timestamp, a run id, or a commit range.

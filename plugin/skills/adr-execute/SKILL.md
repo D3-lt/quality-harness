@@ -118,6 +118,27 @@ one on-disk write the no-artifacts rule does not cover.
 ## Execution Pipeline
 
 Execute tasks wave by wave. For each task in the current wave:
+**Name the task file once, and chain what follows.** A task is edited, its fence run, and its
+evidence recorded — three steps against ONE file, and doing each in its own turn is where this stage
+spends time a user notices. Set the path once and reuse it, so the wrong task file cannot be typed
+into the middle of a sequence:
+
+```bash
+T=docs/adr/<record>/tasks/<task>.md
+# ...make the edit set for this task in one plan, then:
+<the project's check> && python3 "$CLAUDE_PLUGIN_ROOT/bin/adr-verify" "$T"
+```
+
+⚠ **Chaining is for what does not need a decision between steps.** The check and the evidence run
+belong together — `adr-verify` runs the fence itself and records what it observed, so nothing is
+saved by watching it twice. **The Red step is NOT part of that chain**: you have to see the test
+fail before writing the code that makes it pass, and a chain that runs both hides the one observation
+the step exists for.
+
+⚠ **Never chain a commit onto a check.** `<check> ; git commit` reports the exit status of the
+COMMIT, so a failing gate sails straight into history — and `<check> && git commit` is right only if
+you then read the result. Both spellings have put a red tree on `main` in this repository.
+
 
 1. **Research & Plan**: Quickly read the task spec and affected files. Resolve ambiguities.
 2. **Red**: Confirm the failing test(s) for the task's `Covers:` IDs exist and fail (Ordered Steps

@@ -75,6 +75,27 @@ Ask one concise question for anything missing:
 
 ## Workflow
 
+**These reads are independent of each other — issue them in ONE call.** Measured 2026-09-02 on a
+26-record corpus: the six commands below cost 1.87s run separately and 1.34s chained. Half a second.
+The compute is not what this stage costs — the TURNS are, and six to eight round trips before a word
+is drafted is where the minutes a user notices actually go. Nothing here needs the previous answer,
+so nothing here needs its own turn:
+
+```bash
+A=docs/adr   # your corpus root; every command below reads and none of them writes
+node "$CLAUDE_PLUGIN_ROOT/scripts/adr-state.mjs"; \
+node "$CLAUDE_PLUGIN_ROOT/scripts/adr-context.mjs" <paths this decision touches>; \
+adr-debt "$A"; \
+cat "$CLAUDE_PLUGIN_ROOT/templates/adr-template.md" \
+    "$CLAUDE_PLUGIN_ROOT/templates/task-template.md" \
+    "$CLAUDE_PLUGIN_ROOT/templates/tasks-readme-template.md"
+```
+
+⚠ **Batching the reads is not skimming them.** Each answer still has to be read and reconciled —
+`adr-state` for what already governs these paths, `adr-context` for the graveyard of approaches
+already killed, `adr-debt` for obligations that must be pulled in or re-deferred. One call, then one
+careful read of all of it. What is being removed is round trips, never attention.
+
 1. Read fresh:
    - `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md`
    - `${CLAUDE_PLUGIN_ROOT}/templates/task-template.md` if task files are needed

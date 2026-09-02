@@ -505,3 +505,40 @@ test('the task README legend lists exactly the statuses the gate acts on', () =>
     `the legend and the gate must name the same statuses — legend ${advertised.join()}, `
     + `gate ${vocabulary.join()}`)
 })
+
+test('the authoring skills teach a batched form, and it stays runnable', () => {
+  // BACKLOG §108, reported by a user running the lifecycle on their own project:
+  // the ADR stage takes a very long time. Measured, the six pre-draft commands
+  // cost 1.87s serial and 1.34s chained — the compute is NOT the cost. What
+  // costs is that the skill listed them as separate STEPS, and each step is a
+  // model turn. The reporter's own agent discovered the batched form mid-task,
+  // after being corrected, which is the tell that it was missing from the
+  // instructions rather than from the reader.
+  //
+  // ASSERTED AS A ROLE, not as wording (BACKLOG §80): the skill must carry a
+  // runnable example that puts more than one of these commands in a single
+  // invocation. Rewording the paragraph must stay free; deleting the example
+  // must not.
+  const fenced = text => [...text.matchAll(/```bash\n([\s\S]*?)```/g)].map(m => m[1])
+  for (const [name, commands] of [
+    ['adr-write', ['adr-state.mjs', 'adr-context.mjs', 'adr-debt', 'adr-template.md']],
+    ['adr-execute', ['adr-verify']],
+  ]) {
+    const skill = readFileSync(join(root, 'skills', name, 'SKILL.md'), 'utf8')
+    const batched = fenced(skill).filter(block =>
+      /\\\\\n|&&|;\s*\n|\$\{?[A-Z]/.test(block)
+      && commands.filter(c => block.includes(c)).length >= 1)
+    assert.ok(batched.length > 0,
+      `${name}/SKILL.md must show a runnable chained form — an agent that has to `
+      + 'discover batching mid-task is being taught by the task, not by the skill')
+  }
+
+  // ...and the one thing that must NOT be taught as chainable. Seeing a test fail
+  // is an observation, and a chain that runs red-then-green hides the only step
+  // the Red phase exists for.
+  const execute = readFileSync(join(root, 'skills', 'adr-execute', 'SKILL.md'), 'utf8')
+  assert.match(execute, /Red step is NOT part of that chain|not chain[^.]{0,40}\bRed\b/i,
+    'adr-execute must exclude the Red step from any chaining advice')
+  assert.match(execute, /chain a commit|commit[^.]{0,60}exit status|sails/i,
+    'adr-execute must warn that chaining a commit onto a check hides a red gate')
+})

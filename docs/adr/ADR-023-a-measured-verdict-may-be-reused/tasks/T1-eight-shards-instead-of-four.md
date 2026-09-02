@@ -75,3 +75,4 @@ it belongs to its own task.
 - Balancing shards by cost rather than by index (deferred: docs/BACKLOG.md §106)
 
 ## Verification Log
+- 2026-09-02 · 7405368 · exit 0 · `set -o pipefail …` · acceptance-sha256:4cc7d302e5139649fffb517c3e04ebfee88a61bba42df353d493ff30caa8cda3 · ms:719

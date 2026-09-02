@@ -2218,8 +2218,8 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "plugin/evals/results/\n",
-      "to": "evals/results/\n"
+      "from": "plugin/evals/results\n",
+      "to": "evals/results\n"
     },
     {
       "label": "package: the LF attribute follows the gates when they move",

@@ -3822,6 +3822,24 @@
       ],
       "from": "ERREXIT_RE = re.compile(r\"^\\s*set\\s+(?:-[a-zA-Z]*e[a-zA-Z]*|-o\\s+errexit)\\b\", re.M)",
       "to": "ERREXIT_RE = re.compile(r\"^\\s*set\\s+(?:-[a-zA-Z]*e|-o\\s+errexit)\\b\", re.M)"
+    },
+    {
+      "label": "release: a run with zero jobs is not nine green ones",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (run.jobs.length === 0) {\n    return { verdict: 'unreadable', reason: 'the run reports zero jobs', jobs: [] }\n  }",
+      "to": "  // vacuous universe allowed through"
+    },
+    {
+      "label": "release: an unfinished job is not a concluded one",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (run.status !== 'completed' || unfinished.length) {",
+      "to": "  if (run.status !== 'completed') {"
     }
   ]
 }

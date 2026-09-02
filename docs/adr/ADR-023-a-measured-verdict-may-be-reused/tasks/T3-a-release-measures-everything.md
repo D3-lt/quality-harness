@@ -80,3 +80,31 @@ at the next tag — rests on it.
 - Whether other branches should force a full run; only tags and `main` are decided here
 
 ## Verification Log
+- 2026-09-02 · caaf026 · exit 1 · `set -o pipefail …` · acceptance-sha256:71bb37921d33ea3fdd4583f682d723e342c2d6a1d69512bfa0eaad7821eb0b53 · ms:681
+  ```
+  --- last 10 line(s) of stdout (of 47 after folding 47 raw)
+  ✔ the README names every skill and gate this plugin ships (0.23675ms)
+  ℹ tests 38
+  ℹ suites 0
+  ℹ pass 38
+  ℹ fail 0
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 599.524292
+  no mutation matches a forced run reuses nothing
+  ```
+- 2026-09-02 · caaf026* · exit 1 · `set -o pipefail …` · acceptance-sha256:71bb37921d33ea3fdd4583f682d723e342c2d6a1d69512bfa0eaad7821eb0b53 · ms:631
+  ```
+  --- last 10 line(s) of stdout (of 47 after folding 47 raw)
+  ✔ the README names every skill and gate this plugin ships (0.534375ms)
+  ℹ tests 38
+  ℹ suites 0
+  ℹ pass 38
+  ℹ fail 0
+  ℹ cancelled 0
+  ℹ skipped 0
+  ℹ todo 0
+  ℹ duration_ms 531.213875
+  no mutation matches a forced run reuses nothing
+  ```

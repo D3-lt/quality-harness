@@ -3923,7 +3923,7 @@
       "to": "    if (bytes === null || bytes === undefined) continue"
     },
     {
-      "label": "ci: a release forces a full campaign",
+      "label": "ci: a forced run reuses nothing, because a release measures everything",
       "file": ".github/workflows/selftest.yml",
       "tests": [
         "tests/package.test.mjs"

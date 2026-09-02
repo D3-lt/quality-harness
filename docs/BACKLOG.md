@@ -2140,7 +2140,7 @@ of which the `-run` fence trap in the task template already shows is easy to get
 for a scenario binding there is no authoring escape at all. Noted in the file since 2026-08-23 and
 still true. It is the reason "just use a Cmd override" is not a complete answer to the item above.
 
-## 39. The vacuous mutation, still unsolved, and a baseline that trusts a flaky suite
+## 39. CLOSED 2026-09-02 — the experiment answered it, and half the second claim had gone stale
 
 Both deferred by ADR-006, which chose a baseline over coverage and says plainly which class that
 does NOT cover.
@@ -2226,6 +2226,43 @@ luck, and every verdict beneath it inherits that luck. The campaign already depe
 silently, since it takes no baseline at all — and ADR-006 makes the dependency visible by naming the
 set rather than fixing it. §34 is the precedent for what fixing it looks like: the coverage jitter
 was cured by finding the mechanism (`--test-concurrency=1`), not by widening a threshold.
+
+
+---
+
+**CLOSED 2026-09-02. Both halves, and neither by writing a checker.**
+
+**The vacuous mutation: answered by this entry's own experiment, above.** It asked for exactly the
+right thing — *"take the four known instances and see whether any mechanical property separates them
+from healthy assertions. If none does, that is a finding worth writing down rather than a gap to
+keep open."* The experiment ran on 2026-08-29 and the finding is written down: the property EXISTS
+and fires (the injected canonical instance moved the candidate count 29 → 30, so the heuristic is
+not itself vacuous), and it is unusable at 29 false positives out of 29 on a suite where the
+discipline is uniformly applied. The checker does not ship, and not keeping the probe was the right
+call for the reason given — a tool nobody runs is a second thing to maintain.
+
+What remains is not a gap but a practice: ADR-003's discipline, applied by hand, which caught the
+fourth instance. That is stated, dated and reproducible; keeping the entry open implies someone
+should still go and solve it, and the measurement says they should not.
+
+**The second half was partly STALE, which is the eighth instance of §103's class this session.**
+It reads: *"The campaign already depends on this — today silently, since it takes no baseline at
+all."* ADR-006 shipped baselines, and verified against the code 2026-09-02:
+
+    scripts/mutate.mjs:509-517   one baseline per distinct test-set, memoised
+    classify(baseline: fail)  -> UNPROVEN     (excluded from both sides of the ratio)
+    classify(baseline: pass)  -> RED          (the same run, licensed)
+
+So the campaign does take a baseline, and a verdict under a failing one is already refused rather
+than counted.
+
+**What is genuinely left is narrower than the entry implies**: a baseline that passes because the
+suite was FLAKY that time, not broken. `UNPROVEN` catches a suite that fails; nothing catches one
+that passes by luck. That is real, it is unmeasured here, and §34's precedent says the fix is to
+find the mechanism rather than widen a threshold — `--test-concurrency=1` cured the coverage jitter.
+**Re-open with a flake, not with a worry:** a campaign whose verdicts differ between two runs on an
+unchanged tree. ADR-023 now records per-entry timings and reuses verdicts keyed on content, so that
+comparison is cheap to make the next time a verdict looks wrong.
 
 ## 40. CLOSED 2026-09-02 — two fixes that inherited the defect they were fixing
 

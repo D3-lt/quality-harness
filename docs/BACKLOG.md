@@ -5862,7 +5862,7 @@ sitting in the cache now, not a hypothetical.
 
 ---
 
-## 97. Nothing binds an acceptance entry to anything outside the file it is written in
+## 97. CLOSED 2026-09-02 — the candidate was measured and its own falsifier fired
 
 Ask 3 of GitHub issue #4, deferred out of the fix that shipped in v2.45.0 (`68b5072`). The reporter
 was explicit that this is a raise-the-cost problem rather than a closeable one, and was right: a
@@ -5895,6 +5895,44 @@ against — because a reader who believed the stronger claim would trust a `done
 questioned.
 
 ---
+
+
+---
+
+**CLOSED 2026-09-02. Not by building the candidate, and not by declining to — by the measurement
+ADR-020 pre-registered for exactly this.**
+
+This entry's candidate is *"bind an entry to something not derivable from the file … a digest of the
+command's OUTPUT plus its duration … an append-only run ledger keyed the same way and cross-checked
+by `adr-lint`"*. ADR-020 took it up, and wrote its own falsifier into the Decision before any code:
+*if honest re-runs routinely produce different output for the same fence, the disagreement advisory
+fires on correct work and the mechanism is worse than nothing — if fewer than all of them are
+stable, part 3 does not ship.*
+
+T1 S2 measured it 2026-09-01, on 40 task files with a bash fence, each run twice on a clean tree:
+
+    node --test          25 fences   differs on EVERY line — a per-test duration `(1.6575ms)`
+    gate-regressions.py  11 fences   byte-identical
+    other / selftest.sh   4 fences   —
+
+48 of 56 lines differ between two runs of one `node --test` fence. **Twenty-five of forty are
+unstable**, so the falsifier fired and all three parts fell in order: no cross-check, therefore no
+reader for a ledger, therefore nothing for an output digest to be read by.
+
+**What DID ship from this entry is the half that needed no stable output.** A wall-clock duration is
+not derivable from the file, needs no normalisation, and is checked as a FLOOR rather than a match —
+`ms:` in the Verification Log grammar (`adr-lint:212`), with a digest-less row now refused unless
+HEAD already carries it. Forging an entry costs a commit a reader can see.
+
+**Independently confirmed today** while measuring §98: four mutants, each run twice on an unchanged
+tree, **zero byte-identical**, every one carrying absolute paths and 21–100 timing values. The
+mutation half of the evidence chain has the same property as the acceptance half, and for the same
+reason.
+
+**The permanent limit stays, in ADR-020's words:** *every artifact `adr-verify` writes, a human can
+write, so a local gate reading local files cannot distinguish a run from a transcription.* This was
+always a raise-the-cost problem, the reporter said so, and the cost was raised as far as a stable
+signal allows.
 
 ## 98. PARTLY CLOSED 2026-09-02 — the Mutation Log carries the same acceptance digest and no trace of the run that produced it
 

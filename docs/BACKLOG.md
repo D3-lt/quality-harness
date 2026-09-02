@@ -5868,7 +5868,7 @@ are asserted on the same fixture, the advisory CHANNEL is asserted rather than t
 the mutation `lint: a committed evidence row that has gone missing is reported` deletes the CALL and
 is RED. Evidence written by `adr-verify` into T1's Verification and Mutation Logs.
 
-## 102. A mutant that does not PARSE counts as noticed, and only the parser noticed it
+## 102. CLOSED 2026-09-02 — a mutant that did not PARSE counted as noticed, and only the parser noticed it
 
 Split out of §53's 2026-09-01 measurement because it is a decision about what the campaign's numbers
 mean, not a defect to repair.
@@ -5897,6 +5897,27 @@ catalogue may be the smaller change than a new verdict class.
 
 **Scope, measured rather than guessed:** exactly ONE of the 416 catalogue entries has this property
 today.
+
+---
+
+**CLOSED 2026-09-02 as an AUTHORING defect, not a new verdict class** — the smaller change this
+entry itself argued for. A mutant is supposed to change BEHAVIOUR, and one that changes only syntax
+tests nothing, so it is rejected where it is written rather than reclassified where it runs. The
+campaign's exit code and its `N/N noticed` headline keep meaning what they always did, which the
+verdict-class option would have altered.
+
+**The count had grown from one to two** by the time this landed — the second was a duplicate `cwd=`
+keyword in an `adr-verify` mutant — which is why it became a check rather than a cleanup:
+
+    state: a supersession chain is followed          `supersededBy: false &&`   (JS syntax)
+    sweep: a fence runs where it was recorded …      duplicate `cwd=` keyword   (Python syntax)
+
+Both now express the same intent in code that parses, and both still come back RED — for a
+behavioural reason rather than because the file reached a parser.
+
+`tests/package.test.mjs::every catalogue mutant still parses, so a kill is behavioural` applies
+`node --check` or `ast.parse` to each entry's mutated text. Shown capable of firing: restoring the
+original un-parseable form fails it and names the entry.
 
 ## 103. PARTLY CLOSED 2026-09-02 — three prose records asserted a live defect the code had already fixed, in one day
 
@@ -6135,7 +6156,7 @@ needs, so this is bounded by both. A firing test is still strictly more than not
 model calls — and the ordering question (which three matter most) is a judgement about where the
 lifecycle is load-bearing, not a mechanical sweep. `review` first is the obvious candidate.
 
-## 106. Mutation shards are sliced by index, so the slowest carries 53% more than the fastest
+## 106. CLOSED 2026-09-02 — mutation shards were sliced by index, so the slowest carried 53% more than the fastest
 
 Filed 2026-09-02 by ADR-023, which deferred it. `scripts/mutate.mjs --shard i/n` slices the
 catalogue by INDEX, so a shard's cost depends on which suites its entries happen to name. Measured
@@ -6166,4 +6187,18 @@ than raising a matrix number, needs somewhere durable to keep the timings, and i
 ADR-023's verdict cache, which will be writing per-entry state anyway.
 
 **Do this after ADR-023 T2 lands**, and share its store rather than adding a second one.
+
+**CLOSED 2026-09-02**, exactly that way. `shardByCost()` in `scripts/mutate.mjs` does
+longest-processing-time-first over the durations ADR-023's cache already records, so the estimate is
+a measurement from the campaign's own last run and a stale one fixes itself on the next. No table
+was added.
+
+An entry with no timing sorts FIRST, at Infinity — an unmeasured mutant is the one whose cost is
+unknown, and separating the unknowns is a safer guess than assuming they are cheap. With no timings
+at all it degrades to round-robin, partitions correctly, and says `no timings yet — even counts`
+rather than claiming a balance it did not compute.
+
+The partition is asserted over the real catalogue at several shard counts, because an overlap
+double-counts a verdict and a gap drops one silently: 436 entries, 436 unique, every entry in
+exactly one shard.
 

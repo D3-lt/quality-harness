@@ -66,7 +66,11 @@ if (dirty.status === 0 && dirty.stdout.trim()) {
     + 'an edit made while it works would be rolled back. Commit or stash first.\n')
   process.exit(2)
 }
-writeFileSync(journalPath, JSON.stringify({ file, original }))
+// ⚠ NOT YET. The journal means "a finding is neutered right now", and nothing is
+// neutered until the baseline has passed — the refusal below exits without
+// touching the file. Writing it here stranded a journal on every refusal, and a
+// stranded journal fails the suite that the next run needs, so one bad baseline
+// made the tool permanently unusable. Measured 2026-09-02, twice.
 const neuter = path.join(root, 'scripts', 'neuter.py')
 const py = (...args) => runPython([neuter, ...args], { input: original, encoding: 'utf8' })
 
@@ -88,7 +92,13 @@ const run = () => (suites.length
   ? spawnSync('node', ['--test', ...suites.map(s => path.join(root, s))],
     { cwd: root, encoding: 'utf8',
       env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
-  : spawnSync('bash', [path.join(root, 'scripts', 'selftest.sh')], { cwd: root, encoding: 'utf8' })
+  // BOTH branches, and missing this one is how the deadlock survived its own
+  // fix: with no suites named this runs the WHOLE selftest, which carries the
+  // same guard. One path was taught and the other was not, so the tool went on
+  // refusing at baseline while the targeted path worked.
+  : spawnSync('bash', [path.join(root, 'scripts', 'selftest.sh')],
+    { cwd: root, encoding: 'utf8',
+      env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
 ).status !== 0
 
 /** Whether the file still parses, so a broken edit is never read as a verdict. */
@@ -107,6 +117,8 @@ try {
       + 'here would be evidence. Repair it and re-run.\n')
     process.exit(2)
   }
+  // NOW, with a passing baseline behind us and the first edit about to happen.
+  writeFileSync(journalPath, JSON.stringify({ file, original }))
 
   // A REACHABILITY CONTROL. Neuter every finding at once: if the suites still pass,
   // they do not exercise this gate's findings at all, and "17 of 33 assert nothing"

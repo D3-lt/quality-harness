@@ -44,7 +44,7 @@ const PY_DEF = /^def\s+([a-z_][a-z0-9_]*)\s*\(/gm
 const JS_DEF = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)/gm
 // What a user downloads: `.claude-plugin/marketplace.json` declares `"source":
 // "./plugin"`, so this is the reachability universe (CLAUDE.md §1).
-const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')
+export const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')
   && (/\.(mjs|js|sh|json|md|cmd)$/.test(f) || /^plugin\/bin\/[a-z-]+$/.test(f))
 
 /**

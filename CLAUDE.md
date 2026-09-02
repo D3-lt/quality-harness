@@ -349,6 +349,18 @@ written the same day to fix the same class.
 
 1. `bash scripts/selftest.sh` green after the last edit.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`.
-3. Push, wait for **all six** CI jobs (ubuntu, macos, windows, mutations, plugin validate, coverage
-   floor). CI is the only place the full mutation campaign and Windows actually run.
-4. `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.
+3. Push, wait for **all nine** CI jobs (ubuntu, macos, windows, mutations 1-4/4, plugin validate,
+   coverage floor). CI is the only place the full mutation campaign and Windows actually run.
+4. **Read each job's `conclusion`, never the watch's exit code.** `gh run watch --exit-status`
+   exited **0** on a CANCELLED run on 2026-09-02 (gh 2.98.0) — it prints `X The operation was
+   canceled.` and returns success, because a cancelled run did not *fail*. Six of nine jobs were
+   green and the three cancelled ones were the mutation campaign, so the release would have carried
+   no mutation evidence while looking verified. Ask the API instead:
+
+       gh run view <id> --json conclusion,jobs --jq '"\(.conclusion)", (.jobs[] | "\(.name): \(.conclusion)")'
+
+5. **Do not push again while the release run is in flight.** `.github/workflows/selftest.yml:21`
+   sets `cancel-in-progress: true`, so the next push to `main` kills the run you are releasing on —
+   correct for development, wrong for a release, and silent either way. Either wait, or re-run at
+   the new head and release that. (BACKLOG §104.)
+6. `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.

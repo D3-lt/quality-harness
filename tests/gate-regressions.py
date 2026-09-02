@@ -7,6 +7,7 @@ import contextlib
 import io
 import io
 import os
+import pathlib
 import re
 import subprocess
 import sys
@@ -701,6 +702,7 @@ def main():
     test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint)
     test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint, repo_root)
     test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint, verify)
+    test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
     # And the normalizers themselves must agree, not merely their digests here.
@@ -3918,6 +3920,54 @@ def test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint, verify):
     assert found == [], found
 
     print("PASS — a negated guard that cannot fail its fence is reported, and a working one is not")
+
+
+def test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint):
+    """BACKLOG §61 — a done task's Produces: naming something the tree lacks."""
+    class Errors(list):
+        def advise(self, message): self.append(message)
+        def append_(self, message): self.append(message)
+
+    def task(produces):
+        return {"T1": {"path": pathlib.Path("T1-a.md"),
+                       "text": f"**Produces:** {produces}\n"}}
+    readme = ("| ID | Title | Status |\n|---|---|---|\n| T1 | a | done |\n")
+
+    # PRESENT: a symbol the corpus really has draws nothing.
+    errs = Errors()
+    lint.check_produced_symbols(task("`resolvePython()`"), readme, errs,
+                                "export function resolvePython(platform) {}")
+    assert errs == [], errs
+
+    # ABSENT: the §61 case. The header is the only place the claim is written.
+    errs = Errors()
+    lint.check_produced_symbols(task("`neverWritten()`"), readme, errs,
+                                "export function somethingElse() {}")
+    assert errs and "neverWritten" in errs[0], errs
+
+    # PROSE is not a symbol. `Produces:` is often a sentence, and reading one as a
+    # code claim is how a gate earns a reputation for false alarms (BACKLOG §85).
+    errs = Errors()
+    lint.check_produced_symbols(task("`the reuse decision`"), readme, errs, "nothing")
+    assert errs == [], errs
+    errs = Errors()
+    lint.check_produced_symbols(task("none"), readme, errs, "nothing")
+    assert errs == [], errs
+
+    # ⚠ PENDING tasks are exempt, and this is the rule that makes the check safe:
+    # Produces names what a task will CREATE, so before it lands the symbol is
+    # SUPPOSED to be absent. Without this every honest plan reads as a defect.
+    pending = "| ID | Title | Status |\n|---|---|---|\n| T1 | a | pending |\n"
+    errs = Errors()
+    lint.check_produced_symbols(task("`neverWritten()`"), pending, errs, "nothing")
+    assert errs == [], errs
+
+    # "Could not look" is not "absent" (ADR-005): no tracked text, no verdict.
+    errs = Errors()
+    lint.check_produced_symbols(task("`neverWritten()`"), readme, errs, None)
+    assert errs == [], errs
+
+    print("PASS — a done task producing a symbol nobody has is reported")
 
 
 if __name__ == "__main__":

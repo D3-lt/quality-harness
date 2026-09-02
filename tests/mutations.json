@@ -3442,8 +3442,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "check_go_acceptance_fences(infos, errors, root, tracked)\n        with errors.protected():",
-      "to": "False and check_go_acceptance_fences(infos, errors, root, tracked)\n        with errors.protected():"
+      "from": "        check_go_acceptance_fences(infos, errors, root, tracked)",
+      "to": "        pass  # the Go fence check no longer runs"
     },
     {
       "label": "lint: no test files is a healthy Go status, not an exclusion",
@@ -3948,6 +3948,24 @@
       ],
       "from": "  lastPythonVersion = null\n  if (platform !== 'win32') return null",
       "to": "  if (platform !== 'win32') return null"
+    },
+    {
+      "label": "lint: a pending task's Produces is not yet expected to exist",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for tid in done_task_ids(readme_text):\n        inf = infos.get(tid)\n        if inf is None:\n            continue\n        produces = header_val(inf.get(\"text\", \"\"), \"Produces\") or \"\"",
+      "to": "    for tid in infos:\n        inf = infos.get(tid)\n        if inf is None:\n            continue\n        produces = header_val(inf.get(\"text\", \"\"), \"Produces\") or \"\""
+    },
+    {
+      "label": "lint: a Produces sentence is not read as a symbol",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    ident = re.compile(r\"^[A-Za-z_][A-Za-z0-9_]*(\\(\\))?$\")",
+      "to": "    ident = re.compile(r\"^.+$\")"
     }
   ]
 }

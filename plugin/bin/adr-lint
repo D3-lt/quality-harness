@@ -3864,6 +3864,72 @@ def check_named_tests_are_run(infos, readme_text, errors):
                               f"promises a test the gate never runs")
 
 
+def tracked_text(root, tracked):
+    """The content of every tracked text file, concatenated, or None if unreadable.
+
+    Used to ask "does this symbol appear anywhere the repository tracks". Reading
+    the INDEX rather than the disk is the point: `existsSync` over a path answers
+    "is this on THIS machine", which makes a gate's answer depend on who is asking
+    (CLAUDE.md §8).
+    """
+    if not tracked:
+        return None
+    out = []
+    for rel in tracked:
+        path = Path(root) / rel
+        try:
+            if path.is_file() and path.stat().st_size < 4_000_000:
+                out.append(path.read_text(errors="replace", encoding="utf-8"))
+        except OSError:
+            continue
+    return "\n".join(out) if out else None
+
+
+def check_produced_symbols(infos, readme_text, errors, tracked_text):
+    """A DONE task's `Produces:` names something the tree does not contain.
+
+    BACKLOG §61, reported from an adopting corpus where a task's steps specified a
+    read path that existed nowhere. Measured there at 17 true positives of 18 on
+    the sibling tests-exist rule; the one false positive was an abbreviated name in
+    a table, not a vacuous claim.
+
+    ⚠ DONE ONLY, and that is the whole of why this is safe. `Produces:` names what
+    a task will CREATE, so before it lands the symbol is SUPPOSED to be absent — a
+    rule that fired on pending tasks would report every honest plan as a defect.
+
+    ⚠ IDENTIFIER-SHAPED TOKENS ONLY. `Produces:` is often prose ("the reuse
+    decision"), and this must not read a sentence as a symbol. A backticked token
+    that is a bare identifier, optionally with `()`, is a code claim; anything else
+    is left alone. Measured on this corpus 2026-09-02: 19 such tokens, 0 absent —
+    an empty local universe, so the fixtures carry the proof.
+
+    ADVISORY, like `Enforced-by:`'s pointer resolution (ADR-009/ADR-011): a symbol
+    can legitimately be renamed away, and blocking on a name is how a gate gets
+    routed around.
+    """
+    if not readme_text or tracked_text is None:
+        return
+    ident = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\(\))?$")
+    for tid in done_task_ids(readme_text):
+        inf = infos.get(tid)
+        if inf is None:
+            continue
+        produces = header_val(inf.get("text", ""), "Produces") or ""
+        if re.match(r"none\b", produces.strip(), re.I):
+            continue
+        for token in re.findall(r"`([^`]+)`", produces):
+            token = token.strip()
+            if not ident.match(token):
+                continue
+            name = token.rstrip("()")
+            if name and name not in tracked_text:
+                errors.advise(
+                    f"{inf['path'].name}: {tid} is done and its **Produces:** names `{token}`, "
+                    f"which appears nowhere the repository tracks. Either the task produced it "
+                    f"under another name and the header is stale, or it was never produced — "
+                    f"the header is the only place that claim is written down")
+
+
 def check_readme(readme, task_stems, errors):
     text = readme.read_text(errors="replace", encoding="utf-8")
     listed = set()
@@ -4132,6 +4198,11 @@ def main():
         # in one place and a new check inside these functions inherits it.
         tracked = tracked_paths(root)
         check_go_acceptance_fences(infos, errors, root, tracked)
+        # BACKLOG §61. Read once per record, from the files git tracks rather than
+        # from the disk — a check whose answer depends on what is lying around is
+        # not a check (CLAUDE.md §8). `None` when git could not answer, which the
+        # check treats as "could not look" and skips rather than reporting absence.
+        check_produced_symbols(infos, readme_text, errors, tracked_text(root, tracked))
         with errors.protected():
             check_verification(infos, readme_text, errors)
             check_task_status_vocabulary(infos, readme_text, errors)

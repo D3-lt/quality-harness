@@ -3847,8 +3847,8 @@
       "tests": [
         "tests/orphan-sweep.test.mjs"
       ],
-      "from": "const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')",
-      "to": "const SHIPPED = f => (f.startsWith('plugin/') || f.startsWith('tests/') || f === 'README.md')"
+      "from": "export const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')",
+      "to": "export const SHIPPED = f => (f.startsWith('plugin/') || f.startsWith('tests/') || f === 'README.md')"
     },
     {
       "label": "orphan: a definition is reached at two occurrences, not one",

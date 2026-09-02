@@ -9,15 +9,13 @@ import { test } from 'node:test'
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
 import { fileURLToPath } from 'node:url'
-import { dirname, join } from 'node:path'
-import { orphanDefinitions } from '../scripts/orphan-sweep.mjs'
+import { dirname } from 'node:path'
+import { orphanDefinitions, SHIPPED } from '../scripts/orphan-sweep.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const git = (...args) => execFileSync('git', args, {
   cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28,
 })
-const SHIPPED = f => (f.startsWith('plugin/') || f === 'README.md')
-  && (/\.(mjs|js|sh|json|md|cmd)$/.test(f) || /^plugin\/bin\/[a-z-]+$/.test(f))
 
 function shippedAt(rev) {
   const files = {}

@@ -20,6 +20,7 @@ import {
   describeCommand,
   sessionOrientation,
   spawnGate,
+  probedPythonVersion,
   resolvePython,
   adrCorpus,
   validationVerdict,
@@ -1655,6 +1656,28 @@ test('a Windows python3 that is not Python is refused, not believed', async () =
   assert.deepEqual(resolvePython('win32', [decoy, ['python3']], spawnSync), ['python3'],
     'the probe must skip the decoy and keep looking')
   assert.equal(resolvePython('linux', [decoy], spawnSync), null, 'POSIX execs the shebang itself')
+
+  // BACKLOG §93. The probe asked for the MAJOR version and discarded the rest, so
+  // a box carrying 3.14 and 3.10 — four years and one semantic change apart, both
+  // reachable through `py --list` — answered `3` either way and nothing recorded
+  // which one ran. §90 is the case where that mattered: the same guard returned
+  // different answers on each.
+  const answering = version => () => ({ status: 0, stdout: `${version}\n`, stderr: '' })
+  for (const version of ['3.14', '3.10', '3.9']) {
+    assert.deepEqual(resolvePython('win32', [['py', '-3']], answering(version)), ['py', '-3'],
+      `any real 3.x must still be accepted, including ${version}`)
+    assert.equal(probedPythonVersion(), version,
+      `the interpreter that answered must be recorded, not just its major: ${version}`)
+  }
+
+  // ⚠ CLEARED on a failed resolve. Without that a caller recording "which Python
+  // answered" reads the PREVIOUS run's version and records one that did not run —
+  // stale evidence, which is worse than none and is the class §93 is about.
+  assert.deepEqual(resolvePython('win32', [['py', '-3']], answering('3.14')), ['py', '-3'])
+  assert.equal(resolvePython('win32', [['py', '-3']], answering('2.7')), null,
+    'a Python 2 must not be accepted')
+  assert.equal(probedPythonVersion(), null,
+    'a failed resolve must not leave the previous version readable')
 
   // And the reported symptom, through spawnGate: the gate runs and answers.
   const repo = await mkdtemp(path.join(testTmp, 'quality-python-alias-repo-'))

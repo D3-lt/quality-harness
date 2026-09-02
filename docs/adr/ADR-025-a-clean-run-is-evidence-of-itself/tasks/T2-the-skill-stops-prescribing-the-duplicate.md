@@ -72,3 +72,5 @@ keep prescribing both runs, and this task is wrong rather than incomplete.
 
 - The gate behaviour itself, which is T1
 - Fence scoping advice, which is already in the task template
+
+## Verification Log

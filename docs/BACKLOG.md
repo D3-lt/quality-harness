@@ -3695,7 +3695,7 @@ Two consequences they name, both of which the design must absorb:
 a semantic rule (human-observed acceptance required, runnable fence refused) — an ADR, not a patch.
 The evidence for it is now two independent corpora and one resolved instance.
 
-## 61. OPEN — a task file can name a symbol the code does not have
+## 61. CLOSED 2026-09-02 — a task file could name a symbol the code does not have
 
 **Reported 2026-08-29 by the wcag-43 session**, and it cost them an hour of tracing: ADR-076 T11's
 Ordered Steps specify a read path — `violation["evidence"]["node_path"]` — that **exists nowhere in
@@ -3776,6 +3776,36 @@ identifier, every planned name, every quoted example. The tractable form is prob
 backticked identifier in `Produces:`/`Consumes:` — the fields that already carry structured tokens —
 resolved against `git grep`, advisory, and silent when the token is not identifier-shaped. Ordered
 Steps prose is out of scope until somebody shows a rule that does not drown a real corpus.
+
+
+---
+
+**CLOSED 2026-09-02, and half of it was already shipped.** Checked before building, because this
+corpus keeps producing entries that describe a defect the code has since fixed: `adr-lint` already
+resolves the **Tests table** against the real files — the row's file must exist and must contain the
+named test (`adr-lint:3139-3171`). That is the rule the reporter measured at 17-of-18.
+
+**What was missing is the `Produces:` half**, and it now advises when a **done** task names a symbol
+that appears nowhere the repository tracks.
+
+**Three constraints, each of which is the reason it is safe rather than noisy:**
+
+- **DONE tasks only.** `Produces:` names what a task will CREATE, so before it lands the symbol is
+  *supposed* to be absent. A rule that fired on pending tasks would report every honest plan as a
+  defect.
+- **Identifier-shaped tokens only.** `Produces:` is frequently prose — "the reuse decision" — and
+  reading a sentence as a code claim is how a gate earns the reputation §85 is about. A backticked
+  bare identifier, optionally with `()`, is a claim; anything else is left alone.
+- **Advisory, not blocking**, like `Enforced-by:`'s pointer resolution (ADR-009/ADR-011). A symbol
+  can legitimately be renamed away, and blocking on a name is how a gate gets routed around.
+
+**The local universe is empty**, measured: 19 identifier-shaped `Produces:` tokens in this corpus,
+0 absent. So the fixtures carry the proof, in five directions — present, absent, prose, pending, and
+"could not look" when git cannot answer. Two are catalogue mutations: dropping the done-only
+restriction, and widening the identifier pattern to match anything.
+
+**It reads the git INDEX, never the disk** (CLAUDE.md §8): a check whose answer depends on what is
+lying around in a working tree is not a check.
 
 ## 62. CLOSED 2026-08-29 — `work-next` offered an ARCHIVE as the next thing to do
 

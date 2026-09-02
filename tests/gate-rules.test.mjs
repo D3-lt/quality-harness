@@ -516,10 +516,16 @@ test('a target another repository owns is declared, not called broken', () => {
   // an `external:` without one is not a declaration — and reporting it is the
   // point: silently ignoring it would let a half-written declaration read as a
   // settled one, which is the state this disposition exists to make impossible.
-  write('- A courier registry (external: ADR-007)')
-  const ownerless = scan()
-  assert.equal(ownerless.status, 1, 'an ownerless declaration must not pass')
-  assert.match(ownerless.stdout, /external-no-owner/)
+  // BOTH halves, and the second was missing until a GREEN mutant said so.
+  // `(external: ADR-007)` parses as where='ADR-007', pointer='' — so it exercises
+  // the POINTER check and says nothing about the owner check. Only an empty
+  // `<where>` with a real pointer reaches that branch.
+  for (const missing of ['(external: ADR-007)', '(external: : ADR-007)']) {
+    write(`- A courier registry ${missing}`)
+    const ownerless = scan()
+    assert.equal(ownerless.status, 1, `an incomplete declaration must not pass: ${missing}`)
+    assert.match(ownerless.stdout, /external-no-owner/, missing)
+  }
 
   // ONE GRAMMAR, BOTH GATES. A spelling adr-debt accepts and adr-lint rejects is
   // worse than no spelling at all — the author would be told to fix something

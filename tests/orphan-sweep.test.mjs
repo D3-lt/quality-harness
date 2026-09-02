@@ -18,6 +18,18 @@ const git = (...args) => execFileSync('git', args, {
 })
 
 function shippedAt(rev) {
+  // A shallow clone does not have the historical commits this file's
+  // falsifiability proof runs over, and `git ls-tree` fails with a bare
+  // `fatal: Not a valid object name`. Say which knob fixes it rather than
+  // letting the raw git error stand, and FAIL rather than skip — a proof that
+  // quietly disappears on the machine that matters is not a proof.
+  try {
+    git('cat-file', '-e', `${rev}^{commit}`)
+  } catch {
+    assert.fail(`${rev} is not in this clone — the orphan sweep's proof that it can FAIL runs `
+      + 'over real history, so the checkout needs full depth (actions/checkout with '
+      + 'fetch-depth: 0, or `git fetch --unshallow` locally)')
+  }
   const files = {}
   for (const path of git('ls-tree', '-r', '--name-only', rev).split('\n').filter(Boolean).filter(SHIPPED)) {
     try { files[path] = git('show', `${rev}:${path}`) } catch { /* unreadable blob */ }

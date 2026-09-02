@@ -82,3 +82,4 @@ a grammar that needs a rewrite is a different decision from one that needs a sib
 - Resolving the pointer in the other repository (the parent ADR's Out of Scope says why)
 
 ## Verification Log
+- 2026-09-02 · faacfb3* · exit 0 · `set -o pipefail …` · acceptance-sha256:cb2093fae0f18bddc6a0e4075265e5bda416ad5c1d43ed05da79c66dacff30a5 · ms:19250

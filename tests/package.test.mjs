@@ -398,6 +398,14 @@ test('every path an eval run writes to is ignored, wherever it is run from', () 
   // ASKED OF GIT, never read out of the file: what matters is the answer git
   // gives for the path, which is the same reason the line-ending test uses
   // `git check-attr` rather than reading .gitattributes.
+  //
+  // ⚠ AND THE PATTERN MUST NOT NEED THE DIRECTORY TO EXIST. Written first as
+  // `evals/results/` — a trailing slash means "directory", and git can only know
+  // a path is a directory if it is THERE. It passed here, where an eval run had
+  // just created it, and failed on all four CI platforms where a fresh checkout
+  // has no `evals/` at all. CLAUDE.md §8, committed inside a guard about
+  // invisible state: a check whose answer depends on what is on your disk is not
+  // a check. The bare paths below are the assertion that this stays true.
   for (const path of ['evals/results', 'plugin/evals/results',
     'evals/results/2026-01-01T00-00-00Z/report.html',
     'plugin/evals/results/2026-01-01T00-00-00Z/report.html']) {

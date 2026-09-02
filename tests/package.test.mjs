@@ -302,7 +302,15 @@ test('shipped guidance teaches generated restore transactions', () => {
  */
 function backlogHeadingsThatUndersell(text) {
   const words = 'CLOSED|FIXED|DECIDED|WITHDRAWN|SUPERSEDED|RESOLVED'
-  const declaresClosure = new RegExp(String.raw`^\s*\*\*(?:PARTLY\s+)?(?:${words})\b`, 'm')
+  // Case-INSENSITIVE on both sides, and the asymmetry it replaces was the defect:
+  // the heading test below has always carried `i` while this one did not, so the
+  // same six words were read under two different rules. The corpus writes its
+  // bolded openers in sentence case — `**Fixed**`, `**Partly fixed.**`,
+  // `**Closed — Windows is green**` — and never in caps, so the caps-only body
+  // rule matched none of them. Measured 2026-09-02 over 103 sections: 0 findings
+  // with 'm', 3 with 'mi', and all three were real (§17, §89, §91), each with a
+  // bolded closure in the body and no marker in the heading.
+  const declaresClosure = new RegExp(String.raw`^\s*\*\*(?:PARTLY\s+)?(?:${words})\b`, 'mi')
   const heading = /^##\s+(\d+)(?:\s*\(superseded\))?\.\s*(.+)$/gm
   const sections = [...text.matchAll(heading)]
   const found = []
@@ -342,6 +350,22 @@ test('the backlog index does not undersell what the backlog says it finished', (
   assert.deepEqual(backlogHeadingsThatUndersell(drifted),
     ['§45 A `Governs:` path that names nothing is not reported'],
     'the real §45, as it stood before the heading was corrected')
+
+  // The corpus's OWN spelling, which is sentence case and never caps. Without
+  // this the 'i' flag above is a free variable: every other fixture here is
+  // written in caps, so dropping the flag leaves them all green while the three
+  // real sections (§17 stale 8 days, §89 and §91 stale 3 each) go unseen again.
+  const sentenceCase = '## 91. `resolve_bash()` returns the WindowsApps Store alias\n\n'
+    + '**Fixed** by filtering WindowsApps exactly as System32 is filtered.\n'
+  assert.deepEqual(backlogHeadingsThatUndersell(sentenceCase),
+    ['§91 `resolve_bash()` returns the WindowsApps Store alias'],
+    'the real §91, as it stood before its heading was corrected')
+
+  // ...including the PARTLY form, which is how a half-closed entry announces
+  // itself — §89's own body word for word.
+  const partly = '## 89. `.gitattributes` pins `*.mjs` but not `*.js`\n\n**Partly fixed.**\n'
+  assert.deepEqual(backlogHeadingsThatUndersell(partly),
+    ['§89 `.gitattributes` pins `*.mjs` but not `*.js`'])
 
   // And the convention itself is not a finding, in both of its spellings.
   const conventional = '## 46. CLOSED 2026-08-28 — a fence that passed with no runner\n\n'

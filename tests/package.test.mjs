@@ -387,6 +387,26 @@ test('the backlog index does not undersell what the backlog says it finished', (
   assert.deepEqual(backlogHeadingsThatUndersell(conventional), [])
 })
 
+test('no mutation tool left a gate neutered in this tree', () => {
+  // Learned the hard way 2026-09-02, twice in one hour. `scripts/unasserted.mjs`
+  // neuters one `errors.append(...)` at a time and restores it; `git add -A`
+  // during that window commits a SHIPPED GATE with a finding replaced by `pass`.
+  // Two commits went out that way — different lines, because each `add -A`
+  // caught a different moment of the sweep — and nothing complained, because a
+  // neutered gate is valid Python that simply reports one thing less.
+  //
+  // Both tools journal before they edit, precisely so an interrupted run can be
+  // repaired. That journal is therefore an exact signal that a mutation is in
+  // flight and the tree must not be trusted, let alone committed.
+  for (const journal of ['.unasserted-inflight.json', '.mutate-inflight.json']) {
+    assert.ok(!existsSync(join(repoRoot, journal)),
+      `${journal} exists, so a mutation tool is mid-run or was killed: this tree has a gate `
+      + 'neutered right now. Re-run that tool to restore, or `git checkout --` the file it names. '
+      + 'Do NOT commit — a committed `pass` where a finding was is a gate that silently stopped '
+      + 'reporting.')
+  }
+})
+
 test('every catalogue mutant still parses, so a kill is behavioural', () => {
   // BACKLOG §102. A mutant that does not PARSE is counted RED: the suite dies at
   // import, mutate.mjs reads a non-zero exit, and the entry joins the

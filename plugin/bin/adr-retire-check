@@ -392,7 +392,7 @@ def main():
     if active_root is None or not active_root.is_dir():
         errors.append("**Active corpus:** must resolve to an existing directory")
     elif contained(active_root, archive_root) or contained(archive_root, active_root):
-        pass
+        errors.append("active and archive roots must be disjoint sibling trees")
     elif active_root.parent != archive_root.parent:
         errors.append("active and archive roots must be sibling directories")
 

@@ -3829,8 +3829,8 @@
       "tests": [
         "tests/release-evidence.test.mjs"
       ],
-      "from": "  if (run.jobs.length === 0) {\n    return { verdict: 'unreadable', reason: 'the run reports zero jobs', jobs: [] }\n  }",
-      "to": "  // vacuous universe allowed through"
+      "from": "    return run.status === 'completed'\n      ? { verdict: 'unreadable', reason: 'the run says completed and reports zero jobs', jobs: [] }\n      : { verdict: 'incomplete', reason: `the run is ${run.status} and has not listed its jobs yet`, jobs: [] }",
+      "to": "    return { verdict: 'success', reason: 'no jobs, nothing to object to', jobs: [] }"
     },
     {
       "label": "release: an unfinished job is not a concluded one",

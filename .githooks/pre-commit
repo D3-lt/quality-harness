@@ -1,0 +1,43 @@
+#!/usr/bin/env bash
+# Refuse a commit taken while a mutation tool has the tree deliberately broken.
+#
+# The defect this exists for, reproduced 2026-09-02 in a throwaway clone and
+# committed twice for real on `main` before that: `scripts/unasserted.mjs` and
+# `scripts/mutate.mjs` replace one `errors.append(...)` with `pass` at a time to
+# ask whether anything asserts it. A `git add -A` during that window commits a
+# SHIPPED GATE with a finding removed. Nothing complains: it is valid Python that
+# reports one thing less.
+#
+# It is invisible in the tool everyone looks at. The journal is gitignored, so
+# `git status` shows nothing unusual, and the neutered gate is one more modified
+# file in a commit whose subject says "docs".
+#
+# The journal is an EXACT signal — the tools write it before they edit, so its
+# presence means a mutation is applied right now. Not a heuristic, and not a
+# reading of the diff.
+set -euo pipefail
+
+root=$(git rev-parse --show-toplevel)
+for journal in .unasserted-inflight.json .mutate-inflight.json; do
+  if [ -e "$root/$journal" ]; then
+    target=$(python3 -c "import json,sys;print(json.load(open(sys.argv[1])).get('file','<unknown>'))" \
+      "$root/$journal" 2>/dev/null || echo '<unreadable>')
+    cat >&2 <<MSG
+pre-commit REFUSED: $journal exists, so a mutation tool is mid-run or was killed.
+
+  A gate is neutered in this tree right now: $target
+
+  A commit taken now captures a finding replaced by \`pass\` — a shipped gate that
+  silently stopped reporting. This happened twice on main before this hook existed.
+
+  Let the tool finish, or restore and clear the journal:
+      node scripts/unasserted.mjs <gate>     # re-run: it restores from the journal
+      git checkout -- $target && rm $root/$journal
+
+  This hook is the moment-of-mistake guard. \`bash scripts/selftest.sh\` carries the
+  same check, but a docs commit does not run the suite — which is exactly how both
+  real instances got through.
+MSG
+    exit 1
+  fi
+done

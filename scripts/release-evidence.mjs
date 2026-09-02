@@ -42,8 +42,16 @@ export function evaluateRun(run) {
   // A run with zero jobs is not a clean run. Said explicitly because
   // `[].every(...)` is `true`, and that is exactly how a gate reports clean
   // over a universe it never looked at (CLAUDE.md §3, ADR-005).
+  //
+  // The two empty cases are NOT the same, and separating them was paid for by
+  // running this against a real push: GitHub reports a freshly queued run with
+  // an empty jobs array for a few seconds before the jobs materialize. That is
+  // "not started yet" — retry and it resolves. A run claiming `completed` with
+  // no jobs is something else entirely, and no amount of waiting fixes it.
   if (run.jobs.length === 0) {
-    return { verdict: 'unreadable', reason: 'the run reports zero jobs', jobs: [] }
+    return run.status === 'completed'
+      ? { verdict: 'unreadable', reason: 'the run says completed and reports zero jobs', jobs: [] }
+      : { verdict: 'incomplete', reason: `the run is ${run.status} and has not listed its jobs yet`, jobs: [] }
   }
   const jobs = run.jobs.map(j => ({
     name: String(j?.name ?? '<unnamed>'),

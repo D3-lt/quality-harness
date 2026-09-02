@@ -4461,7 +4461,7 @@ doing for one property; both become worth doing at the second.
 
 **Left open deliberately, at one instance.**
 
-## 78. `! grep` cannot fail a `set -e` fence, and that is the idiom the vacuity guard is written in
+## 78. CLOSED 2026-09-02 — `! grep` cannot fail a `set -e` fence, and that is the idiom the vacuity guard is written in
 
 **Reported 2026-08-30 by agentsmemory-main-5b**, measured in their corpus and reproduced here before
 recording. POSIX specifies that `set -e` does not apply to a command whose status is inverted with
@@ -4502,6 +4502,28 @@ assertion). Reporting the second as a defect is how a gate teaches people to ign
 
 **Not fixed here**, and no instance in this repository to fix. It belongs in a fence linter, and the
 reporter's 50-versus-0 measurement is the evidence for how to phrase the advisory.
+
+**CLOSED 2026-09-02 (6c0a392).** It went into the fence linter, as the entry said it should.
+`inert_negated_guards()` in `plugin/bin/adr-lint` reports a negated grep only when errexit is on
+AND the guard is not the fence's last command; `adr-lint` advises, never blocks.
+
+**The silent cases are the design, and they are asserted.** A negated guard that IS last is
+load-bearing — its status becomes the script's — and one beside a positive assertion is redundant
+but harmless. Three silent cases sit beside the firing one in
+`tests/gate-regressions.py::test_a_negated_guard_that_cannot_fail_its_fence_is_reported`, because
+without them the check passes just as well against a function returning every negated grep it sees.
+
+**The POSIX claim is asserted in the test, not merely quoted here.** The test runs both shells and
+the un-negated control, so the advisory rests on observed behaviour rather than on this entry.
+
+**A defect the test caught in the fix.** The first `ERREXIT_RE` ended `-[a-zA-Z]*e\b`, and between
+the `e` and the `u` of `set -eu` there is no word boundary — so the commonest hardening spelling of
+all was missed. Both spellings are now catalogue mutations (RED, each killed by exactly one test).
+
+**This corpus is asserted clean rather than assumed clean.** The test sweeps every Acceptance fence
+under `docs/adr` and requires an empty result, so a fence that adopts `set -e` later is caught
+rather than reasoned away — the entry's own "zero instances by luck rather than design" made
+permanent.
 
 ## 79. CLOSED 2026-09-01 by ADR-016 — the mutant classifier cannot tell a vacuous fence from a kill whose signal is "no tests ran"
 

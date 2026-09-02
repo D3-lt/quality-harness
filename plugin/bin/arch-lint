@@ -321,16 +321,19 @@ def symbol_errors(label, cell, roots, index):
             continue
         body = None
         for f in hits:
-            # RAW for the brace match, stripped afterwards — mirroring adr-lint,
-            # which is why adr-lint never carried this defect (issue #7). Braces
-            # are balanced in the source; they are not balanced in text that has
-            # had comment-stripping run over string literals. Stripping the
-            # EXTRACTED body still keeps what code_only was added for: a failure
-            # call sitting in a comment must not count as an assertion.
-            raw = f.read_text(errors="replace", encoding="utf-8")
-            body = symbol_body(raw, sym)
-            if body is not None:
-                body = code_only(body)
+            # STRIPPED, deliberately, and NOT the raw-then-strip shape adr-lint
+            # uses. Issue #7 suggested mirroring adr-lint; measured 2026-09-02
+            # that is the weaker of the two fixes and introduces a defect of the
+            # same class: raw text counts a brace INSIDE a string literal, so
+            # `if s == "}" {` truncates the body and loses the assertion below
+            # it. With code_only blanking literals before comment markers (the
+            # root-cause fix above), stripped text is strictly better for brace
+            # matching — string braces are blanked away and comment markers
+            # inside strings are protected. adr-lint needs raw for an unrelated
+            # reason: its BDD tests are NAMED by a string, and pre-stripping
+            # deletes the name it searches for.
+            text = code_only(f.read_text(errors="replace", encoding="utf-8"))
+            body = symbol_body(text, sym)
             if body is None:
                 continue
             break

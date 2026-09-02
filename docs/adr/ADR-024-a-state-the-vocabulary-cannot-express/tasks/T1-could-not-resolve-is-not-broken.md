@@ -58,6 +58,7 @@ node --test tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr024-t1.out \
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-09-02 · 9204e43 · mutant killed · exit 1 · `plugin/bin/adr-debt` · an unresolvable record id would go back to being called BROKEN, a claim this gate cannot make · acceptance-sha256:48efeb9f4ea6f96f6a7cc92dcebf4cefc637fafbaf81485df1dffaa117124f0c
 
 ## Invariants
 

@@ -6770,6 +6770,73 @@ skill would break it.
 measurement — an agent should not have to discover batching mid-task — and leaves the half that
 does. §110 rests on the same unmeasured claim and should not start before it exists.
 
+---
+
+**⚠ CORRECTION 2026-09-02, same day: "the compute is not the cost" was measured on ONE corpus and
+generalised, and the reporter has counter-evidence.**
+
+Later the same day: *"jis jau vel pusvalandi serve su 40 core ir 16gb ram validuoja adr … node 100%
+maciau"* — half an hour on a 40-core, 16GB server, with `node` observed pegged at 100%. My 1.87s
+figure came from this repository's 26-record corpus and says nothing about theirs. **A measurement
+taken on one corpus is not a property of the tool**, which is the error this corpus exists to catch,
+committed here in the entry that measured it.
+
+**Reproduction ATTEMPTED and it does not reproduce.** Stated as an attempt rather than a result,
+because a sweep that found nothing is "I could not look", not "the thing is absent":
+
+    60 records x 8 tasks (480 task files), synthetic:
+      adr-state.mjs                            0.1s
+      work-next.mjs                            0.2s
+      adr-lint on one record                  0.25s
+      PostToolUse hook, one edit to a task    0.45s
+      hook overhead alone (20 runs)            64ms each, of which 23ms is bare node start
+
+Corpus SIZE is not it. Nothing here reaches minutes, let alone thirty of them.
+
+**What the shape of the hooks does establish**, and it is worth knowing regardless: every
+`Bash|Edit|Write|MultiEdit|NotebookEdit` fires a node process on `PreToolUse`, and every
+`Edit|Write|MultiEdit|NotebookEdit` fires **two more** on `PostToolUse` — up to three node starts per
+tool call, each re-parsing a 3,184-line `lifecycle.mjs`. That is ~0.6s per edit to an ADR task file
+once validation is included. It is a real per-edit tax and it is NOT thirty minutes.
+
+**So the cause is in their tree or their session, and guessing further from here would be inventing
+an observation.** What would settle it, in order of cost: the output of `time node
+"$CLAUDE_PLUGIN_ROOT/scripts/work-next.mjs"` on their corpus; `node --cpu-prof` on whichever command
+is running when they see 100%; and the record count plus the largest single task file. One
+pathological INPUT is the likeliest remaining explanation — this corpus has already had two
+catastrophic-backtracking regexes (§77, §81), and a ReDoS is invisible to a size test because it
+needs the specific text, not more of it.
+
+**ANSWERED 2026-09-02 by the reporter's own screenshot, and it is not this tooling.** Their session
+transcript shows the run that was pegging the machine:
+
+    go test ./...
+      FAIL  …/brolis-lizdai/internal/web        43.837s
+      ok    …/internal/web/assets                0.020s
+      ok    …/migrations                        (cached)
+
+**43.8 seconds is THEIR test suite**, in one package, and the `node` process at 100% is Claude Code
+itself — the session header reads `Fermenting… (1h 23m 19s · ↓ 243.0k tokens)`. Neither is a
+quality-harness script. My reproduction found nothing because it was measuring the wrong thing, and
+I would have gone on measuring it: the observer's first guess was right and mine was not —
+*"testus leidzia matyt, pasidarė kokį žvėrišką suite"*.
+
+**What IS ours, and it is the actionable half.** This lifecycle prescribes running the check
+repeatedly per task — red, then green, then `adr-verify` runs the fence AGAIN to record it — so a
+43.8s suite is paid three times for one task, and every task in the wave pays it. That is minutes
+per task, from a fence nobody scoped.
+
+**The task template already says the fence must be narrow enough to prove THIS task and wide enough
+to catch regressions, and gives the two-command form for it.** What it does NOT say is that a
+whole-repository default is a per-task cost multiplied by three. Their own output shows the
+scoping is available and unused: `internal/web` is 43.8s while `assets` is 0.020s and `migrations`
+is cached.
+
+**Filed as the concrete next step rather than fixed here**, because the fix belongs in a corpus with
+a slow suite and this one's is 26 seconds: teach the fence to name the package it changed, and say
+in `adr-execute` that the Acceptance fence is run at least twice per task by design, so its cost is
+multiplied and not paid once.
+
 ## 109. CLOSED 2026-09-02 — a commit taken mid-mutation captures a neutered gate, and nothing looked
 
 Found by doing it, twice, on `main` — then reproduced deliberately in a throwaway clone to confirm

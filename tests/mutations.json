@@ -3894,6 +3894,33 @@
       ],
       "from": "        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/8",
       "to": "        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/4"
+    },
+    {
+      "label": "mutate: a reused verdict is refused when its subject or its tests changed",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (bytes === null || bytes === undefined) return null\n    hash.update(name); hash.update('\\0'); hash.update(bytes); hash.update('\\0')",
+      "to": "    if (bytes === null || bytes === undefined) return null\n    hash.update(name); hash.update('\\0')"
+    },
+    {
+      "label": "mutate: only a RED verdict is ever reused",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return hit && hit.verdict === 'RED' ? hit : null",
+      "to": "  return hit ?? null"
+    },
+    {
+      "label": "mutate: an unreadable input has no key, so the entry is measured",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    if (bytes === null || bytes === undefined) return null",
+      "to": "    if (bytes === null || bytes === undefined) continue"
     }
   ]
 }

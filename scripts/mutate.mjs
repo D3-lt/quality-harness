@@ -30,6 +30,7 @@
 // Exit: 0 = every mutation was noticed
 //       1 = a mutation left its suite GREEN, or no longer describes the code
 import { spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -261,13 +262,80 @@ export function renderLine(result, width) {
  * counting it in the denominator would make a broken suite read as a campaign
  * with poor coverage, which is a different problem with a different fix.
  */
+/**
+ * The content key a verdict rests on, or null when any input is unreadable.
+ *
+ * ADR-023. A mutant is (file, from, to, tests) and its verdict is a pure
+ * function of those plus the bytes they name. Hash all of it: if every input is
+ * byte-identical, re-running is recomputation and cannot produce a different
+ * answer. That is what makes reuse honest here and dishonest for a recorded
+ * claim (ADR-010) — a claim and its subject are separate things that drift, and
+ * a content key makes that drift unrepresentable rather than merely unlikely.
+ *
+ * ⚠ CONTENT, never a timestamp, a run id or a commit range. A range is history:
+ * a rebase, a force-push, a cherry-pick or a revert all produce one that
+ * misdescribes what the files hold.
+ *
+ * ⚠ NULL WHEN ANYTHING IS UNREADABLE, rather than hashing a placeholder. A
+ * missing file that hashed to a stable value would freeze the verdict of an
+ * entry whose test was deleted — "I could not look" is not "nothing changed"
+ * (ADR-005).
+ */
+export function cacheKey(mutation, readFile) {
+  const hash = createHash('sha256')
+  // The edit itself, first: a mutation whose from/to text changed is a
+  // different mutant even against identical files.
+  for (const part of [mutation.file, mutation.from, mutation.to]) {
+    hash.update(String(part)); hash.update('\0')
+  }
+  // Sorted, so two entries naming the same tests in a different order share a
+  // key — the same reason ADR-006 sorts before memoising a baseline.
+  for (const name of [mutation.file, ...[...mutation.tests].sort()]) {
+    const bytes = readFile(name)
+    if (bytes === null || bytes === undefined) return null
+    hash.update(name); hash.update('\0'); hash.update(bytes); hash.update('\0')
+  }
+  return hash.digest('hex')
+}
+
+/**
+ * The stored verdict this run may reuse, or null to measure it.
+ *
+ * ONLY `RED`. A `GREEN` mutant is an open finding about a test and must be
+ * re-run every time until it is fixed; reusing one hides live work. `UNPROVEN`
+ * likewise — ADR-006 says a verdict against a failing baseline is evidence of
+ * nothing, and a stored one is worse because it looks settled.
+ */
+export function reusable(mutation, cache, key) {
+  if (!key || !cache || typeof cache !== 'object') return null
+  const hit = cache[key]
+  return hit && hit.verdict === 'RED' ? hit : null
+}
+
+/** The cache at `file`, or {} when it is absent, empty or unparseable. */
+export function loadCache(file, read = readFileSync) {
+  try {
+    const parsed = JSON.parse(read(file, 'utf8'))
+    // A shape that is not an object of entries is "could not look", not "empty".
+    return parsed && typeof parsed.entries === 'object' && parsed.entries ? parsed.entries : {}
+  } catch {
+    return {}
+  }
+}
+
 export function summarise(results) {
   const unproven = results.filter(r => r.verdict === 'UNPROVEN')
   const judged = results.filter(r => r.verdict !== 'UNPROVEN')
   const missed = judged.filter(r => r.verdict === 'GREEN' || r.verdict === 'STALE')
+  // ADR-023 T2. A campaign printing `430/430 noticed` while running six claims
+  // more than happened. These two are reported beside the ratio, never folded
+  // into it: the ratio is ADR-006's and means the same thing it always did.
+  const reused = judged.filter(r => r.reused).length
   return {
     total: judged.length,
     noticed: judged.length - missed.length,
+    reused,
+    measured: judged.length - reused,
     unproven: unproven.length,
     // Unchanged by ADR-006: GREEN and STALE fail the run. An UNPROVEN entry
     // instructs and does not block — a block leaves the user with no next move,
@@ -282,11 +350,11 @@ export function main(argv) {
   // `--filter 'sync:'` — the flag is `--case` — selected nothing, so the filter
   // stayed null and all 181 mutations ran for twenty minutes while the caller
   // waited on three. Every gate in this project names the offending option.
-  const KNOWN = new Set(['--case', '--list', '--force', '--shard'])
+  const KNOWN = new Set(['--case', '--list', '--force', '--shard', '--no-cache', '--cache'])
   const unknown = argv.filter(argument => argument.startsWith('--') && !KNOWN.has(argument))
   if (unknown.length) {
     process.stderr.write(`mutate: unknown option: ${unknown[0]}\n`
-      + 'usage: mutate.mjs [--case <substring>] [--shard i/n] [--list] [--force]\n')
+      + 'usage: mutate.mjs [--case <substring>] [--shard i/n] [--list] [--force] [--no-cache] [--cache <path>]\n')
     return 2
   }
   const filter = argv.includes('--case') ? argv[argv.indexOf('--case') + 1] : null
@@ -355,7 +423,27 @@ export function main(argv) {
   // The baselines FIRST, on an unmutated tree, before begin() has anything to
   // journal — so this adds no window in which a crash could leave the tree
   // broken (ADR-002). One spawn per distinct set, memoised by it.
-  const sets = testSets(selected)
+  // ADR-023 T2. The cache is consulted BEFORE the baselines, because a baseline
+  // exists to license a verdict — and an entry we are not going to measure needs
+  // no licence. Skipping those spawns is most of the saving on a quiet commit.
+  const cacheFile = argv.includes('--cache')
+    ? argv[argv.indexOf('--cache') + 1]
+    : path.join(root, '.mutation-cache.json')
+  const cache = argv.includes('--no-cache') ? {} : loadCache(cacheFile)
+  const readForKey = name => {
+    try { return readFileSync(path.join(root, name), 'utf8') } catch { return null }
+  }
+  const keys = new Map(selected.map(m => [m.label, cacheKey(m, readForKey)]))
+  const reuse = new Map()
+  if (!argv.includes('--no-cache')) {
+    for (const m of selected) {
+      const hit = reusable(m, cache, keys.get(m.label))
+      if (hit) reuse.set(m.label, hit)
+    }
+  }
+  const toMeasure = selected.filter(m => !reuse.has(m.label))
+
+  const sets = testSets(toMeasure)
   const baselines = new Map()
   for (const set of sets) {
     // The same files and the same arguments as the mutated run below, or this
@@ -368,6 +456,14 @@ export function main(argv) {
 
   const results = []
   for (const mutation of selected) {
+    const hit = reuse.get(mutation.label)
+    if (hit) {
+      // NAMED, not silent. A reused row says where its verdict was measured, so
+      // a reader can go and look rather than taking the run's word for it.
+      results.push({ ...mutation, verdict: 'RED', observed: 'RED', reused: true, at: hit.sha })
+      console.log(`REUSED   ${mutation.label.padEnd(width)}  <- RED at ${hit.sha ?? 'an earlier run'}`)
+      continue
+    }
     const file = path.join(root, mutation.file)
     const original = readFileSync(file, 'utf8')
     const occurrences = original.split(mutation.from).length - 1
@@ -399,8 +495,35 @@ export function main(argv) {
   // took a fourth to find. A long gate that cannot be watched is a gate whose
   // failures are indistinguishable from infrastructure.
 
+  // ADR-023 T2 S4. ONLY RED is written back. A GREEN is an open finding and a
+  // stored one would hide live work; UNPROVEN is evidence of nothing (ADR-006).
+  // Written after the loop so a killed campaign leaves the previous cache intact
+  // rather than a half-updated one.
+  if (!argv.includes('--no-cache')) {
+    const sha = (() => {
+      const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' })
+      return r.status === 0 ? r.stdout.trim() : null
+    })()
+    const entries = { ...cache }
+    for (const result of results) {
+      const key = keys.get(result.label)
+      if (!key) continue
+      if (result.reused) continue
+      if (result.verdict === 'RED') entries[key] = { verdict: 'RED', sha, label: result.label }
+      else delete entries[key]
+    }
+    try {
+      writeFileSync(cacheFile, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`)
+    } catch { /* a cache that cannot be written costs a re-run, never a verdict. */ }
+  }
+
   const counts = summarise(results)
   console.log(`\n${counts.noticed}/${counts.total} mutations were noticed.`)
+  if (counts.reused) {
+    console.log(`${counts.measured} measured this run; ${counts.reused} reused a RED verdict `
+      + 'whose subject and tests are byte-identical to the run that took it (ADR-023). '
+      + 'Pass --no-cache to measure everything.')
+  }
   if (counts.unproven) {
     console.log(`${counts.unproven} could not be judged: their test-set did not pass at baseline, `
       + 'so neither verdict is evidence. The line above each says whether that suite FAILED or '

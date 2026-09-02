@@ -6928,3 +6928,50 @@ GENERATES rather than a second write path beside it.
 
 **Do not start this before §108's turn-count measurement exists.** Both entries rest on the same
 unmeasured claim, and building either on it would be the speculative complexity this corpus refuses.
+
+---
+
+## §111 — the shipped gate re-runs a fence the caller just ran, and ADR-023 already decided it should not
+
+**MEASURED 2026-09-02 across this corpus's own 51 task files**, which is the only reason this is
+filed rather than assumed:
+
+    tasks 51 · verification entries 93 · mutation entries 94
+    fence executions = 93 + (94 x 2) = 281        -> 5.5 per task
+
+The x2 is the finding. `adr-verify --mutant` runs the acceptance fence CLEAN before it applies the
+mutant (`plugin/bin/adr-verify:1257`), unconditionally, every invocation — correctly, because a
+failure that already exists cannot be donated to a mutant. But step 4 of `adr-execute` has the agent
+run `adr-verify <task>` immediately before, on the same tree, with the same fence. The clean run is
+then recomputation of a result taken seconds earlier.
+
+**94 of the 281 executions — 33% — are that clean run.**
+
+This corpus already decided the principle, in ADR-023: a verdict may be reused when the subject file,
+every test file the entry names, and the edit strings are byte-identical, keyed on CONTENT and never
+on history or a commit range. What ADR-023 built lives in `scripts/mutate.mjs`, which is
+repository-owned and **does not ship**. `plugin/bin/adr-verify` does ship, and is the thing every
+adopting corpus actually runs.
+
+**Why it matters more elsewhere than here.** Our fence is ~0.7s, so 5.5 runs is invisible. An
+adopting corpus reported `go test ./...` at 43.837s (§108) — the same 5.5 becomes **4 minutes per
+task**, serial, and a five-task wave is twenty. That is the half hour that was reported as "the ADR
+tooling is slow", and this is the part of it that genuinely is ours.
+
+**WHAT MUST NOT COLLAPSE, and the reason is structural rather than cautious.** A fence run is
+(command, TREE BYTES). Red and green are taken on deliberately different trees, and each mutant is a
+third; sharing a result across them would not be caching, it would be reporting an observation that
+was never made. So the floor is not one run — it is one per distinct tree state. Only the clean
+baseline is a genuine duplicate, because it is the same command on the same bytes as the Validate
+run that preceded it.
+
+**The safety rule that has to come with it**, inherited from ADR-023 rather than invented: reuse only
+an exit-0 clean result, only when the fence digest AND the subject and test file bytes are identical,
+never across a dirty tree, and the row must say it was reused and at which sha. A `--mutant` run that
+silently skipped its baseline and printed the same output as one that took it is exactly the
+report-claims-more-than-happened defect this project exists to demonstrate the absence of.
+
+**Not started.** Sized S-M: the key function already exists in `scripts/mutate.mjs` as `cacheKey()`
+and would be reimplemented rather than imported, since the gate ships and the script does not — which
+is itself worth a line in the record, because two copies of a cache key drifting apart is a worse
+failure than the cost it saves.

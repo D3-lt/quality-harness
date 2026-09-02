@@ -1103,7 +1103,7 @@
         "tests/lifecycle.test.mjs"
       ],
       "from": "      supersededBy: /^superseded\\s+by\\b/i.test(status)",
-      "to": "      supersededBy: false &&"
+      "to": "      supersededBy: false"
     },
     {
       "label": "state: two accepted records over one path is contested",
@@ -2299,8 +2299,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "                                       env=child_env, stdin=subprocess.DEVNULL,",
-      "to": "                                       env=child_env, stdin=subprocess.DEVNULL, cwd=str(task.parent),"
+      "from": "                    r = subprocess.run([shell, \"-c\", fence], cwd=str(fence_cwd(task)),",
+      "to": "                    r = subprocess.run([shell, \"-c\", fence], cwd=str(task.parent),"
     },
     {
       "label": "sweep: an environmental failure needs more than a matching string",
@@ -2497,8 +2497,8 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    selected = selected.filter((_, i) => i % total === index - 1)",
-      "to": "    selected = selected.filter((_, i) => i % (total + 1) === index - 1)"
+      "from": "    bins[lightest].push(entry)",
+      "to": "    if (entry.ms !== undefined) bins[lightest].push(entry)"
     },
     {
       "label": "sweep: the shell is injectable, so no-shell is testable off POSIX",

@@ -323,6 +323,51 @@ export function loadCache(file, read = readFileSync) {
   }
 }
 
+/**
+ * The i-th of n shards, balanced by measured cost rather than by index.
+ *
+ * BACKLOG §106. Index slicing gave 24.6 / 16.1 / 18.1 / 21.3 minutes over four
+ * shards: even counts, uneven cost, because three suites are 86% of the
+ * campaign and the run waits for the slowest.
+ *
+ * Longest-processing-time-first: sort by cost descending, then repeatedly give
+ * the next entry to the shard with the least work so far. Deterministic for a
+ * given input, which matters because eight CI jobs each compute their own slice
+ * independently and must agree on the partition without talking to each other.
+ *
+ * ⚠ THE COSTS ARE MEASURED, NEVER TABULATED. §106 was deferred because the
+ * obvious implementation is a hardcoded per-suite table — a list kept beside the
+ * artifact, right on the day it is written and silently wrong after any suite
+ * changes, with nothing to report the drift. `cost` reads the previous
+ * campaign's own timings out of ADR-023's cache instead, so a stale estimate
+ * fixes itself on the next run.
+ *
+ * An entry with no timing sorts FIRST, at Infinity: an unmeasured mutant is the
+ * one whose cost is unknown, and putting the unknowns on separate shards is the
+ * safer guess than assuming they are cheap. With no timings at all this degrades
+ * to round-robin, which partitions correctly and claims nothing about balance.
+ */
+export function shardByCost(mutations, index, total, cost) {
+  if (total <= 1) return [...mutations]
+  const ordered = mutations
+    .map((mutation, at) => ({ mutation, at, ms: cost(mutation) }))
+    // `at` breaks ties, so the order is total and every shard derives the same
+    // partition from the same catalogue without coordinating.
+    .sort((a, b) => (b.ms ?? Infinity) - (a.ms ?? Infinity) || a.at - b.at)
+  const loads = Array.from({ length: total }, () => 0)
+  const bins = Array.from({ length: total }, () => [])
+  for (const entry of ordered) {
+    let lightest = 0
+    for (let i = 1; i < total; i += 1) if (loads[i] < loads[lightest]) lightest = i
+    bins[lightest].push(entry)
+    loads[lightest] += entry.ms ?? 0
+  }
+  // Back into catalogue order within the shard, so a campaign's log reads the
+  // way the file does rather than by descending cost.
+  return bins[index - 1].sort((a, b) => a.at - b.at).map(e => e.mutation)
+}
+
+
 export function summarise(results) {
   const unproven = results.filter(r => r.verdict === 'UNPROVEN')
   const judged = results.filter(r => r.verdict !== 'UNPROVEN')
@@ -379,8 +424,25 @@ export function main(argv) {
       process.stderr.write(`mutate: --shard wants i/n with 1 <= i <= n, not ${JSON.stringify(spec)}\n`)
       return 2
     }
-    selected = selected.filter((_, i) => i % total === index - 1)
-    console.log(`shard ${index}/${total}: ${selected.length} of ${catalogue.mutations.length} mutations`)
+    // BACKLOG §106. Cost-balanced when the previous run left timings, round-robin
+    // when it did not. The cache is read here rather than below because the
+    // shard is taken before anything else looks at an entry.
+    const priorFile = argv.includes('--cache')
+      ? argv[argv.indexOf('--cache') + 1]
+      : path.join(root, '.mutation-cache.json')
+    const prior = loadCache(priorFile)
+    const readForCost = name => {
+      try { return readFileSync(path.join(root, name), 'utf8') } catch { return null }
+    }
+    const msOf = mutation => {
+      const key = cacheKey(mutation, readForCost)
+      const ms = key ? prior[key]?.ms : undefined
+      return typeof ms === 'number' ? ms : undefined
+    }
+    const timed = selected.filter(m => msOf(m) !== undefined).length
+    selected = shardByCost(selected, index, total, msOf)
+    console.log(`shard ${index}/${total}: ${selected.length} of ${catalogue.mutations.length} mutations`
+      + (timed ? ` (balanced by ${timed} measured timing(s))` : ' (no timings yet — even counts)'))
   }
 
   const width = Math.max(0, ...selected.map(m => m.label.length))
@@ -477,13 +539,15 @@ export function main(argv) {
 
     begin(file, original)
     writeFileSync(file, original.replace(mutation.from, mutation.to))
+    const startedAt = Date.now()
     const run = spawnSync(process.execPath,
       ['--test', ...mutation.tests.map(t => path.join(root, t))],
       { cwd: root, encoding: 'utf8', timeout: timeoutMs })
+    const elapsedMs = Date.now() - startedAt
     finish(file, original)
 
     const result = { ...mutation, ...classify({ occurrences, baseline, run }),
-      killers: killedBy(run?.stdout) }
+      killers: killedBy(run?.stdout), elapsedMs }
     results.push(result)
     console.log(renderLine(result, width))
   }
@@ -509,7 +573,11 @@ export function main(argv) {
       const key = keys.get(result.label)
       if (!key) continue
       if (result.reused) continue
-      if (result.verdict === 'RED') entries[key] = { verdict: 'RED', sha, label: result.label }
+      // The duration rides along for BACKLOG §106's cost-balanced slicing: a
+      // measurement from the campaign's own last run, never a table beside it.
+      if (result.verdict === 'RED') {
+        entries[key] = { verdict: 'RED', sha, label: result.label, ms: result.elapsedMs }
+      }
       else delete entries[key]
     }
     try {

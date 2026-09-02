@@ -1,10 +1,11 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, readdirSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
+import { runPython } from '../scripts/python-interpreter.mjs'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -373,6 +374,47 @@ test('the backlog index does not undersell what the backlog says it finished', (
     + '## 38. One of three closed 2026-08-28; the two runner questions stay open\n\n'
     + '**CLOSED 2026-08-28** for the first of them.\n'
   assert.deepEqual(backlogHeadingsThatUndersell(conventional), [])
+})
+
+test('every catalogue mutant still parses, so a kill is behavioural', () => {
+  // BACKLOG §102. A mutant that does not PARSE is counted RED: the suite dies at
+  // import, mutate.mjs reads a non-zero exit, and the entry joins the
+  // `N/N noticed` headline having asserted nothing. It proves the file is fed to
+  // a parser, which was never in doubt.
+  //
+  // The precedent already points this way — this repository decided an
+  // abnormally terminated mutant is INCONCLUSIVE rather than killed, because a
+  // false survivor costs a rerun while a false kill permanently credits proof
+  // nobody observed. A syntax-error mutant credits exactly that.
+  //
+  // Fixed here as an AUTHORING defect rather than a new verdict class, which is
+  // what §102 argued was the smaller change: a mutant is supposed to change
+  // BEHAVIOUR, and one changing only syntax tests nothing. That also leaves the
+  // campaign's exit code and its headline meaning what they always did.
+  //
+  // §102 measured one such entry; by the time this landed there were two, which
+  // is why it is a check and not a one-time cleanup.
+  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8'))
+  const unparseable = []
+  for (const entry of catalogue.mutations) {
+    const target = join(repoRoot, entry.file)
+    if (!existsSync(target)) continue
+    const source = readFileSync(target, 'utf8')
+    if (source.split(entry.from).length - 1 !== 1) continue
+    const mutated = source.replace(entry.from, entry.to)
+    const isJs = /\.(mjs|js)$/.test(entry.file)
+    const isPy = entry.file.startsWith('plugin/bin/') || entry.file.endsWith('.py')
+    if (!isJs && !isPy) continue
+    const scratch = join(mkdtempSync(join(tmpdir(), 'qh-parse-')), isJs ? 'm.mjs' : 'm.py')
+    writeFileSync(scratch, mutated)
+    const check = isJs
+      ? spawnSync(process.execPath, ['--check', scratch], { encoding: 'utf8' })
+      : runPython(['-c', `import ast,sys;ast.parse(open(sys.argv[1],encoding="utf-8").read())`, scratch],
+        { encoding: 'utf8' })
+    if (check.status !== 0) unparseable.push(entry.label)
+  }
+  assert.deepEqual(unparseable, [],
+    'these mutants do not parse, so their RED says the file reached a parser and nothing more')
 })
 
 test('nothing tracked in this repository names a personal filesystem path', () => {

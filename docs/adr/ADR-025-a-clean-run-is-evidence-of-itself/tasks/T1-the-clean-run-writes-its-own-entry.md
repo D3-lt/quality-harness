@@ -26,7 +26,7 @@ same writer the plain path uses, before it applies the mutant.
 
 1. [S1] Write the failing test first: a `--mutant` run on a task whose Verification Log is empty leaves exactly one entry in it, with the same grammar the plain path writes — date, sha, exit code, displayed command, `acceptance-sha256`, `ms:`. Confirm red before touching the gate. (TDD red.)
 2. [S2] Call the existing Verification Log writer from the clean-run branch, passing the clean run's own returncode, output and elapsed time. Do not re-derive the digest or re-format the row; a second spelling of the grammar is the drift this task's Invariants forbid. [proof: acceptance]
-3. [S3] Write the entry BEFORE the source is mutated and before the durable journal phase advances, so a restored mutant cannot roll the entry back. Assert it on a mutant that is applied and restored. [proof: acceptance]
+3. [S3] Write the entry only where NO MUTANT FENCE RUNS AFTERWARDS — after the verdict on the mutating path, and before the refusal on the clean-fence-failed path, which applies no mutant. Written earlier, this file's own bookkeeping joins the tree the mutant's fence reads, so the clean run and the mutant run differ in two things instead of one and ADR-016's premise is broken. Assert a mutant that must SURVIVE still comes back a survivor. [proof: acceptance]
 4. [S4] Record a non-zero clean run too, then let the existing `UNPROVEN` refusal proceed unchanged — today that path writes nothing and loses the one observation it made. Assert both: the entry is present AND the exit code is still non-zero. [proof: mutation]
 5. [S5] Assert the negative direction: a plain `adr-verify` run still writes exactly one entry and no Mutation Log row, so the merge did not make the two paths the same command. [proof: acceptance]
 
@@ -65,7 +65,7 @@ node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr025-t1.out \
 - One writer for the entry grammar. The `--mutant` path and the plain path never format a row independently, and ADR-020's `ms:` and the `acceptance-sha256` digest come from the same code on both.
 - Every entry written records a run that happened in this process on the tree in front of it. Nothing is reused, cached, skipped or inferred — that is the property that leaves ADR-010 untouched.
 - ADR-016 is unchanged: the clean fence still runs, still must pass, and still gates the mutant.
-- The entry is durable before the source is mutated, so a restore cannot remove it.
+- The tree a mutant's fence reads differs from the clean baseline in the mutation and nothing else. The verification entry is never written between the two runs.
 
 ## Risks
 

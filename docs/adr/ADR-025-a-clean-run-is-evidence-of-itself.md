@@ -1,6 +1,6 @@
 # ADR-025: Record the clean run a mutation already takes, instead of taking it twice
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-02
 **Owner:** zy
 **Spec:** None — no spec stage
@@ -138,7 +138,8 @@ See `tasks/README.md`. Two tasks.
 | The two writers drift and produce different entry grammars | Med | High | One writer, called from both paths; the pre-registered criterion above names the detector, and `adr-lint` already rejects an off-grammar entry |
 | A reader believes the verification entry was a separate confirmation | Med | Med | It was a separate RUN, just not a separate invocation; the entry records a real execution, which is the only property the evidence chain claims |
 | Recording a failing clean fence changes what `done` requires | Low | Med | It cannot: `adr-lint` requires a matching exit-0 entry for `done`, and a recorded failure is not one |
-| Writing to the task file before the mutation runs interacts with the restore journal | Med | High | ADR-002 owns the journal and orders the durable phase before the source changes; T1 asserts the entry survives a mutant that is restored |
+| **HAPPENED during execution:** the entry written before the mutant put our own bookkeeping into the tree the mutant's fence reads, so a survivor was credited as a KILL | — | High | Caught by the existing suite within the hour, not by review. The entry is now written only where no mutant fence follows: after the verdict on the mutating path, before the refusal on the clean-fence-failed path. `recording the run does not change the verdict the mutant earned` drives a must-survive mutant and fails if it comes back 0 |
+| The sha is read after this run's own writes and carries a dirty marker it earned itself | Med | Med | Captured once at the top of `run_mutant`, before the journal or any entry is written; the clean-tree test asserts no marker |
 
 ## Rollback
 

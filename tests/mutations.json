@@ -3966,6 +3966,15 @@
       ],
       "from": "    ident = re.compile(r\"^[A-Za-z_][A-Za-z0-9_]*(\\(\\))?$\")",
       "to": "    ident = re.compile(r\"^.+$\")"
+    },
+    {
+      "label": "template: the human-mutant lane is invited in a heading, not only defined",
+      "file": "plugin/templates/task-template.md",
+      "tests": [
+        "tests/skill-contract.test.mjs"
+      ],
+      "from": "WHEN THE FENCE CANNOT RUN TO COMPLETION — and only then — a mutation you performed BY HAND has a",
+      "to": "WHEN THE FENCE IS INCONVENIENT — and only then — a mutation you performed BY HAND has a"
     }
   ]
 }

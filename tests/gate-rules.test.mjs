@@ -384,6 +384,38 @@ test('the structural rules around the catalog fire too, not just the row rules',
     `the re-seal must hold, or this is testing the seal instead: ${over.stdout}`)
   assert.match(over.stdout, /no detected obligations|catalog must say/i,
     `a row claiming an obligation the record does not have must be reported: ${over.stdout}`)
+
+  // Obligations the archive HAS, with an active receipt that carries fewer. This
+  // is the rule that stops a retirement dropping work on the floor: the fixture's
+  // BACKLOG receipts both name ADR-001, so removing them leaves 2 owed and 0
+  // receipted.
+  const dropped = build('dropped')
+  writeFileSync(join(dropped, 'adr', 'BACKLOG.md'),
+    '# ADR Backlog\n\n## Follow-ups\n\n- [ ] something unrelated to any record.\n')
+  const lost = check(dropped)
+  assert.match(lost.stdout, /obligation\(s\), active receipt has/i,
+    `an archived obligation with no active receipt must be reported: ${lost.stdout}`)
+
+  // A supersession pointing at a record that does not exist. `superseded by
+  // ADR-404` is a decision effect the catalog accepts, so nothing else catches a
+  // replacement nobody ever wrote.
+  const ghost = edit(build('ghost'), t => t.replace('| governing |', '| superseded by ADR-404 |'))
+  assert.match(check(ghost).stdout, /replacement ADR-404 does not exist/i)
+
+  // A supersession naming a record that DOES exist but that the active catalog
+  // never links: the replacement is real and undiscoverable, so a reader
+  // following the retirement lands nowhere.
+  // ADR-007 rather than ADR-002: the fixture's active corpus already holds an
+  // ADR-002, and reusing it fired the duplicate-id rule first — a case that
+  // passes for the wrong reason is the thing this whole test exists to prevent.
+  const hidden = edit(build('hidden'), t => t.replace('| governing |', '| superseded by ADR-007 |'))
+  writeFileSync(join(hidden, 'adr', 'ADR-007-successor.md'),
+    '# ADR-007: Successor\n\n**Status:** Accepted\n\n## Decision\n\nd\n')
+  writeFileSync(join(hidden, 'adr', 'README.md'),
+    '# Active\n\n- [ADR-001](../adr-archive/ADR-001-history.md)\n')
+  const unseen = check(hidden)
+  assert.match(unseen.stdout, /ADR-007 is not (an accepted governing decision|discoverable)/i,
+    `a replacement the catalog does not link must be reported: ${unseen.stdout}`)
 })
 
 

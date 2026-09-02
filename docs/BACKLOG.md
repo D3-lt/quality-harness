@@ -6931,7 +6931,7 @@ unmeasured claim, and building either on it would be the speculative complexity 
 
 ---
 
-## §111 — the shipped gate re-runs a fence the caller just ran, and ADR-023 already decided it should not
+## 111. the shipped gate re-runs a fence the caller just ran, and a merge removes it — ADR-025
 
 **MEASURED 2026-09-02 across this corpus's own 51 task files**, which is the only reason this is
 filed rather than assumed:

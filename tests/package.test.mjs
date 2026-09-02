@@ -998,3 +998,18 @@ test('the README names every skill and gate this plugin ships', () => {
   assert.ok(shipped.length > 5 && gates.length > 5,
     `the expectation must be derived from a real tree: ${shipped.length}/${gates.length}`)
 })
+
+// ADR-025 T2. The saving T1 makes available is only taken if the skill stops
+// prescribing the second run, and the exceptions have to be named with it — a
+// sentence that reads as "you can skip validating" would remove a check rather
+// than a duplicate.
+test('adr-execute says the mutation pass already records the verification entry', () => {
+  const skill = readFileSync(join(root, 'skills', 'adr-execute', 'SKILL.md'), 'utf8')
+  assert.match(skill, /--mutant[\s\S]{0,400}?records? (?:the|its) [Vv]erification [Ll]og entry/,
+    'the skill must say the mutation pass records the verification entry')
+  // Both exceptions, or the advice is read as "one run is enough, always".
+  assert.match(skill, /Red step[\s\S]{0,300}?(?:different tree|own run)/,
+    'the Red step keeps its own run — it is taken on a different tree')
+  assert.match(skill, /no mutation to record[\s\S]{0,200}?adr-verify/,
+    'a task with no mutation still runs adr-verify on its own')
+})

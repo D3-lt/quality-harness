@@ -6963,13 +6963,32 @@ At the median, 5.5 runs is **26s per task** and a five-task wave is **131s**. Th
 it is just small enough that nobody filed it. The adopting corpus reporting `go test ./...` at
 43.837s (§108) pays **4 minutes per task** and twenty per wave — same multiplier, different base.
 
-**A second finding fell out of taking that measurement, and it is the one that blocks the others:
-only 21 of 93 verification entries carry an `ms:` field — 22%.** The other 72 are timing-blind. So
-this corpus cannot currently answer "did that change make the lifecycle faster", which makes every
-optimisation below unfalsifiable until it is fixed. Recording the number is cheaper than any of them
-and is the precondition for all of them.
-adopting corpus reported `go test ./...` at 43.837s (§108) — the same 5.5 becomes **4 minutes per
-task**, serial, and a five-task wave is twenty. That is the half hour that was reported as "the ADR
+**A second finding fell out of taking that measurement — and it is WRONG, which is the more useful
+result of the two.** I wrote: "only 21 of 93 verification entries carry an `ms:` field — 22%, so this
+corpus cannot answer whether a change made the lifecycle faster, and recording the number is the
+precondition for every optimisation below." Then checked the code instead of the count:
+
+    plugin/bin/adr-verify:2277 writes ` · ms:{elapsed_ms}` unconditionally
+    ADR-020 T1 (dab3afe) landed it 2026-09-01 16:00:45 +0300
+    every timing-blind entry is dated 2026-09-01 or earlier; every entry after carries ms:
+
+**ADR-020 already closed it.** The 22% is not a live gap, it is history: 72 entries taken before the
+field existed. Coverage forward is 100% and nothing needs building.
+
+⚠ **This is the §103 class — a record asserting a live defect the code has already fixed — and it is
+the ninth instance, filed BY the session that built §103's detector and measured it at 1-in-9 before
+declining it.** The mechanism I declined would not have caught this one either: §103's anchor check
+tests whether a quoted `file:line` snippet is still in the tree, and this entry quoted no snippet. It
+asserted a COUNT, which is checkable by a different move entirely — read the writer, not the written.
+That is the actual generalisation §103 was reaching for and did not find, and it is worth more than
+the detector: **when a record says "N of M records lack X", the question is not how many lack it but
+whether the thing that writes X still omits it.** History is not evidence of current behaviour.
+
+**And the history must NOT be backfilled.** An `ms:` invented for a run taken in August is a
+tool-written field filled in by hand — the one thing §4 of CLAUDE.md exists to prevent. Those 72
+entries stay blind, correctly.
+**What remains ours is the multiplier.** The adopting corpus pays 5.5 runs of a 43.8s fence per
+task, serial, and a five-task wave is twenty minutes. That is the half hour reported as "the ADR
 tooling is slow", and this is the part of it that genuinely is ours.
 
 **WHAT MUST NOT COLLAPSE, and the reason is structural rather than cautious.** A fence run is

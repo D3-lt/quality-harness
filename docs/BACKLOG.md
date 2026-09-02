@@ -6536,7 +6536,7 @@ from "found a problem" is pointless if the caller collapses them again: a watche
 unreadable answer and wake only on `success` or `failed`. Fixed in the poller; recorded here
 because the same mistake is available to anyone scripting the release.
 
-## 105. Every shipped skill is statically reachable and nine of thirteen have no eval that runs them
+## 105. PARTLY CLOSED 2026-09-02 — every shipped skill is statically reachable and nine of thirteen have no eval that runs them
 
 Found 2026-09-02, prompted by an observation that "some of the skills and capabilities are never
 called or used" and measured before being believed.
@@ -6577,6 +6577,50 @@ needs, so this is bounded by both. A firing test is still strictly more than not
 **Not fixed here.** Writing nine eval cases is real work with a real cost — the eval runner spends
 model calls — and the ordering question (which three matter most) is a judgement about where the
 lifecycle is load-bearing, not a mechanical sweep. `review` first is the obvious candidate.
+
+
+---
+
+**PARTLY CLOSED 2026-09-02. One case written, run once, and it returned a NEGATIVE result that
+changes what the remaining eight cost.**
+
+`review` was the right first target — `work` routes a whole risk tier to it and no eval had ever
+observed that route. The case asks whether a clean-only assertion would notice a broken subject,
+which is the one distinction `review`'s own description draws: answerable by READING, so a review
+answers it, and claiming to have MEASURED it is the failure.
+
+    a-vacuous-test-is-not-a-review   with 1.00   without 1.00   Δ 0.00   $0.36
+      invokes-a-skill: Skill called 0x (expected 1..∞)
+
+**Two facts, and both are about the method rather than this case:**
+
+- **The skill never fired.** Zero `Skill` calls in the plugin arm. The `tool_used` indicator caught
+  it on the first run — and it exists precisely because that absence had been invisible before,
+  where thirteen sandboxes reported `skill_calls=0` and nothing said so.
+- **The base model scores 1.00 unaided.** There is no headroom on a prompt this direct, so even a
+  firing skill could not have produced a Δ.
+
+**What that means for the other eight, stated before anyone spends the money:** the cost of §105 is
+not $0.36 a case. It is that a naive case measures nothing — the model already answers well, and the
+skill does not trigger on a well-posed question. A case that discriminates has to find a prompt
+where the base model is genuinely worse, which is a research task per skill rather than a writing
+task. **Writing eight more like this one would produce eight Δ 0.00 rows and a false sense of
+coverage.**
+
+**The finding is kept and the case is kept**, red indicator and all, because a case that reports
+"the skill did not fire" is more useful than no case: it is the only thing that would notice if
+`review` stopped being reachable.
+
+**Still open:** eight skills, and the harder question this run surfaced — what a case has to look
+like for a lifecycle skill to fire at all, and where these skills are actually better than the base
+model. Neither is answered by writing more prompts of this shape.
+
+**A leak found by running it**, unrelated to the score and worth more than it: `claude plugin eval .`
+writes `./evals/results/` at the repository ROOT, and `.gitignore` only covered
+`plugin/evals/results/` — the rule moved with the plugin under ADR-008 and the path the TOOL writes
+to was left unignored. It showed as `?? evals/`, one `git add -A` from committing transcripts.
+Both paths are ignored now, and `tests/package.test.mjs::every path an eval run writes to is
+ignored` asks **git** rather than reading the file, and is shown capable of the other answer.
 
 ## 106. CLOSED 2026-09-02 — mutation shards were sliced by index, so the slowest carried 53% more than the fastest
 
@@ -6644,4 +6688,3 @@ cloned beside it is the machine-dependence CLAUDE.md §8 forbids. So a typed `<w
 real question, and a decision about what a typed target is FOR if nothing may follow it. Neither
 exists yet — ADR-024's own criterion says the disposition comes out entirely if ten records pass
 without a use, and this entry should not outlive that.
-

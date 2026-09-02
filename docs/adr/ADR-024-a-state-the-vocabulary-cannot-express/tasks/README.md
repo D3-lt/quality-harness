@@ -21,7 +21,7 @@ T3 is independent of both — §83's header shares the record's reasoning but no
 |----|-------|--------|--------|------------|
 | T1 | Say "could not resolve", not "broken", when that is what happened | done | — | `python3 tests/gate-regressions.py …` |
 | T2 | Let an author declare a target this repository does not own | done | — | `python3 tests/gate-regressions.py … && node --test tests/gates.test.mjs` |
-| T3 | Give a task waiting on an unmade decision a header a tool can read | pending | — | `python3 tests/gate-regressions.py …` |
+| T3 | Give a task waiting on an unmade decision a header a tool can read | done | — | `python3 tests/gate-regressions.py …` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

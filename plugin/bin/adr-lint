@@ -1377,6 +1377,32 @@ def check_task(path, all_stems, errors):
     elif not re.search(r"\b(tests?|red|fail(s|ed|ing|ure)?)\b", steps[0], re.I):
         errors.advise(f"{path.name}: Ordered Steps step 1 must establish the failing test "
                       f"(TDD red) — currently: {steps[0].strip()[:80]}")
+    # ADR-024 T3. `**Awaiting-decision:** <the choice>` — the third kind of
+    # waiting, and the one ADR-014 deliberately did not model. Its two are about
+    # OWNERSHIP: Depends-on means someone here can go and do it, Blocked-on means
+    # nobody here can make it happen sooner. A task waiting on a choice nobody has
+    # made is neither — every prerequisite exists, no work unblocks it, no event
+    # resolves it, a human has to pick. Today that reads as `partial` with the
+    # whole thing carried in Verification Log prose, and an unmade decision does
+    # not announce itself the way a shipped dependency does (BACKLOG §83).
+    #
+    # Optional, like Blocked-on, so every task valid before this stays valid.
+    awaiting = header_val(text, "Awaiting-decision")
+    if awaiting is not None:
+        value = awaiting.strip()
+        # ⚠ IT MUST NAME THE CHOICE. "waiting on a decision" with no decision
+        # written down is exactly the prose state this header replaces, so
+        # accepting it would ship the defect under a new name. Two options, or a
+        # question — the shapes a reader can actually act on. ADVICE, because the
+        # judgement of whether a choice is well stated is not a parser's.
+        names_options = re.search(r"\bor\b|\bversus\b|\bvs\.?\b|\?|;", value)
+        if not value or not names_options:
+            errors.advise(
+                f"{path.name}: **Awaiting-decision:** does not name the choice — it reads as "
+                f"\"waiting on a decision\", which is the prose state this header replaces. "
+                f"Give the reader the options (`X, or Y`) or the question, so the person who "
+                f"can settle it does not have to reconstruct it from the task")
+
     # ADR-014 T2. `**Blocked-on:** <event>` — what a task waiting on the outside
     # world is waiting FOR. Optional: every task file valid before this change
     # stays valid, or the corpus turns red overnight for a header nobody wrote yet.

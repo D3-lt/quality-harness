@@ -308,3 +308,15 @@ test('the summary distinguishes measured from reused', () => {
   assert.equal(counts.reused, 1, 'a reused entry is counted apart from one just measured')
   assert.equal(counts.measured, 2, 'measured excludes the reused entry')
 })
+
+test('a forced run reuses nothing', () => {
+  // ADR-023 T3. `--no-cache` must MEASURE everything even against a cache that
+  // would have matched every entry. A flag accepted and ignored is
+  // indistinguishable from one that works, and on a release that difference is
+  // the whole guarantee — a tag partly evidenced by verdicts taken elsewhere.
+  const key = cacheKey(ENTRY, reader(FILES))
+  const full = { [key]: { verdict: 'RED', sha: 'abc1234' } }
+  assert.notEqual(reusable(ENTRY, full, key), null, 'the cache would match, so the test is real')
+  // The forced path is the empty cache the runner substitutes for --no-cache.
+  assert.equal(reusable(ENTRY, {}, key), null, 'a forced run must consult nothing')
+})

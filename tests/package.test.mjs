@@ -542,6 +542,17 @@ test('continuous integration runs the checks this repository owns', () => {
     Array.from({ length: declared }, (_, i) => i + 1),
     'the matrix must list every shard from 1 to n exactly once — a gap drops entries silently')
   assert.match(workflow, /QUALITY_HARNESS_COVERAGE_STRICT: '1'/)
+  // ADR-023 T3. Reuse is for iteration and never for a released artifact: a tag
+  // and `main` must pass --no-cache so the campaign measures every entry. This
+  // is the line that SELECTS the full run, and without it T2's reuse silently
+  // applies to releases — a tag partly evidenced by verdicts taken elsewhere.
+  // Both refs are named, because a condition matching neither permits reuse
+  // everywhere and still looks like a guard.
+  const forced = workflow.match(/mutate\.mjs --shard \$\{\{ matrix\.shard \}\}\/\d+ --no-cache/)?.[0] ?? ''
+  assert.match(forced, /--no-cache/, 'the mutation job must be able to force a full campaign')
+  const condition = workflow.match(/QUALITY_HARNESS_FULL_CAMPAIGN: [^\n]*/)?.[0] ?? ''
+  assert.match(condition, /refs\/tags\//, 'a tag must force a full campaign')
+  assert.match(condition, /refs\/heads\/main/, 'main must force a full campaign')
   // Pull requests must be covered; a workflow that only runs on push to main
   // reports regressions after they land.
   assert.match(workflow, /^\s{2}pull_request:/m)

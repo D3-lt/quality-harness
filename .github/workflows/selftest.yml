@@ -192,7 +192,20 @@ jobs:
         with:
           python-version: '3.12'
       - name: Break each mechanism and check the tests notice
-        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/8
+        # ADR-023 T3. A tag and `main` measure the whole catalogue; everything
+        # else may reuse a RED verdict whose subject and tests are byte-identical
+        # to the run that took it. A released artifact is never partly evidenced
+        # by a verdict taken at another commit, and the pre-registered criterion
+        # in the record depends on this: a wrong reuse surfaces at the next tag
+        # precisely because tags keep running the full set.
+        env:
+          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
+        run: |
+          if [ "$QUALITY_HARNESS_FULL_CAMPAIGN" = "true" ]; then
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/8 --no-cache
+          else
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/8
+          fi
 
   plugin-validate:
     name: plugin validate

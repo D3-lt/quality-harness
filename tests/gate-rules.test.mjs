@@ -302,6 +302,91 @@ test('the verification wrapper reports what the command it ran actually did', ()
 
 // --- adr-retire-check: the row rules that guard a frozen record --------------
 
+test('the structural rules around the catalog fire too, not just the row rules', () => {
+  // BACKLOG §87. `scripts/unasserted.mjs` neuters each finding in turn: 11 of 33
+  // in this gate SURVIVED, meaning nothing required them. The row rules below had
+  // cases; the STRUCTURAL rules — where the corpora are, whether the catalog
+  // resolves, whether an obligation was carried across — did not, and those are
+  // the ones a retirement actually turns on.
+  const dir = scratch('archive-structure')
+  const source = join(repoRoot, 'tests', 'fixtures', 'ok')
+  const build = name => {
+    const at = join(dir, name)
+    cpSync(join(source, 'adr-archive'), join(at, 'adr-archive'), { recursive: true })
+    cpSync(join(source, 'adr'), join(at, 'adr'), { recursive: true })
+    return at
+  }
+  const check = at => run('adr-retire-check', ['adr-archive/README.md'], at)
+  const catalogOf = at => join(at, 'adr-archive', 'README.md')
+  const edit = (at, fn) => {
+    const f = catalogOf(at)
+    writeFileSync(f, fn(readFileSync(f, 'utf8')))
+    return at
+  }
+
+  // The control FIRST: an untouched fixture draws none of these, or every
+  // assertion below is satisfied by a gate that reports unconditionally.
+  assert.equal(check(build('clean')).status, 0)
+
+  // **Active corpus:** naming somewhere that is not a directory.
+  const gone = edit(build('gone'), t => t.replace('**Active corpus:** ../adr', '**Active corpus:** ../nowhere'))
+  assert.match(check(gone).stdout, /must resolve to an existing directory/i)
+
+  // The active corpus exists but carries no catalog of its own.
+  const noCat = build('no-catalog')
+  rmSync(join(noCat, 'adr', 'README.md'), { force: true })
+  assert.match(check(noCat).stdout, /needs README\.md as its governing decision catalog/i)
+
+  // The active catalog links a file that is not there.
+  const dangling = build('dangling')
+  writeFileSync(join(dangling, 'adr', 'README.md'), '# Active\n\n- [ADR-001](ADR-001-vanished.md)\n')
+  assert.match(check(dangling).stdout, /broken link/i)
+
+  // The same record id present in BOTH trees: two files claim to be one decision.
+  const twice = build('twice')
+  cpSync(join(twice, 'adr-archive', 'ADR-001-history.md'), join(twice, 'adr', 'ADR-001-history.md'))
+  assert.match(check(twice).stdout, /exists 2 times across active\/archive roots/i)
+
+  // A row pointing at a destination for an obligation the archived record does
+  // NOT have. With nothing deferred, the catalog must say `none`, or a retirement
+  // can claim it carried work across that never existed and the pointer reads as
+  // provenance.
+  //
+  // The record is sealed, so removing its deferral invalidates the SHA and that
+  // check fires first and skips this one. The seal is the gate's contract, not an
+  // obstacle to route around: re-seal with the gate's OWN digest function, so the
+  // fixture is a legitimately re-sealed archive rather than a broken one.
+  const overclaim = build('overclaim')
+  const archived = join(overclaim, 'adr-archive', 'ADR-001-history.md')
+  // BOTH sources of an obligation, which is the thing to know here: a deferred
+  // Out of Scope entry AND an unchecked Follow-up box each count as one. Removing
+  // only the deferral left the count at 1 and this case silently did not fire.
+  writeFileSync(archived, readFileSync(archived, 'utf8')
+    .replace('- Preserve the compatibility arm (deferred: active ADR backlog)\n', '')
+    .replace('- [ ] Revisit the operator sign-off.\n', ''))
+  const reseal = runPython(['-c', [
+    'import importlib.machinery as m, importlib.util as u, sys',
+    'sys.dont_write_bytecode = True',
+    'l = m.SourceFileLoader("g", sys.argv[1]); sp = u.spec_from_loader(l.name, l)',
+    'g = u.module_from_spec(sp); l.exec_module(g)',
+    'from pathlib import Path',
+    'print(g.decision_unit_digest(Path(sys.argv[2]), "ADR-001", Path(sys.argv[3])))',
+  ].join('\n'), join(repoRoot, 'plugin', 'bin', 'adr-retire-check'),
+  join(overclaim, 'adr-archive'), archived], { encoding: 'utf8' })
+  assert.equal(reseal.status, 0, `re-seal failed: ${reseal.stderr}`)
+  const fresh = reseal.stdout.trim()
+  assert.match(fresh, /^[0-9a-f]{64}$/, `expected a digest, got ${fresh}`)
+  const cat = catalogOf(overclaim)
+  writeFileSync(cat, readFileSync(cat, 'utf8').replace(/[0-9a-f]{64}/, fresh))
+
+  const over = check(overclaim)
+  assert.doesNotMatch(over.stdout, /SHA-256/,
+    `the re-seal must hold, or this is testing the seal instead: ${over.stdout}`)
+  assert.match(over.stdout, /no detected obligations|catalog must say/i,
+    `a row claiming an obligation the record does not have must be reported: ${over.stdout}`)
+})
+
+
 test('every adr-retire-check row rule has a case that makes it fire', () => {
   const dir = scratch('archive')
   const archive = join(dir, 'adr-archive')

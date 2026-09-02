@@ -66,7 +66,7 @@ def disposition_span(text):
     holds the one truth table all three are checked against, the way ADR-009
     binds `enforcement_pointers` to `declaredEnforcement`.
     """
-    for opening in re.finditer(r"\((?=permanent\b|deferred\b)", text):
+    for opening in re.finditer(r"\((?=permanent\b|deferred\b|external\b)", text):
         depth = 0
         for i in range(opening.start(), len(text)):
             if text[i] == "(":
@@ -168,6 +168,28 @@ def closes_the_line(text, end):
     what this function keeps, and it is the reason it is not simply dropped.
     """
     return text[end:].strip(" \t.,;:") == ""
+
+
+def external_target_of(inner):
+    """The `(external: <where>: <pointer>)` parts, or None if it is not one.
+
+    ADR-024 T2. §82: a corpus that is one half of a cross-repo decision cites a
+    record this tree cannot hold, and `adr-debt` called that BROKEN — permanently
+    red, and the author ended up writing the excuse into the pointer text where no
+    linter can read it.
+
+    ⚠ `<where>` IS REQUIRED, and that is the whole value of the row: the column
+    exists to answer "who owns this", and a declaration without an owner answers
+    nothing. Returns None when it is missing, so the entry falls through to the
+    malformed branch rather than silently counting as declared.
+    """
+    if inner is None or not inner.startswith("external:"):
+        return None
+    rest = inner[len("external:"):].strip()
+    where, _, pointer = rest.partition(":")
+    if not where.strip() or not pointer.strip():
+        return None
+    return where.strip(), pointer.strip()
 
 
 def deferred_pointer_of(inner):
@@ -359,6 +381,7 @@ def main():
             sys.exit(1)
 
     deferred, followups, broken, unreceipted = [], [], [], []
+    externals = []
     unswept_items = []
     # ADR-014 T3. Waiting is not debt, and the two must not share a number.
     # `deferred` means work punted with a POINTER to where it was filed; a
@@ -393,7 +416,15 @@ def main():
                 span = disposition_span(s)
                 trailing = span if span and closes_the_line(s, span[2]) else None
                 pointer = deferred_pointer_of(trailing[0]) if trailing else None
-                if pointer is not None:
+                # ADR-024 T2. Declared as owned elsewhere: counted in its own
+                # column, never resolved, exit 0. The author asserted it, and a
+                # typo does not produce a declaration — which is why this is a
+                # keyword rather than a heuristic over the pointer's shape.
+                external = external_target_of(trailing[0]) if trailing else None
+                if external is not None:
+                    externals.append((scan_dir, rel, external[0], external[1],
+                                      s[2:trailing[1]].strip()))
+                elif pointer is not None:
                     kind, ok = resolve(pointer, md, scan_dir)
                     item = (scan_dir, rel, pointer.strip(), s[2:trailing[1]].strip())
                     deferred.append(item)
@@ -406,6 +437,14 @@ def main():
                     dead, where = unswept(pointer, md, scan_dir)
                     if dead:
                         unswept_items.append(item + (where,))
+                elif span and re.match(r"external\b", span[0] or ""):
+                    # ADR-024 T2. An `external:` that names no owner is not a
+                    # declaration — the column exists to answer "who owns this".
+                    # Reported rather than dropped: silently ignoring it would let
+                    # a half-written declaration read as a settled one, which is
+                    # the state this disposition was added to make impossible.
+                    broken.append((scan_dir, rel, (span[0] or "").strip(),
+                                   s[2:72].strip(), "external-no-owner"))
                 elif span and re.match(r"deferred\b", span[0] or ""):
                     # A REAL DISPOSITION IN THE WRONG PLACE is not an empty one.
                     # Reported 2026-08-29: a bullet reading `… (deferred: each
@@ -471,7 +510,11 @@ def main():
     deferred_label = (f"{len(deferred)} deferred"
                       if len(distinct_debts) == len(deferred)
                       else f"{len(deferred)} deferred rows ({len(distinct_debts)} distinct)")
+    # ADR-024 T2: the external column appears only when there is one, so a corpus
+    # that never declares an outside target reads exactly as it did before.
+    external_label = f"{len(externals)} external · " if externals else ""
     print(f"[DEBT] {deferred_label} · {len(followups)} open follow-ups · "
+          f"{external_label}"
           f"{len(broken)} broken pointers · {len(unreceipted)} unreceipted · "
           f"{len(unswept_items)} into an archive · "
           f"{len(waiting)} waiting")
@@ -526,8 +569,30 @@ def main():
         print("  (the destination is inside an archive, which every sweep deliberately skips — the "
               "item can never resurface, and writing it there would not help. Point it at a backlog "
               "the sweep covers; the archived ADR stays the decision record.)")
+    cur = None
+    for scan_dir, rel, where, ptr, txt in externals:
+        if rel != cur:
+            print(f"  {scan_dir / rel}:")
+            cur = rel
+        print(f"    external → {where}: {ptr} — {txt}")
+    if externals:
+        print("    (declared as owned by another repository: not resolved here, and not debt this "
+              "corpus can pay. Printed every run so a wrong declaration stays visible.)")
     for scan_dir, rel, ptr, txt, kind in broken:
-        print(f"  BROKEN [{kind}] {scan_dir / rel}: ({ptr!r}) {txt}")
+        # ADR-024 T1. `BROKEN` means "you wrote a bad pointer". For an `adr` kind
+        # that is a claim this gate cannot make: it sees one tree, and a record id
+        # it does not hold is either a typo or a target owned elsewhere —
+        # `ADR-007` and `ADR-0O7` are equally unresolvable from here. Saying
+        # BROKEN picks one, which is the substitution CLAUDE.md §3 and ADR-005
+        # forbid. `empty` and `malformed` keep the word: those the gate CAN
+        # determine, because the defect is in the text in front of it.
+        if kind == "adr":
+            print(f"  UNRESOLVED [{kind}] {scan_dir / rel}: ({ptr!r}) {txt}")
+            print("    (a typo, or a record owned by another repository. This gate reads one "
+                  "tree and cannot tell those apart — fix the id, or declare the target with "
+                  "`(external: <where>: <pointer>)`)")
+        else:
+            print(f"  BROKEN [{kind}] {scan_dir / rel}: ({ptr!r}) {txt}")
     sys.exit(1 if broken else 0)
 
 

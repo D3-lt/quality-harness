@@ -22,3 +22,8 @@ __pycache__/
 # macOS writes this into any directory Finder touches.
 .DS_Store
 .unasserted-inflight.json
+
+# ADR-023: per-checkout mutation verdict cache. Content-keyed and local by
+# design — a verdict depends on the interpreter and toolchain, which the key
+# does not cover, so one from another machine imports an unchecked assumption.
+.mutation-cache.json

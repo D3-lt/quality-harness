@@ -4002,6 +4002,15 @@
       ],
       "from": "        names_options = re.search(r\"\\bor\\b|\\bversus\\b|\\bvs\\.?\\b|\\?|;\", value)",
       "to": "        names_options = True"
+    },
+    {
+      "label": "mutate: an unknown cost is one unit, so untimed shards do not collapse into one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    loads[lightest] += entry.ms ?? 1",
+      "to": "    loads[lightest] += entry.ms ?? 0"
     }
   ]
 }

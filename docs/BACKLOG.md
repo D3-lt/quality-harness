@@ -6689,7 +6689,7 @@ real question, and a decision about what a typed target is FOR if nothing may fo
 exists yet — ADR-024's own criterion says the disposition comes out entirely if ten records pass
 without a use, and this entry should not outlive that.
 
-## 108. `adr-write` prescribes eight serial round trips before a word is drafted, and never says they can be batched
+## 108. PARTLY CLOSED 2026-09-02 — `adr-write` prescribed eight serial round trips before a word was drafted, and never said they could be batched
 
 **Reported 2026-09-02 by a second user running the lifecycle on their own project** (`brolis-lizdai`),
 in wall-clock terms: *"jis kazkaip neefektyviai ta ADR vykdo, ten labai labai daug laiko sugaistama,
@@ -6738,6 +6738,37 @@ unmeasured and should be measured before it is claimed.
 (this entry measured only that COMPUTE is not, which is not the same thing); whether a batched read
 degrades the author's attention to what each command returned; and whether any of these six can be
 dropped rather than merely batched, which would be worth more than batching them.
+
+---
+
+**PARTLY CLOSED 2026-09-02 — the teaching half, which is the half that was missing.**
+
+`adr-write` now states that its pre-draft reads are independent and shows the chained form;
+`adr-execute` names the task file once (`T=<path>`) and chains the check with the evidence run. Both
+carry the measurement, so the next reader knows the compute was never the cost.
+
+**Two things are deliberately excluded from the chaining advice**, and they are why this is teaching
+rather than a speed tip:
+
+- **The Red step.** Seeing a test fail is an OBSERVATION, and a chain that runs red-then-green hides
+  the only thing that step exists for.
+- **A commit after a check.** `<check> ; git commit` reports the COMMIT's status, and `&&` is right
+  only if someone reads the result. Both spellings have put a red tree on `main` here — the second
+  on 2026-09-02, by printing `selftest exit=1` and committing anyway.
+
+**Asserted as a ROLE, not as wording** (§80): `tests/skill-contract.test.mjs::the authoring skills
+teach a batched form, and it stays runnable` requires a runnable chained example to exist and both
+exclusions to be stated. Rewording stays free; deleting the example does not. Shown capable of
+failing by removing it.
+
+**No dependency on any personal tool.** The instruction is a plain shell chain, because the plugin
+ships to people who do not have this machine's helpers — `tests/package.test.mjs::the publishable
+plugin has no dependency on a personal install` is the rule, and naming a local tool in a shipped
+skill would break it.
+
+**Still open:** whether turn count is actually the dominant term. This closes the half needing no
+measurement — an agent should not have to discover batching mid-task — and leaves the half that
+does. §110 rests on the same unmeasured claim and should not start before it exists.
 
 ## 109. CLOSED 2026-09-02 — a commit taken mid-mutation captures a neutered gate, and nothing looked
 

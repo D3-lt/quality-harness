@@ -87,6 +87,20 @@ test('a vacuous test cannot borrow a later test\'s assertion through a "//" lite
     'a test asserting nothing must not be certified able to fail')
 })
 
+test('a brace inside a string literal does not truncate the body', () => {
+  // NOT in the report, and it is why the report's suggested fix was not taken.
+  // Issue #7 proposed mirroring adr-lint — brace-match RAW, strip the extracted
+  // body. Measured 2026-09-02: that reintroduces the same class through a
+  // different door, because raw text counts the `}` inside `if s == "}" {` and
+  // truncates above the assertion. Blanking literals first makes STRIPPED text
+  // strictly better to brace-match, so this case is the guard on that choice.
+  const go = 'package a\n\nfunc TestBrace(t *testing.T) {\n'
+    + '\tif s == "}" {\n\t\treturn\n\t}\n\tt.Errorf("real")\n}\n'
+    + '\nfunc TestNext(t *testing.T) {\n\t_ = 1\n}\n'
+  assert.doesNotMatch(lint(cites('TestBrace'), { 'sep_test.go': go, 'sep.go': 'package a\n' }),
+    /no failure call is reachable/)
+})
+
 test('an assertion that appears only inside a comment still does not count', () => {
   // The property `code_only` was added for, asserted here so the reordering
   // cannot quietly trade one defect for the other. Stripping the EXTRACTED body

@@ -3867,15 +3867,6 @@
       ],
       "from": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)\n    text = re.sub(r\"'(?:[^'\\\\\\n]|\\\\.)*'\", \"''\", text)\n    text = re.sub(r\"/\\*.*?\\*/\", \" \", text, flags=re.S)",
       "to": "    text = re.sub(r\"/\\*.*?\\*/\", \" \", text, flags=re.S)\n    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)\n    text = re.sub(r\"'(?:[^'\\\\\\n]|\\\\.)*'\", \"''\", text)"
-    },
-    {
-      "label": "arch: the brace match runs on raw source, not on stripped text",
-      "file": "plugin/bin/arch-lint",
-      "tests": [
-        "tests/arch-lint.test.mjs"
-      ],
-      "from": "            body = symbol_body(raw, sym)",
-      "to": "            body = symbol_body(code_only(raw), sym)"
     }
   ]
 }

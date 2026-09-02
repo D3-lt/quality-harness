@@ -1,6 +1,6 @@
 # ADR-024: Give a name to the two states these gates can see but cannot say
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-02
 **Owner:** zy
 **Spec:** None — no spec stage

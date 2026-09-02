@@ -1267,6 +1267,49 @@ test('adr-retire-check --adopt reports what it finds on a tree adopting the life
   assert.match(`${cls.stdout}${cls.stderr}`, /cannot classify/i,
     `an unclassifiable legacy status must be reported: ${cls.stdout}`)
 
+  // BACKLOG §87. `scripts/unasserted.mjs` neuters each finding in turn and re-runs
+  // the suite; 11 of 33 in this gate SURVIVED, meaning nothing required them. Three
+  // of those are here, and they are the ones the cases above happen not to reach.
+
+  // NON-SIBLING, and not overlapping — the case between the two rules above. The
+  // overlap case is covered; roots in unrelated parents were not, so the `elif`
+  // was reachable and unasserted.
+  const apart = build({ name: 'apart', archiveAt: 'far/adr-archive',
+    files: { 'adr/README.md': '# active\n', 'adr/ADR-001-a.md': record('ADR-001', 'Accepted') } })
+  const sib = run('adr-retire-check',
+    ['--adopt', join(apart, 'adr'), join(apart, 'far', 'adr-archive')], apart)
+  assert.match(`${sib.stdout}${sib.stderr}`, /sibling directories/i,
+    `roots in unrelated parents must be reported: ${sib.stdout}`)
+
+  // An ACCEPTED record in the archive that the active catalog does not link. The
+  // covered case links a record that does not exist; this is the inverse — the
+  // record exists and the link is absent, which is how a governing decision goes
+  // missing from the catalog that is supposed to carry it.
+  const unlinked = build({ name: 'unlinked',
+    files: {
+      'adr/README.md': '# active\n\n- nothing links ADR-001\n',
+      'adr-archive/ADR-001-a.md': record('ADR-001', 'Accepted'),
+    } })
+  const nolink = run('adr-retire-check',
+    ['--adopt', join(unlinked, 'adr'), join(unlinked, 'adr-archive')], unlinked)
+  assert.match(`${nolink.stdout}${nolink.stderr}`, /no exact active-catalog link/i,
+    `an accepted archived record with no catalog link must be reported: ${nolink.stdout}`)
+
+  // An archived obligation with fewer receipts than the archive claims. This is
+  // the rule that stops a retirement from dropping work on the floor, and it
+  // asserted nothing.
+  const owed = build({ name: 'owed',
+    files: {
+      'adr/README.md': '# active\n\n- [ADR-001](../adr-archive/ADR-001-a.md)\n',
+      'adr/BACKLOG.md': '# Backlog\n\n## Follow-ups\n\n- nothing cites the archived record\n',
+      'adr-archive/ADR-001-a.md': `${record('ADR-001', 'Accepted')}\n## Follow-ups\n\n`
+        + '- [ ] an obligation this retirement still owes\n',
+    } })
+  const debt = run('adr-retire-check',
+    ['--adopt', join(owed, 'adr'), join(owed, 'adr-archive')], owed)
+  assert.match(`${debt.stdout}${debt.stderr}`, /archived obligation|BACKLOG receipt/i,
+    `an archived obligation with no active receipt must be reported: ${debt.stdout}`)
+
   // The must-fail direction: a clean adopting tree draws none of these, or every
   // assertion above is satisfied by a gate that reports unconditionally.
   const clean = build({ name: 'clean',

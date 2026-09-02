@@ -3892,8 +3892,8 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/8",
-      "to": "        run: node scripts/mutate.mjs --shard ${{ matrix.shard }}/4"
+      "from": "    name: mutations ${{ matrix.shard }}/8",
+      "to": "    name: mutations ${{ matrix.shard }}/4"
     },
     {
       "label": "mutate: a reused verdict is refused when its subject or its tests changed",
@@ -3921,6 +3921,15 @@
       ],
       "from": "    if (bytes === null || bytes === undefined) return null",
       "to": "    if (bytes === null || bytes === undefined) continue"
+    },
+    {
+      "label": "ci: a release forces a full campaign",
+      "file": ".github/workflows/selftest.yml",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}",
+      "to": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') }}"
     }
   ]
 }

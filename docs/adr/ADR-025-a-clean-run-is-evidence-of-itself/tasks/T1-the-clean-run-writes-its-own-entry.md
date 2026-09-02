@@ -61,6 +61,7 @@ node --test tests/evidence-chain.test.mjs 2>&1 | tee /tmp/adr025-t1.out \
 ## Mutation Log
 
 - 2026-09-02 · 13782c8 · mutant killed · exit 1 · `plugin/bin/adr-verify` · a failing clean fence must still be recorded before the UNPROVEN refusal · acceptance-sha256:4948a035d1d1ba4c130f9e361737c83103415f1e4380cefbef95d4f759c68492
+- 2026-09-02 · 6f924fb · mutant killed · exit 1 · `plugin/bin/adr-verify` · a failing clean fence must still be recorded before the UNPROVEN refusal · acceptance-sha256:4948a035d1d1ba4c130f9e361737c83103415f1e4380cefbef95d4f759c68492
 
 ## Invariants
 
@@ -85,3 +86,4 @@ record's central claim is then false rather than merely narrow.
 - The `adr-execute` guidance, which is T2
 
 ## Verification Log
+- 2026-09-02 · 6f924fb · exit 0 · `set -o pipefail …` · acceptance-sha256:4948a035d1d1ba4c130f9e361737c83103415f1e4380cefbef95d4f759c68492 · ms:39701

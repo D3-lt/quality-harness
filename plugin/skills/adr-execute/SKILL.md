@@ -206,6 +206,23 @@ you then read the result. Both spellings have put a red tree on `main` in this r
    do. Ask of every new symbol: what line selects this, and what fails if that line is deleted? If
    nothing fails, the check to write is about the selection, not the component.
 4. **Validate**: Run `adr-verify <task.md>` (it runs the Acceptance fence and
+   appends the log entry itself).
+
+   ⚠ **If you just recorded a mutation, this is already done.** Since ADR-025 the
+   `--mutant` pass records the Verification Log entry its clean fence earned: it runs the exact
+   normalized fence before applying the mutant, requires it to pass, and now writes down what it
+   observed instead of discarding it. Running `adr-verify <task.md>` after `adr-verify <task.md>
+   --mutant …` is the SAME fence on the SAME bytes a second time — measured 2026-09-02, that
+   duplicate was 94 of 281 fence executions across this corpus, and on a corpus whose suite takes
+   40s it is minutes per task.
+
+   **Two cases still need their own run, and skipping them removes a check rather than a
+   duplicate.** A task with **no mutation to record** — a `--human` sign-off, or a task whose
+   mutant is already logged — runs `adr-verify <task.md>` on its own. And the **Red step keeps its
+   own run always**: it is taken on a different tree, before the code exists, so no later
+   invocation can have observed it. A fence run is its command AND the bytes it ran against.
+
+   Iterate until it exits 0. For human-observed acceptance, record
    appends the log entry itself). Iterate until it exits 0. For human-observed acceptance, record
    the sign-off with `adr-verify <task.md> --human "<who observed what>"`. If the task `Covers:`
    spec facts, flip those facts' tags `@spec` → `@implemented` in the spec file. Only then may the

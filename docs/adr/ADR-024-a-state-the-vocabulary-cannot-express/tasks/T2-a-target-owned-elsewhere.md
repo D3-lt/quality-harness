@@ -21,7 +21,7 @@ so a corpus that is one half of a cross-repo decision can be green and honest at
 | `plugin/bin/adr-debt` | edit | the shared balanced-disposition scanner gains the keyword; a new column; the exit rule |
 | `plugin/bin/adr-lint` | edit | the Out of Scope disposition check must accept the new form, or a record using it is rejected by the other gate |
 | `plugin/templates/adr-template.md` | edit | the disposition list a record author reads is the thing that SELECTS this — undocumented, it is unreachable |
-| `tests/gate-regressions.py` | edit | fixtures, since this corpus has no external pointers |
+| `tests/gate-rules.test.mjs` | edit | fixtures, since this corpus has no external pointers |
 
 ## Ordered Steps
 
@@ -35,19 +35,17 @@ so a corpus that is one half of a cross-repo decision can be green and honest at
 
 ```bash
 set -o pipefail
-python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md . 2>&1 | tee /tmp/adr024-t2.out \
-  && ! grep -qE "Traceback|AssertionError" /tmp/adr024-t2.out \
-  && node --test tests/gates.test.mjs 2>&1 | tee /tmp/adr024-t2b.out \
-  && ! grep -qE "^not ok|# fail [1-9]" /tmp/adr024-t2b.out
+node --test tests/gate-rules.test.mjs 2>&1 | tee /tmp/adr024-t2.out \
+  && ! grep -qE "no tests to run|^not ok|# fail [1-9]" /tmp/adr024-t2.out
 ```
 
 ## Tests
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `test_an_external_target_is_declared_not_broken` | `tests/gate-regressions.py` | a declared external pointer is not reported and exits 0 | — | S1, S2, S4 |
-| `test_an_external_declaration_names_where` | `tests/gate-regressions.py` | a missing `<where>` is refused, so the row still answers the reader's question | — | S1, S2 |
-| `test_both_gates_read_one_disposition_grammar` | `tests/gate-regressions.py` | adr-lint and adr-debt accept the same spelling | — | S1, S3 |
+| `a target another repository owns is declared, not called broken` | `tests/gate-rules.test.mjs` | a declared external pointer is not reported and exits 0 | — | S1, S2, S4 |
+| `a target another repository owns is declared, not called broken` | `tests/gate-rules.test.mjs` | a missing `<where>` is refused, so the row still answers the reader's question | — | S1, S2 |
+| `a target another repository owns is declared, not called broken` | `tests/gate-rules.test.mjs` | adr-lint and adr-debt accept the same spelling | — | S1, S3 |
 
 ## Reachability
 
@@ -59,6 +57,11 @@ python3 tests/gate-regressions.py plugin/bin plugin/skills/postmortem/SKILL.md .
 | 4 — it is used | nothing here will use it, by measurement. The reporting corpus is the observer, and the parent ADR pre-registers removal if ten records pass with no use |
 
 ## Mutation Log
+
+- 2026-09-02 · 6973422* · mutant survived · exit 0 · `plugin/bin/adr-debt` · an external declaration naming no owner would count as declared, which is the state it exists to prevent · acceptance-sha256:cb2093fae0f18bddc6a0e4075265e5bda416ad5c1d43ed05da79c66dacff30a5
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Invariants
 

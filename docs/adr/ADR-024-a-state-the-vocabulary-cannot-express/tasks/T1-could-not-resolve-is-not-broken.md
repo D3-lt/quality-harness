@@ -81,3 +81,4 @@ nothing — the two would need different words and this task assumes one call si
 
 ## Verification Log
 - 2026-09-02 · faacfb3 · exit 0 · `set -o pipefail …` · acceptance-sha256:1f3fcfc5517aec32b1415531ba9f7bf8ee4373fd91b4f335ad67afd9965c473b · ms:5120
+- 2026-09-02 · 21a7a04 · exit 0 · `set -o pipefail …` · acceptance-sha256:48efeb9f4ea6f96f6a7cc92dcebf4cefc637fafbaf81485df1dffaa117124f0c · ms:8796

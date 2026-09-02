@@ -398,6 +398,12 @@ test('no mutation tool left a gate neutered in this tree', () => {
   // Both tools journal before they edit, precisely so an interrupted run can be
   // repaired. That journal is therefore an exact signal that a mutation is in
   // flight and the tree must not be trusted, let alone committed.
+  // ⚠ NOT while a mutation tool is legitimately running, which is its own trap.
+  // Both tools write the journal and THEN run this suite to judge a mutant, so a
+  // guard that fires on the journal alone deadlocks them: the sweep's baseline
+  // fails, it refuses, and the journal it already wrote fails every later run
+  // too. Caught 2026-09-02 by doing exactly that. The tools declare themselves.
+  if (process.env.QUALITY_HARNESS_MUTATION_IN_FLIGHT === '1') return
   for (const journal of ['.unasserted-inflight.json', '.mutate-inflight.json']) {
     assert.ok(!existsSync(join(repoRoot, journal)),
       `${journal} exists, so a mutation tool is mid-run or was killed: this tree has a gate `

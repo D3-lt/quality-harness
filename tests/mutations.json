@@ -4146,6 +4146,24 @@
       ],
       "from": "    r\"(?: · steps:S[1-9]\\d*(?:,S[1-9]\\d*)*)?$\")",
       "to": "    r\"$\")"
+    },
+    {
+      "label": "steps: a step no run names is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            named.update(token.strip() for token in match.group(\"steps\").split(\",\"))",
+      "to": "            named.update(covered)"
+    },
+    {
+      "label": "steps: absence of the field stays silent rather than becoming a finding",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if saw_field:",
+      "to": "    if True:"
     }
   ]
 }

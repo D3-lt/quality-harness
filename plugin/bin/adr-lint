@@ -1286,6 +1286,34 @@ def check_step_proof_map(path, text, secs, errors):
             errors.append(f"{path.name}: Ordered Step {step_id} is not referenced by any "
                           f"Tests row and has no valid proof marker")
 
+    # ADR-028 T2. A step whose declared proof is a NAMED TEST, and which no exit-0
+    # run names, has nothing behind it. ADVICE, never a finding: making this block
+    # would select for declaring fewer steps, and the gate would then report the
+    # resulting silence as coverage — the ADR-005 failure this corpus keeps naming.
+    #
+    # SILENT when no entry carries the field at all. That is every task written
+    # before this record, and absence is "I could not look" rather than "not
+    # covered". A gate that lit up the whole corpus on the day it shipped is one
+    # people learn to skim.
+    named = set()
+    saw_field = False
+    for line in sections_of(text).get("Verification Log", []):
+        match = VLOG_DIGEST_RE.match(line.strip())
+        if not match or not match.group("steps"):
+            continue
+        saw_field = True
+        if match.group("exit") == "0":
+            named.update(token.strip() for token in match.group("steps").split(","))
+    if saw_field:
+        for step_id in sorted(covered, key=lambda s: int(s[1:])):
+            if step_id not in named:
+                errors.advise(
+                    f"{path.name}: Ordered Step {step_id} is proved by a named test and "
+                    f"no run names it — the runs that recorded steps named "
+                    f"{', '.join(sorted(named, key=lambda s: int(s[1:]))) or 'none'}. "
+                    f"Nothing has shown that step happened; record it with "
+                    f"`adr-verify <task.md> --steps {step_id}`.")
+
 
 def check_task(path, all_stems, errors):
     text = path.read_text(errors="replace", encoding="utf-8")

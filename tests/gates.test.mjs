@@ -1273,3 +1273,83 @@ test('a parallelised acceptance fence that never collects its children is report
   assert.doesNotMatch(lintCorpus().stdout, NOTICE, 'a serial fence must not be reported')
   rmSync(temp, { recursive: true, force: true })
 })
+
+// ADR-028 T2. A step whose declared proof is a NAMED TEST, and which no exit-0 run
+// names, is reported. The whole value is that a skipped step stops being invisible;
+// the whole risk is that absence gets read as a finding, so both are asserted.
+function stepCoverageCorpus(entrySteps) {
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-step-cov-'))
+  const copy = join(temp, 'ok')
+  cpSync(fixture, copy, { recursive: true })
+  const taskPath = join(copy, 'tasks', 'T1-fixture.md')
+  let task = readFileSync(taskPath, 'utf8')
+  // The shipped fixture is deliberately LEGACY — no `**Proof map:**` header, a
+  // four-column Tests table — because other tests exercise that allowance through
+  // it. `check_step_proof_map` skips a legacy task entirely, so a step-coverage
+  // fixture has to opt in to the modern shape or the check under test never runs.
+  task = task.replace('**Consumes:** none', '**Consumes:** none\n**Proof map:** v1')
+  task = task.replace('1. Write the failing test', '1. [S1] Write the failing test')
+  // S2 gets an INLINE proof marker rather than a Tests row: this record's check
+  // only considers steps whose declared proof is a NAMED TEST, so S2 must be
+  // proved some other way or it would be a second finding drowning the first.
+  task = task.replace('2. Fill every required section',
+    '2. [S2] Fill every required section [proof: acceptance]')
+  task = task.replace(
+    '| Test name | File | Verifies | Covers |\n|-----------|------|----------|--------|\n'
+    + '| adr-lint-positive | selftest.sh | conforming ADR + task pass the gate | — |',
+    '| Test name | File | Verifies | Covers | Steps |\n'
+    + '|-----------|------|----------|--------|-------|\n'
+    + '| `adr-lint-positive` | `selftest.sh` | conforming ADR + task pass the gate | — | S1 |')
+  task = task.replace('## Verification Log', '## Mutation Log\n\n## Verification Log')
+  writeFileSync(taskPath, task)
+
+  // REAL runs, not hand-written rows. The gate requires a killed mutant bound to
+  // the CURRENT acceptance digest, and a fabricated digest cannot satisfy that —
+  // which is the anti-fabrication rule working exactly as intended, on a test
+  // trying to fabricate. adr-verify computes both.
+  const verifyArgs = ['tasks/T1-fixture.md', '--cwd', '.']
+  run('adr-verify', [...verifyArgs, '--mutant', 'ADR-001-selftest.md',
+    '--from', '## Alternatives Considered', '--to', '## Alternatives Considred',
+    '--why', 'adr-lint must notice its required alternatives section going missing'], copy)
+  run('adr-verify', entrySteps === null ? verifyArgs
+    : [...verifyArgs, '--steps', entrySteps], copy)
+  return { temp, copy }
+}
+
+test('a step whose proof is a named test has a run that names it', () => {
+  // S1 is proved by a Tests row, and the only run names S2. Nothing has shown S1
+  // happened, which is precisely the gap a delegated executor falls through.
+  const { temp, copy } = stepCoverageCorpus('S2')
+  try {
+    const out = run('adr-lint', ['ADR-001-selftest.md', 'tasks'], copy)
+    assert.match(`${out.stdout}${out.stderr}`, /S1[\s\S]*no run names it|no run names[\s\S]*S1/,
+      'the unnamed step must be reported')
+    // ADVISORY. Making this blocking would select for declaring fewer steps, and
+    // the gate would then report the resulting silence as coverage (ADR-005).
+    assert.equal(out.status, 0,
+      `the advisory must not change the lint verdict\n${out.stdout}${out.stderr}`)
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})
+
+test('a task with no steps field anywhere is silent, not uncovered', () => {
+  // Every task written before ADR-028 is this case. If absence read as a finding,
+  // the gate would light up the whole corpus on the day it shipped — and a check
+  // everyone learns to skim is worth the same as no check.
+  const { temp, copy } = stepCoverageCorpus(null)
+  try {
+    const out = run('adr-lint', ['ADR-001-selftest.md', 'tasks'], copy)
+    assert.doesNotMatch(`${out.stdout}${out.stderr}`, /no run names it/,
+      'absence of the field is "could not look", never "not covered"')
+    assert.equal(out.status, 0, `${out.stdout}${out.stderr}`)
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})
+
+test('a step the run does name is not reported', () => {
+  // The other direction, or the check would pass by reporting everything.
+  const { temp, copy } = stepCoverageCorpus('S1')
+  try {
+    const out = run('adr-lint', ['ADR-001-selftest.md', 'tasks'], copy)
+    assert.doesNotMatch(`${out.stdout}${out.stderr}`, /no run names it/,
+      'a step a run named must not be reported')
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})

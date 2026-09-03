@@ -58,7 +58,18 @@ node --test tests/lifecycle.test.mjs 2>&1 | tee /tmp/adr029-t2.out \
 
 ## Mutation Log
 
+- 2026-09-03 · d0fae72 · mutant inconclusive · exit 1 · `plugin/scripts/lifecycle.mjs` · the declared role must actually reach the spawn, or the channel carries nothing · acceptance-sha256:bebc1911e389198b970671dd0a7f9daf3c45f10a1f8f4507e7264a27f2388b76 · covers:a spawn whose role declares a capability says so in its own context
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-09-03 · d0fae72* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · absence must stay absence; a default invented here puts a capability in the context nobody asked for · acceptance-sha256:bebc1911e389198b970671dd0a7f9daf3c45f10a1f8f4507e7264a27f2388b76 · covers:a spawn with nothing declared says nothing rather than guessing
+- 2026-09-03 · d0fae72* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the declared capability must actually reach the spawn; an empty summary leaves the sentence saying nothing · acceptance-sha256:bebc1911e389198b970671dd0a7f9daf3c45f10a1f8f4507e7264a27f2388b76 · covers:a spawn whose role declares a capability says so in its own context
+
 ## Verification Log
+
+- 2026-09-03 · d0fae72 · exit 0 · `set -o pipefail …` · acceptance-sha256:bebc1911e389198b970671dd0a7f9daf3c45f10a1f8f4507e7264a27f2388b76 · ms:13182
+- 2026-09-03 · d0fae72* · exit 0 · `set -o pipefail …` · acceptance-sha256:bebc1911e389198b970671dd0a7f9daf3c45f10a1f8f4507e7264a27f2388b76 · ms:14266
+- 2026-09-03 · d0fae72* · exit 0 · `set -o pipefail …` · acceptance-sha256:bebc1911e389198b970671dd0a7f9daf3c45f10a1f8f4507e7264a27f2388b76 · ms:13041
 
 ## Invariants
 

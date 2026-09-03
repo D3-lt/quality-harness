@@ -4198,8 +4198,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  return `Your delegation asked for ${asked}; if that does not match the work you are `",
-      "to": "  return `Your delegation said nothing useful"
+      "from": "  const asked = [model && `model ${model}`, effort && `effort ${effort}`].filter(Boolean).join(', ')",
+      "to": "  const asked = ''"
     }
   ]
 }

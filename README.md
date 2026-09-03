@@ -5,7 +5,13 @@ message looks exactly the same either way.**
 
 Quality Harness is a plugin for [Claude Code](https://claude.com/claude-code) that
 stops taking the agent's word for it. When work claims to be done, the plugin runs
-the check itself and writes down what actually happened.
+the check itself and writes down what actually happened — the command, its exit
+code, the commit it ran at — into a file in your repository. You read evidence
+instead of a summary.
+
+It is for people who already let an agent write real code and have started
+wondering how much of "done" they can trust. It brings no opinions about your
+language, layout or test runner.
 
 ## The problem, in one example
 
@@ -86,12 +92,79 @@ claims above would be exactly the confident writing the research warns you about
 /plugin install quality-harness@quality-harness
 ```
 
+**Or paste this into Claude Code and let it do the whole thing:**
+
+```text
+Install the Quality Harness plugin and show me what it added.
+
+1. Run: /plugin marketplace add D3-lt/quality-harness
+2. Run: /plugin install quality-harness@quality-harness
+3. Restart when prompted, then run `qh-root` and list the gates in its bin/ directory.
+4. Tell me which lifecycle stage my repository is at by running
+   `node "$(qh-root)/scripts/work-next.mjs"` — it reads, judges nothing, and exits 0
+   whatever it finds.
+5. Summarise in three lines: what got installed, what it will do the next time I
+   ask for substantive work, and what it will NOT do without me asking.
+```
+
 Then run `/quality-harness:work` once in the main session for substantive
 development, or a narrower skill when the task already names its stage
 (`/quality-harness:execution`, `/quality-harness:review`, `/quality-harness:adr-write`).
 
 Requirements are in full below; the short version is Claude Code 2.1.154+, Python
 3.9+, Node.js, Bash (Git Bash on Windows) and Git.
+
+## Which AI tools this works with
+
+Three tiers, and they are different because the parts are different. Only the
+first is what this project tests on every commit — the rest are stated as what the
+surface is, not as a measurement nobody took.
+
+| | What you get | Status |
+|---|---|---|
+| **Claude Code** | Everything: the lifecycle skills, the hooks, the workflows and every gate | Tested on Linux, macOS and Windows in CI on every push |
+| **Any MCP client** — Claude Desktop, and editors that speak MCP such as Cursor, Zed or Codex | The **read-only** gates over MCP stdio, via the bundled `qh-mcp` server. No shell needed | The server is tested here; those specific clients are not. Standard line-delimited JSON-RPC, so it should connect — tell us if it does not |
+| **Any shell, any CI, no AI at all** | Every gate in `bin/` is a plain `python3` or `node` program with a meaningful exit code. `adr-lint`, `adr-verify`, `spec-verify`, `arch-lint` and the rest run from a Makefile or a GitHub Action | Tested — this repository gates itself with them |
+
+**`qh-mcp` deliberately exposes only gates that READ.** The two that execute a
+task's acceptance fence are absent, and there is no registrar that could add one;
+a test asserts that against the source, so renaming a tool cannot smuggle one in.
+A client with no shell gets to read the corpus, never to run text the corpus
+supplies.
+
+**Codex is a reviewer here, not a host.** `codex-review` and `codex-advise` shell
+out to the Codex CLI to get a verdict from a *different model lineage*, because a
+review by the family that wrote the code is worth less. That is optional and
+nothing else depends on it.
+
+## How this is benchmarked
+
+Two different questions, measured two different ways.
+
+**Do the gates catch what they claim?** A mutation campaign breaks one mechanism
+at a time — 447 catalogued edits — and reports every test that did not notice.
+`node scripts/mutate.mjs`. A gate with no mutation that can kill it is not
+evidence, and CI runs the whole catalogue on every push to `main` and every tag,
+with no reuse.
+
+**Do the written instructions change what a model does?** That is a separate
+claim and prose cannot support it, so there are behavioural evals under
+`plugin/evals/` — Trigger, Compliance and Boundary facets, graded
+deterministically wherever a deterministic grader can see the answer:
+
+```text
+CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval --runs 1 --allow-tools Bash .
+```
+
+**The number worth quoting is the Δ, not the score.** The runner defaults to
+`--ablation with-without`: every case also runs a no-plugin baseline. A score
+without a baseline cannot tell a skill that works from a model that would have
+answered well anyway. Cases come in given/omitted pairs for exactly this reason.
+
+And it reports losses. One case measured **Δ 0.00 with the skill invoked zero
+times** — the instruction did nothing — which is written down rather than dropped,
+because an eval suite that only publishes its wins is the tone this project tells
+you not to trust.
 
 ## The evidence behind those claims
 

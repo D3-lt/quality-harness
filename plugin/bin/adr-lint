@@ -211,12 +211,20 @@ DURATION_REQUIRED_FROM = "2026-09-02"
 
 MS_FIELD = r"(?: · ms:(?P<ms>\d+))?"
 
+# ADR-028 T1. The ordered steps a run exercised, as a SUFFIX on the grammar that
+# was already there. One fragment, three readers below — written out three times,
+# a mutation on any one copy comes back GREEN because the others carry the load,
+# which is the finding class CLAUDE.md §4 names and why COVERS_FIELD above is a
+# constant too.
+STEPS_FIELD = r"(?: · steps:(?P<steps>S[1-9]\d*(?:,S[1-9]\d*)*))?"
+
 VLOG_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
-    r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?" + MS_FIELD + r"$")
+    r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?" + MS_FIELD
+    + STEPS_FIELD.replace("?P<steps>", "") + r"$")
 VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
-    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})" + MS_FIELD + r"$")
+    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})" + MS_FIELD + STEPS_FIELD + r"$")
 
 # EVERY row that claims a MACHINE RAN SOMETHING — an exit code and a command —
 # whether or not it carries the acceptance digest. The floor and the digest-less
@@ -232,7 +240,7 @@ VLOG_DIGEST_RE = re.compile(
 VLOG_TIMED_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)`(?: · acceptance-sha256:(?P<digest>[0-9a-f]{64}))?"
-    + MS_FIELD + r"$")
+    + MS_FIELD + STEPS_FIELD.replace("?P<steps>", "") + r"$")
 def committed_lines(path, run=None):
     """The lines HEAD holds for `path`, or None when git could not answer.
 

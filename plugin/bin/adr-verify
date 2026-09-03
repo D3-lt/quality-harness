@@ -5,6 +5,7 @@ Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --human "<who observed what>"
        adr-verify <task.md> --mutant <file> [--also-restore <file> ...]
                   --from <text> --to <text> --why <text> [--covers <mechanism>]
+       adr-verify <task.md> [--steps S1,S3]
        adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
 Extracts the ```bash fence under ## Acceptance and runs it with bash
@@ -1591,7 +1592,11 @@ ENTRY_RE = re.compile(
     # what it is for: the writer refused to write what the readers now accept.
     r"(?: · acceptance-sha256:[0-9a-f]{64})?(?: · ms:\d+)?"
     # ADR-022 T2. The declared mechanism a killed mutant bound.
-    r"(?: · covers:[^·\n]+)?$")
+    r"(?: · covers:[^·\n]+)?"
+    # ADR-028 T1. The ordered steps a run exercised. TRAILING and optional, so
+    # every row written before this record still parses under every reader —
+    # which tests/gate-regressions.py asserts across every row git tracks.
+    r"(?: · steps:S[1-9]\d*(?:,S[1-9]\d*)*)?$")
 
 
 class _Unreadable:
@@ -1604,6 +1609,27 @@ class _Unreadable:
 
 
 RESTS_ON_UNREADABLE = _Unreadable()
+
+
+def declared_steps(text):
+    """The `[S<n>]` identities the task's Ordered Steps declare, as a set.
+
+    ADR-028 T1. Mirrors `rests_on()` deliberately: `--steps` is checked against
+    what the task already declares, exactly as `--covers` is checked against
+    **Rests-on:**. This tool never INVENTS a step, for the same reason it never
+    invents a mechanism — a name the author did not write would enter the
+    coverage reading as though they had.
+
+    An empty set means the section is absent or declares no identities, which the
+    caller must treat as "cannot check" rather than "declares none": refusing a
+    step against a section that could not be read would report an authoring error
+    the author did not make.
+    """
+    section = re.search(r"^## Ordered Steps$(?P<body>.*?)(?=^## |\Z)", text,
+                        re.M | re.S)
+    if section is None:
+        return set()
+    return set(re.findall(r"\[S([1-9]\d*)\]", section.group("body")))
 
 
 def rests_on(text):
@@ -2054,7 +2080,7 @@ def runs_nothing(fence):
     return not any(line.strip() and not line.strip().startswith("#")
                    for line in (fence or "").splitlines())
 
-def record_run(task, text, cmd, today, result, elapsed_ms, sha):
+def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None):
     """Append the `## Verification Log` entry for a fence run that HAPPENED.
 
     ADR-025. Extracted from `main()` so the `--mutant` path can record the clean
@@ -2117,6 +2143,11 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha):
     elapsed_ms = max(0, elapsed_ms)
     entry = (f"- {today} · {sha} · exit {code} · `{first}` · "
              f"acceptance-sha256:{digest} · ms:{elapsed_ms}")
+    # ADR-028 T1. Trailing, so every reader that stopped at the old end still
+    # matches the row. Written only when a run ASKED for it — absence stays
+    # absence, and adr-lint reports an unnamed step rather than assuming one.
+    if steps:
+        entry += f" · steps:{steps}"
     refuse_unreadable(entry, sha)
     block = entry
     if code != 0:
@@ -2161,6 +2192,7 @@ def main():
     also_restore = []
     timeout = SWEEP_TIMEOUT_DEFAULT
     covers = None
+    steps = None
     as_json = False
     saw_timeout = False
     i = 0
@@ -2210,6 +2242,9 @@ def main():
         elif args[i] == "--covers":
             i += 1
             covers = value(i, "--covers")
+        elif args[i] == "--steps":
+            i += 1
+            steps = value(i, "--steps")
         elif args[i] == "--sweep":
             i += 1
             sweep = value(i, "--sweep")
@@ -2357,6 +2392,33 @@ def main():
 
     # MONOTONIC, not wall-clock. `time.time()` goes backwards over an NTP step or a
     # DST change, and a negative duration handed to the floor is a finding about
+    # ADR-028 T1. PREFLIGHT, before the fence runs and before the clock starts —
+    # the same ordering `--covers` uses (ADR-016). A refusal that lands after
+    # minutes of fence is a one-line authoring error reported at the worst moment,
+    # and here it would also leave a run whose entry could not be written.
+    #
+    # An UNREADABLE Ordered Steps section is not a refusal: `declared_steps`
+    # returns an empty set for both "no section" and "no identities", and refusing
+    # against it would report an authoring error the author did not make. Absence
+    # of a declaration means this cannot be checked, which is ADR-005's rule.
+    if steps is not None:
+        declared = declared_steps(text)
+        asked = [part.strip() for part in steps.split(",") if part.strip()]
+        malformed = [a for a in asked if not re.fullmatch(r"S[1-9]\d*", a)]
+        if malformed:
+            fail(f"--steps {steps!r} is not a comma-separated list of step ids: "
+                 f"{', '.join(repr(m) for m in malformed)} is not of the form S<n>.")
+        if not declared:
+            fail(f"--steps {steps!r} but {task.name} declares no [S<n>] identities in "
+                 f"its ## Ordered Steps — there is nothing for the ids to be checked "
+                 f"against. Give the steps stable identities first (ADR-018).")
+        unknown = [a for a in asked if a[1:] not in declared]
+        if unknown:
+            listed = ", ".join(f"S{d}" for d in sorted(declared, key=int))
+            fail(f"--steps names {', '.join(unknown)}, which {task.name} does not "
+                 f"declare. Its Ordered Steps declare {listed}. A run may only claim "
+                 f"a step the task already names.")
+
     # the clock reported as a finding about the work.
     started = time.monotonic()
     try:
@@ -2383,7 +2445,7 @@ def main():
     sha = git_sha(cwd)
 
     code = record_run(task, text, cmd, today, r,
-                      round((time.monotonic() - started) * 1000), sha)
+                      round((time.monotonic() - started) * 1000), sha, steps)
     sys.exit(code)
 
 

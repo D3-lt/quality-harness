@@ -1,6 +1,6 @@
 # ADR-028: Bind an ordered step to the run that exercised it, so a skipped step is loud
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-03
 **Owner:** zy
 **Spec:** None — no spec stage

@@ -1,6 +1,6 @@
 # ADR-029: A spawned role declares the capability it needs, instead of inheriting whatever ran
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-03
 **Owner:** zy
 **Spec:** None — no spec stage

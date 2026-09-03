@@ -4027,8 +4027,17 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_started, entry_sha)",
+      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_elapsed_ms, entry_sha)",
       "to": "    pass"
+    },
+    {
+      "label": "verify: the recorded duration is the clean fence alone",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        clean_elapsed_ms = round((time.monotonic() - clean_started) * 1000)",
+      "to": "        clean_elapsed_ms = 0"
     }
   ]
 }

@@ -17,7 +17,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | [every spawned role declares a capability](T1-every-spawned-role-declares-a-capability.md) | pending | — | `node --test tests/workflows.test.mjs …` |
+| T1 | [every spawned role declares a capability](T1-every-spawned-role-declares-a-capability.md) | done | — | `node --test tests/workflows.test.mjs …` |
 | T2 | [the spawn says what it was asked to be](T2-the-spawn-says-what-it-was-asked-to-be.md) | pending | — | `node --test tests/lifecycle.test.mjs …` |
 
 ## Contract Coupling

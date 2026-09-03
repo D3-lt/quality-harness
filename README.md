@@ -240,11 +240,21 @@ not fit the budget this table was taken under. Both previously reported `0.00`;
 that figure was a single run per arm and should not be read as a measured null.
 
 ⚠ **A cap below what a case needs measures the cap, not the instruction.** Both
-`complexity-*` cases ran at `max_turns: 4` while their finishing runs needed 4–5,
-so **7 of 10 runs died at the cap and were excluded** — silently shrinking n to two
-and one. Raised to 8 before the numbers above were taken. An exhausted run is never
-scored 0; it is dropped, which is why this shows up as a small `n` rather than as a
-bad score.
+`complexity-*` cases ran at `max_turns: 4` and **7 of 10 runs died there**, each
+ending `Reached maximum number of turns (4)` — silently shrinking n to two and one
+against a nominal five. Raised to 8 before the numbers above were taken, after
+which **0 of 19 runs exhausted**. An exhausted run is never scored 0; it is
+dropped, which is why this shows up as a small `n` rather than as a bad score.
+
+⚠ **Do not compare a run's reported `turns` against `max_turns` — they are not the
+same unit.** An earlier draft of this paragraph said the finishing runs "needed
+4–5", which was inferred from those two fields. It does not hold: measured
+2026-09-03, `adr-write-consults-the-corpus` declares `max_turns: 8`, and in one
+invocation four runs completed reporting `turns` of 9, 11, 11 and 14 while a fifth
+errored `Reached maximum number of turns (8)`. Whatever `turns` counts, it is not
+what the cap bounds. The claim above rests only on the error string and on
+exhaustion falling to zero after the change, both of which are outcomes rather than
+arithmetic across two fields.
 
 **turns 91 vs 39 — 2.33×** (from the 2026-08-28 single-run table; not re-measured
 here)

@@ -181,7 +181,31 @@ of the run's own JSON, not typed here.
 
 **mean Δ +0.575 · turns 91 vs 39 — 2.33×**
 
-Read those two figures together, because the second is the price of the first.
+**It roughly doubles the turns, and those turns are the MODEL's, not the tooling's.**
+Every gate here runs as a subprocess inside one Bash call inside one assistant
+turn; no gate ever gets a turn of its own. So the figure says the model takes more
+rounds — it reads the corpus, runs a check, reads the result — and never that the
+harness is spending your budget behind its own back.
+
+⚠ **A turn count is not a bill, and this table cannot tell you the bill.** In this
+run cost tracked turns almost exactly — 2.35× cost against 2.33× turns, cost per
+turn within 1% — which invites reading "2.33×" as what you will pay. It is not,
+because **eval cases are short, fresh sessions of 1–50 turns: exactly the regime
+where a prompt cache cannot help.** One real session profiled on 2026-09-03, 1,941
+assistant turns (`node scripts/session-profile.mjs <session.jsonl>`):
+
+    fresh input        3,908 tokens     0.0%
+    cache creation     8,139,149        0.8%
+    cache READ       985,287,168       99.2%
+
+Nearly every input token was a **cache read**, billed far below fresh input. An
+extra turn in long work is a re-read of a prompt already paid for, not a fresh
+one. **The 2.33× above is therefore the worst case for cost, not the typical one**
+— and what the typical one is remains unmeasured here, because that session has no
+without-plugin twin to compare against.
+
+If the trade is wrong for your work it is wrong, and no amount of the first number
+fixes it. But price it on your own sessions rather than on this ratio.
 **It roughly doubles the turns.** If that trade is wrong for your work, it is
 wrong, and no amount of the first number fixes it.
 

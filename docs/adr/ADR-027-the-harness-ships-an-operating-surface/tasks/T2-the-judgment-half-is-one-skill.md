@@ -56,7 +56,13 @@ node --test tests/qh-doctor.test.mjs tests/skill-contract.test.mjs tests/skill-m
 
 ## Mutation Log
 
+- 2026-09-03 · 3feae18 · mutant killed · exit 1 · `plugin/skills/operating/SKILL.md` · the skill must give a runnable invocation; a skill that names no command is prose · acceptance-sha256:daca98f18773398b76c60da0c93c0d3c930ef5ffd0b638f261fcf0feb8223ac7 · covers:the skill names the command T1 produces
+- 2026-09-03 · 3feae18* · mutant killed · exit 1 · `plugin/skills/operating/SKILL.md` · a count in the skill is the pre-registered failure; it must be caught · acceptance-sha256:daca98f18773398b76c60da0c93c0d3c930ef5ffd0b638f261fcf0feb8223ac7 · covers:the skill enumerates no inventory a command can count
+
 ## Verification Log
+
+- 2026-09-03 · 3feae18 · exit 0 · `set -o pipefail …` · acceptance-sha256:daca98f18773398b76c60da0c93c0d3c930ef5ffd0b638f261fcf0feb8223ac7 · ms:1792
+- 2026-09-03 · 3feae18* · exit 0 · `set -o pipefail …` · acceptance-sha256:daca98f18773398b76c60da0c93c0d3c930ef5ffd0b638f261fcf0feb8223ac7 · ms:727
 
 ## Invariants
 

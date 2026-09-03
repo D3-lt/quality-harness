@@ -3766,3 +3766,37 @@ test('unidentified files are counted, never listed', async () => {
       `a file this plugin cannot prove it wrote must not be named: ${notice}`)
   }
 })
+
+test('a spawn is told which role it was asked to be', async () => {
+  // ADR-029 T2. The declaration lives in the workflow source; this puts it in
+  // front of the agent that is executing it, through the hook that already runs
+  // on every spawn. Confirmed reachable: a peer session probed this channel on
+  // 2026-09-03 with an unguessable per-spawn nonce and a negative arm — the hook's
+  // additionalContext arrives, and with the hook severed it does not.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-role-'))
+  const run = runLifecycleHook({
+    hook_event_name: 'SubagentStart', agent_type: 'review', cwd: dir,
+    agent_model: 'sonnet',
+  })
+  assert.equal(run.status, 0, run.stderr)
+  const context = JSON.parse(run.stdout).hookSpecificOutput.additionalContext
+  assert.match(context, /asked for/,
+    'the line says what was ASKED FOR — the hook cannot observe what is running')
+  assert.match(context, /sonnet/, 'and names the declared capability')
+})
+
+test('a spawn with nothing declared is told nothing', async () => {
+  // Absence stays absence. Every spawn that predates ADR-029, and every one from
+  // a caller that declares nothing, is this case — inventing a default here would
+  // put a capability in the agent's context that no one asked for (ADR-005).
+  const dir = await mkdtemp(path.join(testTmp, 'quality-role-none-'))
+  const bare = runLifecycleHook({ hook_event_name: 'SubagentStart', agent_type: 'review', cwd: dir })
+  const declared = runLifecycleHook({
+    hook_event_name: 'SubagentStart', agent_type: 'review', cwd: dir, agent_model: 'sonnet',
+  })
+  const bareContext = JSON.parse(bare.stdout).hookSpecificOutput.additionalContext
+  assert.doesNotMatch(bareContext, /asked for/,
+    'no declaration, no sentence about one')
+  // And the two really differ, or the assertion above would pass for any output.
+  assert.notEqual(bareContext, JSON.parse(declared.stdout).hookSpecificOutput.additionalContext)
+})

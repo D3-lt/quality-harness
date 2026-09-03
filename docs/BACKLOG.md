@@ -7035,7 +7035,7 @@ failure than the cost it saves.
 
 ---
 
-## 112. the tutorial transcripts are hand-copied real output, and nothing re-checks them
+## 112. PARTLY CLOSED 2026-09-03 — the tutorial transcripts were hand-copied and nothing re-checked them; the outcomes are checked now, the translation is not
 
 **Filed 2026-09-03 with ADR-026.** `docs/TUTORIALS.md` shows real terminal output —
 every line was produced by running the commands against a throwaway repository, and
@@ -7061,6 +7061,34 @@ the gap:
 during the suite and assert the two outcomes appear, ignoring surrounding prose. That
 is an integration test of the new-user path, which this repository does not have and
 would benefit from beyond the tutorial.
+
+**PARTLY CLOSED 2026-09-03 — the fix described above was built, as `tests/tutorial.test.mjs`.**
+It replays the walkthrough in a temp repository and asserts the two outcomes, ignoring the
+prose around them: `mutant killed` with exit 0 against the real assertion, `NOT evidence`
+with exit 1 against the weakened one.
+
+**Nothing in it is restated from the page, which is the part that makes it hold.** Both
+heredoc payloads, the task file, the task's path and the `--mutant` arguments are parsed out
+of `docs/TUTORIALS.md` at run time, anchored on the heredoc openers rather than on fence
+indexes. A copy of the tutorial's code kept beside the tutorial would be the same defect one
+level down — the hand-written list this project keeps refusing.
+
+**The two halves are each other's vacuity proof, in one test.** The SAME command reports
+`mutant killed` against a load-bearing assertion and `NOT evidence` against one that cannot
+fail, so a check able only to report clean would pass the first half and be incapable of the
+second. Shown red rather than assumed: no-op the weakening and the run exits 1. Two catalogue
+mutations carry it — `sys.exit(0 if verdict == "killed" else 1)` to `sys.exit(0)`, and the
+`survived` verdict to `killed` — both RED against `tests/tutorial.test.mjs`.
+
+**The page's `mkdir /tmp/qh-tutorial` is deliberately NOT replayed.** A literal temp path is
+an assertion about the operating system (CLAUDE.md §7), and the directory is the one thing a
+reader substitutes anyway. Everything else runs as written.
+
+**Still open: the wording.** This checks the two outcomes, not the surrounding transcript, so
+a gate that changes its explanation still goes stale on the page silently. That was the
+deliberate trade — asserting exact strings breaks on every wording change and a check that
+fails for the right reason too often gets deleted — and it is restated here so the residue is
+not mistaken for coverage.
 
 **Also deferred here:** translating the front page. Raised because the first reader
 report that led to ADR-026 came from a non-native English speaker, and "too technical"

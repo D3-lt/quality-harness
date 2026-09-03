@@ -10,13 +10,14 @@
 // test reads this machine's home directory. A check whose answer depends on who
 // is asking is not a check (CLAUDE.md §8).
 import assert from 'node:assert/strict'
-import { readFileSync, readdirSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  classifyBinEntry, inventory, severitySplit,
+  classifyBinEntry, drift, homeReport, inventory, report, severitySplit,
 } from '../plugin/scripts/qh-doctor.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -150,4 +151,78 @@ test('the plugin README points at the command and enumerates nothing', () => {
     'a count here rots on the next release — ask qh-doctor instead')
   assert.match(readme, /quality-harness:operating/,
     'the door names the skill that carries the judgment')
+})
+
+// The exit codes are this command's contract, and until 2026-09-03 nothing could
+// reach them: they lived inside a `main()` that also called `os.homedir()` and
+// spawned a subprocess. The coverage floor is what surfaced that — a contract no
+// test can reach is one the next edit breaks silently.
+const CLEAN_HOME = { entries: [{ name: 'adr-lint', kind: 'forwarder' }], looked: true, note: null }
+const COUNTED = { skills: 1, gates: 1, templates: 1, workflows: 1, version: '9.9.9' }
+const CLEAN_DRIFT = { looked: true, clean: true, out: '' }
+
+test('the exit code says which of the three answers this is', () => {
+  const clean = report({ counted: COUNTED, home: CLEAN_HOME, moved: CLEAN_DRIFT, gateSource: '' })
+  assert.equal(clean.exit, 0)
+  assert.match(clean.lines.join('\n'), /Nothing to act on/)
+
+  // A COPY is the one state that is a finding, and it outranks an unreadable
+  // read: a verdict you can act on must not be hidden behind "could not look".
+  const copy = report({
+    counted: COUNTED,
+    home: { entries: [{ name: 'adr-lint', kind: 'copy' }], looked: false, note: 'partial' },
+    moved: { looked: false, clean: null, out: 'boom' },
+    gateSource: '',
+  })
+  assert.equal(copy.exit, 1, 'a copy outranks a failed read')
+  assert.match(copy.lines.join('\n'), /COPY\(-ies\) installed: adr-lint/)
+
+  // Could-not-look is its own answer and never a clean bill (ADR-005).
+  const blind = report({
+    counted: COUNTED, home: { entries: [], looked: false, note: 'unreadable' },
+    moved: CLEAN_DRIFT, gateSource: '',
+  })
+  assert.equal(blind.exit, 2)
+  assert.match(blind.lines.join('\n'), /COULD NOT LOOK/)
+
+  // And a drift that could not be measured is equally not a pass.
+  assert.equal(report({
+    counted: COUNTED, home: CLEAN_HOME, moved: { looked: false, clean: null, out: 'no node' },
+    gateSource: '',
+  }).exit, 2)
+})
+
+test('the home scan classifies a real directory and never invents one', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-doctor-home-'))
+  try {
+    // A home with nothing installed is `looked: true` with no entries — that is
+    // "there are none", which must stay distinct from "I could not look".
+    const bare = homeReport(temp, pluginRoot)
+    assert.deepEqual(bare.entries, [])
+    assert.equal(bare.looked, true)
+
+    const bin = join(temp, '.claude', 'bin')
+    mkdirSync(bin, { recursive: true })
+    writeFileSync(join(bin, 'adr-lint'), '#!/bin/sh\n# quality-harness-forwarder\n')
+    writeFileSync(join(bin, 'adr-verify'), '#!/usr/bin/env python3\nprint(1)\n')
+    writeFileSync(join(bin, 'someone-elses-tool'), '#!/bin/sh\necho hi\n')
+
+    const scanned = homeReport(temp, pluginRoot)
+    const kindOf = (name) => scanned.entries.find(e => e.name === name)?.kind
+    assert.equal(kindOf('adr-lint'), 'forwarder')
+    assert.equal(kindOf('adr-verify'), 'copy', 'a shipped name without the mark is a fork')
+    assert.equal(kindOf('someone-elses-tool'), 'unidentifiable',
+      'ADR-019: a file the plugin cannot prove it wrote is never claimed')
+  } finally {
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
+
+test('drift reports that it could not look rather than that nothing differs', () => {
+  // Pointed at a root with no sync-standalone.mjs, the spawn fails. The answer
+  // must be `looked: false`, never `clean: true` — an unrunnable check reporting
+  // clean is the defect ADR-005 exists to keep out of these gates.
+  const answer = drift(join(testDir, 'fixtures', 'definitely-not-a-plugin-root'))
+  assert.equal(answer.looked, false)
+  assert.notEqual(answer.clean, true)
 })

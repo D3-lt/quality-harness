@@ -105,7 +105,12 @@ function isForeignSection(line, match) {
  * cannot answer rather than a claim it has cleared.
  */
 export function sectionRange(text, n) {
-  const lines = String(text ?? '').split('\n')
+  // Split on either ending. `git show <sha>:<path>` hands back the blob, which
+  // is LF here — but a caller may pass a working-tree read, and on a Windows
+  // checkout that is CRLF. Splitting on '\n' alone leaves a trailing '\r' that
+  // no heading regex here would notice, so the failure would be a section
+  // silently not found rather than an error (CLAUDE.md §7).
+  const lines = String(text ?? '').split(/\r?\n/)
   // `(superseded)` appears in real headings, so the shape is matched rather than
   // the exact string — the same heading grammar tests/package.test.mjs reads.
   const heading = /^##\s+(\d+)(?:\s*\(superseded\))?\.\s/

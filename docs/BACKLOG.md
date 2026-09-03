@@ -7008,3 +7008,36 @@ report-claims-more-than-happened defect this project exists to demonstrate the a
 and would be reimplemented rather than imported, since the gate ships and the script does not — which
 is itself worth a line in the record, because two copies of a cache key drifting apart is a worse
 failure than the cost it saves.
+
+---
+
+## 112. the tutorial transcripts are hand-copied real output, and nothing re-checks them
+
+**Filed 2026-09-03 with ADR-026.** `docs/TUTORIALS.md` shows real terminal output —
+every line was produced by running the commands against a throwaway repository, and
+that was a deliberate choice over illustrative transcripts, because a tutorial whose
+output was written by hand is a fabricated verification log with a different file
+extension.
+
+**But it was copied in by a human, and nothing checks it again.** When `adr-verify`
+changes a message, the tutorial goes stale silently and reads exactly as it does now.
+That is the same shape as §103 — prose asserting a behaviour the code no longer has —
+and it is filed rather than fixed because the cheap version of the fix is worse than
+the gap:
+
+- Asserting the exact strings would break on every wording change, and this project
+  edits gate messages often and deliberately. A check that fails for the right reason
+  too often gets deleted.
+- The property that matters is the OUTCOMES — `mutant killed` for a real test,
+  `NOT evidence` for one that cannot fail — not the prose around them. ADR-026's
+  pre-registered criterion pins those two, and a human re-runs the walkthrough after
+  a release.
+
+**What a real fix would look like:** execute the tutorial's setup in a temp directory
+during the suite and assert the two outcomes appear, ignoring surrounding prose. That
+is an integration test of the new-user path, which this repository does not have and
+would benefit from beyond the tutorial.
+
+**Also deferred here:** translating the front page. Raised because the first reader
+report that led to ADR-026 came from a non-native English speaker, and "too technical"
+and "not in my language" are different problems that were easy to conflate.

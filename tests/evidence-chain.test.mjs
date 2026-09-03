@@ -2324,3 +2324,36 @@ test('a plain run still writes no mutation row', () => {
   assert.doesNotMatch(sectionOf(after, 'Mutation Log'), /mutant/,
     'the two paths did not collapse into one command')
 })
+
+// ADR-025, and the defect this test exists for shipped in v2.56.0. `record_run`
+// took a START time and subtracted at write time, which was correct while the
+// only caller wrote immediately after its fence. The `--mutant` caller writes
+// AFTER the mutant has run and been restored, so the subtraction quietly totalled
+// both runs: T1's own entry recorded ms:39701 for a fence measured at 28,742ms.
+//
+// Bounded on BOTH sides on purpose. An upper bound alone is passed by a broken
+// implementation that records zero, and `ms:` is read back as evidence of what
+// the lifecycle costs (docs/BACKLOG.md §111) — a field that names one run and
+// totals two corrupts the measurement that justified the record.
+test('the recorded duration is the clean fence, not the clean fence plus the mutant', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  // A RATIO against the whole invocation was the first attempt and it was
+  // vacuous: the fixture's fence is ~100ms, process startup is the same order,
+  // so the buggy total and the correct one did not separate and the test passed
+  // with the defect deliberately put back. An absolute floor the fence itself
+  // dominates is what makes the two answers distinguishable.
+  const SLEEP_MS = 1000
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/,
+    '```bash\nset -e\npython3 -c "import time; time.sleep(1)"\nadr-lint ADR-001-selftest.md tasks\n```'))
+  expectExit(mutate(copy), 0, 'mutant killed')
+
+  const entry = entriesIn(readTask(copy)).at(-1)
+  const ms = Number(/ms:(\d+)/.exec(entry)[1])
+  // The fence sleeps a second and runs TWICE in this invocation — clean, then
+  // mutated. One sleep is the clean run; two means the mutant leaked in.
+  assert.ok(ms >= SLEEP_MS * 0.8,
+    `ms:${ms} is below the one second the clean fence provably sleeps:\n${entry}`)
+  assert.ok(ms < SLEEP_MS * 1.8,
+    `ms:${ms} spans both sleeps, so it timed the mutant run too:\n${entry}`)
+})

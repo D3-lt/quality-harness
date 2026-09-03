@@ -80,6 +80,19 @@ standalone copy is dangerous, why the template is authoritative over any enumera
 forwarder-versus-copy distinction with its correction history, and the habit for verifying an
 upgrade. It points at `qh-doctor` for everything countable and enumerates nothing.
 
+**3. `plugin/README.md` — the door, for a reader who has not loaded anything yet.** What the harness
+is, the stage-to-command map, and where to go next. It ships INSIDE `plugin/`, so it is downloaded
+and versioned with the thing it describes, and it is the surface a human browsing the marketplace or
+the plugin cache actually lands on. Measured 2026-09-03 in `~/.claude/plugins/cache`: Anthropic's own
+`skill-creator` and `figma` plugins ship one, and so does `eidos` — this is the convention, not an
+exception to it. Like the skill, it points at `qh-doctor` for anything countable and at
+`plugin/templates/adr-template.md` for vocabulary.
+
+**The three are not alternatives to each other; they are three readers.** `qh-doctor` answers a
+machine's question, the skill is what an agent loads mid-task, and the README is what a person opens
+first. The anti-rot rule is the same for all three and is what actually does the work: none of them
+enumerates anything a command can count.
+
 **The pre-registered failure, and data that could produce it exists today.** If a later reading of
 `plugin/skills/operating/SKILL.md` finds it has grown a list of skills, gates, templates or lint
 findings, the split has failed and the enumerating half must move into `qh-doctor` or be deleted.
@@ -90,10 +103,16 @@ carry the threshold to a frozen artifact.
 
 ## Alternatives Considered
 
-- **A `README.md` inside `plugin/`:** the obvious answer. Rejected because agents are the primary
-  reader of this surface and they load skills, not READMEs — and because a README is prose with no
-  version coupling to the thing it describes, which is precisely the property that failed for the
-  reporter's CLAUDE.md. A README would move the rot from their machine to ours.
+- **Shipping only the skill and no `plugin/README.md`.** REJECTED, and the first draft of this record
+  rejected the README instead — on two reasons, one of which was simply false. It said "a README is
+  prose with no version coupling to the thing it describes". A README inside `plugin/` is downloaded
+  with the plugin and carries its version, which is exactly the coupling I claimed it lacked; the
+  document that failed in issue #9 was an adopter's `~/.claude/CLAUDE.md`, which is uncoupled because
+  it lives OUTSIDE the plugin, not because it is a README. The second reason — "agents load skills,
+  not READMEs" — is true of agents and irrelevant to the human who opens the plugin first, and it is
+  contradicted by the convention: `skill-creator`, `figma` and `eidos` all ship one. Corrected here
+  rather than quietly: the error was mine, it was caught in review by the owner, and the reasoning is
+  kept because a rejected alternative whose reason was wrong is worth more than a silently reversed one.
 - **Put `qh-doctor` in `plugin/bin/` as a Python gate,** beside the other eleven. Rejected: every
   classifier it needs is already exported from `standalone-link.mjs` in JavaScript, so a Python
   binary would either shell out to Node or reimplement classification — a second source of truth for
@@ -110,9 +129,10 @@ carry the threshold to a frozen artifact.
 
 ## Component / Boundary Impact
 
-Two new components, both leaves. `qh-doctor` depends on `standalone-link.mjs` and
-`sync-standalone.mjs` and nothing depends on it; the skill depends on nothing and is loaded by name.
-Neither is imported by an existing module, so no existing component gains a reason to change.
+Three new components, all leaves. `qh-doctor` depends on `standalone-link.mjs` and
+`sync-standalone.mjs` and nothing depends on it; the skill and the README depend on nothing and are
+reached by name and by opening the plugin directory respectively.
+None is imported by an existing module, so no existing component gains a reason to change.
 Ownership after the change: the operating surface is the plugin's, which is the whole point — it is
 currently owned by each adopter's global config.
 
@@ -122,17 +142,18 @@ currently owned by each adopter's global config.
 |---------|--------|----------|-------------|
 | `node "$QH/scripts/qh-doctor.mjs"` | new command, exit `0` clear / `1` a copy is installed / `2` could not look | T1 | adopters, `plugin/skills/operating/SKILL.md` |
 | `quality-harness:operating` | new skill name, loadable by an agent | T2 | agents operating the harness |
+| `plugin/README.md` | new file, shipped inside the plugin and versioned with it | T3 | a human opening the plugin or its marketplace entry |
 | `plugin/.claude-plugin/plugin.json` | no change — skills and scripts are discovered from the tree | — | — |
 
 ## Inter-task Contracts
 
 | Contract | Producing task | Consuming task(s) | Breaking? |
 |----------|----------------|-------------------|-----------|
-| `node "$QH/scripts/qh-doctor.mjs"` invocation and its exit codes | T1 | T2 | No — T2 only names the command; it is additive |
+| `node "$QH/scripts/qh-doctor.mjs"` invocation and its exit codes | T1 | T2, T3 | No — both only name the command; it is additive |
 
 ## Implementation
 
-See `tasks/README.md`. Two tasks.
+See `tasks/README.md`. Three tasks.
 
 ## Consequences
 
@@ -141,7 +162,7 @@ See `tasks/README.md`. Two tasks.
   The countable half cannot rot, because it is measured on every run.
 - **Positive:** a capability that exists and is unreachable is the class this project is about; two
   of them (`external:`, typed `fact:` bases) become discoverable.
-- **Negative:** a fourteenth skill and a fifteenth script, on a surface the issue already calls
+- **Negative:** a fourteenth skill, a fifteenth script and a README, on a surface the issue already calls
   large. Mitigated by the pre-registered failure above, which deletes the skill's enumerating half
   if it grows one.
 - **Negative:** `qh-doctor` reads the home directory, which is machine-dependent by nature. It
@@ -156,7 +177,7 @@ See `tasks/README.md`. Two tasks.
 - Removing the `qh-root` note from the eight skills that carry it (deferred: docs/BACKLOG.md §25)
 - Making templates release-proof the way gates are (deferred: docs/BACKLOG.md §25)
 - Rewriting the reporter's own `~/.claude/CLAUDE.md`, or any adopter's (external: the adopter's machine: GitHub issue #9)
-- A `plugin/README.md` or `plugin/docs/` (permanent: boundary: agents load skills, not READMEs, and a README has no version coupling to what it describes — the property that failed in the report)
+- `plugin/docs/` as a directory of further prose (permanent: boundary: the README is the door and the skill is the depth; a third prose tier would be the enumeration this record exists to prevent, one level down)
 - Shipping the half of the reporter's 150 lines that is genuinely theirs — house ADR thresholds, per-project path conventions, composition with their other plugins (permanent: fact: the issue itself classifies these as category B and argues they should stay local; citation: url https://github.com/D3-lt/quality-harness/issues/9)
 
 ## Risks

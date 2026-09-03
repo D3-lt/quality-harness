@@ -39,6 +39,7 @@
 //   1  at least one definition is unreachable from the shipped tree
 //   2  could not look (git unavailable, rev unknown)
 import { execFileSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 
 const PY_DEF = /^def\s+([a-z_][a-z0-9_]*)\s*\(/gm
 const JS_DEF = /^(?:export\s+)?(?:async\s+)?function\s+([A-Za-z_][A-Za-z0-9_]*)/gm
@@ -118,6 +119,6 @@ function main(argv) {
 
 // Importable without side effects — tests/package.test.mjs::importing a script
 // runs its CLI on nobody asserts this across every script here.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(main(process.argv.slice(2)))
 }

@@ -53,12 +53,12 @@ const REVIEW = {
 }
 
 const reviewerTasks = [
-  () => agent(`${LEAF}\n${TARGET}\nReview correctness, security/safety, contracts, state transitions, error paths, and integration wiring. A blocker must be in scope, material, exactly evidenced, reproducible or contract-backed, and minimally fixable. Passing evidence must be addressed, not ignored.`, { label: 'correctness', phase: 'Review', schema: REVIEW }),
-  () => agent(`${LEAF}\n${TARGET}\nReview scope and design economy. Distinguish duplicated knowledge from similar syntax. Treat SOLID as a diagnostic for real ownership or substitution seams, not a demand for more layers. Block complexity only when it creates a concrete correctness or maintenance defect in the current requirements; otherwise mark it advisory.`, { label: 'scope-simplicity', phase: 'Review', schema: REVIEW }),
+  () => agent(`${LEAF}\n${TARGET}\nReview correctness, security/safety, contracts, state transitions, error paths, and integration wiring. A blocker must be in scope, material, exactly evidenced, reproducible or contract-backed, and minimally fixable. Passing evidence must be addressed, not ignored.`, { label: 'correctness', phase: 'Review', schema: REVIEW, model: 'opus' }),
+  () => agent(`${LEAF}\n${TARGET}\nReview scope and design economy. Distinguish duplicated knowledge from similar syntax. Treat SOLID as a diagnostic for real ownership or substitution seams, not a demand for more layers. Block complexity only when it creates a concrete correctness or maintenance defect in the current requirements; otherwise mark it advisory.`, { label: 'scope-simplicity', phase: 'Review', schema: REVIEW, model: 'sonnet' }),
 ]
 
 if (codex) {
-  reviewerTasks.push(() => agent(`${LEAF}\n${TARGET}\nInvoke /quality-harness:codex-review on this exact target. Let it route high, xhigh, or ultra from actual risk and breadth. Translate only its evidence-backed material findings into the schema. If Codex is unavailable or empty, return status unavailable; never substitute a Claude-only clean verdict.`, { label: 'codex-external', phase: 'Review', schema: REVIEW }))
+  reviewerTasks.push(() => agent(`${LEAF}\n${TARGET}\nInvoke /quality-harness:codex-review on this exact target. Let it route high, xhigh, or ultra from actual risk and breadth. Translate only its evidence-backed material findings into the schema. If Codex is unavailable or empty, return status unavailable; never substitute a Claude-only clean verdict.`, { label: 'codex-external', phase: 'Review', schema: REVIEW, model: 'sonnet' }))
 }
 
 phase('Review')
@@ -72,7 +72,7 @@ if (reviews.some(review => review.status === 'unavailable')) {
 const reviewerEvidenceLimited = reviews.some(review => review.status === 'evidence-limited')
 
 phase('Synthesize')
-const synthesis = await agent(`${LEAF}\n${TARGET}\nIndependent reviews: ${JSON.stringify(reviews)}. Deduplicate findings. A finding is blocking only if all are true: in stated scope or caused by the diff; material to correctness/security/data/required behavior/concrete maintainability; exact evidence; minimal in-scope remedy; and an explanation of why passing checks do not settle it. Downgrade style, future-proofing, architecture alternatives, speculative edges, and optional cleanup. Do not invent findings.`, { label: 'synthesis', phase: 'Synthesize', schema: REVIEW })
+const synthesis = await agent(`${LEAF}\n${TARGET}\nIndependent reviews: ${JSON.stringify(reviews)}. Deduplicate findings. A finding is blocking only if all are true: in stated scope or caused by the diff; material to correctness/security/data/required behavior/concrete maintainability; exact evidence; minimal in-scope remedy; and an explanation of why passing checks do not settle it. Downgrade style, future-proofing, architecture alternatives, speculative edges, and optional cleanup. Do not invent findings.`, { label: 'synthesis', phase: 'Synthesize', schema: REVIEW, model: 'opus' })
 
 if (!synthesis) return { status: 'reviewer-unavailable', evidence, reviews }
 if (synthesis.status === 'unavailable') {

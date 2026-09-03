@@ -56,7 +56,7 @@ Independent draft ${i + 1}/${lenses.length}. ${ground}
 PROBLEM: ${question}
 Your lens (commit to it fully — the other drafters cover the other angles): ${lens}
 Produce the minimum sufficient plan per the schema. Separate behavior required now from anything deferred. Do not hedge across lenses, bundle adjacent features, or add extension points for hypothetical use.`,
-  { label: `draft:${i + 1}`, phase: 'Draft', schema: DRAFT })))).filter(Boolean)
+  { label: `draft:${i + 1}`, phase: 'Draft', schema: DRAFT, model: 'opus' })))).filter(Boolean)
 if (drafts.length < 2) return { status: 'aborted', reason: 'fewer than 2 drafts survived', drafts }
 
 phase('Critique')
@@ -67,12 +67,12 @@ PROBLEM: ${question}
 DRAFT UNDER ATTACK (lens: ${d.lens}): ${JSON.stringify(d)}
 THE COMPETING DRAFTS (context, not your target): ${JSON.stringify(drafts.filter((_, j) => j !== i).map(x => ({ lens: x.lens, plan: x.plan })))}
 Attack unsupported complexity, speculative abstraction, duplicated knowledge, hidden scope, and the target draft's key bets with evidence${repo ? ' from the actual repo' : ''}; then list only what is worth salvaging.`,
-  { label: `critique:${i + 1}`, phase: 'Critique', schema: CRITIQUE }))
+  { label: `critique:${i + 1}`, phase: 'Critique', schema: CRITIQUE, model: 'opus' }))
 if (codex) {
   critiqueTasks.push(() => agent(
     `${LEAF}
     Fresh-context Codex critique node. Invoke /quality-harness:codex-advise${repo ? ` in repo ${repo}` : ''} with the problem and all drafts as the scoped decision context. Let that skill select high, xhigh, or ultra from the decision's actual risk and breadth; keep the run read-only. Translate only its strongest grounded objections into the schema (target_lens: 'codex-external'). If Codex is unavailable or its output is empty, return an empty attacks array with salvage ['codex unavailable'].`,
-    { label: 'critique:codex', phase: 'Critique', schema: CRITIQUE }))
+    { label: 'critique:codex', phase: 'Critique', schema: CRITIQUE, model: 'opus' }))
 }
 const critiques = (await parallel(critiqueTasks)).filter(Boolean)
 
@@ -84,6 +84,6 @@ PROBLEM: ${question}
 DRAFTS: ${JSON.stringify(drafts)}
 CRITIQUES: ${JSON.stringify(critiques)}
 Pick the smallest winning backbone whose required bets survived attack. Graft only necessary ideas from the others and defer the rest explicitly. Output markdown: ## Decision (one paragraph, one decision) · ## Required now · ## Deferred · ## Plan · ## Dissent worth recording · ## Open questions. Be decisive—one plan, not a menu or feature bundle.`,
-  { label: 'synthesize', phase: 'Synthesize' })
+  { label: 'synthesize', phase: 'Synthesize', model: 'opus' })
 
 return { synthesis, drafts, critiques }

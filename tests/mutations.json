@@ -4164,6 +4164,24 @@
       ],
       "from": "    if saw_field:",
       "to": "    if True:"
+    },
+    {
+      "label": "role: a spawned role that declares no capability is reported",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet' })",
+      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED })"
+    },
+    {
+      "label": "role: a pinned model id is refused where an alias is required",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/workflows.test.mjs"
+      ],
+      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet' })",
+      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'claude-sonnet-5' })"
     }
   ]
 }

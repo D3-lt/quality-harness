@@ -1,5 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
+import { readFileSync, readdirSync } from 'node:fs'
+import { join } from 'node:path'
 import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -163,4 +165,56 @@ test('Codex review and advice skills mark spawned sessions as non-recursive leav
   assert.match(review, /Do not invoke `codex-review`, launch another `codex exec`/)
   assert.ok((advise.match(/CODEX-ADVISE-LEAF:/g) || []).length >= 2)
   assert.match(advise, /Do not invoke `codex-advise`, launch another/)
+})
+
+// ADR-029 T1. Ten agent() calls across three shipped workflows and, before this
+// record, not one said what capability its role needed. The roles are not
+// interchangeable — a synthesiser that arbitrates conflicting findings and a
+// fixer told to make the smallest possible edit are different work — so the
+// default was wrong rather than merely unspecified.
+const AGENT_CALL = /\bagent\(/g
+
+function shippedWorkflowSources() {
+  return readdirSync(workflowDir).filter(f => f.endsWith('.js'))
+    .map(f => ({ file: f, text: readFileSync(join(workflowDir, f), 'utf8') }))
+}
+
+test('every spawned role declares the capability it needs', () => {
+  // Derived from the SOURCES, never from a list kept beside them: a new workflow
+  // or a new role joins this check by existing, which is the property a
+  // hand-maintained roster cannot have.
+  const sources = shippedWorkflowSources()
+  assert.ok(sources.length >= 3, `the sweep must find the real workflows: ${sources.length}`)
+
+  const calls = sources.flatMap(({ file, text }) =>
+    [...text.matchAll(AGENT_CALL)].map(m => ({ file, at: m.index })))
+  assert.ok(calls.length >= 10,
+    `the sweep must find the real calls, not a subset: ${calls.length}`)
+
+  // A call's options object is the text from the call to the end of its statement;
+  // `model:` must appear within it. Crude on purpose — a parser here would be a
+  // second implementation of JavaScript, and the property is textual.
+  const undeclared = []
+  for (const { file, text } of sources) {
+    for (const m of text.matchAll(AGENT_CALL)) {
+      const window = text.slice(m.index, text.indexOf('\n\n', m.index) + 1 || undefined)
+      if (!/\bmodel:\s*'[a-z]+'/.test(window)) undeclared.push(`${file}@${m.index}`)
+    }
+  }
+  assert.deepEqual(undeclared, [],
+    'these roles inherit whatever ran instead of asking for what they need')
+})
+
+test('a role names a capability class, never a pinned model id', () => {
+  // A shipped artifact naming `claude-opus-5` is a stored fact about a catalogue
+  // this project does not control, and it rots exactly like the skill count and
+  // the ablation figure deleted this week. An alias requests a CLASS and lets the
+  // host bind it at call time.
+  for (const { file, text } of shippedWorkflowSources()) {
+    assert.doesNotMatch(text, /model:\s*'claude-[a-z]+-\d/,
+      `${file}: a pinned model id is a stored fact about a catalogue we do not own`)
+  }
+  // Shown able to recognise what it forbids, or it passes for any file at all.
+  assert.match("model: 'claude-opus-5'", /model:\s*'claude-[a-z]+-\d/)
+  assert.doesNotMatch("model: 'opus'", /model:\s*'claude-[a-z]+-\d/)
 })

@@ -4047,6 +4047,24 @@
       ],
       "from": "    r\"^Ran 0 tests\",               # python unittest / django test",
       "to": "    r\"^Ran 0 tests-NEVER-MATCHES\","
+    },
+    {
+      "label": "tutorial: a surviving mutant still exits non-zero for the walkthrough a reader follows",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/tutorial.test.mjs"
+      ],
+      "from": "    sys.exit(0 if verdict == \"killed\" else 1)",
+      "to": "    sys.exit(0)"
+    },
+    {
+      "label": "tutorial: a fence that passes with the mechanism broken is still called a survivor",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/tutorial.test.mjs"
+      ],
+      "from": "                \"survived\",",
+      "to": "                \"killed\","
     }
   ]
 }

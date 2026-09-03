@@ -4182,6 +4182,24 @@
       ],
       "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet' })",
       "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'claude-sonnet-5' })"
+    },
+    {
+      "label": "role: a spawn with nothing declared is told nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!model && !effort) return null",
+      "to": "  if (false) return null"
+    },
+    {
+      "label": "role: the spawn is told what its delegation asked for",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return `Your delegation asked for ${asked}; if that does not match the work you are `",
+      "to": "  return `Your delegation said nothing useful"
     }
   ]
 }

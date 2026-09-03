@@ -60,7 +60,15 @@ node --test tests/evidence-chain.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/a
 
 ## Mutation Log
 
+- 2026-09-03 · e02d7c2 · mutant killed · exit 1 · `plugin/bin/adr-verify` · an undeclared step id must be refused, or the field can name a step that does not exist · acceptance-sha256:1cbc575d030255d5d4204d3a218d5f7671a27e543eccd1b56cf334f9304c5f52 · covers:a step id the task does not declare is refused before the run is armed
+- 2026-09-03 · e02d7c2* · mutant killed · exit 1 · `plugin/bin/adr-next` · a reader too narrow for the new field stops seeing the row as evidence — ADR-021 calls that a change to the evidence · acceptance-sha256:1cbc575d030255d5d4204d3a218d5f7671a27e543eccd1b56cf334f9304c5f52 · covers:an entry written without --steps is byte-compatible with every reader
+- 2026-09-03 · e02d7c2* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the field must be written BY THE RUN; a writer that drops it silently would let the log claim a step nothing recorded · acceptance-sha256:1cbc575d030255d5d4204d3a218d5f7671a27e543eccd1b56cf334f9304c5f52 · covers:the field is written by the tool during a real run, never accepted as a claim
+
 ## Verification Log
+
+- 2026-09-03 · e02d7c2 · exit 0 · `set -o pipefail …` · acceptance-sha256:1cbc575d030255d5d4204d3a218d5f7671a27e543eccd1b56cf334f9304c5f52 · ms:36250
+- 2026-09-03 · e02d7c2* · exit 0 · `set -o pipefail …` · acceptance-sha256:1cbc575d030255d5d4204d3a218d5f7671a27e543eccd1b56cf334f9304c5f52 · ms:27728
+- 2026-09-03 · e02d7c2* · exit 0 · `set -o pipefail …` · acceptance-sha256:1cbc575d030255d5d4204d3a218d5f7671a27e543eccd1b56cf334f9304c5f52 · ms:26926
 
 ## Invariants
 

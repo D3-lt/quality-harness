@@ -18,7 +18,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | [the writer records which steps ran](T1-the-writer-records-which-steps-ran.md) | done | — | `node --test tests/evidence-chain.test.mjs …` |
-| T2 | [the reader reports a step no run names](T2-the-reader-reports-a-step-no-run-names.md) | pending | — | `node --test tests/gates.test.mjs …` |
+| T2 | [the reader reports a step no run names](T2-the-reader-reports-a-step-no-run-names.md) | done | — | `node --test tests/gates.test.mjs …` |
 
 ## Contract Coupling
 

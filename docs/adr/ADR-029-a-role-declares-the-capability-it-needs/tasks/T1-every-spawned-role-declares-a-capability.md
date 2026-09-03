@@ -62,7 +62,24 @@ node --test tests/workflows.test.mjs 2>&1 | tee /tmp/adr029-t1.out \
 
 ## Mutation Log
 
+- 2026-09-03 · 926eaa8 · mutant killed · exit 1 · `plugin/workflows/review-ring.js` · a role that declares nothing inherits whatever ran, which is the defect this record exists to remove · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · covers:every agent() call in a shipped workflow declares a model
+- 2026-09-03 · 926eaa8* · mutant killed · exit 1 · `plugin/workflows/review-ring.js` · a pinned id is a stored fact about a catalogue we do not own, and it fails silently at spawn time on someone else machine · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · covers:a version-pinned model id is refused where an alias is required
+- 2026-09-03 · 926eaa8* · mutant killed · exit 1 · `tests/workflows.test.mjs` · a sweep that enumerates nothing reports every role compliant — the vacuous-pass class · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · covers:the check is derived from the sources rather than from a list kept beside them
+- 2026-09-03 · 926eaa8* · mutant killed · exit 1 · `plugin/workflows/review-ring.js` · the fence must notice a workflow that no longer parses after an option key is added · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · covers:each shipped workflow still parses after the edit
+- 2026-09-03 · 926eaa8* · mutant survived · exit 0 · `plugin/workflows/review-ring.js` · adding a capability key must not cost a role its schema — the suite asserts the schema bindings that were there before · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · covers:the roles' prompts and schemas are unchanged by adding an option key
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-03 · 926eaa8* · mutant killed · exit 1 · `plugin/workflows/review-ring.js` · adding a capability key must not cost a role its schema — the edit that added model: touched exactly these call sites · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · covers:the roles' prompts and schemas are unchanged by adding an option key
+
 ## Verification Log
+
+- 2026-09-03 · 926eaa8 · exit 0 · `set -o pipefail …` · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · ms:162
+- 2026-09-03 · 926eaa8* · exit 0 · `set -o pipefail …` · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · ms:154
+- 2026-09-03 · 926eaa8* · exit 0 · `set -o pipefail …` · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · ms:161
+- 2026-09-03 · 926eaa8* · exit 0 · `set -o pipefail …` · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · ms:166
+- 2026-09-03 · 926eaa8* · exit 0 · `set -o pipefail …` · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · ms:174
+- 2026-09-03 · 926eaa8* · exit 0 · `set -o pipefail …` · acceptance-sha256:21fa6536f3f6b3c25b981c33aa93fa8971b7170b3ee9481e079e49325ca41865 · ms:170
 
 ## Invariants
 

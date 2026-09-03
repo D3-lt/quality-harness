@@ -218,3 +218,24 @@ test('a role names a capability class, never a pinned model id', () => {
   assert.match("model: 'claude-opus-5'", /model:\s*'claude-[a-z]+-\d/)
   assert.doesNotMatch("model: 'opus'", /model:\s*'claude-[a-z]+-\d/)
 })
+
+test('declaring a capability does not cost a role its schema', () => {
+  // Found 2026-09-03 by binding ADR-029 T1's third declared mechanism: removing
+  // `schema: FIXED` from review-ring's fixer left the whole suite GREEN. Nothing
+  // asserted the schema bindings, and the edit that added `model:` touched exactly
+  // those call sites — so this was the one place a capability declaration could
+  // have silently cost a role its contract.
+  const bindings = {
+    'consensus.js': ['DRAFT', 'CRITIQUE'],
+    'quality-cycle.js': ['REVIEW'],
+    'review-ring.js': ['VERDICT', 'FIXED'],
+  }
+  for (const { file, text } of shippedWorkflowSources()) {
+    for (const schema of bindings[file] ?? []) {
+      assert.match(text, new RegExp(`schema:\\s*${schema}\\b`),
+        `${file}: the ${schema} binding went missing`)
+    }
+  }
+  // Shown able to fail, or it passes for a file that binds nothing at all.
+  assert.doesNotMatch('{ label: "x", model: \'sonnet\' }', /schema:\s*FIXED\b/)
+})

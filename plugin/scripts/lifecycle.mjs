@@ -1969,6 +1969,16 @@ function evidenceNudge(cwd, mutationPaths) {
     + 'adr-lint will not accept a `done` status without one.'
 }
 
+/** The capability the caller declared for this role, or null when it declared none. */
+function declaredCapability(input) {
+  const model = typeof input.agent_model === 'string' ? input.agent_model.trim() : ''
+  const effort = typeof input.agent_effort === 'string' ? input.agent_effort.trim() : ''
+  if (!model && !effort) return null
+  const asked = [model && `model ${model}`, effort && `effort ${effort}`].filter(Boolean).join(', ')
+  return `Your delegation asked for ${asked}; if that does not match the work you are `
+    + 'given, say so in what you return rather than silently doing more or less.'
+}
+
 function subagentContract(input) {
   const kind = String(input.agent_type ?? 'delegated').toLowerCase()
   const readOnly = /(explore|plan|research|review|audit|scout|memory)/.test(kind)
@@ -1983,7 +1993,15 @@ function subagentContract(input) {
     roleLine,
     `Before returning after edits, ${runTheCheckSentence(input.cwd).replace(/^Run /, 'run ')}`,
     'Return touched files, exact executed evidence, and remaining risk or uncertainty.',
-  ].join(' ')
+    // ADR-029 T2. What the CALLER asked for, when it asked for anything. Said as
+    // "asked for" rather than "you are running", because this hook receives a
+    // declaration and cannot observe which model actually answered — the same
+    // distinction between what a check saw and what it concluded that CLAUDE.md §3
+    // makes about gates. Omitted entirely when nothing was declared: absence is
+    // absence, and inventing a default would put a capability in the agent's
+    // context that nobody requested.
+    declaredCapability(input),
+  ].filter(Boolean).join(' ')
 }
 
 function emitJson(value) {

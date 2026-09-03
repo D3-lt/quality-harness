@@ -5725,7 +5725,7 @@ its exit code, e.g. `where /q py && ( py -3 "%~dp0<gate>" %* & exit /b ) & pytho
 — but a cmd fence is precisely the thing this project must not change without executing it on
 Windows, and none of it has run there. This one needs a real Windows verification, not a seam.
 
-## 93. Nothing records which Python answered, and the answer changes the verdict
+## 93. PARTLY CLOSED 2026-09-02 — nothing recorded which Python answered; the probe keeps the full version now, and no consumer reads it
 
 Raised 2026-08-30 by a peer session, from the §90 correction rather than from a failure — the
 generalisable half of it, and it outlives that finding.
@@ -5750,6 +5750,30 @@ show up in the Verification Log instead of silently changing a verdict.
 consumer that records it, and there is no consumer yet. Building the plumbing first would be
 speculative. The task is: decide where an interpreter identity belongs in tool-written evidence
 (§4), then widen the probe to feed it.
+
+**PARTLY CLOSED 2026-09-02 by `ef5b1a7`, and this entry did not say so for a day.** The probe
+half exists: `PYTHON_PROBE` is now `import sys;print("%d.%d" % sys.version_info[:2])`
+(`plugin/scripts/lifecycle.mjs:2075`), the full answer is kept, and `probedPythonVersion()`
+exposes it (`:2118`). A defect found while testing that change is the part worth keeping — after
+a FAILED resolve the accessor still returned the PREVIOUS run's version, so a caller recording
+"which Python answered" would have recorded one that did not run. It is cleared at entry,
+asserted in both directions at `tests/lifecycle.test.mjs:1669` and `:1679`, and carried as a
+catalogue mutation.
+
+**What is still open is the consumer, which was always the whole value.** Nothing writes the
+interpreter identity into tool-written evidence, so a 3.10-vs-3.14 divergence still cannot show
+up in a Verification Log. The paragraph above stands as the reasoning that deferred it; it stops
+being true only about the probe.
+
+**Why this correction is its own finding.** `ef5b1a7`'s subject line says "§93 delivered" and the
+commit added 38 lines to this file — all of them to §87. A session reading §93 was told to build
+what was already built. That is the §103 class inverted: not a record asserting a live defect the
+code has fixed, but a record asserting a live GAP the code has closed — and it is the tenth
+instance, after §111's ninth. §103's anchor check would not have caught it either, for the same
+reason it would not have caught §111: this entry quoted no `file:line` snippet to go stale. It
+asserted an ABSENCE, and nothing checks that a commit claiming to deliver a backlog item touched
+that item's section. Found 2026-09-03 while re-pointing a drifted memory anchor at
+`lifecycle.mjs:2104` — by a memory sweep, not by any gate in this repository.
 
 ## 94. CLOSED 2026-09-01 — a missing `node` is reported as a missing plugin, and the advice does not help
 

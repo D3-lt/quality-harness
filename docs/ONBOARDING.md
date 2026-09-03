@@ -87,9 +87,16 @@ Commit those entries with the change they evidence. They are the record.
 
 ### It never blocks you
 
-Every gate advises. `adr-lint` will tell you a record is missing a section and
-still exit in a way that lets you carry on; the mutation check will tell you a test
-proved nothing and not stop the commit.
+Every gate advises: it tells you what is wrong and leaves you holding the wheel.
+`adr-lint` will name a missing section and let you carry on; the mutation check
+will tell you a test proved nothing and not stop the commit.
+
+**It does exit non-zero when a finding fails**, and this paragraph used to imply
+otherwise — it said the gate would "exit in a way that lets you carry on", which
+reads as exit 0 and is not what happens. Nothing seizes your session; the exit
+code is still the honest answer, and it is what a CI step or a stage precondition
+reads. `errors.append` findings fail, `errors.advise` findings do not, and
+`qh-doctor` prints the current split.
 
 This is a design rule, not an oversight. A tool that stops you without explaining
 leaves you worse off than no tool. If something here ever blocks you without

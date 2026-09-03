@@ -44,9 +44,16 @@ path, not the inventory.
 
 ## The gates
 
-`${CLAUDE_PLUGIN_ROOT}/bin/` holds them. They **advise; they never block.** A gate
-that stops an agent produces a user who cannot tell what to do next, which is worse
-than no gate — so a finding tells you what is wrong and lets the work proceed.
+`${CLAUDE_PLUGIN_ROOT}/bin/` holds them. They **advise and never halt the work.** A
+gate that stops an agent produces a user who cannot tell what to do next, which is
+worse than no gate — so a finding tells you what is wrong and lets you proceed.
+
+**They do still exit non-zero on a failing finding**, and that is not a contradiction:
+"never block" is about not seizing control of your session, not about pretending
+everything passed. The exit code is what a CI step or a stage precondition reads.
+`qh-doctor` prints how many findings fail versus how many only advise — and the
+difference between those two words is the thing to read, because "the gate
+complained" and "the gate refused" are not the same statement.
 
 Two of them carry the evidence chain and are worth knowing by name:
 

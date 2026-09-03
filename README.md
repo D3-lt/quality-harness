@@ -79,7 +79,9 @@ to fake:
   what is worse than no test, because it looks like safety. The plugin breaks each
   piece of your code on purpose and reports any test that did not notice.
 - **It never blocks you.** Every check gives advice and lets the work continue. A
-  tool that stops you without explaining leaves you worse off than no tool.
+  tool that stops you without explaining leaves you worse off than no tool. It does
+  still exit non-zero when a check fails — nothing seizes your session, and the exit
+  code stays honest for the CI step that reads it.
 - **It says "I do not know" when it does not know.** If a check could not run, it
   says so, rather than reporting a clean result it never actually observed.
 - **It keeps decisions where you can find them.** Why something was built a

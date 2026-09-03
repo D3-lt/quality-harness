@@ -7162,6 +7162,7 @@ and "not in my language" are different problems that were easy to conflate.
 
 **Filed 2026-09-03 with ADR-027, from GitHub issue #9.** `grep -c '\-\-version' plugin/bin/adr-lint`
 returns 0, and the same holds for the other ten gates. An adopter upgrading to 2.57.1 could not ask
+
 any gate what it was, so they invented one: run the forwarder and `python "$QH/bin/adr-lint"` against
 one real ADR and diff the output. That works, and nobody should have to derive it.
 
@@ -7175,3 +7176,37 @@ corpus keeps finding). That choice is the work, not the flag.
 **The sibling nobody has raised.** `qh-root` already resolves the plugin root and is the natural
 place for a version answer, so this may be one gate's change rather than eleven. Measure before
 assuming: `for f in plugin/bin/*; do case "$f" in *.cmd) continue;; esac; grep -c 'version' "$f"; done`.
+
+
+## 114. Does an intermediate plan layer actually help a weak executor, or only shape its failures?
+
+**Filed 2026-09-03 with ADR-028.** The owner reports that handing tasks to a smaller model fails on
+reasoning and step-planning rather than on writing code, and asks whether ADR → plan groups → tasks
+would let a weak model execute under a strong planner. ADR-028 adds the verdict channel that makes a
+SKIPPED step loud. It does not answer whether the arrangement works, and this entry is the part that
+would.
+
+**What the literature already settles, so nobody re-derives it.** PEAR (arXiv 2510.07505), 23
+planner/executor pairs: strong planner + weak executor ≈ 50% utility, weak planner + strong executor
+≈ 30%, strong/strong 65–85% — *"a weak planner constrains the entire system, and its negative effect
+cannot be offset even by stronger executors."* So the split is sound and the planner is the half that
+must stay strong. Diff-XYZ (arXiv 2510.12487) cuts the other way and is the reason this is a question
+rather than a plan: format choice materially changes success for large models, while **smaller models
+benefit little from any formatting choice**.
+
+**What is genuinely unmeasured here.** Whether a task file written by a strong model lets a weak one
+execute it at a useful rate ON THIS CORPUS. Neither paper measures a repository-scale lifecycle with
+tool-written evidence, and this project has the rarer half already: an ablation harness with a
+control arm. The experiment is available — run the eval suite with the executor model overridden via
+`--model` while the case text stays fixed — and it has never been run.
+
+**Also deferred here:** per-step file attribution in `Ordered Steps`, so step coverage could be
+derived from a diff rather than from a declared test row. ADR-028 rejected it for now because
+`Affected Files` is task-level and adding per-step files changes every task ever written; revisit if
+ADR-028's pre-registered failure fires for the opposite reason.
+
+⚠ **The residual both directions share, measured twice on one day by two independent sessions.** A
+strict format produces confidently wrong, perfectly conformant output: the `mrw` maintainer produced
+three such plans in one session, all applied at exit 0 with every guard satisfied, and the session
+writing this hit the same class four times. Whatever this entry concludes, **budget for the
+downstream gate** — a plan layer moves that failure, it does not remove it.

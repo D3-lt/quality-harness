@@ -1277,6 +1277,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
                     print(f"  {line}")
             sys.exit(1)
 
+        # Stopped the instant the clean fence returned. Anything measured later
+        # would include the mutant run this function is about to do.
+        clean_elapsed_ms = round((time.monotonic() - clean_started) * 1000)
         clean_out = (clean.stdout or "") + (clean.stderr or "")
         clean_usable = clean.returncode == 0 and not scored_nothing(clean_out)
         # ADR-025. This run happened: the exact normalized fence, same shell, cwd,
@@ -1316,7 +1319,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             for line in failure_tail(clean.stdout, clean.stderr):
                 print(f"  {line}")
             # No mutant ran on this path, so recording here cannot contaminate one.
-            record_run(task, text, cmd, today, clean, clean_started, entry_sha)
+            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha)
             sys.exit(1)
 
         # The baseline itself may have materialized outputs. Re-establish the
@@ -1444,7 +1447,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     # it. `text` is re-read because the Mutation Log row above already changed
     # the file, and appending from a stale copy would drop it.
     record_run(task, task.read_text(encoding="utf-8"), cmd, today, clean,
-               clean_started, entry_sha)
+               clean_elapsed_ms, entry_sha)
     sys.exit(0 if verdict == "killed" else 1)
 
 
@@ -2034,7 +2037,7 @@ def runs_nothing(fence):
     return not any(line.strip() and not line.strip().startswith("#")
                    for line in (fence or "").splitlines())
 
-def record_run(task, text, cmd, today, result, started, sha):
+def record_run(task, text, cmd, today, result, elapsed_ms, sha):
     """Append the `## Verification Log` entry for a fence run that HAPPENED.
 
     ADR-025. Extracted from `main()` so the `--mutant` path can record the clean
@@ -2086,7 +2089,15 @@ def record_run(task, text, cmd, today, result, started, sha):
     # digest a fence-drift detector and not evidence that a command ran. A
     # duration is not in the file, so an agent that would rather type the row than
     # run the fence has to invent one — and an invented one has to survive a floor.
-    elapsed_ms = max(0, round((time.monotonic() - started) * 1000))
+    # ⚠ TAKEN BY THE CALLER, AT THE MOMENT ITS FENCE RETURNED — not computed here.
+    # This function used to receive a START time and subtract, which was correct
+    # while it was only ever called immediately after the run. ADR-025 gave it a
+    # second caller that records AFTER the mutant has run and been restored, and
+    # the subtraction then silently included both: T1's own entry said ms:39701
+    # for a fence measured at 28,742ms. A field that names one thing and totals
+    # two is worse than no field, and this one is read back as evidence of how
+    # long the lifecycle costs (docs/BACKLOG.md §111).
+    elapsed_ms = max(0, elapsed_ms)
     entry = (f"- {today} · {sha} · exit {code} · `{first}` · "
              f"acceptance-sha256:{digest} · ms:{elapsed_ms}")
     refuse_unreadable(entry, sha)
@@ -2354,7 +2365,8 @@ def main():
 
     sha = git_sha(cwd)
 
-    code = record_run(task, text, cmd, today, r, started, sha)
+    code = record_run(task, text, cmd, today, r,
+                      round((time.monotonic() - started) * 1000), sha)
     sys.exit(code)
 
 

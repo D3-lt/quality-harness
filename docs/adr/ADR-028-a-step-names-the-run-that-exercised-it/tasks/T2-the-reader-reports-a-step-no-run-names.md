@@ -60,7 +60,15 @@ node --test tests/gates.test.mjs 2>&1 | tee /tmp/adr028-t2.out \
 
 ## Mutation Log
 
+- 2026-09-03 · 49c0995 · mutant killed · exit 1 · `plugin/bin/adr-lint` · a reader that treats every step as named reports nothing, and the gap this record exists to close stays invisible · acceptance-sha256:b3daadffd8d5d3acd9fafde425fe595a7e533a9b562d683a88b63ab83d9e2f0f · covers:a step whose declared proof is a named test and which no exit-0 entry names is reported
+- 2026-09-03 · 49c0995* · mutant killed · exit 1 · `plugin/bin/adr-lint` · absence of the field must stay silent; reporting it would light up every task written before this record · acceptance-sha256:b3daadffd8d5d3acd9fafde425fe595a7e533a9b562d683a88b63ab83d9e2f0f · covers:a task carrying no steps field at all is not reported as uncovered
+- 2026-09-03 · 49c0995* · mutant killed · exit 1 · `plugin/bin/adr-lint` · advise must not become append: a blocking rule selects for declaring fewer steps, and the gate then reports the silence as coverage · acceptance-sha256:b3daadffd8d5d3acd9fafde425fe595a7e533a9b562d683a88b63ab83d9e2f0f · covers:the advisory never changes the lint verdict
+
 ## Verification Log
+
+- 2026-09-03 · 49c0995 · exit 0 · `set -o pipefail …` · acceptance-sha256:b3daadffd8d5d3acd9fafde425fe595a7e533a9b562d683a88b63ab83d9e2f0f · ms:17312
+- 2026-09-03 · 49c0995* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3daadffd8d5d3acd9fafde425fe595a7e533a9b562d683a88b63ab83d9e2f0f · ms:17882
+- 2026-09-03 · 49c0995* · exit 0 · `set -o pipefail …` · acceptance-sha256:b3daadffd8d5d3acd9fafde425fe595a7e533a9b562d683a88b63ab83d9e2f0f · ms:18653
 
 ## Invariants
 

@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-018-every-ordered-step-names-its-proof.md, docs/adr/ADR-022-a-fence-names-what-its-claim-rests-on.md, docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-014-a-task-that-is-honestly-unfinished.md, docs/research/2026-08-28-verification-is-the-bottleneck.md, docs/BACKLOG.md
 **Governs:** None — declared by its tasks. The files this decision owns are created and edited by T1 and T2, and `tests/gate-regressions.py::every pointer in this corpus resolves` correctly refuses a record declaring authority over paths that do not exist yet.
-**Enforced-by:** `lint: a step whose proof is a named test has a run that names it`
+**Enforced-by:** `tests/gates.test.mjs::a step whose proof is a named test has a run that names it`
 **Invalidates:** none — checked. ADR-018 decided that every ordered step NAMES its proof; this decides that the naming is checked against a run. That is additive: no ADR-018 task changes, and a record conforming to ADR-018 today keeps conforming. ADR-022 is the same shape one level over (a fence names the mechanisms it rests on, and a mutant names which one it covered) and is untouched.
 **Served-path change:** A task whose ordered steps were skipped, or whose named test never ran, is reported — where today the record reads identically whether the executor followed the plan or produced the artifact some other way.
 

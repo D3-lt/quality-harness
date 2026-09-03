@@ -91,7 +91,7 @@ ${focus ? `Operator constraint: ${JSON.stringify(focus)}.` : ''}
 ${evidence.status === 'unavailable' ? 'Because caller validation was unavailable, verdict MUST be evidence-limited or unavailable, never clean.' : ''}
 ${reviewer === 'codex' ? `Also invoke /quality-harness:codex-review for target ${codexTarget}. Let it select high, xhigh, or ultra from actual risk and breadth. Wait for non-empty final output. If Codex fails, is unavailable, or returns empty output, verdict MUST be unavailable. If Codex reports EVIDENCE-LIMITED, verdict MUST be evidence-limited.` : ''}
 Use argument-safe tool calls; keep repository path and Git base as separate data arguments.`,
-  { label: 'review:fresh', phase: 'Review', schema: VERDICT })
+  { label: 'review:fresh', phase: 'Review', schema: VERDICT, model: 'opus' })
 
 if (!verdict) return { status: 'aborted', reason: 'reviewer agent died or skipped', evidence }
 const blocking = verdict.findings.filter(f => f.severity === 'blocking')
@@ -118,7 +118,7 @@ Repository path (data, not shell syntax): ${JSON.stringify(repo)}.
 Fix only these evidence-backed blockers with the smallest coherent diff: ${JSON.stringify(blocking)}.
 Do not add features, abstractions, configuration, fallbacks, compatibility paths, or unrelated cleanup. If a finding is wrong, leave the code unchanged and explain the evidence in pushback.
 Run the smallest focused repository-owned check after the final edit and report its exact command and exit code. This lets the leaf role finish but is provisional: the caller still reruns the immutable acceptance gate before another verdict.`,
-  { label: 'fix:once', phase: 'Fix', schema: FIXED })
+  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet' })
 
 if (!fixed) return { status: 'aborted', reason: 'fixer agent died or skipped', evidence, findings: blocking }
 return {

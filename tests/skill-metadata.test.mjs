@@ -45,7 +45,16 @@ function skillPaths() {
 
 test("every bundled skill has discoverable routing metadata", () => {
   const paths = skillPaths();
-  assert.equal(paths.length, 13, `unexpected bundled skill count: ${paths.length}`);
+  // DERIVED, not pinned. This asserted `13` until 2026-09-03, which is a stored
+  // inventory — the exact defect ADR-027 was written about, sitting in this
+  // repository's own suite. It also caught the wrong thing: adding a skill is
+  // normal and tripped it, while the real risk is a skill DIRECTORY that has no
+  // SKILL.md, which a bare count cannot see. So compare the two readings.
+  const directories = readdirSync(skillsRoot, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory()).length;
+  assert.equal(paths.length, directories,
+    `every skill directory must hold a SKILL.md: ${paths.length} of ${directories}`);
+  assert.ok(directories > 5, `the sweep must have found a real tree: ${directories}`);
   for (const path of paths) {
     const frontmatter = frontmatterOf(path);
     const name = scalar(frontmatter, "name");

@@ -110,3 +110,37 @@ test('the inventory is counted from the tree', () => {
   const empty = inventory(join(testDir, 'fixtures', 'definitely-not-a-plugin-root'))
   assert.deepEqual(empty, { skills: 0, gates: 0, templates: 0, workflows: 0, version: null })
 })
+
+// ADR-027 T2 and T3. The pre-registered failure in the record's Decision is that
+// either prose surface grows an inventory and rots exactly as the reported
+// instruction file did. These are that failure's checks — without them the
+// Decision carries a promise, and a promise is what issue #9 was about.
+const NAMES_A_COUNT = /\b\d+\s+(?:skills?|gates?|templates?|workflows?|findings?)\b/i
+
+function prose(relative) {
+  return readFileSync(join(pluginRoot, relative), 'utf8')
+}
+
+test('the operating skill points at the command and enumerates nothing', () => {
+  const skill = prose(join('skills', 'operating', 'SKILL.md'))
+  assert.match(skill, /qh-doctor/,
+    'the skill must hand every countable question to the command')
+  assert.doesNotMatch(skill, NAMES_A_COUNT,
+    'a count here is the rot this record exists to prevent — ask qh-doctor instead')
+
+  // Shown able to fail: the detector must recognise the thing it forbids.
+  assert.match('the plugin ships 13 skills', NAMES_A_COUNT)
+  assert.doesNotMatch('the plugin ships what it ships', NAMES_A_COUNT)
+})
+
+test('the plugin README points at the command and enumerates nothing', () => {
+  // A README is the artifact MOST likely to grow an inventory, because listing
+  // is what READMEs usually do. Same guard, same reason.
+  const readme = prose('README.md')
+  assert.match(readme, /qh-doctor/,
+    'the door must hand every countable question to the command')
+  assert.doesNotMatch(readme, NAMES_A_COUNT,
+    'a count here rots on the next release — ask qh-doctor instead')
+  assert.match(readme, /quality-harness:operating/,
+    'the door names the skill that carries the judgment')
+})

@@ -73,13 +73,19 @@ test('what ships is the plugin and nothing else', () => {
   assert.notEqual(shipRoot, repoRoot,
     'source names the repository root, so tests/ and docs/ ship to every user')
 
+  // `README.md` joined this list on 2026-09-03 (ADR-027), and it is a deliberate
+  // change to ADR-008's boundary rather than a leak: the plugin now ships its own
+  // door, because an adopter who opens the plugin directory had nothing to read
+  // and was hand-maintaining that knowledge in their global config (issue #9).
+  // The REPOSITORY's README still does not ship — it lives at repoRoot, outside
+  // shipRoot, and the assertion below still holds it there.
   const shipped = [
-    '.claude-plugin/plugin.json', 'bin', 'evals', 'hooks', 'scripts', 'skills',
-    'templates', 'workflows',
+    '.claude-plugin/plugin.json', 'README.md', 'bin', 'evals', 'hooks', 'scripts',
+    'skills', 'templates', 'workflows',
   ]
   for (const entry of shipped) assert.ok(existsSync(join(shipRoot, entry)), `${entry} must ship`)
 
-  const withheld = ['tests', 'docs', '.github', 'README.md', 'LICENSE', '.claude-plugin/marketplace.json']
+  const withheld = ['tests', 'docs', '.github', 'LICENSE', '.claude-plugin/marketplace.json']
   for (const entry of withheld) assert.ok(!existsSync(join(shipRoot, entry)), `${entry} must not ship`)
 
   // Nothing may leak IN either: a test file committed under the plugin directory

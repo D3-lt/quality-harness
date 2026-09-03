@@ -13,6 +13,40 @@ It is for people who already let an agent write real code and have started
 wondering how much of "done" they can trust. It brings no opinions about your
 language, layout or test runner.
 
+## Start here
+
+```text
+/plugin marketplace add D3-lt/quality-harness
+/plugin install quality-harness@quality-harness
+```
+
+Then, in your own repository:
+
+```text
+/quality-harness:work
+```
+
+That is the whole setup. Ask for substantive work as you normally would; when it
+claims to be done, the claim now has a recorded run behind it.
+
+**Ten minutes to see it work:** [docs/TUTORIALS.md](docs/TUTORIALS.md) — a
+throwaway repo, a real test, and the tool catching a test that cannot fail.
+**First week:** [docs/ONBOARDING.md](docs/ONBOARDING.md) — what to use, and what
+to ignore until you need it.
+
+### What "done" looks like afterwards
+
+One line, written by the tool, in a file in your repository:
+
+```text
+- 2026-09-03 · 1d9381f* · exit 0 · `python3 -m unittest -v test_duration` · acceptance-sha256:b43e2374… · ms:75
+```
+
+When it ran · which commit (`*` means the tree was dirty) · what the command
+actually returned · the command itself · a digest that invalidates this entry if
+the command is ever edited · how long it took. No model wrote any of it. If it
+says `exit 0`, a process exited 0.
+
 ## The problem, in one example
 
 You ask an agent to fix a bug. It edits a few files and reports:
@@ -85,12 +119,11 @@ claims above would be exactly the confident writing the research warns you about
 
 ---
 
-## Install
+## Install, the longer way
 
-```text
-/plugin marketplace add D3-lt/quality-harness
-/plugin install quality-harness@quality-harness
-```
+The two lines are at the top of this file. This section is for the cases they do
+not cover.
+
 
 **Or paste this into Claude Code and let it do the whole thing:**
 

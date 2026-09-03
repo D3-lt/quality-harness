@@ -6,7 +6,7 @@
 // plus the vacuous one that would let anything through.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { evaluateRun } from '../scripts/release-evidence.mjs'
+import { classifyArgument, evaluateRun } from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
 const NINE = [
@@ -110,4 +110,24 @@ test('the verdicts are four distinct answers, not a boolean wearing four names',
     evaluateRun(null).verdict,
   ])
   assert.deepEqual([...seen].sort(), ['failed', 'incomplete', 'success', 'unreadable'])
+})
+
+test('an option is not a sha, and a bare dash-argument never reaches git rev-parse', () => {
+  // Found 2026-09-03 by running `--help` on this script. `argv[0]` went straight
+  // into `git rev-parse`, where `--help` SUCCEEDS and prints the git manual; 55KB
+  // of roff was then URL-encoded into a `head_sha=` query and GitHub answered
+  // `HTTP 414: Request-URL too long`. A reader who asked for usage got another
+  // tool's documentation and a transport error — a wrong answer, not a refusal.
+  assert.deepEqual(classifyArgument('--help'), { kind: 'help' })
+  assert.deepEqual(classifyArgument('-h'), { kind: 'help' })
+
+  // A mistyped flag is NOT quietly treated as a sha. Resolving it to "could not
+  // look" would be the same wrong answer wearing a politer word (CLAUDE.md §3).
+  assert.deepEqual(classifyArgument('--latest'), { kind: 'unknown', value: '--latest' })
+  assert.deepEqual(classifyArgument('-x'), { kind: 'unknown', value: '-x' })
+
+  // And the classifier must still be capable of the ordinary answers, or it
+  // passes by rejecting everything.
+  assert.deepEqual(classifyArgument('87e8a30'), { kind: 'sha', value: '87e8a30' })
+  assert.deepEqual(classifyArgument(undefined), { kind: 'sha', value: undefined })
 })

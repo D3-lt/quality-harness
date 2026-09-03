@@ -161,7 +161,64 @@ CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval --runs 1 --allow-tools Bash .
 without a baseline cannot tell a skill that works from a model that would have
 answered well anyway. Cases come in given/omitted pairs for exactly this reason.
 
-And it reports losses. One case measured **Δ 0.00 with the skill invoked zero
+### The numbers, and what they cost
+
+One full ablation run — 2026-08-28, Claude Code 2.1.250, 8 cases, **one run per
+arm**, $9.23, 24 minutes. Re-derive it yourself with
+`node scripts/eval-compare.mjs <run>/aggregate-result.json`; the table is read out
+of the run's own JSON, not typed here.
+
+| case | with | without | Δ | turns (with vs without) |
+|---|---|---|---|---|
+| adr-write-consults-the-corpus | 1.00 | 0.00 | **+1.00** | 9 vs 6 |
+| complexity-instruction-omitted | 1.00 | 0.00 | **+1.00** | 3 vs 1 |
+| fence-warning-omitted | 1.00 | 0.00 | **+1.00** | 2 vs 2 |
+| complexity-instruction-given | 0.60 | 0.00 | +0.60 | 1 vs 3 |
+| fence-warning-given | 0.60 | 0.00 | +0.60 | 2 vs 2 |
+| done-needs-tool-written-evidence | 0.40 | 0.00 | +0.40 | 9 vs 2 |
+| gates-advise-never-block | 1.00 | 1.00 | **0.00** | 15 vs 3 |
+| adr-against-a-real-corpus | 1.00 | 1.00 | **0.00** | 50 vs 20 |
+
+**mean Δ +0.575 · turns 91 vs 39 — 2.33×**
+
+Read those two figures together, because the second is the price of the first.
+**It roughly doubles the turns.** If that trade is wrong for your work, it is
+wrong, and no amount of the first number fixes it.
+
+**The two zeroes are the honest losses and they are the most useful rows here.**
+Both baselines already scored 1.00: the model did the right thing unprompted, and
+the plugin bought nothing except turns — 15 vs 3 in one case, 50 vs 20 in the
+other. A suite that reported only the six wins would be the benefits-only page
+this file warns you about two screens up.
+
+**What this run is not.** One run, n=1 per arm, one model version, eight cases
+written by the same people who wrote the plugin. It is enough to say the
+instructions change behaviour and to price that change. It is not enough to
+claim an effect size, and nobody should quote +0.575 as though it were one.
+
+⚠ **A failed run scores 0.00, and so does a real no-effect.** Measured 2026-09-03:
+every case on one machine reported `Δ 0.00` after failing to start — a Docker
+credential-store symlink blocks the sandbox — and the suite line still read
+`mean Δ 0.00`, which is indistinguishable from a measured null result.
+`scripts/eval-compare.mjs` separates them: an arm carrying an error prints `UNRUN`
+and is excluded from the mean, because "I could not look" is not "there was no
+difference".
+
+### What the corpus itself records
+
+`node scripts/corpus-metrics.mjs` — descriptive, no control arm, so it says what
+happened here rather than what the lifecycle caused:
+
+- **25 decision records, 53 task files, 447 catalogued mutations**
+- **95 verification entries**, every one written by the tool
+- **5 of 94 recorded mutants SURVIVED** — tests that did not notice their own
+  subject being broken, found at authoring time in a suite that was green
+- **446/446 mutations noticed** in the full CI campaign at the released commit
+- **8 of 95 entries are red runs** across 53 tasks. That is a compliance figure
+  about this repository and it is not flattering: either the TDD red run is being
+  taken and not recorded, or it is being skipped. The evidence chain cannot tell
+  those apart, and says so.
+
 times** — the instruction did nothing — which is written down rather than dropped,
 because an eval suite that only publishes its wins is the tone this project tells
 you not to trust.

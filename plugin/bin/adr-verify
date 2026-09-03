@@ -133,6 +133,23 @@ NOTHING_RAN = [
     r"^No tests found",            # jest
     r"No test files found",        # vitest
     r"^0 examples",                # rspec
+    # Measured 2026-09-03 by feeding each runner's real empty-run output to
+    # scored_nothing(): every line below returned False, meaning a fence that
+    # scored NOTHING was being taken as evidence that something ran. Go and
+    # pytest were caught; Rust, .NET, Java and Python's own unittest were not.
+    #
+    # ⚠ THIS IS THE PRODUCT'S CENTRAL PROMISE, FAILING QUIETLY FOR FOUR
+    # ECOSYSTEMS. A filter that matches nothing exits 0 on all of them, which is
+    # exactly the false "done" this tool exists to catch — and the plugin's own
+    # tutorial happened to use `python3 -m unittest`, so the documented
+    # first-run path was on an undetected runner.
+    r"^Ran 0 tests",               # python unittest / django test
+    r"^NO TESTS RAN",              # python unittest, 3.12+
+    r"^running 0 tests",           # cargo
+    r"test result: \w+\. 0 passed",  # cargo, when the header is not in the captured slice
+    r"Total:\s*0\b",               # dotnet test
+    r"Tests run: 0",               # maven surefire / junit
+    r"No tests were found",        # dotnet / vstest
 ]
 
 # Evidence that something really was scored. If ANY of these appear the run is

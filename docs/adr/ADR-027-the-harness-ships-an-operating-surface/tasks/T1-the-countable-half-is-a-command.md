@@ -62,7 +62,15 @@ node --test tests/qh-doctor.test.mjs 2>&1 | tee /tmp/adr027-t1.out \
 
 ## Mutation Log
 
+- 2026-09-03 · f68322f · mutant killed · exit 1 · `plugin/scripts/qh-doctor.mjs` · ADR-019 must survive being reported on · acceptance-sha256:2508ec65d8407fda113d628bbd1928ae5b0c9d1abd69fa065cba07e919813084 · covers:a home file the plugin cannot prove it wrote is never called a copy
+- 2026-09-03 · f68322f* · mutant killed · exit 1 · `plugin/scripts/qh-doctor.mjs` · the figure issue #9 found stale must be derived, and a wrong derivation caught · acceptance-sha256:2508ec65d8407fda113d628bbd1928ae5b0c9d1abd69fa065cba07e919813084 · covers:the severity split is read from plugin/bin/adr-lint at run time
+- 2026-09-03 · f68322f* · mutant killed · exit 1 · `plugin/scripts/qh-doctor.mjs` · a CLI entry guard that never fires makes the script a no-op that exits 0 — the Windows defect; the fence must notice · acceptance-sha256:2508ec65d8407fda113d628bbd1928ae5b0c9d1abd69fa065cba07e919813084 · covers:the CLI entry actually runs — the third fence segment executes the script, which is the check the Windows entry-guard defect would have failed
+
 ## Verification Log
+
+- 2026-09-03 · f68322f · exit 0 · `set -o pipefail …` · acceptance-sha256:2508ec65d8407fda113d628bbd1928ae5b0c9d1abd69fa065cba07e919813084 · ms:1580
+- 2026-09-03 · f68322f* · exit 0 · `set -o pipefail …` · acceptance-sha256:2508ec65d8407fda113d628bbd1928ae5b0c9d1abd69fa065cba07e919813084 · ms:1321
+- 2026-09-03 · f68322f* · exit 0 · `set -o pipefail …` · acceptance-sha256:2508ec65d8407fda113d628bbd1928ae5b0c9d1abd69fa065cba07e919813084 · ms:1171
 
 ## Invariants
 

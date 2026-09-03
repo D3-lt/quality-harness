@@ -13,6 +13,7 @@ import { execFileSync } from 'node:child_process'
 import { mkdtempSync, mkdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { join } from 'node:path'
+import { fileURLToPath } from 'node:url'
 import test from 'node:test'
 
 import {
@@ -101,9 +102,26 @@ test('end to end on a real repository, both answers from one sweep', () => {
   mkdirSync(join(scratchRepo, 'docs'), { recursive: true })
   const git = (...args) => execFileSync('git', args, { cwd: scratchRepo, encoding: 'utf8' })
   const backlog = join(scratchRepo, 'docs', 'BACKLOG.md')
-  const sweep = () => execFileSync(process.execPath,
-    [join(process.cwd(), 'scripts', 'backlog-claim-sweep.mjs'), '--all'],
+  // Resolved from THIS file, not from `process.cwd()` — a test that only works
+  // when the runner happens to start in the repository root is a test that
+  // depends on who is asking (CLAUDE.md §8).
+  const script = fileURLToPath(new URL('../scripts/backlog-claim-sweep.mjs', import.meta.url))
+  const sweep = () => execFileSync(process.execPath, [script, '--all'],
     { cwd: scratchRepo, encoding: 'utf8' })
+
+  // `§` MUST NOT travel through argv. On Windows an argument crosses
+  // CreateProcess through the system codepage, so `git commit -m 'BACKLOG §87'`
+  // hands git a mangled byte and the sweep then finds no claim at all — which is
+  // how this test first failed in CI while passing on macOS. CLAUDE.md §2
+  // already says to write commit messages with `-F`; the reason it gives is
+  // backticks, and this is the same rule paying out for a different character.
+  // The file is written by Node as UTF-8, so git receives the bytes intended.
+  const commit = (message) => {
+    const path = join(temp, 'msg.txt')
+    writeFileSync(path, message, 'utf8')
+    git('add', '-A')
+    git('commit', '-q', '-F', path)
+  }
 
   try {
     git('init', '-b', 'main', '.')
@@ -111,20 +129,29 @@ test('end to end on a real repository, both answers from one sweep', () => {
     git('config', 'user.name', 'sweep')
 
     writeFileSync(backlog, ['# Backlog', '', '## 87. one', 'body', '', '## 93. two', 'body', ''].join('\n'))
-    git('add', '-A'); git('commit', '-qm', 'seed the backlog')
+    commit('seed the backlog')
 
     // The honest commit: claims §87 and edits §87.
     writeFileSync(backlog, ['# Backlog', '', '## 87. one', 'body CLOSED here', '', '## 93. two', 'body', ''].join('\n'))
-    git('add', '-A'); git('commit', '-qm', 'BACKLOG §87 CLOSED — and the diff proves it')
-    assert.match(sweep(), /every claimed section was edited/,
-      'a commit that edits what it claims must produce no finding')
+    commit('BACKLOG §87 CLOSED — and the diff proves it')
+    const honest = sweep()
+    assert.match(honest, /1 section claim\(s\) checked/,
+      `the claim must be SEEN before its verdict means anything\n${honest}`)
+    assert.match(honest, /every claimed section was edited/,
+      `a commit that edits what it claims must produce no finding\n${honest}`)
 
     // The ef5b1a7 shape: claims §87 AND §93, edits only §87.
     writeFileSync(backlog, ['# Backlog', '', '## 87. one', 'body CLOSED here', 'more', '', '## 93. two', 'body', ''].join('\n'))
-    git('add', '-A'); git('commit', '-qm', 'BACKLOG §87 CLOSED and §93 delivered')
+    commit('BACKLOG §87 CLOSED and §93 delivered')
     const out = sweep()
-    assert.match(out, /UNTOUCHED[\s\S]*§93/, 'the unedited claimed section must be reported')
-    assert.doesNotMatch(out, /UNTOUCHED\s+\w+\s+§87/, 'the edited section must not be')
+    // Three, not two: `--all` counts every commit in the scratch repo, so the
+    // honest commit's §87 claim is still in the tally alongside this commit's
+    // two. Asserting the count at all is the point — the Windows failure this
+    // fixture was hardened for showed up as ZERO claims seen, which the verdict
+    // assertions below cannot distinguish from a clean sweep.
+    assert.match(out, /3 section claim\(s\) checked/, `all three claims must be seen\n${out}`)
+    assert.match(out, /UNTOUCHED[\s\S]*§93/, `the unedited claimed section must be reported\n${out}`)
+    assert.doesNotMatch(out, /UNTOUCHED\s+\w+\s+§87/, `the edited section must not be\n${out}`)
   } finally {
     rmSync(temp, { recursive: true, force: true })
   }

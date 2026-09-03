@@ -59,7 +59,12 @@ node --test tests/package.test.mjs 2>&1 | tee /tmp/adr026-t1.out \
 
 ## Mutation Log
 
+- 2026-09-03 · 3e79bd2* · mutant killed · exit 1 · `README.md` · a shipped skill dropped from the README front page must turn the fence red; green would mean the surface list is decorative · acceptance-sha256:6a3e137baf3f20a66925c962b2a75b29a226e8d1c5c2fb81717fdd5c85f148d2
+
 ## Verification Log
+
+- 2026-09-03 · 3e79bd2 · exit 0 · `set -o pipefail …` · acceptance-sha256:6a3e137baf3f20a66925c962b2a75b29a226e8d1c5c2fb81717fdd5c85f148d2 · ms:17697
+- 2026-09-03 · 3e79bd2* · exit 0 · `set -o pipefail …` · acceptance-sha256:6a3e137baf3f20a66925c962b2a75b29a226e8d1c5c2fb81717fdd5c85f148d2 · ms:14904
 
 ## Invariants
 

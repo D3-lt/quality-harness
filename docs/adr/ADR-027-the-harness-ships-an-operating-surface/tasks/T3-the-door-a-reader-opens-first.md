@@ -57,7 +57,11 @@ node --test tests/qh-doctor.test.mjs tests/package.test.mjs 2>&1 | tee /tmp/adr0
 
 ## Mutation Log
 
+- 2026-09-03 · ee52ed1 · mutant killed · exit 1 · `plugin/README.md` · the door must not grow an inventory — a count here is wrong by the next release · acceptance-sha256:9e8158f7aba5d890deb9f915ee95dc6bf4b35a74bb15c5cdbad18807bf9c456e · covers:the README enumerates no inventory a command can count
+
 ## Verification Log
+
+- 2026-09-03 · ee52ed1 · exit 0 · `set -o pipefail …` · acceptance-sha256:9e8158f7aba5d890deb9f915ee95dc6bf4b35a74bb15c5cdbad18807bf9c456e · ms:12488
 
 ## Invariants
 

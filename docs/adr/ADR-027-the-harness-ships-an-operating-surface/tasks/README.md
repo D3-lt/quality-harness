@@ -1,7 +1,8 @@
 # ADR-027 Tasks
 
 Implementation tasks for ADR-027: Ship an operating surface, and make the countable half a command.
-See the parent ADR for the decision.
+See the parent ADR for the decision. Three readers, three artifacts: a machine asks T1, an agent
+loads T2, a person opens T3. T2 and T3 are independent of each other and both wait only on T1.
 
 **Source of truth:** the task files' `Depends-on` / `Produces` / `Consumes` headers. This README is
 a derived index — when it disagrees with a task file, the task file wins.
@@ -12,6 +13,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 |-------|------|------------|
 | 1 | T1 | none |
 | 2 | T2 | T1 |
+| 3 | T3 | T1 |
 
 ## Task Index
 
@@ -19,12 +21,13 @@ a derived index — when it disagrees with a task file, the task file wins.
 |----|-------|--------|--------|------------|
 | T1 | [the countable half is a command](T1-the-countable-half-is-a-command.md) | pending | — | `node --test tests/qh-doctor.test.mjs …` |
 | T2 | [the judgment half is one skill](T2-the-judgment-half-is-one-skill.md) | pending | — | `node --test tests/qh-doctor.test.mjs tests/skill-contract.test.mjs …` |
+| T3 | [the door a reader opens first](T3-the-door-a-reader-opens-first.md) | pending | — | `node --test tests/qh-doctor.test.mjs tests/package.test.mjs …` |
 
 ## Contract Coupling
 
 | Producer | Contract | Consumer(s) | Ordering note |
 |----------|----------|-------------|---------------|
-| T1 | `node "$QH/scripts/qh-doctor.mjs"` | T2 | T1 before T2 — T2's skill names the command and its exit codes |
+| T1 | `node "$QH/scripts/qh-doctor.mjs"` | T2, T3 | T1 before both — each names the command and its exit codes |
 
 ## Notes
 

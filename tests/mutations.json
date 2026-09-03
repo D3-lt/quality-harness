@@ -4144,7 +4144,7 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    r\"(?: · steps:S[1-9]\\\\d*(?:,S[1-9]\\\\d*)*)?$\")",
+      "from": "    r\"(?: · steps:S[1-9]\\d*(?:,S[1-9]\\d*)*)?$\")",
       "to": "    r\"$\")"
     }
   ]

@@ -7210,3 +7210,40 @@ strict format produces confidently wrong, perfectly conformant output: the `mrw`
 three such plans in one session, all applied at exit 0 with every guard satisfied, and the session
 writing this hit the same class four times. Whatever this entry concludes, **budget for the
 downstream gate** — a plan layer moves that failure, it does not remove it.
+
+## 115. The host surfaces this plugin does not stand on
+
+**Filed 2026-09-03 with ADR-029**, from running a peer session's harness audit of `agentsmemory`
+("Where Memory Plugs In", 2026-09-03) against this repository instead. That audit found its own
+project shipping no plugin, no marketplace entry and no skills; this one ships all three, fourteen
+skills and an MCP server. Level on exactly one axis, and behind on several others.
+
+**Measured here, 2026-09-03.** `plugin/hooks/hooks.json` registers seven events — `SessionStart`,
+`UserPromptSubmit`-adjacent none, `PreToolUse`, `PostToolUse`, `SubagentStart`, `SubagentStop`,
+`Stop`, `TaskCompleted` — against roughly thirty-two documented on
+`code.claude.com/docs/en/hooks` (read 2026-09-03; the peer's page says thirty-four and I did not
+reconcile the difference, so do not quote either number without re-counting).
+
+**What is genuinely unused, and what is a decision rather than a gap:**
+
+- **`plugin/agents/` does not exist**, so `permissionMode`, `maxTurns`, `memory`, `isolation` and
+  per-agent hooks are all at their defaults. ADR-029 takes only `model`/`effort` at the call sites;
+  named definitions and the remaining knobs are here.
+- **Three of the four events whose PLAIN STDOUT reaches the model are unused** —
+  `UserPromptSubmit`, `UserPromptExpansion`, `PostModelSwitch`. We use `SessionStart` only.
+  `UserPromptExpansion` is the earliest moment the work is known, which matters unusually much for a
+  plugin that IS the lifecycle router.
+- **`statusLine`, `outputStyle`, `permissions`, and headless `-p --output-format json`** — no
+  integration at all. Headless is the surface an unattended run literally needs.
+- **MCP elicitation** — the server can ask the operator mid-task. The natural use here is not
+  "ask before writing" but **ask before releasing**, which a human performed by hand four times in
+  one session on 2026-09-03.
+
+⚠ **NOT A GAP, and it must not be filed as one.** This plugin sits on four veto-capable events
+(`PreToolUse`, `Stop`, `SubagentStop`, `TaskCompleted`) and **never exits 2**. That is CLAUDE.md §3 —
+gates instruct, they never block — and the peer's audit frames the veto surface as "the enforcement
+surface" precisely because their project does use it. Any proposal here that reaches for exit 2 is
+proposing to reverse a founding decision, and owes that argument rather than a line item.
+
+**Also deferred here:** any routing decision made from ADR-029's declared role.
+

@@ -4074,6 +4074,33 @@
       ],
       "from": "  if (argument.startsWith('-')) return { kind: 'unknown', value: argument }",
       "to": "  if (false) return { kind: 'unknown', value: argument }"
+    },
+    {
+      "label": "claim-sweep: a sentence boundary still separates a claim from commentary",
+      "file": "scripts/backlog-claim-sweep.mjs",
+      "tests": [
+        "tests/backlog-claim-sweep.test.mjs"
+      ],
+      "from": "  const gap = `(?:(?!\\\\.\\\\s)[^\\\\n]){0,${NEAR}}?`",
+      "to": "  const gap = `[^\\\\n]{0,${NEAR}}?`"
+    },
+    {
+      "label": "claim-sweep: a section owned by CLAUDE.md is not a backlog claim",
+      "file": "scripts/backlog-claim-sweep.mjs",
+      "tests": [
+        "tests/backlog-claim-sweep.test.mjs"
+      ],
+      "from": "        if (isForeignSection(line, m)) continue",
+      "to": "        if (false) continue"
+    },
+    {
+      "label": "claim-sweep: an absent section stays could-not-look and never clears a claim",
+      "file": "scripts/backlog-claim-sweep.mjs",
+      "tests": [
+        "tests/backlog-claim-sweep.test.mjs"
+      ],
+      "from": "  return start === -1 ? null : { start: start + 1, end: lines.length }",
+      "to": "  return { start: start + 1, end: lines.length }"
     }
   ]
 }

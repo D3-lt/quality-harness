@@ -4038,6 +4038,15 @@
       ],
       "from": "        clean_elapsed_ms = round((time.monotonic() - clean_started) * 1000)",
       "to": "        clean_elapsed_ms = 0"
+    },
+    {
+      "label": "verify: an empty unittest or cargo run is not counted as evidence",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    r\"^Ran 0 tests\",               # python unittest / django test",
+      "to": "    r\"^Ran 0 tests-NEVER-MATCHES\","
     }
   ]
 }

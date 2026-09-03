@@ -2357,3 +2357,48 @@ test('the recorded duration is the clean fence, not the clean fence plus the mut
   assert.ok(ms < SLEEP_MS * 1.8,
     `ms:${ms} spans both sleeps, so it timed the mutant run too:\n${entry}`)
 })
+
+// Measured 2026-09-03 by feeding each runner's real empty-run output to the
+// detector: Go and pytest were caught, and Rust, .NET, Java and Python's own
+// unittest were NOT — an empty run was taken as evidence that something ran.
+// That is the product's central promise failing quietly for four ecosystems,
+// and the plugin's own tutorial used `python3 -m unittest`, so the documented
+// first-run path was on an undetected runner.
+//
+// Driven through adr-verify rather than the helper, because the promise is
+// about what the GATE does with an empty run, and asserting the pattern list
+// would pass even if nothing consulted it.
+for (const [runner, output] of [
+  ['python unittest', 'Ran 0 tests in 0.000s\\n\\nOK'],
+  ['python unittest 3.12', 'Ran 0 tests in 0.000s\\n\\nNO TESTS RAN'],
+  ['cargo', 'running 0 tests\\ntest result: ok. 0 passed; 0 failed; 0 ignored'],
+  ['dotnet', 'Passed!  - Failed: 0, Passed: 0, Skipped: 0, Total: 0'],
+  ['maven surefire', 'Tests run: 0, Failures: 0, Errors: 0, Skipped: 0'],
+]) {
+  test(`an empty ${runner} run is not evidence`, () => {
+    const copy = corpus()
+    writeTask(copy, readTask(copy).replace(
+      "python3 -c 'print(\"acceptance fence complete\")'",
+      `python3 -c 'print("${output}")'`))
+    const empty = verify(copy, ['--cwd', '.'])
+    expectExit(empty, 1, `${runner}: exit 0 with nothing scored is not a pass`)
+    assert.match(readTask(copy), /scored NO tests/, 'the entry says why it failed')
+  })
+}
+
+// The other answer, or the patterns above would flag every run of those runners
+// and the gate would be one people route around.
+for (const [runner, output] of [
+  ['python unittest', 'test_a (t.T) ... ok\\nRan 3 tests in 0.001s\\nOK'],
+  ['cargo', 'running 5 tests\\ntest result: ok. 5 passed; 0 failed; 0 ignored'],
+  ['dotnet', 'Passed!  - Failed: 0, Passed: 12, Skipped: 0, Total: 12'],
+  ['maven surefire', 'Tests run: 9, Failures: 0, Errors: 0, Skipped: 0'],
+]) {
+  test(`a real ${runner} run is still evidence`, () => {
+    const copy = corpus()
+    writeTask(copy, readTask(copy).replace(
+      "python3 -c 'print(\"acceptance fence complete\")'",
+      `python3 -c 'print("${output}")'`))
+    expectExit(verify(copy, ['--cwd', '.']), 0, `${runner}: a real run must still pass`)
+  })
+}

@@ -2903,6 +2903,37 @@ investigation as this one. This repository's own rule (§36) is that a verdict w
 teaches re-running instead of fixing — and a verdict that changes its mind *and cannot say what it
 was about* teaches re-running twice.
 
+**SECOND OCCURRENCE 2026-09-03, run at commit `008d980`, and the trigger matches.** The only
+`plugin/` change in that commit was — again — the `version` string in
+`plugin/.claude-plugin/plugin.json`; everything else it touched was prose outside the shipped tree
+(`README.md`, `docs/ONBOARDING.md`, `plugin/README.md`). The parent commit `2d6a56a` had passed
+Windows on all thirteen jobs an hour earlier, and re-running the failed job on the SAME sha passed,
+giving 13/13. Two instances, both Windows-only, both on a commit whose shipped diff was essentially
+a version bump. That correlation is now worth stating even though the mechanism is still unknown —
+it is the only non-random thing about either occurrence.
+
+⚠ **NEW EVIDENCE THE FIRST OCCURRENCE COULD NOT PROVIDE: the TAP transcript.** The workflow's
+`Keep the TAP transcript when the run failed` step uploaded `windows-selftest-tap`, and it settles
+what the console log could not:
+
+    not ok 12 - D:\a\...\tests\lifecycle.test.mjs
+      failureType: 'testCodeFailure'
+      exitCode: 1
+      error: 'test failed'
+
+**Every subtest in the file is `ok`. The only `not ok` in the entire transcript is the FILE.** So
+this is not a failing assertion that went unnamed — there is no failing assertion at all. The test
+process ran every check, passed every one, and then exited 1. That points away from a flaky
+assertion and toward the process itself: an unhandled rejection after the last subtest, a cleanup
+that throws on Windows (the file creates a symlink to the repository's own `README.md` at
+`tests/lifecycle.test.mjs:1248` and removes temp trees), or a stray non-zero `process.exitCode`.
+
+**What would settle it**, and neither occurrence has been instrumented for it yet: run the file on
+Windows with `--test-reporter=spec` plus `process.on('unhandledRejection')` and
+`process.on('exit')` tracing, or bisect by running the file's temp-directory cleanup alone. Until
+then this stays OPEN — and the entry now says which hypotheses the TAP already excludes, so the
+third occurrence does not start from zero.
+
 **What was ruled out, and what was not.** Not a code change: the test tree is byte-identical to the
 green run before it. Not a mutation-catalogue or gate change: those jobs were green in the same run.
 NOT ruled out — a timeout or a resource limit inside one of the file's spawned subprocesses, which on

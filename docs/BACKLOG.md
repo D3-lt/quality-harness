@@ -7126,3 +7126,21 @@ not mistaken for coverage.
 **Also deferred here:** translating the front page. Raised because the first reader
 report that led to ADR-026 came from a non-native English speaker, and "too technical"
 and "not in my language" are different problems that were easy to conflate.
+
+## 113. No gate answers `--version`, so verifying an upgrade takes inventing a method
+
+**Filed 2026-09-03 with ADR-027, from GitHub issue #9.** `grep -c '\-\-version' plugin/bin/adr-lint`
+returns 0, and the same holds for the other ten gates. An adopter upgrading to 2.57.1 could not ask
+any gate what it was, so they invented one: run the forwarder and `python "$QH/bin/adr-lint"` against
+one real ADR and diff the output. That works, and nobody should have to derive it.
+
+**Why it is filed rather than fixed here.** ADR-027 answers the question the missing flag was being
+used to answer — `qh-doctor` prints the resolved root and version — so the urgency is gone while the
+gap remains. Adding `--version` to eleven gates is a different decision with its own class question:
+whether the version is read from `plugin/.claude-plugin/plugin.json` at run time (correct, and a file
+read on every invocation) or baked in at release (fast, and exactly the stored-count defect this
+corpus keeps finding). That choice is the work, not the flag.
+
+**The sibling nobody has raised.** `qh-root` already resolves the plugin root and is the natural
+place for a version answer, so this may be one gate's change rather than eleven. Measure before
+assuming: `for f in plugin/bin/*; do case "$f" in *.cmd) continue;; esac; grep -c 'version' "$f"; done`.

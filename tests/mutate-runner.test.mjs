@@ -382,3 +382,32 @@ test('with no timings at all it still partitions, and says nothing about balance
   assert.ok(Math.max(...sizes) - Math.min(...sizes) <= 1,
     `untimed slicing must be even, not merely non-empty: ${sizes}`)
 })
+
+// A STALE mutation was SILENT, and the campaign then blamed the tests for it.
+// Found 2026-09-03 while executing ADR-028: a `from` string over-escaped in
+// tests/mutations.json matched zero times, so nothing was ever applied — and the
+// run printed no line for it, then closed with "A test that stays green with its
+// mechanism broken is asserting something else." Exit 1 was right; the sentence
+// was a verdict about a test that had never been challenged. CLAUDE.md §3: a gate
+// must never report an observation it did not make.
+test('a stale mutation is reported as stale, not as a test that failed to notice', () => {
+  const stale = summarise([{ verdict: 'STALE', detail: 'matches 0 times' }])
+  assert.equal(stale.failing, true, 'a stale mutation still fails the run')
+  assert.equal(stale.staleOnly, true,
+    'and the run can tell that NOTHING was measured, so it does not accuse the tests')
+
+  // The other direction, or the flag would pass by always being true.
+  assert.equal(summarise([{ verdict: 'GREEN' }]).staleOnly, false,
+    'a GREEN verdict IS a finding about the tests')
+  assert.equal(summarise([{ verdict: 'STALE' }, { verdict: 'GREEN' }]).staleOnly, false,
+    'a mixed run has a real green to answer for')
+})
+
+test('a stale mutation renders a line rather than a blank', () => {
+  // It rendered nothing at all: the result was pushed and the loop continued
+  // without printing, so the only blank line in the output came from the
+  // summary's own leading newline.
+  const line = renderLine({ verdict: 'STALE', label: 'x: y', detail: 'matches 0 times' }, 10)
+  assert.match(line, /^STALE/, 'the verdict leads the line')
+  assert.match(line, /matches 0 times/, 'and the line says why it could not run')
+})

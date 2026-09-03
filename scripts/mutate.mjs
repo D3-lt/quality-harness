@@ -378,6 +378,10 @@ export function summarise(results) {
   const unproven = results.filter(r => r.verdict === 'UNPROVEN')
   const judged = results.filter(r => r.verdict !== 'UNPROVEN')
   const missed = judged.filter(r => r.verdict === 'GREEN' || r.verdict === 'STALE')
+  // Whether the failing set is ENTIRELY stale. A stale mutation is not a finding
+  // about a test — nothing was applied, so no test was challenged — and saying
+  // otherwise borrows the vocabulary of a verdict for a check that could not run.
+  const staleOnly = missed.length > 0 && missed.every(r => r.verdict === 'STALE')
   // ADR-023 T2. A campaign printing `430/430 noticed` while running six claims
   // more than happened. These two are reported beside the ratio, never folded
   // into it: the ratio is ADR-006's and means the same thing it always did.
@@ -392,6 +396,7 @@ export function summarise(results) {
     // instructs and does not block — a block leaves the user with no next move,
     // and the line above has just told them what theirs is.
     failing: missed.length > 0,
+    staleOnly,
   }
 }
 
@@ -540,7 +545,16 @@ export function main(argv) {
       ?? { state: 'unrun', why: 'no baseline was taken' }
 
     if (occurrences !== 1) {
-      results.push({ ...mutation, ...classify({ occurrences, baseline, run: null }) })
+      // PRINTED, like every other verdict. This branch used to push and continue
+      // in silence, so a mutation whose `from` no longer matched produced no line
+      // at all — and the campaign then closed by telling the author a test had
+      // stayed green with its mechanism broken, about a mechanism nothing had
+      // touched. Found 2026-09-03 executing ADR-028, from an over-escaped `from`
+      // in tests/mutations.json. A report must not state an observation it did
+      // not make (CLAUDE.md §3).
+      const staleResult = { ...mutation, ...classify({ occurrences, baseline, run: null }) }
+      results.push(staleResult)
+      console.log(renderLine(staleResult, width))
       continue
     }
 
@@ -606,7 +620,13 @@ export function main(argv) {
       + 'never finished — they need different things done to them.')
   }
   if (counts.failing) {
-    console.log('A test that stays green with its mechanism broken is asserting something else.')
+    console.log(counts.staleOnly
+      // NOTHING WAS APPLIED, so nothing was learned about any test. Saying the
+      // other sentence here is a verdict about a suite that was never challenged.
+      ? 'Nothing was measured: every failing entry is STALE — its `from` no longer '
+        + 'matches the file, so no mutation was applied. Re-read the subject and fix '
+        + 'the catalogue entry; this says nothing about the tests.'
+      : 'A test that stays green with its mechanism broken is asserting something else.')
     return 1
   }
   return 0

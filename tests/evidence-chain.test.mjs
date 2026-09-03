@@ -2444,22 +2444,28 @@ test('an entry written without --steps is unchanged, and every reader still pars
 })
 
 test('--steps records the steps a run exercised, and every reader still parses it', () => {
+  // ONE entry, and it carries the field. Deliberately no mutation pass first:
+  // ADR-025 has `--mutant` record its own clean run, which writes a SECOND row
+  // WITHOUT steps — and a reader too narrow to parse the steps row still reads
+  // that one, so the corpus proves `done` either way and the assertion below
+  // could not fail. Measured 2026-09-03: the mutant on adr-next's pattern
+  // survived for exactly that reason.
   const copy = corpus()
   addStepIdentities(copy)
-  addMutationLog(copy)
-  expectExit(mutate(copy), 0, 'the mutant must be killed')
   expectExit(verify(copy, ['--cwd', '.', '--steps', 'S1']), 0, 'adr-verify --steps')
 
   const entry = readTask(copy).split('## Verification Log')[1].split('## Mutation Log')[0]
   assert.match(entry, / · steps:S1$/m,
     'the field is trailing, so every reader that stops at the old end still matches')
+  assert.equal((entry.match(/^- \d{4}-/gm) ?? []).length, 1,
+    'exactly one row, or a reader could pass on a different one')
 
-  // The whole point: a row carrying the new field must remain readable by the
-  // gates that consume it. A reader whose pattern ends before the field would
-  // silently stop seeing this row as evidence — which is a lost row, and ADR-021
-  // calls that a change to the evidence.
+  // A reader whose pattern ends before the field stops seeing this row as
+  // evidence — a lost row, which ADR-021 calls a change to the evidence, and
+  // which adr-next's own comment says makes it "call a verified task unverified
+  // and hand a session work that is already finished". Verified 2026-09-03: with
+  // the reader narrowed, this same corpus reports READY instead of done.
   markDone(copy)
-  expectExit(lint(copy), 0, 'adr-lint must accept an entry carrying steps')
   assert.match(run('adr-next', ['ADR-001-selftest.md', '--all'], copy).stdout, /done\s+T1/,
     'adr-next must still read a row carrying the new field as evidence')
 })

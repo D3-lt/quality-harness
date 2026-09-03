@@ -198,23 +198,56 @@ answered well anyway. Cases come in given/omitted pairs for exactly this reason.
 
 ### The numbers, and what they cost
 
-One full ablation run — 2026-08-28, Claude Code 2.1.250, 8 cases, **one run per
-arm**, $9.23, 24 minutes. Re-derive it yourself with
-`node scripts/eval-compare.mjs <run>/aggregate-result.json`; the table is read out
-of the run's own JSON, not typed here.
+**Repeated 2026-09-03 at five runs per arm**, because one run per arm is not a
+measurement — this project's own `scripts/eval-deltas.mjs` says so, and refuses to
+derive a Δ where it cannot honestly be derived. The first published table was a
+single run per arm, and **four of its six figures did not survive repetition.**
+Seven cases, $17.77. Re-derive any of it with
+`node scripts/eval-compare.mjs <run>/aggregate-result.json`.
 
-| case | with | without | Δ | turns (with vs without) |
+| case | with | without | Δ (n=5) | was (n=1) |
 |---|---|---|---|---|
-| adr-write-consults-the-corpus | 1.00 | 0.00 | **+1.00** | 9 vs 6 |
-| complexity-instruction-omitted | 1.00 | 0.00 | **+1.00** | 3 vs 1 |
-| fence-warning-omitted | 1.00 | 0.00 | **+1.00** | 2 vs 2 |
-| complexity-instruction-given | 0.60 | 0.00 | +0.60 | 1 vs 3 |
-| fence-warning-given | 0.60 | 0.00 | +0.60 | 2 vs 2 |
-| done-needs-tool-written-evidence | 0.40 | 0.00 | +0.40 | 9 vs 2 |
-| gates-advise-never-block | 1.00 | 1.00 | **0.00** | 15 vs 3 |
-| adr-against-a-real-corpus | 1.00 | 1.00 | **0.00** | 50 vs 20 |
+| adr-write-consults-the-corpus | 1.00 | 0.00 | **+1.00** | +1.00 |
+| done-needs-tool-written-evidence | 0.76 | 0.00 | **+0.76** | +0.40 |
+| fence-warning-omitted | 0.84 | 0.32 | **+0.52** | +1.00 |
+| fence-warning-given | 0.84 | 0.80 | +0.04 | +0.60 |
+| complexity-instruction-omitted | 0.56 | 0.60 | −0.04 | +1.00 |
+| a-vacuous-test-is-not-a-review | 0.66 | 0.71 | −0.06 | not measured before |
+| complexity-instruction-given | 0.48 | 0.55 | −0.07 | +0.60 |
 
-**mean Δ +0.575 · turns 91 vs 39 — 2.33×**
+**mean Δ +0.368 over the six comparable cases, against +0.575 published at n=1.**
+
+★ **The mean is the least interesting number here. The SPLIT is the finding.** The
+effect is large and consistent exactly where a case tests the harness's own
+evidence discipline — and the baseline scores **0.00** in both of those, across
+every run:
+
+- *does the model consult an existing decision corpus before writing a record* — **+1.00**
+- *does it refuse to mark a task done without tool-written evidence* — **+0.76**
+
+And it is **indistinguishable from zero** — between −0.07 and +0.04 — wherever the
+case tests generic code-quality instruction that a capable model already follows
+without being told. That is a real result and it is not flattering: **the plugin
+changes what a model does when the subject is verification, and does not when the
+subject is ordinary good practice.** A reader deciding whether to adopt this should
+weigh the first pair and discount the second.
+
+⚠ **Two cases are missing from that table and neither is a null result.**
+`gates-advise-never-block` is UNMEASURED at n=5: its own prompt records it as
+bimodal, and at five runs per arm the baseline produced no usable run at all
+(`n=1/0`). `adr-against-a-real-corpus` was not re-run — at `max_turns: 40` it does
+not fit the budget this table was taken under. Both previously reported `0.00`;
+that figure was a single run per arm and should not be read as a measured null.
+
+⚠ **A cap below what a case needs measures the cap, not the instruction.** Both
+`complexity-*` cases ran at `max_turns: 4` while their finishing runs needed 4–5,
+so **7 of 10 runs died at the cap and were excluded** — silently shrinking n to two
+and one. Raised to 8 before the numbers above were taken. An exhausted run is never
+scored 0; it is dropped, which is why this shows up as a small `n` rather than as a
+bad score.
+
+**turns 91 vs 39 — 2.33×** (from the 2026-08-28 single-run table; not re-measured
+here)
 
 **It roughly doubles the turns, and those turns are the MODEL's, not the tooling's.**
 Every gate here runs as a subprocess inside one Bash call inside one assistant
@@ -250,10 +283,14 @@ the plugin bought nothing except turns — 15 vs 3 in one case, 50 vs 20 in the
 other. A suite that reported only the six wins would be the benefits-only page
 this file warns you about two screens up.
 
-**What this run is not.** One run, n=1 per arm, one model version, eight cases
-written by the same people who wrote the plugin. It is enough to say the
-instructions change behaviour and to price that change. It is not enough to
-claim an effect size, and nobody should quote +0.575 as though it were one.
+**What this run is not.** Five runs per arm, one model version, seven cases
+written by the same people who wrote the plugin, one of them (`gates-advise-never-block`)
+unmeasurable at that budget. Five per arm is enough to kill a figure that was one
+draw from a bimodal case — which it did, four times — and enough to trust the two
+large, unanimous effects where the baseline scored 0.00 in every single run. It is
+NOT enough to put a confidence interval on the small ones: at n=5 a Δ of −0.07 and
+a Δ of +0.04 are the same answer, namely "no effect this experiment can see". Do
+not read the ordering within that group as a ranking.
 
 ⚠ **A failed run scores 0.00, and so does a real no-effect.** Measured 2026-09-03:
 every case on one machine reported `Δ 0.00` after failing to start — a Docker

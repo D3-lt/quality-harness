@@ -1,10 +1,13 @@
 ---
 # RAISED from 4 to 8 on 2026-09-03, measured rather than guessed. At 4, seven of
-# ten runs in an n=5 ablation ended `Reached maximum number of turns (4)` while
-# the three that FINISHED took 4 and 5 turns — so the cap sat below what the case
-# needs and the run was measuring the cap, not the instruction. An exhausted run
-# is excluded rather than scored, so the effect was to shrink n silently: the
-# arms reported two and one usable run against a nominal five.
+# ten runs in an n=5 ablation ended `Reached maximum number of turns (4)`, so the
+# run was measuring the cap rather than the instruction. An exhausted run is
+# excluded rather than scored, so the effect was to shrink n silently: the arms
+# reported two and one usable run against a nominal five. After the change, zero
+# of nineteen runs exhausted.
+# ⚠ Do NOT justify a cap by comparing it against a run's reported `turns` — they
+# are different units. adr-write-consults-the-corpus declares 8 and has completed
+# runs reporting 9, 11 and 14 while another errored at 8. Use the error string.
 # 8 is the same headroom the mid-sized cases already carry, not a round number.
 max_turns: 8
 runs: 1

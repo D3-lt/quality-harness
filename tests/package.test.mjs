@@ -1013,3 +1013,39 @@ test('adr-execute says the mutation pass already records the verification entry'
   assert.match(skill, /no mutation to record[\s\S]{0,200}?adr-verify/,
     'a task with no mutation still runs adr-verify on its own')
 })
+
+test('a CLI entry guard resolves on Windows, not only where argv is already a URL path', () => {
+  // Found 2026-09-03 by the Windows job, and the symptom was the worst kind:
+  // `scripts/backlog-claim-sweep.mjs` exited 0 having printed NOTHING, and the
+  // only evidence was an empty string in an assertion message.
+  //
+  // `import.meta.url` is `file:///D:/a/repo/scripts/x.mjs` on Windows while
+  // `process.argv[1]` is `D:\a\repo\scripts\x.mjs`, so a `file://${argv}`
+  // template never matches, `main()` never runs, and the script reports a clean
+  // exit for work it did not do. Six root scripts carried it, including
+  // `release-evidence.mjs` — the gate that clears a release — and the three the
+  // README tells a reader to re-derive its published numbers with.
+  //
+  // Derived from `git ls-files`, never from a hand-kept list, so a new script
+  // cannot reintroduce it unnoticed (the same rule as the shipped-surface sweep
+  // above).
+  const guarded = tracked().filter(f => f.endsWith('.mjs'))
+    .map(f => ({ file: f, text: readFileSync(join(repoRoot, f), 'utf8') }))
+    .filter(({ text }) => text.includes('process.argv[1]') && text.includes('import.meta.url'))
+
+  // A bare `file://` + argv template. `new URL('file://' + argv).href` is fine —
+  // measured: it normalises the separators and the drive to the same href
+  // `import.meta.url` carries — and so is `pathToFileURL`.
+  const broken = guarded.filter(({ text }) => /===\s*`file:\/\/\$\{process\.argv\[1\]\}`/.test(text))
+  assert.deepEqual(broken.map(b => b.file), [],
+    'these compare import.meta.url against a raw path and are inert on Windows')
+
+  // Shown able to be wrong, or it passes for a repository with no CLI at all.
+  assert.ok(guarded.length > 5,
+    `the sweep must have found real entry guards to judge: ${guarded.length}`)
+  // ASSEMBLED, not written out: a literal of the broken form in this file makes
+  // the sweep above flag its own test, which it duly did on the first run.
+  const brokenForm = ['if (import.meta.url === `file://', '${process', '.argv[1]}`) main()'].join('')
+  assert.match(brokenForm, /===\s*`file:\/\/\$\{process\.argv\[1\]\}`/,
+    'the detector must still recognise the broken form it was written for')
+})

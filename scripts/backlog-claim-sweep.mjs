@@ -26,6 +26,7 @@
 // Exit code is 0 whatever it finds. A count here is a place to look, not a
 // defect count — same reading as scripts/fence-obligation-sweep.py.
 import { execFileSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 
 const BACKLOG = 'docs/BACKLOG.md'
 
@@ -203,6 +204,12 @@ function main(argv) {
   return 0
 }
 
-if (import.meta.url === `file://${process.argv[1]}`) {
+// `pathToFileURL`, never a `file://` template. On Windows `process.argv[1]` is
+// `D:\a\repo\scripts\x.mjs` while `import.meta.url` is
+// `file:///D:/a/repo/scripts/x.mjs`, so the template never matches, main() never
+// runs, and the script exits 0 having printed NOTHING — a "could not look"
+// wearing a clean exit (CLAUDE.md §3). Measured 2026-09-03: that is exactly what
+// the Windows job saw, and the empty string was the only evidence it left.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(main(process.argv.slice(2)))
 }

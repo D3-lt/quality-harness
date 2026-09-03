@@ -22,6 +22,7 @@
 //   2  could not look (no gh, no run for this sha, unreadable answer)
 //   3  the run is not finished yet
 import { execFileSync } from 'node:child_process'
+import { pathToFileURL } from 'node:url'
 
 /**
  * Judge a run's release-worthiness from the `gh run view --json` object.
@@ -185,6 +186,6 @@ function main(argv) {
 // Importable without side effects, so the test can drive `evaluateRun` on
 // fixtures rather than on the network. `tests/package.test.mjs::importing a
 // script runs its CLI on nobody` asserts this property across every script here.
-if (import.meta.url === `file://${process.argv[1]}`) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exit(main(process.argv.slice(2)))
 }

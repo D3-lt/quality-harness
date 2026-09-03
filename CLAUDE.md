@@ -363,13 +363,21 @@ written the same day to fix the same class.
 
 1. `bash scripts/selftest.sh` green after the last edit.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`.
-3. Push, wait for **all nine** CI jobs (ubuntu, macos, windows, mutations 1-4/4, plugin validate,
-   coverage floor). CI is the only place the full mutation campaign and Windows actually run.
+3. Push, wait for **every** CI job. Do not carry a count in your head: this line said "all nine
+   … mutations 1-4/4" until 2026-09-03, and §106 had resharded the campaign to eight, making the
+   real number 13. A remembered count is how a missing job goes unnoticed — ask for the list.
+   CI is the only place the full mutation campaign and Windows actually run.
 4. **Read each job's `conclusion`, never the watch's exit code.** `gh run watch --exit-status`
    exited **0** on a CANCELLED run on 2026-09-02 (gh 2.98.0) — it prints `X The operation was
    canceled.` and returns success, because a cancelled run did not *fail*. Six of nine jobs were
    green and the three cancelled ones were the mutation campaign, so the release would have carried
-   no mutation evidence while looking verified. Ask the API instead:
+   no mutation evidence while looking verified. Ask the API — or better, ask the check that was
+   written for exactly this and reads it for you:
+
+       node scripts/release-evidence.mjs <sha>   # 0 clear · 1 a job failed · 2 could not look · 3 still running
+
+   It refuses a sha whose run has not finished, saying INCOMPLETE and naming the jobs still going.
+   That refusal is the tool working. The raw form, when you want it:
 
        gh run view <id> --json conclusion,jobs --jq '"\(.conclusion)", (.jobs[] | "\(.name): \(.conclusion)")'
 

@@ -2402,3 +2402,86 @@ for (const [runner, output] of [
     expectExit(verify(copy, ['--cwd', '.']), 0, `${runner}: a real run must still pass`)
   })
 }
+
+// ADR-028 T1. `--steps` records WHICH ordered steps a run exercised, as a trailing
+// field on the entry the tool already writes.
+//
+// The risk that shapes these tests is not the writer, it is the READERS. The entry
+// grammar is spelled out in six places across adr-lint, adr-next and adr-verify —
+// the file's own comment at the `ms:` field says four and was already an undercount
+// — and ADR-021 makes a row that stops parsing a change to the evidence. So the
+// assertions below drive the REAL gates over a REAL entry rather than testing a
+// regex against itself.
+
+// The shared fixture is deliberately pre-ADR-018: it carries no `**Proof map:**`
+// header and no `[S<n>]` identities, because other tests here exercise the legacy
+// allowance through it. So a step-aware test brings its own identities rather than
+// changing what every other test is standing on.
+function addStepIdentities(copy) {
+  writeTask(copy, readTask(copy).replace(
+    /^1\. Write the failing test/m, '1. [S1] Write the failing test')
+    .replace(/^2\. Fill every required section/m, '2. [S2] Fill every required section'))
+}
+
+test('an entry written without --steps is unchanged, and every reader still parses it', () => {
+  const copy = corpus()
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'the mutant must be killed')
+  expectExit(verify(copy, ['--cwd', '.']), 0, 'adr-verify')
+
+  const entry = readTask(copy).split('## Verification Log')[1].split('## Mutation Log')[0]
+  assert.doesNotMatch(entry, /steps:/, 'no field appears unless it was asked for')
+
+  // The readers, driven for real. `done` is the strictest path: it requires an
+  // exit-0 entry whose digest matches, so a row adr-lint could not parse fails here.
+  markDone(copy)
+  expectExit(lint(copy), 0, 'adr-lint must accept an entry written without --steps')
+  // adr-next exits non-zero once nothing is READY, so its VERDICT is the claim:
+  // `done` means it read the row as evidence. Asserting the exit code here would
+  // test the wrong thing and pass for the wrong reason.
+  assert.match(run('adr-next', ['ADR-001-selftest.md', '--all'], copy).stdout, /done\s+T1/,
+    'adr-next must still read the row as evidence')
+})
+
+test('--steps records the steps a run exercised, and every reader still parses it', () => {
+  const copy = corpus()
+  addStepIdentities(copy)
+  addMutationLog(copy)
+  expectExit(mutate(copy), 0, 'the mutant must be killed')
+  expectExit(verify(copy, ['--cwd', '.', '--steps', 'S1']), 0, 'adr-verify --steps')
+
+  const entry = readTask(copy).split('## Verification Log')[1].split('## Mutation Log')[0]
+  assert.match(entry, / · steps:S1$/m,
+    'the field is trailing, so every reader that stops at the old end still matches')
+
+  // The whole point: a row carrying the new field must remain readable by the
+  // gates that consume it. A reader whose pattern ends before the field would
+  // silently stop seeing this row as evidence — which is a lost row, and ADR-021
+  // calls that a change to the evidence.
+  markDone(copy)
+  expectExit(lint(copy), 0, 'adr-lint must accept an entry carrying steps')
+  assert.match(run('adr-next', ['ADR-001-selftest.md', '--all'], copy).stdout, /done\s+T1/,
+    'adr-next must still read a row carrying the new field as evidence')
+})
+
+test('--steps refuses a step id the task never declared', () => {
+  const copy = corpus()
+  addStepIdentities(copy)
+  addMutationLog(copy)
+  // S1 and S2 are now declared; S9 is not. A field naming a step that does not
+  // exist is a pointer to nothing, and the refusal must land BEFORE the fence runs
+  // — the same preflight ordering `--covers` uses (ADR-016).
+  const refused = verify(copy, ['--cwd', '.', '--steps', 'S9'])
+  assert.notEqual(refused.status, 0, 'an undeclared step id must be refused')
+  const said = `${refused.stdout}${refused.stderr}`
+  assert.match(said, /S9/, 'the refusal names the id it refused')
+  // Refused for the RIGHT reason. Without this the test passed against a fixture
+  // declaring no identities at all, where every id is refused and the check under
+  // test never ran.
+  assert.match(said, /declare[sd]? S1, S2/,
+    'the refusal must be about S9 being undeclared, not about there being no declarations')
+
+  const after = readTask(copy)
+  assert.doesNotMatch(after.split('## Verification Log')[1] ?? '', /steps:/,
+    'a refused run writes nothing')
+})

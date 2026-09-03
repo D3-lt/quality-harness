@@ -123,8 +123,12 @@ function prose(relative) {
 
 test('the operating skill points at the command and enumerates nothing', () => {
   const skill = prose(join('skills', 'operating', 'SKILL.md'))
-  assert.match(skill, /qh-doctor/,
-    'the skill must hand every countable question to the command')
+  // The RUNNABLE invocation, not merely the word. Asserting `/qh-doctor/` was the
+  // first version and it could not be shown able to fail: the name appears twice,
+  // so a mutation removing either one left the other and the mutant survived.
+  // A reader needs a line they can paste, which is the stronger claim anyway.
+  assert.match(skill, /^\s+node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/qh-doctor\.mjs"$/m,
+    'the skill must give a runnable invocation, not just name the command')
   assert.doesNotMatch(skill, NAMES_A_COUNT,
     'a count here is the rot this record exists to prevent — ask qh-doctor instead')
 

@@ -111,7 +111,7 @@ export function inventory(pluginRoot = PLUGIN_ROOT) {
 }
 
 /** Every entry in the home bin directory, classified. */
-function homeReport(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT) {
+export function homeReport(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT) {
   const binHome = join(homeDirectory, '.claude', 'bin')
   if (!existsSync(binHome)) return { entries: [], looked: true, note: `no ${BIN_LABEL} on this machine` }
   let names = []
@@ -141,7 +141,7 @@ function homeReport(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROOT) {
 }
 
 /** What `sync-standalone.mjs` says differs, without re-deriving it here. */
-function drift(pluginRoot = PLUGIN_ROOT) {
+export function drift(pluginRoot = PLUGIN_ROOT) {
   try {
     const out = execFileSync(process.execPath, [join(pluginRoot, 'scripts', 'sync-standalone.mjs')],
       { encoding: 'utf8', timeout: 60_000 })
@@ -151,48 +151,62 @@ function drift(pluginRoot = PLUGIN_ROOT) {
   }
 }
 
-function main() {
-  const counted = inventory()
-  const home = homeReport()
-  const moved = drift()
-
-  console.log(`quality-harness ${counted.version ?? '(version unreadable)'}`)
-  console.log(`  root       ${PLUGIN_ROOT}`)
-  console.log(`  ships      ${counted.skills} skills · ${counted.gates} gates · `
+/**
+ * The whole report, as lines and an exit code, from inputs handed in.
+ *
+ * PURE, and split out from `main()` for a reason the coverage floor made
+ * concrete: the exit codes are this command's contract — `1` on a copy, `2` when
+ * something could not be read — and while they lived inside a function that also
+ * called `os.homedir()` and spawned a subprocess, nothing asserted them. A
+ * contract no test can reach is a contract the next edit can break silently.
+ */
+export function report({ counted, home, moved, gateSource, pluginRoot = PLUGIN_ROOT }) {
+  const lines = []
+  const split = severitySplit(gateSource)
+  lines.push(`quality-harness ${counted.version ?? '(version unreadable)'}`)
+  lines.push(`  root       ${pluginRoot}`)
+  lines.push(`  ships      ${counted.skills} skills · ${counted.gates} gates · `
     + `${counted.templates} templates · ${counted.workflows} workflows`)
+  lines.push(`  adr-lint   ${split.failing} findings FAIL the lint, ${split.advisory} only advise`)
+  lines.push('             "the gate complained" is not "the gate refused" — read the word.')
 
-  let source = ''
-  try { source = readFileSync(join(PLUGIN_ROOT, 'bin', 'adr-lint'), 'utf8') } catch { source = '' }
-  const split = severitySplit(source)
-  console.log(`  adr-lint   ${split.failing} findings FAIL the lint, ${split.advisory} only advise`)
-  console.log('             "the gate complained" is not "the gate refused" — read the word.')
+  lines.push(`\n${BIN_LABEL}`)
+  if (!home.looked) lines.push(`  COULD NOT LOOK — ${home.note}`)
+  else if (home.entries.length === 0) lines.push(`  ${home.note ?? 'nothing installed'}`)
+  else for (const entry of home.entries) lines.push(`  ${entry.kind.padEnd(15)} ${entry.name}`)
 
-  console.log(`\n${BIN_LABEL}`)
-  if (!home.looked) console.log(`  COULD NOT LOOK — ${home.note}`)
-  else if (home.entries.length === 0) console.log(`  ${home.note ?? 'nothing installed'}`)
-  else {
-    for (const entry of home.entries) console.log(`  ${entry.kind.padEnd(15)} ${entry.name}`)
-  }
-
-  console.log('\ndrift')
-  if (!moved.looked) console.log(`  COULD NOT LOOK — ${moved.out.split('\n')[0]}`)
-  else console.log(moved.clean ? '  the standalone install matches this plugin'
-    : '  differs — `node "$QH/scripts/sync-standalone.mjs" --link --apply` repairs it')
+  lines.push('\ndrift')
+  if (!moved.looked) lines.push(`  COULD NOT LOOK — ${String(moved.out).split('\n')[0]}`)
+  else lines.push(moved.clean ? '  the standalone install matches this plugin'
+    : '  differs — `sync-standalone.mjs --link --apply` repairs it')
 
   const copies = home.entries.filter(entry => entry.kind === 'copy')
-  console.log('')
+  lines.push('')
   if (copies.length > 0) {
-    console.log(`${copies.length} COPY(-ies) installed: ${copies.map(c => c.name).join(', ')}`)
-    console.log('A copy is a fork that no release updates. `--link` replaces it with a forwarder,')
-    console.log('which resolves the newest plugin at call time and never goes stale.')
-    return 1
+    lines.push(`${copies.length} COPY(-ies) installed: ${copies.map(c => c.name).join(', ')}`)
+    lines.push('A copy is a fork that no release updates. `--link` replaces it with a forwarder,')
+    lines.push('which resolves the newest plugin at call time and never goes stale.')
+    return { lines, exit: 1 }
   }
+  // A COPY outranks an unreadable read: a finding you can act on is more useful
+  // than "some of this could not be seen", and reporting the weaker verdict would
+  // hide the stronger one.
   if (!home.looked || !moved.looked) {
-    console.log('Some of this could not be read, so this is not a clean bill — only an incomplete one.')
-    return 2
+    lines.push('Some of this could not be read, so this is not a clean bill — only an incomplete one.')
+    return { lines, exit: 2 }
   }
-  console.log('Nothing to act on. This describes THIS machine; a green run here says nothing about another.')
-  return 0
+  lines.push('Nothing to act on. This describes THIS machine; a green run here says nothing about another.')
+  return { lines, exit: 0 }
+}
+
+function main() {
+  let gateSource = ''
+  try { gateSource = readFileSync(join(PLUGIN_ROOT, 'bin', 'adr-lint'), 'utf8') } catch { gateSource = '' }
+  const { lines, exit } = report({
+    counted: inventory(), home: homeReport(), moved: drift(), gateSource,
+  })
+  for (const line of lines) console.log(line)
+  return exit
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

@@ -522,13 +522,26 @@ test('every catalogue mutant still parses, so a kill is behavioural', () => {
     const isJs = /\.(mjs|js)$/.test(entry.file)
     const isPy = entry.file.startsWith('plugin/bin/') || entry.file.endsWith('.py')
     if (!isJs && !isPy) continue
-    const scratch = join(mkdtempSync(join(tmpdir(), 'qh-parse-')), isJs ? 'm.mjs' : 'm.py')
-    writeFileSync(scratch, mutated)
-    const check = isJs
-      ? spawnSync(process.execPath, ['--check', scratch], { encoding: 'utf8' })
-      : runPython(['-c', `import ast,sys;ast.parse(open(sys.argv[1],encoding="utf-8").read())`, scratch],
-        { encoding: 'utf8' })
-    if (check.status !== 0) unparseable.push(entry.label)
+    const dir = mkdtempSync(join(tmpdir(), 'qh-parse-'))
+    const parses = (text, name) => {
+      const scratch = join(dir, name)
+      writeFileSync(scratch, text)
+      const check = isJs
+        ? spawnSync(process.execPath, ['--check', scratch], { encoding: 'utf8' })
+        : runPython(['-c', `import ast,sys;ast.parse(open(sys.argv[1],encoding="utf-8").read())`, scratch],
+          { encoding: 'utf8' })
+      return check.status === 0
+    }
+    // COMPARED AGAINST THE ORIGINAL, not judged alone. A workflow script is a
+    // FUNCTION BODY — `plugin/workflows/*.js` use top-level `return`, which is
+    // illegal in a module — so it does not parse standalone even unmutated, and
+    // judging the mutant by itself flagged every workflow mutation ever written.
+    // Measured 2026-09-03 on the first one: `node --check` fails on the UNCHANGED
+    // review-ring.js. A file that could not be parsed before the mutation tells us
+    // nothing about the mutation, which is "I could not look" and not a finding
+    // (ADR-005).
+    if (!parses(source, isJs ? 'orig.mjs' : 'orig.py')) continue
+    if (!parses(mutated, isJs ? 'm.mjs' : 'm.py')) unparseable.push(entry.label)
   }
   assert.deepEqual(unparseable, [],
     'these mutants do not parse, so their RED says the file reached a parser and nothing more')

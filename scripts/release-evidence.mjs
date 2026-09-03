@@ -119,8 +119,47 @@ function fetchRun(sha) {
 
 const EXIT = { success: 0, failed: 1, unreadable: 2, incomplete: 3 }
 
+
+// An option is not a sha, and until 2026-09-03 nothing here said so: `argv[0]`
+// went straight into `git rev-parse`, where `--help` SUCCEEDS and returns the git
+// manual. That 55KB of roff was then URL-encoded into a `head_sha=` query and the
+// API answered `HTTP 414: Request-URL too long`, which reads as a network problem
+// rather than as "you asked for help". A reader looking for usage got a wall of
+// another tool's documentation and a transport error.
+//
+// Exported so a test can drive it without the network, which is the only way the
+// dash cases are reachable — `fetchRun` shells out on the line after.
+export function classifyArgument(argument) {
+  if (argument === undefined) return { kind: 'sha', value: undefined }
+  if (argument === '--help' || argument === '-h') return { kind: 'help' }
+  // Anything else dash-led is an option this script does not have. It is NOT
+  // silently treated as a sha: a mistyped flag that resolves to "could not look"
+  // is the same wrong answer as one that resolves to a manual page.
+  if (argument.startsWith('-')) return { kind: 'unknown', value: argument }
+  return { kind: 'sha', value: argument }
+}
+
+const USAGE = [
+  'Usage: node scripts/release-evidence.mjs [<sha>]   # defaults to HEAD',
+  '',
+  'Exit codes:',
+  '  0  every job concluded success — safe to release this sha',
+  '  1  a job did not conclude success (failed, cancelled, timed out, skipped)',
+  '  2  could not look (no gh, no run for this sha, unreadable answer, bad usage)',
+  '  3  the run is not finished yet',
+].join('\n')
+
 function main(argv) {
-  let sha = argv[0]
+  const argument = classifyArgument(argv[0])
+  if (argument.kind === 'help') {
+    console.log(USAGE)
+    return EXIT.success
+  }
+  if (argument.kind === 'unknown') {
+    console.error(`release-evidence: unknown option ${argument.value}\n\n${USAGE}`)
+    return EXIT.unreadable
+  }
+  let sha = argument.value
   if (!sha) {
     try {
       sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()

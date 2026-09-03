@@ -4065,6 +4065,15 @@
       ],
       "from": "                \"survived\",",
       "to": "                \"killed\","
+    },
+    {
+      "label": "release: an unknown option is not silently taken for a sha",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (argument.startsWith('-')) return { kind: 'unknown', value: argument }",
+      "to": "  if (false) return { kind: 'unknown', value: argument }"
     }
   ]
 }

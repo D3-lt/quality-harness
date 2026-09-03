@@ -4101,6 +4101,24 @@
       ],
       "from": "  return start === -1 ? null : { start: start + 1, end: lines.length }",
       "to": "  return { start: start + 1, end: lines.length }"
+    },
+    {
+      "label": "doctor: a file the plugin cannot prove it wrote is never called a copy",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  return 'unidentifiable'",
+      "to": "  return 'copy'"
+    },
+    {
+      "label": "doctor: the severity split counts advisory findings, not only failing ones",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  return { failing: count('errors.append('), advisory: count('errors.advise(') }",
+      "to": "  return { failing: count('errors.append('), advisory: 0 }"
     }
   ]
 }

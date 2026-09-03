@@ -6493,6 +6493,39 @@ outside any such gate anyway, and every instance so far was found by a human or 
 reading carefully. Re-open the anchor mechanism if the count of would-have-been-caught
 instances reaches three; it is one.
 
+**A THIRD DIRECTION EXISTS AND IS NOW INSTRUMENTED — 2026-09-03, `scripts/backlog-claim-sweep.mjs`.**
+The tenth instance (§93) was neither of the two directions above. `ef5b1a7`'s own subject said
+"BACKLOG §87 CLOSED and §93 delivered", it added 38 lines to this file, and every one of them
+went to §87 — so the record asserted a live GAP the code had already closed, and the commit
+that closed it SAID SO in a place nothing compares against the diff.
+
+That needs no anchor, which is why it is buildable where the mechanism above was not: the
+message already names the section, so the check reads the name and asks whether the diff
+reached that section's line range. Nothing has to be maintained for it to keep working, and its
+universe is not empty — 193 commits touch this file, 59 carry a section claim, 10 do not edit
+what they claim.
+
+**Three thresholds, each measured on this repository rather than chosen**, and each one wrong
+in a way that would have mattered:
+
+- Both claim directions are kept. The corpus writes 62 section-then-claim (`§93 delivered`)
+  against 9 the other way — but one of the nine is `ef5b1a7` itself, so the tidier
+  one-direction rule would have dropped the instance the check exists for.
+- A sentence boundary separates a claim from commentary. Without it the sweep reported its own
+  author's commit as claiming §87 and §103, from lines that merely discuss them.
+- `§` is not owned by this file. `eeb2c7c` was reported for §4 because its body ends
+  "CLAUDE.md §4"; resolving that here compares a claim against a file it was never about.
+
+**It reports and never blocks, and an absent section is `COULD NOT LOOK` rather than a cleared
+claim** — the ADR-005 distinction, in the one place a sweep is most tempted to collapse it.
+`tests/backlog-claim-sweep.test.mjs` drives it end to end through `git` on a scratch repository,
+because the logic passing in isolation is not the boundary the report came through (CLAUDE.md
+§4). Three catalogue mutations carry it, all RED.
+
+**The anchor count is still one and this does not change it.** A different mechanism answering a
+different question is not evidence for the one that was declined, and the re-open condition
+above stands untouched.
+
 ## 104. CLOSED 2026-09-02 — `gh run watch --exit-status` exits 0 on a CANCELLED run, and a push cancels the run you are releasing on
 
 Found 2026-09-02 while releasing v2.52.0, by nearly cutting the tag on it. Both halves are

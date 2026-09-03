@@ -1,6 +1,6 @@
 # ADR-027: Ship an operating surface, and make the countable half a command
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-03
 **Owner:** zy
 **Spec:** None — no spec stage

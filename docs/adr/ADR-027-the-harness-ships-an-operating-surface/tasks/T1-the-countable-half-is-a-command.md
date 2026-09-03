@@ -39,7 +39,7 @@ a copy, what the plugin ships right now, and which `adr-lint` findings fail vers
 set -o pipefail
 node --test tests/qh-doctor.test.mjs 2>&1 | tee /tmp/adr027-t1.out \
   && ! grep -qE "no tests to run|^not ok|^# fail [1-9]" /tmp/adr027-t1.out \
-  && node plugin/scripts/qh-doctor.mjs >/dev/null
+  && node plugin/scripts/qh-doctor.mjs | grep -q "^quality-harness "
 ```
 
 ## Tests

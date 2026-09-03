@@ -19,7 +19,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | [the countable half is a command](T1-the-countable-half-is-a-command.md) | pending | — | `node --test tests/qh-doctor.test.mjs …` |
+| T1 | [the countable half is a command](T1-the-countable-half-is-a-command.md) | done | — | `node --test tests/qh-doctor.test.mjs …` |
 | T2 | [the judgment half is one skill](T2-the-judgment-half-is-one-skill.md) | pending | — | `node --test tests/qh-doctor.test.mjs tests/skill-contract.test.mjs …` |
 | T3 | [the door a reader opens first](T3-the-door-a-reader-opens-first.md) | pending | — | `node --test tests/qh-doctor.test.mjs tests/package.test.mjs …` |
 

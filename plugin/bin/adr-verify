@@ -1295,8 +1295,12 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             print(f"[adr-verify] UNPROVEN: the clean acceptance fence did not finish within "
                   f"{fence_timeout()}s. No mutant was applied and no Mutation Log row was "
                   f"written.")
+            if not getattr(expired, "tree_killed", False):
+                print("[adr-verify] its process tree was NOT confirmed killed — descendants "
+                      "may still be running, and this gate did not see them stop.")
             if partial.strip():
-                print("[adr-verify] what the clean fence had produced when it was killed:")
+                print("[adr-verify] what the clean fence had produced before adr-verify "
+                      "stopped waiting:")
                 for line in partial.strip().splitlines()[-10:]:
                     print(f"  {line}")
             sys.exit(1)
@@ -1750,14 +1754,23 @@ def kill_tree(pid, platform=None, run=subprocess.run):
     exercised on every host by injecting both, and taskkill is never spawned
     where it does not exist. Copied verbatim into spec-verify and qh-mcp — a
     shared module under bin/ would be read as a gate by the package tests.
+
+    RETURNS whether the kill was OBSERVED to work. False is not "it failed", it
+    is "nothing here saw it work" — taskkill answering non-zero, killpg raising,
+    an injected runner that reports nothing. A caller that prints "was killed"
+    on a False has reported an observation it did not make, which is the one
+    thing CLAUDE.md §3 forbids a gate to do. BACKLOG §123 is why the distinction
+    is not theoretical: the tree kill is proved on macOS, unproved on Linux, and
+    does not work on a Git Bash tree at all.
     """
     try:
         if (platform or os.name) == "nt":
-            run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
-        else:
-            os.killpg(pid, signal.SIGKILL)
+            done = run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+            return getattr(done, "returncode", None) == 0
+        os.killpg(pid, signal.SIGKILL)
+        return True
     except Exception:
-        pass
+        return False
 
 
 def drain_after_kill(proc, platform, grace=10):
@@ -1767,10 +1780,16 @@ def drain_after_kill(proc, platform, grace=10):
     group kill and can hold the pipe open for ever; unbounded here, that hang
     would wear the timeout's name. What it could not collect is None, which
     every reader of a TimeoutExpired here already handles.
+
+    Returns `(stdout, stderr, killed)`. `killed` is `kill_tree`'s own answer,
+    carried rather than assumed, so the caller that prints the verdict can say
+    what was observed instead of asserting a kill nobody checked.
     """
+    killed = False
     try:
-        kill_tree(proc.pid, platform)
-        return proc.communicate(timeout=grace)
+        killed = kill_tree(proc.pid, platform)
+        out, err = proc.communicate(timeout=grace)
+        return out, err, killed
     except Exception:
         for stream in (proc.stdout, proc.stderr, proc.stdin):
             if stream is not None:
@@ -1778,7 +1797,7 @@ def drain_after_kill(proc, platform, grace=10):
                     stream.close()
                 except Exception:
                     pass
-        return None, None
+        return None, None, killed
 
 
 def run_bounded(argv, *, timeout, platform=None, **popen):
@@ -1810,8 +1829,12 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        out, err = drain_after_kill(proc, platform)
-        raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+        out, err, killed = drain_after_kill(proc, platform)
+        expired = subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
+        # The cleanup's own answer travels ON the exception because the code
+        # that prints the verdict is nowhere near the code that did the killing.
+        expired.tree_killed = killed
+        raise expired from None
     except BaseException:
         # subprocess.run kills its child on ANY exception — a Ctrl-C turned
         # into KeyboardInterrupt, a SystemExit — so that a gate being stopped
@@ -2599,13 +2622,17 @@ def main():
         # Nothing is written to the task file: an entry claiming a run that did
         # not finish is worse than no entry.
         partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
+        killed = getattr(expired, "tree_killed", False)
         print(f"[adr-verify] UNRUN: the acceptance fence did not finish within "
-              f"{fence_timeout()}s and was killed. NOTHING has been written to "
+              f"{fence_timeout()}s. NOTHING has been written to "
               f"{task.name} — a run that did not finish is not evidence either way. "
               f"Fix the hang, or run the fence yourself and use --human if it is "
               f"genuinely a human-observed check.")
+        print("[adr-verify] its process tree was killed." if killed else
+              "[adr-verify] its process tree was NOT confirmed killed — descendants may "
+              "still be running, and this gate did not see them stop.")
         if partial.strip():
-            print("[adr-verify] what it had produced when it was killed:")
+            print("[adr-verify] what it had produced before adr-verify stopped waiting:")
             for line in partial.strip().splitlines()[-10:]:
                 print(f"  {line}")
         sys.exit(2)

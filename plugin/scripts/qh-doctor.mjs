@@ -152,6 +152,28 @@ export function drift(pluginRoot = PLUGIN_ROOT) {
 }
 
 /**
+ * The claims ledger, read ONCE, with "could not look" kept apart from "nothing
+ * there".
+ *
+ * Hoisted out of `report()` so that function is pure as its own comment already
+ * claimed, and — the defect this fixes — so an unreadable ledger can reach the
+ * exit code at all. `ENOENT` is "nothing has been recorded", which is a clean
+ * answer; every other error is could-not-look, and ADR-005 says that is never a
+ * clean bill. Collapsing the two reported a permission error as an empty ledger.
+ */
+export function ledgerReport(env = process.env) {
+  const file = env.CLAUDE_PLUGIN_DATA ? join(env.CLAUDE_PLUGIN_DATA, 'claims.jsonl') : null
+  if (!file) return { file: null, looked: true, rows: null, note: null }
+  try {
+    const rows = readFileSync(file, 'utf8').split('\n').filter(line => line.trim()).length
+    return { file, looked: true, rows, note: null }
+  } catch (error) {
+    if (error.code === 'ENOENT') return { file, looked: true, rows: null, note: null }
+    return { file, looked: false, rows: null, note: error.message }
+  }
+}
+
+/**
  * The whole report, as lines and an exit code, from inputs handed in.
  *
  * PURE, and split out from `main()` for a reason the coverage floor made
@@ -160,7 +182,12 @@ export function drift(pluginRoot = PLUGIN_ROOT) {
  * called `os.homedir()` and spawned a subprocess, nothing asserted them. A
  * contract no test can reach is a contract the next edit can break silently.
  */
-export function report({ counted, home, moved, gateSource, pluginRoot = PLUGIN_ROOT }) {
+export function report({
+  counted, home, moved, gateSource, pluginRoot = PLUGIN_ROOT,
+  // Defaulted so a caller with no ledger question keeps working; `looked: true`
+  // with `file: null` is "there was nothing to look at", not "I failed to look".
+  ledger = { file: null, looked: true, rows: null, note: null },
+}) {
   const lines = []
   const split = severitySplit(gateSource)
   lines.push(`quality-harness ${counted.version ?? '(version unreadable)'}`)
@@ -185,20 +212,15 @@ export function report({ counted, home, moved, gateSource, pluginRoot = PLUGIN_R
   // ADR-035. What the harness has recorded ABOUT ITSELF on this machine. A count
   // rather than a rate: `claims-rate.mjs` owns the arithmetic and the buckets,
   // and two places computing one number is how they come to disagree.
-  const ledger = process.env.CLAUDE_PLUGIN_DATA
-    ? join(process.env.CLAUDE_PLUGIN_DATA, 'claims.jsonl')
-    : null
   lines.push('claims ledger')
-  if (!ledger) {
+  if (!ledger.file) {
     lines.push('  CLAUDE_PLUGIN_DATA is unset, so no completion event is being recorded.')
+  } else if (!ledger.looked) {
+    lines.push(`  COULD NOT LOOK — ${ledger.file}: ${String(ledger.note).split('\n')[0]}`)
+  } else if (ledger.rows === null) {
+    lines.push(`  no ledger at ${ledger.file} yet — nothing recorded, which is not a rate of zero`)
   } else {
-    let rows = null
-    try {
-      rows = readFileSync(ledger, 'utf8').split('\n').filter(line => line.trim()).length
-    } catch { rows = null }
-    lines.push(rows === null
-      ? `  no ledger at ${ledger} yet — nothing recorded, which is not a rate of zero`
-      : `  ${rows} completion event(s) recorded — \`node "$(qh-root)/scripts/claims-rate.mjs"\` reads the rate`)
+    lines.push(`  ${ledger.rows} completion event(s) recorded — \`node "$(qh-root)/scripts/claims-rate.mjs"\` reads the rate`)
   }
   lines.push('')
   if (copies.length > 0) {
@@ -210,7 +232,7 @@ export function report({ counted, home, moved, gateSource, pluginRoot = PLUGIN_R
   // A COPY outranks an unreadable read: a finding you can act on is more useful
   // than "some of this could not be seen", and reporting the weaker verdict would
   // hide the stronger one.
-  if (!home.looked || !moved.looked) {
+  if (!home.looked || !moved.looked || !ledger.looked) {
     lines.push('Some of this could not be read, so this is not a clean bill — only an incomplete one.')
     return { lines, exit: 2 }
   }
@@ -223,6 +245,7 @@ function main() {
   try { gateSource = readFileSync(join(PLUGIN_ROOT, 'bin', 'adr-lint'), 'utf8') } catch { gateSource = '' }
   const { lines, exit } = report({
     counted: inventory(), home: homeReport(), moved: drift(), gateSource,
+    ledger: ledgerReport(),
   })
   for (const line of lines) console.log(line)
   return exit

@@ -61,6 +61,7 @@ node --test tests/installed.test.mjs 2>&1 | tee /tmp/adr030-t2.out \
 - 2026-09-04 · 2486ef6* · mutant killed · exit 1 · `tests/installed.test.mjs` · an install that cannot be resolved must be UNRUN and reported; treating it as found turns could-not-look into a silent pass · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · covers:an absent install is UNRUN and reported, never a silent pass and never a finding
 - 2026-09-04 · 2486ef6* · mutant killed · exit 1 · `tests/installed.test.mjs` · the install is located with qh-root and nothing else — any other resolver reintroduces the version ordering qh-root exists to get right · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · covers:the install is located with qh-root rather than by string order
 - 2026-09-04 · 2486ef6* · mutant killed · exit 1 · `tests/installed.test.mjs` · a finding without the version cannot be told from one about a different build — the confusion measured 2026-09-01 · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · covers:every finding names the version it was measured against
+- 2026-09-04 · 9e4b97d · mutant killed · exit 1 · `tests/installed.test.mjs` · a definition the host cannot parse must be a finding; a filter that keeps nothing reports a clean install whatever agents/ holds · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · covers:a definition the host cannot parse is a finding, and that check is reached from a fixture rather than only where an install happens to carry agents/
 
 ## Verification Log
 
@@ -68,6 +69,7 @@ node --test tests/installed.test.mjs 2>&1 | tee /tmp/adr030-t2.out \
 - 2026-09-04 · 2486ef6* · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:578
 - 2026-09-04 · 2486ef6* · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:477
 - 2026-09-04 · 2486ef6* · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:427
+- 2026-09-04 · 9e4b97d · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:1267
 
 ## Invariants
 

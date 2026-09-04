@@ -16,7 +16,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | [prose about a gate is checked against the gate](T1-prose-about-a-gate-is-checked-against-the-gate.md) | pending | — | `node --test tests/flag-claim-sweep.test.mjs …` |
+| T1 | [prose about a gate is checked against the gate](T1-prose-about-a-gate-is-checked-against-the-gate.md) | done | — | `node --test tests/flag-claim-sweep.test.mjs …` |
 
 ## Contract Coupling
 

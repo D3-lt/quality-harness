@@ -105,5 +105,14 @@ prevent.
 
 ## Mutation Log
 
+- 2026-09-04 · e580cff · mutant killed · exit 1 · `scripts/flag-claim-sweep.mjs` · without the set guard every flag reads as changed, so the sweep fires on every commit that touches a gate · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · covers:flag-sweep: an unchanged flag surface reports nothing
+- 2026-09-04 · e580cff* · mutant killed · exit 1 · `scripts/flag-claim-sweep.mjs` · removal is the dangerous direction: prose telling a reader to type a flag the gate now refuses · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · covers:flag-sweep: a flag removed from the surface is still a change
+- 2026-09-04 · e580cff* · mutant killed · exit 1 · `scripts/flag-claim-sweep.mjs` · the backlog records defects on purpose, so treating it as prose to correct would destroy the record rather than repair it · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · covers:flag-sweep: the backlog is history, not prose this project serves
+- 2026-09-04 · e580cff* · mutant killed · exit 1 · `scripts/flag-claim-sweep.mjs` · a substring match makes any longer name read as a gate, which is what the filter exists to prevent · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · covers:flag-sweep: a gate name is matched whole, not as a substring
+
 ## Verification Log
 - 2026-09-04 · 0a006a4 · exit 0 · `set -o pipefail …` · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · ms:37455 · steps:S1,S2,S3,S4,S6
+- 2026-09-04 · e580cff · exit 0 · `set -o pipefail …` · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · ms:42156
+- 2026-09-04 · e580cff* · exit 0 · `set -o pipefail …` · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · ms:42075
+- 2026-09-04 · e580cff* · exit 0 · `set -o pipefail …` · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · ms:34573
+- 2026-09-04 · e580cff* · exit 0 · `set -o pipefail …` · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · ms:39030

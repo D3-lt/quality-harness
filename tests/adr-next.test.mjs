@@ -662,3 +662,25 @@ test('--json over a corpus root keys its answer by record', () => {
   assert.ok(names.some(n => n.includes('ADR-003')), `ADR-003 present: ${names}`)
   assert.ok(names.some(n => n.includes('ADR-007')), `ADR-007 present: ${names}`)
 })
+
+test('a record folder is still answered as one record, not as a corpus of one', () => {
+  // REGRESSION, and it is the finding a Codex review produced that this suite
+  // did not. The first corpus branch was gated only on "owns no task files",
+  // which is TRUE of a record folder — `ADR-007-source/` holds its tasks in
+  // `tasks/` beside them, not directly. So a record folder, a shape that worked
+  // before ADR-034 and is one of the three `resolve_tasks_dir` was written for,
+  // came back as a corpus holding one record literally named `tasks`.
+  //
+  // The exit code was RIGHT throughout, which is why nothing else here caught
+  // it: only the shape of the answer changed. A previously working input that
+  // silently returns a differently-shaped answer is a regression whatever the
+  // status code says.
+  const { dir } = twoRecords('none')
+  const out = next([join(dir, 'ADR-007-source'), '--all'], dir)
+  assert.doesNotMatch(out.stdout, /^tasks\s/m,
+    `a record folder must not be reported as a corpus of one:\n${out.stdout}`)
+  assert.doesNotMatch(out.stdout, /record\(s\) with tasks/,
+    `no corpus summary line for a single record:\n${out.stdout}`)
+  assert.match(out.stdout, /^READY\s+T1/m,
+    `the single-record form is what a record folder gets:\n${out.stdout}`)
+})

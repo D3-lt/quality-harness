@@ -48,11 +48,30 @@ direction.
 ## 2. Run the checks the way they are meant to be run
 
 ```bash
-bash scripts/selftest.sh          # the repository-owned gate. 271 tests. Exit 0 or it did not pass.
+bash scripts/selftest.sh          # the repository-owned gate. Exit 0 or it did not pass.
 bash scripts/coverage.sh          # JS + Python floors; --report to read the numbers without enforcing
 node scripts/mutate.mjs           # the full campaign, ~37 min. --case '<substring>' for one.
 python3 plugin/bin/adr-lint <adr> # a record's own gate
 ```
+
+**Three sweeps ask questions no gate asks, and nothing runs them for you.** Each reports and never
+blocks, each prints a count that is a place to look rather than a defect count, and each is cheap
+enough to run before a release.
+
+```bash
+node scripts/flag-claim-sweep.mjs      # a gate's flag surface changed; does the prose still hold?
+node scripts/backlog-claim-sweep.mjs   # a commit CLAIMS a backlog section; did it edit that section?
+node scripts/orphan-sweep.mjs          # a definition nothing reaches
+```
+
+`flag-claim-sweep` closes one corner of the gap that `Governs:` cannot see. A record's header names
+CODE paths, so ADR-011 can tell you a declared path matches nothing — it cannot tell you a decision
+changed a gate and the SKILL.md describing that gate kept asserting the old behaviour. That is how
+`plugin/skills/operating/SKILL.md` went on saying the gates had no `--version` across the commit
+that gave all eleven of them one. **It catches the FLAG class only**: a stale COUNT
+(`docs/mcp.md`'s "Five tools" when there were seven), a stale VOCABULARY (`adr-next`'s three states
+when it had grown a fourth) and a missing CONVENTION are all still found by reading, and the header
+in the script says so rather than letting the tool look wider than it is.
 
 **Never pipe the gate.** `bash scripts/selftest.sh | tail` and `... || true` both hide the exit
 code, and a check whose result nothing reads is decoration.

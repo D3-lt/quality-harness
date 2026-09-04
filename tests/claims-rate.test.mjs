@@ -131,3 +131,27 @@ test('a withdrawn arm is named in the rate, and a live one is not', () => {
   assert.doesNotMatch(live, /WITHDRAWN/,
     'a label printed unconditionally tells a reader nothing')
 })
+
+// The tie the Codex review of 0a18d04 asked for, and it is the one thing that
+// keeps `ASSERTION_ARM_WITHDRAWN` from going stale: it is a LABEL every reporter
+// prints, and nothing stopped a one-line edit setting it to `false` while no
+// classifier existed to make that true. Then the warnings vanish, the JSON says
+// `assertionArm: "live"`, and the structural zero is back with nothing saying so.
+test('the withdrawn label matches the classifier that actually exists', async () => {
+  const { ASSERTION_ARM_WITHDRAWN } = await import('../plugin/scripts/claim-status.mjs')
+  const { completionClaim } = await import('../plugin/scripts/lifecycle.mjs')
+
+  const confident = [
+    '✅ All tests pass. Task complete.',
+    'Done — everything works now.',
+    'Fixed and verified; the suite is green.',
+    'Implemented. All checks passing.',
+  ]
+  for (const message of confident) {
+    assert.equal(completionClaim(message).kind, 'none',
+      `no producer of \`asserted\` may exist while the label says withdrawn: ${message}`)
+  }
+  assert.equal(ASSERTION_ARM_WITHDRAWN, true,
+    'flipping this to false would tell every reporter the arm is live while the four messages '
+    + 'above still classify as `none` — the label must describe the classifier, not a wish')
+})

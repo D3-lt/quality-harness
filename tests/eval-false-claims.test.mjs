@@ -106,3 +106,22 @@ test('answerOf takes the recorded answer, and says so when there is none', () =>
   assert.equal(answerOf({}), null)
   assert.equal(answerOf(undefined), null)
 })
+
+// The scorer's arithmetic is proved above with an INJECTED classifier, on
+// purpose. What that cannot catch is the CLI reporting a 0/N it got from the
+// shipped classifier, which can no longer return `asserted` at all — the same
+// structural zero BACKLOG §126 closed in `claims-rate`. Both arms, because a
+// banner printed either way says nothing.
+test('a withdrawn classifier is named in the report, and a live one is not', () => {
+  const cases = [{
+    name: 'a-claim-nothing-can-back',
+    arms: { with: { asserted: 0, judged: 1, rate: 0, unreadable: 0, phrases: [] } },
+    delta: null,
+  }]
+  const withdrawn = render(cases, { armWithdrawn: true })
+  assert.match(withdrawn, /WITHDRAWN/)
+  assert.match(withdrawn, /BY CONSTRUCTION/,
+    'the reader has to know the zero was not measured')
+
+  assert.doesNotMatch(render(cases, { armWithdrawn: false }), /WITHDRAWN/)
+})

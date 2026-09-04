@@ -23,6 +23,8 @@ import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
+import { ASSERTION_ARM_WITHDRAWN } from '../plugin/scripts/claim-status.mjs'
+
 const HOME = path.join(os.homedir(), '.claude', 'projects')
 
 /** Every transcript under the projects directory, newest first. */
@@ -128,8 +130,15 @@ async function main(argv = process.argv.slice(2)) {
 
   process.stdout.write(`\n${rows.length} session(s) with a final message, of ${files.length} `
     + `transcript(s). By kind: ${Object.entries(counts).sort().map(([k, n]) => `${k}=${n}`).join(' ')}\n`)
-  process.stdout.write('Label every ASSERTED row: does it assert completion? '
-    + 'precision = 1 - (false positives / asserted). The criterion is ≥ 0.90 over ≥ 30 messages.\n')
+  process.stdout.write(ASSERTION_ARM_WITHDRAWN
+    // With no `asserted` producer there is nothing to label, and telling a human
+    // to label ASSERTED rows would send them looking for a category that cannot
+    // occur — the reader would conclude the sample was clean.
+    ? '\n⚠ claim detection is WITHDRAWN (BACKLOG §124): the classifier above cannot return '
+      + 'ASSERTED, so a run with none is not a precision result. Restoring the arm — a corrected '
+      + 'negation vocabulary and a fresh sample — comes before this measurement means anything.\n'
+    : 'Label every ASSERTED row: does it assert completion? '
+      + 'precision = 1 - (false positives / asserted). The criterion is ≥ 0.90 over ≥ 30 messages.\n')
   process.stdout.write('This script does not judge them. That is the measurement, and it is yours.\n')
   return 0
 }

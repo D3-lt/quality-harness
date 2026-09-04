@@ -21,7 +21,7 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
-import { ASSERTION_ARM_WITHDRAWN } from './lifecycle.mjs'
+import { ASSERTION_ARM_WITHDRAWN } from './claim-status.mjs'
 
 const EXCLUDED_EVIDENCE = new Set(['no-check', 'could-not-look'])
 
@@ -98,7 +98,8 @@ export function render(counts, source, { armWithdrawn = ASSERTION_ARM_WITHDRAWN 
   if (armWithdrawn) {
     lines.push('⚠ claim detection is WITHDRAWN (BACKLOG §124): no new row can enter the false '
       + 'half, so a 0 there means the arm is off, NOT that no false success occurred. Any '
-      + 'false count above comes from rows recorded before the withdrawal.')
+      + 'false count above comes from asserted rows already in this ledger; this version cannot '
+      + 'add one.')
   }
   if (counts.excluded) {
     lines.push(`${counts.excluded} row(s) excluded — in neither half of the rate:`, ...excluded)

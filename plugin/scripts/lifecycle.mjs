@@ -1754,7 +1754,7 @@ function interimResponse(message) {
 // of printing a structural zero that reads as clean. Restoring the arm means a
 // corrected negation vocabulary and a fresh measurement on answers not used to
 // build it — not this one re-read more kindly. BACKLOG §124, §126.
-export const ASSERTION_ARM_WITHDRAWN = true
+export { ASSERTION_ARM_WITHDRAWN } from './claim-status.mjs'
 
 export function completionClaim(message) {
   if (typeof message !== 'string') return { kind: 'unavailable', phrase: null }

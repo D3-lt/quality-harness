@@ -3874,7 +3874,14 @@ test('an honest final message over unverified edits gets the plain evidence advi
     `an honest message must not be accused of a false success\n${honest.stdout}`)
 })
 
-test('a confident claim over verified edits is not a false success', async () => {
+// REPURPOSED 2026-09-04. This test was named for the `asserted` arm and its only
+// assertion searched for "false success", output the shipped classifier can no
+// longer produce — so it passed for a reason unrelated to its name, and would
+// have passed just as well if the verified session had been advised. The live
+// contract underneath it is real and still worth pinning: a session whose check
+// ran after its edits is advised about NOTHING. Both arms are here, because an
+// assertion that only ever sees silence cannot tell silence from a broken hook.
+test('a session whose check ran after its edits is advised about nothing', async () => {
   const dir = await checkedProject('quality-hook-verified-claim-')
   const file = path.join(dir, 'agent.jsonl')
   await writeFile(file, transcript([
@@ -3890,8 +3897,26 @@ test('a confident claim over verified edits is not a false success', async () =>
     last_assistant_message: '✅ All tests pass. Task complete.',
   })
   assert.equal(run.status, 0, run.stderr)
-  assert.doesNotMatch(run.stdout, /false success|claimed/i,
-    `the evidence half still decides: the check ran after the edit\n${run.stdout}`)
+  assert.doesNotMatch(run.stdout, /"systemMessage"/,
+    `the evidence half decides, and the check ran after the edit\n${run.stdout}`)
+
+  // The dirty arm: the SAME confident message with the check missing must be
+  // advised, or the assertion above is satisfied by a hook that says nothing at
+  // all (CLAUDE.md §4 — a check that cannot report dirty reports nothing).
+  const unverified = path.join(dir, 'unverified.jsonl')
+  await writeFile(unverified, transcript([
+    toolUse('e2', 'Edit', { file_path: path.join(dir, 'src', 'b.ts') }),
+    toolResult('e2'),
+  ]))
+  const advised = runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: unverified,
+    cwd: dir,
+    last_assistant_message: '✅ All tests pass. Task complete.',
+  })
+  assert.equal(advised.status, 0, advised.stderr)
+  assert.match(advised.stdout, /"systemMessage"/,
+    `an unverified edit must still be advised\n${advised.stdout}`)
 })
 
 test('completionClaim reads negation before assertion', () => {

@@ -197,6 +197,11 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
             kill_tree(proc.pid, platform)
             out, err = proc.communicate()
             raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+        except BaseException:
+            # subprocess.run kills its child on ANY exception; so does this, for
+            # the whole tree — otherwise the `with` block waits for the child.
+            kill_tree(proc.pid, platform)
+            raise
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 

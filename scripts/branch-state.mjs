@@ -23,13 +23,38 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
-
-/** Where `.git` is, so the cache lands somewhere never tracked and never shipped. */
+/**
+ * Where `.git` is, so the cache lands somewhere never tracked and never shipped.
+ *
+ * ⚠ RETURNS null WHEN GIT CANNOT ANSWER, and that is the whole point. An earlier
+ * version fell back to `"."`, which put `qh-branch-state.json` in the process's
+ * working directory — a TRACKED directory, where it could overwrite a real file
+ * and where a repository-controlled file could then be read back as this tool's
+ * own answer. There is no safe default for "I do not know where .git is": the
+ * honest response is to use no cache at all.
+ */
 export function gitDir(run = shell) {
   const answer = run(['git', 'rev-parse', '--git-dir'])
-  return answer.ok ? answer.out : '.'
+  return answer.ok && answer.out ? answer.out : null
 }
 
+/**
+ * A runner with ONE deadline for the whole collection, not one per subprocess.
+ *
+ * The hook host kills this at 20s. `shell` gives every command 15s of its own,
+ * and a failing CI answer runs `gh run list` then `gh run view` — two of those
+ * alone outlive the budget, and a hook killed by its host is a hook that blocked
+ * a prompt. Past the deadline every further command answers "not ok" with the
+ * reason, which renders as COULD NOT LOOK rather than as anything green.
+ */
+export function budgeted(totalMs, run = shell, now = Date.now) {
+  const deadline = now() + totalMs
+  return argv => {
+    const left = deadline - now()
+    if (left <= 0) return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \`${argv.join(' ')}\`` }
+    return run(argv, { timeout: Math.min(left, 15_000) })
+  }
+}
 /** Run a command and report what happened, never throwing. */
 export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
   try {
@@ -104,7 +129,8 @@ export function collect(run = shell) {
 export function render(state, { brief = false } = {}) {
   if (!state.looked) return `branch-state: COULD NOT LOOK — ${state.note}. This says nothing about the branch.`
   const head = `branch-state: ${state.branch} @ ${state.head}`
-    + `${state.dirty ? `, ${state.dirty} uncommitted path(s)` : ', clean'}`
+    + `${state.dirty === null ? ', cleanliness COULD NOT LOOK'
+      : state.dirty ? `, ${state.dirty} uncommitted path(s)` : ', clean'}`
     + `${state.ahead ? `, ${state.ahead} ahead of origin` : ''}`
 
   let ci
@@ -142,25 +168,42 @@ export function render(state, { brief = false } = {}) {
   lines.push('  This READS. It blocks nothing and judges nothing about your work.')
   return lines.join('\n')
 }
-
 /**
  * A cached answer, so the per-message hook does not spawn `gh` on every prompt.
  *
  * The cache lives inside `.git/`, which is never tracked and never shipped, and
  * it carries the time it was taken — a stale answer that SAYS it is stale is
  * usable, one that pretends to be fresh is the thing this whole section is
- * about. Older than `maxAgeSeconds`, or unreadable for any reason, and it is
- * simply refreshed; a cache is a speed-up and is never allowed to be the reason
- * a session is told something wrong.
+ * about.
+ *
+ * ⚠ WHAT IS ON DISK IS NOT EVIDENCE UNTIL IT IS CHECKED. A cache file is an
+ * input like any other: a FUTURE timestamp would keep a forged answer fresh for
+ * ever, and a malformed `state` threw out of `render` and took the hook's exit
+ * code with it — a reader that cannot block a session, blocking a session. Both
+ * are now simply refreshed. A cache is a speed-up and is never allowed to be the
+ * reason a session is told something wrong.
  */
+export function usableCache(previous, now) {
+  if (!previous || typeof previous !== 'object') return false
+  if (!Number.isFinite(previous.at) || previous.at > now) return false
+  const state = previous.state
+  if (!state || typeof state !== 'object' || typeof state.looked !== 'boolean') return false
+  // Boolean(), not the bare expression: `undefined && …` is undefined, and a
+  // predicate that answers undefined is one a caller can read as either.
+  return Boolean(state.looked === false || (state.ci && typeof state.ci === 'object'))
+}
+
 export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = collect }) {
+  const at = now()
   const previous = read()
-  if (previous && Number.isFinite(previous.at) && (now() - previous.at) / 1000 < maxAgeSeconds) {
-    return { state: previous.state, ageSeconds: Math.round((now() - previous.at) / 1000) }
+  if (usableCache(previous, at) && (at - previous.at) / 1000 < maxAgeSeconds) {
+    // Floored at 1: a sub-second age rounded to 0 hid the suffix entirely, so an
+    // answer that came from cache was indistinguishable from one just taken.
+    return { state: previous.state, ageSeconds: Math.max(1, Math.round((at - previous.at) / 1000)), fromCache: true }
   }
   const state = gather()
-  write({ at: now(), state })
-  return { state, ageSeconds: 0 }
+  write({ at, state })
+  return { state, ageSeconds: 0, fromCache: false }
 }
 
 function main(argv = process.argv.slice(2)) {
@@ -170,12 +213,15 @@ function main(argv = process.argv.slice(2)) {
     process.stdout.write(`${render(collect(), { brief })}\n`)
     return 0
   }
-  const file = join(gitDir(), 'qh-branch-state.json')
-  const { state, ageSeconds } = cached(Number(argv[at + 1]) || 120, {
-    read: () => { try { return JSON.parse(readFileSync(file, 'utf8')) } catch { return null } },
-    write: payload => { try { writeFileSync(file, JSON.stringify(payload)) } catch { /* a cache that cannot be written is not a failure */ } },
+  const home = gitDir()
+  // No `.git`, no cache. Never a fallback directory — see `gitDir`.
+  const store = home ? join(home, 'qh-branch-state.json') : null
+  const { state, fromCache, ageSeconds } = cached(Number(argv[at + 1]) || 120, {
+    read: () => { if (!store) return null; try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null } },
+    write: payload => { if (!store) return; try { writeFileSync(store, JSON.stringify(payload)) } catch { /* a cache that cannot be written is not a failure */ } },
+    gather: () => collect(budgeted(15_000)),
   })
-  process.stdout.write(`${render(state, { brief })}${ageSeconds ? ` (read ${ageSeconds}s ago)` : ''}\n`)
+  process.stdout.write(`${render(state, { brief })}${fromCache ? ` (read ${ageSeconds}s ago)` : ''}\n`)
   return 0
 }
 

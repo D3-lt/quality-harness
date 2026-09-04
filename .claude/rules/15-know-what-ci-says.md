@@ -25,7 +25,8 @@ node scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unreleased
   shipped: it fires when a session begins, so the session already running — the one about to plan a
   release on a red branch — never sees it, and one message at the very start is the message a
   session has the least reason to act on. agentsmemory is visible because it hooks
-  `UserPromptSubmit` too; this now does the same. The per-message form is ONE line (`--brief`) and
+  `UserPromptSubmit` too; this now does the same. The per-message form is ONE LINE WHILE GREEN
+  (`--brief`; an alarm adds a second line rather than dropping the failing job names) and reads a
   reads a `.git/`-local cache (`--cached 120`) so it does not spawn `gh` on every prompt — a stale
   answer says how old it is, and an unreadable cache is refreshed rather than trusted.
 - It **reads**. It blocks nothing, judges nothing about the work, and exits 0 whatever it finds

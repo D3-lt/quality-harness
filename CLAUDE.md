@@ -77,7 +77,8 @@ node scripts/orphan-sweep.mjs          # a definition nothing reaches
 CODE paths, so ADR-011 can tell you a declared path matches nothing — it cannot tell you a decision
 changed a gate and the SKILL.md describing that gate kept asserting the old behaviour. That is how
 `plugin/skills/operating/SKILL.md` went on saying the gates had no `--version` across the commit
-that gave all eleven of them one. **It catches the FLAG class only**: a stale COUNT
+that gave all eleven of them one (`d0f6c24`, when there were eleven). **It catches the FLAG class
+only**: a stale COUNT
 (`docs/mcp.md`'s "Five tools" when there were seven), a stale VOCABULARY (`adr-next`'s three states
 when it had grown a fourth) and a missing CONVENTION are all still found by reading, and the header
 in the script says so rather than letting the tool look wider than it is.
@@ -392,7 +393,12 @@ both learned the hard way on 2026-08-28:
   it printed `Reading additional input from stdin...` and sat at 0% CPU for 1h40m. Always
   `< /dev/null`, and wrap it in a hard kill.
 - **Scope it to the code that changed.** A diff with 86 renames in it is not reviewable; name the
-  eight files whose semantics changed and ask numbered questions.
+  files whose semantics changed and ask numbered questions. (On 2026-08-28 that was eight of them.)
+- **Give it a budget it can finish in, and read the exit code.** `gtimeout … codex exec` returning
+  **124** is a KILL, not a clean pass — on 2026-09-04 a review died at 900s having emitted one
+  sentence naming two defect classes and describing neither. A killed review certifies nothing; the
+  two words were a lead, and both had to be reproduced by hand. Forbid it from spawning another
+  `codex exec`: that run burned its whole budget recursing into a nested one that could not start.
 
 Reconcile every finding against source. Neither accept nor dismiss one by authority — but note that
 on this repository the last three Codex passes found real defects, and every one of them was in code

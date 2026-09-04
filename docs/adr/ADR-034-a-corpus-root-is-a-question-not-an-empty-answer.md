@@ -6,7 +6,7 @@
 **Spec:** None — no spec stage
 **Cross-references:** docs/adr/ADR-005-a-gate-reports-what-it-observed.md, plugin/scripts/work-next.mjs, docs/BACKLOG.md
 **Governs:** plugin/bin/adr-next
-**Enforced-by:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`
+**Enforced-by:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`, `next: a record folder is not a corpus of one`, `next: a corpus names an undecided record before offering its tasks`, `next: an unreadable record is could-not-look, not a record holding nothing`, `next: nothing ready is a verdict only when everything was read`, `next: a status that could not be read is unknown, never decided`, `next: a symlinked record's owner sits beside the link, not beside its target`
 **Invalidates:** none — checked. ADR-005 governs the vocabulary a gate may use for an observation it did not make, and this record applies it rather than changing it.
 **Served-path change:** `adr-next <corpus root>` answered `no task files` and now enumerates the records it holds. An adopter who addressed the corpus at its natural granularity got a confident wrong answer; they now get the answer they asked for.
 
@@ -60,10 +60,26 @@ Nothing existing covers it.
 
 **`adr-next` detects a corpus root and enumerates it, grouped by record.**
 
-A path is treated as a corpus root when all three hold: it is a directory, it owns no task files of
-its own, and at least one child resolves to a tasks directory through the existing
-`resolve_tasks_dir`. Detection, not a new flag — the reporter's complaint is precisely that they had
-to know which granularity the tool wanted.
+A path is treated as a corpus root when all three hold: it has no `tasks/` child of its own
+(`resolve_tasks_dir(target) == target`), it owns no task files directly, and at least one non-hidden
+child resolves to a tasks directory through the existing `resolve_tasks_dir`. Detection, not a new
+flag — the reporter's complaint is precisely that they had to know which granularity the tool wanted.
+
+**Dot-prefixed directories are excluded**, because `.git` is not a record. This is stated because an
+earlier draft of this section described a detector the code did not implement, and a record that
+claims a rule it does not follow is worse than one that admits a limit.
+
+**A record this tool cannot READ is not a record holding nothing.** An unreadable child is collected
+separately, named on stderr, and withheld from the "nothing is ready" verdict: exit is 1 there, not
+3, because that claim requires having looked everywhere. A ready task found elsewhere still exits 0,
+since that is a positive claim about work that exists and stays true whatever the unread record
+holds. `Path.glob` swallows `OSError` and yields nothing, so this needs an explicit `iterdir()`
+probe — without it an unreadable record is indistinguishable from an empty one.
+
+**Status is resolved from the path the caller reached the record by**, not from the resolved one: a
+symlinked record's file sits beside the LINK, and `.resolve()` sent the lookup to the link's target.
+`undecided` is three-state — `null` when the status could not be read at all, because reporting that
+as `false` tells a machine caller the record is Accepted when nothing was read.
 
 **The exit-code contract is preserved exactly**, because it is the part callers branch on:
 
@@ -122,6 +138,7 @@ two copies of a readiness rule is how `Consumes` came to be missing the foreign-
 ## Out of Scope
 
 - The unreproduced exit-0 report from Windows Git Bash (deferred: needs a measurement nobody here can
-  take; issue #10 stays open on that half, with the confound named).
+  take; the issue was closed on the reproduced half, asking the reporter to reopen with
+  `adr-next --version` if 2.64.0 still shows it).
 - `adr-next` recursing more than one level into nested corpora (deferred: no reported need, and a
   depth rule nobody has asked for is speculative complexity).

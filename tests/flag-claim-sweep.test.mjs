@@ -1,10 +1,15 @@
 import assert from 'node:assert/strict'
+import { execFileSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import { join } from 'node:path'
 import test from 'node:test'
 
 import {
   flagsChanged,
   flagsIn,
   isServedProse,
+  main,
   namesFlag,
   namesGate,
 } from '../scripts/flag-claim-sweep.mjs'
@@ -87,4 +92,96 @@ test('history is not served prose, and skills are', () => {
   assert.ok(isServedProse('plugin/README.md'))
   assert.ok(!isServedProse('docs/adr/ADR-031-a-gate-answers-for-itself.md'))
   assert.ok(!isServedProse('docs/BACKLOG.md'))
+})
+
+// --- main(), against a real repository built for the purpose ---------------
+//
+// The pure functions above are the design; `main` is what anybody actually
+// runs, and it was asserted by nothing. It resolves gates and prose out of git
+// rather than off disk (CLAUDE.md §8), so the only honest way to drive it is a
+// real repository with real commits.
+
+/** A throwaway git repository holding one gate and one skill that describes it. */
+function repoWithAFlagChange({ proseNamesFlag, proseNamesGate }) {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-flagsweep-'))
+  // `dir` is a directory this test created. It is never the repository under
+  // test, and the two must not share a variable name (CLAUDE.md §9).
+  const git = args => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' })
+  git(['init', '-q', '-b', 'main'])
+  git(['config', 'user.email', 'test@example.invalid'])
+  git(['config', 'user.name', 'Test'])
+  git(['config', 'commit.gpgsign', 'false'])
+
+  mkdirSync(join(dir, 'plugin', 'bin'), { recursive: true })
+  mkdirSync(join(dir, 'plugin', 'skills', 'operating'), { recursive: true })
+  writeFileSync(join(dir, 'plugin', 'bin', 'adr-lint'),
+    '#!/usr/bin/env python3\ndef main():\n    if "--adopt" in sys.argv:\n        pass\n')
+  writeFileSync(join(dir, 'plugin', 'skills', 'operating', 'SKILL.md'),
+    `# Operating\n\n${proseNamesGate ? 'Run adr-lint on the record.' : 'Run the codex binary.'}\n`
+    + `${proseNamesFlag ? 'It does not answer --version.' : 'It answers questions.'}\n`)
+  git(['add', '-A'])
+  git(['commit', '-qm', 'the gate and the prose'])
+
+  // The commit under test: a flag the gate did not have before.
+  writeFileSync(join(dir, 'plugin', 'bin', 'adr-lint'),
+    '#!/usr/bin/env python3\ndef main():\n    if "--adopt" in sys.argv:\n        pass\n'
+    + '    if "--version" in sys.argv:\n        report()\n')
+  git(['add', '-A'])
+  git(['commit', '-qm', 'give the gate --version'])
+  return dir
+}
+
+/** Run `main` inside `dir`, capturing stdout. */
+function sweepIn(dir, argv) {
+  const cwd = process.cwd()
+  const lines = []
+  const log = console.log
+  console.log = (...a) => lines.push(a.join(' '))
+  try {
+    process.chdir(dir)
+    return { code: main(argv), out: lines.join('\n') }
+  } finally {
+    console.log = log
+    process.chdir(cwd)
+  }
+}
+
+test('main reports prose that named a flag the commit changed, and stays quiet otherwise', () => {
+  // Both answers, driven through the real entry point. The second case is the
+  // gate-name filter doing its job: same flag, same commit, prose that talks
+  // about some other binary.
+  const found = repoWithAFlagChange({ proseNamesFlag: true, proseNamesGate: true })
+  try {
+    const hit = sweepIn(found, ['--all'])
+    assert.equal(hit.code, 0, 'this reports and never blocks (CLAUDE.md §3)')
+    assert.match(hit.out, /RE-READ/, `the stale claim must be reported:\n${hit.out}`)
+    assert.match(hit.out, /operating\/SKILL\.md/, hit.out)
+    assert.match(hit.out, /--version/, hit.out)
+  } finally { rmSync(found, { recursive: true, force: true }) }
+
+  const quiet = repoWithAFlagChange({ proseNamesFlag: true, proseNamesGate: false })
+  try {
+    const miss = sweepIn(quiet, ['--all'])
+    assert.equal(miss.code, 0)
+    assert.doesNotMatch(miss.out, /RE-READ/,
+      `prose naming no gate is not a claim about ours:\n${miss.out}`)
+    assert.match(miss.out, /no served prose named a flag/, miss.out)
+  } finally { rmSync(quiet, { recursive: true, force: true }) }
+})
+
+test('main says it could not look rather than reporting a clean sweep', () => {
+  // ADR-005 through the entry point. A range git cannot resolve is UNRUN, and
+  // the word "clean" must not appear anywhere near it.
+  const dir = repoWithAFlagChange({ proseNamesFlag: true, proseNamesGate: true })
+  try {
+    const out = sweepIn(dir, ['no-such-ref..also-missing'])
+    assert.equal(out.code, 0, 'it never blocks, even when it could not look')
+    assert.match(out.out, /UNRUN/, `could-not-look is its own word:\n${out.out}`)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('main prints usage for --help without touching git', () => {
+  const out = sweepIn(process.cwd(), ['--help'])
+  assert.equal(out.code, 0)
+  assert.match(out.out, /Usage: node scripts\/flag-claim-sweep\.mjs/)
 })

@@ -41,8 +41,14 @@ test.after(() => { for (const dir of temps) rmSync(dir, { recursive: true, force
 // A bash fence whose grandchild outlives bash unless the tree is killed. The
 // outer bash sleeps in the foreground so the timeout fires; the subshell in the
 // background is the thing that must die with it.
+//
+// ⚠ The beat APPENDS. Truncating (`>` or open(…, "w")) opens a window where the
+// file exists and is empty, and a read landing in it returns "" — which
+// `assertTreeDied` cannot tell from "the grandchild never started". That flake
+// failed the macOS job of run 33885863345 and no other job in it: same code,
+// wider window under load. An append-only counter has no such state.
 const HEARTBEAT_FENCE = [
-  '( for i in $(seq 1 100); do echo "$i" > beat.txt; sleep 0.2; done ) &',
+  '( for i in $(seq 1 100); do echo "$i" >> beat.txt; sleep 0.2; done ) &',
   'sleep 60',
 ].join('\n')
 
@@ -70,8 +76,10 @@ function task(dir, name, fence) {
   return path
 }
 
+// The beat is append-only, so its LENGTH is the counter and "" means only that
+// nothing has been written yet — never a half-written file (see HEARTBEAT_FENCE).
 const beat = dir => {
-  try { return readFileSync(join(dir, 'beat.txt'), 'utf8').trim() } catch { return '' }
+  try { return String(readFileSync(join(dir, 'beat.txt'), 'utf8').length) } catch { return '' }
 }
 
 // The grandchild is bounded at twenty seconds. That bound is what makes the
@@ -134,7 +142,7 @@ loader.exec_module(module)
 child = (
     "import subprocess, sys, time\\n"
     "subprocess.Popen([sys.executable, '-c', 'import time\\\\nfor i in range(100):\\\\n"
-    "    open(\\"beat.txt\\", \\"w\\").write(str(i))\\\\n    time.sleep(0.2)'])\\n"
+    "    open(\\"beat.txt\\", \\"a\\").write(str(i))\\\\n    time.sleep(0.2)'])\\n"
     "time.sleep(60)\\n"
 )
 try:
@@ -166,7 +174,7 @@ for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
 // `killpg(getpgid(pid))` lookup survives — once the leader is gone the lookup
 // raises ProcessLookupError and the group is never signalled. Measured
 // 2026-09-04: 3.02s against a 0.3s timeout before the fix, 0.31s after.
-const LEADER_EXITS_FENCE = '( for i in $(seq 1 100); do echo "$i" > beat.txt; sleep 0.2; done ) &'
+const LEADER_EXITS_FENCE = '( for i in $(seq 1 100); do echo "$i" >> beat.txt; sleep 0.2; done ) &'
 
 test('adr-verify: a fence whose leader exits still has its tree killed', async () => {
   const dir = scratch()

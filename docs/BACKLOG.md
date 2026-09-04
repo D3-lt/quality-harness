@@ -7668,3 +7668,34 @@ is true for the wrong reason. The discriminator is *when* the gate returned; ass
 Left open, named: the sweep is still a mutation run in effect (it runs fences that run the
 campaign), so it belongs in a clone; and `scripts/mutate.mjs` still has no on-demand restore from
 its own journal. Neither is what this section was about.
+
+## 121. A truncating heartbeat made a timeout test flaky, and two siblings the same day
+
+Found 2026-09-04 by CI run `33885863345` on `b466f24`: `selftest (macos-latest)` FAILED while
+ubuntu, windows and all eight mutation shards passed. One test,
+`tests/timeout-tree.test.mjs::adr-verify: an interrupted run_bounded kills the tree`, with
+`the grandchild never wrote a beat, so the fixture proved nothing`.
+
+The fixture, not the subject. Its heartbeat wrote with `open("beat.txt", "w")` (and `echo >` in the
+bash fences), which TRUNCATES: between the truncate and the write the file exists and is empty, and
+a read landing in that window returns `""` — which `assertTreeDied` cannot tell from "the grandchild
+never started". Same code on every runner; the macOS job was simply loaded enough to land in the
+window. The beat appends now, and its LENGTH is the counter, so `""` means only that nothing has
+been written yet. Three consecutive local runs, 14/14 each.
+
+**The class, and it is the one worth carrying:** a test fixture that goes through a state
+indistinguishable from failure will report that failure eventually, on someone else's machine, and
+be read as a defect in the subject. Ask of any fixture file: is there an instant where it exists and
+says nothing? Append rather than truncate; make the signal monotonic.
+
+Two siblings, named rather than fixed:
+
+- **`scripts/selftest.sh` dies silently after `claude plugin validate`, intermittently.** Observed
+  twice on 2026-09-04: exit 1, output ending at 359 bytes right after the third `claude plugin
+  validate --strict`, no message. `set -euo pipefail` (line 2) turns any non-zero from that CLI into
+  an immediate exit, and the CLI writes nothing on the way out. Both times a re-run passed with
+  637 tests green. That is "could not look" reported as "the gate failed" — ADR-005's class in this
+  repository's own entry point. Whether the CLI or the harness is at fault is unmeasured.
+- **A backgrounded fence still holds the sweep's pipe.** The group kill now reaches it (§120), but
+  a descendant that makes a session of its own escapes; `drain_after_kill` bounds the wait at ten
+  seconds rather than solving it. Raised by the Codex review as a residual risk and accepted as one.

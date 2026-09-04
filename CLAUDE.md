@@ -361,6 +361,22 @@ written the same day to fix the same class.
 
 ## 13. Releasing
 
+**A GREEN SHIPPED CHANGE IS RELEASED, NOT PARKED.** Standing rule, set by the owner
+2026-09-04: when `plugin/` has changed and CI is green on that sha, cut the release. Do not wait to
+be asked, do not batch "until there is enough", and do not sit on a verified artifact because the
+change feels small — a fix that exists only on `main` helps nobody, and the judgement about whether
+users want it is made by shipping it rather than by holding it.
+
+Two things that are NOT exceptions to it, because both have been mistaken for one here:
+
+- **`plugin/` unchanged.** Then there is nothing to release; say so and stop (v2.57.1 was cut on a
+  bare version bump, and the notes had to lead with "nothing shipped changed").
+- **CI not finished.** `INCOMPLETE` is not green. The rule fires on `SUCCESS` from
+  `scripts/release-evidence.mjs`, never on a watch's exit code.
+
+The steps below are how, not whether.
+
+
 1. `bash scripts/selftest.sh` green after the last edit.
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`.
 3. Push, wait for **every** CI job. Do not carry a count in your head: this line said "all nine

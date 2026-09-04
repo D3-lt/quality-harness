@@ -4596,6 +4596,24 @@
       ],
       "from": "    try:\n        kill_tree(proc.pid, platform)\n        return proc.communicate(timeout=grace)",
       "to": "    kill_tree(proc.pid, platform)\n    try:\n        return proc.communicate(timeout=grace)"
+    },
+    {
+      "label": "stop: a confident claim over unverified edits is named as a false success",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const claim = completionClaim(input.last_assistant_message)\n  const reason = claim.kind === 'asserted'",
+      "to": "  const claim = completionClaim(input.last_assistant_message)\n  const reason = false"
+    },
+    {
+      "label": "stop: a negative final message is never read as an assertion",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (interimResponse(message)) return { kind: 'hedged', phrase: null }",
+      "to": "  if (false) return { kind: 'hedged', phrase: null }"
     }
   ]
 }

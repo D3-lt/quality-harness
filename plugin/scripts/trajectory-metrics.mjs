@@ -36,13 +36,19 @@ const EXIT = /·\s*exit\s+(\d+)\s*·/
 const MUTANT = /·\s*mutant\s+(killed|survived|inconclusive)\s*·/
 
 /** Every `*.md` under a `tasks/` directory below root, README excluded. */
-export function taskFiles(root) {
+export function taskFiles(root, unreadableDirs = [], readdir = readdirSync) {
   const found = []
   const walk = dir => {
     let entries
     try {
-      entries = readdirSync(dir, { withFileTypes: true })
+      entries = readdir(dir, { withFileTypes: true })
     } catch {
+      // BACKLOG §125. Swallowed, this shrank a real denominator in the
+      // flattering direction and rendered identically to a corpus that simply
+      // has no tasks. The sink is optional so no caller had to change; a caller
+      // that passes one can say PARTIAL instead of implying it looked at
+      // everything (ADR-005).
+      unreadableDirs.push(dir)
       return
     }
     for (const entry of entries) {
@@ -85,12 +91,17 @@ export function readTask(file, read = readFileSync) {
   }
   const log = section(text, 'Verification Log').split('\n').filter(line => ENTRY.test(line))
   const mlog = section(text, 'Mutation Log').split('\n').filter(line => ENTRY.test(line))
+  // ⚠ `log` is every ENTRY-SHAPED line; `exits` is only those whose exit code
+  // PARSED. The difference is a line this cannot judge, and counting it in
+  // `entries` while it cannot reach `red` or `green` is what made a corpus with
+  // one malformed entry report "every entry passed" (BACKLOG §125b).
   const exits = log.map(line => EXIT.exec(line)).filter(Boolean).map(hit => Number(hit[1]))
   const mutants = mlog.map(line => MUTANT.exec(line)).filter(Boolean).map(hit => hit[1])
   return {
     file,
     unreadable: false,
     entries: log.length,
+    unjudged: log.length - exits.length,
     red: exits.filter(code => code !== 0).length,
     green: exits.filter(code => code === 0).length,
     killed: mutants.filter(verdict => verdict === 'killed').length,
@@ -115,6 +126,7 @@ export function measure(files, read = readFileSync) {
     showsFailing: 0,
     outcomeOnly: 0,
     entries: 0,
+    unjudgedEntries: 0,
     redEntries: 0,
     killed: 0,
     survived: 0,
@@ -126,6 +138,7 @@ export function measure(files, read = readFileSync) {
     if (!task.entries && !task.killed) { totals.unevidenced += 1; continue }
     totals.evidenced += 1
     totals.entries += task.entries
+    totals.unjudgedEntries += task.unjudged
     totals.redEntries += task.red
     totals.killed += task.killed
     totals.survived += task.survived
@@ -140,7 +153,7 @@ export function measure(files, read = readFileSync) {
   return totals
 }
 
-export function render(totals, root) {
+export function render(totals, root, { unreadableDirs = [] } = {}) {
   if (!totals.tasks) {
     return `trajectory-metrics: no task files under ${root}. Nothing to measure, `
       + 'which is not a corpus that measures clean.'
@@ -155,8 +168,8 @@ export function render(totals, root) {
       + `check COULD have failed here (${percent}%) — a red run, a killed mutant, or both.`,
     `  ${totals.redEntries} red of ${totals.entries} acceptance entries · ${totals.killed} killed `
       + `· ${totals.survived} survived · ${totals.inconclusive} inconclusive`,
-    `  ${totals.outcomeOnly} evidenced task(s) show OUTCOME ONLY: every entry passed and no mutant `
-      + 'was killed, so nothing there shows the fence can fail.',
+    `  ${totals.outcomeOnly} evidenced task(s) show OUTCOME ONLY: no entry recorded a non-zero `
+      + 'exit and no mutant was killed, so nothing there shows the fence can fail.',
   ]
   for (const file of totals.outcomeOnlyFiles.slice(0, 10)) lines.push(`    ${file}`)
   if (totals.outcomeOnlyFiles.length > 10) {
@@ -168,6 +181,15 @@ export function render(totals, root) {
   }
   if (totals.unreadable) {
     lines.push(`  ${totals.unreadable} task(s) could not be read — in NEITHER half (ADR-005).`)
+  }
+  if (totals.unjudgedEntries) {
+    lines.push(`  ⚠ ${totals.unjudgedEntries} acceptance entr(ies) are entry-shaped but carry no `
+      + 'exit code this could read. They are counted in the entry total and in NEITHER red nor '
+      + 'green, so a task holding only those reads as outcome-only without anything having passed.')
+  }
+  if (unreadableDirs.length) {
+    lines.push(`  ⚠ PARTIAL: ${unreadableDirs.length} director(ies) under ${root} could not be `
+      + 'read, so the corpus below is a subset of what is there — not the whole of it.')
   }
   lines.push('This reads and judges nothing. A task showing outcome only is a place to look, '
     + 'not a defect: the work may predate the rule, or the fence may be honestly hard to fail.')
@@ -189,10 +211,11 @@ function main(argv = process.argv.slice(2)) {
     return 0
   }
   const root = argv.find(arg => !arg.startsWith('--')) ?? 'docs/adr'
-  const totals = measure(taskFiles(root))
+  const unreadableDirs = []
+  const totals = measure(taskFiles(root, unreadableDirs))
   process.stdout.write(argv.includes('--json')
     ? `${JSON.stringify({ ...totals, root }, null, 2)}\n`
-    : `${render(totals, root)}\n`)
+    : `${render(totals, root, { unreadableDirs })}\n`)
   return 0
 }
 

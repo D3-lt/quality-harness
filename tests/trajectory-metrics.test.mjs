@@ -99,3 +99,46 @@ test('this repository can answer the question about itself', () => {
   assert.ok(totals.rate !== null && totals.rate >= 0 && totals.rate <= 1,
     `the rate must be a real proportion, got ${totals.rate}`)
 })
+
+// BACKLOG §125b. `entries` counted every ENTRY-SHAPED line while `red`/`green`
+// counted only those whose exit code parsed, so a malformed entry raised the
+// total, reached neither half, and the render then said of that task that
+// "every entry passed". Nothing observed that it passed.
+test('an entry with no readable exit code is named, not counted as one that passed', () => {
+  const malformed = '- 2026-09-04 · abc1234 · exit ??? · `pytest -q` · acceptance-sha256:aa'
+  const one = readTask(path.join(corpus({ 'T1': task({ log: [malformed] }) }), 'ADR-001-x', 'tasks', 'T1.md'))
+  assert.equal(one.entries, 1, 'it is still an entry — dropping it would shrink the total silently')
+  assert.equal(one.unjudged, 1)
+  assert.equal(one.red, 0)
+  assert.equal(one.green, 0, 'nothing observed that it passed')
+
+  const totals = measure(taskFiles(corpus({ 'T1': task({ log: [malformed] }) })))
+  assert.equal(totals.unjudgedEntries, 1)
+  const text = render(totals, 'x')
+  assert.match(text, /carry no exit code this could read/)
+  assert.doesNotMatch(text, /every entry passed/,
+    'the sentence that stated more than was observed must not come back')
+
+  // The clean arm: a real green entry is judged, and nothing is flagged.
+  const judged = measure(taskFiles(corpus({ 'T1': task({ log: [green] }) })))
+  assert.equal(judged.unjudgedEntries, 0)
+  assert.doesNotMatch(render(judged, 'x'), /carry no exit code/)
+})
+
+// A directory the walk could not read shrank the denominator and rendered
+// identically to a corpus that simply has none. PARTIAL is its own answer.
+test('a directory that could not be read is reported as PARTIAL, not as absence', () => {
+  const dir = corpus({ 'T1': task({ log: [red] }) })
+  const unreadableDirs = []
+  // The root itself unreadable is the honest shape of this: nothing under it can
+  // be enumerated, and an empty list is exactly what a corpus with no tasks
+  // returns — which is the confusion the sink exists to end.
+  const files = taskFiles(dir, unreadableDirs, () => { throw new Error('EACCES') })
+  assert.deepEqual(files, [], 'nothing was readable here')
+  assert.ok(unreadableDirs.length > 0, 'and that has to be reported, not inferred from emptiness')
+
+  const totals = measure(taskFiles(dir))
+  assert.match(render(totals, dir, { unreadableDirs }), /PARTIAL/)
+  assert.doesNotMatch(render(totals, dir), /PARTIAL/,
+    'a corpus that was fully read must not claim it was partial')
+})

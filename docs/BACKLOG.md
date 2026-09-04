@@ -7822,7 +7822,7 @@ before the code, it was measurable in an afternoon for under a dollar, and it ki
 own author wanted — which is the only evidence that any of the other criteria in this corpus mean
 anything either.
 
-## 125. Two ways an unjudged row becomes a favourable verdict, found by a pre-tag review
+## 125. CLOSED 2026-09-04 (after v2.65.0) — two ways an unjudged row became a favourable verdict
 
 **Left by** the Codex `gpt-5.6-sol` xhigh review of `v2.64.0..d7a764b` on 2026-09-04, run under
 CLAUDE.md §12 before the v2.65.0 tag. It returned REQUEST CHANGES with four findings. Two were the

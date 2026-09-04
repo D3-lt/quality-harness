@@ -4589,6 +4589,24 @@
       "to": "  if (!home.looked || !moved.looked) {"
     },
     {
+      "label": "rate: a value outside the vocabulary is excluded, never counted as held",
+      "file": "plugin/scripts/claims-rate.mjs",
+      "tests": [
+        "tests/claims-rate.test.mjs"
+      ],
+      "from": "    if (!CLAIM_KINDS.has(claim) || !EVIDENCE_KINDS.has(evidence)) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "trajectory: an entry whose exit code did not parse is not counted as one that passed",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    unjudged: log.length - exits.length,",
+      "to": "    unjudged: 0,"
+    },
+    {
       "label": "verify: taskkill is bounded, so a hung cleanup cannot wear the timeout's name",
       "file": "plugin/bin/adr-verify",
       "tests": [

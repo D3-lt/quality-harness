@@ -4495,8 +4495,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "            list(child.iterdir())",
-      "to": "            pass"
+      "from": "        except OSError as exc:\n            unreadable.append((child.name, str(exc)))",
+      "to": "        except ValueError as exc:\n            unreadable.append((child.name, str(exc)))"
     },
     {
       "label": "next: nothing ready is a verdict only when everything was read",

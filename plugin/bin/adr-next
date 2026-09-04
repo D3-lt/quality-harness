@@ -597,9 +597,15 @@ def corpus_records(target):
                 continue
             # An EXPLICIT listing, because `Path.glob` — which `load` uses —
             # swallows OSError and yields nothing. Without this the try/except
-            # below never fires and an unreadable record is indistinguishable
-            # from an empty one, which is the whole finding. Measured on a
-            # `chmod 000` record, 2026-09-04.
+            # below never fires ON macOS and an unreadable record is
+            # indistinguishable from an empty one. Measured on a `chmod 000`
+            # record, 2026-09-04 — and measured AGAIN the same day when the
+            # mutant that deletes this line survived on ubuntu: there,
+            # `Path.is_dir()` inside `resolve_tasks_dir` raises EACCES itself
+            # (pathlib ignores ENOENT/ENOTDIR, not EACCES), so this probe is
+            # redundant on Linux and the only determinant on macOS. The
+            # catalogue therefore mutates the `except` below, which is the one
+            # change that breaks the mechanism on every platform.
             list(child.iterdir())
             tasks_dir = resolve_tasks_dir(child)
             if tasks_dir is None:

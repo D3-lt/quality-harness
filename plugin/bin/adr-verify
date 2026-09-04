@@ -2318,9 +2318,15 @@ def main():
             sys.exit(2)
         if not Path(sweep).is_dir():
             fail(f"not a directory: {sweep}")
+        # `--steps` is in this list because a Codex review found it missing on
+        # 2026-09-04, after this record's own class sweep had claimed the set was
+        # enumerated. The sweep grepped three named branches instead of every exit
+        # out of main(), so `--sweep` and `--restore` — which leave before the
+        # preflight — were not in the corpus it looked at. A sweep that names its
+        # command is only as complete as the command.
         for flag, given in (("--human", human), ("--mutant", mutant),
                             ("--human-mutant", human_mutant), ("--cwd", cwd),
-                            ("--covers", covers),
+                            ("--covers", covers), ("--steps", steps),
                             ("--also-restore", also_restore or None)):
             if given is not None:
                 fail(f"{flag} cannot be combined with --sweep")
@@ -2329,6 +2335,9 @@ def main():
         sys.exit(sweep_corpus(sweep, timeout=timeout, as_json=as_json))
 
     if restore:
+        if steps is not None:
+            fail("--steps cannot be combined with --restore; recovery runs no fence, "
+                 "so there is no run whose steps could be named")
         if also_restore:
             fail("--also-restore cannot be combined with --restore; recovery reads the durable "
                  "manifest already on disk")

@@ -2571,17 +2571,32 @@ test('--steps refuses an undeclared id on the --mutant path too', () => {
     'a refused run writes no entry')
 })
 
-// ADR-028 T3, the class audit. §116 reported one path; enumerating every branch
-// that leaves `main()` before the `--steps` preflight found two more. `--human`
-// records a run a PERSON took and `--human-mutant` executes nothing at all, so
-// neither has a run whose steps could be named — and both exited before the check,
-// which means the flag was accepted, unvalidated and dropped there too.
+// ADR-028 T3, the class audit — and the record of it being INCOMPLETE twice.
+// §116 reported one path. A grep over three named branches found `--human` and
+// `--human-mutant`, and the task claimed the set enumerated. An independent Codex
+// review on 2026-09-04 then found two more, `--sweep` and `--restore`, which the
+// grep had never looked at because it searched for branch names instead of for
+// every exit out of `main()`. All four are here now, and the lesson is in the
+// count, not in the list: a sweep is only as complete as the command that ran it,
+// and this one was written twice before it was.
+//
+// None of the four runs a fence: `--human` records a run a PERSON took,
+// `--human-mutant` executes nothing at all, `--restore` repairs a tree, and
+// `--sweep` runs other tasks' fences rather than this task's. So each refuses the
+// flag rather than carrying it.
 test('--steps is refused on the paths where this tool runs no fence', () => {
-  for (const args of [
-    ['--human', '0', '--why', 'a run taken by hand'],
-    ['--human-mutant', 'ADR-001-selftest.md', '--from', '## Decision', '--to', '## Decisiun',
-     '--test', 'adr-lint ADR-001-selftest.md tasks', '--test-exit', '1',
-     '--why', 'the fence needs a database this checkout has no access to'],
+  // Each path is paired with the phrase it must produce. A shared "must be
+  // non-zero" check would pass on any refusal at all — including the `unknown
+  // option` these once produced — which is the vacuity CLAUDE.md §4 names.
+  for (const { args, needle } of [
+    { args: ['--human', '0', '--why', 'a run taken by hand'],
+      needle: '--steps records the ordered steps a run exercised' },
+    { args: ['--human-mutant', 'ADR-001-selftest.md', '--from', '## Decision', '--to', '## Decisiun',
+             '--test', 'adr-lint ADR-001-selftest.md tasks', '--test-exit', '1',
+             '--why', 'the fence needs a database this checkout has no access to'],
+      needle: '--steps records the ordered steps a run exercised' },
+    { args: ['--restore'], needle: '--steps cannot be combined with --restore' },
+    { args: ['--sweep', '.'], needle: '--steps cannot be combined with --sweep' },
   ]) {
     const copy = corpus()
     addStepIdentities(copy)
@@ -2589,10 +2604,9 @@ test('--steps is refused on the paths where this tool runs no fence', () => {
     const refused = verify(copy, ['--steps', 'S1', ...args])
     assert.notEqual(refused.status, 0, `--steps ${args[0]}: must be refused`)
     const said = `${refused.stdout}${refused.stderr}`
-    // Refused for the RIGHT reason. Before the guard existed these exited 0 and
-    // wrote a row: a non-zero check alone would have passed on any other refusal.
-    assert.match(said, /--steps records the ordered steps a run exercised/,
-      `--steps ${args[0]}: refused for naming steps with no run, not for something else: ${said}`)
+    assert.ok(said.includes(needle),
+      `--steps ${args[0]}: refused for naming steps with no run, not for something else.\n` +
+      `wanted: ${needle}\ngot: ${said}`)
   }
 
   // Shown capable of the other answer: --human WITHOUT --steps still works, so the
@@ -2601,4 +2615,52 @@ test('--steps is refused on the paths where this tool runs no fence', () => {
   addMutationLog(ok)
   expectExit(verify(ok, ['--human', '0', '--why', 'a run taken by hand']), 0,
     '--human alone must still record its row')
+})
+
+// ADR-028 T3. `run_mutant` has TWO `record_run` call sites and the tests above
+// reach only one — found by an independent Codex review on 2026-09-04, which
+// observed that deleting `steps` from the UNPROVEN early return alone would leave
+// every assertion green. That is a mutation this catalogue would have reported as
+// GREEN, which is a finding about the suite rather than about the tool.
+//
+// The UNPROVEN path fires when the CLEAN fence fails, before any mutant is
+// applied: no verdict is earned, but a run did happen and it recorded one, so the
+// steps it named belong on that row for the same reason they belong on any other.
+test("the UNPROVEN early return records the steps its run named", () => {
+  const copy = corpus()
+  addStepIdentities(copy)
+  addMutationLog(copy)
+  // A fence that cannot run at all. `nosuchrunner` is the same unusable-fence
+  // shape the §71 regression above uses, so this reaches UNPROVEN rather than a
+  // surviving mutant.
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?```/,
+    '```bash\nnosuchrunner --run-everything\n```'))
+  const out = verify(copy, ['--cwd', '.', '--steps', 'S1',
+    '--mutant', 'ADR-001-selftest.md',
+    '--from', '## Alternatives Considered', '--to', '## Alternatives Considred',
+    '--why', 'probe'])
+  assert.notEqual(out.status, 0, 'a broken clean fence earns no verdict')
+  const said = `${out.stdout}${out.stderr}`
+  assert.match(said, /UNPROVEN/, `this must reach the UNPROVEN path: ${said}`)
+  assert.doesNotMatch(said, /MUTANT APPLIED/, 'and no mutant may have been applied')
+
+  const entries = readTask(copy).split('## Verification Log')[1].split('## Mutation Log')[0]
+  const rows = entries.match(/^- \d{4}-.*$/gm) ?? []
+  assert.equal(rows.length, 1, `one row, from the run that happened: ${JSON.stringify(rows)}`)
+  assert.match(rows[0], / · steps:S1$/,
+    `the UNPROVEN row must carry the steps its run named: ${rows[0]}`)
+
+  // Shown capable of the other answer, so this cannot pass by the field always
+  // being present: the same unusable fence without --steps writes no such field.
+  const bare = corpus()
+  addStepIdentities(bare)
+  addMutationLog(bare)
+  writeTask(bare, readTask(bare).replace(/```bash\n[\s\S]*?```/,
+    '```bash\nnosuchrunner --run-everything\n```'))
+  verify(bare, ['--cwd', '.', '--mutant', 'ADR-001-selftest.md',
+    '--from', '## Alternatives Considered', '--to', '## Alternatives Considred',
+    '--why', 'probe'])
+  assert.doesNotMatch(
+    readTask(bare).split('## Verification Log')[1].split('## Mutation Log')[0],
+    /steps:/, 'no field on the UNPROVEN path either unless it was asked for')
 })

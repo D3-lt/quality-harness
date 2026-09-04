@@ -509,6 +509,114 @@ def owning_record_status(tasks_dir):
     return None
 
 
+def classify(infos, corpus_dir):
+    """Sort a record's tasks into ready / done / blocked / stopped.
+
+    Extracted so the single-record path and the corpus path share ONE copy of the
+    readiness rule. Two copies is exactly how `Consumes` came to be missing the
+    foreign-pointer rule that `Depends-on` had (docs/BACKLOG.md §41), and a second
+    copy of a rule this gate's whole answer rests on would be worse.
+    """
+    blocked_by, foreign = blockers(infos, corpus_dir)
+    ready, done, blocked, stopped = [], [], [], []
+    for tid in sorted(infos, key=lambda t: int(t[1:])):
+        inf = infos[tid]
+        if inf["done"]:
+            done.append(inf)
+            continue
+        # A HUMAN STOP IS NOT A DEPENDENCY, and it is not readiness either. It is
+        # checked before the dependency edges because it is a statement about THIS
+        # task: a person looked and said do not proceed. Reporting it as `blocked`
+        # would send the reader hunting for an upstream that does not exist.
+        if inf["stopped_by"]:
+            stopped.append(inf)
+            continue
+        open_deps = sorted(d for d in blocked_by[tid] if not infos[d]["done"])
+        # A foreign dependency that is not done blocks, and one this could not
+        # evaluate blocks too — saying which, because "blocked" and "I could not
+        # tell" send a reader to different places.
+        open_deps += [f"{pointer} (cannot evaluate)" if state == "unknown" else pointer
+                      for pointer, state in foreign[tid]]
+        if open_deps:
+            blocked.append({**inf, "blocked_by": open_deps})
+        else:
+            ready.append(inf)
+    return ready, done, blocked, stopped
+
+
+def corpus_records(target):
+    """The (name, tasks_dir) pairs a corpus root holds, sorted by name.
+
+    A corpus root is not a shape this tool was taught; it is the shape a reader
+    reaches for FIRST, because it is the one `adr-lint` and `adr-debt` already
+    take. Before ADR-034 it arrived at the single-record path — `resolve_tasks_dir`
+    returns a directory unchanged when it holds no `tasks/` child — and its
+    emptiness was printed as the answer (GitHub issue #10).
+
+    Resolution goes through `resolve_tasks_dir`, so every input shape that already
+    works for one record keeps working one level down, and a record folder without
+    tasks is simply absent from the result rather than an error.
+    """
+    if not target.is_dir():
+        return []
+    found = []
+    for child in sorted(target.iterdir()):
+        # A record FILE resolves through its sibling folder, so listing both the
+        # `.md` and the directory would report the same record twice. Directories
+        # only; `resolve_tasks_dir` still does the work of finding `tasks/`.
+        if not child.is_dir() or child.name.startswith("."):
+            continue
+        tasks_dir = resolve_tasks_dir(child)
+        if tasks_dir is not None and load(tasks_dir):
+            found.append((child.name, tasks_dir))
+    return found
+
+
+def report_corpus(records, flags):
+    """Answer for a whole corpus, grouped by record.
+
+    The exit code carries the SAME contract as the single-record path, because
+    that is what callers branch on: 0 when something is ready, 3 when nothing is.
+    A corpus that is merely large must never read like a corpus that is done.
+    """
+    answers = {}
+    any_ready = False
+    for name, tasks_dir in records:
+        infos = load(tasks_dir)
+        corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
+        ready, done, blocked, stopped = classify(infos, corpus_dir)
+        answers[name] = {"tasks_dir": str(tasks_dir), "ready": ready, "done": done,
+                         "blocked": blocked, "stopped": stopped}
+        any_ready = any_ready or bool(ready)
+
+    if "--json" in flags:
+        print(json.dumps({"records": answers}, indent=2))
+        return 0 if any_ready else 3
+
+    for name, answer in answers.items():
+        for inf in answer["ready"]:
+            print(f"{name}  READY    {inf['id']}  {inf['goal']}")
+        if "--all" not in flags:
+            continue
+        for inf in answer["done"]:
+            print(f"{name}  done     {inf['id']}  {inf['goal']}")
+        for inf in answer["blocked"]:
+            print(f"{name}  blocked  {inf['id']}  {inf['goal']}  "
+                  f"(waiting on {', '.join(inf['blocked_by'])})")
+        for inf in answer["stopped"]:
+            print(f"{name}  stopped  {inf['id']}  {inf['goal']}  "
+                  f"(a human sign-off says stop: {inf['stopped_by']})")
+
+    total = sum(len(a["ready"]) for a in answers.values())
+    # Said on stdout when there IS work and on stderr when there is not, matching
+    # the single-record path: the summary of an empty answer is a diagnostic.
+    line = (f"{len(records)} record(s) with tasks, {total} ready."
+            if any_ready else
+            f"{len(records)} record(s) with tasks, none ready.")
+    print(line, file=sys.stdout if any_ready else sys.stderr)
+    return 0 if any_ready else 3
+
+
 # ADR-031. Every gate answers for ITSELF, and the answer is read from the
 # manifest beside the gate rather than from a resolver. A central answer —
 # `qh-root`, `qh-doctor`, a `qh-version` gate — reports whichever copy of
@@ -547,6 +655,18 @@ def main():
     if len(args) != 1:
         print(__doc__.strip().split("\n\n")[1], file=sys.stderr)
         return 1
+
+    # ADR-034 / issue #10. A corpus root reaches here looking like a tasks
+    # directory that happens to be empty, because `resolve_tasks_dir` returns a
+    # directory unchanged when it holds no `tasks/` child. Asked BEFORE the
+    # single-record path so the answer is the one the caller wanted, and gated on
+    # the target owning no task files of its own — a directory that is both is
+    # answered the way it always was, so no existing invocation changes.
+    target = Path(args[0])
+    if target.is_dir() and not load(target):
+        records = corpus_records(target)
+        if records:
+            return report_corpus(records, flags)
 
     tasks_dir = resolve_tasks_dir(Path(args[0]))
     if tasks_dir is None:
@@ -588,30 +708,7 @@ def main():
     # a sibling ADR lives. None when the layout is not that shape, and then every
     # foreign edge reads "unknown" — which withholds `ready`, the safe direction.
     corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
-    blocked_by, foreign = blockers(infos, corpus_dir)
-    ready, done, blocked, stopped = [], [], [], []
-    for tid in sorted(infos, key=lambda t: int(t[1:])):
-        inf = infos[tid]
-        if inf["done"]:
-            done.append(inf)
-            continue
-        # A HUMAN STOP IS NOT A DEPENDENCY, and it is not readiness either. It is
-        # checked before the dependency edges because it is a statement about THIS
-        # task: a person looked and said do not proceed. Reporting it as `blocked`
-        # would send the reader hunting for an upstream that does not exist.
-        if inf["stopped_by"]:
-            stopped.append(inf)
-            continue
-        open_deps = sorted(d for d in blocked_by[tid] if not infos[d]["done"])
-        # A foreign dependency that is not done blocks, and one this could not
-        # evaluate blocks too — saying which, because "blocked" and "I could not
-        # tell" send a reader to different places.
-        open_deps += [f"{pointer} (cannot evaluate)" if state == "unknown" else pointer
-                      for pointer, state in foreign[tid]]
-        if open_deps:
-            blocked.append({**inf, "blocked_by": open_deps})
-        else:
-            ready.append(inf)
+    ready, done, blocked, stopped = classify(infos, corpus_dir)
 
     if "--json" in flags:
         print(json.dumps({"tasks_dir": str(tasks_dir), "ready": ready,

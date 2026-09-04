@@ -7699,3 +7699,32 @@ Two siblings, named rather than fixed:
 - **A backgrounded fence still holds the sweep's pipe.** The group kill now reaches it (§120), but
   a descendant that makes a session of its own escapes; `drain_after_kill` bounds the wait at ten
   seconds rather than solving it. Raised by the Codex review as a residual risk and accepted as one.
+
+## 122. CLOSED 2026-09-04 — the suite wrote its new ledger into ANOTHER plugin's data directory
+
+Found the same hour it was introduced, by running `qh-doctor` and not believing the number.
+
+ADR-035 T2 gave the Stop hook a ledger at `$CLAUDE_PLUGIN_DATA/claims.jsonl`. `tests/lifecycle.test.mjs`
+spawns that hook dozens of times and did not set the variable, so every completion event in the suite
+appended a row to whatever the environment happened to hold. On this machine the shell snapshot
+exports `CLAUDE_PLUGIN_DATA=/Users/zy/.claude/plugins/data/codex-openai-codex`, and **81 rows landed
+in the Codex plugin's data directory** — every one of them from a `/private/tmp/quality-*` fixture
+directory, so all 81 were this suite's and none was another tool's. The file has been removed and
+`runLifecycleHook` now points the variable at a directory under the suite's own temp root; a test
+that wants a different ledger passes its own `env`, which still wins.
+
+**The class is CLAUDE.md §9 with the boundary moved.** §9 says a test must not touch the repository
+it is testing, and the evidence behind it is a suite that committed to `main`. This is the same rule
+one directory further out: a test writes only where it created, and "where it writes" is not always
+a path in the test — here it was an environment variable the test never mentioned. Ask of any new
+side effect: what does it write to when nobody configures it, and is that a place this suite made?
+
+Two things this did NOT establish, and neither should be read into it:
+
+- **Nothing says production is wrong.** Claude Code appears to give each plugin its own data
+  directory (`~/.claude/plugins/data/quality-harness-quality-harness/` exists, empty), so a hook
+  spawned by the host for THIS plugin should receive its own path. That was not measured — only the
+  test-time inheritance was — and ADR-035 T2's Stop Condition already says to check a live payload
+  before trusting the location premise.
+- **No other plugin's data was read, altered or lost.** Only the file this suite created was
+  removed, and its rows were checked one by one first.

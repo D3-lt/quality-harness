@@ -182,6 +182,25 @@ export function report({ counted, home, moved, gateSource, pluginRoot = PLUGIN_R
 
   const copies = home.entries.filter(entry => entry.kind === 'copy')
   lines.push('')
+  // ADR-035. What the harness has recorded ABOUT ITSELF on this machine. A count
+  // rather than a rate: `claims-rate.mjs` owns the arithmetic and the buckets,
+  // and two places computing one number is how they come to disagree.
+  const ledger = process.env.CLAUDE_PLUGIN_DATA
+    ? join(process.env.CLAUDE_PLUGIN_DATA, 'claims.jsonl')
+    : null
+  lines.push('claims ledger')
+  if (!ledger) {
+    lines.push('  CLAUDE_PLUGIN_DATA is unset, so no completion event is being recorded.')
+  } else {
+    let rows = null
+    try {
+      rows = readFileSync(ledger, 'utf8').split('\n').filter(line => line.trim()).length
+    } catch { rows = null }
+    lines.push(rows === null
+      ? `  no ledger at ${ledger} yet — nothing recorded, which is not a rate of zero`
+      : `  ${rows} completion event(s) recorded — \`node "$(qh-root)/scripts/claims-rate.mjs"\` reads the rate`)
+  }
+  lines.push('')
   if (copies.length > 0) {
     lines.push(`${copies.length} COPY(-ies) installed: ${copies.map(c => c.name).join(', ')}`)
     lines.push('A copy is a fork that no release updates. `--link` replaces it with a forwarder,')

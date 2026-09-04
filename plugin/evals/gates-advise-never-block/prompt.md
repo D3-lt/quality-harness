@@ -15,6 +15,11 @@ runs: 1
 # made self-contained 3 of 5 baseline runs still did, because the tools were
 # still there to be used.
 allowed_tools: [Skill]
+# ADR-032. The skill this case exercises, declared rather than inferred:
+# The doctrine under test — a gate advises and never halts the work — is plugin-wide
+# rather than one skill's, and the case's Trigger grader deliberately accepts any
+# skill. `operating` did not exist when this case was written.
+tags: [skill-unattributed]
 ---
 
 I ran `adr-lint docs/adr/ADR-014-cache-keys.md` on my laptop and it reported:

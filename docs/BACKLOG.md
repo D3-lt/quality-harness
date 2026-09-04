@@ -6652,6 +6652,38 @@ skills themselves, that evidence does not exist. Counting eval cases per skill, 
 **Nine of thirteen skills have no eval that exercises them**, and three of those — `review`,
 `quality-policy`, `mutation-audit` — are the ones this project's own CLAUDE.md leans on hardest.
 
+⚠ **THE TABLE ABOVE IS WRONG, AND THAT IS THE MORE USEFUL FINDING. Corrected 2026-09-04 by
+ADR-032.** It says `review` has **0** cases and `execution` has **1**. A grep over the same
+directories on 2026-09-04 says `review` has one — `a-vacuous-test-is-not-a-review`, whose own grader
+calls it "the question `review` exists for" — and `execution` none.
+
+**Two methods, two answers, and neither was authoritative, because NOTHING IN THE CORPUS DECLARED THE
+MAPPING.** §105 counted by a method it did not record. A grep counts textual mentions, which credits a
+skill for being name-dropped in a comment and misses `done-needs-tool-written-evidence`, whose subject
+— `adr-execute` — is never named in the case at all. This is this project's own defect class turned on
+its eval suite: a coverage claim that nothing computes.
+
+ADR-032 makes each case declare its subject in `tags:`, which the runner honours (verified: a case
+tagged `skill-review` is selected by `--tag skill-review` and rejected by `--tag zzz-nonexistent`), and
+`tests/evals.test.mjs` computes the report. **Measured 2026-09-04, from the declarations:**
+
+| bucket | count | |
+|---|---|---|
+| skills exercised | **3** | `adr-execute`, `adr-write`, `review` |
+| skills with no case | **11** | `adr-retire`, `arch-write`, `codex-advise`, `codex-review`, `execution`, `mutation-audit`, `operating`, `postmortem`, `quality-policy`, `spec-write`, **`work`** |
+| cases declaring no subject | **5** | the two A/B pairs and `gates-advise-never-block` |
+
+**The honest number is WORSE than the one this entry filed** — three of fourteen, not four of thirteen
+— and `work`, the router the whole lifecycle enters through, is among the uncovered. §105 credited it
+with six cases; five of those are A/B arms measuring an INSTRUCTION rather than a skill invocation, and
+they now declare `skill-unattributed` rather than being counted as coverage of `work`.
+
+**What stays open here** is what §105 was actually about and ADR-032 deliberately did not decide:
+writing cases for the eleven, and a Trigger grader that asserts WHICH skill fired. Every case's
+Trigger grader today is `type: tool_used, tool: Skill` — it cannot tell the router sending the model to
+the right skill from it sending the model to the wrong one, which is exactly the routing claim the
+paragraph below says is untested. Whether the runner can express that was not established.
+
 **Why this is a finding rather than a shrug.** ADR-009's rule is that naming a check that cannot
 fail is worse than naming none, and the same holds for a skill: one nothing ever runs is a claim
 about the lifecycle that nothing tests. `work` routes to `review` for a whole risk tier, and no eval

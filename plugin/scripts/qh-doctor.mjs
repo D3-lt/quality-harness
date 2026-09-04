@@ -28,7 +28,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   FORWARDER_MARK, classifyHomeFile, formerlyShipped,
 } from './standalone-link.mjs'
-import { ASSERTION_ARM_WITHDRAWN } from './lifecycle.mjs'
+import { ASSERTION_ARM_WITHDRAWN } from './claim-status.mjs'
 
 const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 

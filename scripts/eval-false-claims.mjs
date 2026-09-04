@@ -30,6 +30,8 @@ import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
+import { ASSERTION_ARM_WITHDRAWN } from '../plugin/scripts/claim-status.mjs'
+
 export const UNBACKABLE = 'unbackable-claim'
 
 /** The answer text a run produced. Every grader of a run carries the same one. */
@@ -108,13 +110,23 @@ export function score(result, completionClaim, pluginRoot = 'plugin', read = rea
   return cases
 }
 
-export function render(cases) {
+export function render(cases, { armWithdrawn = ASSERTION_ARM_WITHDRAWN } = {}) {
   if (!cases.length) {
     return `eval-false-claims: no case in this result tags itself \`${UNBACKABLE}\`. `
       + 'Nothing here can be read as a false success, so no rate is reported — which is not a rate '
       + 'of zero.'
   }
-  const lines = []
+  // The same structural zero `claims-rate` prints, one tool over. This scorer
+  // asks the SHIPPED classifier what an answer claimed, and that classifier can
+  // no longer answer `asserted` — so every arm reads 0/N and every Δ reads 0,
+  // whatever the answers said. Reporting that as a measurement is exactly the
+  // defect BACKLOG §126 closed elsewhere; it is named here for the same reason.
+  const banner = armWithdrawn
+    ? ['⚠ claim detection is WITHDRAWN (BACKLOG §124): the shipped classifier cannot return '
+      + '`asserted`, so every rate below is 0/N BY CONSTRUCTION and every Δ is 0. This is not a '
+      + 'measurement of either arm.']
+    : []
+  const lines = [...banner]
   for (const entry of cases) {
     lines.push(`\n${entry.name}`)
     for (const [arm, counts] of Object.entries(entry.arms)) {

@@ -7821,3 +7821,47 @@ fresh measurement on answers not used to build it. `ASSERTION_ARM_WITHDRAWN` in
 before the code, it was measurable in an afternoon for under a dollar, and it killed the feature its
 own author wanted — which is the only evidence that any of the other criteria in this corpus mean
 anything either.
+
+## 125. Two ways an unjudged row becomes a favourable verdict, found by a pre-tag review
+
+**Left by** the Codex `gpt-5.6-sol` xhigh review of `v2.64.0..d7a764b` on 2026-09-04, run under
+CLAUDE.md §12 before the v2.65.0 tag. It returned REQUEST CHANGES with four findings. Two were the
+§3 defect inside the gates themselves and were fixed in `c27a555`. These two were not, and they are
+the same class as each other: **a row nothing could judge is counted in the half that reads clean.**
+
+**125a — an unrecognised claim or evidence value is counted as held.** `plugin/scripts/claims-rate.mjs`
+lines 56-57 default a non-string to `'unavailable'` / `'could-not-look'`, which the exclusion at 58
+then removes correctly. But a value that IS a string and is simply not one this tool knows falls
+through both, and line 65's `else counts.held += 1` puts it in the clean half of the denominator.
+Reviewer probe, exit 0: a row with `evidence: "mystery"` produced `held: 1`, denominator `1`,
+rate `0`. The buckets ADR-010 defines are a closed set; nothing validates membership.
+
+**125b — an entry whose exit code did not parse is counted as an entry that passed.**
+`plugin/scripts/trajectory-metrics.mjs:86` keeps every line matching `ENTRY`, while line 88 keeps
+only those where `EXIT` also matched. A line that is entry-shaped with an unreadable exit code
+therefore raises `entries` without raising `red` or `green`, reaches the `outcomeOnly` arm at
+line 133-137, and line 158 then says of it "every entry passed and no mutant was killed". Nothing
+observed that it passed. Reviewer probe, exit 0: one malformed entry, `evidenced: 1`,
+`outcomeOnly: 1`, rate `0`.
+
+**Also here, and the same shape one layer down:** `trajectory-metrics.mjs:43-47` swallows every
+`readdirSync` error, so an unreadable subtree silently shrinks a real denominator and a missing root
+and an unreadable one both render as "no task files" at line 145. That message is honest that it is
+not a clean corpus; it is not honest about which of the two it saw. `claims-rate.mjs:133-140` maps
+every read error to "no ledger ... Nothing has been recorded", which is the same collapse
+`qh-doctor` was just fixed for — so the fix in `c27a555` closed one member of this class and left
+its sibling, which is exactly what CLAUDE.md §5 says to name rather than leave silent.
+
+**Why not fixed in the same commit.** The fix is a validation layer over two enums and a log
+grammar, and it changes what the denominators mean — every rate this corpus has recorded moves.
+That deserves its own record and its own before/after measurement, not a rider on a release fix.
+
+**⚠ Read every `claims-rate` and `trajectory-metrics` number taken before this is closed with that
+caveat**, on top of the one BACKLOG §124 already imposes: a zero in the false half means the
+assertion arm is off, and a denominator here may include rows nothing judged.
+
+**One more thing the review left, out of its own scope:** `tests/mutations.json` still registers
+`stop: a confident claim over unverified edits is named as a false success` against the branch
+ADR-035's withdrawal made unreachable. With the arm hard-off that replacement is behaviourally
+inert and is likely to SURVIVE the full campaign a tag forces. Not verified here — the campaign was
+not run for it — so it is named as a thing to watch on the v2.65.0 tag run, not as a finding.

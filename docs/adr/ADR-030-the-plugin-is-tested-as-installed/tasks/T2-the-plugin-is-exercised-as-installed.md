@@ -57,7 +57,16 @@ node --test tests/installed.test.mjs 2>&1 | tee /tmp/adr030-t2.out \
 
 ## Mutation Log
 
+- 2026-09-04 · 2486ef6* · mutant killed · exit 1 · `tests/installed.test.mjs` · an install that cannot be resolved must be UNRUN and reported; treating it as found turns could-not-look into a silent pass · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · covers:an absent install is UNRUN and reported, never a silent pass and never a finding
+- 2026-09-04 · 2486ef6* · mutant killed · exit 1 · `tests/installed.test.mjs` · the install is located with qh-root and nothing else — any other resolver reintroduces the version ordering qh-root exists to get right · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · covers:the install is located with qh-root rather than by string order
+- 2026-09-04 · 2486ef6* · mutant killed · exit 1 · `tests/installed.test.mjs` · a finding without the version cannot be told from one about a different build — the confusion measured 2026-09-01 · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · covers:every finding names the version it was measured against
+
 ## Verification Log
+
+- 2026-09-04 · 2486ef6 · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:542 · steps:S1,S2,S3,S4
+- 2026-09-04 · 2486ef6* · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:578
+- 2026-09-04 · 2486ef6* · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:477
+- 2026-09-04 · 2486ef6* · exit 0 · `set -o pipefail …` · acceptance-sha256:3e59784cc67a6327f47f5c665fb95f5b77bfe5d751adf0bc0d9f837f89a576b5 · ms:427
 
 ## Invariants
 

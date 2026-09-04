@@ -18,7 +18,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | [a role can be addressed by name](T1-a-role-can-be-addressed-by-name.md) | done | — | `node --test tests/package.test.mjs …` |
-| T2 | [the plugin is exercised as installed](T2-the-plugin-is-exercised-as-installed.md) | pending | — | `node --test tests/installed.test.mjs …` |
+| T2 | [the plugin is exercised as installed](T2-the-plugin-is-exercised-as-installed.md) | done | — | `node --test tests/installed.test.mjs …` |
 
 ## Contract Coupling
 

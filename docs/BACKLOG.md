@@ -7707,8 +7707,8 @@ Found the same hour it was introduced, by running `qh-doctor` and not believing 
 ADR-035 T2 gave the Stop hook a ledger at `$CLAUDE_PLUGIN_DATA/claims.jsonl`. `tests/lifecycle.test.mjs`
 spawns that hook dozens of times and did not set the variable, so every completion event in the suite
 appended a row to whatever the environment happened to hold. On this machine the shell snapshot
-exports `CLAUDE_PLUGIN_DATA=/Users/zy/.claude/plugins/data/codex-openai-codex`, and **81 rows landed
-in the Codex plugin's data directory** — every one of them from a `/private/tmp/quality-*` fixture
+exports `CLAUDE_PLUGIN_DATA` pointing at another plugin's data directory under `~/.claude/plugins/data/`,
+and **81 rows landed in that plugin's directory** — every one of them from a `/private/tmp/quality-*` fixture
 directory, so all 81 were this suite's and none was another tool's. The file has been removed and
 `runLifecycleHook` now points the variable at a directory under the suite's own temp root; a test
 that wants a different ledger passes its own `env`, which still wins.

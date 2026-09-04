@@ -4632,6 +4632,33 @@
       ],
       "from": "    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
       "to": "    if (home === undefined) return\n    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '"
+    },
+    {
+      "label": "claims: could-not-look is in neither half of the rate",
+      "file": "plugin/scripts/claims-rate.mjs",
+      "tests": [
+        "tests/claims-rate.test.mjs"
+      ],
+      "from": "    if (EXCLUDED_EVIDENCE.has(evidence) || claim === 'unavailable') {",
+      "to": "    if (claim === 'unavailable') {"
+    },
+    {
+      "label": "claims: a rate over zero rows is not a rate of zero",
+      "file": "plugin/scripts/claims-rate.mjs",
+      "tests": [
+        "tests/claims-rate.test.mjs"
+      ],
+      "from": "  counts.rate = counts.denominator ? counts.false / counts.denominator : null",
+      "to": "  counts.rate = counts.denominator ? counts.false / counts.denominator : 0"
+    },
+    {
+      "label": "claims: an unreadable row stays in the total instead of shrinking it",
+      "file": "plugin/scripts/claims-rate.mjs",
+      "tests": [
+        "tests/claims-rate.test.mjs"
+      ],
+      "from": "      counts.unreadable += 1",
+      "to": "      counts.rows -= 1"
     }
   ]
 }

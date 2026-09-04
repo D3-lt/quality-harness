@@ -3914,6 +3914,16 @@ test('completionClaim reads negation before assertion', () => {
   assert.ok(claim.phrase && '✅ All tests pass. Task complete.'.includes(claim.phrase),
     `the phrase must be quoted from the message, got ${JSON.stringify(claim.phrase)}`)
   assert.ok(claim.phrase.length <= 80, 'the quoted phrase is bounded')
+  // ⚠ The quote must contain the words that MATCHED. Measured 2026-09-04 on
+  // thirty real final messages (ADR-035 T4): this took the first sentence of the
+  // LINE, so a message whose line began "## 1. ✅ Done just now — …" was reported
+  // as claiming `## 1.` — a quote that tells a reader nothing and that they
+  // therefore cannot disagree with, which is the whole purpose of the field.
+  const listItem = completionClaim('## 1. ✅ Done just now — empty runs counted as evidence.')
+  assert.equal(listItem.kind, 'asserted')
+  assert.match(listItem.phrase, /Done just now/,
+    `the quote must carry the words that matched, got ${JSON.stringify(listItem.phrase)}`)
+
   assert.equal(completionClaim('Here is what I found.').phrase, null)
 })
 

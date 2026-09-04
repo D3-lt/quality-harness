@@ -98,12 +98,21 @@ function runGate(gatePath, args, options = {}) {
     : [gatePath, args]
   return spawnSync(file, argv, { encoding: 'utf8', ...options })
 }
+// ⚠ ADR-035 gave the hook a LEDGER: every completion event appends a row to
+// `$CLAUDE_PLUGIN_DATA/claims.jsonl`. Left to inherit, that variable points at a
+// real directory belonging to whichever plugin set it — measured 2026-09-04,
+// 81 rows from this suite landed in ANOTHER plugin's data directory before this
+// line existed. CLAUDE.md §9: a test writes only where it created. A test that
+// wants a different ledger passes its own `env`, which still wins below.
+const ledgerHome = path.join(testTmp, 'claims-ledger')
+
 
 function runLifecycleHook(payload, options = {}) {
   return spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
     cwd: testTmp,
     input: JSON.stringify({ cwd: testTmp, ...payload }),
     encoding: 'utf8',
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome },
     ...options,
   })
 }

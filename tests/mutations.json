@@ -4290,6 +4290,24 @@
       ],
       "from": "    if steps is not None and (human is not None or human_mutant is not None):",
       "to": "    if False:"
+    },
+    {
+      "label": "version: a gate reads the manifest beside itself, not one resolved elsewhere",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    manifest = here.parent.parent / \".claude-plugin\" / \"plugin.json\"",
+      "to": "    manifest = _Path.cwd() / \".claude-plugin\" / \"plugin.json\""
+    },
+    {
+      "label": "version: an unreadable manifest is reported, never guessed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        print(f\"{here.name} (version unreadable: {manifest} — {exc})\")",
+      "to": "        print(f\"{here.name} 2.60.0\")"
     }
   ]
 }

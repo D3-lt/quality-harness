@@ -35,6 +35,7 @@ import {
   isValidationCommand,
   runArtifactGates,
   shellSegments,
+  completionClaim,
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
@@ -3799,4 +3800,104 @@ test('a spawn with nothing declared is told nothing', async () => {
     'no declaration, no sentence about one')
   // And the two really differ, or the assertion above would pass for any output.
   assert.notEqual(bareContext, JSON.parse(declared.stdout).hookSpecificOutput.additionalContext)
+})
+
+// ADR-035 T1. The harness already sees the final message and already knows
+// whether the check ran after the last edit; until now it never compared them,
+// so "✅ All tests pass, task complete" over unverified edits got exactly the
+// advisory "I did not run the tests" got. The dangerous case and the honest
+// case were the same case to the gate.
+//
+// Every test here drives the hook PROCESS with a real transcript and a real
+// payload, because that is the boundary the defect is at (CLAUDE.md §4).
+
+async function unverifiedProject(prefix) {
+  const dir = await checkedProject(prefix)
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1'),
+    toolUse('e1', 'Edit', { file_path: path.join(dir, 'src', 'a.ts') }),
+    toolResult('e1'),
+  ]))
+  return { dir, file }
+}
+
+test('a confident completion claim over unverified edits is named as a false success', async () => {
+  const { dir, file } = await unverifiedProject('quality-hook-false-success-')
+  const run = runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: file,
+    cwd: dir,
+    last_assistant_message: '✅ All tests pass. Task complete.',
+  })
+  assert.equal(run.status, 0, run.stderr)
+  // The words that made the claim, quoted back — a reader must be able to see
+  // WHICH sentence the gate read as an assertion, or the finding is unfalsifiable.
+  assert.match(run.stdout, /All tests pass/,
+    `the advisory must quote the claim it read\n${run.stdout}`)
+  // And the check that did not run, so the finding names its own remedy.
+  assert.match(run.stdout, /npm test|pnpm test|check/i,
+    `the advisory must name the check that did not run\n${run.stdout}`)
+})
+
+test('an honest final message over unverified edits gets the plain evidence advisory', async () => {
+  const { dir, file } = await unverifiedProject('quality-hook-honest-')
+  const honest = runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: file,
+    cwd: dir,
+    last_assistant_message: 'I edited the parser. I have not run the tests yet.',
+  })
+  assert.equal(honest.status, 0, honest.stderr)
+  assert.notEqual(honest.stdout, '', 'the existing evidence advisory must still fire')
+  assert.doesNotMatch(honest.stdout, /claimed|false success/i,
+    `an honest message must not be accused of a false success\n${honest.stdout}`)
+})
+
+test('a confident claim over verified edits is not a false success', async () => {
+  const dir = await checkedProject('quality-hook-verified-claim-')
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(dir, 'src', 'a.ts') }),
+    toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  const run = runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: file,
+    cwd: dir,
+    last_assistant_message: '✅ All tests pass. Task complete.',
+  })
+  assert.equal(run.status, 0, run.stderr)
+  assert.doesNotMatch(run.stdout, /false success|claimed/i,
+    `the evidence half still decides: the check ran after the edit\n${run.stdout}`)
+})
+
+test('completionClaim reads negation before assertion', () => {
+  // Precedence is the whole design: every one of these CONTAINS an assertion
+  // word, and none of them is an assertion.
+  assert.equal(completionClaim(undefined).kind, 'unavailable')
+  assert.equal(completionClaim(null).kind, 'unavailable')
+  assert.equal(completionClaim('').kind, 'none')
+  assert.equal(completionClaim('EVIDENCE-LIMITED: the container would not start here.').kind, 'limited')
+  assert.equal(completionClaim('The parser is not done — I am blocked on the schema.').kind, 'hedged')
+  assert.equal(completionClaim('Fixed the parser; waiting for your decision on the flag.').kind, 'hedged')
+
+  assert.equal(completionClaim('✅ All tests pass. Task complete.').kind, 'asserted')
+  assert.equal(completionClaim('Done. The build is green.').kind, 'asserted')
+  assert.equal(completionClaim('I implemented the retry and verified it.').kind, 'asserted')
+  assert.equal(completionClaim('Here is what I found in the parser.').kind, 'none')
+
+  // Whole words only: a word that merely CONTAINS one is not a claim.
+  assert.equal(completionClaim('The undone migration is still there.').kind, 'none')
+  assert.equal(completionClaim('Passing the buck to the reviewer.').kind, 'none')
+
+  // The phrase is what an advisory quotes, so it must come from the message.
+  const claim = completionClaim('✅ All tests pass. Task complete.')
+  assert.ok(claim.phrase && '✅ All tests pass. Task complete.'.includes(claim.phrase),
+    `the phrase must be quoted from the message, got ${JSON.stringify(claim.phrase)}`)
+  assert.ok(claim.phrase.length <= 80, 'the quoted phrase is bounded')
+  assert.equal(completionClaim('Here is what I found.').phrase, null)
 })

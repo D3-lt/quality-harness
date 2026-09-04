@@ -1712,6 +1712,48 @@ function interimResponse(message) {
   return /\b(?:blocked|not (?:done|complete)|need (?:your|a decision|approval)|waiting for|clarif(?:y|ication)|cannot continue|remaining work)\b/i.test(message)
 }
 
+// ADR-035. What the final message CLAIMS, as a vocabulary rather than a verdict.
+//
+// The harness already knows whether the check ran; it never read what the agent
+// said about it, so a message asserting completion over unverified edits got the
+// same advisory an honest "I did not run the tests" got. Among self-assessing
+// coding agents that is the DOMINANT failure — 75.8% of failures are false
+// successes (arXiv 2606.09863), 22.58% of real misalignment episodes are
+// inaccurate self-reporting and rising (arXiv 2605.29442) — and the same papers
+// measured why this is a regex and not a model: no LLM judge configuration
+// exceeded AUROC 0.65, because judges grade the confident closing language they
+// are asked to judge, while cheap deterministic detectors reach 0.83–0.95.
+//
+// ⚠ PRECEDENCE IS THE DESIGN. Every negative form CONTAINS an assertion word:
+// "not done", "fixed it but I am blocked", "EVIDENCE-LIMITED: … verified".
+// Reading assertion first would flag exactly the honest messages, which is the
+// one outcome that would teach a user to ignore this. The negatives are the
+// classifiers that already existed and already shipped.
+const CLAIM_ASSERTIONS = [
+  /\b(?:done|complete|completed|finished|fixed|resolved|implemented|verified|working)\b/i,
+  /\b(?:tests?|checks?|suite|build|ci)\b[^.!?\n]{0,40}\b(?:pass|passes|passed|passing|green|clean)\b/i,
+  /\b(?:all|everything)\b[^.!?\n]{0,20}\b(?:pass|passes|passing|green|works)\b/i,
+  /✅/,
+]
+
+export function completionClaim(message) {
+  if (typeof message !== 'string') return { kind: 'unavailable', phrase: null }
+  if (evidenceLimited(message)) return { kind: 'limited', phrase: null }
+  if (interimResponse(message)) return { kind: 'hedged', phrase: null }
+  for (const pattern of CLAIM_ASSERTIONS) {
+    const hit = pattern.exec(message)
+    if (!hit) continue
+    // Quote the SENTENCE the match sits in, bounded. A finding a reader cannot
+    // check against their own words is one they cannot disagree with.
+    const start = Math.max(0, message.lastIndexOf('\n', hit.index) + 1)
+    const end = message.length
+    const sentence = message.slice(start, end).split(/(?<=[.!?])\s/)[0].trim()
+    const phrase = (sentence || hit[0]).slice(0, 80).trim()
+    return { kind: 'asserted', phrase: phrase || hit[0] }
+  }
+  return { kind: 'none', phrase: null }
+}
+
 function hasBackgroundWork(input) {
   return (Array.isArray(input.background_tasks) && input.background_tasks.length > 0)
     || (Array.isArray(input.session_crons) && input.session_crons.length > 0)
@@ -1949,6 +1991,22 @@ function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
   const excuse = environmentExcuse(state)
   if (excuse) return `${changed} ${excuse}`
   return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
+}
+
+// ADR-035. The sentence for a claim the evidence does not support.
+//
+// It differs from `missingEvidenceReason` in exactly one way that matters: it
+// QUOTES the words it read as an assertion. A finding a reader cannot check
+// against their own sentence is one they cannot disagree with, and a gate people
+// cannot disagree with is one they learn to ignore (CLAUDE.md §3).
+function falseSuccessReason(claim, state, cwd) {
+  const distinct = [...new Set(state.mutationPathsSince(state.lastPublish))]
+  const changed = distinct.length
+    ? `Changed paths include: ${distinct.slice(-5).join(', ')}.`
+    : 'The transcript contains file mutations.'
+  return `You claimed completion — "${claim.phrase}" — but nothing has verified those edits. `
+    + `${changed} ${runTheCheckSentence(cwd)} `
+    + 'Nothing is blocked; this is the gap between what was said and what ran.'
 }
 
 // A task file was edited and the session's check went green: the corpus wants
@@ -3173,7 +3231,10 @@ export async function handleHook(input) {
   // do not work with quality harness".
   if (!projectCheckCommand(input.cwd)) return
 
-  const reason = missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))
+  const claim = completionClaim(input.last_assistant_message)
+  const reason = claim.kind === 'asserted'
+    ? falseSuccessReason(claim, state, input.cwd)
+    : missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))
   if (event === 'TaskCompleted') {
     advise(reason)
     return

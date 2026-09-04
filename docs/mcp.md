@@ -41,7 +41,6 @@ you, because over MCP the client names a path it cannot see.
 
 Seven tools. Each one runs the gate itself and hands back its output unchanged — the server never
 summarises, re-words or grades it, because a second opinion about a gate's output is a second gate.
-summarises, re-words or grades it, because a second opinion about a gate's output is a second gate.
 
 | Tool | Gate | Answers |
 |---|---|---|

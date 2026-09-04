@@ -3,10 +3,11 @@
 How to get value out of this in the first hour, the first week, and after that —
 and what to ignore while you are getting used to it.
 
-If you have not installed it yet, that is three lines in the
-[README](../README.md). If you want to *see* it work before reading anything,
-start with [TUTORIALS.md](TUTORIALS.md); it takes about ten minutes and uses a
-throwaway repository.
+If you have not installed it yet, that is two lines in the
+[README](../README.md); everything they do not say is [INSTALL.md](INSTALL.md),
+and updating is [UPDATE.md](UPDATE.md). If you want to *see* it work before
+reading anything, start with [TUTORIALS.md](TUTORIALS.md); it takes about ten
+minutes and uses a throwaway repository.
 
 ---
 
@@ -34,7 +35,7 @@ not started yet, and reading it all first is the most common way people bounce o
 ### 1. Ask where you are
 
 ```bash
-work-next
+node "$(qh-root)/scripts/work-next.mjs"
 ```
 
 In a repository with nothing set up:
@@ -96,7 +97,7 @@ otherwise — it said the gate would "exit in a way that lets you carry on", whi
 reads as exit 0 and is not what happens. Nothing seizes your session; the exit
 code is still the honest answer, and it is what a CI step or a stage precondition
 reads. `errors.append` findings fail, `errors.advise` findings do not, and
-`qh-doctor` prints the current split.
+`node "$(qh-root)/scripts/qh-doctor.mjs"` prints the current split.
 
 This is a design rule, not an oversight. A tool that stops you without explaining
 leaves you worse off than no tool. If something here ever blocks you without
@@ -127,9 +128,9 @@ broken.** [Tutorial 2](TUTORIALS.md#tutorial-2--find-a-test-that-cannot-fail)
 walks through a real one, including what it looks like when a test turns out to
 prove nothing.
 
-Do not run a full campaign on day one. On this repository the whole catalogue is
-447 mutations and takes about forty minutes — that is a CI and release activity,
-not something to sit and watch.
+Do not run a full campaign on day one. On this repository the whole catalogue
+takes about forty minutes — that is a CI and release activity, not something to
+sit and watch.
 
 ---
 
@@ -155,7 +156,7 @@ command is whatever you type — `go test ./...`, `pytest -k`, `npm test`. That
 also means it will not guess for you.
 
 **Will it slow my agent down?**
-It takes more turns — measured at 2.33× on an eight-case ablation. But turns are
+It takes more turns — measured at 2.33× on the README's ablation. But turns are
 not a bill: in one profiled real session **99.2% of input tokens were cache
 reads**, which are billed far below fresh input, because a long session re-reads a
 prompt it already paid for. The README has both numbers and the caveats on each.

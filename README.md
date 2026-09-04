@@ -33,6 +33,9 @@ claims to be done, the claim now has a recorded run behind it.
 throwaway repo, a real test, and the tool catching a test that cannot fail.
 **First week:** [docs/ONBOARDING.md](docs/ONBOARDING.md) — what to use, and what
 to ignore until you need it.
+**Everything the two lines do not say** — requirements, Windows, Claude Desktop,
+CI-only use, uninstall: [docs/INSTALL.md](docs/INSTALL.md). **Updating**, and the
+three things that silently stay old when you do: [docs/UPDATE.md](docs/UPDATE.md).
 
 ### What "done" looks like afterwards
 
@@ -111,43 +114,36 @@ the project is a throwaway prototype where nobody will read the history.
 
 ## It holds itself to the same standard
 
-This repository is the plugin's own first user: 474 tests, 416 deliberate
-breakages checked in CI, three operating systems, and a public record of every
+This repository is the plugin's own first user: its own test suite and a mutation
+campaign run in CI on three operating systems, and a public record of every
 time its own checks turned out to be wrong — including one that shipped, was
 tested three times, and was never actually called by anything.
 
 That last part is the point. If the failures were missing from this page, the
 claims above would be exactly the confident writing the research warns you about.
 
+No count appears in that sentence on purpose. The numbers are printed by
+`bash scripts/selftest.sh` and `node scripts/corpus-metrics.mjs`; on 2026-09-04
+this page was found carrying five different sizes for the same mutation
+catalogue, none of them current.
+
 ---
 
 ## Install, the longer way
 
-The two lines are at the top of this file. This section is for the cases they do
-not cover.
-
-
-**Or paste this into Claude Code and let it do the whole thing:**
-
-```text
-Install the Quality Harness plugin and show me what it added.
-
-1. Run: /plugin marketplace add D3-lt/quality-harness
-2. Run: /plugin install quality-harness@quality-harness
-3. Restart when prompted, then run `qh-root` and list the gates in its bin/ directory.
-4. Tell me which lifecycle stage my repository is at by running
-   `node "$(qh-root)/scripts/work-next.mjs"` — it reads, judges nothing, and exits 0
-   whatever it finds.
-5. Summarise in three lines: what got installed, what it will do the next time I
-   ask for substantive work, and what it will NOT do without me asking.
-```
+The two lines are at the top of this file. Everything they do not cover —
+requirements and what CI actually tests them on, checking the install took, what
+it adds to a session and what it costs in context, Windows, Claude Desktop and
+other MCP clients, Codex, CI-only use with no AI at all, developing the plugin,
+uninstalling — is [docs/INSTALL.md](docs/INSTALL.md). Updating is
+[docs/UPDATE.md](docs/UPDATE.md); the failures there are different ones.
 
 Then run `/quality-harness:work` once in the main session for substantive
 development, or a narrower skill when the task already names its stage
 (`/quality-harness:execution`, `/quality-harness:review`, `/quality-harness:adr-write`).
 
-Requirements are in full below; the short version is Claude Code 2.1.154+, Python
-3.9+, Node.js, Bash (Git Bash on Windows) and Git.
+The short version of the requirements: Claude Code 2.1.154+, Python 3.9+ (CI
+runs 3.12), Node.js (CI runs 24), Bash (Git Bash on Windows) and Git.
 
 ## Which AI tools this works with
 
@@ -167,6 +163,9 @@ a test asserts that against the source, so renaming a tool cannot smuggle one in
 A client with no shell gets to read the corpus, never to run text the corpus
 supplies.
 
+Install routes for each tier, and what an update changes for each, are in
+[docs/INSTALL.md](docs/INSTALL.md) and [docs/UPDATE.md](docs/UPDATE.md).
+
 **Codex is a reviewer here, not a host.** `codex-review` and `codex-advise` shell
 out to the Codex CLI to get a verdict from a *different model lineage*, because a
 review by the family that wrote the code is worth less. That is optional and
@@ -177,7 +176,7 @@ nothing else depends on it.
 Two different questions, measured two different ways.
 
 **Do the gates catch what they claim?** A mutation campaign breaks one mechanism
-at a time — 447 catalogued edits — and reports every test that did not notice.
+at a time — every entry in `tests/mutations.json` — and reports every test that did not notice.
 `node scripts/mutate.mjs`. A gate with no mutation that can kill it is not
 evidence, and CI runs the whole catalogue on every push to `main` and every tag,
 with no reuse.
@@ -284,8 +283,6 @@ without-plugin twin to compare against.
 
 If the trade is wrong for your work it is wrong, and no amount of the first number
 fixes it. But price it on your own sessions rather than on this ratio.
-**It roughly doubles the turns.** If that trade is wrong for your work, it is
-wrong, and no amount of the first number fixes it.
 
 **The two zeroes are the honest losses and they are the most useful rows here.**
 Both baselines already scored 1.00: the model did the right thing unprompted, and
@@ -313,7 +310,8 @@ difference".
 ### What the corpus itself records
 
 `node scripts/corpus-metrics.mjs` — descriptive, no control arm, so it says what
-happened here rather than what the lifecycle caused:
+happened here rather than what the lifecycle caused. **Snapshot taken 2026-09-03**;
+the command prints today's:
 
 - **25 decision records, 53 task files, 447 catalogued mutations**
 - **95 verification entries**, every one written by the tool
@@ -324,10 +322,6 @@ happened here rather than what the lifecycle caused:
   about this repository and it is not flattering: either the TDD red run is being
   taken and not recorded, or it is being skipped. The evidence chain cannot tell
   those apart, and says so.
-
-times** — the instruction did nothing — which is written down rather than dropped,
-because an eval suite that only publishes its wins is the tone this project tells
-you not to trust.
 
 ## The evidence behind those claims
 
@@ -353,7 +347,7 @@ a column for findings it negated, left empty because it has negated none.
 | Instead of | You get |
 |---|---|
 | An agent writing "✅ all tests pass" into a task file | `adr-verify` **runs the fence itself** and writes the date, git sha, exit code, duration and a SHA-256 of the fence it ran. Edit the fence and every entry taken under the old one is invalidated. |
-| A green suite you hope means something | A **436-mutation campaign** that breaks each mechanism on purpose and fails if nothing notices. A test that cannot fail is found before you trust it. |
+| A green suite you hope means something | A **mutation campaign** that breaks each mechanism on purpose and fails if nothing notices. A test that cannot fail is found before you trust it. |
 | A gate that blocks you and cannot say why | Gates that **advise and never block**. A blocked agent produces a user who cannot tell what to do next, which is worse than not having the plugin. |
 | "I checked, it's fine" | A check that **cannot determine something says so** — `UNRUN`, `PARTIAL`, `UNPROVEN` — and never borrows the vocabulary of a verdict. A filter that matched nothing is "I could not look", not "the thing is absent". |
 | Decisions living in a chat log | An **executable ADR corpus** — Architecture Decision Records, one file per decision — whose readiness, coverage, dangling pointers and open debt are computed from the task files by `adr-next`, `adr-state.mjs` and `adr-debt`, not from a status column somebody typed. |
@@ -445,9 +439,9 @@ agents and token cost; routine changes stay in the main session or one bounded s
 
 ## Requirements
 
-- Claude Code 2.1.154 or newer. Dynamic workflows must be enabled; on Pro, enable them in `/config`.
-- Python 3.9 or newer.
-- Node.js.
+- Claude Code 2.1.154 or newer — the build dynamic workflows shipped in; developed against 2.1.260. On Pro, enable dynamic workflows in `/config`.
+- Python 3.9 or newer by syntax; **3.12 is what CI tests**, on all three operating systems.
+- Node.js; CI runs 24.
 - Bash. On Windows, use Git for Windows (Git Bash).
 - Git.
 - Codex CLI only for `codex-review`, `codex-advise`, or Codex workflow nodes.
@@ -554,6 +548,9 @@ cost, limits, and plugin distribution are documented in
 [Dynamic workflows](https://code.claude.com/docs/en/workflows).
 
 ## ADR archive model
+
+How to update, what an update leaves behind, and how to check it took:
+[docs/UPDATE.md](docs/UPDATE.md).
 
 Physical location controls the active validation cohort. Decision effect controls
 authority. An archived exact-`Accepted` ADR can remain governing, so the active

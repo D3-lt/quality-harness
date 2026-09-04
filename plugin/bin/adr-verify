@@ -2324,6 +2324,18 @@ def main():
              "declared mechanism a killed mutant bound, and nothing else writes that row")
     if also_restore and human is not None:
         fail("--also-restore cannot be combined with --human; no source mutation runs there")
+    # ADR-028 T3, the class audit rather than the reported instance. `--steps` names
+    # ordered steps A RUN EXERCISED, so it means nothing on the two paths where this
+    # tool executes no fence: `--human` records a run a person took, and
+    # `--human-mutant` executes nothing by premise (ADR-013). Both branches exit
+    # before the `--steps` preflight below, so without this guard the flag would be
+    # accepted, unvalidated and dropped — the same silence BACKLOG §116 reported on
+    # the `--mutant` path, in the two places fixing that path does not reach.
+    if steps is not None and (human is not None or human_mutant is not None):
+        fail("--steps records the ordered steps a run exercised, and neither --human "
+             "nor --human-mutant runs the fence: --human records a run you took, and "
+             "--human-mutant executes nothing at all. There is no run here to name "
+             "steps for.")
 
     if task is None:
         fail(__doc__)

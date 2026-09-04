@@ -2570,3 +2570,35 @@ test('--steps refuses an undeclared id on the --mutant path too', () => {
   assert.doesNotMatch(readTask(copy).split('## Verification Log')[1] ?? '', /^- \d{4}-/m,
     'a refused run writes no entry')
 })
+
+// ADR-028 T3, the class audit. §116 reported one path; enumerating every branch
+// that leaves `main()` before the `--steps` preflight found two more. `--human`
+// records a run a PERSON took and `--human-mutant` executes nothing at all, so
+// neither has a run whose steps could be named — and both exited before the check,
+// which means the flag was accepted, unvalidated and dropped there too.
+test('--steps is refused on the paths where this tool runs no fence', () => {
+  for (const args of [
+    ['--human', '0', '--why', 'a run taken by hand'],
+    ['--human-mutant', 'ADR-001-selftest.md', '--from', '## Decision', '--to', '## Decisiun',
+     '--test', 'adr-lint ADR-001-selftest.md tasks', '--test-exit', '1',
+     '--why', 'the fence needs a database this checkout has no access to'],
+  ]) {
+    const copy = corpus()
+    addStepIdentities(copy)
+    addMutationLog(copy)
+    const refused = verify(copy, ['--steps', 'S1', ...args])
+    assert.notEqual(refused.status, 0, `--steps ${args[0]}: must be refused`)
+    const said = `${refused.stdout}${refused.stderr}`
+    // Refused for the RIGHT reason. Before the guard existed these exited 0 and
+    // wrote a row: a non-zero check alone would have passed on any other refusal.
+    assert.match(said, /--steps records the ordered steps a run exercised/,
+      `--steps ${args[0]}: refused for naming steps with no run, not for something else: ${said}`)
+  }
+
+  // Shown capable of the other answer: --human WITHOUT --steps still works, so the
+  // guard refuses the combination rather than the flag it was added beside.
+  const ok = corpus()
+  addMutationLog(ok)
+  expectExit(verify(ok, ['--human', '0', '--why', 'a run taken by hand']), 0,
+    '--human alone must still record its row')
+})

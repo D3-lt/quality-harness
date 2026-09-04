@@ -4281,6 +4281,15 @@
       ],
       "from": "    if steps is not None:",
       "to": "    if steps is not None and mutant is None:"
+    },
+    {
+      "label": "steps: naming steps for a run this tool never took is refused",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if steps is not None and (human is not None or human_mutant is not None):",
+      "to": "    if False:"
     }
   ]
 }

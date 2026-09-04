@@ -70,6 +70,14 @@ node --test --test-name-pattern 'claims ledger' tests/lifecycle.test.mjs 2>&1 | 
 
 ## Mutation Log
 
+- 2026-09-04 · 8bd8199* · mutant inconclusive · exit 1 · `plugin/scripts/lifecycle.mjs` · the append: without it the ledger stays empty and no rate has a denominator · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · covers:the append
+  ```
+  the fence failed on a build/parse error, not an assertion
+  ```
+- 2026-09-04 · 8bd8199* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the append: without it the ledger stays empty and no rate has a denominator · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · covers:the append
+- 2026-09-04 · 8bd8199* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the absence notice: a ledger that skips in silence reads exactly like one recording zero false successes · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · covers:the absence notice when CLAUDE_PLUGIN_DATA is unset
+- 2026-09-04 · 8bd8199* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the evidence classification: without it every row says unverified and the four buckets collapse to one · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · covers:the evidence classification
+
 ## Invariants
 
 - A row is appended, never rewritten; the file is append-only like the Verification Log.
@@ -92,3 +100,8 @@ needs re-checking before any fallback is invented.
 - Reading or summarising the ledger — T3.
 
 ## Verification Log
+- 2026-09-04 · 8bd8199 · exit 0 · `set -o pipefail …` · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · ms:586
+- 2026-09-04 · 8bd8199* · exit 0 · `set -o pipefail …` · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · ms:677
+- 2026-09-04 · 8bd8199* · exit 0 · `set -o pipefail …` · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · ms:518
+- 2026-09-04 · 8bd8199* · exit 0 · `set -o pipefail …` · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · ms:563
+- 2026-09-04 · 8bd8199* · exit 0 · `set -o pipefail …` · acceptance-sha256:d02cf46fe18b74b7ff5d88ec0dc94f3e0c79defc5ae7a710ef28808bf588ecd0 · ms:549

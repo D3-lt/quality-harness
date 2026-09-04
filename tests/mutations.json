@@ -4353,6 +4353,33 @@
       ],
       "from": "tags: [skill-review]",
       "to": "tags: [skill-no-such-skill]"
+    },
+    {
+      "label": "mcp: adr-retire-check is registered, or a client cannot reach it at all",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    _adr_retire_check,\n)",
+      "to": "    _postmortem_verify,\n)"
+    },
+    {
+      "label": "mcp: postmortem-verify is registered, or a client cannot reach it at all",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    \"qh_postmortem_verify\",",
+      "to": "    \"qh_adr_debt_2\","
+    },
+    {
+      "label": "mcp: a retire-check call naming no single mode is refused, not guessed at",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    if active or archive:\n        if readme:",
+      "to": "    if active and archive:\n        if readme:"
     }
   ]
 }

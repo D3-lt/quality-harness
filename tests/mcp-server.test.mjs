@@ -147,11 +147,17 @@ test('a registered tool can be called and returns content', () => {
   assert.ok(call.result.content[0].text.length > 0)
 })
 
-// --- ADR-012 T2: the five reading gates, and the two that must be absent -----
+// --- ADR-012 T2, extended by T5: the reading gates, and the two that must be absent ---
 
 const fixture = join(repoRoot, 'tests', 'fixtures', 'ok')
 const bin = join(repoRoot, 'plugin', 'bin')
-const READING_GATES = ['qh_adr_lint', 'qh_adr_next', 'qh_adr_debt', 'qh_adr_judge', 'qh_arch_lint']
+// T5 (2026-09-04) added the last two, which the record had deferred to BACKLOG
+// §33. `qh-root` is the third gate the record calls safe and is deliberately NOT
+// here: it answers "which installed copy is newest ON THIS MACHINE", and over MCP
+// that machine is the SERVER's, not the caller's — an answer about a different
+// thing than the caller believes, which is the defect ADR-031 exists to prevent.
+const READING_GATES = ['qh_adr_lint', 'qh_adr_next', 'qh_adr_debt', 'qh_adr_judge', 'qh_arch_lint',
+  'qh_adr_retire_check', 'qh_postmortem_verify']
 
 // The server captures the gate in Python's text mode, which translates CRLF to
 // LF; Node's spawnSync captures the bytes as written. So on Windows the same
@@ -176,7 +182,7 @@ function call(name, args) {
 test("every reading gate is listed, and calling it returns that gate's own output", () => {
   const listed = list().map(tool => tool.name).sort()
   assert.deepEqual(listed, [...READING_GATES].sort(),
-    'tools/list must name exactly the five gates that never execute corpus content')
+    'tools/list must name exactly the gates that never execute corpus content')
 
   // One end-to-end call per tool, compared against the same gate run directly.
   // Deleting any single reading_tool() call turns exactly this assertion red.
@@ -187,6 +193,10 @@ test("every reading gate is listed, and calling it returns that gate's own outpu
     ['qh_adr_debt', { dirs: [fixture] }, 'adr-debt', [fixture]],
     ['qh_adr_judge', { adr: join(fixture, 'ADR-001-selftest.md') }, 'adr-judge', [join(fixture, 'ADR-001-selftest.md')]],
     ['qh_arch_lint', { doc: join(fixture, 'architecture.md') }, 'arch-lint', [join(fixture, 'architecture.md')]],
+    ['qh_adr_retire_check', { archive_readme: join(fixture, 'adr-archive', 'README.md') },
+      'adr-retire-check', [join(fixture, 'adr-archive', 'README.md')]],
+    ['qh_postmortem_verify', { files: [join(fixture, 'postmortem-selftest.md')] },
+      'postmortem-verify', [join(fixture, 'postmortem-selftest.md')]],
   ]
   for (const [tool, args, gate, argv] of invocations) {
     const reply = call(tool, args)
@@ -314,4 +324,37 @@ test('a broken invocation is refused, not dressed up as a finding', () => {
   assert.equal(rubric.result.isError, false)
   const judged = call('qh_adr_judge', { adr: join(fixture, 'ADR-001-selftest.md') })
   assert.equal(judged.error, undefined, JSON.stringify(judged.error))
+})
+
+// ADR-012 T5. `adr-retire-check` is the second gate whose non-zero exit can mean
+// "you called me wrong" rather than "I found something": given half the --adopt
+// pair, or both modes at once, it prints usage and exits 1 — which over MCP is
+// indistinguishable from a finding. Same answer as adr-judge: the server never
+// produces one.
+test('adr-retire-check is refused when the call names no single mode', () => {
+  const readme = join(fixture, 'adr-archive', 'README.md')
+
+  for (const [args, needle] of [
+    [{}, /needs 'archive_readme'/],
+    [{ active_root: fixture }, /needs BOTH/],
+    [{ archive_root: fixture }, /needs BOTH/],
+    [{ archive_readme: readme, active_root: fixture, archive_root: fixture }, /never both/],
+  ]) {
+    const reply = call('qh_adr_retire_check', args)
+    assert.ok(reply.error, `${JSON.stringify(args)} came back as content, not a refusal`)
+    assert.match(reply.error.message, /could not run/, reply.error.message)
+    // Refused for THIS reason. A bare "could not run" check would pass on the
+    // path-does-not-exist refusal too, which is a different mechanism.
+    assert.match(reply.error.message, needle, reply.error.message)
+  }
+
+  // Shown capable of the other answer: both valid shapes still reach the gate,
+  // so the guard refuses the ambiguity rather than the tool.
+  const one = call('qh_adr_retire_check', { archive_readme: readme })
+  assert.equal(one.error, undefined, JSON.stringify(one.error))
+  assert.equal(one.result.isError, false)
+  const pair = call('qh_adr_retire_check',
+    { active_root: join(fixture, 'adr'), archive_root: join(fixture, 'adr-archive') })
+  assert.equal(pair.error, undefined, JSON.stringify(pair.error))
+  assert.equal(pair.result.isError, false)
 })

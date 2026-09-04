@@ -208,4 +208,10 @@ it and the only difference was more turns. Re-derive any of it yourself:
 ```bash
 node scripts/eval-compare.mjs    # with/without, the only measurement with a baseline
 node scripts/corpus-metrics.mjs  # what this corpus records, descriptive, no control
+node "$(qh-root)/scripts/claims-rate.mjs"  # how often a completion claim outran its evidence, on THIS machine
 ```
+
+The third is the harness measuring itself: every time a session ends, it records
+what the final message claimed and whether your check had run since the last
+edit. `no-check` and `could-not-look` rows sit in neither half of the rate, and
+it prints them, because a claim nothing could re-check is not a claim that held.

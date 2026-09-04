@@ -102,7 +102,28 @@ async function assertTreeDied(dir, label, elapsedMs) {
     `${label}: the heartbeat kept moving after the gate reported the timeout — the grandchild survived`)
 }
 
-test('adr-verify: a fence timeout kills the tree the fence started, not only bash', async () => {
+// ⚠ WINDOWS IS UNPROVEN FOR THE TREE KILL, and this says so from the log rather
+// than by analogy (CLAUDE.md §7). `taskkill /F /T` does not reach a Git Bash
+// subshell tree, measured three times:
+//   · CI run 33892254729 — 21.9s against a 1s timeout.
+//   · CI on 0a18d04 and again on 867592c — `a fence timeout kills the tree the
+//     fence started` sat to the test's own 60s cap, so adr-verify did not return
+//     at all. Between those two runs `taskkill` was given a bound (BACKLOG
+//     §127a), and the hang did not change: the hang is NOT the kill call itself,
+//     and that is the part still unexplained.
+// Skipped on Windows with the measurement attached, because the mechanism is
+// UNPROVEN there rather than proven working. BACKLOG §123 holds the record, and
+// §128 holds what the bound ruled out.
+const posixTree = {
+  skip: process.platform === 'win32'
+    ? 'taskkill /F /T does not reach a Git Bash subshell tree: 21.9s against a 1s timeout '
+      + '(CI 33907570834-era run 33892254729), and a full 60s hang on 0a18d04 and 867592c that '
+      + 'bounding taskkill did not change. UNPROVEN on Windows, not proven working; BACKLOG '
+      + '§123 and §128.'
+    : false,
+}
+const LEADER_EXITS_FENCE = '( for i in $(seq 1 100); do echo "$i" >> beat.txt; sleep 0.2; done ) &'
+test('adr-verify: a fence timeout kills the tree the fence started, not only bash', posixTree, async () => {
   const dir = scratch()
   const path = task(dir, 'T1', HEARTBEAT_FENCE)
   const started = Date.now()
@@ -182,18 +203,6 @@ for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
 // pid, so the lookup buys nothing — but the mutant that proves it can only die
 // on macOS, and the campaign runs on Linux. It is de-registered for that reason
 // and the reason is recorded, not the mutant quietly dropped (BACKLOG §123).
-//
-// On Windows this test measured 21.9s against a 1s timeout in the same run, so
-// `taskkill /F /T` did not reach a Git Bash subshell tree. Skipped there with
-// the measurement rather than asserted by analogy (CLAUDE.md §7).
-const posixTree = {
-  skip: process.platform === 'win32'
-    ? 'measured 2026-09-04, CI run 33892254729: taskkill /F /T did not reach a Git Bash '
-      + 'subshell tree — 21.9s against a 1s timeout. The Windows path is UNPROVEN, not proven '
-      + 'working; BACKLOG §123.'
-    : false,
-}
-const LEADER_EXITS_FENCE = '( for i in $(seq 1 100); do echo "$i" >> beat.txt; sleep 0.2; done ) &'
 
 test('adr-verify: a fence whose leader exits still has its tree killed', posixTree, async () => {
   const dir = scratch()

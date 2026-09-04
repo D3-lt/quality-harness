@@ -25,6 +25,10 @@ The rules whose cost of missing is not a wasted hour are repeated here:
 - **A gate never reports an observation it did not make.** Could-not-look is its own word, never a
   verdict.
 - **No counts in the instruction files.** Run something if you want to know how many.
+- **Read and edit through `mrw`, not `sed`/`head`/`awk`/heredocs.** It refuses a write to lines it
+  has not served you and reports a verdict for every hunk; a refusal is the tool working.
+- **Use agentsmemory.** `am_status` and `am_search` before touching unfamiliar code; file what you
+  learned before you stop. Wing `wing_quality-harness`; craft to `wing_craft`.
 
 Everything else — and the measurements behind all of the above — is in `CLAUDE.md` and
 `.claude/rules/`.

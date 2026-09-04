@@ -7914,3 +7914,45 @@ the discipline; the other half is that withdrawing a feature is a DELETION, not 
 early return leaves the corpus asserting things about code that can no longer run — and every one of
 the three signals above was a check this repository already owned, already running, reporting
 correctly, with nobody reading it.
+
+## 127. A cleanup nobody bounded, and two tests that measure the runner's mood
+
+Three findings from the release of v2.65.0, all about the same thing: a check whose answer depends
+on the machine's load rather than on the code.
+
+**127a — CLOSED 2026-09-04. `taskkill` had no timeout, and it hung a Windows job.** The Codex review
+of `v2.64.0..d7a764b` said it: *"`taskkill` has no timeout and its return code is ignored"*. The
+commit that followed fixed the return code and left the bound. Hours later the Windows job on
+`0a18d04` sat on `adr-verify: a fence timeout kills the tree the fence started` until the test's own
+60s cap, while `plugin/bin/adr-verify` was **byte-identical** to `479fbef`, where the same job had
+passed. A cleanup that can hang unbounded wears the fence timeout's name — which is the exact defect
+`run_bounded`'s own docstring says it exists to prevent, one layer further in. `kill_tree` now takes
+a `timeout` and a `TimeoutExpired` answers `False`: not confirmed, never "it failed". Both arms are
+asserted and the bound is bound to a mutant.
+
+⚠ **Half a finding applied is how the other half gets forgotten.** The review named both defects in
+one sentence and the fix took one. Nothing flagged the remainder — no gate can — and the cost was a
+red release run on the platform the release existed to be tested on.
+
+**127b — OPEN. Two tests assert against wall-clock bounds and cannot fail honestly.**
+
+- `tests/evidence-chain.test.mjs::the recorded duration is the clean fence, not the clean fence plus
+  the mutant` — measured 2026-09-04 on one tree: **2.21s alone, 4.77s** with a `codex exec` review
+  running beside it, where the second run failed.
+- `tests/timeout-tree.test.mjs::assertTreeDied`'s `PROMPT_MS = 10_000`. Its comment is right that a
+  gate taking ten seconds to report a one-second timeout has not killed anything — but on a loaded
+  runner the same number is the runner, not the gate.
+
+Neither can distinguish *"the process survived"* from *"the machine was busy"*, and a release run
+that reddens at random is a gate people learn to re-run rather than read — the failure mode this
+corpus rejects everywhere else. **Not fixed here**, because the honest fix is not a bigger constant:
+it is a signal that is not a clock. `assertTreeDied` already has one — the heartbeat's own counter —
+and the elapsed-time assertion is the part that measures mood.
+
+**127c — OPEN, and it is a rule this repository already has.** `bash scripts/selftest.sh` was green
+locally while the same commit failed on **all four** CI jobs, for one cause: `plugin/scripts/claim-status.mjs`
+carried no mutation. `tests/package.test.mjs::every shipped gate carries at least one mutation`
+resolves shipped scripts through `git ls-files`, correctly (CLAUDE.md §8) — so a NEW file is invisible
+to it until it is committed, and every local run before that commit passes. The check is right and
+the workflow around it is not: **the first run after `git add` is the first honest one.** Worth a
+pre-commit hook that runs the mutation-coverage assertion against the index rather than the tree.

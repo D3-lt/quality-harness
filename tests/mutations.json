@@ -4589,6 +4589,24 @@
       "to": "  if (!home.looked || !moved.looked) {"
     },
     {
+      "label": "verify: taskkill is bounded, so a hung cleanup cannot wear the timeout's name",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "                       capture_output=True, timeout=timeout)",
+      "to": "                       capture_output=True)"
+    },
+    {
+      "label": "status: the withdrawn label cannot be flipped without a classifier to match it",
+      "file": "plugin/scripts/claim-status.mjs",
+      "tests": [
+        "tests/claims-rate.test.mjs"
+      ],
+      "from": "export const ASSERTION_ARM_WITHDRAWN = true",
+      "to": "export const ASSERTION_ARM_WITHDRAWN = false"
+    },
+    {
       "label": "eval: a withdrawn classifier is named, so a 0/N is not read as measured",
       "file": "scripts/eval-false-claims.mjs",
       "tests": [

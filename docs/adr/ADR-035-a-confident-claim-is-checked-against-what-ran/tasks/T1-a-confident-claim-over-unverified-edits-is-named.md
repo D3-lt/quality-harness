@@ -8,7 +8,13 @@
 **Consumes:** none
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the claim vocabulary`, `the precedence of the negative classifiers`, `the branch that selects the false-success advisory`, `the pass/fail counters the fence greps for`
+**Rests-on:** `the claim vocabulary`, `the precedence of the negative classifiers`, `the branch that selects the false-success advisory`
+
+<The fence's own `grep -qE '^ℹ pass [1-9]'` and `'^ℹ fail 0$'` guards are NOT
+listed, and the omission is deliberate rather than an oversight: `Rests-on` names
+mechanisms in the SOURCE that a mutation can break, and no edit to
+`lifecycle.mjs` can break a guard that lives in this file's own fence. Listing it
+would ask the gate for a mutant that cannot exist.>
 
 ## Goal
 
@@ -84,6 +90,11 @@ that produced this one.>
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-09-04 · 327f226 · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the precedence of the negative classifiers: without it 'not done' and 'fixed but blocked' are read as assertions and the honest message is accused · acceptance-sha256:9b23a203da37e667e07ab1b2debe9c055024d21c4cc02d63b38a8a4403204de8 · covers:the precedence of the negative classifiers
+- 2026-09-04 · 327f226* · mutant survived · exit 0 · `plugin/scripts/lifecycle.mjs` · the claim vocabulary: the tick alone must be able to carry an assertion, or a message whose only claim is a tick reads as none · acceptance-sha256:9b23a203da37e667e07ab1b2debe9c055024d21c4cc02d63b38a8a4403204de8 · covers:the claim vocabulary
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Invariants
 
@@ -110,3 +121,5 @@ premise needs re-checking.
 ## Verification Log
 - 2026-09-04 · 335ea07 · exit 0 · `set -o pipefail …` · acceptance-sha256:357c53b5474cb1ced32ebc4cc57793d78df07d0f3c0040f5b53e326c2b6f55e2 · ms:295
 - 2026-09-04 · 335ea07* · exit 0 · `set -o pipefail …` · acceptance-sha256:357c53b5474cb1ced32ebc4cc57793d78df07d0f3c0040f5b53e326c2b6f55e2 · ms:292
+- 2026-09-04 · 327f226 · exit 0 · `set -o pipefail …` · acceptance-sha256:9b23a203da37e667e07ab1b2debe9c055024d21c4cc02d63b38a8a4403204de8 · ms:380
+- 2026-09-04 · 327f226* · exit 0 · `set -o pipefail …` · acceptance-sha256:9b23a203da37e667e07ab1b2debe9c055024d21c4cc02d63b38a8a4403204de8 · ms:372

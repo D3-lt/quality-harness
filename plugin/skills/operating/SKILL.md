@@ -44,18 +44,36 @@ narrower than it is.
 Delete a home entry only when `grep -q quality-harness-forwarder` **fails** on it
 *and* you know what wrote it.
 
-## Verifying an upgrade takes three calls, because no gate answers `--version`
+## Verifying an upgrade: ask the gate you are about to trust
 
 `claude plugin update` prints "Restart to apply changes", and a session that keeps
 invoking gates by bare name goes on running the old build with no warning.
 
+**Ask the gate itself.** Every gate answers `--version` with the version of the tree
+IT was loaded from, read from the manifest beside it:
+
+    $ adr-lint --version
+    adr-lint 2.63.0 (/Users/you/.claude/plugins/cache/quality-harness/quality-harness/2.63.0)
+
+Ask the gate whose output you are questioning, not a resolver. `qh-root` and
+`qh-doctor` answer "which copy is newest on this machine" — a different question,
+and on a machine where both PATH mechanisms are present it can be a different
+install from the one that just ran. That is why each gate answers for itself, and
+why two gates disagreeing is a finding rather than a glitch (ADR-031).
+
+Two calls still earn their place when the answer surprises you:
+
 1. `which <gate>` — a forwarder means current by construction; a real file under a
    version directory is pinned to whatever was installed when the session started,
    and needs `/reload-plugins`.
-2. `node "${CLAUDE_PLUGIN_ROOT}/scripts/qh-doctor.mjs"` — what is installed now.
-3. Run the gate against one real record by its **working-tree path** and compare
-   with the bare name. A bare name resolves to something *installed*, which is the
-   last release and never your edit.
+2. `node "${CLAUDE_PLUGIN_ROOT}/scripts/qh-doctor.mjs"` — the fuller inventory:
+   what is installed, and how many findings block versus advise.
+
+⚠ This section used to open "Verifying an upgrade takes three calls, because no
+gate answers `--version`", and its third step was to run a gate against a real
+record and diff the output against the bare name. That was true until 2026-09-04
+and is the workaround GitHub issue #9's adopter had to invent. ADR-031 removed the
+need for it.
 
 ## Severity is a word, and the word is checkable
 

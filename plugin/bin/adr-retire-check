@@ -7,6 +7,12 @@ Usage:
 
 The archive README supplies **Active corpus:** as a path relative to the archive.
 Exit 0 means the hybrid active/archive contract is internally consistent.
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root. Ask the gate whose output you are questioning rather than a
+resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
+which on a box carrying both PATH mechanisms can be a different install from the
+one that just ran (ADR-031).
 """
 
 import hashlib

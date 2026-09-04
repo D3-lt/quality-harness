@@ -68,6 +68,17 @@ Two of them carry the evidence chain and are worth knowing by name:
 Nothing in those logs is written by a model. If a row says `exit 0`, a process
 exited 0.
 
+**Every gate answers `--version`**, with the version of the tree IT was loaded
+from — not the newest copy on the machine:
+
+    $ adr-lint --version
+    adr-lint 2.63.0 (…/plugins/cache/quality-harness/quality-harness/2.63.0)
+
+Ask the gate whose output you are questioning. A resolver answers "which install is
+newest here", which on a machine where a bare name can resolve two different ways
+may not be the copy that just ran — so two gates disagreeing is a finding, not a
+glitch.
+
 ## The roles you can address by name
 
 `${CLAUDE_PLUGIN_ROOT}/agents/` holds named agent definitions, so a delegating

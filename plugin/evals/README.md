@@ -30,3 +30,28 @@ baseline arm has no skill to invoke.
 
 Cases are cheap on purpose — `max_turns` is small and `runs: 1` — because a suite
 nobody runs is the claim-without-evidence this whole plan exists to remove.
+
+## Every case declares the skill it exercises
+
+`tags: [skill-<name>]` in a case's frontmatter, and `tags: [skill-unattributed]`
+when naming a subject would be inventing one. The runner honours the key, so the
+declaration doubles as a selector:
+
+    CLAUDE_CODE_WALNUT_SPIRE=1 claude plugin eval --tag skill-review .
+
+It exists because the count was otherwise a guess. BACKLOG §105 published a
+coverage table; a grep over the same directories gave a DIFFERENT answer, and
+neither was authoritative because nothing declared the mapping — one case's
+subject is never named in its own text at all. `tests/evals.test.mjs` computes the
+report from the declarations and fails on a case that declares nothing, which is
+the state where the count goes back to being a guess (ADR-032).
+
+`skill-unattributed` is a first-class answer, not a backlog. Four of the eight
+cases are A/B arms measuring an INSTRUCTION rather than a skill, and one tests a
+plugin-wide doctrine; forcing a subject onto them would be the fabricated
+observation ADR-005 forbids.
+
+The report ADVISES and never blocks. A threshold on "skills with a case" is met by
+writing one thin case per skill, and the gate would then report that as coverage.
+Measured 2026-09-04: **3 skills exercised, 11 with no case, 5 unattributed** — and
+`work`, the router the lifecycle enters through, is among the uncovered.

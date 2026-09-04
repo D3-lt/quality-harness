@@ -24,6 +24,12 @@ Checks:
              pass). A check whose path doesn't exist yet is tagged (deferred: <pointer>).
 
 Exit: 0 pass · 1 failures found
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root. Ask the gate whose output you are questioning rather than a
+resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
+which on a box carrying both PATH mechanisms can be a different install from the
+one that just ran (ADR-031).
 """
 import re
 import subprocess

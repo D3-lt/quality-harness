@@ -13,6 +13,12 @@ Modes (cumulative):
 
 Exit codes: 0 pass · 1 structural failure · 2 bound test missing · 3 @implemented test failing
             4 could not run a bound test — nothing was observed, so nothing is claimed
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root. Ask the gate whose output you are questioning rather than a
+resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
+which on a box carrying both PATH mechanisms can be a different install from the
+one that just ran (ADR-031).
 """
 import argparse
 import ast

@@ -16,12 +16,24 @@ evidence rule adr-lint enforces for a README `done` status, so a hand-typed
 "done" cannot make a task disappear from this list. A task is READY when every
 task it depends on is DONE.
 
-  --all   list every task with its state (done / ready / blocked-by)
+  --all   list every task with its state (done / ready / blocked-by / stopped)
   --json  machine-readable, for a hook or a skill rather than a person
 
+A task is STOPPED when its human sign-off states a stop. That is neither done nor
+ready nor waiting on an upstream — a person looked at this task and said do not
+proceed — so it is its own state, reported with the sign-off text. Calling it
+`ready` offered work the record forbids starting; calling it `blocked` would send
+the reader hunting for an upstream that does not exist.
+
 Exit: 0 = a ready task was printed (or --all rendered)
-      3 = nothing ready: everything is done, or the remainder is blocked
+      3 = nothing ready: everything is done, or the rest is blocked or stopped
       1 = the ADR or tasks directory could not be read
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root. Ask the gate whose output you are questioning rather than a
+resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
+which on a box carrying both PATH mechanisms can be a different install from the
+one that just ran (ADR-031).
 """
 import hashlib
 import json

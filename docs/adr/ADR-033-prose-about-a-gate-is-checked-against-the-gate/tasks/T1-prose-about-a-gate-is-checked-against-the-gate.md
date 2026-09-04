@@ -102,3 +102,5 @@ prevent.
 - A `Documents:` header on records (deferred: rejected in the record's Alternatives on measurement).
 - Running the sweep in CI (deferred: its two siblings are not, and a list of places to look wants a
   human reading it).
+
+## Verification Log

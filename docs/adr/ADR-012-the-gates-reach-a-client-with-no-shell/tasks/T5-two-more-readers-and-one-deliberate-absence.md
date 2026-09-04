@@ -60,7 +60,14 @@ node --test tests/mcp-server.test.mjs 2>&1 | tee /tmp/adr012-t5.out \
 
 ## Mutation Log
 
+- 2026-09-04 · 0535776* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · a gate deferred by scope must actually be reachable once exposed; a registration wired to the wrong handler advertises a tool that answers a different question · acceptance-sha256:275e6c1254dbdf7326ebc53e214b3b788ac529620eda3c4465b3708eb0920c52 · covers:a gate deferred by scope is reachable once exposed, and its own output comes back
+- 2026-09-04 · 0535776* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · half the --adopt pair must be refused as could-not-run; falling through to the gate returns a usage dump at exit 1, which over MCP reads exactly like a finding · acceptance-sha256:275e6c1254dbdf7326ebc53e214b3b788ac529620eda3c4465b3708eb0920c52 · covers:a call naming no single mode is refused rather than guessed at
+
 ## Verification Log
+
+- 2026-09-04 · 0535776 · exit 0 · `set -o pipefail …` · acceptance-sha256:275e6c1254dbdf7326ebc53e214b3b788ac529620eda3c4465b3708eb0920c52 · ms:3371 · steps:S1,S2,S3,S4,S5
+- 2026-09-04 · 0535776* · exit 0 · `set -o pipefail …` · acceptance-sha256:275e6c1254dbdf7326ebc53e214b3b788ac529620eda3c4465b3708eb0920c52 · ms:3564 · steps:S6
+- 2026-09-04 · 0535776* · exit 0 · `set -o pipefail …` · acceptance-sha256:275e6c1254dbdf7326ebc53e214b3b788ac529620eda3c4465b3708eb0920c52 · ms:4274 · steps:S6
 
 ## Invariants
 

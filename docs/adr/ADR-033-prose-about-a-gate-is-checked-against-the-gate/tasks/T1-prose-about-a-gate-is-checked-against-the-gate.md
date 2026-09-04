@@ -104,3 +104,4 @@ prevent.
   human reading it).
 
 ## Verification Log
+- 2026-09-04 · 0a006a4 · exit 0 · `set -o pipefail …` · acceptance-sha256:50e30ba5d8fb228113d18925eca3a980e90685fd16c9be6730f5c2c49e75a817 · ms:37455 · steps:S1,S2,S3,S4,S6

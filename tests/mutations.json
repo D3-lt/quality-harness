@@ -4227,6 +4227,33 @@
       ],
       "from": "'.claude-plugin/plugin.json', 'README.md', 'agents', 'bin', 'evals', 'hooks',",
       "to": "'.claude-plugin/plugin.json', 'README.md', 'bin', 'evals', 'hooks',"
+    },
+    {
+      "label": "installed: an absent install is UNRUN, never a silent pass",
+      "file": "tests/installed.test.mjs",
+      "tests": [
+        "tests/installed.test.mjs"
+      ],
+      "from": "  if (result.status !== 0) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "installed: the install is located with qh-root, not another gate",
+      "file": "tests/installed.test.mjs",
+      "tests": [
+        "tests/installed.test.mjs"
+      ],
+      "from": "const LOCATOR = join(repoRoot, 'plugin', 'bin', 'qh-root')",
+      "to": "const LOCATOR = join(repoRoot, 'plugin', 'bin', 'adr-lint')"
+    },
+    {
+      "label": "installed: a finding names the version it was measured against",
+      "file": "tests/installed.test.mjs",
+      "tests": [
+        "tests/installed.test.mjs"
+      ],
+      "from": "      .map(entry => `installed ${version} is missing ${entry}, which every release ships`),",
+      "to": "      .map(entry => `an installed copy is missing ${entry}, which every release ships`),"
     }
   ]
 }

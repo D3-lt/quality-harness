@@ -7592,3 +7592,56 @@ timeout semantics in `scripts/mutate.mjs` are written against `node --test`'s ou
 
 **Receipt:** the campaign is what enumerates this class, and a tag runs it in full with `--no-cache`
 (CLAUDE.md §13.6), which is why this surfaced on a release run rather than on a push.
+
+## 120. `adr-verify --sweep`'s fence timeout kills the fence and leaves its campaign running
+
+Found 2026-09-04 at `2dd1a39`, running `python3 plugin/bin/adr-verify --sweep docs/adr --json`
+from a Claude Code background shell for the research refresh. In order:
+
+1. Seventeen task files under `docs/adr` have a fence that runs `scripts/mutate.mjs`
+   (`grep -l 'mutate.mjs' docs/adr/*/tasks/*.md | wc -l` → 17). One of them runs
+   `node scripts/mutate.mjs --case verify:`, and on today's catalogue that sub-campaign runs
+   longer than `SWEEP_TIMEOUT_DEFAULT = 900`.
+2. At 900 s the sweep's `subprocess.run(…, timeout=timeout)` (`plugin/bin/adr-verify:1969`)
+   killed the `bash` running the fence and filed the claim as `unrunnable` — the right bucket.
+   It did not kill the fence's child. `ps -o pid,ppid,etime,command -p $(cat .mutate-lock)` →
+   `85706  1  17:40 node scripts/mutate.mjs --case verify:`: PPID 1, two and a half minutes past
+   the timeout, still mutating `plugin/bin/adr-verify` in the working tree while the sweep had
+   moved on to the next task.
+3. The shell hosting the sweep then hit its host's ten-minute cap and was killed with its
+   process group, orphan included, mid-mutant. `git diff --stat` → `plugin/bin/adr-verify | 2 +-`
+   (`ACCEPTANCE_FENCE` narrowed to `(?:bash)`), `.mutate-lock` naming a dead pid,
+   `.mutate-inflight.json` holding the original. ADR-002's journal did its job; nothing ran the
+   restore. `git checkout -- plugin/bin/adr-verify` restored it.
+
+Two defects, one class:
+
+- **A fence timeout does not reach the process group.** `subprocess.run(timeout=)` kills its
+  direct child, and every fence here runs through `bash`, so the real work is always a
+  grandchild. The class, enumerated rather than remembered:
+  `grep -nE 'timeout=' plugin/bin/adr-verify plugin/bin/spec-verify plugin/bin/qh-mcp` →
+  `adr-verify:1292, 1388, 1969, 2492`, `spec-verify:98, 486, 518, 562`, `qh-mcp:148` — nine
+  sites; `grep -nE 'start_new_session|killpg|preexec_fn' plugin/bin/*` → nothing. Three of the
+  `adr-verify` sites are the ordinary fence run and the `--mutant` run, so a `--mutant` that times
+  out has the same shape: a campaign it started keeps rewriting the tree after the tool has
+  reported. The fix shape is `start_new_session=True` plus `os.killpg(…, SIGKILL)` on
+  `TimeoutExpired` on POSIX, and `CREATE_NEW_PROCESS_GROUP` plus `taskkill /T` on Windows — a
+  platform seam (CLAUDE.md §7), not a `sys.platform` branch with no test.
+- **The sweep is read-only in what it writes and not in what it runs.** `sweep_corpus`'s
+  docstring says "This writes nothing", and that is true of the sweep. It runs fences, a fence may
+  run the campaign, and the campaign rewrites `plugin/bin/`. The byte-identity the docstring cites
+  is asserted over the corpus, and `plugin/bin/` is not the corpus. A sweep over this repository
+  is a mutation run and belongs under the same rule as one (CLAUDE.md §2: never run a mutation
+  tool and edit the tree at the same time) — or in a clone, which is where the second attempt
+  went: `git clone . <scratch>/qh-sweep` and sweep there, detached with `os.setsid()` because
+  macOS has no `setsid`.
+
+Not a defect: a 900-second fence is `unrunnable`, and that is the honest bucket. The 2026-09-01
+figure of `0 unrunnable` over 52 claims will not survive a re-run at this timeout, and the
+research note says so.
+
+Sibling left, named: `scripts/mutate.mjs` writes `.mutate-inflight.json` and handles a lock left
+by a dead pid (`mutate.mjs:87-102`), but `grep -n restore scripts/mutate.mjs` finds nothing — there
+is no on-demand restore from a stale journal the way `adr-verify --restore` offers one for its
+own. `git checkout` was the restore used here, which works only because the mutated file was
+tracked and otherwise clean.

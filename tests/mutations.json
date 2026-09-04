@@ -4479,6 +4479,15 @@
       ],
       "from": "    if target.is_dir() and resolve_tasks_dir(target) == target and not load(target):",
       "to": "    if target.is_dir() and not load(target):"
+    },
+    {
+      "label": "next: a corpus names an undecided record before offering its tasks",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if undecided and ready:",
+      "to": "        if False and ready:"
     }
   ]
 }

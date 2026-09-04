@@ -250,6 +250,52 @@ test('end to end, in a repository the test creates: mrw_read delivers what Read 
   })
   assert.match(twice(), /RUN THE CHECKS/)
   assert.equal(twice().trim(), '')
+
+  // ⚠ THE UNTRACKED HALF, reported from outside and regressed at the outermost
+  // boundary through the same call the report came through (CLAUDE.md §4). Two
+  // peer sessions independently read the fix and asked the same question: a
+  // newly-created file is not in `git ls-files`, so does a `Write` deliver
+  // nothing — the case the hook exists to cover?
+  //
+  // It delivers, because PostToolUse runs AFTER the write: the file is on disk
+  // by the time the hook resolves it, and `--others --exclude-standard` lists
+  // it. But the doubt was worth more than the answer, because until this
+  // assertion existed every hook call in this fixture ran after `git add -A` —
+  // so `--others` was never exercised, and deleting it from the source would
+  // have left the whole suite green. A flag no test can see the absence of is
+  // not covered by the tests that pass over it.
+  const created = join(sandbox, 'scripts', 'brand-new.mjs')
+  writeFileSync(created, '// never added, never committed\n')
+  assert.equal(
+    git('ls-files', '--cached').includes('brand-new'), false,
+    'the fixture must be UNTRACKED or it proves nothing about --others',
+  )
+  const fresh = hook({
+    tool_name: 'Write',
+    tool_input: { file_path: 'scripts/brand-new.mjs' },
+  })
+  assert.match(fresh, /RUN THE CHECKS/)
+
+  // And the boundary that makes `--exclude-standard` a decision rather than an
+  // accident: a new file under an IGNORED path is not repository content, so it
+  // draws no rule even though a rule globs it.
+  //
+  // ⚠ THE IGNORED FILE MUST SIT UNDER A GLOB THAT MATCHES IT, and the first
+  // version of this did not. It used `scratch/build.mjs`, which no rule in this
+  // fixture globs — so it asserted an empty delivery for a path that could never
+  // have produced one, and passed with `--exclude-standard` deleted from the
+  // source. Mutating that flag away scored SURVIVED, which is how the vacuity
+  // was found; nothing in a green run says an assertion is asserting nothing.
+  // `scripts/generated/` is ignored AND globbed by the `scripts/**` rule, so the
+  // only thing that can keep the delivery empty is the flag under test.
+  writeFileSync(join(sandbox, '.gitignore'), 'scripts/generated/\n')
+  mkdirSync(join(sandbox, 'scripts', 'generated'), { recursive: true })
+  writeFileSync(join(sandbox, 'scripts', 'generated', 'build.mjs'), '// generated\n')
+  const ignored = hook({
+    tool_name: 'Write',
+    tool_input: { file_path: 'scripts/generated/build.mjs' },
+  })
+  assert.equal(ignored.trim(), '')
 })
 
 test('the hook exits 0 on garbage, so a broken hook never takes the turn', () => {

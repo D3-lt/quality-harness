@@ -60,7 +60,16 @@ node --test tests/package.test.mjs tests/skill-metadata.test.mjs 2>&1 | tee /tmp
 
 ## Mutation Log
 
+- 2026-09-04 · b1c8750* · mutant killed · exit 1 · `plugin/agents/qh-synthesis.md` · a definition must request a capability CLASS; a pinned id is a stored fact about a catalogue this project does not own · acceptance-sha256:6ac57883fc0b69f480a550dbe326b961d97264bea28f72cdaafd31962ed63771 · covers:every shipped agent definition names a capability CLASS, never a version-pinned id
+- 2026-09-04 · b1c8750* · mutant killed · exit 1 · `plugin/agents/qh-narrow-fixer.md` · subagent_type resolves by name, so a definition whose name is not its filename is addressable under a name nothing carries · acceptance-sha256:6ac57883fc0b69f480a550dbe326b961d97264bea28f72cdaafd31962ed63771 · covers:a definition's name matches its file, so subagent_type resolves
+- 2026-09-04 · b1c8750* · mutant killed · exit 1 · `tests/package.test.mjs` · a new shipped directory must be admitted deliberately; without the entry the leak sweep stops seeing agents/ as part of the plugin · acceptance-sha256:6ac57883fc0b69f480a550dbe326b961d97264bea28f72cdaafd31962ed63771 · covers:agents/ is in the shipped set rather than leaking past the gate that guards it
+
 ## Verification Log
+
+- 2026-09-04 · b1c8750 · exit 0 · `set -o pipefail …` · acceptance-sha256:6ac57883fc0b69f480a550dbe326b961d97264bea28f72cdaafd31962ed63771 · ms:41090 · steps:S1,S2,S3,S4
+- 2026-09-04 · b1c8750* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ac57883fc0b69f480a550dbe326b961d97264bea28f72cdaafd31962ed63771 · ms:53908
+- 2026-09-04 · b1c8750* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ac57883fc0b69f480a550dbe326b961d97264bea28f72cdaafd31962ed63771 · ms:44245
+- 2026-09-04 · b1c8750* · exit 0 · `set -o pipefail …` · acceptance-sha256:6ac57883fc0b69f480a550dbe326b961d97264bea28f72cdaafd31962ed63771 · ms:57871
 
 ## Invariants
 

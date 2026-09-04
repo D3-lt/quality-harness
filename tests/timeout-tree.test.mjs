@@ -1,0 +1,158 @@
+// BACKLOG §120 — a timeout that kills the child and not the tree.
+//
+// `subprocess.run(timeout=)` kills its DIRECT child. Every fence the gates run
+// goes through bash, so the real work — a test runner, a mutation campaign — is a
+// grandchild, and on 2026-09-04 one ran on with PPID 1 for minutes after the sweep
+// had filed its claim as unrunnable, rewriting plugin/bin/adr-verify in the
+// working tree. A timeout that reports "stopped" while the work continues is a
+// false verdict, not a slow one.
+//
+// The fixture is deliberately pid-free: Git Bash reports MSYS pids, which Node
+// cannot signal, so liveness is measured as a HEARTBEAT instead — a background
+// subshell writes a counter to a file five times a second, and the assertion is
+// that the counter stops moving once the gate has returned. The loop is bounded
+// (100 beats, twenty seconds) so a red run cannot leave a runaway process behind.
+//
+// Every test here drives a real gate through the same call the defect came in
+// through (CLAUDE.md §4): adr-verify's ordinary fence run, its --sweep, and the
+// helper spec-verify and qh-mcp share by copy.
+import assert from 'node:assert/strict'
+import { createHash } from 'node:crypto'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import { dirname, join, resolve } from 'node:path'
+import test from 'node:test'
+import { fileURLToPath } from 'node:url'
+import { runPython } from '../scripts/python-interpreter.mjs'
+
+const testDir = dirname(fileURLToPath(import.meta.url))
+const repoRoot = resolve(testDir, '..')
+const bin = join(repoRoot, 'plugin', 'bin')
+
+const temps = []
+function scratch() {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-timeout-tree-'))
+  temps.push(dir)
+  return dir
+}
+test.after(() => { for (const dir of temps) rmSync(dir, { recursive: true, force: true }) })
+
+// A bash fence whose grandchild outlives bash unless the tree is killed. The
+// outer bash sleeps in the foreground so the timeout fires; the subshell in the
+// background is the thing that must die with it.
+const HEARTBEAT_FENCE = [
+  '( for i in $(seq 1 100); do echo "$i" > beat.txt; sleep 0.2; done ) &',
+  'sleep 60',
+].join('\n')
+
+// adr-verify's own digest, reimplemented so the sweep re-checks the claim rather
+// than filing it superseded (same as tests/sweep.test.mjs).
+function digestOf(fence) {
+  const lines = fence.replace(/\r\n/g, '\n').split('\n')
+  let start = 0
+  let end = lines.length
+  while (start < end && !lines[start].trim()) start += 1
+  while (end > start && !lines[end - 1].trim()) end -= 1
+  return createHash('sha256').update(lines.slice(start, end).join('\n'), 'utf8').digest('hex')
+}
+
+function task(dir, name, fence) {
+  const path = join(dir, 'tasks', `${name}.md`)
+  mkdirSync(dirname(path), { recursive: true })
+  writeFileSync(path, [
+    `# Task ${name}`, '',
+    '## Acceptance', '', '```bash', fence, '```', '',
+    '## Verification Log',
+    `- 2026-08-28 · abc1234 · exit 0 · \`${fence.split('\n')[0]}\` · acceptance-sha256:${digestOf(fence)}`,
+    '',
+  ].join('\n'), 'utf8')
+  return path
+}
+
+const beat = dir => {
+  try { return readFileSync(join(dir, 'beat.txt'), 'utf8').trim() } catch { return '' }
+}
+
+/** The heartbeat must have started before the gate returned, and stopped after. */
+async function assertTreeDied(dir, label) {
+  const atReturn = beat(dir)
+  assert.notEqual(atReturn, '', `${label}: the grandchild never wrote a beat, so the fixture proved nothing`)
+  await new Promise(r => setTimeout(r, 1200))
+  assert.equal(beat(dir), atReturn,
+    `${label}: the heartbeat kept moving after the gate reported the timeout — the grandchild survived`)
+}
+
+test('adr-verify: a fence timeout kills the tree the fence started, not only bash', async () => {
+  const dir = scratch()
+  const path = task(dir, 'T1', HEARTBEAT_FENCE)
+  const run = runPython([join(bin, 'adr-verify'), path, '--cwd', dir], {
+    cwd: dir, encoding: 'utf8', timeout: 60_000,
+    env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '1' },
+  })
+  assert.match(run.stdout + run.stderr, /UNRUN/, `the fence must be reported as not finished\n${run.stdout}${run.stderr}`)
+  await assertTreeDied(dir, 'ordinary fence run')
+})
+
+test('adr-verify --sweep: a fence that times out takes its tree with it', async () => {
+  const dir = scratch()
+  task(dir, 'T1', HEARTBEAT_FENCE)
+  const run = runPython([join(bin, 'adr-verify'), '--sweep', join(dir, 'tasks'), '--timeout', '1'], {
+    cwd: dir, encoding: 'utf8', timeout: 60_000,
+  })
+  assert.match(run.stdout, /did not finish/i, `the claim must be unrunnable\n${run.stdout}${run.stderr}`)
+  // The sweep runs a fence in the task's own directory (no --cwd, no git root
+  // here), so that is where the heartbeat lands.
+  await assertTreeDied(join(dir, 'tasks'), 'sweep')
+})
+
+// spec-verify and qh-mcp carry the same helper by copy (a shared module under
+// bin/ would be read as a gate by the package tests). Each copy is driven
+// directly with a Python grandchild, so the fixture needs no bash and runs the
+// same on Windows.
+const PROBE = `import importlib.machinery, importlib.util, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+child = (
+    "import subprocess, sys, time\\n"
+    "subprocess.Popen([sys.executable, '-c', 'import time\\\\nfor i in range(100):\\\\n"
+    "    open(\\"beat.txt\\", \\"w\\").write(str(i))\\\\n    time.sleep(0.2)'])\\n"
+    "time.sleep(60)\\n"
+)
+try:
+    module.run_bounded([sys.executable, "-c", child], timeout=1, cwd=sys.argv[2],
+                       capture_output=True, text=True)
+except subprocess.TimeoutExpired:
+    print("timed out")
+`
+
+for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  test(`${gate}: run_bounded kills the tree on timeout`, async () => {
+    const dir = scratch()
+    const run = runPython(['-c', PROBE, join(bin, gate), dir], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, `${gate} probe\n${run.stdout}${run.stderr}`)
+    assert.match(run.stdout, /timed out/, `${gate}: the helper must raise TimeoutExpired`)
+    await assertTreeDied(dir, gate)
+  })
+}
+
+// The Windows branch, exercised on every host through the seam (CLAUDE.md §7):
+// taskkill /T is what reaches a tree there, and it must be asked for the pid it
+// was given — never spawned where it does not exist.
+test('kill_tree asks taskkill for the whole tree on Windows', () => {
+  const probe = `import importlib.machinery, importlib.util, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+seen = []
+module.kill_tree(4242, "nt", run=lambda argv, **kw: seen.append(argv))
+print(seen)
+`
+  const run = runPython(['-c', probe, join(bin, 'adr-verify')], { encoding: 'utf8', timeout: 30_000 })
+  assert.equal(run.status, 0, run.stdout + run.stderr)
+  assert.equal(run.stdout.trim(), "[['taskkill', '/F', '/T', '/PID', '4242']]")
+})

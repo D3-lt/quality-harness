@@ -33,6 +33,7 @@ one that just ran (ADR-031).
 
 import json
 import os
+import signal
 import subprocess
 import sys
 
@@ -145,8 +146,8 @@ def _run_gate(gate, args, paths):
     if not os.path.exists(argv[1]):
         raise GateDidNotRun("could not run: the {} gate is not installed at {}".format(gate, argv[1]))
     try:
-        completed = subprocess.run(argv, capture_output=True, text=True, timeout=120,
-                                   encoding="utf-8", errors="replace")
+        completed = run_bounded(argv, capture_output=True, text=True, timeout=120,
+                                encoding="utf-8", errors="replace")
     except OSError as unstartable:
         # ADR-005: a gate that could not run has not found anything. This is the
         # error channel, and it says which.
@@ -154,6 +155,49 @@ def _run_gate(gate, args, paths):
     except subprocess.TimeoutExpired:
         raise GateDidNotRun("could not run: {} did not finish within 120s".format(gate))
     return _gate_result(gate, completed, paths)
+
+
+def kill_tree(pid, platform=None, run=subprocess.run):
+    """Kill PID and everything it started (BACKLOG §120).
+
+    `subprocess.run(timeout=)` kills its direct child and nothing else; a gate
+    that spawns git, or a fence, leaves that work running past the 120s this
+    server promises. `platform` and `run` are the seam (CLAUDE.md §7). The same
+    helper, by copy, as in the two gates that run fences — a shared module under
+    bin/ would be read as a gate by the package tests.
+    """
+    if (platform or os.name) == "nt":
+        run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+        return
+    try:
+        os.killpg(os.getpgid(pid), signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def run_bounded(argv, *, timeout, platform=None, **popen):
+    """`subprocess.run(argv, timeout=…)` whose timeout reaches the whole tree.
+
+    Own session (POSIX) or process group (Windows), `kill_tree` on
+    `TimeoutExpired`, the exception re-raised with what the child wrote.
+    Every other keyword goes to Popen unchanged.
+    """
+    platform = platform or os.name
+    if popen.pop("capture_output", False):
+        popen["stdout"] = popen["stderr"] = subprocess.PIPE
+    if platform == "nt":
+        popen["creationflags"] = (popen.get("creationflags", 0)
+                                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
+    else:
+        popen["start_new_session"] = True
+    with subprocess.Popen(argv, **popen) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            kill_tree(proc.pid, platform)
+            out, err = proc.communicate()
+            raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 
 class GateDidNotRun(Exception):

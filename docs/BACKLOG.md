@@ -7728,3 +7728,45 @@ Two things this did NOT establish, and neither should be read into it:
   before trusting the location premise.
 - **No other plugin's data was read, altered or lost.** Only the file this suite created was
   removed, and its rows were checked one by one first.
+
+## 123. The process-tree kill is proved on macOS, unproved on Linux, and does not work on Windows
+
+CI run `33892254729` on `5642b53`, which is the first run that carried §120's fix through every job.
+Three mutants GREEN on the Linux campaign, four tests red on Windows, and both halves say the same
+thing: **the assertions written for §120 encoded one platform's behaviour and were presented as the
+mechanism's.** CLAUDE.md §7's class, in code written the same day to obey §7.
+
+**Linux — the DEFECT does not reproduce, so the mutant cannot die.**
+`verify: the group kill does not look the group up, because the leader may be gone` came back GREEN
+on `mutations 4/8`. On macOS, `getpgid` on a leader that has exited raises `ProcessLookupError`, the
+swallow skips the kill, and the group survives — measured, 3.02s against a 0.3s timeout. On Linux the
+reaped leader stays a zombie until `Popen` waits, so `getpgid` still answers and the lookup works.
+The FIX is right on both (`start_new_session` makes the pgid the pid, so the lookup buys nothing),
+but the mutant that proves it can only die where the defect exists, and the campaign runs on Linux.
+
+`spec:` and `mcp: an interrupted gate kills the tree it started` were GREEN there too, while the
+`verify:` one — the only member of that family with a test that drives a real gate rather than the
+helper through a probe — died. Not diagnosed; the probe's orphan behaves differently under Linux.
+
+All three are **de-registered**, and this section is why. A mutant that cannot die on the platform
+the campaign runs on is a permanently GREEN row, and a permanently GREEN row teaches a reader that
+GREEN is normal — the one thing this catalogue exists to prevent. The mechanisms are not left
+unproved: `verify/spec/mcp: a … timeout kills the tree …` and `verify: an interrupted gate kills the
+tree it started` still die on every platform, and cover the same code.
+
+**Windows — the kill does not reach the tree.** `adr-verify: a fence whose leader exits still has its
+tree killed` took **21.9s against a 1s timeout**, and the three `a cleanup that raises does not
+replace the timeout` tests took **30.0s**. So `CREATE_NEW_PROCESS_GROUP` plus `taskkill /F /T` did
+not reach a Git Bash subshell tree, and the bounded drain did not bound it there. Skipped on win32
+with that measurement named, per §7's rule that a skip follows the log rather than an analogy.
+
+⚠ **Say what this leaves true.** On Windows the timeout still fires and the gate still reports
+`UNRUN` — nothing regressed. What is NOT true is that the tree dies with it: that half is
+**UNPROVEN on Windows**, and the only Windows assertion left is
+`kill_tree asks taskkill for the whole tree on Windows`, which checks the COMMAND SHAPE and not its
+effect. ADR-035 and §120 must not be read as saying otherwise.
+
+Open, and not attempted here: why `taskkill /T` misses a Git Bash tree (MSYS processes are not
+Windows children of `bash.exe` in the way `/T` walks), and whether the drain needs a Windows-specific
+bound. Neither can be measured from this machine — `windows-latest` is a VM and Docker Desktop on
+macOS has no Windows container mode — so the next attempt is a CI round, not a local one.

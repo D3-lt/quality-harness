@@ -99,6 +99,7 @@ message defect it replaces, because callers already branch on those codes.
 - 2026-09-04 · d9cb7c5* · mutant killed · exit 1 · `plugin/bin/adr-next` · exit 3 claims the whole corpus was searched; with a record unread that claim is not available and 1 is the honest code · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: nothing ready is a verdict only when everything was read
 - 2026-09-04 · d9cb7c5* · mutant killed · exit 1 · `plugin/bin/adr-next` · reporting an unread status as undecided:false tells a machine caller the record is Accepted when nothing was read · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a status that could not be read is unknown, never decided
 - 2026-09-04 · d9cb7c5* · mutant killed · exit 1 · `plugin/bin/adr-next` · resolve() follows the symlink, so the record file is hunted for beside the target and a Proposed record reads as decided · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a symlinked record's owner sits beside the link, not beside its target
+- 2026-09-04 · 25bf9a8 · mutant killed · exit 1 · `plugin/bin/adr-next` · the earlier mutant deleted the iterdir probe and survived on ubuntu, where Path.is_dir raises EACCES itself; the except clause is the one change that breaks the mechanism on every platform, shown RED on macOS and under Linux in Docker · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: an unreadable record is could-not-look, not a record holding nothing
 
 ## Verification Log
 - 2026-09-04 · a9676f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:16044 · steps:S1,S2,S3,S4,S5,S6
@@ -110,3 +111,4 @@ message defect it replaces, because callers already branch on those codes.
 - 2026-09-04 · d9cb7c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:16585
 - 2026-09-04 · d9cb7c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:18331
 - 2026-09-04 · d9cb7c5* · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:17895
+- 2026-09-04 · 25bf9a8 · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:14258

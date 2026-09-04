@@ -8,7 +8,11 @@
 **Consumes:** `completionClaim()` (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the append`, `the evidence classification`, `the absence notice when CLAUDE_PLUGIN_DATA is unset`, `the pass/fail counters the fence greps for`
+**Rests-on:** `the append`, `the evidence classification`, `the absence notice when CLAUDE_PLUGIN_DATA is unset`
+
+<The fence's own `grep` guards are not listed, for the reason T1 gives: `Rests-on`
+names mechanisms in the SOURCE that a mutation can break, and no edit to
+`lifecycle.mjs` can break a guard living in this file's fence.>
 
 ## Goal
 

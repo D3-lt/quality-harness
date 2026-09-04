@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -705,4 +705,96 @@ test('a corpus names an undecided record before offering its tasks as ready', ()
   // is a warning on nothing, and would pass the assertion above by accident.
   assert.doesNotMatch(out.stderr, /ADR-007-source is/,
     `an Accepted record is not warned about:\n${out.stderr}`)
+})
+
+// --- the three findings a Codex review reproduced on 2026-09-04 -------------
+
+test('a record this tool could not read is not counted as a record holding nothing', () => {
+  // HIGH. ADR-005, inside the code written to fix an ADR-005 violation: a
+  // `chmod 000` record with a ready task came back as "none ready", exit 3 — a
+  // verdict, from a directory nothing looked inside. The ready task may be in
+  // exactly the record that was refused.
+  //
+  // `Path.glob` is what hid it: it swallows OSError and yields nothing, so the
+  // load returned {} and the record read as empty. The fix is an explicit
+  // `iterdir()` probe, and this test fails without it.
+  const { dir } = twoRecords('none')
+  const locked = join(dir, 'ADR-003-target')
+  try {
+    chmodSync(locked, 0o000)
+    const out = next([dir, '--all'], dir)
+    assert.match(out.stderr, /COULD NOT READ ADR-003-target/,
+      `an unreadable record must be named:\n${out.stderr}`)
+    assert.doesNotMatch(out.stderr, /^\d+ record\(s\) with tasks, none ready\.$/m,
+      `"none ready" is a verdict and is not available here:\n${out.stderr}`)
+  } finally {
+    chmodSync(locked, 0o755)
+  }
+})
+
+test('nothing ready plus an unreadable record is exit 1, but a readable corpus is exit 3', () => {
+  // Both answers, in one test. Exit 3 says "I looked everywhere and nothing is
+  // ready"; that claim is unavailable while a record is unread, and 1 is the
+  // code this gate already uses for "could not answer". Without the second half
+  // a fix that returns 1 unconditionally would pass.
+  const { dir } = twoRecords('ADR-003-T1')
+  writeFileSync(join(dir, 'ADR-003-target', 'tasks', 'T1-t.md'),
+    task({ id: 'T1', human: true, evidence: true,
+           signoff: '- 2026-08-26 · human-observed · STOPPED — Zy said do not proceed' }))
+  assert.equal(next([dir, '--all'], dir).status, 3,
+    'a fully-read corpus with nothing ready is a real verdict')
+
+  const locked = join(dir, 'ADR-007-source')
+  try {
+    chmodSync(locked, 0o000)
+    assert.equal(next([dir, '--all'], dir).status, 1,
+      'an unread record makes "nothing is ready" unknowable')
+  } finally {
+    chmodSync(locked, 0o755)
+  }
+})
+
+test('a symlinked record finds the record file beside the link, not beside its target', () => {
+  // MEDIUM. `owning_record_status` resolved the tasks path, which follows the
+  // symlink, so it looked for the record file in the link's TARGET directory.
+  // It found none, and unknown status was then reported as `undecided: false` —
+  // claiming a Proposed record was decided.
+  const { dir } = twoRecords('none')
+  const elsewhere = mkdtempSync(join(os.tmpdir(), 'quality-harness-away-'))
+  temps.push(elsewhere)
+  const realTasks = join(elsewhere, 'ADR-050-linked', 'tasks')
+  mkdirSync(realTasks, { recursive: true })
+  writeFileSync(join(realTasks, 'T1-t.md'), task({ id: 'T1' }))
+  symlinkSync(join(elsewhere, 'ADR-050-linked'), join(dir, 'ADR-050-linked'))
+  // The record file sits beside the LINK, which is where a reader would put it.
+  writeFileSync(join(dir, 'ADR-050-linked.md'),
+    '# ADR-050: linked\n\n**Status:** Proposed\n')
+
+  const out = next([dir, '--all', '--json'], dir)
+  const record = JSON.parse(out.stdout).records['ADR-050-linked']
+  assert.equal(record.status, 'Proposed',
+    `the record beside the link is the owner:\n${out.stdout}`)
+  assert.equal(record.undecided, true, 'and it is undecided')
+})
+
+test('a status this tool could not read is unknown, never decided', () => {
+  // The other half of the same finding, and the one that survives a symlink fix:
+  // `undecided: false` on an unread status tells a machine caller the record is
+  // Accepted. Null is the only honest answer (ADR-005).
+  const { dir } = twoRecords('none')
+  // No record file at all for this one, so the status genuinely cannot be read.
+  const orphanTasks = join(dir, 'ADR-060-no-record-file', 'tasks')
+  mkdirSync(orphanTasks, { recursive: true })
+  writeFileSync(join(orphanTasks, 'T1-t.md'), task({ id: 'T1' }))
+
+  const out = next([dir, '--all', '--json'], dir)
+  const parsed = JSON.parse(out.stdout).records
+  assert.equal(parsed['ADR-060-no-record-file'].undecided, null,
+    `an unreadable status is null, not false:\n${out.stdout}`)
+  // ...and a record whose status IS readable still answers, or the assertion
+  // above would pass against a version that returned null for everything.
+  assert.equal(parsed['ADR-003-target'].undecided, false,
+    `an Accepted record is decided:\n${out.stdout}`)
+  assert.match(out.stderr, /ADR-060-no-record-file's owning record could not be read/,
+    `and the human is told too:\n${out.stderr}`)
 })

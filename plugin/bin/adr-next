@@ -457,7 +457,7 @@ def reject_unknown_flags(known=()):
         sys.exit(1)
 
 
-def owning_record_status(tasks_dir):
+def owning_record_status(tasks_dir, record_dir=None):
     """The Status of the record these tasks belong to, or None if it cannot be found.
 
     `work-next` joins every task to its record and refuses to call an undecided
@@ -481,7 +481,15 @@ def owning_record_status(tasks_dir):
     # depends on is machine-readable, which is the test that exists because a
     # crash on stdout is not machine-readable output.
     try:
-        record_dir = tasks_dir.resolve().parent
+        # `record_dir` wins when the caller has the LOGICAL path, because
+        # `.resolve()` follows symlinks and a symlinked record's file sits beside
+        # the LINK, not beside its target. Resolving sent the lookup to the wrong
+        # directory, found nothing, and a Proposed record was reported as decided.
+        # Codex, 2026-09-04. The resolve() below stays for the ordinary call: a
+        # relative `tasks` argument makes the parent `.`, whose `with_suffix`
+        # raises "has an empty name".
+        record_dir = (record_dir.absolute() if record_dir is not None
+                      else tasks_dir.resolve().parent)
     except OSError:
         return None
     if record_dir == record_dir.parent:      # filesystem root: no record can own it
@@ -554,34 +562,71 @@ def corpus_records(target):
     emptiness was printed as the answer (GitHub issue #10).
 
     Resolution goes through `resolve_tasks_dir`, so every input shape that already
-    works for one record keeps working one level down, and a record folder without
-    tasks is simply absent from the result rather than an error.
+    works for one record keeps working one level down.
+
+    Returns `(records, unreadable)`. The second half exists because a directory
+    this tool CANNOT READ is not a directory holding nothing — folding the two
+    together made a `chmod 000` record with a ready task come back as
+    "1 record(s) with tasks, none ready", exit 3. That is a gate reporting an
+    observation it did not make, which is ADR-005's rule, inside the code written
+    to fix an ADR-005 violation. Found by a Codex review on 2026-09-04.
+
+    A record folder that is READABLE and simply owns no tasks is absent from both
+    lists, which is the ordinary case and not a finding.
     """
     if not target.is_dir():
-        return []
-    found = []
-    for child in sorted(target.iterdir()):
+        return [], []
+    found, unreadable = [], []
+    try:
+        children = sorted(target.iterdir())
+    except OSError as exc:
+        # The corpus root itself could not be listed. Nothing below is knowable.
+        return [], [(target.name, str(exc))]
+    for child in children:
         # A record FILE resolves through its sibling folder, so listing both the
         # `.md` and the directory would report the same record twice. Directories
         # only; `resolve_tasks_dir` still does the work of finding `tasks/`.
-        if not child.is_dir() or child.name.startswith("."):
+        #
+        # Dot-prefixed directories are skipped deliberately — `.git` is not a
+        # record — and ADR-034 now says so rather than describing a detector it
+        # does not implement.
+        if child.name.startswith("."):
             continue
-        tasks_dir = resolve_tasks_dir(child)
-        if tasks_dir is not None and load(tasks_dir):
-            found.append((child.name, tasks_dir))
-    return found
+        try:
+            if not child.is_dir():
+                continue
+            # An EXPLICIT listing, because `Path.glob` — which `load` uses —
+            # swallows OSError and yields nothing. Without this the try/except
+            # below never fires and an unreadable record is indistinguishable
+            # from an empty one, which is the whole finding. Measured on a
+            # `chmod 000` record, 2026-09-04.
+            list(child.iterdir())
+            tasks_dir = resolve_tasks_dir(child)
+            if tasks_dir is None:
+                continue
+            if tasks_dir != child:
+                list(tasks_dir.iterdir())
+            infos = load(tasks_dir)
+        except OSError as exc:
+            unreadable.append((child.name, str(exc)))
+            continue
+        if infos:
+            found.append((child.name, tasks_dir, child))
+    return found, unreadable
 
 
-def report_corpus(records, flags):
+def report_corpus(records, unreadable, flags):
     """Answer for a whole corpus, grouped by record.
 
     The exit code carries the SAME contract as the single-record path, because
-    that is what callers branch on: 0 when something is ready, 3 when nothing is.
-    A corpus that is merely large must never read like a corpus that is done.
+    that is what callers branch on: 0 when something is ready, 3 when nothing is,
+    1 when the tool could not answer. A corpus that is merely large must never
+    read like a corpus that is done, and a corpus this tool could not fully READ
+    must never read like either.
     """
     answers = {}
     any_ready = False
-    for name, tasks_dir in records:
+    for name, tasks_dir, record_dir in records:
         infos = load(tasks_dir)
         corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
         ready, done, blocked, stopped = classify(infos, corpus_dir)
@@ -589,22 +634,45 @@ def report_corpus(records, flags):
         # path prints this and the corpus path did not, so a **Proposed** record's
         # task was offered as READY with no signal at all — CLAUDE.md §10 says a
         # record is a work order only once it is Accepted, and dropping that over
-        # a 37-record corpus is worse than dropping it over one. Found by the
-        # Codex review that named an "observation" regression it was killed
-        # before describing.
-        status = owning_record_status(tasks_dir)
-        undecided = status is not None and not re.match(r"accepted\b", status, re.I)
+        # a 37-record corpus is worse than dropping it over one.
+        #
+        # Resolved from `record_dir`, the path as the CALLER reached it, not from
+        # `tasks_dir`. A symlinked record resolves to its physical parent, where
+        # the record file is not, so the status came back None and a Proposed
+        # record was reported as decided. Codex, 2026-09-04.
+        status = owning_record_status(tasks_dir, record_dir=record_dir)
+        # THREE states, not two. `None` is "could not determine", and calling that
+        # `undecided: false` tells a machine caller the record is Accepted when
+        # nothing was read (ADR-005).
+        undecided = None if status is None else bool(not re.match(r"accepted\b", status, re.I))
         answers[name] = {"tasks_dir": str(tasks_dir), "ready": ready, "done": done,
                          "blocked": blocked, "stopped": stopped,
                          "status": status, "undecided": undecided}
         if undecided and ready:
             print(f"adr-next: {name} is **{status}**, not Accepted — its task(s) below are a "
                   f"reading of its PLAN, not work anyone has decided to do.", file=sys.stderr)
+        if undecided is None and ready:
+            print(f"adr-next: {name}'s owning record could not be read, so whether it is "
+                  f"Accepted is UNKNOWN — its task(s) below may not be a work order.",
+                  file=sys.stderr)
         any_ready = any_ready or bool(ready)
 
+    for name, why in unreadable:
+        print(f"adr-next: COULD NOT READ {name} ({why}) — it is not counted as holding "
+              f"nothing, because this tool did not look inside it.", file=sys.stderr)
+
+    # "Nothing is ready" is a VERDICT and it is only available when everything was
+    # read. With an unreadable record in the corpus the honest answer is 1 — "I
+    # could not answer" — because the ready task may be in the directory this tool
+    # was refused. A ready task found elsewhere still wins: 0 is a positive claim
+    # about work that exists, and it stays true whatever the unread record holds.
+    verdict = 0 if any_ready else (1 if unreadable else 3)
+
     if "--json" in flags:
-        print(json.dumps({"records": answers}, indent=2))
-        return 0 if any_ready else 3
+        print(json.dumps({"records": answers,
+                          "unreadable": [{"name": n, "why": w} for n, w in unreadable]},
+                         indent=2))
+        return verdict
 
     for name, answer in answers.items():
         for inf in answer["ready"]:
@@ -621,13 +689,18 @@ def report_corpus(records, flags):
                   f"(a human sign-off says stop: {inf['stopped_by']})")
 
     total = sum(len(a["ready"]) for a in answers.values())
+    unread = f", {len(unreadable)} unreadable" if unreadable else ""
     # Said on stdout when there IS work and on stderr when there is not, matching
     # the single-record path: the summary of an empty answer is a diagnostic.
-    line = (f"{len(records)} record(s) with tasks, {total} ready."
-            if any_ready else
-            f"{len(records)} record(s) with tasks, none ready.")
+    if any_ready:
+        line = f"{len(records)} record(s) with tasks, {total} ready{unread}."
+    elif unreadable:
+        line = (f"{len(records)} record(s) with tasks, none ready{unread} — so whether "
+                f"anything is ready is UNKNOWN, not no.")
+    else:
+        line = f"{len(records)} record(s) with tasks, none ready."
     print(line, file=sys.stdout if any_ready else sys.stderr)
-    return 0 if any_ready else 3
+    return verdict
 
 
 # ADR-031. Every gate answers for ITSELF, and the answer is read from the
@@ -687,9 +760,9 @@ def main():
     # uses rather than by re-deriving the rule here.
     target = Path(args[0])
     if target.is_dir() and resolve_tasks_dir(target) == target and not load(target):
-        records = corpus_records(target)
-        if records:
-            return report_corpus(records, flags)
+        records, unreadable = corpus_records(target)
+        if records or unreadable:
+            return report_corpus(records, unreadable, flags)
 
     tasks_dir = resolve_tasks_dir(Path(args[0]))
     if tasks_dir is None:

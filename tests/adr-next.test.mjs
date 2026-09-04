@@ -597,3 +597,68 @@ test('a task with no sign-off and no open dependency is still ready', () => {
   const out = next([tasksDir, '--all'], root).stdout
   assert.match(out, /^READY\s+T1/m, `an ordinary task must still be offered:\n${out}`)
 })
+
+// --- issue #10: a corpus root is a question this tool used to misread -------
+//
+// Reported 2026-09-04 against 2.60.0 on a corpus of 37 records: `adr-next
+// docs/adr --all` printed `no task files` — the SAME sentence an empty tasks/
+// directory gets — over a corpus with six ready tasks. `resolve_tasks_dir` falls
+// back to returning the directory itself when it holds no `tasks/`, so a corpus
+// root arrived at the single-record path and its emptiness was reported as the
+// answer rather than as a scope mismatch.
+//
+// The reporter also measured exit 0, which would make it indistinguishable from
+// a clean corpus. That half did NOT reproduce here or at their own v2.60.0 —
+// the branch is `return 1` — and their run went through a Windows Git Bash
+// forwarder this suite cannot drive. Recorded as unreproduced rather than
+// refuted; the message defect below is reproducible everywhere and is enough.
+
+test('a corpus root reports every record it holds, instead of reading as empty', () => {
+  const { dir } = twoRecords('none')
+  const out = next([dir, '--all'], dir)
+  assert.doesNotMatch(out.stderr, /no task files/,
+    `a corpus root is not an empty tasks directory:\n${out.stderr}`)
+  assert.match(out.stdout, /ADR-003/, `ADR-003's tasks must be reported:\n${out.stdout}`)
+  assert.match(out.stdout, /ADR-007/, `ADR-007's tasks must be reported:\n${out.stdout}`)
+  assert.equal(out.status, 0, `ready work in the corpus means exit 0:\n${out.stdout}${out.stderr}`)
+})
+
+test('a corpus root whose records have nothing ready exits 3, not 0', () => {
+  // The falsifiability half, and the one a fixture of single records can never
+  // reach. Without it the test above passes against a corpus mode that returns 0
+  // unconditionally — which is precisely the silent success the issue is about.
+  const { dir } = twoRecords('ADR-003-T1')
+  // ADR-007's T1 waits on ADR-003's T1, which is not done. ADR-003's own T1 is
+  // ready, so first prove the corpus really can say 0 here...
+  assert.equal(next([dir, '--all'], dir).status, 0)
+  // ...then stop the only ready task with a human sign-off and require 3.
+  writeFileSync(join(dir, 'ADR-003-target', 'tasks', 'T1-t.md'),
+    task({ id: 'T1', human: true, evidence: true,
+           signoff: '- 2026-08-26 · human-observed · STOPPED — Zy said do not proceed' }))
+  const out = next([dir, '--all'], dir)
+  assert.equal(out.status, 3,
+    `no ready task anywhere in the corpus is exit 3:\n${out.stdout}${out.stderr}`)
+})
+
+test('a directory holding neither records nor tasks is refused, not called clean', () => {
+  // ADR-005. "I could not find anything to look at" and "I looked and nothing is
+  // ready" are different facts, and only the second is a corpus in good order.
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-bare-'))
+  temps.push(dir)
+  const out = next([dir, '--all'], dir)
+  assert.equal(out.status, 1,
+    `an empty directory is not a clean corpus:\n${out.stdout}${out.stderr}`)
+  assert.match(`${out.stdout}${out.stderr}`, /no task files|no records/,
+    'it must say what it failed to find')
+})
+
+test('--json over a corpus root keys its answer by record', () => {
+  const { dir } = twoRecords('none')
+  const out = next([dir, '--all', '--json'], dir)
+  assert.equal(out.status, 0, out.stderr)
+  const parsed = JSON.parse(out.stdout)
+  assert.ok(parsed.records, `a corpus answer carries records:\n${out.stdout}`)
+  const names = Object.keys(parsed.records)
+  assert.ok(names.some(n => n.includes('ADR-003')), `ADR-003 present: ${names}`)
+  assert.ok(names.some(n => n.includes('ADR-007')), `ADR-007 present: ${names}`)
+})

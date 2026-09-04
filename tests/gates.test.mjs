@@ -1426,3 +1426,68 @@ test('a gate whose manifest cannot be read says so instead of guessing', () => {
       `a blind gate must not fall back to another tree's version: ${out.stdout}`)
   } finally { rmSync(temp, { recursive: true, force: true }) }
 })
+
+test('a path::name pointer at a production function does not resolve as a test', () => {
+  // The mechanism is `looks_like_a_test`. `test_body` matches any FUNCTION with
+  // the wanted name — right where a test IS a function (Python, Go), and silent
+  // about whether the FILE is a test. Without the path check,
+  // `bin/adr-lint::enforcement_pointers` resolves: a production function inside a
+  // gate, making a record read as backed by a check that is really the thing
+  // being checked.
+  //
+  // This lives here and not only in tests/gate-regressions.py, which asserts the
+  // same mechanism in-process, because the mutation campaign spawns
+  // `node --test` (scripts/mutate.mjs:524) and cannot run a Python file. The
+  // catalogue declared this mechanism against tests/gates.test.mjs, which never
+  // mentioned it, so the entry went GREEN in CI on 2026-09-04 with the Python
+  // assertion passing the whole time. An assertion the campaign cannot reach
+  // cannot kill a mutant.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-pointer-'))
+  try {
+    // adr-lint resolves a pointer against `git_root(adr.parent)`, so a temp tree
+    // that is not a repository gives root=None and EVERY pointer advises — the
+    // negative half of this test would then pass without the guard doing
+    // anything. `temp` is a directory this test created; it is never the
+    // repository under test (CLAUDE.md §9).
+    expectExit(run('git', ['init', '-q'], temp), 0, 'pointer fixture git init')
+    mkdirSync(join(temp, 'bin'), { recursive: true })
+    mkdirSync(join(temp, 'tests'), { recursive: true })
+    // A production function in a gate. Same name shape as the real one, so the
+    // only thing standing between it and a "test" verdict is the path check.
+    writeFileSync(join(temp, 'bin', 'adr-lint'),
+      '#!/usr/bin/env python3\ndef enforcement_pointers(text):\n    return []\n')
+    // And a genuine Python test, so the check is shown capable of BOTH answers
+    // in the same test — a resolver that never resolves would pass the negative
+    // half at 100% coverage (CLAUDE.md §4).
+    writeFileSync(join(temp, 'tests', 'probe_test.py'),
+      'def test_probe():\n    assert True\n')
+
+    const record = pointer => [
+      '# ADR-001: Probe', '',
+      '**Status:** Accepted',
+      '**Spec:** None — no spec stage',
+      `**Enforced-by:** \`${pointer}\``,
+      '**Served-path change:** None — this decision changes no served path.', '',
+      '## Existing Primitives Audit', '', 'Nothing existing covers it.', '',
+      '## Decision', '', 'Do the thing.', '',
+      '## Alternatives Considered', '', '- Doing nothing — rejected, the bug persists.', '',
+      '## Consequences', '', 'The thing is done.', '',
+      '## Wiring & Contract Changes', '', 'None.', '',
+      '## Out of Scope', '', '- The other thing (deferred: ADR-002)', '',
+    ].join('\n')
+
+    const adr = join(temp, 'ADR-001-probe.md')
+
+    writeFileSync(adr, record('bin/adr-lint::enforcement_pointers'))
+    const production = run('adr-lint', [adr], temp)
+    expectExit(production, 0, 'an unresolved pointer advises, it never blocks')
+    assert.match(production.stdout, /advice: .*enforcement_pointers.*pointer to nothing/s,
+      `a production function in bin/ must not resolve as a test: ${production.stdout}`)
+
+    writeFileSync(adr, record('tests/probe_test.py::test_probe'))
+    const real = run('adr-lint', [adr], temp)
+    expectExit(real, 0, 'a resolving pointer passes')
+    assert.doesNotMatch(real.stdout, /advice: .*test_probe/,
+      `a real test file must still resolve, or the guard rejects everything: ${real.stdout}`)
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})

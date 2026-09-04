@@ -41,3 +41,22 @@ MSG
     exit 1
   fi
 done
+
+# Second guard, BACKLOG §127c: a shipped file being ADDED with no mutation.
+#
+# The suite asks this of `git ls-files`, which cannot see a new file until it is
+# committed — so it passes locally every time and CI is the first honest run.
+# This asks the same question of the INDEX, and only when a shipped file is
+# actually being added, so an ordinary commit pays nothing.
+#
+# Resolved relative to THIS FILE rather than to the repository being committed,
+# so the hook works from a worktree and is drivable from a scratch repo in the
+# suite.
+here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
+guard="$here/../scripts/staged-mutation-guard.mjs"
+if [ -f "$guard" ] && command -v node >/dev/null 2>&1; then
+  added=$(git diff --cached --name-only --diff-filter=A -- 'plugin/scripts/*.mjs' 'plugin/bin/*' 2>/dev/null || true)
+  if [ -n "$added" ]; then
+    printf '%s\n' "$added" | node "$guard" || exit 1
+  fi
+fi

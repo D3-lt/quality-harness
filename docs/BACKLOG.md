@@ -7959,10 +7959,18 @@ failure mode this corpus rejects everywhere else. **The general rule the closed 
 assertion needs a number that depends on the machine, take that number ON the machine, in the same
 test, instead of writing a constant and hoping.**
 
-**127c — OPEN, and it is a rule this repository already has.** `bash scripts/selftest.sh` was green
+**127c — CLOSED 2026-09-04. A check that enumerates through `git ls-files` is blind until you
+commit.** `bash scripts/selftest.sh` was green
 locally while the same commit failed on **all four** CI jobs, for one cause: `plugin/scripts/claim-status.mjs`
 carried no mutation. `tests/package.test.mjs::every shipped gate carries at least one mutation`
 resolves shipped scripts through `git ls-files`, correctly (CLAUDE.md §8) — so a NEW file is invisible
 to it until it is committed, and every local run before that commit passes. The check is right and
-the workflow around it is not: **the first run after `git add` is the first honest one.** Worth a
-pre-commit hook that runs the mutation-coverage assertion against the index rather than the tree.
+the workflow around it is not: **the first run after `git add` is the first honest one.**
+
+**Closed by `scripts/staged-mutation-guard.mjs`**, driven from `.githooks/pre-commit`. It asks the
+same question of the INDEX, at the moment of commit, and ONLY when a file under `plugin/bin` or
+`plugin/scripts` is being ADDED — so an ordinary commit pays nothing. A catalogue it cannot parse
+finds NOTHING rather than everything: this runs at commit time, and a guard that refuses the world
+because it could not read one file is a guard people turn off (ADR-005). The hook resolves the script
+relative to ITSELF rather than to the repository being committed, which is what lets the suite drive
+the real guard from a scratch repo (CLAUDE.md §9) instead of asserting the hook's text.

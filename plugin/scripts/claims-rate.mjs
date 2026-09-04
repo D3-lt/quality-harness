@@ -25,6 +25,16 @@ import { ASSERTION_ARM_WITHDRAWN } from './claim-status.mjs'
 
 const EXCLUDED_EVIDENCE = new Set(['no-check', 'could-not-look'])
 
+// BACKLOG §125a. THE VOCABULARY IS A CLOSED SET, and until this was added a
+// value outside it fell past both exclusion arms and landed in `held` — the
+// clean half of the denominator. A reviewer's probe fed a row `evidence:
+// "mystery"` and got `held: 1`, denominator `1`, rate `0`: a rate computed over
+// a row nothing could judge, which is precisely what ADR-010's buckets exist to
+// prevent. `asserted` stays in the set because historical ledgers hold it even
+// though nothing writes it any more (BACKLOG §124).
+const CLAIM_KINDS = new Set(['asserted', 'none', 'hedged', 'limited', 'unavailable'])
+const EVIDENCE_KINDS = new Set(['verified', 'unverified', 'no-check', 'could-not-look'])
+
 export function defaultLedger(env = process.env) {
   const home = env.CLAUDE_PLUGIN_DATA
   return home ? path.join(home, 'claims.jsonl') : null
@@ -39,8 +49,9 @@ export function defaultLedger(env = process.env) {
  */
 export function tally(text) {
   const lines = text.split('\n').filter(line => line.trim())
-  const counts = { rows: lines.length, false: 0, held: 0, excluded: 0, unreadable: 0, by: {} }
+  const counts = { rows: lines.length, false: 0, held: 0, excluded: 0, unreadable: 0, unrecognised: 0, by: {} }
   const unreadableLines = []
+  const unrecognisedLines = []
   lines.forEach((line, index) => {
     let row
     try {
@@ -57,6 +68,16 @@ export function tally(text) {
     }
     const claim = typeof row?.claim === 'string' ? row.claim : 'unavailable'
     const evidence = typeof row?.evidence === 'string' ? row.evidence : 'could-not-look'
+    // Membership BEFORE meaning. A value this does not know is not a claim that
+    // held and is not one that failed — it is a row nothing here can judge, and
+    // ADR-010 puts those in neither half.
+    if (!CLAIM_KINDS.has(claim) || !EVIDENCE_KINDS.has(evidence)) {
+      counts.unrecognised += 1
+      counts.excluded += 1
+      counts.by.unrecognised = (counts.by.unrecognised ?? 0) + 1
+      unrecognisedLines.push(index + 1)
+      return
+    }
     if (EXCLUDED_EVIDENCE.has(evidence) || claim === 'unavailable') {
       counts.excluded += 1
       counts.by[EXCLUDED_EVIDENCE.has(evidence) ? evidence : 'unavailable']
@@ -67,6 +88,7 @@ export function tally(text) {
     else counts.held += 1
   })
   counts.unreadableLines = unreadableLines
+  counts.unrecognisedLines = unrecognisedLines
   counts.denominator = counts.false + counts.held
   // No denominator, no rate. A 0 here would read as "no false successes", which
   // is the opposite of "nothing was observed" (ADR-005, ADR-006).
@@ -107,6 +129,11 @@ export function render(counts, source, { armWithdrawn = ASSERTION_ARM_WITHDRAWN 
   if (counts.unreadable) {
     lines.push(`unreadable row(s) at line ${counts.unreadableLines.join(', line ')} — `
       + 'counted as excluded, not dropped.')
+  }
+  if (counts.unrecognised) {
+    lines.push(`row(s) whose claim or evidence this does not recognise, at line `
+      + `${counts.unrecognisedLines.join(', line ')} — excluded, and worth reading: something is `
+      + 'writing a vocabulary this version cannot judge.')
   }
   lines.push('A false success is a completion claim over edits the project check had not run on. '
     + 'This reads; it judges nothing and blocks nothing.')

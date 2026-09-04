@@ -200,8 +200,22 @@ See `tasks/README.md`. Four tasks.
 - Per-project or per-corpus scoping of a registration. (permanent: Desktop's bridge takes no such
   argument, measured on a shipped Desktop registration 2026-08-22, so a design requiring one is a
   design Desktop cannot express. The server takes the corpus path per call instead.)
-- Porting any skill, hook, or slash command. (permanent: Desktop has no mechanism for any of them;
-  this decision is about the enforcement half precisely because that is the portable one.)
+- Porting any hook or slash command. (permanent: boundary: Desktop exposes neither, so this decision
+  is about the enforcement half precisely because that is the portable one.)
+- Porting any skill. (deferred: docs/BACKLOG.md §33 — ⚠ THIS WAS `permanent`, ON A REASON THAT IS NO
+  LONGER TRUE. The line read "Desktop has no mechanism for any of them", and MEASURED 2026-09-04 on
+  Desktop **1.46388.1** it has one: skills load from `~/Library/Application Support/Claude/
+  local-agent-mode-sessions/skills-plugin/<uuid>/<uuid>/`, a directory holding
+  `.claude-plugin/plugin.json` and a `skills/` tree of `SKILL.md` files with `name:`/`description:`
+  frontmatter — the same package shape `plugin/` already ships, with thirteen skills loaded. **What
+  is NOT established is whether a USER may install their own plugin there:** that directory declares
+  `"name": "anthropic-skills"`, every entry is `creatorType: anthropic`, and the path is
+  session-scoped. So the JUSTIFICATION is false while the CONCLUSION is merely unverified, and those
+  are different states — which is why this becomes a deferral pending one measurement, not a
+  reversal. The measurement is whether a non-Anthropic skills plugin loads, and it needs a human at
+  the client. The disposition is changed rather than annotated in place because a `permanent`
+  standing on a withdrawn premise is the rot ADR-011 and §103 are about: the claim was true on
+  1.40609.0, and nobody re-checked it for six builds.)
 - Relying on `server.WithInstructions` to deliver anything load-bearing. (deferred: docs/BACKLOG.md §33 —
   it is populated but unproven on Desktop, and the measurement that would settle it is T4's. MEASURED
   2026-08-29 by T4 on Desktop 1.40609.0: the client does not render it at all, so the refusal above

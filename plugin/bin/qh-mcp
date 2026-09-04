@@ -233,6 +233,40 @@ def _arch_lint(arguments):
     return _run_gate("arch-lint", paths, paths)
 
 
+
+def _adr_retire_check(arguments):
+    """ADR-012 T5. Two modes, and the server refuses a mix rather than guessing.
+
+    The gate takes EITHER an archive README or `--adopt <active> <archive>`. A
+    call naming both, or half of the pair, is a broken invocation — and this gate
+    answers one with a usage dump at exit 1, which over MCP reads exactly like a
+    finding. So it is refused here, where it is still "could not run" (T3's split,
+    and the same reason `_adr_judge` refuses its own empty call).
+    """
+    readme = arguments.get("archive_readme")
+    active, archive = arguments.get("active_root"), arguments.get("archive_root")
+    if active or archive:
+        if readme:
+            raise GateDidNotRun(
+                "could not run: qh_adr_retire_check takes either 'archive_readme' or the "
+                "pair 'active_root'/'archive_root', never both")
+        if not (active and archive):
+            raise GateDidNotRun(
+                "could not run: --adopt mode needs BOTH 'active_root' and 'archive_root'")
+        paths = _paths(active, archive)
+        return _run_gate("adr-retire-check", ["--adopt", *paths], paths)
+    if not readme:
+        raise GateDidNotRun(
+            "could not run: qh_adr_retire_check needs 'archive_readme', or both "
+            "'active_root' and 'archive_root'")
+    paths = _paths(readme)
+    return _run_gate("adr-retire-check", paths, paths)
+
+
+def _postmortem_verify(arguments):
+    paths = _paths(*(arguments.get("files") or []))
+    return _run_gate("postmortem-verify", paths, paths)
+
 # The five gates that only read. The two that execute text the corpus supplies
 # are absent, and there is no registrar that could add them: over MCP the client
 # names the path, so exposing either would turn "lint my ADRs" into "run whatever
@@ -335,6 +369,63 @@ reading_tool(
         "additionalProperties": False,
     },
     _arch_lint,
+)
+
+# ADR-012 T5, 2026-09-04. The record's Out of Scope deferred these two to
+# BACKLOG §33 as "a scope change rather than a boundary change", and that is what
+# this is: the boundary is untouched, because the enumeration was run a THIRD
+# time rather than trusted — `grep -cE 'subprocess\.(run|Popen)'` and a sweep for
+# `write_text`, `open(...,'w')`, `mkdir`, `unlink` and `rename` return zero on
+# both. They read and report, like the five above.
+#
+# `qh-root` is the third gate the record calls safe and it is deliberately NOT
+# here. It is safe and it is useless over MCP: it answers "which installed copy
+# of this plugin is newest ON THIS MACHINE", and the machine would be the
+# SERVER's, not the caller's. That is the defect ADR-031 exists to prevent — an
+# answer about a different thing than the caller believes — and being harmless
+# does not make it worth advertising.
+reading_tool(
+    "qh_adr_retire_check",
+    "Check that a retired/archived ADR corpus still holds together: that the "
+    "archive README names an active corpus that exists, that supersession "
+    "pointers resolve, and that nothing was archived while still being depended "
+    "on. Pass `archive_readme` alone, OR both `active_root` and `archive_root` "
+    "for the adoption report a hybrid corpus needs. Exit 0 = consistent; exit 1 "
+    "= findings, which are ADVICE and never a refusal. Reads only; changes "
+    "nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "archive_readme": {"type": "string",
+                               "description": "Path to the archive's README.md."},
+            "active_root": {"type": "string",
+                            "description": "Active corpus root; requires archive_root."},
+            "archive_root": {"type": "string",
+                             "description": "Archive root; requires active_root."},
+        },
+        "additionalProperties": False,
+    },
+    _adr_retire_check,
+)
+
+reading_tool(
+    "qh_postmortem_verify",
+    "Check one or more postmortem documents for the structure that makes them "
+    "reusable rather than decorative: the required sections, and that what the "
+    "document claims was verified points at something. Exit 0 = all valid; exit "
+    "1 = violations, which are ADVICE — a malformed postmortem is not a failed "
+    "build, it is a document that will teach the wrong thing later. Reads only; "
+    "changes nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "files": {"type": "array", "items": {"type": "string"}, "minItems": 1,
+                      "description": "One or more postmortem markdown files."},
+        },
+        "required": ["files"],
+        "additionalProperties": False,
+    },
+    _postmortem_verify,
 )
 
 

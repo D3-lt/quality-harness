@@ -4551,6 +4551,33 @@
       ],
       "from": "        os.killpg(os.getpgid(pid), signal.SIGKILL)",
       "to": "        os.kill(pid, signal.SIGKILL)"
+    },
+    {
+      "label": "verify: an interrupted gate kills the tree it started",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            kill_tree(proc.pid, platform)\n            raise",
+      "to": "            raise"
+    },
+    {
+      "label": "spec: an interrupted gate kills the tree it started",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            kill_tree(proc.pid, platform)\n            raise",
+      "to": "            raise"
+    },
+    {
+      "label": "mcp: an interrupted gate kills the tree it started",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            kill_tree(proc.pid, platform)\n            raise",
+      "to": "            raise"
     }
   ]
 }

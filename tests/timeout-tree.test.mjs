@@ -73,8 +73,19 @@ const beat = dir => {
   try { return readFileSync(join(dir, 'beat.txt'), 'utf8').trim() } catch { return '' }
 }
 
-/** The heartbeat must have started before the gate returned, and stopped after. */
-async function assertTreeDied(dir, label) {
+// The grandchild is bounded at twenty seconds. That bound is what makes the
+// stop-after-return check falsifiable: a helper that kills only the direct
+// child and then waits on the pipes the orphan still holds does not return until
+// the orphan finishes on its own, and every "did the beat stop" assertion after
+// that passes vacuously. Measured 2026-09-04: two catalogue mutants came back
+// GREEN for exactly that reason. So the first assertion is on WHEN the gate
+// returned — a one-second timeout has no business taking ten.
+const PROMPT_MS = 10_000
+
+/** The gate returned promptly, the heartbeat had started, and it stopped. */
+async function assertTreeDied(dir, label, elapsedMs) {
+  assert.ok(elapsedMs < PROMPT_MS,
+    `${label}: the gate took ${elapsedMs}ms to report a 1s timeout — it waited for the orphan to exit on its own, which means it never killed it`)
   const atReturn = beat(dir)
   assert.notEqual(atReturn, '', `${label}: the grandchild never wrote a beat, so the fixture proved nothing`)
   await new Promise(r => setTimeout(r, 1200))
@@ -85,24 +96,28 @@ async function assertTreeDied(dir, label) {
 test('adr-verify: a fence timeout kills the tree the fence started, not only bash', async () => {
   const dir = scratch()
   const path = task(dir, 'T1', HEARTBEAT_FENCE)
+  const started = Date.now()
   const run = runPython([join(bin, 'adr-verify'), path, '--cwd', dir], {
     cwd: dir, encoding: 'utf8', timeout: 60_000,
     env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '1' },
   })
+  const elapsed = Date.now() - started
   assert.match(run.stdout + run.stderr, /UNRUN/, `the fence must be reported as not finished\n${run.stdout}${run.stderr}`)
-  await assertTreeDied(dir, 'ordinary fence run')
+  await assertTreeDied(dir, 'ordinary fence run', elapsed)
 })
 
 test('adr-verify --sweep: a fence that times out takes its tree with it', async () => {
   const dir = scratch()
   task(dir, 'T1', HEARTBEAT_FENCE)
+  const started = Date.now()
   const run = runPython([join(bin, 'adr-verify'), '--sweep', join(dir, 'tasks'), '--timeout', '1'], {
     cwd: dir, encoding: 'utf8', timeout: 60_000,
   })
+  const elapsed = Date.now() - started
   assert.match(run.stdout, /did not finish/i, `the claim must be unrunnable\n${run.stdout}${run.stderr}`)
   // The sweep runs a fence in the task's own directory (no --cwd, no git root
   // here), so that is where the heartbeat lands.
-  await assertTreeDied(join(dir, 'tasks'), 'sweep')
+  await assertTreeDied(join(dir, 'tasks'), 'sweep', elapsed)
 })
 
 // spec-verify and qh-mcp carry the same helper by copy (a shared module under
@@ -131,10 +146,12 @@ except subprocess.TimeoutExpired:
 for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
   test(`${gate}: run_bounded kills the tree on timeout`, async () => {
     const dir = scratch()
+    const started = Date.now()
     const run = runPython(['-c', PROBE, join(bin, gate), dir], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    const elapsed = Date.now() - started
     assert.equal(run.status, 0, `${gate} probe\n${run.stdout}${run.stderr}`)
     assert.match(run.stdout, /timed out/, `${gate}: the helper must raise TimeoutExpired`)
-    await assertTreeDied(dir, gate)
+    await assertTreeDied(dir, gate, elapsed)
   })
 }
 

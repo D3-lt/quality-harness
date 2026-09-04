@@ -724,7 +724,38 @@ def check_spec(path, mode, root_override, collect):
     return errors, missing, failing, unrun
 
 
+# ADR-031. Every gate answers for ITSELF, and the answer is read from the
+# manifest beside the gate rather than from a resolver. A central answer —
+# `qh-root`, `qh-doctor`, a `qh-version` gate — reports whichever copy of
+# ITSELF resolved, which on a machine carrying both PATH mechanisms
+# (CLAUDE.md §2) is a different install from the gate whose output is being
+# questioned. A version that can be about another binary is worse than none,
+# because it resolves.
+#
+# Imports are local so this block is byte-identical in all eleven gates, which
+# is what lets a test assert they have not drifted apart. Read at run time and
+# never baked at release: a substituted constant is a stored count, and this
+# corpus keeps finding stored counts wrong.
+def report_version():
+    import json as _json
+    from pathlib import Path as _Path
+    here = _Path(__file__).resolve()
+    manifest = here.parent.parent / ".claude-plugin" / "plugin.json"
+    try:
+        version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
+    except Exception as exc:
+        # ADR-005: could not read is not a version. Never guess, and never fall
+        # back to a resolver — that would answer about a different tree and look
+        # exactly like success.
+        print(f"{here.name} (version unreadable: {manifest} — {exc})")
+        return
+    print(f"{here.name} {version} ({here.parent.parent})")
+
+
 def main():
+    if "--version" in sys.argv[1:]:
+        report_version()
+        sys.exit(0)
     ap = argparse.ArgumentParser(description=__doc__,
                                  formatter_class=argparse.RawDescriptionHelpFormatter)
     g = ap.add_mutually_exclusive_group()

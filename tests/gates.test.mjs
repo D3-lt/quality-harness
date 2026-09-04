@@ -1353,3 +1353,69 @@ test('a step the run does name is not reported', () => {
       'a step a run named must not be reported')
   } finally { rmSync(temp, { recursive: true, force: true }) }
 })
+
+// ADR-031. Every gate answers `--version`, and the answer is the version of the
+// TREE THAT GATE WAS LOADED FROM. That last part is the decision, not a detail:
+// a central answer (`qh-root`, `qh-doctor`, a `qh-version` gate) reports whichever
+// copy of itself resolved, and on a machine carrying both PATH mechanisms that is
+// a different install from the gate whose output is being questioned.
+//
+// So the assertion cannot be "it printed 2.60.0" — that passes for a gate reading
+// the repository it happens to sit in, a baked constant, or a resolver call. Each
+// gate is copied into a throwaway tree whose manifest says something no other tree
+// on this machine says, and must report THAT.
+test('every shipped gate answers --version with the version of the tree it was run from', () => {
+  const gates = [...GATE_NAMES].sort()
+  // Enumerated, never listed: a twelfth gate added later fails here until it
+  // answers too, which a hand-kept list would not do.
+  assert.ok(gates.length >= 11, `expected the shipped gates, saw ${gates.length}`)
+
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-version-'))
+  try {
+    mkdirSync(join(temp, 'bin'), { recursive: true })
+    mkdirSync(join(temp, '.claude-plugin'), { recursive: true })
+    writeFileSync(join(temp, '.claude-plugin', 'plugin.json'),
+      JSON.stringify({ name: 'quality-harness', version: '0.0.0-fixture' }))
+
+    for (const gate of gates) {
+      cpSync(join(bin, gate), join(temp, 'bin', gate))
+      const out = spawnSync('python3', [join(temp, 'bin', gate), '--version'],
+        { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(out.status, 0, `${gate} --version must exit 0: ${out.stdout}${out.stderr}`)
+      assert.match(out.stdout, /^0\.0\.0-fixture$|0\.0\.0-fixture/,
+        `${gate} must report the manifest beside IT, not the repository it came from ` +
+        `or a resolver's answer: ${out.stdout}${out.stderr}`)
+      assert.match(out.stdout, new RegExp(`^${gate} `),
+        `${gate} must name itself, so two disagreeing installs are told apart: ${out.stdout}`)
+      // The repository's own version must NOT appear. Without this the test would
+      // pass for a gate that printed both, or that fell back to the real tree.
+      const real = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')).version
+      assert.doesNotMatch(out.stdout, new RegExp(real.replace(/\./g, '\\.')),
+        `${gate} leaked the repository's version ${real} into a run from another tree: ${out.stdout}`)
+    }
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})
+
+// ADR-005, applied to this flag: "could not read" is not a version. A gate that
+// guessed, or fell back to a resolver, would answer about a different tree and
+// look exactly like success.
+test('a gate whose manifest cannot be read says so instead of guessing', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-version-blind-'))
+  try {
+    mkdirSync(join(temp, 'bin'), { recursive: true })
+    // No .claude-plugin at all.
+    cpSync(join(bin, 'adr-lint'), join(temp, 'bin', 'adr-lint'))
+    const out = spawnSync('python3', [join(temp, 'bin', 'adr-lint'), '--version'],
+      { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(out.status, 0, `it advises, it does not block: ${out.stdout}${out.stderr}`)
+    assert.match(out.stdout, /version unreadable/,
+      `it must say it could not look: ${out.stdout}`)
+    assert.match(out.stdout, /plugin\.json/,
+      `and name the path it tried: ${out.stdout}`)
+    // Shown capable of the other answer: no version-shaped string is invented,
+    // and in particular not the one from the repository this gate was copied out of.
+    const real = JSON.parse(readFileSync(join(root, '.claude-plugin', 'plugin.json'), 'utf8')).version
+    assert.doesNotMatch(out.stdout, new RegExp(real.replace(/\./g, '\\.')),
+      `a blind gate must not fall back to another tree's version: ${out.stdout}`)
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+})

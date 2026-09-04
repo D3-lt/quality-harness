@@ -7934,20 +7934,30 @@ asserted and the bound is bound to a mutant.
 one sentence and the fix took one. Nothing flagged the remainder — no gate can — and the cost was a
 red release run on the platform the release existed to be tested on.
 
-**127b — OPEN. Two tests assert against wall-clock bounds and cannot tell a defect from a busy runner.**
+**127b — ONE OF TWO CLOSED 2026-09-04. Tests that assert against wall-clock bounds cannot tell a
+defect from a busy runner.**
 
-- `tests/evidence-chain.test.mjs::the recorded duration is the clean fence, not the clean fence plus
-  the mutant` — measured 2026-09-04 on one tree: **2.21s alone, 4.77s** with a `codex exec` review
-  running beside it, where the second run failed.
-- `tests/timeout-tree.test.mjs::assertTreeDied`'s `PROMPT_MS = 10_000`. Its comment is right that a
-  gate taking ten seconds to report a one-second timeout has not killed anything — but on a loaded
-  runner the same number is the runner, not the gate.
+- ✅ `tests/evidence-chain.test.mjs::the recorded duration is the clean fence, not the clean fence
+  plus the mutant` — measured on one tree: **2.21s alone, 4.77s** with a `codex exec` review running
+  beside it, where the second run failed. Its ceiling was `SLEEP_MS * 1.8`, and **a constant is a
+  clock**. It now compares a measurement to a MEASUREMENT: one plain run of the same fence, taken on
+  the same machine moments earlier, and the mutant run must come in under 1.6× of it. Both
+  invocations pay the same startup and the same load, so the ratio separates one sleep from two
+  however slow the runner is. The FLOOR stays absolute deliberately — load only ever makes `ms`
+  bigger, so a floor cannot false-fail, and it is what catches an implementation recording zero.
+  Verified the rework did not cost the detection: `verify: the recorded duration is the clean fence
+  alone` is still RED.
+- ⬜ `tests/timeout-tree.test.mjs::assertTreeDied`'s `PROMPT_MS = 10_000` — still open. Its comment
+  is right that a gate taking ten seconds to report a one-second timeout has not killed anything, but
+  on a loaded runner the same number is the runner. The signal that is not a clock is already in the
+  fixture: the heartbeat's own counter says whether the grandchild was still alive when the gate
+  returned, which is the actual property. Left because the counter is a byte LENGTH rather than a
+  beat count, so the swap needs the fence changed too — and this one has not been observed failing.
 
-Neither can distinguish *"the process survived"* from *"the machine was busy"*, and a release run
-that reddens at random is a gate people learn to re-run rather than read — the failure mode this
-corpus rejects everywhere else. **Not fixed here**, because the honest fix is not a bigger constant:
-it is a signal that is not a clock. `assertTreeDied` already has one — the heartbeat's own counter —
-and the elapsed-time assertion is the part that measures mood.
+A release run that reddens at random is a gate people learn to re-run rather than read, which is the
+failure mode this corpus rejects everywhere else. **The general rule the closed half earned: when an
+assertion needs a number that depends on the machine, take that number ON the machine, in the same
+test, instead of writing a constant and hoping.**
 
 **127c — OPEN, and it is a rule this repository already has.** `bash scripts/selftest.sh` was green
 locally while the same commit failed on **all four** CI jobs, for one cause: `plugin/scripts/claim-status.mjs`

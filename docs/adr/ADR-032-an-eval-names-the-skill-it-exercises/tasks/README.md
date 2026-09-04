@@ -16,7 +16,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | [a case declares its subject](T1-a-case-declares-its-subject.md) | pending | — | `node --test tests/evals.test.mjs …` |
+| T1 | [a case declares its subject](T1-a-case-declares-its-subject.md) | done | — | `node --test tests/evals.test.mjs …` |
 
 ## Contract Coupling
 

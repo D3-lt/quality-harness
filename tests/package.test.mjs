@@ -79,9 +79,12 @@ test('what ships is the plugin and nothing else', () => {
   // and was hand-maintaining that knowledge in their global config (issue #9).
   // The REPOSITORY's README still does not ship — it lives at repoRoot, outside
   // shipRoot, and the assertion below still holds it there.
+  // `agents` joined on 2026-09-04 (ADR-030 T1), in the same commit as the
+  // directory: ADR-008's gate admits a new shipped surface deliberately or the
+  // surface is worked around later, which is how 603 K grew back once already.
   const shipped = [
-    '.claude-plugin/plugin.json', 'README.md', 'bin', 'evals', 'hooks', 'scripts',
-    'skills', 'templates', 'workflows',
+    '.claude-plugin/plugin.json', 'README.md', 'agents', 'bin', 'evals', 'hooks',
+    'scripts', 'skills', 'templates', 'workflows',
   ]
   for (const entry of shipped) assert.ok(existsSync(join(shipRoot, entry)), `${entry} must ship`)
 
@@ -1067,4 +1070,58 @@ test('a CLI entry guard resolves on Windows, not only where argv is already a UR
   const brokenForm = ['if (import.meta.url === `file://', '${process', '.argv[1]}`) main()'].join('')
   assert.match(brokenForm, /===\s*`file:\/\/\$\{process\.argv\[1\]\}`/,
     'the detector must still recognise the broken form it was written for')
+})
+
+// ADR-030 T1. `plugin/agents/` is the socket ADR-029 deliberately left open: a
+// skill can address a role by `subagent_type` only if a definition carries the
+// name. Both checks below are ADR-029's rule applied in its second home — a
+// definition requests a CAPABILITY CLASS, never a version-pinned id, because an
+// id is a stored fact about a catalogue this project does not own.
+function agentDefinitions() {
+  const listed = spawnSync('git', ['-C', repoRoot, 'ls-files', '--', 'plugin/agents'],
+    { encoding: 'utf8' })
+  assert.equal(listed.status, 0, 'git must list the shipped agent definitions')
+  return listed.stdout.split('\n').filter(path => path.endsWith('.md'))
+}
+
+/** The frontmatter block of a definition, or a failure naming the file. */
+function definitionFrontmatter(path) {
+  const text = readFileSync(join(repoRoot, path), 'utf8')
+  const match = text.match(/^---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
+  assert.ok(match, `${path}: an agent definition must open with YAML frontmatter`)
+  return match[1]
+}
+
+test('every shipped agent definition names a capability class', () => {
+  const definitions = agentDefinitions()
+  // Derived, and asserted non-empty: a sweep over an empty directory passes
+  // every property it tests, which is the vacuous assertion CLAUDE.md §4 says
+  // coverage cannot see.
+  assert.ok(definitions.length >= 2,
+    `the sweep must have found real definitions, read ${definitions.length}`)
+  for (const path of definitions) {
+    const frontmatter = definitionFrontmatter(path)
+    const model = frontmatter.match(/^model: *(\S+)/m)
+    assert.ok(model, `${path}: a definition must declare the capability its role needs`)
+    assert.ok(['opus', 'sonnet', 'haiku'].includes(model[1]),
+      `${path}: model must be a host ALIAS, read ${model[1]}`)
+    assert.doesNotMatch(frontmatter, /claude-[a-z]+-\d/,
+      `${path}: a version-pinned model id rots in a shipped artifact (ADR-029)`)
+  }
+})
+
+test("an agent definition's name matches its file", () => {
+  const definitions = agentDefinitions()
+  assert.ok(definitions.length >= 2,
+    `the sweep must have found real definitions, read ${definitions.length}`)
+  for (const path of definitions) {
+    const stem = path.split('/').pop().replace(/\.md$/, '')
+    const declared = definitionFrontmatter(path).match(/^name: *(\S+)/m)
+    assert.ok(declared, `${path}: a definition must declare its name`)
+    assert.equal(declared[1], stem,
+      `${path}: subagent_type resolves by name, so the name must be the filename`)
+    // Namespaced, so a definition cannot shadow a host or user agent of the
+    // same role — ADR-030's Risks table names this and S3 is where it is paid.
+    assert.match(stem, /^qh-/, `${path}: a shipped definition must be namespaced`)
+  }
 })

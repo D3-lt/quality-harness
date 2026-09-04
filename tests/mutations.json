@@ -4200,6 +4200,33 @@
       ],
       "from": "  const asked = [model && `model ${model}`, effort && `effort ${effort}`].filter(Boolean).join(', ')",
       "to": "  const asked = ''"
+    },
+    {
+      "label": "agents: a definition requests a capability class, not a pinned id",
+      "file": "plugin/agents/qh-synthesis.md",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "model: opus",
+      "to": "model: claude-opus-5"
+    },
+    {
+      "label": "agents: a definition's name is the name subagent_type resolves",
+      "file": "plugin/agents/qh-narrow-fixer.md",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "name: qh-narrow-fixer",
+      "to": "name: narrow-fixer"
+    },
+    {
+      "label": "agents: a new shipped directory is admitted, never leaked past",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "'.claude-plugin/plugin.json', 'README.md', 'agents', 'bin', 'evals', 'hooks',",
+      "to": "'.claude-plugin/plugin.json', 'README.md', 'bin', 'evals', 'hooks',"
     }
   ]
 }

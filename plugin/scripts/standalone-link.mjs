@@ -240,6 +240,11 @@ export const SHADOW_SCOPE = [
  * mechanical one: every entry below has to carry the reason it is here.
  */
 export const NEVER_MIRRORED = new Set([
+  // Named agent definitions (ADR-030), read by the loader from the plugin root.
+  // A copy under the home would register a SECOND definition of the same role
+  // under the same bare name, and the host would have two answers for one
+  // `subagent_type` — which is ADR-001's rule for skills, one directory over.
+  'agents',
   // The eval corpus is the plugin's own test fixtures. Nothing under the home
   // reads it, and its results directory is gitignored (CLAUDE.md §6).
   'evals',

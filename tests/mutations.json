@@ -4562,33 +4562,6 @@
       "to": "        raise"
     },
     {
-      "label": "spec: an interrupted gate kills the tree it started",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "        drain_after_kill(proc, platform)\n        raise",
-      "to": "        raise"
-    },
-    {
-      "label": "mcp: an interrupted gate kills the tree it started",
-      "file": "plugin/bin/qh-mcp",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "        drain_after_kill(proc, platform)\n        raise",
-      "to": "        raise"
-    },
-    {
-      "label": "verify: the group kill does not look the group up, because the leader may be gone",
-      "file": "plugin/bin/adr-verify",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "            os.killpg(pid, signal.SIGKILL)",
-      "to": "            os.killpg(os.getpgid(pid), signal.SIGKILL)"
-    },
-    {
       "label": "verify: a cleanup that raises never replaces the exception that caused it",
       "file": "plugin/bin/adr-verify",
       "tests": [

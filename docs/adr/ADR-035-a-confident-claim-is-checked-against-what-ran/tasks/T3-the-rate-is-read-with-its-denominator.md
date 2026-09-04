@@ -71,6 +71,10 @@ node --test tests/claims-rate.test.mjs 2>&1 | tee "$out" && grep -qE '^ℹ pass 
 
 ## Mutation Log
 
+- 2026-09-04 · 8807338* · mutant killed · exit 1 · `plugin/scripts/claims-rate.mjs` · the bucket partition: with could-not-look in the denominator a row nobody could re-check counts as one that held · acceptance-sha256:a4818ef37a8baddb35825be873ba6c02472e1f232ea9c1debb2f574a1e773af1 · covers:the bucket partition
+- 2026-09-04 · 8807338* · mutant killed · exit 1 · `plugin/scripts/claims-rate.mjs` · the zero-row refusal: a rate of 0 over nothing reads as a corpus with no false successes, which is the opposite of nothing observed · acceptance-sha256:a4818ef37a8baddb35825be873ba6c02472e1f232ea9c1debb2f574a1e773af1 · covers:the zero-row refusal
+- 2026-09-04 · 8807338* · mutant killed · exit 1 · `plugin/scripts/claims-rate.mjs` · the malformed-row accounting: a line nobody can read must stay in the total, or the denominator shrinks in the flattering direction · acceptance-sha256:a4818ef37a8baddb35825be873ba6c02472e1f232ea9c1debb2f574a1e773af1 · covers:the malformed-row accounting
+
 ## Invariants
 
 - Buckets sum to the number of lines read; no line is uncounted.
@@ -91,3 +95,7 @@ None — the reader depends on nothing outside the ledger's row schema.
 - Any per-repository or per-session breakdown beyond the totals (deferred: docs/BACKLOG.md §121)
 
 ## Verification Log
+- 2026-09-04 · 8807338 · exit 0 · `set -o pipefail …` · acceptance-sha256:a4818ef37a8baddb35825be873ba6c02472e1f232ea9c1debb2f574a1e773af1 · ms:577
+- 2026-09-04 · 8807338* · exit 0 · `set -o pipefail …` · acceptance-sha256:a4818ef37a8baddb35825be873ba6c02472e1f232ea9c1debb2f574a1e773af1 · ms:599
+- 2026-09-04 · 8807338* · exit 0 · `set -o pipefail …` · acceptance-sha256:a4818ef37a8baddb35825be873ba6c02472e1f232ea9c1debb2f574a1e773af1 · ms:641
+- 2026-09-04 · 8807338* · exit 0 · `set -o pipefail …` · acceptance-sha256:a4818ef37a8baddb35825be873ba6c02472e1f232ea9c1debb2f574a1e773af1 · ms:641

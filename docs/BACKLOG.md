@@ -7154,6 +7154,26 @@ deliberate trade — asserting exact strings breaks on every wording change and 
 fails for the right reason too often gets deleted — and it is restated here so the residue is
 not mistaken for coverage.
 
+**The residue fired, and it took eight days. Measured 2026-09-04** while running ADR-026's
+pre-registered criterion against v2.60.0 on a clean clone of 8f2a083. Both outcomes appeared, so
+`tests/tutorial.test.mjs` was green and the criterion PASSED — and the page was stale anyway, in
+exactly the way the paragraph above says it can be:
+
+- Tutorial 2's first transcript did not show the second `## Verification Log` entry that **ADR-025**
+  made every `--mutant` run write. ADR-025 landed after the page was copied in; the tutorial has
+  been showing a truncated run ever since.
+- Tutorial 2's second transcript showed only the `[adr-verify] NOT evidence:` paragraph, not the
+  `mutant survived · exit 0` row above it — so the sentence "the `exit 0` in the row above" pointed
+  at a row the page did not print. The page was not merely stale, it was internally incoherent, and
+  a reader following it would have been the one to notice.
+
+Both are re-recorded now from a real run. **What this says about the trade is not that it was
+wrong.** The outcome check did its job — it is why anyone looked — and an exact-string assertion
+would have gone red on the ADR-025 wording change and been edited to match without anyone reading
+the page. What is missing is cheaper than either: nothing compares the number of `[adr-verify]`
+lines the tool emits against the number the page shows. A count is not a wording assertion, it
+does not break on prose, and it would have caught both of these on the day ADR-025 landed. That is
+the shape to build if this is picked up.
 **Also deferred here:** translating the front page. Raised because the first reader
 report that led to ADR-026 came from a non-native English speaker, and "too technical"
 and "not in my language" are different problems that were easy to conflate.

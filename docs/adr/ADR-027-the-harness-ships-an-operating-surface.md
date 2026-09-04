@@ -200,5 +200,16 @@ deletion and nothing else.
 
 ## Follow-ups
 
-- [ ] After one release cycle, read `plugin/skills/operating/SKILL.md` against the pre-registered
+- [x] After one release cycle, read `plugin/skills/operating/SKILL.md` against the pre-registered
+      failure and delete any enumeration it has grown. **Read 2026-09-04, one release cycle on
+      (v2.60.0).** The check named in the Decision was run rather than recalled:
+      `git log --oneline -- plugin/skills/operating/SKILL.md` returns exactly one commit — ee52ed1,
+      the one that authored it — so nothing has edited the skill since it landed. The file is 82
+      lines with 11 list items, and none of them enumerates skills, gates, templates or lint
+      findings: they are the three definitions the record wanted kept (`forwarder`, `copy`,
+      `unidentifiable`) and a three-step procedure. One gate is named anywhere in the file, `qh-root`
+      at line 11, and it is named as a command to run rather than as an inventory entry.
+      **The pre-registered failure did not fire; nothing is deleted.** Re-run it next cycle: a
+      no-edit result is the weakest possible pass, because the corpus that would produce the failure
+      is future edits and there have been none.
       failure and delete any enumeration it has grown.

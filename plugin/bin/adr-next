@@ -72,8 +72,23 @@ VLOG_LEGACY_RE = re.compile(
 # not evidence, and the safe direction is to withhold `done` rather than grant it.
 AFFIRMATIVE = re.compile(r"(?<![a-z])(pass(?:ed|es)?|confirm(?:ed|s)?|observed|"
                          r"verified|signed[- ]off|approved|ship(?:ped)?|done|ok)(?![a-z])", re.I)
-NEGATIVE = re.compile(r"(?<![a-z])(block(?:ed)?|stop(?:ped)?|fail(?:ed|s)?|refus(?:ed)?|"
-                      r"withdraw(?:n)?|reject(?:ed)?|not |never |cannot|abort(?:ed)?)(?![a-z])", re.I)
+# ⚠ `block` IS MATCHED AS A VERB ONLY, and the missing inflections are here for
+# the same reason. Found 2026-09-04 on this repository's own ADR-012 T4: an
+# affirmative sign-off reported that the client rendered "no server-level block"
+# — a chunk of text — and `block(?:ed)?` read the noun as the verdict "blocked",
+# so a done task printed READY forever and the record's README and this reader
+# disagreed. Honest observation prose is full of nouns; a verdict is a verb.
+#
+# The same look found the opposite hole. `block(?:ed)?` with the `(?![a-z])`
+# lookahead matches neither `blocks` nor `blocking`, so "the rollout blocks on
+# legal" was counted as DONE — the exact failure this guard exists to prevent,
+# reachable through every entry that lacked an `-s`/`-ing` form. Both directions
+# are asserted in tests/adr-next.test.mjs, one test each, because a change that
+# only narrowed would be indistinguishable from deleting the word.
+NEGATIVE = re.compile(r"(?<![a-z])(block(?:ed|s|ing)|stop(?:ped|s|ping)?|"
+                      r"fail(?:ed|s|ing)?|refus(?:e|ed|es|ing)?|"
+                      r"withdraw(?:n|s|ing)?|reject(?:ed|s|ing)?|not |never |cannot|"
+                      r"abort(?:ed|s|ing)?)(?![a-z])", re.I)
 
 
 # A record NUMBER from a filename, and NOT the year of an ISO date. Every

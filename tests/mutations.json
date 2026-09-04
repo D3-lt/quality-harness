@@ -4380,6 +4380,24 @@
       ],
       "from": "    if active or archive:\n        if readme:",
       "to": "    if active and archive:\n        if readme:"
+    },
+    {
+      "label": "next: a negative word is matched as a verb, so a noun is not a verdict",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "r\"(?<![a-z])(block(?:ed|s|ing)|stop(?:ped|s|ping)?|\"",
+      "to": "r\"(?<![a-z])(block(?:ed|s|ing)?|stop(?:ped|s|ping)?|\""
+    },
+    {
+      "label": "next: the -s and -ing forms of a stop word are caught, not only -ed",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "r\"abort(?:ed|s|ing)?)(?![a-z])\", re.I)",
+      "to": "r\"abort(?:ed)?)(?![a-z])\", re.I)"
     }
   ]
 }

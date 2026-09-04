@@ -1,6 +1,6 @@
 # ADR-035: A confident claim is checked against what ran, and every verdict is counted
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-04
 **Owner:** zy
 **Spec:** None — no spec stage; the requirement is the measured finding in `docs/research/2026-08-28-verification-is-the-bottleneck.md` §2 and §11

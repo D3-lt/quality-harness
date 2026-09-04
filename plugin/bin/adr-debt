@@ -66,8 +66,15 @@ def disposition_span(text):
     holds the one truth table all three are checked against, the way ADR-009
     binds `enforcement_pointers` to `declaredEnforcement`.
     """
+    # A DISPOSITION INSIDE A CODE SPAN IS A MENTION, NOT A DISPOSITION — see the
+    # shared truth table in tests/gate-regressions.py, and adr-lint's copy for the
+    # measurement. Only an opening INSIDE a span is skipped; a disposition that
+    # CONTAINS one stays a disposition.
+    spans = [(m.start(), m.end()) for m in re.finditer(r"`[^`]*`", text)]
     for opening in re.finditer(r"\((?=permanent\b|deferred\b|external\b)", text):
         depth = 0
+        if any(a < opening.start() < b - 1 for a, b in spans):
+            continue
         for i in range(opening.start(), len(text)):
             if text[i] == "(":
                 depth += 1

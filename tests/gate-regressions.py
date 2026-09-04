@@ -113,6 +113,22 @@ DISPOSITION_GRAMMAR = [
     # decide whether ending the line matters. adr-lint requires that; adr-debt's
     # architecture.md scan deliberately does not.
     ("- A (deferred: x) and (permanent: y)", "deferred: x"),
+    # A DISPOSITION INSIDE A CODE SPAN IS A MENTION, NOT A DISPOSITION. Reported
+    # 2026-09-04 by a peer session driving the qh-mcp gates from a client with no
+    # shell, and reproduced here: ADR-024's own T1 — the task whose subject is
+    # "could not resolve is not broken" — was reported BROKEN [external-no-owner]
+    # for the line `- The `(external: …)` disposition, which is T2`. It carries no
+    # disposition at all; it NAMES one, in backticks, because ADR-024 is the record
+    # that defines the vocabulary. A gate reporting a finding about prose that
+    # documents it is a gate reporting an observation it did not make (ADR-005).
+    ("- The `(external: …)` disposition, which is T2", None),
+    ("- A `(permanent: by design)` is how you spell it", None),
+    ("- A `(deferred: docs/BACKLOG.md §37)` names where it went", None),
+    # The other direction, and it is the row that keeps the fix narrow: a
+    # disposition that CONTAINS a code span is still a disposition. Only one that
+    # OPENS inside one is a mention — the rows above and below must both hold.
+    ("- A (permanent: the `(external: x)` form is T2's)",
+     "permanent: the `(external: x)` form is T2's"),
 ]
 
 

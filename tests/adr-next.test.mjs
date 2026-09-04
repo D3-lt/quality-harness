@@ -551,3 +551,49 @@ test('every way of asking the wrong question is refused, not guessed at', () => 
   assert.equal(none.status, 1)
   assert.match(none.stderr, /no task files/)
 })
+
+// Reported 2026-09-02 from the agentsmemory corpus, into this project's inbox:
+// "work-next routes to tasks whose own file forbids starting them". Reproduced
+// hermetically 2026-09-04 on 2.62.0, and the report is HALF right — which is why
+// it was worth measuring rather than acting on.
+//
+// The half that does NOT reproduce: a dependent of a blocked task is correctly
+// held. T4 depending on a not-done T3 prints `blocked … (waiting on T3)`, because
+// readiness already excludes any dependency that is not done.
+//
+// The half that DOES: the blocked task ITSELF is printed READY. A sign-off saying
+// "decision BLOCKED — neither ship nor withdraw" denies `done` and then falls
+// through to `ready`, because the only three states are done / ready /
+// dependency-blocked and a human stop is none of them. So the router offers work
+// the record forbids starting — the reporter's own framing, and their suggested
+// fix was the wording rather than the computation.
+//
+// `is_done`'s comment claimed "`human_verdict` below carries the reason so the
+// report says which it was". No such name existed anywhere in the file: the
+// comment described a mechanism nobody had written.
+test('a task whose sign-off says stop is not offered as ready', () => {
+  const { tasksDir } = corpus([
+    { id: 'T1', human: true, evidence: true,
+      signoff: '- 2026-08-26 · human-observed · decision BLOCKED — neither ship nor withdraw' },
+    { id: 'T2', dependsOn: 'T1' },
+  ])
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.doesNotMatch(out, /^READY\s+T1/m, `a stopped task was offered as ready:\n${out}`)
+  assert.match(out, /^stopped\s+T1/m, `it must say WHICH kind of not-ready:\n${out}`)
+  // The reason, not just the label — "stopped" without the sign-off sends the
+  // reader back to the log to guess which of the two the tool could not read.
+  assert.match(out, /sign-off/i, `name what stopped it:\n${out}`)
+  // The dependent stays held, and for its own reason rather than by accident.
+  assert.match(out, /^blocked\s+T2.*T1/m, `the dependent must still be held:\n${out}`)
+
+  // Nothing is startable, so the exit code must say so rather than 0.
+  assert.equal(next([tasksDir, '--all'], root).status, 3, 'nothing ready must exit 3')
+})
+
+// The other direction: an ordinary not-done task with no dependencies is still
+// READY, or the change above is indistinguishable from never offering anything.
+test('a task with no sign-off and no open dependency is still ready', () => {
+  const { tasksDir } = corpus([{ id: 'T1' }])
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.match(out, /^READY\s+T1/m, `an ordinary task must still be offered:\n${out}`)
+})

@@ -227,6 +227,20 @@ def is_done(text, digest, human, fence=None, first=None):
     return False
 
 
+def human_stop(text):
+    """The sign-off note that says STOP, or None when none does.
+
+    Deliberately re-reads the log rather than having `is_done` return two things:
+    `is_done` answers one question and is called from three places, and widening
+    its return to carry a reason is how a second caller starts branching on a
+    tuple it does not need. The log is short and already in memory.
+    """
+    log = "\n".join(sections(text).get("Verification Log", []))
+    for line in log.split("\n"):
+        if (m := VLOG_HUMAN_RE.match(line.strip())) and human_outcome(m.group("note")) == "stop":
+            return m.group("note")
+    return None
+
 def load(tasks_dir):
     infos = {}
     for path in sorted(tasks_dir.glob("*.md")):
@@ -249,6 +263,13 @@ def load(tasks_dir):
             "acceptance": None if human else first,
             "human_observed": human,
             "done": is_done(text, digest, human, fence, first),
+            # ADR-005 applied to routing. A sign-off that says STOP denies `done`
+            # and used to fall straight through to `ready`, so the router offered
+            # work the record forbids starting. Reported 2026-09-02 from another
+            # corpus; reproduced hermetically 2026-09-04. `is_done`'s comment
+            # claimed "`human_verdict` below carries the reason" and NO SUCH NAME
+            # EXISTED — the comment described a mechanism nobody wrote.
+            "stopped_by": human_stop(text) if human else None,
         }
     return infos
 
@@ -556,11 +577,18 @@ def main():
     # foreign edge reads "unknown" — which withholds `ready`, the safe direction.
     corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
     blocked_by, foreign = blockers(infos, corpus_dir)
-    ready, done, blocked = [], [], []
+    ready, done, blocked, stopped = [], [], [], []
     for tid in sorted(infos, key=lambda t: int(t[1:])):
         inf = infos[tid]
         if inf["done"]:
             done.append(inf)
+            continue
+        # A HUMAN STOP IS NOT A DEPENDENCY, and it is not readiness either. It is
+        # checked before the dependency edges because it is a statement about THIS
+        # task: a person looked and said do not proceed. Reporting it as `blocked`
+        # would send the reader hunting for an upstream that does not exist.
+        if inf["stopped_by"]:
+            stopped.append(inf)
             continue
         open_deps = sorted(d for d in blocked_by[tid] if not infos[d]["done"])
         # A foreign dependency that is not done blocks, and one this could not
@@ -575,7 +603,8 @@ def main():
 
     if "--json" in flags:
         print(json.dumps({"tasks_dir": str(tasks_dir), "ready": ready,
-                          "done": done, "blocked": blocked}, indent=2))
+                          "done": done, "blocked": blocked, "stopped": stopped},
+                         indent=2))
         return 0 if ready else 3
 
     if "--all" in flags:
@@ -585,13 +614,29 @@ def main():
             print(f"READY    {inf['id']}  {inf['goal']}")
         for inf in blocked:
             print(f"blocked  {inf['id']}  {inf['goal']}  (waiting on {', '.join(inf['blocked_by'])})")
+        for inf in stopped:
+            print(f"stopped  {inf['id']}  {inf['goal']}  "
+                  f"(a human sign-off says stop: {inf['stopped_by']})")
         return 0 if ready else 3
 
     if not ready:
-        if not blocked:
+        if not blocked and not stopped:
             print(f"All {len(done)} task(s) carry exit-0 evidence for their current Acceptance.")
             return 3
-        print("Nothing is ready: every remaining task is blocked.", file=sys.stderr)
+        # The sentence stays PRECISE about which of the two states the corpus is
+        # in. "Nothing is ready" is true of both and tells the reader nothing
+        # about where to go; "every remaining task is blocked" is false the moment
+        # a human stop is in the mix, and that wording had a test on it.
+        if stopped and blocked:
+            print("Nothing is ready: some tasks are blocked and some were stopped "
+                  "by a sign-off.", file=sys.stderr)
+        elif stopped:
+            print("Nothing is ready: every remaining task was stopped by a sign-off.",
+                  file=sys.stderr)
+        else:
+            print("Nothing is ready: every remaining task is blocked.", file=sys.stderr)
+        for inf in stopped:
+            print(f"  {inf['id']} was stopped by a sign-off: {inf['stopped_by']}", file=sys.stderr)
         for inf in blocked:
             print(f"  {inf['id']} waits on {', '.join(inf['blocked_by'])}", file=sys.stderr)
         return 3

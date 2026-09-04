@@ -4398,6 +4398,24 @@
       ],
       "from": "r\"abort(?:ed|s|ing)?)(?![a-z])\", re.I)",
       "to": "r\"abort(?:ed)?)(?![a-z])\", re.I)"
+    },
+    {
+      "label": "next: a task stopped by a human sign-off is not offered as ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if inf[\"stopped_by\"]:\n            stopped.append(inf)\n            continue",
+      "to": ""
+    },
+    {
+      "label": "lint: a disposition inside a code span is a mention, not a disposition",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if any(a < opening.start() < b - 1 for a, b in spans):\n            continue",
+      "to": "        pass"
     }
   ]
 }

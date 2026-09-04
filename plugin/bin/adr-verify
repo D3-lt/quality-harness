@@ -1118,7 +1118,7 @@ def recover_mutant(cwd):
 
 
 def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
-               covers=None):
+               covers=None, steps=None):
     # ADR-025: taken HERE, before this function writes anything at all. The
     # journal below and the verification entry this run records both modify the
     # tree, so a sha read later would carry the dirty marker `*` earned by our
@@ -1337,7 +1337,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             for line in failure_tail(clean.stdout, clean.stderr):
                 print(f"  {line}")
             # No mutant ran on this path, so recording here cannot contaminate one.
-            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha)
+            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps)
             sys.exit(1)
 
         # The baseline itself may have materialized outputs. Re-establish the
@@ -1465,7 +1465,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     # it. `text` is re-read because the Mutation Log row above already changed
     # the file, and appending from a stale copy would drop it.
     record_run(task, task.read_text(encoding="utf-8"), cmd, today, clean,
-               clean_elapsed_ms, entry_sha)
+               clean_elapsed_ms, entry_sha, steps)
     sys.exit(0 if verdict == "killed" else 1)
 
 
@@ -2386,16 +2386,18 @@ def main():
     # verdict after it would be about the defect rather than the change.
     recover_mutant(cwd)
 
-    if mutant is not None:
-        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore,
-                   covers=covers)
-
-    # MONOTONIC, not wall-clock. `time.time()` goes backwards over an NTP step or a
-    # DST change, and a negative duration handed to the floor is a finding about
-    # ADR-028 T1. PREFLIGHT, before the fence runs and before the clock starts —
-    # the same ordering `--covers` uses (ADR-016). A refusal that lands after
-    # minutes of fence is a one-line authoring error reported at the worst moment,
-    # and here it would also leave a run whose entry could not be written.
+    # ADR-028 T1, corrected by T3. PREFLIGHT, before the fence runs and before the
+    # clock starts — the same ordering `--covers` uses (ADR-016). A refusal that
+    # lands after minutes of fence is a one-line authoring error reported at the
+    # worst moment, and here it would also leave a run whose entry could not be
+    # written.
+    #
+    # It sits ABOVE the `--mutant` branch for a reason measured on 2026-09-04
+    # (BACKLOG §116): `run_mutant()` always exits, so while this block stood below
+    # that branch it was unreachable on the mutation path, and `--steps S9 --mutant`
+    # ran to completion against a task declaring no S9. The refusal must also land
+    # before the mutant is APPLIED, or it leaves a tree this process broke on
+    # purpose.
     #
     # An UNREADABLE Ordered Steps section is not a refusal: `declared_steps`
     # returns an empty set for both "no section" and "no identities", and refusing
@@ -2419,6 +2421,12 @@ def main():
                  f"declare. Its Ordered Steps declare {listed}. A run may only claim "
                  f"a step the task already names.")
 
+    if mutant is not None:
+        run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore,
+                   covers=covers, steps=steps)
+
+    # MONOTONIC, not wall-clock. `time.time()` goes backwards over an NTP step or a
+    # DST change, and a negative duration handed to the floor is a finding about
     # the clock reported as a finding about the work.
     started = time.monotonic()
     try:

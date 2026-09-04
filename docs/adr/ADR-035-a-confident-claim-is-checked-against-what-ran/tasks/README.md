@@ -22,7 +22,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | The claim is classified, and a confident one over unverified edits is named | done | — | `node --test --test-name-pattern 'false success\|honest final message\|verified edits is not\|completionClaim reads negation' tests/lifecycle.test.mjs` |
 | T2 | Every completion event is written to the machine-local ledger | done | — | `node --test --test-name-pattern 'claims ledger' tests/lifecycle.test.mjs` |
-| T3 | The rate is read with its denominator and its exclusions | pending | — | `node --test tests/claims-rate.test.mjs` |
+| T3 | The rate is read with its denominator and its exclusions | done | — | `node --test tests/claims-rate.test.mjs` |
 | T4 | The vocabulary is calibrated on this machine's real final messages | pending | — | human-observed |
 
 Status: `pending` | `partial` | `blocked` | `done`.

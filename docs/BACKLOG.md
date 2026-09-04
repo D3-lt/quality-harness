@@ -7220,9 +7220,19 @@ skills and an MCP server. Level on exactly one axis, and behind on several other
 
 **Measured here, 2026-09-03.** `plugin/hooks/hooks.json` registers seven events — `SessionStart`,
 `UserPromptSubmit`-adjacent none, `PreToolUse`, `PostToolUse`, `SubagentStart`, `SubagentStop`,
-`Stop`, `TaskCompleted` — against roughly thirty-two documented on
-`code.claude.com/docs/en/hooks` (read 2026-09-03; the peer's page says thirty-four and I did not
-reconcile the difference, so do not quote either number without re-counting).
+`Stop`, `TaskCompleted` — against the set documented on `code.claude.com/docs/en/hooks`.
+
+⚠ **THAT DENOMINATOR IS DELIBERATELY NOT A NUMBER, and it used to be one.** This entry said "roughly
+thirty-two … the peer's page says thirty-four", which was two undefensible figures presented as a
+range. Settled 2026-09-04 with the peer who published the 34: theirs is 33 named events in their own
+hand-maintained table plus one they noticed the table was missing, from a table whose own comment
+admits it goes stale — and it had. Mine came from the RENDERED page, which TRUNCATES; the plain-text
+source is `code.claude.com/docs/en/hooks.md`, and `code.claude.com/docs/llms.txt` is the full-text
+source the page itself points at. Neither of us fetched it.
+
+**So the honest published form is a pointer to the source, not a figure** — which is the same rule
+ADR-027 applies to skills and gates, arriving here from the other direction. If a count is needed,
+derive it from `llms.txt` and say which page and which date.
 
 **What is genuinely unused, and what is a decision rather than a gap:**
 

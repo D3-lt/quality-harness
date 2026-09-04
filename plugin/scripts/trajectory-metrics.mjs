@@ -154,13 +154,22 @@ export function measure(files, read = readFileSync) {
 }
 
 export function render(totals, root, { unreadableDirs = [] } = {}) {
+  // ⚠ COMPUTED BEFORE THE EARLY RETURNS, not appended after them. It used to be
+  // pushed at the end, so the two cases that return early — no task files, and
+  // none carrying evidence — dropped it entirely. Those are exactly the shapes an
+  // unreadable root produces, so the one case PARTIAL exists for was the one case
+  // that never said it.
+  const partial = unreadableDirs.length
+    ? [`  ⚠ PARTIAL: ${unreadableDirs.length} director(ies) under ${root} could not be read, so `
+      + 'what is reported here is a subset of what is there — not the whole of it.']
+    : []
   if (!totals.tasks) {
-    return `trajectory-metrics: no task files under ${root}. Nothing to measure, `
-      + 'which is not a corpus that measures clean.'
+    return [`trajectory-metrics: no task files under ${root}. Nothing to measure, `
+      + 'which is not a corpus that measures clean.', ...partial].join('\n')
   }
   if (!totals.evidenced) {
-    return `trajectory-metrics: ${totals.tasks} task file(s) under ${root}, none carrying evidence. `
-      + 'No trajectory to report — not a rate of zero.'
+    return [`trajectory-metrics: ${totals.tasks} task file(s) under ${root}, none carrying evidence. `
+      + 'No trajectory to report — not a rate of zero.', ...partial].join('\n')
   }
   const percent = (totals.rate * 100).toFixed(0)
   const lines = [
@@ -187,10 +196,7 @@ export function render(totals, root, { unreadableDirs = [] } = {}) {
       + 'exit code this could read. They are counted in the entry total and in NEITHER red nor '
       + 'green, so a task holding only those reads as outcome-only without anything having passed.')
   }
-  if (unreadableDirs.length) {
-    lines.push(`  ⚠ PARTIAL: ${unreadableDirs.length} director(ies) under ${root} could not be `
-      + 'read, so the corpus below is a subset of what is there — not the whole of it.')
-  }
+  lines.push(...partial)
   lines.push('This reads and judges nothing. A task showing outcome only is a place to look, '
     + 'not a defect: the work may predate the rule, or the fence may be honestly hard to fail.')
   return lines.join('\n')
@@ -214,7 +220,7 @@ function main(argv = process.argv.slice(2)) {
   const unreadableDirs = []
   const totals = measure(taskFiles(root, unreadableDirs))
   process.stdout.write(argv.includes('--json')
-    ? `${JSON.stringify({ ...totals, root }, null, 2)}\n`
+    ? `${JSON.stringify({ ...totals, root, unreadableDirs }, null, 2)}\n`
     : `${render(totals, root, { unreadableDirs })}\n`)
   return 0
 }

@@ -527,6 +527,49 @@ test('the pre-commit hook refuses a staged shipped file that nothing mutates', (
   }
 })
 
+// ⚠ THE CATALOGUE MUST COME FROM THE INDEX. Reading the working tree would let an
+// entry that is written but NOT STAGED bless a commit whose `tests/mutations.json`
+// does not contain it — the same "the check saw something the commit does not"
+// defect one level up, which is the whole reason this guard exists.
+test('the staged guard reads the catalogue as staged, and falls back only when it cannot', async () => {
+  const { stagedCatalogue } = await import('../scripts/staged-mutation-guard.mjs')
+  const staged = JSON.stringify({ mutations: [{ file: 'plugin/scripts/from-the-index.mjs' }] })
+
+  assert.equal(stagedCatalogue(() => ({ status: 0, stdout: staged }), '/nowhere'), staged,
+    'the index wins over anything on disk')
+  assert.ok(stagedCatalogue(() => ({ status: 1, stdout: '' }), join(repoRoot, 'tests', 'mutations.json'))
+    .includes('"mutations"'), 'no index entry falls back to the file beside the script')
+  assert.equal(stagedCatalogue(() => ({ status: 0, stdout: '   ' }), '/definitely/not/here'), '',
+    'and an empty answer with nothing to fall back to is empty, never a crash')
+})
+
+// SCOPE, and it has to match the invariant this guard front-runs: every tracked
+// file under plugin/scripts whatever its extension, plus plugin/bin — minus the
+// `.cmd` shims, which that invariant excludes deliberately. A narrower pathspec
+// missed real files; a wider one refuses exempt ones.
+test('the hook covers shipped .sh and leaves the .cmd shims alone', () => {
+  const hook = join(repoRoot, '.githooks', 'pre-commit')
+  const scratch = mkdtempSync(join(tmpdir(), 'qh-scope-'))
+  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
+  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8' })
+  try {
+    git('init', '-q', '-b', 'main', '.')
+    mkdirSync(join(scratch, 'plugin', 'bin'), { recursive: true })
+    writeFileSync(join(scratch, 'plugin', 'bin', 'adr-lint.cmd'), '@echo off\n')
+    git('add', join('plugin', 'bin', 'adr-lint.cmd'))
+    assert.equal(run().status, 0, 'a .cmd shim forwards and carries no logic — refusing it is a false alarm')
+
+    mkdirSync(join(scratch, 'plugin', 'scripts'), { recursive: true })
+    writeFileSync(join(scratch, 'plugin', 'scripts', 'not-catalogued-at-all.sh'), '#!/bin/sh\necho hi\n')
+    git('add', join('plugin', 'scripts', 'not-catalogued-at-all.sh'))
+    const refused = run()
+    assert.equal(refused.status, 1, 'plugin/scripts ships .sh too, and the first pathspec missed it')
+    assert.match(refused.stderr, /not-catalogued-at-all\.sh/)
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
+})
+
 test('no mutation tool left a gate neutered in this tree', () => {
   // Learned the hard way 2026-09-02, twice in one hour. `scripts/unasserted.mjs`
   // neuters one `errors.append(...)` at a time and restores it; `git add -A`

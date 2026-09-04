@@ -7847,10 +7847,14 @@ observed that it passed. Reviewer probe, exit 0: one malformed entry, `evidenced
 **Also here, and the same shape one layer down:** `trajectory-metrics.mjs:43-47` swallows every
 `readdirSync` error, so an unreadable subtree silently shrinks a real denominator and a missing root
 and an unreadable one both render as "no task files" at line 145. That message is honest that it is
-not a clean corpus; it is not honest about which of the two it saw. `claims-rate.mjs:133-140` maps
-every read error to "no ledger ... Nothing has been recorded", which is the same collapse
-`qh-doctor` was just fixed for — so the fix in `c27a555` closed one member of this class and left
-its sibling, which is exactly what CLAUDE.md §5 says to name rather than leave silent.
+not a clean corpus; it is not honest about which of the two it saw. `claims-rate.mjs` mapped every
+read error to "no ledger ... Nothing has been recorded", which was the same collapse `qh-doctor`
+had just been fixed for — so `c27a555` closed one member of this class and left
+its sibling — exactly what CLAUDE.md §5 says to name rather than leave silent. **Both are closed
+now**: `trajectory-metrics` reports PARTIAL through an optional sink, and `claims-rate` distinguishes
+ENOENT ("nothing has been recorded") from every other error ("COULD NOT READ"), carrying `looked`
+into its JSON so a consumer can tell the two apart as well. Found still open by the review of
+a4ac0f3…88a26b1, which is the second time a reviewer has had to point at the half left behind.
 
 **Why not fixed in the same commit.** The fix is a validation layer over two enums and a log
 grammar, and it changes what the denominators mean — every rate this corpus has recorded moves.
@@ -7941,13 +7945,25 @@ defect from a busy runner.**
   plus the mutant` — measured on one tree: **2.21s alone, 4.77s** with a `codex exec` review running
   beside it, where the second run failed. Its ceiling was `SLEEP_MS * 1.8`, and **a constant is a
   clock**. It now compares a measurement to a MEASUREMENT: one plain run of the same fence, taken on
-  the same machine moments earlier, and the mutant run must come in under 1.6× of it. Both
-  invocations pay the same startup and the same load, so the ratio separates one sleep from two
-  however slow the runner is. The FLOOR stays absolute deliberately — load only ever makes `ms`
-  bigger, so a floor cannot false-fail, and it is what catches an implementation recording zero.
-  Verified the rework did not cost the detection: `verify: the recorded duration is the clean fence
-  alone` is still RED.
-- ⬜ `tests/timeout-tree.test.mjs::assertTreeDied`'s `PROMPT_MS = 10_000` — still open. Its comment
+  same machine moments earlier, and the mutant run must come in under 1.6× of it. Both invocations
+  pay the same startup, so the ratio survives a runner that is uniformly slow. The FLOOR stays
+  absolute deliberately — load only ever makes `ms` bigger, so a floor cannot false-fail, and it is
+  what catches an implementation recording zero.
+
+  ⚠ **A CORRECTION TO WHAT THIS SECTION FIRST CLAIMED.** It said the rework was verified not to cost
+  the detection, citing `verify: the recorded duration is the clean fence alone` coming back RED.
+  That mutant sets `clean_elapsed_ms = 0`, so its RED proves the FLOOR catches zero and says nothing
+  about whether the CEILING still catches mutant time leaking back in. The review of a4ac0f3…88a26b1
+  named that, and it was right: a verification was claimed that had not been made. A mutant that
+  actually reinstates the historical defect — measuring the duration at the late `record_run` call,
+  after the mutant has run — now exists and is RED:
+  `verify: the recorded duration does not span the mutant run too`.
+
+  ⚠ **AND IT IS NOT FULLY LOAD-INDEPENDENT**, which the first wording also overstated. The baseline
+  and the measured run are two separate invocations, so load can drift BETWEEN them: a fast baseline
+  followed by a slow run can still false-fail, and a slow baseline followed by a fast run carrying
+  the defect could false-pass. This is strictly better than a constant and it is not immune. The
+  immune version needs both numbers from one process.
   is right that a gate taking ten seconds to report a one-second timeout has not killed anything, but
   on a loaded runner the same number is the runner. The signal that is not a clock is already in the
   fixture: the heartbeat's own counter says whether the grandchild was still alive when the gate

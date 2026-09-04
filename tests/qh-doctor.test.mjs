@@ -271,3 +271,21 @@ test('drift reports that it could not look rather than that nothing differs', ()
   assert.equal(answer.looked, false)
   assert.notEqual(answer.clean, true)
 })
+
+// The same zero, one layer up: qh-doctor points a reader at claims-rate, so
+// pointing without saying the detector is off would launder it here instead.
+test('the ledger line says whether claim detection is running', () => {
+  const base = { counted: COUNTED, home: CLEAN_HOME, moved: CLEAN_DRIFT, gateSource: '' }
+  const ledger = { file: '/somewhere/claims.jsonl', looked: true, rows: 4, note: null }
+
+  const off = report({ ...base, ledger, armWithdrawn: true })
+  assert.match(off.lines.join('\n'), /claim detection is WITHDRAWN/)
+  assert.equal(off.exit, 0, 'saying the arm is off is a note, never a finding (CLAUDE.md §3)')
+
+  const on = report({ ...base, ledger, armWithdrawn: false })
+  assert.doesNotMatch(on.lines.join('\n'), /WITHDRAWN/)
+
+  // And with no ledger at all there is no rate to mislabel.
+  const none = report({ ...base, armWithdrawn: true })
+  assert.doesNotMatch(none.lines.join('\n'), /claim detection is WITHDRAWN/)
+})

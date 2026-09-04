@@ -4589,13 +4589,22 @@
       "to": "  if (!home.looked || !moved.looked) {"
     },
     {
-      "label": "stop: a confident claim over unverified edits is named as a false success",
-      "file": "plugin/scripts/lifecycle.mjs",
+      "label": "rate: a withdrawn arm is named, so a structural zero is not read as clean",
+      "file": "plugin/scripts/claims-rate.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/claims-rate.test.mjs"
       ],
-      "from": "  const reason = claim.kind === 'asserted'",
-      "to": "  const reason = false && claim.kind === 'asserted'"
+      "from": "  if (armWithdrawn) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "doctor: the rate it points at is labelled with the arm's state",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  if (ledger.file && armWithdrawn) {",
+      "to": "  if (false) {"
     },
     {
       "label": "stop: a negative final message is never read as an assertion",

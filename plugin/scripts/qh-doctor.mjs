@@ -28,6 +28,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   FORWARDER_MARK, classifyHomeFile, formerlyShipped,
 } from './standalone-link.mjs'
+import { ASSERTION_ARM_WITHDRAWN } from './lifecycle.mjs'
 
 const PLUGIN_ROOT = dirname(dirname(fileURLToPath(import.meta.url)))
 
@@ -187,6 +188,7 @@ export function report({
   // Defaulted so a caller with no ledger question keeps working; `looked: true`
   // with `file: null` is "there was nothing to look at", not "I failed to look".
   ledger = { file: null, looked: true, rows: null, note: null },
+  armWithdrawn = ASSERTION_ARM_WITHDRAWN,
 }) {
   const lines = []
   const split = severitySplit(gateSource)
@@ -221,6 +223,12 @@ export function report({
     lines.push(`  no ledger at ${ledger.file} yet — nothing recorded, which is not a rate of zero`)
   } else {
     lines.push(`  ${ledger.rows} completion event(s) recorded — \`node "$(qh-root)/scripts/claims-rate.mjs"\` reads the rate`)
+  }
+  // Pointing a reader at a rate without saying the detector behind it is off
+  // would make this command the thing that laundered the structural zero.
+  if (ledger.file && armWithdrawn) {
+    lines.push('  claim detection is WITHDRAWN — a 0 in that rate’s false half means the arm '
+      + 'is off, not that nothing went wrong (BACKLOG §124).')
   }
   lines.push('')
   if (copies.length > 0) {

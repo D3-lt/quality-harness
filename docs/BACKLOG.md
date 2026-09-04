@@ -7539,3 +7539,56 @@ of "a command that cannot fail for this change" is what per-runner reachability 
 
 **Receipt:** this entry names `ADR-015-a-go-fence-can-reach-its-required-success.md`, and ADR-015's
 deferral is repointed here from §78.
+
+## 119. The mutation campaign cannot run a Python test, so 352 assertions can never kill a mutant
+
+Found 2026-09-04 by CI on `dd8b6e5`, shard `mutations 3/8`: 60 of 61 noticed. The GREEN was
+`lint: a path::name pointer names a test file, not a production function`, and the mechanism it
+mutates was asserted the whole time — in `tests/gate-regressions.py`, which checks
+`resolve_enforcement("bin/adr-lint::enforcement_pointers", root) is None` in-process. The catalogue
+entry declared `tests/gates.test.mjs`, which never mentioned it.
+
+The declaration was wrong, and it could not have been right. `scripts/mutate.mjs:524` spawns
+`node --test`, and nothing else:
+
+```
+const run = spawnSync(process.execPath,
+  ['--test', ...mutation.tests.map(t => path.join(root, t))], ...)
+```
+
+So a `.py` path in a `tests:` list is unreachable by construction. Measured the same day:
+
+```
+$ grep -c '^def test_\|^    assert ' tests/gate-regressions.py
+352
+$ grep -c 'gate-regressions.py' tests/mutations.json
+0
+$ node --test tests/gate-regressions.py >/dev/null 2>&1; echo $?
+1
+```
+
+Zero entries name the file, so nothing is currently mis-declared — and the exit 1 means a future
+declaration would fail the entry's BASELINE and be reported as unproven, not as a false RED. That is
+the honest branch, so this is a gap and not a lie. It is still a gap: 352 assertions the campaign
+grades nothing about, in the suite that carries most of the gates' in-process behaviour.
+
+The instance was fixed at the boundary instead (`8692148`) — a CLI-level regression in
+`tests/gates.test.mjs` that kills the mutant. That is the right fix for one mechanism and does not
+scale to the suite: rewriting 352 Python assertions as subprocess tests would trade in-process
+precision for spawn cost, and most of them have no CLI surface to assert through.
+
+**What this needs first, before any runner change:** a count of how many of those 352 assert a
+mechanism that NO `.mjs` test also covers. Only that subset is genuinely unguarded; the rest are
+belt-and-braces and cost nothing. The heuristic tried here does not answer it — asking which
+catalogue entries declare a test file that never names an identifier from the mutated line returned
+51 of 489, and nearly every one is a test that correctly spawns a gate through its CLI and so never
+names the gate's internals. The regression added in `8692148` would be flagged by that same rule.
+Recorded because a sweep that did not work is worth as much as one that did (CLAUDE.md §5), and
+because the next session should not re-derive it.
+
+Teaching the runner a second test language is an ADR, not a patch: it changes what a `tests:` entry
+means, it needs `python3` resolved the way `resolve_bash()` is (CLAUDE.md §7), and the baseline and
+timeout semantics in `scripts/mutate.mjs` are written against `node --test`'s output shape.
+
+**Receipt:** the campaign is what enumerates this class, and a tag runs it in full with `--no-cache`
+(CLAUDE.md §13.6), which is why this surfaced on a release run rather than on a push.

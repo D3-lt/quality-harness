@@ -72,11 +72,15 @@ node --test tests/gates.test.mjs 2>&1 | tee /tmp/adr031-t1.out \
   ```
   the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
   ```
+- 2026-09-04 · 310c52c · mutant killed · exit 1 · `plugin/bin/adr-lint` · a gate must read the manifest beside ITSELF; resolving from the caller directory answers about a different tree and looks exactly like success · acceptance-sha256:6b1dd9ef46b81144afa270b5fb31353ee392ce9b6e3b352a263101e5edc27fc1 · covers:a gate reports the version of the tree it was loaded from, not of any other tree
+- 2026-09-04 · 310c52c* · mutant killed · exit 1 · `plugin/bin/adr-lint` · an unreadable manifest must be reported as unreadable; inventing a version is the ADR-005 defect this flag exists to avoid, and it resolves · acceptance-sha256:6b1dd9ef46b81144afa270b5fb31353ee392ce9b6e3b352a263101e5edc27fc1 · covers:a gate whose manifest cannot be read says so rather than guessing
 
 ## Verification Log
 
 - 2026-09-04 · d0f6c24 · exit 0 · `set -o pipefail …` · acceptance-sha256:6b1dd9ef46b81144afa270b5fb31353ee392ce9b6e3b352a263101e5edc27fc1 · ms:18775 · steps:S1,S2,S3,S4
 - 2026-09-04 · d0f6c24* · exit 0 · `set -o pipefail …` · acceptance-sha256:6b1dd9ef46b81144afa270b5fb31353ee392ce9b6e3b352a263101e5edc27fc1 · ms:18196 · steps:S5
+- 2026-09-04 · 310c52c · exit 0 · `set -o pipefail …` · acceptance-sha256:6b1dd9ef46b81144afa270b5fb31353ee392ce9b6e3b352a263101e5edc27fc1 · ms:18124 · steps:S5
+- 2026-09-04 · 310c52c* · exit 0 · `set -o pipefail …` · acceptance-sha256:6b1dd9ef46b81144afa270b5fb31353ee392ce9b6e3b352a263101e5edc27fc1 · ms:22386 · steps:S5
 
 ## Invariants
 

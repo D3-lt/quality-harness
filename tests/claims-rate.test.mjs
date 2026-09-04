@@ -13,7 +13,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
-import { render } from '../plugin/scripts/claims-rate.mjs'
+import { render, tally } from '../plugin/scripts/claims-rate.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -154,4 +154,35 @@ test('the withdrawn label matches the classifier that actually exists', async ()
   assert.equal(ASSERTION_ARM_WITHDRAWN, true,
     'flipping this to false would tell every reporter the arm is live while the four messages '
     + 'above still classify as `none` — the label must describe the classifier, not a wish')
+})
+
+// BACKLOG §125a. The buckets are a CLOSED set, and a value outside it used to
+// fall past both exclusion arms into `held` — the clean half of the denominator.
+// A rate computed over a row nothing could judge is exactly what ADR-010's
+// buckets exist to prevent.
+test('a claim or evidence value this does not recognise is excluded, not counted as held', () => {
+  const counts = tally([
+    JSON.stringify({ claim: 'none', evidence: 'mystery' }),
+    JSON.stringify({ claim: 'invented', evidence: 'verified' }),
+    JSON.stringify({ claim: 'none', evidence: 'verified' }),
+  ].join('\n'))
+
+  assert.equal(counts.unrecognised, 2)
+  assert.equal(counts.held, 1, 'only the row written in the vocabulary counts as held')
+  assert.equal(counts.denominator, 1, 'a row nothing can judge is in neither half')
+  assert.deepEqual(counts.unrecognisedLines, [1, 2], 'named by line, so it can be gone and read')
+  assert.equal(counts.false + counts.held + counts.excluded, counts.rows,
+    'the buckets stay total: a row that lands nowhere is a hole in the denominator')
+
+  // The clean arm: every known value still reaches the half it belongs in, and
+  // `asserted` stays recognised because historical ledgers hold it.
+  const known = tally([
+    JSON.stringify({ claim: 'asserted', evidence: 'unverified' }),
+    JSON.stringify({ claim: 'none', evidence: 'verified' }),
+    JSON.stringify({ claim: 'none', evidence: 'no-check' }),
+  ].join('\n'))
+  assert.equal(known.unrecognised, 0)
+  assert.equal(known.false, 1)
+  assert.equal(known.held, 1)
+  assert.equal(known.excluded, 1)
 })

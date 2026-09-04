@@ -437,7 +437,17 @@ The steps below are how, not whether.
    no mutation evidence while looking verified. Ask the API — or better, ask the check that was
    written for exactly this and reads it for you:
 
-       node scripts/release-evidence.mjs <sha>   # 0 clear · 1 a job failed · 2 could not look · 3 still running
+       node scripts/release-evidence.mjs <sha>
+       # 0 every job concluded success · 1 a job did NOT conclude success (failed,
+       # cancelled, timed out, skipped) · 2 could not look at all · 3 not finished yet
+
+   **1 is not "a job failed".** This line said that until 2026-09-04, and it cost a
+   session a wrong diagnosis: a run whose shards were `cancelled` by the next push
+   reports `FAILED … cancelled`, exit 1, and reading it as a defect sends you hunting
+   for one that is not there. `cancelled` is deliberately not `success` — that is the
+   whole point of BACKLOG §104 — but it is not `failure` either, and only the script's
+   own header said so. Exit 2 is narrower than it sounds: no `gh`, no run for the sha,
+   an unreadable answer. Read the script's header, not this summary, when they differ.
 
    It refuses a sha whose run has not finished, saying INCOMPLETE and naming the jobs still going.
    That refusal is the tool working. The raw form, when you want it:

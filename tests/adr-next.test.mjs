@@ -684,3 +684,25 @@ test('a record folder is still answered as one record, not as a corpus of one', 
   assert.match(out.stdout, /^READY\s+T1/m,
     `the single-record form is what a record folder gets:\n${out.stdout}`)
 })
+
+test('a corpus names an undecided record before offering its tasks as ready', () => {
+  // The second Codex finding, and the more dangerous of the two: the corpus path
+  // dropped the warning the single-record path prints, so a **Proposed** record's
+  // task was offered as READY with no signal at all. CLAUDE.md §10 — a record is
+  // a work order only once it is Accepted — and over a 37-record corpus the loss
+  // is worse than over one, because nobody is reading each record's header.
+  //
+  // Exit stays 0, matching the single-record path exactly: this gate instructs
+  // and never blocks (CLAUDE.md §3). The finding is that it must SAY so.
+  const { dir } = twoRecords('none')
+  writeFileSync(join(dir, 'ADR-003-target.md'),
+    '# ADR-003: undecided\n\n**Status:** Proposed\n')
+  const out = next([dir, '--all'], dir)
+  assert.match(out.stderr, /ADR-003-target is \*\*Proposed\*\*, not Accepted/,
+    `an undecided record must be named before its tasks are offered:\n${out.stderr}`)
+  assert.equal(out.status, 0, 'naming it is advice, not a block (CLAUDE.md §3)')
+  // The other record is Accepted and must NOT be named — a warning on everything
+  // is a warning on nothing, and would pass the assertion above by accident.
+  assert.doesNotMatch(out.stderr, /ADR-007-source is/,
+    `an Accepted record is not warned about:\n${out.stderr}`)
+})

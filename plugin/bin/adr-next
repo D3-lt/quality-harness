@@ -585,8 +585,21 @@ def report_corpus(records, flags):
         infos = load(tasks_dir)
         corpus_dir = tasks_dir.parent.parent if tasks_dir.parent.parent.is_dir() else None
         ready, done, blocked, stopped = classify(infos, corpus_dir)
+        # The owning record's status travels with the answer. The single-record
+        # path prints this and the corpus path did not, so a **Proposed** record's
+        # task was offered as READY with no signal at all — CLAUDE.md §10 says a
+        # record is a work order only once it is Accepted, and dropping that over
+        # a 37-record corpus is worse than dropping it over one. Found by the
+        # Codex review that named an "observation" regression it was killed
+        # before describing.
+        status = owning_record_status(tasks_dir)
+        undecided = status is not None and not re.match(r"accepted\b", status, re.I)
         answers[name] = {"tasks_dir": str(tasks_dir), "ready": ready, "done": done,
-                         "blocked": blocked, "stopped": stopped}
+                         "blocked": blocked, "stopped": stopped,
+                         "status": status, "undecided": undecided}
+        if undecided and ready:
+            print(f"adr-next: {name} is **{status}**, not Accepted — its task(s) below are a "
+                  f"reading of its PLAN, not work anyone has decided to do.", file=sys.stderr)
         any_ready = any_ready or bool(ready)
 
     if "--json" in flags:

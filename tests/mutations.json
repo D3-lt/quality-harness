@@ -4589,6 +4589,15 @@
       "to": "  if (!home.looked || !moved.looked) {"
     },
     {
+      "label": "eval: a withdrawn classifier is named, so a 0/N is not read as measured",
+      "file": "scripts/eval-false-claims.mjs",
+      "tests": [
+        "tests/eval-false-claims.test.mjs"
+      ],
+      "from": "  const banner = armWithdrawn",
+      "to": "  const banner = false"
+    },
+    {
       "label": "rate: a withdrawn arm is named, so a structural zero is not read as clean",
       "file": "plugin/scripts/claims-rate.mjs",
       "tests": [

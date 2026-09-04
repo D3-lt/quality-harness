@@ -4335,6 +4335,24 @@
       ],
       "from": "                            (\"--covers\", covers), (\"--steps\", steps),",
       "to": "                            (\"--covers\", covers),"
+    },
+    {
+      "label": "evals: a case with no skill tag is reported, not counted as covered",
+      "file": "plugin/evals/a-vacuous-test-is-not-a-review/prompt.md",
+      "tests": [
+        "tests/evals.test.mjs"
+      ],
+      "from": "tags: [skill-review]",
+      "to": "tags: []"
+    },
+    {
+      "label": "evals: a skill tag naming no shipped skill is reported, not resolved to nothing",
+      "file": "plugin/evals/a-vacuous-test-is-not-a-review/prompt.md",
+      "tests": [
+        "tests/evals.test.mjs"
+      ],
+      "from": "tags: [skill-review]",
+      "to": "tags: [skill-no-such-skill]"
     }
   ]
 }

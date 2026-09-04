@@ -7,6 +7,10 @@
 max_turns: 12
 runs: 1
 allowed_tools: [Skill]
+# ADR-032. The skill this case exercises, declared rather than inferred:
+# Its own graders name `review` as the skill this question exists for, and the
+# boundary grader `does-not-run-a-campaign` is about NOT reaching `mutation-audit`.
+tags: [skill-review]
 ---
 
 Review this test I just wrote. Does it actually test anything?

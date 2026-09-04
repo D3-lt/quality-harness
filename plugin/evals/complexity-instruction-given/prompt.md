@@ -12,6 +12,11 @@
 max_turns: 8
 runs: 1
 allowed_tools: []
+# ADR-032. The skill this case exercises, declared rather than inferred:
+# An A/B PAIR with `complexity-instruction-omitted`. It measures whether an
+# INSTRUCTION changes the code a model writes, not whether a skill fires; naming a
+# subject here would invent an attribution (ADR-005).
+tags: [skill-unattributed]
 ---
 
 Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.

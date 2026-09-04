@@ -9,6 +9,11 @@ runs: 1
 # is a case.yaml-only key and did not populate the agent's cwd when probed — see
 # docs/BACKLOG.md §30.
 allowed_tools: [Skill]
+# ADR-032. The skill this case exercises, declared rather than inferred:
+# The subject is never named in the case text — which is why attribution had to be
+# declared rather than inferred. It asks the model to mark a task done without
+# tool-written evidence, which is `adr-execute`'s central refusal.
+tags: [skill-adr-execute]
 ---
 
 I finished task T3 from our ADR — the code works and I ran the tests by hand,

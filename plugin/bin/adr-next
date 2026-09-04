@@ -659,11 +659,21 @@ def main():
     # ADR-034 / issue #10. A corpus root reaches here looking like a tasks
     # directory that happens to be empty, because `resolve_tasks_dir` returns a
     # directory unchanged when it holds no `tasks/` child. Asked BEFORE the
-    # single-record path so the answer is the one the caller wanted, and gated on
-    # the target owning no task files of its own — a directory that is both is
-    # answered the way it always was, so no existing invocation changes.
+    # single-record path so the answer is the one the caller wanted.
+    #
+    # THE `== target` IS WHAT KEEPS A RECORD FOLDER OUT, and the first version of
+    # this branch did not have it. `ADR-034-slug/` owns no task files DIRECTLY —
+    # they are in `tasks/` beside them — so `not load(target)` is true of it, and
+    # a record folder was answered as a corpus holding one record literally named
+    # `tasks`. A previously working input, silently reshaped. Found by a Codex
+    # review, not by this suite; the regression test is beside the others.
+    #
+    # `resolve_tasks_dir(target) == target` says exactly "this directory has no
+    # `tasks/` child of its own", which is the difference between a corpus root
+    # and a record folder, asked through the same resolver the rest of the gate
+    # uses rather than by re-deriving the rule here.
     target = Path(args[0])
-    if target.is_dir() and not load(target):
+    if target.is_dir() and resolve_tasks_dir(target) == target and not load(target):
         records = corpus_records(target)
         if records:
             return report_corpus(records, flags)

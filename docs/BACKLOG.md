@@ -7211,7 +7211,13 @@ three such plans in one session, all applied at exit 0 with every guard satisfie
 writing this hit the same class four times. Whatever this entry concludes, **budget for the
 downstream gate** — a plan layer moves that failure, it does not remove it.
 
-## 115. The host surfaces this plugin does not stand on
+## 115. The host surfaces this plugin does not stand on — PARTLY CLOSED 2026-09-04 (ADR-030)
+
+**Closed:** named agent definitions. `plugin/agents/` ships four namespaced roles, so a skill can
+address one by `subagent_type` (ADR-030 T1). Still open below: `permissionMode`, `maxTurns`,
+`memory`, `isolation`, the three unused plain-stdout events, `statusLine`, `outputStyle`,
+`permissions`, headless `-p --output-format json`, and MCP elicitation. The veto note at the end
+of this entry is unchanged and is still not a gap.
 
 **Filed 2026-09-03 with ADR-029**, from running a peer session's harness audit of `agentsmemory`
 ("Where Memory Plugs In", 2026-09-03) against this repository instead. That audit found its own
@@ -7257,3 +7263,39 @@ proposing to reverse a founding decision, and owes that argument rather than a l
 
 **Also deferred here:** any routing decision made from ADR-029's declared role.
 
+
+## 116. `adr-verify --steps` is accepted and silently dropped on the `--mutant` path
+
+**Found 2026-09-04, executing ADR-030 T1.** `python3 plugin/bin/adr-verify <task> --steps S5 --mutant …`
+exits 0, kills the mutant, writes its Verification Log entry — and the entry carries no `steps:`
+field. The flag was parsed, validated against the task's declared step identities, and then not used.
+
+The cause is visible in one command:
+
+    grep -n "record_run(" plugin/bin/adr-verify
+    1340:            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha)
+    1467:    record_run(task, task.read_text(encoding="utf-8"), cmd, today, clean,
+    2083:def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None):
+    2447:    code = record_run(task, text, cmd, today, r,
+
+`steps` defaults to `None`, and only the call at 2447 — the plain fence path — passes it. The two
+mutation-path calls take the default, so the field is dropped without a word. ADR-028 T1 added the
+flag and its refusal of an undeclared id; both are on the plain path only.
+
+**Why it is worth an entry rather than a quiet fix.** An option accepted and ignored is this
+project's own named class: the gate reports nothing, exits 0, and the author reasonably believes the
+run recorded what they asked it to record. It is the same shape as the six scripts whose entry guard
+made them no-ops on Windows (§113) and as `mutate.mjs` printing nothing for a STALE verdict — a
+silent no-op inside a tool whose entire job is to make claims checkable.
+
+**What is NOT yet known:** whether the mutation path SHOULD carry the field at all. A mutation run's
+verification entry is taken on a mutated tree, and a `steps:` value there would say a step was
+exercised by a run whose subject was deliberately broken. That may be exactly why it was left out —
+but nothing says so, in the code or in ADR-028, and a deliberate omission that looks identical to an
+oversight is indistinguishable from one. Either pass `steps` through both call sites, or refuse
+`--steps` together with `--mutant` and say why. Silence is the one option that is wrong.
+
+**Class, not instance.** The general form is a flag validated in `main()` and consumed on one of
+several paths out of it. Enumerate with `grep -n "def main" -A 400 plugin/bin/adr-verify | grep -nE
+"^\s*[a-z_]+ = (value|True)"` against the call sites each option reaches; this entry checked `--steps`
+only, and does not claim the others are clean.

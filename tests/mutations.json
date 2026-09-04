@@ -4531,8 +4531,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "        os.killpg(os.getpgid(pid), signal.SIGKILL)",
-      "to": "        os.kill(pid, signal.SIGKILL)"
+      "from": "            os.killpg(pid, signal.SIGKILL)",
+      "to": "            os.kill(pid, signal.SIGKILL)"
     },
     {
       "label": "spec: a runner timeout kills the tree the runner started, not only the shell",
@@ -4540,8 +4540,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "        os.killpg(os.getpgid(pid), signal.SIGKILL)",
-      "to": "        os.kill(pid, signal.SIGKILL)"
+      "from": "            os.killpg(pid, signal.SIGKILL)",
+      "to": "            os.kill(pid, signal.SIGKILL)"
     },
     {
       "label": "mcp: a gate timeout kills the tree the gate started, not only the gate",
@@ -4549,8 +4549,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "        os.killpg(os.getpgid(pid), signal.SIGKILL)",
-      "to": "        os.kill(pid, signal.SIGKILL)"
+      "from": "            os.killpg(pid, signal.SIGKILL)",
+      "to": "            os.kill(pid, signal.SIGKILL)"
     },
     {
       "label": "verify: an interrupted gate kills the tree it started",
@@ -4558,8 +4558,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "            kill_tree(proc.pid, platform)\n            raise",
-      "to": "            raise"
+      "from": "        drain_after_kill(proc, platform)\n        raise",
+      "to": "        raise"
     },
     {
       "label": "spec: an interrupted gate kills the tree it started",
@@ -4567,8 +4567,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "            kill_tree(proc.pid, platform)\n            raise",
-      "to": "            raise"
+      "from": "        drain_after_kill(proc, platform)\n        raise",
+      "to": "        raise"
     },
     {
       "label": "mcp: an interrupted gate kills the tree it started",
@@ -4576,8 +4576,26 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "            kill_tree(proc.pid, platform)\n            raise",
-      "to": "            raise"
+      "from": "        drain_after_kill(proc, platform)\n        raise",
+      "to": "        raise"
+    },
+    {
+      "label": "verify: the group kill does not look the group up, because the leader may be gone",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            os.killpg(pid, signal.SIGKILL)",
+      "to": "            os.killpg(os.getpgid(pid), signal.SIGKILL)"
+    },
+    {
+      "label": "verify: a cleanup that raises never replaces the exception that caused it",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "    try:\n        kill_tree(proc.pid, platform)\n        return proc.communicate(timeout=grace)",
+      "to": "    kill_tree(proc.pid, platform)\n    try:\n        return proc.communicate(timeout=grace)"
     }
   ]
 }

@@ -21,7 +21,8 @@ describing the role in prose and hoping the model reconstructs it.
 |------|--------|-----|
 | `plugin/agents/*.md` | create | the named roles |
 | `tests/package.test.mjs` | edit | `agents` joins the shipped set ADR-008's test enforces, in the same commit |
-| `tests/mutations.json` | edit | two catalogue entries (ADR-003) |
+| `plugin/scripts/standalone-link.mjs` | edit | a new shipped directory joins `SHADOW_SCOPE` or `NEVER_MIRRORED`; the existing gate refused the commit until it did |
+| `tests/mutations.json` | edit | three catalogue entries, one per declared mechanism (ADR-003, ADR-022) |
 
 ## Ordered Steps
 

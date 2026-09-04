@@ -1,6 +1,6 @@
 # ADR-030: Give the delegation machinery a socket, and test the plugin as installed
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-04
 **Owner:** zy
 **Spec:** None — no spec stage

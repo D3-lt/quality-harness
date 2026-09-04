@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
@@ -468,6 +468,63 @@ test('the pre-commit hook refuses a commit taken mid-mutation, and only then', (
   }
   assert.equal(run().status, 0, 'and it stands down again once the journal is gone')
   rmSync(scratch, { recursive: true, force: true })
+})
+
+// BACKLOG §127c. `every shipped gate carries at least one mutation` resolves
+// shipped scripts through `git ls-files` — correct (CLAUDE.md §8), and blind to
+// a file until it is committed. So the local run always passes and CI is the
+// first honest one: measured 2026-09-04, green `selftest.sh` here and all FOUR
+// jobs red there, on that assertion.
+//
+// The pure half first. An unparsable catalogue must find NOTHING rather than
+// everything: this runs at commit time, and a guard that refuses the world
+// because it could not read one file is a guard people turn off (ADR-005).
+test('the staged-mutation guard finds an uncovered addition, and only that', async () => {
+  const { missingMutations } = await import('../scripts/staged-mutation-guard.mjs')
+  const catalogue = JSON.stringify({ mutations: [{ file: 'plugin/bin/adr-lint' }] })
+
+  assert.deepEqual(missingMutations(['plugin/bin/adr-lint'], catalogue),
+    { looked: true, missing: [] }, 'a covered file is not a finding')
+  assert.deepEqual(missingMutations(['plugin/scripts/new.mjs'], catalogue),
+    { looked: true, missing: ['plugin/scripts/new.mjs'] })
+  assert.deepEqual(missingMutations(['plugin/scripts/new.mjs'], '{ not json'),
+    { looked: false, missing: [] }, 'could-not-read is not "everything is uncovered"')
+  assert.deepEqual(missingMutations(['plugin/scripts/new.mjs'], '{"mutations":"nope"}'),
+    { looked: false, missing: [] })
+})
+
+// And DRIVEN through the hook, in a scratch repo, because a guard that is never
+// reached is the same as no guard. The hook resolves the script relative to
+// ITSELF, so the real guard and the real catalogue answer for a staged file in
+// a repository the test created (CLAUDE.md §9).
+test('the pre-commit hook refuses a staged shipped file that nothing mutates', () => {
+  const hook = join(repoRoot, '.githooks', 'pre-commit')
+  const scratch = mkdtempSync(join(tmpdir(), 'qh-staged-'))
+  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
+  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8' })
+  try {
+    git('init', '-q', '-b', 'main', '.')
+
+    // Nothing staged: the hook must stay out of the way, or the refusal below is
+    // satisfied by a hook that refuses everything.
+    assert.equal(run().status, 0, 'an ordinary commit must pay nothing')
+
+    // A file that is not a shipped script is not this guard's business either.
+    writeFileSync(join(scratch, 'notes.md'), '# notes\n')
+    git('add', 'notes.md')
+    assert.equal(run().status, 0, 'only plugin/bin and plugin/scripts are shipped')
+
+    mkdirSync(join(scratch, 'plugin', 'scripts'), { recursive: true })
+    writeFileSync(join(scratch, 'plugin', 'scripts', 'definitely-not-catalogued.mjs'), 'export const x = 1\n')
+    git('add', join('plugin', 'scripts', 'definitely-not-catalogued.mjs'))
+    const refused = run()
+    assert.equal(refused.status, 1, 'a shipped addition nothing mutates must be refused')
+    assert.match(refused.stderr, /REFUSED/)
+    assert.match(refused.stderr, /definitely-not-catalogued\.mjs/,
+      'the refusal must name the file, not merely complain')
+  } finally {
+    rmSync(scratch, { recursive: true, force: true })
+  }
 })
 
 test('no mutation tool left a gate neutered in this tree', () => {

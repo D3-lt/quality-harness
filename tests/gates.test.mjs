@@ -1379,8 +1379,15 @@ test('every shipped gate answers --version with the version of the tree it was r
 
     for (const gate of gates) {
       cpSync(join(bin, gate), join(temp, 'bin', gate))
+      // cwd is the REPOSITORY, deliberately, and the gate lives in `temp/bin`.
+      // Running from `temp` made "the manifest beside the gate" and "the manifest
+      // under the caller's directory" the SAME path, so a mutant resolving from
+      // cwd SURVIVED — measured 2026-09-04, and the survivor was a finding about
+      // this test rather than about the gate. From here the two answers differ:
+      // cwd resolution finds the repository's own manifest, which the assertion
+      // below refuses to see.
       const out = spawnSync('python3', [join(temp, 'bin', gate), '--version'],
-        { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+        { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
       assert.equal(out.status, 0, `${gate} --version must exit 0: ${out.stdout}${out.stderr}`)
       assert.match(out.stdout, /^0\.0\.0-fixture$|0\.0\.0-fixture/,
         `${gate} must report the manifest beside IT, not the repository it came from ` +
@@ -1406,7 +1413,7 @@ test('a gate whose manifest cannot be read says so instead of guessing', () => {
     // No .claude-plugin at all.
     cpSync(join(bin, 'adr-lint'), join(temp, 'bin', 'adr-lint'))
     const out = spawnSync('python3', [join(temp, 'bin', 'adr-lint'), '--version'],
-      { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
     assert.equal(out.status, 0, `it advises, it does not block: ${out.stdout}${out.stderr}`)
     assert.match(out.stdout, /version unreadable/,
       `it must say it could not look: ${out.stdout}`)

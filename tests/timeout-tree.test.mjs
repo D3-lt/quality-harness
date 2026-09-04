@@ -340,3 +340,54 @@ for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
     await assertTreeDied(dir, gate, elapsed)
   })
 }
+
+// CLAUDE.md §3, inside the gate's own cleanup. `kill_tree` swallowed every
+// answer and returned None, so adr-verify printed "was killed" whether or not
+// anything had died — an observation it did not make, on the platform BACKLOG
+// §123 records the tree kill as NOT working at all. Both arms are asserted
+// because a check that can only report success reports nothing.
+test('kill_tree answers for the kill it made, on both arms', () => {
+  const probe = `import importlib.machinery, importlib.util, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+answers = lambda code: (lambda argv, **kw: subprocess.CompletedProcess(argv, code))
+print(module.kill_tree(4242, "nt", run=answers(0)),
+      module.kill_tree(4242, "nt", run=answers(1)),
+      module.kill_tree(4242, "nt", run=lambda argv, **kw: None))
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    assert.equal(run.stdout.trim(), 'True False False',
+      `${gate}: kill_tree must report what it observed, not assume the kill worked`)
+  }
+})
+
+// And the answer has to travel, because the code that prints the verdict is
+// nowhere near the code that did the killing. The VALUE is platform-dependent
+// and is asserted deterministically by the test above; what is asserted here is
+// that it reaches the caller at all.
+test('a timed-out run_bounded carries the cleanup answer on its exception', () => {
+  const probe = `import importlib.machinery, importlib.util, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+try:
+    module.run_bounded([sys.executable, "-c", "import time; time.sleep(30)"],
+                       timeout=0.5, capture_output=True, text=True)
+    print("NO TIMEOUT")
+except subprocess.TimeoutExpired as expired:
+    print(hasattr(expired, "tree_killed"), expired.tree_killed)
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    assert.match(run.stdout.trim(), /^True (True|False)$/,
+      `${gate}: run_bounded must carry what the cleanup observed — got ${run.stdout.trim()}`)
+  }
+})

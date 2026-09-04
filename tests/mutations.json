@@ -4531,8 +4531,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "            os.killpg(pid, signal.SIGKILL)",
-      "to": "            os.kill(pid, signal.SIGKILL)"
+      "from": "        os.killpg(pid, signal.SIGKILL)",
+      "to": "        os.kill(pid, signal.SIGKILL)"
     },
     {
       "label": "spec: a runner timeout kills the tree the runner started, not only the shell",
@@ -4540,8 +4540,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "            os.killpg(pid, signal.SIGKILL)",
-      "to": "            os.kill(pid, signal.SIGKILL)"
+      "from": "        os.killpg(pid, signal.SIGKILL)",
+      "to": "        os.kill(pid, signal.SIGKILL)"
     },
     {
       "label": "mcp: a gate timeout kills the tree the gate started, not only the gate",
@@ -4549,8 +4549,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "            os.killpg(pid, signal.SIGKILL)",
-      "to": "            os.kill(pid, signal.SIGKILL)"
+      "from": "        os.killpg(pid, signal.SIGKILL)",
+      "to": "        os.kill(pid, signal.SIGKILL)"
     },
     {
       "label": "verify: an interrupted gate kills the tree it started",
@@ -4567,8 +4567,26 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "    try:\n        kill_tree(proc.pid, platform)\n        return proc.communicate(timeout=grace)",
-      "to": "    kill_tree(proc.pid, platform)\n    try:\n        return proc.communicate(timeout=grace)"
+      "from": "    killed = False\n    try:\n        killed = kill_tree(proc.pid, platform)\n        out, err = proc.communicate(timeout=grace)",
+      "to": "    killed = kill_tree(proc.pid, platform)\n    try:\n        out, err = proc.communicate(timeout=grace)"
+    },
+    {
+      "label": "verify: kill_tree answers for the kill it made, never assumes one",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            return getattr(done, \"returncode\", None) == 0",
+      "to": "            return True"
+    },
+    {
+      "label": "doctor: an unreadable claims ledger reaches the exit code",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  if (!home.looked || !moved.looked || !ledger.looked) {",
+      "to": "  if (!home.looked || !moved.looked) {"
     },
     {
       "label": "stop: a confident claim over unverified edits is named as a false success",

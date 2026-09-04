@@ -178,7 +178,7 @@ One task, in `tasks/`. See `tasks/README.md`.
 ## Out of Scope
 
 - An arbitrary-shell AST or runtime data-flow analysis for dynamic package and output expressions. (permanent: executing or fully interpreting shell is a different trust boundary; `adr-verify` remains the authority there.)
-- Equivalent reachability rules for PHPUnit, pytest, Vitest, Cargo and other runners. (deferred: docs/BACKLOG.md §78 — that entry already places the broader class in a fence linter.)
+- Equivalent reachability rules for PHPUnit, pytest, Vitest, Cargo and other runners. (deferred: docs/BACKLOG.md §118 — repointed 2026-09-04 from §78, which was CLOSED and about a different defect; §118 records why and receipts this record.)
 - Automatically rewriting a consumer's Acceptance fence. (permanent: gates advise and never mutate a user's records.)
 - Proving that Go build tags, generators, wrappers or subtest names make a direct source definition runnable. (permanent: this pass proves only the literal package/source relationship it can observe.)
 

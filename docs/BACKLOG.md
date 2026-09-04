@@ -7507,3 +7507,35 @@ that did not match what it claimed to.
 
 **Verified:** `adr-next` on ADR-012 now prints all five tasks `done`, agreeing with the README and
 with `adr-lint`. Two catalogue mutations, one per direction.
+
+## 118. Reachability rules exist for Go only, and ADR-015 deferred the rest into a CLOSED entry
+
+**Opened 2026-09-04**, from an `adr-debt` UNRECEIPTED finding a peer session reported by driving the
+`qh-mcp` gates from a client with no shell, and reproduced here.
+
+**The finding as the tool put it:** `ADR-015` → `docs/BACKLOG.md`, *"Equivalent reachability rules for
+PHPUnit, pytest, Vitest, Cargo and other runners"* — the destination exists and never names ADR-015
+back. `grep -c 'ADR-015' docs/BACKLOG.md` returned **0**.
+
+**The missing receipt was the smaller half.** ADR-015's Out of Scope defers that item to **§78**, on
+the reasoning that *"that entry already places the broader class in a fence linter"*. §78 is
+`CLOSED 2026-09-02`, and it is about something else: `! grep` cannot fail a `set -e` fence. Its
+"belongs in a fence linter" line was about the vacuity idiom, not about per-runner reachability. So
+the deferral pointed into an entry that was closed three days later for a different reason — **a punt
+into nothing, which the receipt check is exactly what surfaces.** A closed destination cannot receive
+work, and nothing would ever have re-read §78 looking for this.
+
+**What is actually deferred, and still is.** `ADR-015` gives Go one rule: a fence naming a Go test
+must be able to reach its required success, and a `-run` filter that matches nothing is not a pass.
+The same failure mode exists for every other runner this corpus's adopters use — PHPUnit's
+`--filter`, pytest's `-k`, Vitest's `-t`, Cargo's filter argument — and each one exits **0** when its
+selector matches nothing. Nothing in this repository implements or tests those.
+
+**Not started, and sized honestly:** four runners, four selector grammars, and each needs the
+falsifiability fixture the Go rule has — a fence that matches nothing must be shown to be caught,
+not merely asserted to be. The 2026-08-29 consumer-repo report in this wing's inbox is the evidence
+that this bites in practice: a PHP repo was handed `npm run build` as its check, and the same class
+of "a command that cannot fail for this change" is what per-runner reachability is meant to catch.
+
+**Receipt:** this entry names `ADR-015-a-go-fence-can-reach-its-required-success.md`, and ADR-015's
+deferral is repointed here from §78.

@@ -8,7 +8,7 @@
 **Consumes:** the existing `resolve_tasks_dir`, `load` and `blockers`, one level down
 **Data dependency:** hermetic — reads a directory tree, writes nothing, spawns nothing
 **Proof map:** v1
-**Rests-on:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`
+**Rests-on:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`, `next: a record folder is not a corpus of one`
 
 ## Goal
 
@@ -81,7 +81,7 @@ message defect it replaces, because callers already branch on those codes.
 ## Invariants
 
 - The exit contract is identical on both paths: 0 when something is ready, 3 when nothing is, 1 when the tool could not answer. A corpus that is merely large never reads as a corpus that is done.
-- A directory that owns task files of its own takes the single-record path, unchanged, whatever else it contains — so no invocation that worked before this task behaves differently after it.
+- A directory with a `tasks/` child of its own takes the single-record path, unchanged. **This invariant was written WRONG first and the code matched the wrong version**: it said "a directory that owns task files of its own", which is false of a record folder — `ADR-007-slug/` keeps its tasks in `tasks/` beside them, not directly — so a record folder was answered as a corpus holding one record named `tasks`. A previously working input, silently reshaped, with the exit code right throughout. Found by a Codex review, not by this suite; the condition is now `resolve_tasks_dir(target) == target`, asked through the same resolver the rest of the gate uses.
 - One copy of the readiness rule. `classify` is called by both paths and by nothing else.
 - A record folder that resolves to no tasks is absent from the corpus answer rather than an error.
 - The single-record `--json` shape is unchanged; the corpus form adds a `records` object and does not alter the old keys.

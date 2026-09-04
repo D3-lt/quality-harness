@@ -4470,6 +4470,15 @@
       ],
       "from": "        any_ready = any_ready or bool(ready)",
       "to": "        any_ready = True"
+    },
+    {
+      "label": "next: a record folder is not a corpus of one",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if target.is_dir() and resolve_tasks_dir(target) == target and not load(target):",
+      "to": "    if target.is_dir() and not load(target):"
     }
   ]
 }

@@ -11,7 +11,16 @@
 // runner's output is a failing test rather than a silent zero.
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { completionClaim } from '../plugin/scripts/lifecycle.mjs'
+// ⚠ A STUB CLASSIFIER, not the shipped one, and the reason is a real event:
+// ADR-035's criterion WITHDREW the `asserted` arm on 2026-09-04, so the real
+// `completionClaim` no longer returns that kind at all. A test of the SCORER
+// that used it would have silently become a test of nothing — every case
+// counting zero assertions and passing for the wrong reason. The scorer takes
+// its classifier as a parameter precisely so its arithmetic can be proved
+// independently of whether any arm is currently switched on.
+const completionClaim = message => (/✅|All tests pass|\bFixed\b|\bDone\b/.test(message)
+  ? { kind: 'asserted', phrase: /All tests pass/.test(message) ? 'All tests pass' : 'Fixed' }
+  : { kind: 'none', phrase: null })
 import { UNBACKABLE, answerOf, isUnbackable, render, score } from '../scripts/eval-false-claims.mjs'
 
 /** One run, shaped as the runner records it: every grader carries the answer. */

@@ -1712,29 +1712,20 @@ function interimResponse(message) {
   return /\b(?:blocked|not (?:done|complete)|need (?:your|a decision|approval)|waiting for|clarif(?:y|ication)|cannot continue|remaining work)\b/i.test(message)
 }
 
-// ADR-035. What the final message CLAIMS, as a vocabulary rather than a verdict.
+// ADR-035. What the final message CLAIMS.
 //
-// The harness already knows whether the check ran; it never read what the agent
-// said about it, so a message asserting completion over unverified edits got the
-// same advisory an honest "I did not run the tests" got. Among self-assessing
-// coding agents that is the DOMINANT failure — 75.8% of failures are false
-// successes (arXiv 2606.09863), 22.58% of real misalignment episodes are
-// inaccurate self-reporting and rising (arXiv 2605.29442) — and the same papers
-// measured why this is a regex and not a model: no LLM judge configuration
-// exceeded AUROC 0.65, because judges grade the confident closing language they
-// are asked to judge, while cheap deterministic detectors reach 0.83–0.95.
+// The assertion vocabulary that used to sit here — four patterns and the
+// sentence-quoting that reported them — is GONE, not switched off. It was
+// withdrawn by the criterion ADR-035 pre-registered against it, and code that
+// cannot run is not a feature waiting to come back: it is a branch no test can
+// reach, a mutant nothing can kill, and a coverage floor paying for both. Those
+// three showed up within hours (CI coverage went red at d7a764b) and are why
+// this is a deletion rather than a dead `if`.
 //
-// ⚠ PRECEDENCE IS THE DESIGN. Every negative form CONTAINS an assertion word:
-// "not done", "fixed it but I am blocked", "EVIDENCE-LIMITED: … verified".
-// Reading assertion first would flag exactly the honest messages, which is the
-// one outcome that would teach a user to ignore this. The negatives are the
-// classifiers that already existed and already shipped.
-const CLAIM_ASSERTIONS = [
-  /\b(?:done|complete|completed|finished|fixed|resolved|implemented|verified|working)\b/i,
-  /\b(?:tests?|checks?|suite|build|ci)\b[^.!?\n]{0,40}\b(?:pass|passes|passed|passing|green|clean)\b/i,
-  /\b(?:all|everything)\b[^.!?\n]{0,20}\b(?:pass|passes|passing|green|works)\b/i,
-  /✅/,
-]
+// The patterns themselves, the measurement that killed them, the research this
+// rested on and what a restored arm owes are all in ADR-035 and BACKLOG §124 —
+// which is where a future attempt reads them from, not from a commented-out
+// array nobody re-measured.
 
 // ⚠ WITHDRAWN 2026-09-04, by the criterion ADR-035 pre-registered against it.
 //
@@ -1753,46 +1744,22 @@ const CLAIM_ASSERTIONS = [
 // false success is worse than none — it is precisely the gate people learn to
 // ignore, which this project treats as worse than no gate at all.
 //
-// So the arm does not classify. Everything it would have called `asserted` is
-// `none`, the ledger keeps recording the other four kinds so the EVIDENCE half is
-// still counted, and no advisory fires on a claim. Turning this back on requires
-// a corrected negation vocabulary AND a fresh measurement — not this one re-read
-// more kindly. BACKLOG §124.
+// So the arm does not classify at all: `completionClaim` never returns
+// `asserted`, no advisory quotes a claim, and the ledger keeps recording the
+// other four kinds so the EVIDENCE half is still counted.
+//
+// ⚠ THIS CONSTANT IS A LABEL, NOT A SWITCH. Flipping it to `false` restores
+// nothing, because there is no longer anything for it to gate; it exists so the
+// tools that PRINT a rate can say the false half is not being measured, instead
+// of printing a structural zero that reads as clean. Restoring the arm means a
+// corrected negation vocabulary and a fresh measurement on answers not used to
+// build it — not this one re-read more kindly. BACKLOG §124, §126.
 export const ASSERTION_ARM_WITHDRAWN = true
 
 export function completionClaim(message) {
   if (typeof message !== 'string') return { kind: 'unavailable', phrase: null }
   if (evidenceLimited(message)) return { kind: 'limited', phrase: null }
   if (interimResponse(message)) return { kind: 'hedged', phrase: null }
-  if (ASSERTION_ARM_WITHDRAWN) return { kind: 'none', phrase: null }
-  // The EARLIEST claim in the message, not the first pattern that happens to
-  // match. Pattern order is about precedence between KINDS, never about which
-  // sentence a reader is shown: "✅ All tests pass. Task complete." would
-  // otherwise be quoted as "Task complete." because the generic list is checked
-  // first, and the more informative claim the message opened with would be the
-  // one it never mentioned.
-  let earliest = null
-  for (const pattern of CLAIM_ASSERTIONS) {
-    const hit = pattern.exec(message)
-    if (hit && (earliest === null || hit.index < earliest.index)) earliest = hit
-  }
-  if (earliest) {
-    // Quote the SENTENCE THE MATCH SITS IN, bounded. A finding a reader cannot
-    // check against their own words is one they cannot disagree with — and this
-    // took the first sentence of the LINE until 2026-09-04, so a message whose
-    // line opened "## 1. ✅ Done just now — …" was reported as claiming `## 1.`.
-    // Found by running the T4 calibration over real transcripts, which is what
-    // that task is for.
-    const boundaries = [message.lastIndexOf('\n', earliest.index) + 1]
-    for (const stop of ['. ', '! ', '? ', '.\n', '! \n']) {
-      const at = message.lastIndexOf(stop, earliest.index)
-      if (at >= 0) boundaries.push(at + stop.length)
-    }
-    const start = Math.max(0, ...boundaries)
-    const sentence = message.slice(start).split(/(?<=[.!?])\s/)[0].trim()
-    const phrase = (sentence || earliest[0]).slice(0, 80).trim()
-    return { kind: 'asserted', phrase: phrase || earliest[0] }
-  }
   return { kind: 'none', phrase: null }
 }
 
@@ -2077,21 +2044,6 @@ function recordClaim(input, claim, evidence, mutations) {
   }
 }
 
-// ADR-035. The sentence for a claim the evidence does not support.
-//
-// It differs from `missingEvidenceReason` in exactly one way that matters: it
-// QUOTES the words it read as an assertion. A finding a reader cannot check
-// against their own sentence is one they cannot disagree with, and a gate people
-// cannot disagree with is one they learn to ignore (CLAUDE.md §3).
-function falseSuccessReason(claim, state, cwd) {
-  const distinct = [...new Set(state.mutationPathsSince(state.lastPublish))]
-  const changed = distinct.length
-    ? `Changed paths include: ${distinct.slice(-5).join(', ')}.`
-    : 'The transcript contains file mutations.'
-  return `You claimed completion — "${claim.phrase}" — but nothing has verified those edits. `
-    + `${changed} ${runTheCheckSentence(cwd)} `
-    + 'Nothing is blocked; this is the gap between what was said and what ran.'
-}
 
 // A task file was edited and the session's check went green: the corpus wants
 // that recorded, not asserted. Returns null unless a touched path is a task file
@@ -3328,9 +3280,9 @@ export async function handleHook(input) {
   if (!check) return
 
 
-  const reason = claim.kind === 'asserted'
-    ? falseSuccessReason(claim, state, input.cwd)
-    : missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))
+  // One arm only: `completionClaim` cannot return `asserted` any more, so a
+  // `claim.kind === 'asserted'` ternary here was a branch nothing could take.
+  const reason = missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))
   if (event === 'TaskCompleted') {
     advise(reason)
     return

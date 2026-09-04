@@ -7178,7 +7178,7 @@ the shape to build if this is picked up.
 report that led to ADR-026 came from a non-native English speaker, and "too technical"
 and "not in my language" are different problems that were easy to conflate.
 
-## 113. No gate answers `--version`, so verifying an upgrade takes inventing a method
+## 113. CLOSED 2026-09-04 by ADR-031 — no gate answered `--version`, and the sibling this entry proposed was the wrong shape
 
 **Filed 2026-09-03 with ADR-027, from GitHub issue #9.** `grep -c '\-\-version' plugin/bin/adr-lint`
 returns 0, and the same holds for the other ten gates. An adopter upgrading to 2.57.1 could not ask
@@ -7196,6 +7196,27 @@ corpus keeps finding). That choice is the work, not the flag.
 **The sibling nobody has raised.** `qh-root` already resolves the plugin root and is the natural
 place for a version answer, so this may be one gate's change rather than eleven. Measure before
 assuming: `for f in plugin/bin/*; do case "$f" in *.cmd) continue;; esac; grep -c 'version' "$f"; done`.
+
+**CLOSED 2026-09-04 by ADR-031. The measurement this entry asked for was run, and it answered the
+opposite of the sibling above.** Eleven gates, `--version:0` on every one, confirmed by the command
+this entry names.
+
+**The sibling — "`qh-root` already resolves the plugin root, so this may be one gate's change rather
+than eleven" — is exactly the answer ADR-031 rejects, and rejects for a reason this entry had in
+front of it.** A central answer reports whichever copy of ITSELF resolved. CLAUDE.md §2 records two
+PATH mechanisms that resolve differently and a machine may carry both, so `qh-root`'s answer can be
+about a different install from the `adr-lint` whose output is being questioned. A version that can be
+about another binary is worse than none, because it resolves. Per-gate it is, and the duplication is
+the point: eleven gates that answer for themselves DISAGREE when the installs disagree, which is the
+finding an adopter cannot otherwise get.
+
+**The other half of the class question — runtime read versus baked at release — was already settled
+by precedent, not by argument.** `qh-doctor` reads `version` from `plugin.json` at run time
+(`plugin/scripts/qh-doctor.mjs:96-99`). Baking is the stored-count defect this corpus keeps finding.
+
+**Still open, and deferred rather than done:** `--version` on the `.mjs` scripts under
+`plugin/scripts/`. They are not on `PATH` as bare names, so the two-mechanism trap does not reach
+them, and `qh-doctor` already answers for that surface — but nothing checks that claim.
 
 
 ## 114. Does an intermediate plan layer actually help a weak executor, or only shape its failures?
@@ -7348,6 +7369,25 @@ branch that leaves `main()` before the preflight:
 `--human` and `--human-mutant` had the same silence, and fixing the `--mutant` path does not reach
 them. Neither runs a fence, so both REFUSE `--steps` rather than carry it, beside the `--covers`
 guard that refuses the same shape of meaningless combination.
+
+⚠ **THE PARAGRAPH ABOVE WAS WRONG WHEN IT WAS WRITTEN, AND AN INDEPENDENT REVIEW CAUGHT IT THE SAME
+DAY.** It says the sweep found "two more" and reads as though the set were then complete. Codex,
+reviewing 429ec43..407d75b on 2026-09-04, found **two further** members: `--restore` exits before the
+preflight (reproduced: `--steps S1 --restore` → exit 0, flag dropped) and `--sweep` omitted `--steps`
+from its incompatibility list at `plugin/bin/adr-verify:2321-2324`. Four members, not two.
+
+**The lesson is about the command, not the count.** CLAUDE.md §5 says enumerate with a command
+rather than from memory, and that was obeyed — the sweep ran
+`grep -n 'if human_mutant is not None:\|if human is not None:\|if steps is not None:'`. It found what
+it searched for. It could not find `--restore` or `--sweep` because it searched for three branch
+NAMES instead of for every exit out of `main()`, so those two were never in the corpus it looked at.
+**A sweep is only as complete as the command that ran it, and a command written from the instances
+you already know reproduces the gap it was meant to close.** The general form of a correct sweep here
+is "every `sys.exit` reachable before the check", which is a question about control flow, not a
+grep for names.
+
+All four refuse now, and `tests/evidence-chain.test.mjs` pairs each path with the phrase it must
+produce — a shared non-zero check would have passed on the `unknown option` these once returned.
 
 **Still open, and named here rather than claimed clean:** the sweep covered `--steps` only. The
 general form — a flag validated in `main()` and consumed on one of several paths out of it — was not

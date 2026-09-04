@@ -16,7 +16,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | [a gate answers for itself](T1-a-gate-answers-for-itself.md) | pending | — | `node --test tests/gates.test.mjs …` |
+| T1 | [a gate answers for itself](T1-a-gate-answers-for-itself.md) | done | — | `node --test tests/gates.test.mjs …` |
 
 ## Contract Coupling
 

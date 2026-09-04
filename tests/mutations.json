@@ -4459,7 +4459,7 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "        if records:",
+      "from": "        if records or unreadable:",
       "to": "        if False:"
     },
     {
@@ -4488,6 +4488,42 @@
       ],
       "from": "        if undecided and ready:",
       "to": "        if False and ready:"
+    },
+    {
+      "label": "next: an unreadable record is could-not-look, not a record holding nothing",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            list(child.iterdir())",
+      "to": "            pass"
+    },
+    {
+      "label": "next: nothing ready is a verdict only when everything was read",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    verdict = 0 if any_ready else (1 if unreadable else 3)",
+      "to": "    verdict = 0 if any_ready else 3"
+    },
+    {
+      "label": "next: a status that could not be read is unknown, never decided",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        undecided = None if status is None else bool(not re.match(r\"accepted\\b\", status, re.I))",
+      "to": "        undecided = status is not None and not re.match(r\"accepted\\b\", status, re.I)"
+    },
+    {
+      "label": "next: a symlinked record's owner sits beside the link, not beside its target",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        record_dir = (record_dir.absolute() if record_dir is not None",
+      "to": "        record_dir = (tasks_dir.resolve().parent if record_dir is not None"
     }
   ]
 }

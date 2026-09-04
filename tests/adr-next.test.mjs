@@ -771,12 +771,13 @@ test('nothing ready plus an unreadable record is exit 1, not exit 3', {
   }
 })
 
-// An unprivileged Windows account cannot create a directory symlink, so the
-// fixture itself is unavailable there — the same reason
-// tests/standalone-link.test.mjs skips its file-symlink case (CLAUDE.md §7).
-test('a symlinked record finds the record file beside the link, not beside its target', {
-  skip: process.platform === 'win32' ? 'no unprivileged directory symlink' : false,
-}, () => {
+// NOT skipped on Windows, and that is measured rather than assumed. This was
+// briefly skipped as "no unprivileged directory symlink", by analogy with
+// tests/standalone-link.test.mjs — but the windows job's own log for `5303c92`
+// shows this test PASSING there. The GitHub runner can create one. The analogy
+// was wrong and the skip would have deleted working coverage, which is the same
+// defect as a stale claim, pointed the other way.
+test('a symlinked record finds the record file beside the link, not beside its target', () => {
   // MEDIUM. `owning_record_status` resolved the tasks path, which follows the
   // symlink, so it looked for the record file in the link's TARGET directory.
   // It found none, and unknown status was then reported as `undecided: false` —

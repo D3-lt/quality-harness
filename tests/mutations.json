@@ -4279,8 +4279,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    if steps is not None:",
-      "to": "    if steps is not None and mutant is None:"
+      "from": "    if steps is not None:\n        declared = declared_steps(text)",
+      "to": "    if steps is not None and mutant is None:\n        declared = declared_steps(text)"
     },
     {
       "label": "steps: naming steps for a run this tool never took is refused",
@@ -4308,6 +4308,33 @@
       ],
       "from": "        print(f\"{here.name} (version unreadable: {manifest} — {exc})\")",
       "to": "        print(f\"{here.name} 2.60.0\")"
+    },
+    {
+      "label": "steps: the UNPROVEN early return records the steps its run named",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps)",
+      "to": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha)"
+    },
+    {
+      "label": "steps: --restore names no run, so the flag is refused there",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "        if steps is not None:\n            fail(\"--steps cannot be combined with --restore; recovery runs no fence, \"\n                 \"so there is no run whose steps could be named\")\n",
+      "to": ""
+    },
+    {
+      "label": "steps: --sweep runs other tasks' fences, so the flag is refused there",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                            (\"--covers\", covers), (\"--steps\", steps),",
+      "to": "                            (\"--covers\", covers),"
     }
   ]
 }

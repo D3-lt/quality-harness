@@ -8,7 +8,11 @@
 **Consumes:** `claims.jsonl` row schema (T2)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the bucket partition`, `the zero-row refusal`, `the malformed-row accounting`, `the pass/fail counters the fence greps for`
+**Rests-on:** `the bucket partition`, `the zero-row refusal`, `the malformed-row accounting`
+
+<The fence's own `grep` guards are not listed, for the reason T1 gives: `Rests-on`
+names mechanisms in the SOURCE that a mutation can break, and no edit to
+`claims-rate.mjs` can break a guard living in this file's fence.>
 
 ## Goal
 

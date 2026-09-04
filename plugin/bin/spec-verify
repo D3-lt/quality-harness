@@ -91,7 +91,7 @@ def is_unbound(test):
     return bool(UNBOUND_RE.fullmatch(test.strip()))
 
 
-def kill_tree(pid, platform=None, run=subprocess.run):
+def kill_tree(pid, platform=None, run=subprocess.run, timeout=15):
     """Kill PID and everything it started (BACKLOG §120). NEVER RAISES.
 
     `subprocess.run(timeout=)` kills its direct child and nothing else; a
@@ -116,7 +116,10 @@ def kill_tree(pid, platform=None, run=subprocess.run):
     """
     try:
         if (platform or os.name) == "nt":
-            done = run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+            # BOUNDED: taskkill can hang, and unbounded it wears the timeout's
+            # name. A TimeoutExpired answers False — not confirmed.
+            done = run(["taskkill", "/F", "/T", "/PID", str(pid)],
+                       capture_output=True, timeout=timeout)
             return getattr(done, "returncode", None) == 0
         os.killpg(pid, signal.SIGKILL)
         return True

@@ -263,6 +263,42 @@ print(seen)
   assert.equal(run.stdout.trim(), "[['taskkill', '/F', '/T', '/PID', '4242']]")
 })
 
+// The half of the Codex finding that was left behind, and it cost a Windows CI
+// job the same day: `taskkill` had no timeout, so a hung taskkill hung the gate
+// — a cleanup that wears the fence timeout's name. It is bounded now, and a
+// taskkill that never returns answers False (not confirmed) instead of never
+// answering. Both arms, because a bound that is never exceeded proves nothing.
+test('a taskkill that hangs is bounded, and answers "not confirmed"', () => {
+  const probe = `import importlib.machinery, importlib.util, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+
+seen = {}
+def bounded(argv, **kw):
+    seen["timeout"] = kw.get("timeout")
+    return subprocess.CompletedProcess(argv, 0)
+
+def hangs(argv, **kw):
+    raise subprocess.TimeoutExpired(argv, kw.get("timeout"))
+
+print(module.kill_tree(4242, "nt", run=bounded), seen["timeout"],
+      module.kill_tree(4242, "nt", run=hangs))
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    const [confirmed, timeout, hung] = run.stdout.trim().split(/\s+/)
+    assert.equal(confirmed, 'True', `${gate}: a taskkill that answered 0 is a confirmed kill`)
+    assert.ok(Number(timeout) > 0,
+      `${gate}: taskkill must be given a timeout — unbounded, it wears the fence timeout's name`)
+    assert.equal(hung, 'False',
+      `${gate}: a taskkill that never returned is NOT a confirmed kill`)
+  }
+})
+
 // An INTERRUPTED gate takes its tree with it too. `subprocess.run` kills its
 // child on any exception, and the first `run_bounded` did not: a Ctrl-C reached
 // the `with` block, which then WAITED for bash's `sleep 60` while the heartbeat

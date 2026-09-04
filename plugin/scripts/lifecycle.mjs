@@ -1740,16 +1740,33 @@ export function completionClaim(message) {
   if (typeof message !== 'string') return { kind: 'unavailable', phrase: null }
   if (evidenceLimited(message)) return { kind: 'limited', phrase: null }
   if (interimResponse(message)) return { kind: 'hedged', phrase: null }
+  // The EARLIEST claim in the message, not the first pattern that happens to
+  // match. Pattern order is about precedence between KINDS, never about which
+  // sentence a reader is shown: "✅ All tests pass. Task complete." would
+  // otherwise be quoted as "Task complete." because the generic list is checked
+  // first, and the more informative claim the message opened with would be the
+  // one it never mentioned.
+  let earliest = null
   for (const pattern of CLAIM_ASSERTIONS) {
     const hit = pattern.exec(message)
-    if (!hit) continue
-    // Quote the SENTENCE the match sits in, bounded. A finding a reader cannot
-    // check against their own words is one they cannot disagree with.
-    const start = Math.max(0, message.lastIndexOf('\n', hit.index) + 1)
-    const end = message.length
-    const sentence = message.slice(start, end).split(/(?<=[.!?])\s/)[0].trim()
-    const phrase = (sentence || hit[0]).slice(0, 80).trim()
-    return { kind: 'asserted', phrase: phrase || hit[0] }
+    if (hit && (earliest === null || hit.index < earliest.index)) earliest = hit
+  }
+  if (earliest) {
+    // Quote the SENTENCE THE MATCH SITS IN, bounded. A finding a reader cannot
+    // check against their own words is one they cannot disagree with — and this
+    // took the first sentence of the LINE until 2026-09-04, so a message whose
+    // line opened "## 1. ✅ Done just now — …" was reported as claiming `## 1.`.
+    // Found by running the T4 calibration over real transcripts, which is what
+    // that task is for.
+    const boundaries = [message.lastIndexOf('\n', earliest.index) + 1]
+    for (const stop of ['. ', '! ', '? ', '.\n', '! \n']) {
+      const at = message.lastIndexOf(stop, earliest.index)
+      if (at >= 0) boundaries.push(at + stop.length)
+    }
+    const start = Math.max(0, ...boundaries)
+    const sentence = message.slice(start).split(/(?<=[.!?])\s/)[0].trim()
+    const phrase = (sentence || earliest[0]).slice(0, 80).trim()
+    return { kind: 'asserted', phrase: phrase || earliest[0] }
   }
   return { kind: 'none', phrase: null }
 }

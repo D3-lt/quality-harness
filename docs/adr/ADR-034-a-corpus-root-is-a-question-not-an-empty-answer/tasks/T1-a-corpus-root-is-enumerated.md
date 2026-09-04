@@ -89,3 +89,4 @@ message defect it replaces, because callers already branch on those codes.
 ## Mutation Log
 
 ## Verification Log
+- 2026-09-04 · a9676f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:16044 · steps:S1,S2,S3,S4,S5,S6

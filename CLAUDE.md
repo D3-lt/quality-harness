@@ -363,6 +363,19 @@ is in genuine tension with a measured result. Both are things to raise before so
 
 ## 12. Reviews
 
+**A SUBSTANTIVE CHANGE GETS A CODEX REVIEW BEFORE IT IS RELEASED.** Standing rule, set by the owner
+2026-09-04. Substantive means behaviour changed: a gate's logic, a script's semantics, a new check.
+Not a version bump, not prose, not a test-only edit. Run it after the gate is green and before the
+tag — that is the point where a finding is still cheap and the diff is still small enough to name.
+
+The reason is measured rather than assumed, and it is the sentence at the end of this section: on
+this repository the last three Codex passes each found real defects, and every one was in code
+written the same day to fix the same class. A session reviewing its own fresh work is the worst
+reviewer of it available, which is exactly what a different lineage is for.
+
+Do not treat a clean pass as evidence of correctness — a review that found nothing is one reviewer's
+silence, not a verdict, and it never substitutes for the gate or the campaign.
+
 `/quality-harness:codex-review` runs a different-lineage read-only review. Two operational notes,
 both learned the hard way on 2026-08-28:
 

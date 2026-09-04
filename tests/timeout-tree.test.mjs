@@ -17,13 +17,14 @@
 // through (CLAUDE.md §4): adr-verify's ordinary fence run, its --sweep, and the
 // helper spec-verify and qh-mcp share by copy.
 import assert from 'node:assert/strict'
+import { spawn } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { runPython } from '../scripts/python-interpreter.mjs'
+import { pythonArgv, runPython } from '../scripts/python-interpreter.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -173,3 +174,81 @@ print(seen)
   assert.equal(run.status, 0, run.stdout + run.stderr)
   assert.equal(run.stdout.trim(), "[['taskkill', '/F', '/T', '/PID', '4242']]")
 })
+
+// An INTERRUPTED gate takes its tree with it too. `subprocess.run` kills its
+// child on any exception, and the first `run_bounded` did not: a Ctrl-C reached
+// the `with` block, which then WAITED for bash's `sleep 60` while the heartbeat
+// ran on — found by the Codex review's own probe on 2026-09-04. SIGINT is a
+// Python KeyboardInterrupt on POSIX; on Windows `process.kill()` terminates the
+// process outright and no handler runs, so there is nothing to assert there.
+const posixOnly = {
+  skip: process.platform === 'win32'
+    ? 'process.kill(pid, "SIGINT") terminates a Windows process outright; no Python handler runs'
+    : false,
+}
+
+async function until(predicate, ms) {
+  const deadline = Date.now() + ms
+  while (Date.now() < deadline) {
+    if (predicate()) return true
+    await new Promise(r => setTimeout(r, 100))
+  }
+  return false
+}
+
+/** SIGINT a running gate once its fence has started beating; return the exit wait. */
+async function interruptOnceBeating(child, beatDir, label) {
+  child.stdout.resume()
+  child.stderr.resume()
+  const exited = new Promise(r => child.on('exit', r))
+  assert.ok(await until(() => beat(beatDir) !== '', 15_000), `${label}: the fence never started its heartbeat`)
+  const started = Date.now()
+  child.kill('SIGINT')
+  const done = await Promise.race([exited.then(() => true), new Promise(r => setTimeout(() => r(false), 30_000))])
+  const elapsed = Date.now() - started
+  if (!done) child.kill('SIGKILL')
+  assert.ok(done, `${label}: the gate did not exit within 30s of SIGINT — it waited for its fence instead of killing it`)
+  return elapsed
+}
+
+test('adr-verify: an interrupted fence run takes its tree with it', posixOnly, async () => {
+  const dir = scratch()
+  const path = task(dir, 'T1', HEARTBEAT_FENCE)
+  const [command, ...prefix] = pythonArgv()
+  const child = spawn(command, [...prefix, join(bin, 'adr-verify'), path, '--cwd', dir], {
+    cwd: dir, env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '60' }, stdio: ['ignore', 'pipe', 'pipe'],
+  })
+  const elapsed = await interruptOnceBeating(child, dir, 'interrupted fence run')
+  await assertTreeDied(dir, 'interrupted fence run', elapsed)
+})
+
+const INTERRUPT_PROBE = `import importlib.machinery, importlib.util, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+child = (
+    "import subprocess, sys, time\\n"
+    "subprocess.Popen([sys.executable, '-c', 'import time\\\\nfor i in range(100):\\\\n"
+    "    open(\\"beat.txt\\", \\"w\\").write(str(i))\\\\n    time.sleep(0.2)'])\\n"
+    "time.sleep(60)\\n"
+)
+try:
+    module.run_bounded([sys.executable, "-c", child], timeout=60, cwd=sys.argv[2],
+                       capture_output=True, text=True)
+except KeyboardInterrupt:
+    print("interrupted", flush=True)
+`
+
+for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  test(`${gate}: an interrupted run_bounded kills the tree`, posixOnly, async () => {
+    const dir = scratch()
+    const [command, ...prefix] = pythonArgv()
+    const child = spawn(command, [...prefix, '-c', INTERRUPT_PROBE, join(bin, gate), dir], {
+      cwd: dir, stdio: ['ignore', 'pipe', 'pipe'],
+    })
+    const elapsed = await interruptOnceBeating(child, dir, gate)
+    await assertTreeDied(dir, gate, elapsed)
+  })
+}

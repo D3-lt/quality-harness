@@ -7,7 +7,7 @@
 // and `unavailable` are excluded and printed, never quietly counted as clean.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -185,4 +185,31 @@ test('a claim or evidence value this does not recognise is excluded, not counted
   assert.equal(known.false, 1)
   assert.equal(known.held, 1)
   assert.equal(known.excluded, 1)
+})
+
+// BACKLOG §125's remaining sibling: every ledger read error printed "no ledger …
+// Nothing has been recorded", so a permission or type error was presented as an
+// observed absence — the same collapse `qh-doctor` was fixed for. ENOENT really
+// is "nothing recorded yet"; nothing else is.
+test('an unreadable ledger is could-not-read, and a missing one is still absence', () => {
+  const home = mkdtempSync(join(os.tmpdir(), 'qh-claims-read-'))
+  temps.push(home)
+  const missing = join(home, 'claims.jsonl')
+
+  const absent = run('--ledger', missing)
+  assert.equal(absent.status, 0, 'this reads and never blocks')
+  assert.match(absent.stdout, /no ledger at/)
+  assert.doesNotMatch(absent.stdout, /COULD NOT READ/)
+  assert.equal(JSON.parse(run('--ledger', missing, '--json').stdout).looked, true,
+    'ENOENT is an observation: there is nothing there')
+
+  // A DIRECTORY where the file should be. Not ENOENT, so it is a failure to look.
+  const blind = join(home, 'as-a-directory')
+  mkdirSync(blind, { recursive: true })
+  const unreadable = run('--ledger', blind)
+  assert.equal(unreadable.status, 0, 'could-not-read is still not a blocking finding (§3)')
+  assert.match(unreadable.stdout, /COULD NOT READ/)
+  assert.doesNotMatch(unreadable.stdout, /Nothing has been recorded/,
+    'a read that failed must not be rendered as an empty ledger')
+  assert.equal(JSON.parse(run('--ledger', blind, '--json').stdout).looked, false)
 })

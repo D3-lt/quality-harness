@@ -2336,26 +2336,48 @@ test('a plain run still writes no mutation row', () => {
 // the lifecycle costs (docs/BACKLOG.md §111) — a field that names one run and
 // totals two corrupts the measurement that justified the record.
 test('the recorded duration is the clean fence, not the clean fence plus the mutant', () => {
+  // The fence sleeps a second so it DOMINATES process startup. A ratio against
+  // the whole invocation was the first attempt and it was vacuous: the fixture's
+  // fence is ~100ms, startup is the same order, so the buggy total and the
+  // correct one did not separate and the test passed with the defect put back.
+  const SLEEP_MS = 1000
+  const fence = '```bash\nset -e\npython3 -c "import time; time.sleep(1)"\n'
+    + 'adr-lint ADR-001-selftest.md tasks\n```'
+
+  // ⚠ THE CEILING USED TO BE A CONSTANT (SLEEP_MS * 1.8), AND A CONSTANT IS A
+  // CLOCK. Measured 2026-09-04 on one tree: this passed at 2.21s alone and
+  // FAILED at 4.77s with a review running beside it — the fence still slept
+  // once, the machine was just busy, and the test could not tell those apart
+  // (BACKLOG §127b). So the ceiling is now a MEASUREMENT taken on the same
+  // machine moments earlier: one run of the same fence. Both invocations pay the
+  // same startup and the same load, so the ratio separates one sleep from two
+  // however slow the runner is. The FLOOR stays absolute on purpose — load only
+  // ever makes `ms` bigger, so a floor cannot false-fail, and it is what catches
+  // an implementation that records zero.
+  const baseline = corpus()
+  writeTask(baseline, readTask(baseline).replace(/```bash\n[\s\S]*?\n```/, fence))
+  // Its EXIT is not the point and is not asserted: outside the mutant flow this
+  // fence's lint fails, and an entry is written either way. What the baseline is
+  // for is one honest measurement of one run of this fence on this machine.
+  verify(baseline, ['--cwd', '.'])
+  const single = Number(/ms:(\d+)/.exec(entriesIn(readTask(baseline)).at(-1))[1])
+  assert.ok(single >= SLEEP_MS * 0.8,
+    `the baseline recorded ms:${single}, below the second it provably sleeps — it is not a usable yardstick`)
+
   const copy = corpus()
   addMutationLog(copy)
-  // A RATIO against the whole invocation was the first attempt and it was
-  // vacuous: the fixture's fence is ~100ms, process startup is the same order,
-  // so the buggy total and the correct one did not separate and the test passed
-  // with the defect deliberately put back. An absolute floor the fence itself
-  // dominates is what makes the two answers distinguishable.
-  const SLEEP_MS = 1000
-  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/,
-    '```bash\nset -e\npython3 -c "import time; time.sleep(1)"\nadr-lint ADR-001-selftest.md tasks\n```'))
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/, fence))
   expectExit(mutate(copy), 0, 'mutant killed')
 
   const entry = entriesIn(readTask(copy)).at(-1)
   const ms = Number(/ms:(\d+)/.exec(entry)[1])
-  // The fence sleeps a second and runs TWICE in this invocation — clean, then
-  // mutated. One sleep is the clean run; two means the mutant leaked in.
   assert.ok(ms >= SLEEP_MS * 0.8,
     `ms:${ms} is below the one second the clean fence provably sleeps:\n${entry}`)
-  assert.ok(ms < SLEEP_MS * 1.8,
-    `ms:${ms} spans both sleeps, so it timed the mutant run too:\n${entry}`)
+  // The fence runs TWICE in this invocation — clean, then mutated. One sleep is
+  // the clean run; two means the mutant leaked into the number.
+  assert.ok(ms < single * 1.6,
+    `ms:${ms} against a single measured run of ${single}ms — that spans both `
+    + `sleeps, so it timed the mutant run too:\n${entry}`)
 })
 
 // Measured 2026-09-03 by feeding each runner's real empty-run output to the

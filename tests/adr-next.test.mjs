@@ -709,7 +709,14 @@ test('a corpus names an undecided record before offering its tasks as ready', ()
 
 // --- the three findings a Codex review reproduced on 2026-09-04 -------------
 
-test('a record this tool could not read is not counted as a record holding nothing', () => {
+// A Git for Windows checkout has no POSIX permission bits — `chmod 000` on a
+// directory does not make it unlistable there, so this fixture cannot be built
+// (CLAUDE.md §7). Skipped with the reason named rather than asserted weakly:
+// "could not build the fixture" is not "the mechanism holds". The mutation that
+// binds this mechanism runs on ubuntu, where the fixture is real.
+test('a record this tool could not read is not counted as a record holding nothing', {
+  skip: process.platform === 'win32' ? 'no unreadable directory without POSIX permission bits' : false,
+}, () => {
   // HIGH. ADR-005, inside the code written to fix an ADR-005 violation: a
   // `chmod 000` record with a ready task came back as "none ready", exit 3 — a
   // verdict, from a directory nothing looked inside. The ready task may be in
@@ -732,18 +739,28 @@ test('a record this tool could not read is not counted as a record holding nothi
   }
 })
 
-test('nothing ready plus an unreadable record is exit 1, but a readable corpus is exit 3', () => {
-  // Both answers, in one test. Exit 3 says "I looked everywhere and nothing is
-  // ready"; that claim is unavailable while a record is unread, and 1 is the
-  // code this gate already uses for "could not answer". Without the second half
-  // a fix that returns 1 unconditionally would pass.
+test('a fully-read corpus with nothing ready is exit 3, a real verdict', () => {
+  // The portable half, and it runs everywhere: exit 3 is the claim "I looked at
+  // all of it and nothing is ready".
   const { dir } = twoRecords('ADR-003-T1')
   writeFileSync(join(dir, 'ADR-003-target', 'tasks', 'T1-t.md'),
     task({ id: 'T1', human: true, evidence: true,
            signoff: '- 2026-08-26 · human-observed · STOPPED — Zy said do not proceed' }))
   assert.equal(next([dir, '--all'], dir).status, 3,
     'a fully-read corpus with nothing ready is a real verdict')
+})
 
+test('nothing ready plus an unreadable record is exit 1, not exit 3', {
+  skip: process.platform === 'win32' ? 'no unreadable directory without POSIX permission bits' : false,
+}, () => {
+  // The other answer. Split from the test above so the exit-3 half keeps running
+  // on Windows: skipping both would leave the whole exit contract unasserted
+  // there, and a skip that takes a portable assertion with it is a skip that
+  // costs more than it saves.
+  const { dir } = twoRecords('ADR-003-T1')
+  writeFileSync(join(dir, 'ADR-003-target', 'tasks', 'T1-t.md'),
+    task({ id: 'T1', human: true, evidence: true,
+           signoff: '- 2026-08-26 · human-observed · STOPPED — Zy said do not proceed' }))
   const locked = join(dir, 'ADR-007-source')
   try {
     chmodSync(locked, 0o000)
@@ -754,7 +771,12 @@ test('nothing ready plus an unreadable record is exit 1, but a readable corpus i
   }
 })
 
-test('a symlinked record finds the record file beside the link, not beside its target', () => {
+// An unprivileged Windows account cannot create a directory symlink, so the
+// fixture itself is unavailable there — the same reason
+// tests/standalone-link.test.mjs skips its file-symlink case (CLAUDE.md §7).
+test('a symlinked record finds the record file beside the link, not beside its target', {
+  skip: process.platform === 'win32' ? 'no unprivileged directory symlink' : false,
+}, () => {
   // MEDIUM. `owning_record_status` resolved the tasks path, which follows the
   // symlink, so it looked for the record file in the link's TARGET directory.
   // It found none, and unknown status was then reported as `undecided: false` —

@@ -185,3 +185,16 @@ Why: `.claude/rules/13-releasing.md`
   no edge is an orphan), `am_add_drawer` for decisions and corrections, verbatim.
 
 Why: `.claude/rules/14-mrw-and-agentsmemory.md`
+
+## 15. Ask what CI says about this branch before you plan anything on it
+
+- A local gate and a CI job are **different checks answering different questions**. `selftest.sh`
+  green is not `coverage.sh` green, and neither is "the branch is green".
+- **A branch whose CI you have not read is UNKNOWN, not green.** So is one whose run is still
+  running, and so is one you could not look at because `gh` is absent.
+- `scripts/branch-state.mjs` says it unprompted at session start, the way the memory bootstrap
+  does. It reads, blocks nothing, and exits 0 whatever it finds. Run it by hand any time.
+- It reports state, never permission. **`node scripts/release-evidence.mjs <sha>` remains the only
+  answer to "may this be released"** (§13.4).
+
+Why: `.claude/rules/15-know-what-ci-says.md`

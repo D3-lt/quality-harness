@@ -55,7 +55,14 @@ done
 here=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 guard="$here/../scripts/staged-mutation-guard.mjs"
 if [ -f "$guard" ] && command -v node >/dev/null 2>&1; then
-  added=$(git diff --cached --name-only --diff-filter=A -- 'plugin/scripts/*.mjs' 'plugin/bin/*' 2>/dev/null || true)
+  # SCOPE, aligned with `tests/package.test.mjs::every shipped gate carries at
+  # least one mutation`: every tracked file under plugin/scripts whatever its
+  # extension (it ships .sh as well as .mjs), plus plugin/bin — minus the `.cmd`
+  # shims, which that invariant excludes deliberately because they forward and
+  # carry no logic. A narrower pathspec missed real files; a wider one refused
+  # exempt ones.
+  added=$(git diff --cached --name-only --diff-filter=A -- 'plugin/scripts' 'plugin/bin' 2>/dev/null \
+    | grep -v '\.cmd$' || true)
   if [ -n "$added" ]; then
     printf '%s\n' "$added" | node "$guard" || exit 1
   fi

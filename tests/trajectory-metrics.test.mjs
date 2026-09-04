@@ -136,9 +136,21 @@ test('a directory that could not be read is reported as PARTIAL, not as absence'
   const files = taskFiles(dir, unreadableDirs, () => { throw new Error('EACCES') })
   assert.deepEqual(files, [], 'nothing was readable here')
   assert.ok(unreadableDirs.length > 0, 'and that has to be reported, not inferred from emptiness')
+  // ⚠ MEASURE THE INJECTED LIST, not a second successful walk. The first version
+  // of this test computed totals from `taskFiles(dir)` — which reads the real
+  // directory and finds the task — so `totals.tasks` was 1 and render never took
+  // the early-return path. That is the ONE path an unreadable root actually
+  // produces, and it was dropping PARTIAL entirely: the test asserted the line
+  // appears while exercising the branch where it already did.
+  const totals = measure(files)
+  assert.equal(totals.tasks, 0, 'an unreadable root yields no files — this is the early-return path')
+  const partial = render(totals, dir, { unreadableDirs })
+  assert.match(partial, /PARTIAL/, 'the case PARTIAL exists for is the case that must say it')
+  assert.match(partial, /no task files/, 'and it says so beside the emptiness, not instead of it')
 
-  const totals = measure(taskFiles(dir))
-  assert.match(render(totals, dir, { unreadableDirs }), /PARTIAL/)
-  assert.doesNotMatch(render(totals, dir), /PARTIAL/,
-    'a corpus that was fully read must not claim it was partial')
+  // The evidenced-but-empty early return takes it too.
+  assert.match(render(measure(taskFiles(corpus({ T1: task() }))), dir, { unreadableDirs }), /PARTIAL/)
+
+  // A corpus that WAS fully read must not claim it was partial.
+  assert.doesNotMatch(render(measure(taskFiles(dir)), dir), /PARTIAL/)
 })

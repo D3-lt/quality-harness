@@ -4040,6 +4040,15 @@
       "to": "        clean_elapsed_ms = 0"
     },
     {
+      "label": "verify: the recorded duration does not span the mutant run too",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "               clean_elapsed_ms, entry_sha, steps)",
+      "to": "               round((time.monotonic() - clean_started) * 1000), entry_sha, steps)"
+    },
+    {
       "label": "verify: an empty unittest or cargo run is not counted as evidence",
       "file": "plugin/bin/adr-verify",
       "tests": [

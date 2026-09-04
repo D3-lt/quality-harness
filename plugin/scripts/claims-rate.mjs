@@ -172,12 +172,23 @@ function main(argv = process.argv.slice(2)) {
   let text
   try {
     text = readFileSync(ledger, 'utf8')
-  } catch {
-    // Could not look. Not a finding, and emphatically not a clean one.
-    const message = `claims-rate: no ledger at ${ledger}. Nothing has been recorded on this `
-      + 'machine yet, which is not a rate of zero.'
+  } catch (error) {
+    // ⚠ ENOENT AND EACCES ARE DIFFERENT ANSWERS, and collapsing them is the
+    // sibling BACKLOG §125 named and this closes: "no ledger" is an observation,
+    // "could not read the ledger" is a failure to make one, and only the first is
+    // a clean bill (ADR-005). Exit stays 0 either way — this reads and never
+    // blocks (CLAUDE.md §3).
+    const absent = error.code === 'ENOENT'
+    const message = absent
+      ? `claims-rate: no ledger at ${ledger}. Nothing has been recorded on this `
+        + 'machine yet, which is not a rate of zero.'
+      : `claims-rate: COULD NOT READ ${ledger} (${error.code ?? error.message}). `
+        + 'That is not an empty ledger and not a rate of zero — it is a read that failed.'
     process.stdout.write(asJson
-      ? `${JSON.stringify({ rows: 0, false: 0, held: 0, excluded: 0, unreadable: 0, denominator: 0, rate: null, ledger })}\n`
+      ? `${JSON.stringify({
+        rows: 0, false: 0, held: 0, excluded: 0, unreadable: 0, unrecognised: 0,
+        denominator: 0, rate: null, ledger, looked: absent,
+      })}\n`
       : `${message}\n`)
     return 0
   }

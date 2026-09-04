@@ -18,6 +18,7 @@
 // about their corpus. This is a repository-local commit hook, and its
 // neighbour already refuses for the same reason — the cheapest moment to fix
 // this is before the commit exists.
+import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import process from 'node:process'
@@ -45,11 +46,28 @@ export function missingMutations(added, catalogueText) {
   return { looked: true, missing: added.filter(file => !covered.has(file)) }
 }
 
+/**
+ * The catalogue AS STAGED, falling back to the one beside this script.
+ *
+ * ⚠ READING THE WORKING TREE HERE WOULD DEFEAT THE GUARD: an entry added but not
+ * staged would bless a commit whose `tests/mutations.json` does not contain it,
+ * which is the same "the check saw something the commit does not" defect one
+ * level up. `git show :path` reads the INDEX, which is what is about to become
+ * the commit. The fallback exists so the suite can drive the real guard from a
+ * scratch repository that has no staged catalogue of its own.
+ */
+export function stagedCatalogue(run, fallback) {
+  const staged = run(['show', ':tests/mutations.json'])
+  if (staged.status === 0 && staged.stdout.trim()) return staged.stdout
+  try { return readFileSync(fallback, 'utf8') } catch { return '' }
+}
+
 function main(stdin, catalogue = join(HERE, '..', 'tests', 'mutations.json')) {
   const added = stdin.split('\n').map(line => line.trim()).filter(Boolean)
   if (!added.length) return 0
-  let text = ''
-  try { text = readFileSync(catalogue, 'utf8') } catch { return 0 }
+  const text = stagedCatalogue(
+    args => spawnSync('git', args, { encoding: 'utf8' }), catalogue)
+  if (!text) return 0
   const { looked, missing } = missingMutations(added, text)
   if (!looked || !missing.length) return 0
   process.stderr.write([

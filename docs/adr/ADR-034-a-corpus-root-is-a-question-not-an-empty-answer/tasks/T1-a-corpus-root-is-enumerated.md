@@ -8,7 +8,7 @@
 **Consumes:** the existing `resolve_tasks_dir`, `load` and `blockers`, one level down
 **Data dependency:** hermetic — reads a directory tree, writes nothing, spawns nothing
 **Proof map:** v1
-**Rests-on:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`, `next: a record folder is not a corpus of one`, `next: a corpus names an undecided record before offering its tasks`
+**Rests-on:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`, `next: a record folder is not a corpus of one`, `next: a corpus names an undecided record before offering its tasks`, `next: an unreadable record is could-not-look, not a record holding nothing`, `next: nothing ready is a verdict only when everything was read`, `next: a status that could not be read is unknown, never decided`, `next: a symlinked record's owner sits beside the link, not beside its target`
 
 ## Goal
 
@@ -33,6 +33,7 @@ ready work can never read as a corpus that is done.
 6. [S6] Gate the corpus branch on the target owning no task files of its own, so a directory that is both a tasks directory and a parent of records is answered the way it always was and no existing invocation changes. [proof: acceptance]
 7. [S7] Add two catalogue mutations and confirm both come back RED. [proof: mutation]
 8. [S8] Run a Codex review before the tag, per the standing rule added the same day. It was KILLED at 900s (`gtimeout`, exit 124) having reported only "Edge-case fixtures exposed prior-input and exit/observation regressions" with no detail — a lead, not a finding, and a killed review certifies nothing. Both halves were then reproduced by hand against v2.63.0 and fixed: a record folder answered as a corpus of one, and an undecided record's tasks offered with the not-Accepted warning dropped. Two more mutations, both RED. [proof: mutation]
+9. [S9] Re-run the review after fixing what the killed one pointed at. It finished, returned **REQUEST CHANGES**, and its three findings were all real and all reproduced in isolated fixtures: an unreadable record counted as a record holding nothing (exit 3 — a verdict, from a directory nothing looked inside), a symlinked record losing its owning status, and a dot-directory exclusion the record claimed not to have. Four more mutations, all RED. `Path.glob` swallowing `OSError` is why the first `try/except` could never fire. [proof: mutation]
 
 ## Acceptance
 

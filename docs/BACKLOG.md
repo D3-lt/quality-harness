@@ -7865,3 +7865,52 @@ assertion arm is off, and a denominator here may include rows nothing judged.
 ADR-035's withdrawal made unreachable. With the arm hard-off that replacement is behaviourally
 inert and is likely to SURVIVE the full campaign a tag forces. Not verified here — the campaign was
 not run for it — so it is named as a thing to watch on the v2.65.0 tag run, not as a finding.
+
+## 126. CLOSED 2026-09-04 — the withdrawal left its body behind, and three checks noticed inside four hours
+
+§124 withdrew ADR-035's `asserted` arm by making `completionClaim` return `none` before it reached
+the vocabulary. That was the right call and the criterion deserves the credit. What it did NOT do
+was remove the code below that early return, and **unreachable code is not a dormant feature — it is
+a branch no test can enter, a mutant nothing can kill, and a coverage floor paying for both.** All
+three arrived, on the same commit, without anyone looking for them:
+
+1. **The coverage floor went red at `d7a764b` and stayed red**, and the next session planned a
+   release on top of it. `bash scripts/coverage.sh` → exit 1, `93.91` against a floor of `94`. The
+   uncovered column named `plugin/scripts/lifecycle.mjs ... 1768-1796` — the whole assertion loop —
+   and `2086-2094`, `falseSuccessReason`, which only that loop could reach. Missing a floor by 0.09
+   is not a rounding problem; it is twenty-nine lines that stopped being executable at 17:20.
+
+2. **The mutation campaign reported a survivor, in CI, in the words this project uses for it:**
+
+       GREEN    stop: a confident claim over unverified edits is named as a false success
+                <- the tests did not notice
+       64/65 mutations were noticed.
+
+   `tests/mutations.json` still bound that mechanism to `const reason = claim.kind === 'asserted'`.
+   Nothing could kill it because nothing could reach it. The mutant was PREDICTED from source before
+   the shard finished and then observed — recorded that way round, because a prediction confirmed is
+   worth more than the same sentence written afterwards.
+
+3. **`claims-rate.mjs` had no idea the arm was off.** `ASSERTION_ARM_WITHDRAWN` lived in exactly one
+   file, and `counts.false` only ever increments on an `asserted` row, so the first real ledger would
+   have printed `0 / N completion claims were false successes (0.0%)` — a **structural** zero, not a
+   measured one. §124 warned about this in prose. The tool that prints the number said nothing, and
+   prose beside a gate is not the gate. `qh-doctor` then pointed readers at that rate without a word.
+
+**What was done.** `CLAIM_ASSERTIONS`, the loop, the sentence-quoting, `falseSuccessReason` and the
+`claim.kind === 'asserted'` ternary are deleted; so is the mutation entry that named them. The
+patterns, the measurement that killed them and what a restored arm owes live in ADR-035 and §124,
+which is where a future attempt reads them from rather than from a commented-out array nobody
+re-measured. `ASSERTION_ARM_WITHDRAWN` stays, and its meaning changed: **it is now a LABEL that
+`claims-rate` and `qh-doctor` read, not a switch.** Flipping it restores nothing. Both tools now say
+`claim detection is WITHDRAWN` beside any rate they print, both arms asserted in one test and both
+bound to a mutant.
+
+⚠ **§124's sentence calling it "the switch" is history and stays as written** (CLAUDE.md §10). This
+section is where the meaning changed.
+
+**The lesson, and it is not about this feature.** A pre-registered criterion that fires is only half
+the discipline; the other half is that withdrawing a feature is a DELETION, not an early return. An
+early return leaves the corpus asserting things about code that can no longer run — and every one of
+the three signals above was a check this repository already owned, already running, reporting
+correctly, with nobody reading it.

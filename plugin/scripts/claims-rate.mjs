@@ -21,6 +21,8 @@ import path from 'node:path'
 import process from 'node:process'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { ASSERTION_ARM_WITHDRAWN } from './lifecycle.mjs'
+
 const EXCLUDED_EVIDENCE = new Set(['no-check', 'could-not-look'])
 
 export function defaultLedger(env = process.env) {
@@ -72,7 +74,7 @@ export function tally(text) {
   return counts
 }
 
-export function render(counts, source) {
+export function render(counts, source, { armWithdrawn = ASSERTION_ARM_WITHDRAWN } = {}) {
   if (!counts.rows) {
     return `claims-rate: no observations in ${source}. Nothing has been recorded yet, `
       + 'which is not a rate of zero.'
@@ -86,6 +88,18 @@ export function render(counts, source) {
   const excluded = Object.entries(counts.by).sort()
     .map(([reason, count]) => `  ${reason}: ${count}`)
   const lines = [head]
+  // ⚠ THE ZERO IS STRUCTURAL WHILE THE ARM IS OFF. `counts.false` only ever
+  // increments on an `asserted` row, and nothing writes one any more (BACKLOG
+  // §124), so a fresh ledger reads "0 / N ... (0.0%)" whatever happened. A
+  // reader who is not told that sees a clean rate from a detector that is not
+  // running — the gate people learn to ignore, which this project holds to be
+  // worse than no gate. Historical `asserted` rows still count, so the number
+  // is not meaningless; it is just not a measurement of TODAY.
+  if (armWithdrawn) {
+    lines.push('⚠ claim detection is WITHDRAWN (BACKLOG §124): no new row can enter the false '
+      + 'half, so a 0 there means the arm is off, NOT that no false success occurred. Any '
+      + 'false count above comes from rows recorded before the withdrawal.')
+  }
   if (counts.excluded) {
     lines.push(`${counts.excluded} row(s) excluded — in neither half of the rate:`, ...excluded)
   }
@@ -141,7 +155,7 @@ function main(argv = process.argv.slice(2)) {
   }
   const counts = tally(text)
   process.stdout.write(asJson
-    ? `${JSON.stringify({ ...counts, ledger })}\n`
+    ? `${JSON.stringify({ ...counts, ledger, assertionArm: ASSERTION_ARM_WITHDRAWN ? 'withdrawn' : 'live' })}\n`
     : `${render(counts, ledger)}\n`)
   return 0
 }

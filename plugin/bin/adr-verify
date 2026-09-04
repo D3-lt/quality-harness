@@ -79,6 +79,12 @@ generated outputs whose command-entry state is the state to restore.
 
 Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
 --mutant; 0 for --restore) · 2 = usage, authoring, or transaction problem.
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root. Ask the gate whose output you are questioning rather than a
+resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
+which on a box carrying both PATH mechanisms can be a different install from the
+one that just ran (ADR-031).
 """
 import base64
 import datetime

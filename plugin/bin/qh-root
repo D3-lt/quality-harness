@@ -21,6 +21,12 @@ second mechanism to keep working on Windows.
 Exit: 0 with the path on stdout, 1 with an explanation on stderr when no
 installed copy can be found. Never a partial answer — a wrong root is worse
 than none, because it resolves.
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root. Ask the gate whose output you are questioning rather than a
+resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
+which on a box carrying both PATH mechanisms can be a different install from the
+one that just ran (ADR-031).
 """
 from __future__ import annotations
 

@@ -24,6 +24,12 @@ into the new ADR's Context, re-deferred with a fresh pointer, or classified as
 `(permanent: boundary: <reason>)` / `(permanent: fact: <claim>; citation: <typed receipt>)`.
 Debt that is never surfaced is debt that was silently dropped — this report is the
 surfacing mechanism.
+
+`--version` prints this gate's name, the version read from the manifest beside
+IT, and that root. Ask the gate whose output you are questioning rather than a
+resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
+which on a box carrying both PATH mechanisms can be a different install from the
+one that just ran (ADR-031).
 """
 import datetime
 import re

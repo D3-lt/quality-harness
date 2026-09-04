@@ -39,7 +39,8 @@ you, because over MCP the client names a path it cannot see.
 
 ## What you get
 
-Five tools. Each one runs the gate itself and hands back its output unchanged — the server never
+Seven tools. Each one runs the gate itself and hands back its output unchanged — the server never
+summarises, re-words or grades it, because a second opinion about a gate's output is a second gate.
 summarises, re-words or grades it, because a second opinion about a gate's output is a second gate.
 
 | Tool | Gate | Answers |
@@ -49,6 +50,8 @@ summarises, re-words or grades it, because a second opinion about a gate's outpu
 | `qh_adr_debt` | `adr-debt` | What did this corpus defer, and do the pointers still resolve? |
 | `qh_adr_judge` | `adr-judge` | Does this record rest on anything observable? (always advisory) |
 | `qh_arch_lint` | `arch-lint` | Does this architecture doc name checks that exist and can fail? |
+| `qh_adr_retire_check` | `adr-retire-check` | Does a retired/archived corpus still hold together? |
+| `qh_postmortem_verify` | `postmortem-verify` | Are these postmortems structured to be reusable? |
 
 **A finding is not an error.** The gates advise and never block. A gate that ran and found problems
 returns them as ordinary content with its exit code stated; the protocol's error channel is
@@ -72,6 +75,13 @@ There is no flag that turns them on. The server has one registrar, it is called 
 it sets the read-only annotation itself — so a tool here cannot be advertised read-only and execute
 something. A future author who wants one has to add a registrar and answer for it in review.
 
+`qh-root` is absent for a different reason, and it is a choice rather than a boundary. It is a
+reading gate and perfectly safe — it spawns nothing. It is also useless here: it answers *"which
+installed copy of this plugin is newest on this machine"*, and over MCP that machine is the
+**server's**, not yours. An answer about a different thing than the caller believes is the defect
+ADR-031 exists to prevent, and being harmless does not make it worth advertising. Ask a gate
+`--version` instead — every gate answers with the version of the tree it was loaded from.
+
 The consequence is real and worth stating plainly: **from Desktop you can be told what is wrong and
 you cannot record that you fixed it.** The evidence half of this lifecycle needs a shell. If you
 want it, install Claude Code.
@@ -86,5 +96,5 @@ printf '%s\n' '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}' \
   | python3 plugin/bin/qh-mcp
 ```
 
-Two JSON lines back, the second naming the five tools. If that works and Desktop still shows
+Two JSON lines back, the second naming the seven tools. If that works and Desktop still shows
 nothing, the problem is the config path, the interpreter, or the restart — in that order.

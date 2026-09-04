@@ -4632,6 +4632,33 @@
       ],
       "from": "      counts.unreadable += 1",
       "to": "      counts.rows -= 1"
+    },
+    {
+      "label": "trajectory: a killed mutant counts as proof the fence can fail",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    if (task.red > 0 || task.killed > 0) totals.showsFailing += 1",
+      "to": "    if (task.red > 0) totals.showsFailing += 1"
+    },
+    {
+      "label": "trajectory: a section running to end of file is still read",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "  return (end < 0 ? rest : rest.slice(0, end)).join('\\n')",
+      "to": "  return (end < 0 ? [] : rest.slice(0, end)).join('\\n')"
+    },
+    {
+      "label": "trajectory: a task that could not be read is in neither half",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    if (task.unreadable) { totals.unreadable += 1; continue }",
+      "to": "    if (task.unreadable) { totals.unevidenced += 1; continue }"
     }
   ]
 }

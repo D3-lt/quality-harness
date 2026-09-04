@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** None — no spec stage; the requirement is the measured finding in `docs/research/2026-08-28-verification-is-the-bottleneck.md` §2 and §11
 **Cross-references:** `docs/research/2026-08-28-verification-is-the-bottleneck.md`, ADR-005, ADR-006, ADR-010, ADR-012, `docs/BACKLOG.md`
-**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/claims-rate.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`
 **Enforced-by:** `stop: a confident claim over unverified edits is named as a false success`
 **Invalidates:** none — checked
 **Served-path change:** At `Stop`, a final message that asserts completion over edits nothing has verified is told *which words* made the claim and *which check* did not run, instead of the same advisory an honest "I did not run the tests" gets — and every completion event is written to a machine-local ledger so a false-success rate exists.
@@ -154,12 +154,16 @@ job, and a model's opinion of the prose never enters the chain (ADR-006, CLAUDE.
 Four tasks; see `tasks/README.md`. T1 classifies and advises, T2 records, T3 reads the rate, T4
 calibrates against real transcripts and is the criterion's own proof.
 
-**Two `adr-lint` advisories stand open while this record is Proposed, and both close on execution.**
-`Enforced-by:` names a mutation label T1 registers, and `Governs:` names
-`plugin/scripts/claims-rate.mjs`, which T3 creates. Naming what the decision will own is what makes
-the record checkable when the work lands; the alternative — writing `None` now and remembering to
-fill it in later — is the drift these headers exist to catch. A third advisory, on T4's missing TDD
-red step, stands permanently and says why in the task.
+**`Governs:` names only `plugin/scripts/lifecycle.mjs`, deliberately.** `plugin/scripts/claims-rate.mjs`
+does not exist until T3 creates it, and this repository does not merely advise on that: its own
+suite asserts that every pointer in the corpus resolves (`tests/gates.test.mjs::focused false-green
+regressions remain closed`), so declaring a path the decision will own later is a red gate, not a
+promise. T3's `## Affected Files` carries the new script, which is where scope comes from when
+`Governs:` does not name it; the header is widened in the commit that creates the file.
+
+**Two `adr-lint` advisories stand open on purpose.** `Enforced-by:` names a mutation label T1
+registers — the header exists to be checkable once the work lands, and writing `None` now is the
+drift it was built to catch. T4's missing TDD-red step stands permanently, and the task says why.
 
 ## Consequences
 

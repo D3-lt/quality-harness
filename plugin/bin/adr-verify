@@ -1720,7 +1720,7 @@ FENCE_TIMEOUT_DEFAULT = 1800
 
 
 def kill_tree(pid, platform=None, run=subprocess.run):
-    """Kill PID and everything it started (BACKLOG §120).
+    """Kill PID and everything it started (BACKLOG §120). NEVER RAISES.
 
     `subprocess.run(timeout=)` kills its direct child and nothing else. A fence
     runs through bash, so the real work — a test runner, a mutation campaign —
@@ -1729,18 +1729,56 @@ def kill_tree(pid, platform=None, run=subprocess.run):
     timeout that reports "stopped" while the work continues is a false verdict,
     not a slow one.
 
+    ⚠ `killpg(pid)`, NOT `killpg(getpgid(pid))`. `start_new_session=True` makes
+    the child a session leader, so its process group id IS its pid — and the
+    lookup is not merely redundant, it defeats the whole thing for the ordinary
+    shell pattern `work &`: the leader exits at once, `getpgid` raises
+    ProcessLookupError for a reaped pid, and the group that is still holding the
+    pipe is never signalled. Measured 2026-09-04 (Codex review of a46973e):
+    `bash -c 'sleep 3 &'` at a 0.3s timeout took **3.02s** through the lookup and
+    **0.31s** without it. The tests missed it because their fence keeps bash
+    alive in the foreground, which is the case the lookup happens to survive.
+
+    ⚠ IT NEVER RAISES, and that is not defensiveness. It runs while another
+    exception is in flight; one raised here REPLACES that exception, and the
+    caller then reports the wrong thing — measured in the same review, a
+    PermissionError from this function reached `qh-mcp`'s `except OSError` arm
+    and a gate that ran and timed out was reported as one that *did not start*
+    (ADR-005's exact class).
+
     `platform` and `run` are the seam (CLAUDE.md §7): the Windows branch is
     exercised on every host by injecting both, and taskkill is never spawned
     where it does not exist. Copied verbatim into spec-verify and qh-mcp — a
     shared module under bin/ would be read as a gate by the package tests.
     """
-    if (platform or os.name) == "nt":
-        run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
-        return
     try:
-        os.killpg(os.getpgid(pid), signal.SIGKILL)
-    except ProcessLookupError:
+        if (platform or os.name) == "nt":
+            run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+        else:
+            os.killpg(pid, signal.SIGKILL)
+    except Exception:
         pass
+
+
+def drain_after_kill(proc, platform, grace=10):
+    """Kill the tree and collect what it wrote, bounded, without raising.
+
+    Bounded because a descendant that made a session of its own escapes the
+    group kill and can hold the pipe open for ever; unbounded here, that hang
+    would wear the timeout's name. What it could not collect is None, which
+    every reader of a TimeoutExpired here already handles.
+    """
+    try:
+        kill_tree(proc.pid, platform)
+        return proc.communicate(timeout=grace)
+    except Exception:
+        for stream in (proc.stdout, proc.stderr, proc.stdin):
+            if stream is not None:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
+        return None, None
 
 
 def run_bounded(argv, *, timeout, platform=None, **popen):
@@ -1749,9 +1787,16 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
     The child starts in its own session (POSIX) or process group (Windows) so
     `kill_tree` has something to address. On `TimeoutExpired` the tree is
     killed, whatever the child had written is collected, and the exception is
-    re-raised carrying it, as `subprocess.run` would. Every other keyword goes
-    to Popen unchanged — `capture_output` included, spelled out here because
-    Popen does not take it.
+    re-raised carrying it. Every other keyword goes to Popen unchanged —
+    `capture_output` included, spelled out here because Popen does not take it.
+
+    Two deliberate differences from `subprocess.run`, both narrower than they
+    look. It does NOT use `with Popen(...)`: that block's exit waits on the
+    child with no bound, so a cleanup that failed to kill anything turned the
+    timeout into a hang (measured 3.41s against a 0.3s timeout). And on POSIX,
+    `subprocess.run` leaves the raw BYTES it had buffered on a text-mode
+    `TimeoutExpired` while this leaves decoded text; `decode_stream` accepts
+    either, and the difference is stated here rather than claimed away.
     """
     platform = platform or os.name
     if popen.pop("capture_output", False):
@@ -1761,20 +1806,18 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
                                   | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
     else:
         popen["start_new_session"] = True
-    with subprocess.Popen(argv, **popen) as proc:
-        try:
-            out, err = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            kill_tree(proc.pid, platform)
-            out, err = proc.communicate()
-            raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
-        except BaseException:
-            # subprocess.run kills its child on ANY exception — a Ctrl-C turned
-            # into KeyboardInterrupt, a SystemExit — so that a gate being stopped
-            # does not leave its fence behind. Without this the `with` block
-            # WAITS for the child instead, and the tree outlives the gate again.
-            kill_tree(proc.pid, platform)
-            raise
+    proc = subprocess.Popen(argv, **popen)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        out, err = drain_after_kill(proc, platform)
+        raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+    except BaseException:
+        # subprocess.run kills its child on ANY exception — a Ctrl-C turned
+        # into KeyboardInterrupt, a SystemExit — so that a gate being stopped
+        # does not leave its fence behind.
+        drain_after_kill(proc, platform)
+        raise
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 

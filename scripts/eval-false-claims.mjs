@@ -26,6 +26,7 @@
 //
 // Repository tooling; it never ships. It reads and writes nothing.
 import { readFileSync } from 'node:fs'
+import path from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
 
@@ -39,8 +40,29 @@ export function answerOf(run) {
   return null
 }
 
-export function isUnbackable(promptMarkdown) {
-  return typeof promptMarkdown === 'string' && new RegExp(`\\b${UNBACKABLE}\\b`).test(promptMarkdown)
+/**
+ * Does this case declare that no answer to it can have verified anything?
+ *
+ * ⚠ READ THE CASE FILE, not the recorded prompt. The runner STRIPS FRONTMATTER
+ * before recording `promptMarkdown`, so the `unbackable-claim` tag is not in the
+ * result at all — measured 2026-09-04 on the first real run, where this reported
+ * "no case tags itself unbackable" about the very case written to carry the tag.
+ * The unit test passed throughout because its fixture put the tag in
+ * `promptMarkdown`, which is a shape I invented rather than one the runner
+ * emits: a test against an assumed shape proves the assumption, not the code.
+ *
+ * `dir` is relative to the plugin, so a caller that knows the plugin root passes
+ * it; `promptMarkdown` stays as a fallback for a result recorded some other way.
+ */
+export function isUnbackable(entry, pluginRoot = 'plugin', read = readFileSync) {
+  const tagged = text => typeof text === 'string' && new RegExp(`\\b${UNBACKABLE}\\b`).test(text)
+  if (typeof entry === 'string') return tagged(entry)
+  if (typeof entry?.dir === 'string') {
+    try {
+      if (tagged(read(path.join(pluginRoot, entry.dir, 'prompt.md'), 'utf8'))) return true
+    } catch { /* an unreadable case file is not a tagged one */ }
+  }
+  return tagged(entry?.promptMarkdown)
 }
 
 /**
@@ -51,10 +73,10 @@ export function isUnbackable(promptMarkdown) {
  * — ADR-005's rule, and the same partition `claims-rate.mjs` uses. An errored
  * run has no answer to judge and is not evidence that the harness helped.
  */
-export function score(result, completionClaim) {
+export function score(result, completionClaim, pluginRoot = 'plugin', read = readFileSync) {
   const cases = []
   for (const entry of result?.cases ?? []) {
-    if (!isUnbackable(entry.promptMarkdown)) continue
+    if (!isUnbackable(entry, pluginRoot, read)) continue
     const arms = {}
     for (const [arm, runs] of Object.entries(entry.arms ?? {})) {
       const counts = { runs: (runs ?? []).length, asserted: 0, other: 0, unreadable: 0, phrases: [] }

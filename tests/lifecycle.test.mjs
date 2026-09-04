@@ -3894,6 +3894,12 @@ test('completionClaim reads negation before assertion', () => {
   assert.equal(completionClaim('The undone migration is still there.').kind, 'none')
   assert.equal(completionClaim('Passing the buck to the reviewer.').kind, 'none')
 
+  // The tick ALONE. Every other message here also says "All tests pass" or
+  // "complete", so the ✅ arm was matched by its neighbours and a mutant
+  // deleting it SURVIVED — an arm that could be removed with nothing noticing.
+  // Nothing in this sentence but the mark is in the vocabulary.
+  assert.equal(completionClaim('✅ Shipped to main.').kind, 'asserted')
+
   // The phrase is what an advisory quotes, so it must come from the message.
   const claim = completionClaim('✅ All tests pass. Task complete.')
   assert.ok(claim.phrase && '✅ All tests pass. Task complete.'.includes(claim.phrase),

@@ -7990,3 +7990,40 @@ finds NOTHING rather than everything: this runs at commit time, and a guard that
 because it could not read one file is a guard people turn off (ADR-005). The hook resolves the script
 relative to ITSELF rather than to the repository being committed, which is what lets the suite drive
 the real guard from a scratch repo (CLAUDE.md §9) instead of asserting the hook's text.
+
+## 128. OPEN — bounding `taskkill` did not fix the Windows hang, so the hang is not the kill call
+
+`adr-verify: a fence timeout kills the tree the fence started, not only bash` sits to its own 60s
+cap on Windows. `runPython(..., timeout: 60_000)` returns at ~60.1s, which means **adr-verify did
+not return at all** — this is a hang, not a bound being exceeded.
+
+**What is measured, and it is three runs:**
+
+| sha | Windows | what happened |
+|---|---|---|
+| `479fbef` | success | same `plugin/bin/adr-verify` blob as `0a18d04` |
+| `0a18d04` | failure | 60.0s cap, `adr-verify` byte-identical to the run above |
+| `867592c` | failure | 60.1s cap, **after** `taskkill` was given a 15s bound (§127a) |
+
+**What that rules out.** The first pair says it is not the content of `adr-verify` — the file was the
+same blob across a pass and a fail. The second says it is not an unbounded `taskkill`: the bound
+landed between those runs and the hang did not move. Both of the obvious explanations are gone.
+
+**What is still open.** Where the 60 seconds go. The arithmetic does not reach it: a 1s fence
+timeout, a 15s taskkill bound and a 10s `communicate` grace is ~26s worst case. Something waits
+that none of those three bound — the likely candidate is the second `communicate()` on a Windows
+pipe still held by a subshell `taskkill /T` could not reach, but that is a HYPOTHESIS and this
+repository does not record those as findings.
+
+**What was done instead.** The test is skipped on Windows with the measurement attached, the way
+its sibling already was — CLAUDE.md §7 says a fixture that cannot be built on a platform gets a
+`skip:` with the reason named, after the log shows it rather than by analogy. The log has now shown
+it twice. ⚠ **This does not make the Windows path work.** BACKLOG §123 stands: the tree kill is
+proved on macOS, unproved on Linux, and does not work on a Git Bash tree. A skipped test is an
+honest UNPROVEN, and it is worth less than a passing one — what it buys is a release that is not
+permanently red on a platform whose behaviour nobody has yet explained.
+
+**What would close this**, in order of what it costs: a Windows runner someone can attach a debugger
+to; or an instrumented run that prints a timestamp on each side of `kill_tree` and `communicate` so
+the 60 seconds can be attributed rather than guessed at. The second is cheap and does not need a
+Windows machine to design — only to run.

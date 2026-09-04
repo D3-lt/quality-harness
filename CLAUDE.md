@@ -20,10 +20,19 @@ user downloads that directory and nothing else — 663 K rather than the reposit
 |---|---|
 | `tests/`, `docs/`, `.github/`, `README.md`, `LICENSE` | `plugin/bin/`, `plugin/skills/`, `plugin/templates/`, `plugin/workflows/`, `plugin/hooks/`, `plugin/evals/` |
 | `.claude-plugin/marketplace.json` | `plugin/.claude-plugin/plugin.json` |
-| `scripts/selftest.sh`, `scripts/coverage.sh`, `scripts/mutate.mjs` | the other twelve, under `plugin/scripts/` |
+| `scripts/selftest.sh`, `scripts/coverage.sh`, `scripts/mutate.mjs` | everything else, under `plugin/scripts/` |
 
-Those three scripts stay because they read `tests/`, which does not ship. The twelve that moved
-resolve their own root as `dirname(dirname(import.meta.url))` and are correct wherever they sit.
+Those three scripts stay because they read `tests/`, which does not ship. The twelve that moved on
+2026-08-28 resolve their own root as `dirname(dirname(import.meta.url))` and are correct wherever
+they sit; so does everything added there since.
+
+**That sentence and the table row above it used to carry the same number, and only one of them
+could stay true.** "The twelve that moved" is dated, so it is a fact and cannot rot. "The other
+twelve, under `plugin/scripts/`" described the tree as it is, and the directory reached thirteen
+without anything noticing — measured 2026-09-04 with `git ls-files plugin/scripts/ | wc -l`. The
+rule this file follows from here: **a number in this document is written in the past tense and
+anchored to a date or a sha, or it is not written at all.** A count of the current tree belongs in
+the command that computes it, which is why the selftest line above no longer claims a test count.
 
 **There are now two roots and they are different directories.** In the tests, `repoRoot` is the
 repository and `root` is the plugin. Getting one wrong produces a check that measures the wrong tree

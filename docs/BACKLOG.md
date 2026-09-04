@@ -7593,7 +7593,7 @@ timeout semantics in `scripts/mutate.mjs` are written against `node --test`'s ou
 **Receipt:** the campaign is what enumerates this class, and a tag runs it in full with `--no-cache`
 (CLAUDE.md §13.6), which is why this surfaced on a release run rather than on a push.
 
-## 120. `adr-verify --sweep`'s fence timeout kills the fence and leaves its campaign running
+## 120. CLOSED 2026-09-04 (855d14d, 08344b7) — `adr-verify --sweep`'s fence timeout killed the fence and left its campaign running
 
 Found 2026-09-04 at `2dd1a39`, running `python3 plugin/bin/adr-verify --sweep docs/adr --json`
 from a Claude Code background shell for the research refresh. In order:
@@ -7645,3 +7645,26 @@ by a dead pid (`mutate.mjs:87-102`), but `grep -n restore scripts/mutate.mjs` fi
 is no on-demand restore from a stale journal the way `adr-verify --restore` offers one for its
 own. `git checkout` was the restore used here, which works only because the mutated file was
 tracked and otherwise clean.
+
+**Fixed 2026-09-04, the same day.** Every timeout site in the three gates that spawn — four in
+`adr-verify`, four in `spec-verify`, one in `qh-mcp` — now goes through `run_bounded`, which starts
+the child in its own session (POSIX) or process group (Windows) and calls `kill_tree` on
+`TimeoutExpired`: `os.killpg(…, SIGKILL)`, or `taskkill /F /T /PID`. Platform and kill command are
+parameters, so the Windows branch runs on every host (`tests/timeout-tree.test.mjs::kill_tree asks
+taskkill for the whole tree on Windows`). The helper is copied into each gate: a shared module under
+`bin/` is read as a gate by `tests/package.test.mjs`, and `tests/mcp-server.test.mjs` refuses the
+server source naming an executing gate — which the first copy's docstring did.
+
+The regression is at every boundary the defect came through: adr-verify's fence run, its `--sweep`,
+and the helper in each gate, with a pid-free heartbeat fixture because Git Bash reports MSYS pids.
+Red before the fix: *"the heartbeat kept moving after the gate reported the timeout"*. Three
+catalogue mutants narrow `killpg` to `kill`; four existing entries were re-pointed at the call sites
+they mutate. **Two of the three came back GREEN on the first run** (§4's class): the mutated helper
+kills only the direct child and then waits on the pipes the orphan still holds, so it returns only
+when the heartbeat's own twenty seconds end — after which "the beat stopped once the gate returned"
+is true for the wrong reason. The discriminator is *when* the gate returned; asserted first now, and
+`node scripts/mutate.mjs --no-cache --case 'kills the tree'` → `3/3 mutations were noticed`.
+
+Left open, named: the sweep is still a mutation run in effect (it runs fences that run the
+campaign), so it belongs in a clone; and `scripts/mutate.mjs` still has no on-demand restore from
+its own journal. Neither is what this section was about.

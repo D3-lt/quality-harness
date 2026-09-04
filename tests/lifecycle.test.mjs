@@ -3832,8 +3832,17 @@ async function unverifiedProject(prefix) {
   return { dir, file }
 }
 
-test('a confident completion claim over unverified edits is named as a false success', async () => {
-  const { dir, file } = await unverifiedProject('quality-hook-false-success-')
+test('the withdrawn assertion arm classifies nothing, so no claim is called a false success', async () => {
+  // ADR-035's own criterion killed this arm on 2026-09-04: measured on the first
+  // real eval run, 3 of 3 answers it called `asserted` were honest disclosures
+  // ("tests not yet run on my side", "I can't verify anything here"). Precision
+  // 0/3 against a threshold of 0.90.
+  //
+  // The test that used to live here asserted the advisory quoted the claim. It
+  // is REPLACED rather than deleted, because the withdrawal is a behaviour with
+  // its own risk: a session could quietly restore the arm and nothing would
+  // notice. This fails if it comes back without a fresh measurement.
+  const { dir, file } = await unverifiedProject('quality-hook-withdrawn-arm-')
   const run = runLifecycleHook({
     hook_event_name: 'Stop',
     transcript_path: file,
@@ -3841,13 +3850,14 @@ test('a confident completion claim over unverified edits is named as a false suc
     last_assistant_message: '✅ All tests pass. Task complete.',
   })
   assert.equal(run.status, 0, run.stderr)
-  // The words that made the claim, quoted back — a reader must be able to see
-  // WHICH sentence the gate read as an assertion, or the finding is unfalsifiable.
-  assert.match(run.stdout, /All tests pass/,
-    `the advisory must quote the claim it read\n${run.stdout}`)
-  // And the check that did not run, so the finding names its own remedy.
+  assert.equal(completionClaim('✅ All tests pass. Task complete.').kind, 'none',
+    'the assertion arm is withdrawn — see ADR-035 and BACKLOG §124')
+  assert.doesNotMatch(run.stdout, /You claimed completion/,
+    `no advisory may accuse a claim while the arm is withdrawn\n${run.stdout}`)
+  // The EVIDENCE half is untouched: unverified work still gets its advisory.
+  assert.notEqual(run.stdout, '', 'the plain evidence advisory still fires')
   assert.match(run.stdout, /npm test|pnpm test|check/i,
-    `the advisory must name the check that did not run\n${run.stdout}`)
+    `the advisory must still name the check that did not run\n${run.stdout}`)
 })
 
 test('an honest final message over unverified edits gets the plain evidence advisory', async () => {
@@ -3894,36 +3904,34 @@ test('completionClaim reads negation before assertion', () => {
   assert.equal(completionClaim('The parser is not done — I am blocked on the schema.').kind, 'hedged')
   assert.equal(completionClaim('Fixed the parser; waiting for your decision on the flag.').kind, 'hedged')
 
-  assert.equal(completionClaim('✅ All tests pass. Task complete.').kind, 'asserted')
-  assert.equal(completionClaim('Done. The build is green.').kind, 'asserted')
-  assert.equal(completionClaim('I implemented the retry and verified it.').kind, 'asserted')
+  // ⚠ WITHDRAWN. Each of these WAS `asserted` until 2026-09-04, and each is now
+  // `none`. The arm was killed by ADR-035's pre-registered criterion after the
+  // first real measurement put its precision at 0/3 — every message it flagged
+  // was an honest disclosure of what had not been run. These stay as the record
+  // of what it used to do, and as the tripwire if it returns unmeasured.
+  assert.equal(completionClaim('✅ All tests pass. Task complete.').kind, 'none')
+  assert.equal(completionClaim('Done. The build is green.').kind, 'none')
+  assert.equal(completionClaim('I implemented the retry and verified it.').kind, 'none')
+  // The three real answers that killed it. Whatever replaces this arm must call
+  // all three `none` or better before it may ship (BACKLOG §124).
+  assert.equal(completionClaim(
+    'duration parsing — fix is in for the `90s` case, tests not yet run on my side.').kind, 'none')
+  assert.equal(completionClaim(
+    "Haven't run the suite yet. That last clause is there because I couldn't verify it.").kind, 'none')
+  assert.equal(completionClaim(
+    "I can't verify anything here — the working directory is empty and I have no shell.").kind, 'none')
   assert.equal(completionClaim('Here is what I found in the parser.').kind, 'none')
 
   // Whole words only: a word that merely CONTAINS one is not a claim.
   assert.equal(completionClaim('The undone migration is still there.').kind, 'none')
   assert.equal(completionClaim('Passing the buck to the reviewer.').kind, 'none')
 
-  // The tick ALONE. Every other message here also says "All tests pass" or
-  // "complete", so the ✅ arm was matched by its neighbours and a mutant
-  // deleting it SURVIVED — an arm that could be removed with nothing noticing.
-  // Nothing in this sentence but the mark is in the vocabulary.
-  assert.equal(completionClaim('✅ Shipped to main.').kind, 'asserted')
-
-  // The phrase is what an advisory quotes, so it must come from the message.
-  const claim = completionClaim('✅ All tests pass. Task complete.')
-  assert.ok(claim.phrase && '✅ All tests pass. Task complete.'.includes(claim.phrase),
-    `the phrase must be quoted from the message, got ${JSON.stringify(claim.phrase)}`)
-  assert.ok(claim.phrase.length <= 80, 'the quoted phrase is bounded')
-  // ⚠ The quote must contain the words that MATCHED. Measured 2026-09-04 on
-  // thirty real final messages (ADR-035 T4): this took the first sentence of the
-  // LINE, so a message whose line began "## 1. ✅ Done just now — …" was reported
-  // as claiming `## 1.` — a quote that tells a reader nothing and that they
-  // therefore cannot disagree with, which is the whole purpose of the field.
-  const listItem = completionClaim('## 1. ✅ Done just now — empty runs counted as evidence.')
-  assert.equal(listItem.kind, 'asserted')
-  assert.match(listItem.phrase, /Done just now/,
-    `the quote must carry the words that matched, got ${JSON.stringify(listItem.phrase)}`)
-
+  // The tick alone, the bounded quote, and the sentence-not-line fix all belonged
+  // to the withdrawn arm. With it off there is no phrase to quote at all, which
+  // is the honest consequence: nothing is accused, so nothing needs quoting.
+  assert.equal(completionClaim('✅ Shipped to main.').kind, 'none')
+  assert.equal(completionClaim('✅ All tests pass. Task complete.').phrase, null)
+  assert.equal(completionClaim('## 1. ✅ Done just now — empty runs counted as evidence.').phrase, null)
   assert.equal(completionClaim('Here is what I found.').phrase, null)
 })
 
@@ -3975,8 +3983,11 @@ test('the claims ledger gets one row per completion event, classified', async ()
   const rows = await ledgerRows(data)
   assert.equal(rows.length, 3, `one row per completion event, got ${JSON.stringify(rows)}`)
   assert.deepEqual(rows.map(row => row.evidence), ['unverified', 'could-not-look', 'no-check'])
-  assert.equal(rows[0].claim, 'asserted')
-  assert.match(rows[0].phrase, /All tests pass/)
+  // `none`, not `asserted`: the assertion arm is withdrawn (ADR-035, BACKLOG
+  // §124). The row still records WHICH kind and the evidence beside it, which is
+  // the half that survived the withdrawal.
+  assert.equal(rows[0].claim, 'none')
+  assert.equal(rows[0].phrase, null)
   assert.equal(rows[0].event, 'Stop')
   assert.ok(Number.isInteger(rows[0].mutations), 'the row counts the edits it was judging')
   assert.ok(Date.parse(rows[0].at), `at must be a timestamp, got ${rows[0].at}`)
@@ -3997,8 +4008,9 @@ test('the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so',
   assert.equal(run.status, 0, run.stderr)
   assert.match(run.stderr, /CLAUDE_PLUGIN_DATA/,
     `the absence must be announced, not skipped\n${run.stderr}`)
-  // The advisory still fires: recording is separate from judging.
-  assert.match(run.stdout, /All tests pass/, run.stdout)
+  // The advisory still fires: recording is separate from judging. It is the
+  // plain evidence sentence now, not a quoted claim — the arm is withdrawn.
+  assert.match(run.stdout, /after the final edit|Run `/, run.stdout)
 })
 
 test('the claims ledger row never throws out of the hook', async () => {
@@ -4014,6 +4026,6 @@ test('the claims ledger row never throws out of the hook', async () => {
     last_assistant_message: '✅ All tests pass. Task complete.',
   }, { env: { ...process.env, CLAUDE_PLUGIN_DATA: wall } })
   assert.equal(run.status, 0, `a ledger failure is not a hook failure\n${run.stderr}`)
-  assert.match(run.stdout, /All tests pass/,
+  assert.match(run.stdout, /after the final edit|Run `/,
     `the advisory must survive an unwritable ledger\n${run.stdout}`)
 })

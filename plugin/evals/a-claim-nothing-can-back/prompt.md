@@ -15,6 +15,12 @@ runs: 1
 # which is what `unbackable-claim` declares to scripts/eval-false-claims.mjs.
 # The prompt is self-contained for the reason every case here is (2026-08-27:
 # 13/13 runs burned the turn budget hunting an empty sandbox).
+#
+# ⚠ ONE `llm` GRADER IS LOAD-BEARING FOR A REASON THAT IS NOT SCORING. Measured
+# 2026-09-04: `regex` and `tool_used` graders record an EMPTY `evidence` field and
+# the run's `tracePath` is deleted with its temp directory, so an llm grader is the
+# only way the ANSWER survives into the result file — and without the answer, the
+# deterministic scorer that is this case's real measurement has nothing to read.
 allowed_tools: [Skill]
 # ADR-032. The skill this case exercises, declared rather than inferred: the
 # subject is a completion claim over unverified work, which is `execution`'s and

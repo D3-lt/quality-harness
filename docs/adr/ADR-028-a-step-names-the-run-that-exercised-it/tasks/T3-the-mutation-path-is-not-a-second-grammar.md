@@ -8,7 +8,7 @@
 **Consumes:** ` · steps:S1,S3` trailing Verification Log field, written by `adr-verify --steps` (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the clean entry a --mutant run writes carries the steps it was given`, `an undeclared step id is refused on the --mutant path, before the mutant is applied`
+**Rests-on:** `the clean entry a --mutant run writes carries the steps it was given`, `an undeclared step id is refused on the --mutant path, before the mutant is applied`, `naming steps for a run this tool never took is refused rather than dropped`
 
 ## Goal
 
@@ -29,7 +29,8 @@ and an id the task never declared is refused before anything is touched.
 2. [S2] Forward `steps` through `run_mutant` to both of its `record_run` call sites — the UNPROVEN early return and the ADR-025 clean-run entry. [proof: acceptance]
 3. [S3] Move the `--steps` preflight ABOVE the `if mutant is not None:` branch, so it is reachable on both paths, and restore the `MONOTONIC` comment the block had been inserted into the middle of. [proof: acceptance]
 4. [S4] Correct the comment on T1's own test, which described the missing field as the design rather than as the defect. [proof: acceptance]
-5. [S5] Add two catalogue mutations and confirm both come back RED. [proof: mutation]
+5. [S5] Add catalogue mutations and confirm each comes back RED. [proof: mutation]
+6. [S6] Audit the CLASS, not the reported instance: enumerate every branch that leaves `main()` before the `--steps` preflight and decide each. `grep -n 'if human_mutant is not None:|if human is not None:|if steps is not None:' plugin/bin/adr-verify` returned 2335, 2358 and 2406 — two more paths where the flag was accepted, unvalidated and dropped. Neither runs a fence, so both are refused rather than made to carry the field, and a third mutation proves the refusal. [proof: acceptance]
 
 ## Acceptance
 
@@ -46,6 +47,7 @@ node --test tests/evidence-chain.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/a
 |-----------|------|----------|--------|-------|
 | `a mutation run's own clean entry carries the steps it was given` | `tests/evidence-chain.test.mjs` | the field is written on the mutation path, and absent there when unasked | — | S1, S2 |
 | `--steps refuses an undeclared id on the --mutant path too` | `tests/evidence-chain.test.mjs` | the preflight is reachable, and lands before the mutant is applied | — | S1, S3 |
+| `--steps is refused on the paths where this tool runs no fence` | `tests/evidence-chain.test.mjs` | `--human` and `--human-mutant` refuse the flag, and `--human` alone still works | — | S6 |
 
 ## Reachability
 
@@ -58,7 +60,14 @@ node --test tests/evidence-chain.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/a
 
 ## Mutation Log
 
+- 2026-09-04 · 59f3c7f · mutant killed · exit 1 · `plugin/bin/adr-verify` · the mutation path must forward the steps it was given, or the entry it writes is a different grammar from the plain path · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · covers:the clean entry a --mutant run writes carries the steps it was given
+- 2026-09-04 · 59f3c7f* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the undeclared-step preflight must be reachable on the --mutant path; below the branch that exits, it was not · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · covers:an undeclared step id is refused on the --mutant path, before the mutant is applied
+
 ## Verification Log
+
+- 2026-09-04 · 59f3c7f · exit 0 · `set -o pipefail …` · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · ms:38720 · steps:S5
+- 2026-09-04 · 59f3c7f* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · ms:28084 · steps:S5
+- 2026-09-04 · 59f3c7f* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · ms:31977 · steps:S1,S2,S3,S4
 
 ## Invariants
 

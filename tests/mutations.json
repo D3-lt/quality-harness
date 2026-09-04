@@ -4416,6 +4416,42 @@
       ],
       "from": "        if any(a < opening.start() < b - 1 for a, b in spans):\n            continue",
       "to": "        pass"
+    },
+    {
+      "label": "flag-sweep: an unchanged flag surface reports nothing",
+      "file": "scripts/flag-claim-sweep.mjs",
+      "tests": [
+        "tests/flag-claim-sweep.test.mjs"
+      ],
+      "from": "  for (const f of a) if (!b.has(f)) out.add(f)",
+      "to": "  for (const f of a) out.add(f)"
+    },
+    {
+      "label": "flag-sweep: a flag removed from the surface is still a change",
+      "file": "scripts/flag-claim-sweep.mjs",
+      "tests": [
+        "tests/flag-claim-sweep.test.mjs"
+      ],
+      "from": "  for (const f of b) if (!a.has(f)) out.add(f)",
+      "to": "  for (const f of b) if (false) out.add(f)"
+    },
+    {
+      "label": "flag-sweep: the backlog is history, not prose this project serves",
+      "file": "scripts/flag-claim-sweep.mjs",
+      "tests": [
+        "tests/flag-claim-sweep.test.mjs"
+      ],
+      "from": "  if (path === 'docs/BACKLOG.md') return false",
+      "to": "  if (false) return false"
+    },
+    {
+      "label": "flag-sweep: a gate name is matched whole, not as a substring",
+      "file": "scripts/flag-claim-sweep.mjs",
+      "tests": [
+        "tests/flag-claim-sweep.test.mjs"
+      ],
+      "from": "  return gates.some(g => new RegExp(`(?<![\\\\w-])${g.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}(?![\\\\w-])`).test(body))",
+      "to": "  return gates.some(g => body.includes(g))"
     }
   ]
 }

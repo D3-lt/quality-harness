@@ -7915,7 +7915,7 @@ early return leaves the corpus asserting things about code that can no longer ru
 the three signals above was a check this repository already owned, already running, reporting
 correctly, with nobody reading it.
 
-## 127. A cleanup nobody bounded, and two tests that measure the runner's mood
+## 127. PARTLY CLOSED 2026-09-04 — a cleanup nobody bounded, and two tests that measure the runner's mood
 
 Three findings from the release of v2.65.0, all about the same thing: a check whose answer depends
 on the machine's load rather than on the code.

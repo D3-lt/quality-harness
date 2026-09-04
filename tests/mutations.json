@@ -4452,6 +4452,24 @@
       ],
       "from": "  return gates.some(g => new RegExp(`(?<![\\\\w-])${g.replace(/[.*+?^${}()|[\\]\\\\]/g, '\\\\$&')}(?![\\\\w-])`).test(body))",
       "to": "  return gates.some(g => body.includes(g))"
+    },
+    {
+      "label": "next: a corpus root is enumerated, not reported empty",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        if records:",
+      "to": "        if False:"
+    },
+    {
+      "label": "next: a corpus with nothing ready is not a corpus with ready work",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "        any_ready = any_ready or bool(ready)",
+      "to": "        any_ready = True"
     }
   ]
 }

@@ -17,7 +17,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  classifyBinEntry, drift, homeReport, inventory, report, severitySplit,
+  classifyBinEntry, drift, homeReport, inventory, ledgerReport, report, severitySplit,
 } from '../plugin/scripts/qh-doctor.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -190,6 +190,51 @@ test('the exit code says which of the three answers this is', () => {
     counted: COUNTED, home: CLEAN_HOME, moved: { looked: false, clean: null, out: 'no node' },
     gateSource: '',
   }).exit, 2)
+})
+
+// ADR-005 in the one place the ledger read was collapsing three answers into
+// one. "No ledger" and "could not read the ledger" are different, and only the
+// first is a clean bill — the read lived inside `report()`, so an unreadable
+// ledger printed "nothing recorded" and still returned exit 0, contradicting
+// the contract stated in that function's own comment. Both arms are asserted
+// in one test because coverage cannot see a vacuous check (CLAUDE.md §4).
+test('an unreadable claims ledger is could-not-look, not an empty one', () => {
+  const home = mkdtempSync(join(os.tmpdir(), 'qh-doctor-ledger-'))
+  const blindHome = mkdtempSync(join(os.tmpdir(), 'qh-doctor-ledger-'))
+  try {
+    // Unset: nothing is being recorded anywhere, which is not a failure to look.
+    const unset = ledgerReport({})
+    assert.deepEqual([unset.file, unset.looked, unset.rows], [null, true, null])
+
+    // Absent: ENOENT is "nothing has been recorded yet", a clean answer.
+    const absent = ledgerReport({ CLAUDE_PLUGIN_DATA: home })
+    assert.equal(absent.looked, true)
+    assert.equal(absent.rows, null)
+
+    // Readable: a count, and the clean exit — the arm that must still pass.
+    writeFileSync(join(home, 'claims.jsonl'), '{"claim":"none"}\n{"claim":"none"}\n')
+    const read = ledgerReport({ CLAUDE_PLUGIN_DATA: home })
+    assert.equal(read.rows, 2)
+    const clean = report({
+      counted: COUNTED, home: CLEAN_HOME, moved: CLEAN_DRIFT, gateSource: '', ledger: read,
+    })
+    assert.equal(clean.exit, 0, 'a readable ledger is not a finding')
+    assert.match(clean.lines.join('\n'), /2 completion event\(s\) recorded/)
+
+    // Unreadable: a DIRECTORY where the file should be. Not ENOENT, so this is
+    // could-not-look, and it has to reach the exit code.
+    mkdirSync(join(blindHome, 'claims.jsonl'))
+    const blind = ledgerReport({ CLAUDE_PLUGIN_DATA: blindHome })
+    assert.equal(blind.looked, false, 'a directory in the ledger place is not an empty ledger')
+    const answer = report({
+      counted: COUNTED, home: CLEAN_HOME, moved: CLEAN_DRIFT, gateSource: '', ledger: blind,
+    })
+    assert.equal(answer.exit, 2, 'could-not-look is never a clean bill')
+    assert.match(answer.lines.join('\n'), /COULD NOT LOOK/)
+  } finally {
+    rmSync(home, { recursive: true, force: true })
+    rmSync(blindHome, { recursive: true, force: true })
+  }
 })
 
 test('the home scan classifies a real directory and never invents one', () => {

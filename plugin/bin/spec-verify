@@ -109,14 +109,19 @@ def kill_tree(pid, platform=None, run=subprocess.run):
     `platform` and `run` are the seam (CLAUDE.md §7). Copied verbatim from
     adr-verify — a shared module under bin/ would be read as a gate by the
     package tests.
+
+    RETURNS whether the kill was OBSERVED to work; False means nothing here saw
+    it work, never that it certainly failed. A caller that reports a kill on a
+    False has reported an observation it did not make (CLAUDE.md §3).
     """
     try:
         if (platform or os.name) == "nt":
-            run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
-        else:
-            os.killpg(pid, signal.SIGKILL)
+            done = run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+            return getattr(done, "returncode", None) == 0
+        os.killpg(pid, signal.SIGKILL)
+        return True
     except Exception:
-        pass
+        return False
 
 
 def drain_after_kill(proc, platform, grace=10):
@@ -124,10 +129,15 @@ def drain_after_kill(proc, platform, grace=10):
 
     Bounded because a descendant that made a session of its own escapes the
     group kill and could otherwise hold the pipe open for ever.
+
+    Returns `(stdout, stderr, killed)`; `killed` is `kill_tree`'s own answer,
+    carried rather than assumed.
     """
+    killed = False
     try:
-        kill_tree(proc.pid, platform)
-        return proc.communicate(timeout=grace)
+        killed = kill_tree(proc.pid, platform)
+        out, err = proc.communicate(timeout=grace)
+        return out, err, killed
     except Exception:
         for stream in (proc.stdout, proc.stderr, proc.stdin):
             if stream is not None:
@@ -135,7 +145,7 @@ def drain_after_kill(proc, platform, grace=10):
                     stream.close()
                 except Exception:
                     pass
-        return None, None
+        return None, None, killed
 
 
 def run_bounded(argv, *, timeout, platform=None, **popen):
@@ -159,8 +169,10 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        out, err = drain_after_kill(proc, platform)
-        raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+        out, err, killed = drain_after_kill(proc, platform)
+        expired = subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
+        expired.tree_killed = killed
+        raise expired from None
     except BaseException:
         drain_after_kill(proc, platform)
         raise

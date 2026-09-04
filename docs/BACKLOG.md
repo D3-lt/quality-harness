@@ -7463,3 +7463,47 @@ produce — a shared non-zero check would have passed on the `unknown option` th
 general form — a flag validated in `main()` and consumed on one of several paths out of it — was not
 enumerated for `--covers`, `--also-restore`, `--timeout` or `--json`. Three of those already carry
 combination guards; nothing has checked whether the guards cover every exit path.
+
+## 117. CLOSED 2026-09-04 — a noun in an honest sign-off was read as a verdict, and the opposite hole was open beside it
+
+**Found 2026-09-04** while reconciling a disagreement this repository was carrying in the open:
+`docs/adr/ADR-012-.../tasks/README.md` said T4 was `done`, and `adr-next` printed it `READY`. Two
+readers, one corpus, opposite answers — the §58 class, in a corpus that had already fixed §58 once.
+
+**The cause, measured rather than guessed.** T4 is human-observed, so its `done` rests entirely on
+how `adr-next` reads the sign-off text. That text is affirmative and forensic: the tool ran, the gate
+answered, the finding came back correct — and it also reports, honestly, that the client rendered
+**"no server-level block"** of instructions. `NEGATIVE` contained `block(?:ed)?`, so a noun naming a
+chunk of text was read as the verdict *blocked*, and `human_outcome()` returned `stop`:
+
+    NEGATIVE hits: ['block']      AFFIRMATIVE hits: ['Confirms']
+
+A negative word anywhere beats an affirmative one — deliberately, and the guard is right to do that.
+What was wrong is that the guard assumed a sign-off is a verdict sentence. **A sign-off worth reading
+describes what was observed, and observation prose is full of nouns.**
+
+**The same look found the opposite hole, which nobody had reported.** `block(?:ed)?` with a trailing
+`(?![a-z])` matches neither `blocks` nor `blocking`, so *"confirmed, but the rollout blocks on legal"*
+was counted **done** — precisely the failure the guard exists to prevent, reachable through every
+entry that lacked an `-s`/`-ing` form. A guard can be too narrow and too wide in the same expression,
+and only sweeping every word in every form shows both.
+
+**The class sweep, run rather than recalled.** Every negative word through four verb forms:
+
+| word | bare | -ed/-n | -s | -ing |
+|---|---|---|---|---|
+| block | **deliberately no** | yes | yes | yes |
+| stop, fail, withdraw, reject, abort | yes | yes | yes | yes |
+| refuse | **was no** → yes | yes | yes | yes |
+
+`refuse` is the third finding and this task did not introduce it: the stem stops at `refus`, so the
+trailing lookahead rejected the `e` and the bare word **never matched at all**, before or after.
+Closed in the same line. `block` bare stays out on purpose, and the test asserts that ABSENCE, so a
+later reader cannot mistake the deliberate gap for an oversight.
+
+**Not a record.** The guard's intent is unchanged — an affirmative outcome must be stated, a negative
+one wins — and nothing about the evidence contract moved. This is bounded implementation: a matcher
+that did not match what it claimed to.
+
+**Verified:** `adr-next` on ADR-012 now prints all five tasks `done`, agreeing with the README and
+with `adr-lint`. Two catalogue mutations, one per direction.

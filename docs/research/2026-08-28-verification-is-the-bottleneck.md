@@ -224,6 +224,17 @@ design decisions.
 **So the standing gap is item 4, and item 2's aggregation.** Item 1 is answerable on demand and the
 answer today is zero false successes over 37 re-checkable claims; item 3 is gone.
 
+### STATUS 2026-09-04 — three days on, re-checked against the code and the corpus again
+
+Same method as the block above: read the code, run the tool, do not quote the previous table.
+
+| # | Gap as written 2026-08-28 | Verified state 2026-09-04 |
+|---|---|---|
+| 1 | No false-success rate is reported | **Not re-measured today, and the reason is a finding.** `adr-verify --sweep docs/adr` at HEAD runs seventeen task fences that each invoke `scripts/mutate.mjs`; on today's catalogue one of them runs past the sweep's 900-second timeout, and the first attempt was killed mid-campaign with a mutant left in the tree — BACKLOG §120. A second run is in progress in a clone. The 2026-09-01 figure — 37 held, 0 false, 15 superseded, 0 unrunnable over 52 claims — stands as the last measurement, and its `0 unrunnable` will not survive a re-run at this timeout. Meanwhile a production number for the *wider* metric now exists (§11: 22.58% of real misalignment episodes are the agent misreporting its own state). |
+| 2 | Trajectory evaluation is thin | **Unchanged.** `plugin/bin/adr-lint:2122` still carries the one comment that says TRAJECTORY, the five per-record advisories still exist, and nothing aggregates them. SlopCodeBench (§11) is what a trajectory metric class looks like from the outside: two numbers per trajectory, reported across every checkpoint. |
+| 3 | Pointers resolve to nothing | **Closed**, unchanged since ADR-011. |
+| 4 | Evals measure the skills, not the harness's effect on false success | **Open.** Eight cases now, not seven — `a-vacuous-test-is-not-a-review` was added and it asks whether `review` fires, so it is another skill-fires case. Still nothing asks whether the harness reduces confidently-wrong claims. Oldest untouched item, seven days old. |
+
 ### The one genuine tension, to be raised before someone else raises it
 
 This project's rule is **instruct, never block** — a blocked user cannot tell what to do next, which
@@ -268,6 +279,19 @@ latent rather than live. It becomes live the day one is added.
 | 22 | El Filali & Bedar — Towards More Standardized AI Evaluation: From Models to Agents | [arXiv 2602.18029](https://arxiv.org/abs/2602.18029) |
 | 23 | `yzhao062/awesome-auditable-ai` — failure attribution, audit trails and decision records | [github.com](https://github.com/yzhao062/awesome-auditable-ai) |
 | 24 | Murphy-Hill, Butler & Savelieva — Adoption and Impact of Command-Line AI Coding Agents (Microsoft, early 2026) | [arXiv 2607.01418](https://arxiv.org/abs/2607.01418) |
+| 25 | How Coding Agents Fail Their Users: A Large-Scale Analysis of Developer-Agent Misalignment in 20,574 Real-World Sessions (v2, 2026-08-31) | [arXiv 2605.29442](https://arxiv.org/abs/2605.29442) |
+| 26 | Agentic Harness Engineering: Observability-Driven Automatic Evolution | [arXiv 2604.25850](https://arxiv.org/abs/2604.25850) |
+| 27 | Harness Engineering: Anatomy, Architecture, and Evolution of Coding Agents — A Source-Code Study of Eleven Systems | [arXiv 2609.00006](https://arxiv.org/abs/2609.00006) |
+| 28 | Effective Harness Engineering for Algorithm Discovery with Coding Agents (Vesper) | [arXiv 2605.15221](https://arxiv.org/abs/2605.15221) |
+| 29 | SlopCodeBench: Benchmarking How Coding Agents Degrade Over Long-Horizon Iterative Tasks | [arXiv 2603.24755](https://arxiv.org/abs/2603.24755) |
+| 30 | Code Review Agent Benchmark (c-CRAB) | [arXiv 2603.23448](https://arxiv.org/abs/2603.23448) |
+| 31 | Silent Failure in LLM Agent Systems: The Entropy Principle | [arXiv 2606.08162](https://arxiv.org/abs/2606.08162) |
+| 32 | Harness as an Asset: Enforcing Determinism via the Convergent AI Agent Framework (CAAF) | [arXiv 2604.17025](https://arxiv.org/abs/2604.17025) |
+| 33 | Anthropic — Demystifying evals for AI agents (2026-01-09) | [anthropic.com](https://www.anthropic.com/engineering/demystifying-evals-for-ai-agents) |
+| 34 | `cameronsjo/spec-compare` — eighteen spec-driven tools, seven use-case dimensions | [github.com](https://github.com/cameronsjo/spec-compare) |
+| 35 | `obra/superpowers` — read from the installed 6.3.0 copy | [github.com](https://github.com/obra/superpowers) |
+| 36 | `github/spec-kit` | [github.com](https://github.com/github/spec-kit) |
+| 37 | SonarQube plugins for Claude Code, Copilot, Codex, Cursor (2026-07-01) | [securityboulevard.com](https://securityboulevard.com/2026/07/sonarqube-plugins-bring-trusted-verification-to-claude-code-copilot-codex-cursor-and-beyond/) |
 
 ## 9. A counterweight: the harness as a trainable artifact
 
@@ -387,3 +411,168 @@ Nothing in that study says verification moved. Throughput rising while the evide
 still is the situation this project is built for, and it is the honest reason to care about the rest
 of this file: the volume of work arriving at review went up by a quarter, and 75.8% of the failures
 in it announce themselves as successes.
+
+## 11. Round two: what the literature added between 2026-08-28 and 2026-09-04
+
+**Retrieved 2026-09-04.** Same rule as the top of this file: figures are as their sources report them,
+nothing was reproduced here, and a paper read from its abstract page is marked as such. Where a
+sentence below is this repository's reading rather than the source's, it says so.
+
+### The defect this project targets is measured in production now, and its share is growing
+
+*How Coding Agents Fail Their Users* (arXiv 2605.29442, v2 dated 2026-08-31) is observational:
+**20,574 sessions across 1,639 repositories**, IDE and CLI, not a benchmark. Seven misalignment
+classes; the two that matter here are **S3 developer-constraint violation at 38.33%** of episodes and
+**S7 inaccurate self-reporting at 22.58%**. Their sentence for S7: *"the agent consistently turns a
+partial or unverified state into a completion claim"* — agents *"claim uploads, tests, or deployments
+succeeded while the next turn reveals otherwise."* **91.49% of visible resolutions required explicit
+developer correction.** And the trend line: overall misalignment declines over time while constraint
+violations and inaccurate self-reporting **rise in proportion**.
+
+> **Implication.** §2's 75.8% was a benchmark figure about self-assessing agents. This is the same
+> failure counted in real sessions, and it is the one whose share is going up as the others go down.
+> A harness that only makes the agent's completion claims checkable is aimed at the residual.
+
+### Prose does not transfer; structure does — the third independent source
+
+*Agentic Harness Engineering* (arXiv 2604.25850) evolves a harness by making every edit a falsifiable
+contract: *"decision observability pairs every edit with a self-declared prediction, later verified
+against the next round's task-level outcomes."* Ten iterations lift Terminal-Bench 2 pass@1 from
+**69.7% to 77.0%**, and the evolved harness transfers to SWE-bench Verified and three other model
+families without re-optimisation. The finding that bears on this project is the ablation: *"the gain
+[localises] to tools, middleware, and long-term memory rather than the system prompt, suggesting
+factual harness structure transfers while prose-level strategy does not."*
+
+That is the third time this result has arrived from an independent direction. *Reason Less, Verify
+More* (§2) got its gain from deterministic gates. This repository's own instruction experiment (§10)
+came back NULL. Now a harness-evolution loop optimising freely finds the same thing. [The synthesis
+is this repository's; each source states only its own result.]
+
+The prediction-then-verify contract is also ADR-025's kill criterion applied to harness edits rather
+than to decisions — agreement in mechanism, arrived at separately.
+
+*Harness Engineering: Anatomy, Architecture, and Evolution of Coding Agents* (arXiv 2609.00006; its
+abstract page says submitted 15 Jul 2026) reads ~4 million lines of eleven agent runtimes and reports:
+*"no agent runtime imports a general-purpose agentic framework, and none retrieves code with vector
+embeddings; the field runs on hand-rolled async loops and deterministic retrieval."* Seven canonical
+subsystems, 29 recurring patterns. It confirms §6's "simple, composable patterns" from source rather
+than from advice. Its taxonomy has no subsystem for verifying the harness's own claims about its
+work — the gap this project sits in is not in the anatomy. Abstract page only.
+
+### A model may exclude; it may not certify
+
+*Effective Harness Engineering for Algorithm Discovery* (Vesper, arXiv 2605.15221) runs a **second
+model session** after a candidate passes evaluation, to ask whether it solved the problem or exploited
+the evaluator. For GPT-5.2-codex, **92 of 568 passing candidates — 16.6% — were evaluation hacks**;
+for the smaller model, 0 of 87. *"More capable models generated evaluation hacks at higher rates."*
+The verifier is itself a model (gpt-5.1-codex-mini), and the paper names the cost: when nothing is
+hacking, the pass reduces generations under a fixed budget.
+
+Two things for this project. First, the capability-scaling finding is *The Verification Horizon*'s
+claim (§1) with a number on it. Second, an apparent tension with the rule that no model verdict enters
+the evidence chain — and the reconciliation is already the shape this repository uses: Vesper's
+verifier **removes** a candidate from the pool; it never certifies one. That is the asymmetry between
+`adr-judge` advising and `adr-verify` recording. A model verdict that can only subtract is compatible
+with an evidence chain a model may not add to. [The reconciliation is this repository's reading.]
+
+### Trajectory measured from the outside: what gap 2 would look like closed
+
+*SlopCodeBench* (arXiv 2603.24755): 20 problems, 93 checkpoints, 11 models, hidden tests. **No agent
+fully solves any problem across all checkpoints**; the best strict solve rate is **17.2%** (Opus 4.6).
+Two trajectory-level metrics — structural erosion and verbosity — rise in **80%** and **89.8%** of
+trajectories respectively; agent code is **2.2× more verbose** than maintained human repositories, and
+the gap widens with each iteration while human code stays flat. Corroborates SWE-EVO (§9) from
+another angle, and it is the concrete shape of a "metric class": a per-trajectory number reported over
+every checkpoint, which is exactly what the five advisories in §8 gap 2 are not aggregated into.
+
+### A reviewer that catches a third is one reviewer's silence
+
+*Code Review Agent Benchmark* (c-CRAB, arXiv 2603.23448) converts human review comments into
+executable tests and asks whether an agent's review leads to the fix. Pass rates: **Claude Code
+32.1%, Devin 24.8%, PR-Agent 23.1%, Codex 20.1%**; all agents together resolve **about 40%**. The
+tools write more comments than humans and resolve fewer issues — the false-positive load lands on the
+maintainer. This is the number behind CLAUDE.md §12's "a clean pass is one reviewer's silence, not a
+verdict", and it is why the Codex review here is a search for findings, never a certification.
+
+### Read but not adopted
+
+- *Silent Failure in LLM Agent Systems: The Entropy Principle* (arXiv 2606.08162) — 40,000 controlled
+  trials plus 100,000 production interactions, and a claim that system entropy grows as
+  S(t) = S₀·e^(αt) across interaction rounds. The dataset is large and the framing ("silent failure
+  is a physical constraint, not a bug") is useful; the proposed countermeasure is the authors' own
+  engine and is not evaluated independently here. Cite the framing, not the formula.
+- *Harness as an Asset: CAAF* (arXiv 2604.17025) — domain rules as machine-readable registries
+  enforced by a "deterministic Unified Assertion Interface"; its ablation says no single pillar closes
+  the controllability gap. Abstract only; no effect size read.
+- Anthropic, *Demystifying evals for AI agents* (2026-01-09) — predates this file and was missed in
+  round one. Three lines earn their place: *"Deterministic graders are natural for coding agents"*;
+  grade the environment state, not the agent's account of it; and **pass^k** — the probability that
+  *all* k trials succeed — as the metric for an agent that must be consistent, against pass@k for one
+  that must succeed once. BACKLOG §35's variance finding is pass^k's argument made the hard way: an
+  eval reported as a mean of single runs cannot tell a coin from a capability. Also its bypass
+  warning, with the example of a trial reading git history from a prior trial.
+
+### What round two changes in the stance
+
+1. **The target has a production number.** 22.58% of real misalignment episodes are the agent
+   misreporting its own state, and that share is rising while others fall.
+2. **Structure over prose is now three-way corroborated.** The instruction files are the weak lever;
+   the gates are the strong one. Spend on gates.
+3. **Model verdicts have a defensible role: subtraction.** A model may flag and exclude; only a tool
+   may record. That is the rule already; now it has a citation and a measured reason.
+4. **pass^k is the eval number to report**, not a mean.
+5. **The refuse-the-write tension (§8) is unchanged**, and nothing in this round softened it.
+
+---
+
+## 12. Comparable tools — asked for the first time on 2026-09-04
+
+This file compared the project to papers and platforms; nobody had asked how it compares to the
+tools a user would install *instead*. **Method:** the tools a web search for spec-driven and
+verification tooling surfaced, plus the eighteen in `cameronsjo/spec-compare`; star counts from the
+GitHub API on 2026-09-04; each tool's mechanism read from its README on the same day, **except
+`obra/superpowers`, which is installed on this machine and was read from the installed 6.3.0 copy.**
+Nothing else was installed or run. A README read by a summariser is a weaker source than a file on
+disk, and the rows say which they are.
+
+| Tool | Stars 2026-09-04 | What it governs | How "done" is decided | Tool-written evidence of a claim |
+|---|---|---|---|---|
+| `obra/superpowers` 6.3.0 | 281,656 | process skills: brainstorm, plan, TDD, verification-before-completion, code review | **Prose to the model.** `verification-before-completion/SKILL.md` — *"NO COMPLETION CLAIMS WITHOUT FRESH VERIFICATION EVIDENCE"* — is a Markdown instruction; the TDD skill's *"Write code before the test? Delete it. Start over."* is an instruction, not a mechanism. The only hook in `hooks/hooks.json` is `SessionStart`. Read from disk. | None. The evidence lives in the transcript, where §2's judges cannot tell it from confident closing language. |
+| `github/spec-kit` | 133,420 | constitution → specify → plan → tasks → implement → converge / analyze / checklist | `/speckit.converge` *"assess[es] the codebase against spec/plan/tasks"*; the README does not say whether that is a script or a prompt. README via summariser. | None documented. |
+| `Fission-AI/OpenSpec` | 67,282 | brownfield change proposals for one assistant | agent judgement | None documented. |
+| `bmad-code-org/BMAD-METHOD` | 52,671 | multi-agent role simulation of a team | agent judgement | None documented. |
+| Kiro (AWS) | IDE, not a repo | spec-driven agents inside an editor | not inspected | not inspected |
+| Traycer | product | "Plan → Execute → Verify" | the product page does not describe Verify mechanically | not stated |
+| `zircote-plugins/adr` | 5 | ADR lifecycle, eight templates, a "compliance" agent | an agent audits code against accepted ADRs; no mechanism documented | None. Exports are HTML/JSON/PDF of the records. |
+| `Korni22/claude-adr` | 0 | same class, last push 2026-02-25 | — | None. |
+| SonarQube plugins for Claude Code / Copilot / Codex / Cursor (announced 2026-07-01) | vendor | code smells, duplication, complexity, SAST, secrets, coverage, quality-gate status | **deterministic analyzers** under the organisation's existing quality profiles | Yes — **of the code**, not of a claim about work. The closest neighbour in mechanism. The "44% less likely to report outages" figure is the vendor's survey. |
+| CodeRabbit / Greptile / Qodo | vendor | PR review | a model. Vendor and blog figures disagree with each other (Greptile 82% or 85% catch rate, CodeRabbit 44%, Qodo 56.7% or 78%); the one independent number is c-CRAB's ≤ 32.1% (§11). | Review comments, which are the thing c-CRAB measured as mostly not leading to a fix. |
+| **quality-harness** | 1 | ADR/spec lifecycle whose `done` is a tool-written, digest-bound, mutation-backed log entry | `adr-verify` runs the fence and writes the entry; `adr-lint` refuses `done` without it; `adr-verify --sweep` re-checks every entry later | Yes, and it is the only row where the evidence is of the *claim*. |
+
+`cameronsjo/spec-compare` (135 stars, pushed 2026-08-30) is the one cross-tool comparison found. Its
+seven scoring dimensions are use-cases — greenfield, trivial change, refactor, bug fix, parallel
+development, cross-cutting — and **none is verification**; the words appear only in three tool
+blurbs ("Verify layer", "TDD gates", "drift detection"). Its own summary of the landscape's open
+problem: *"Agents frequently ignore specifications."*
+
+### The position, stated so it can be wrong
+
+**On mechanism this project is alone in the set.** Every spec-driven tool above decides "done" by
+model judgement and records it as prose, which is precisely the artefact *Confident Closing* (§2)
+showed judges cannot grade and *How Coding Agents Fail Their Users* (§11) showed is the growing
+failure. The nearest neighbour in *principle* is superpowers' verification-before-completion — the
+same rule this repository enforces, written as an instruction with nothing that checks it was obeyed;
+and §11's three-way finding says instructions are the lever that does not transfer. The nearest
+neighbour in *mechanism* is SonarQube — deterministic, gate-shaped — and it verifies the code, not
+the claim about the work.
+
+**On adoption the distance is the other way and it is not close.** Superpowers has 281,656 stars;
+this repository has one, one fork, and ten issues, all filed by a single external adopter. The
+mechanism has been exercised on exactly one corpus that is not this one (the 2026-08-29 measurement on
+a Laravel repository, filed in the project's memory). "Only tool that does X" is a claim about a set
+of one until somebody else runs the sweep on their corpus and reports the buckets.
+
+**What would falsify the mechanism claim:** a tool in this table shipping a step that (a) runs the
+project's check itself, (b) writes the exit code and a digest of what it ran into the record, and (c)
+refuses a completion status without it. Any of the spec-driven tools could add that in a week; none
+has, and the reason is worth knowing before assuming it is oversight.

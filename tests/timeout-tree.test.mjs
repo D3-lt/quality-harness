@@ -156,6 +156,67 @@ for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
   })
 }
 
+// ── The two shapes the first fix missed, found by the Codex review of a46973e ──
+//
+// Both are cases where the tests above pass while the timeout is defeated, so
+// each drives a gate through a fixture the heartbeat fence cannot express.
+
+// The leader EXITS and leaves the work behind: `work &` and nothing else. The
+// fence above keeps bash in the foreground, which is the one case a
+// `killpg(getpgid(pid))` lookup survives — once the leader is gone the lookup
+// raises ProcessLookupError and the group is never signalled. Measured
+// 2026-09-04: 3.02s against a 0.3s timeout before the fix, 0.31s after.
+const LEADER_EXITS_FENCE = '( for i in $(seq 1 100); do echo "$i" > beat.txt; sleep 0.2; done ) &'
+
+test('adr-verify: a fence whose leader exits still has its tree killed', async () => {
+  const dir = scratch()
+  const path = task(dir, 'T1', LEADER_EXITS_FENCE)
+  const started = Date.now()
+  const run = runPython([join(bin, 'adr-verify'), path, '--cwd', dir], {
+    cwd: dir, encoding: 'utf8', timeout: 60_000,
+    env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '1' },
+  })
+  const elapsed = Date.now() - started
+  assert.match(run.stdout + run.stderr, /UNRUN/, `the fence must be reported as not finished\n${run.stdout}${run.stderr}`)
+  await assertTreeDied(dir, 'leader exits', elapsed)
+})
+
+// A cleanup that RAISES must not replace the exception that caused it. Measured
+// on qh-mcp: a PermissionError out of kill_tree reached `except OSError` and a
+// gate that ran and timed out was reported as one that DID NOT START — ADR-005's
+// exact class — after waiting the child's full runtime.
+const CLEANUP_RAISES_PROBE = `import importlib.machinery, importlib.util, subprocess, sys, time
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+def boom(pid, platform=None, run=subprocess.run):
+    raise PermissionError(1, "Operation not permitted")
+module.kill_tree = boom
+started = time.monotonic()
+try:
+    module.run_bounded([sys.executable, "-c", "import time; time.sleep(30)"],
+                       timeout=1, capture_output=True, text=True)
+    print("NO EXCEPTION")
+except subprocess.TimeoutExpired:
+    print("TimeoutExpired %.1f" % (time.monotonic() - started))
+except BaseException as exc:
+    print("%s %.1f" % (type(exc).__name__, time.monotonic() - started))
+`
+
+for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  test(`${gate}: a cleanup that raises does not replace the timeout`, () => {
+    const run = runPython(['-c', CLEANUP_RAISES_PROBE, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, `${gate} probe\n${run.stdout}${run.stderr}`)
+    const [kind, seconds] = run.stdout.trim().split(/\s+/)
+    assert.equal(kind, 'TimeoutExpired',
+      `${gate}: a raising kill_tree replaced the timeout with ${kind} — the caller reports the wrong thing`)
+    assert.ok(Number(seconds) < 10,
+      `${gate}: took ${seconds}s to report a 1s timeout — cleanup left it waiting for the child`)
+  })
+}
+
 // The Windows branch, exercised on every host through the seam (CLAUDE.md §7):
 // taskkill /T is what reaches a tree there, and it must be asked for the pid it
 // was given — never spawned where it does not exist.

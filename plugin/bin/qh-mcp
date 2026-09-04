@@ -158,21 +158,53 @@ def _run_gate(gate, args, paths):
 
 
 def kill_tree(pid, platform=None, run=subprocess.run):
-    """Kill PID and everything it started (BACKLOG §120).
+    """Kill PID and everything it started (BACKLOG §120). NEVER RAISES.
 
     `subprocess.run(timeout=)` kills its direct child and nothing else; a gate
     that spawns git, or a fence, leaves that work running past the 120s this
-    server promises. `platform` and `run` are the seam (CLAUDE.md §7). The same
-    helper, by copy, as in the two gates that run fences — a shared module under
-    bin/ would be read as a gate by the package tests.
+    server promises.
+
+    ⚠ `killpg(pid)`, NOT `killpg(getpgid(pid))`. `start_new_session=True` makes
+    the child a session leader, so its group id IS its pid, and the lookup
+    FAILS once the leader has exited — the ordinary `work &` pattern — leaving
+    the group unsignalled. Measured 2026-09-04: 3.02s against a 0.3s timeout
+    through the lookup, 0.31s without it.
+
+    ⚠ It never raises, and here that is load-bearing: `_run_gate` turns an
+    OSError into "the gate did not start", so a PermissionError escaping this
+    function reported a gate that RAN and timed out as one that never began —
+    measured 2026-09-04, and exactly the verdict ADR-005 exists to prevent.
+
+    `platform` and `run` are the seam (CLAUDE.md §7). The same helper, by copy,
+    as in the two gates that run fences — a shared module under bin/ would be
+    read as a gate by the package tests.
     """
-    if (platform or os.name) == "nt":
-        run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
-        return
     try:
-        os.killpg(os.getpgid(pid), signal.SIGKILL)
-    except ProcessLookupError:
+        if (platform or os.name) == "nt":
+            run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+        else:
+            os.killpg(pid, signal.SIGKILL)
+    except Exception:
         pass
+
+
+def drain_after_kill(proc, platform, grace=10):
+    """Kill the tree and collect what it wrote, bounded, without raising.
+
+    Bounded because a descendant that made a session of its own escapes the
+    group kill and could otherwise hold the pipe open for ever.
+    """
+    try:
+        kill_tree(proc.pid, platform)
+        return proc.communicate(timeout=grace)
+    except Exception:
+        for stream in (proc.stdout, proc.stderr, proc.stdin):
+            if stream is not None:
+                try:
+                    stream.close()
+                except Exception:
+                    pass
+        return None, None
 
 
 def run_bounded(argv, *, timeout, platform=None, **popen):
@@ -180,7 +212,9 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
 
     Own session (POSIX) or process group (Windows), `kill_tree` on
     `TimeoutExpired`, the exception re-raised with what the child wrote.
-    Every other keyword goes to Popen unchanged.
+    Every other keyword goes to Popen unchanged. No `with Popen(...)`: that
+    block's exit waits on the child unbounded, which turns a failed cleanup
+    into a hang wearing the timeout's name.
     """
     platform = platform or os.name
     if popen.pop("capture_output", False):
@@ -190,18 +224,15 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
                                   | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
     else:
         popen["start_new_session"] = True
-    with subprocess.Popen(argv, **popen) as proc:
-        try:
-            out, err = proc.communicate(timeout=timeout)
-        except subprocess.TimeoutExpired:
-            kill_tree(proc.pid, platform)
-            out, err = proc.communicate()
-            raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
-        except BaseException:
-            # subprocess.run kills its child on ANY exception; so does this, for
-            # the whole tree — otherwise the `with` block waits for the child.
-            kill_tree(proc.pid, platform)
-            raise
+    proc = subprocess.Popen(argv, **popen)
+    try:
+        out, err = proc.communicate(timeout=timeout)
+    except subprocess.TimeoutExpired:
+        out, err = drain_after_kill(proc, platform)
+        raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+    except BaseException:
+        drain_after_kill(proc, platform)
+        raise
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 

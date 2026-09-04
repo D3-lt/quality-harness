@@ -7284,7 +7284,7 @@ proposing to reverse a founding decision, and owes that argument rather than a l
 **Also deferred here:** any routing decision made from ADR-029's declared role.
 
 
-## 116. `adr-verify --steps` is accepted and silently dropped on the `--mutant` path
+## 116. CLOSED 2026-09-04 by ADR-028 T3 — `adr-verify --steps` was UNCHECKED, not merely unrecorded, on three paths
 
 **Found 2026-09-04, executing ADR-030 T1.** `python3 plugin/bin/adr-verify <task> --steps S5 --mutant …`
 exits 0, kills the mutant, writes its Verification Log entry — and the entry carries no `steps:`
@@ -7319,3 +7319,37 @@ oversight is indistinguishable from one. Either pass `steps` through both call s
 several paths out of it. Enumerate with `grep -n "def main" -A 400 plugin/bin/adr-verify | grep -nE
 "^\s*[a-z_]+ = (value|True)"` against the call sites each option reaches; this entry checked `--steps`
 only, and does not claim the others are clean.
+
+**CLOSED 2026-09-04 by ADR-028 T3, and the entry above was wrong about two things.**
+
+**The open question was answered by reading the code rather than deciding.** The paragraph above
+worries that "a mutation run's verification entry is taken on a mutated tree, and a `steps:` value
+there would say a step was exercised by a run whose subject was deliberately broken." **It is not
+taken on a mutated tree.** The entry the `--mutant` path writes is the CLEAN run's — `record_run(…,
+clean, clean_elapsed_ms, …)` — and `adr-verify`'s own comment at that call site says so: "the clean
+run that made this verdict possible is recorded — the same observation the plain path writes". ADR-025
+put it there for that reason. So there was nothing to decide: ADR-028's Decision already says the
+field goes on "the Verification Log entry", this path writes one, and the omission was a bug against
+the record as written. That is why T3 is a task under ADR-028 and not a new record.
+
+**The symptom was milder than the defect.** `run_mutant()` always exits, and the `--steps` preflight
+sat BELOW that call, so on the mutation path the validation was not merely unused — it was
+UNREACHABLE. `--steps S9 --mutant` against a task declaring no S9 ran to completion. Measured
+2026-09-04, not inferred.
+
+**The class sweep found two more, which is the part this entry did not have.** Enumerating every
+branch that leaves `main()` before the preflight:
+
+    grep -n 'if human_mutant is not None:\|if human is not None:\|if steps is not None:' plugin/bin/adr-verify
+    2335:    if human_mutant is not None:   → exits
+    2358:    if human is not None:          → exits
+    2406:    if steps is not None:          ← the preflight
+
+`--human` and `--human-mutant` had the same silence, and fixing the `--mutant` path does not reach
+them. Neither runs a fence, so both REFUSE `--steps` rather than carry it, beside the `--covers`
+guard that refuses the same shape of meaningless combination.
+
+**Still open, and named here rather than claimed clean:** the sweep covered `--steps` only. The
+general form — a flag validated in `main()` and consumed on one of several paths out of it — was not
+enumerated for `--covers`, `--also-restore`, `--timeout` or `--json`. Three of those already carry
+combination guards; nothing has checked whether the guards cover every exit path.

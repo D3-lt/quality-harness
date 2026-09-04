@@ -62,12 +62,14 @@ node --test tests/evidence-chain.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/a
 
 - 2026-09-04 · 59f3c7f · mutant killed · exit 1 · `plugin/bin/adr-verify` · the mutation path must forward the steps it was given, or the entry it writes is a different grammar from the plain path · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · covers:the clean entry a --mutant run writes carries the steps it was given
 - 2026-09-04 · 59f3c7f* · mutant killed · exit 1 · `plugin/bin/adr-verify` · the undeclared-step preflight must be reachable on the --mutant path; below the branch that exits, it was not · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · covers:an undeclared step id is refused on the --mutant path, before the mutant is applied
+- 2026-09-04 · 3948845 · mutant killed · exit 1 · `plugin/bin/adr-verify` · naming steps for a run this tool never took must be refused, not accepted and dropped on the two paths that execute no fence · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · covers:naming steps for a run this tool never took is refused rather than dropped
 
 ## Verification Log
 
 - 2026-09-04 · 59f3c7f · exit 0 · `set -o pipefail …` · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · ms:38720 · steps:S5
 - 2026-09-04 · 59f3c7f* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · ms:28084 · steps:S5
 - 2026-09-04 · 59f3c7f* · exit 0 · `set -o pipefail …` · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · ms:31977 · steps:S1,S2,S3,S4
+- 2026-09-04 · 3948845 · exit 0 · `set -o pipefail …` · acceptance-sha256:e6088d40d4458744ab5cacd0a0df0fc979c45f75e7f30cd305931e07a143f3f5 · ms:31964 · steps:S5,S6
 
 ## Invariants
 

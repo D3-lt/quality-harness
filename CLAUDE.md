@@ -192,8 +192,10 @@ Why: `.claude/rules/14-mrw-and-agentsmemory.md`
   green is not `coverage.sh` green, and neither is "the branch is green".
 - **A branch whose CI you have not read is UNKNOWN, not green.** So is one whose run is still
   running, and so is one you could not look at because `gh` is absent.
-- `scripts/branch-state.mjs` says it unprompted at session start, the way the memory bootstrap
-  does. It reads, blocks nothing, and exits 0 whatever it finds. Run it by hand any time.
+- `scripts/branch-state.mjs` says it unprompted, the way the memory bootstrap does — **once at
+  `SessionStart` in full, and one line on every `UserPromptSubmit`**. A reader wired only to
+  session start is invisible to the session that is already running, which is most of them.
+  It reads, blocks nothing, and exits 0 whatever it finds. Run it by hand any time.
 - It reports state, never permission. **`node scripts/release-evidence.mjs <sha>` remains the only
   answer to "may this be released"** (§13.4).
 

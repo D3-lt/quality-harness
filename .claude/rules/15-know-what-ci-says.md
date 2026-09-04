@@ -20,7 +20,16 @@ state the facts a session would otherwise assume, once, unprompted, at the start
 node scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unreleased plugin change
 ```
 
-- Wired as a **`SessionStart`** hook in `.claude/settings.json`, so it costs no discipline.
+- Wired as **both** a `SessionStart` and a `UserPromptSubmit` hook in `.claude/settings.json`, so
+  it costs no discipline. ⚠ `SessionStart` ALONE IS NOT ENOUGH and that was measured the moment it
+  shipped: it fires when a session begins, so the session already running — the one about to plan a
+  release on a red branch — never sees it, and one message at the very start is the message a
+  session has the least reason to act on. agentsmemory is visible because it hooks
+  `UserPromptSubmit` too; this now does the same. The per-message form is ONE line (`--brief`) and
+  reads a `.git/`-local cache (`--cached 120`) so it does not spawn `gh` on every prompt — a stale
+  answer says how old it is, and an unreadable cache is refreshed rather than trusted.
+- It **reads**. It blocks nothing, judges nothing about the work, and exits 0 whatever it finds
+  (`CLAUDE.md` §3).
 - It **reads**. It blocks nothing, judges nothing about the work, and exits 0 whatever it finds
   (`CLAUDE.md` §3).
 - **Could-not-look is said in those words.** An absent `gh`, no network, and a genuinely green

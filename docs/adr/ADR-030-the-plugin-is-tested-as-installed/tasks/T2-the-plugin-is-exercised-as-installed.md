@@ -8,7 +8,7 @@
 **Consumes:** `plugin/agents/` exists and ships (T1)
 **Data dependency:** reads the INSTALLED plugin on the machine running it; hermetic where none exists, which is the `UNRUN` path
 **Proof map:** v1
-**Rests-on:** `an absent install is UNRUN and reported, never a silent pass and never a finding`, `the install is located with qh-root rather than by string order`, `every finding names the version it was measured against`
+**Rests-on:** `an absent install is UNRUN and reported, never a silent pass and never a finding`, `the install is located with qh-root rather than by string order`, `every finding names the version it was measured against`, `a definition the host cannot parse is a finding, and that check is reached from a fixture rather than only where an install happens to carry agents/`
 
 ## Goal
 
@@ -29,7 +29,8 @@ against the plugin as the host unpacked it, rather than against the checkout eve
 3. [S3] Assert reachability only: each gate's interpreter starts and its module imports, each skill's frontmatter parses, each workflow parses, an independently-named FLOOR of directories is present, and the files ADR-008 withholds are absent. Behaviour stays with the checkout suites. [proof: acceptance]
    - **Amended 2026-09-04, before implementation.** This step said `agents/` is present. Measured the same day: `qh-root` resolves 2.59.0, whose tree has no `agents/` — T1 shipped it minutes earlier and no release carries it yet. Asserting checkout parity here measures RELEASE LAG, which is `qh-doctor`'s and `sync-standalone`'s question already (ADR-030's Primitives Audit says T2 reuses their vocabulary rather than inventing a second one), and it would be red for every developer between an edit to `plugin/` and the next release. ADR-030's own Decision names four things to assert and `agents/` is not among them, so this is the task file over-specifying its record rather than a change to the decision. What ships instead: anything the CHECKOUT ships and the install lacks is reported as a version NOTE naming both versions — ADR-005's vocabulary, never a finding. A version threshold ("assert it once installed >= X") was rejected: that is a stored fact about a catalogue this project does not own, which is the rot ADR-029 refuses.
 4. [S4] Put the resolved VERSION in every finding, so a report can never be mistaken for one about a different build — the confusion measured on 2026-09-01, where a peer reported findings against a release already fixed. [proof: acceptance]
-5. [S5] Add two catalogue mutations and confirm both come back RED. [proof: mutation]
+5. [S5] Add the catalogue mutations, one per declared mechanism, and confirm each comes back RED. Every one must be HERMETIC — driven from a fixture, never from the install — or it returns GREEN in CI where no plugin is installed, and a GREEN is a finding about the test. [proof: mutation]
+   - **Amended 2026-09-04, after a review of the first implementation.** The agent-definition check was written to read the real install behind an `existsSync`, and on the authoring machine — whose install is 2.59.0, predating `agents/` — that block never executed: a green run containing an assertion nobody reached, which is CLAUDE.md §4's vacuity class one level up. The root is now a parameter and the branch is driven from a temp fixture, which is what made a fourth mechanism nameable and killable.
 
 ## Acceptance
 
@@ -44,7 +45,7 @@ node --test tests/installed.test.mjs 2>&1 | tee /tmp/adr030-t2.out \
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
 | `every shipped surface is reachable from the installed plugin` | `tests/installed.test.mjs` | the artifact a user receives is the one we tested | — | S2, S3, S4 |
-| `an absent install is UNRUN, not a pass and not a finding` | `tests/installed.test.mjs` | ADR-005: could-not-look never borrows the vocabulary of a verdict | — | S1 |
+| `an absent install is UNRUN, not a pass and not a finding` | `tests/installed.test.mjs` | ADR-005: could-not-look never borrows the vocabulary of a verdict | — | S1, S3 |
 
 ## Reachability
 

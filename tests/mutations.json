@@ -4254,6 +4254,15 @@
       ],
       "from": "      .map(entry => `installed ${version} is missing ${entry}, which every release ships`),",
       "to": "      .map(entry => `an installed copy is missing ${entry}, which every release ships`),"
+    },
+    {
+      "label": "installed: an unparseable agent definition is a finding",
+      "file": "tests/installed.test.mjs",
+      "tests": [
+        "tests/installed.test.mjs"
+      ],
+      "from": "    .filter(name => !/^---\\r?\\n[\\s\\S]*?\\r?\\n---/.test(readFileSync(join(directory, name), 'utf8')))",
+      "to": "    .filter(() => false)"
     }
   ]
 }

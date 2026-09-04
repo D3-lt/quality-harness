@@ -8,7 +8,7 @@
 **Consumes:** the existing `resolve_tasks_dir`, `load` and `blockers`, one level down
 **Data dependency:** hermetic — reads a directory tree, writes nothing, spawns nothing
 **Proof map:** v1
-**Rests-on:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`, `next: a record folder is not a corpus of one`
+**Rests-on:** `next: a corpus root is enumerated, not reported empty`, `next: a corpus with nothing ready is not a corpus with ready work`, `next: a record folder is not a corpus of one`, `next: a corpus names an undecided record before offering its tasks`
 
 ## Goal
 
@@ -32,6 +32,7 @@ ready work can never read as a corpus that is done.
 5. [S5] Add `report_corpus`, preserving the exit contract exactly — 0 ready / 3 nothing ready / 1 could not answer — because that is what callers branch on. [proof: acceptance]
 6. [S6] Gate the corpus branch on the target owning no task files of its own, so a directory that is both a tasks directory and a parent of records is answered the way it always was and no existing invocation changes. [proof: acceptance]
 7. [S7] Add two catalogue mutations and confirm both come back RED. [proof: mutation]
+8. [S8] Run a Codex review before the tag, per the standing rule added the same day. It was KILLED at 900s (`gtimeout`, exit 124) having reported only "Edge-case fixtures exposed prior-input and exit/observation regressions" with no detail — a lead, not a finding, and a killed review certifies nothing. Both halves were then reproduced by hand against v2.63.0 and fixed: a record folder answered as a corpus of one, and an undecided record's tasks offered with the not-Accepted warning dropped. Two more mutations, both RED. [proof: mutation]
 
 ## Acceptance
 
@@ -64,6 +65,7 @@ node --test tests/adr-next.test.mjs 2>&1 | tee /tmp/adr034-t1.out \
 
 - **A large corpus prints a long answer.** 33 records here; the reporter's has 37. The default form still names one next task, but `--all` over a corpus is now genuinely long. No paging, and none is proposed until someone asks.
 - **`corpus_records` looks exactly one level down.** A nested corpus, or records grouped into subdirectories, is not found — and the failure is silent, because the directory then simply has no records and takes the old path. Named in the record's Out of Scope rather than guessed at.
+- **The review that found the two regressions did not finish.** It was killed at 900s having named two classes and described neither; what is fixed is what I could reproduce from those two words. Anything it saw after that point is unaccounted for, and no clean-pass claim is available for this change.
 - **The unreproduced exit-0 half is not fixed by this task.** If it is real it lives below this code, in the forwarder or the Windows spawn. This change makes it less harmful without addressing it, and issue #10 should stay open on that half.
 
 ## Stop Condition
@@ -90,8 +92,12 @@ message defect it replaces, because callers already branch on those codes.
 
 - 2026-09-04 · 8611497 · mutant killed · exit 1 · `plugin/bin/adr-next` · without the branch a corpus root falls back to the single-record path and reports its own emptiness as the answer, which is the reported defect · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a corpus root is enumerated, not reported empty
 - 2026-09-04 · 8611497* · mutant killed · exit 1 · `plugin/bin/adr-next` · exit 0 on an empty answer is the exact shape issue #10 is about: a corpus with nothing ready must never report as a corpus with work · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a corpus with nothing ready is not a corpus with ready work
+- 2026-09-04 · 73126c2* · mutant killed · exit 1 · `plugin/bin/adr-next` · without the resolver check a record folder owns no task files directly and is answered as a corpus holding one record named tasks — a previously working input, silently reshaped · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a record folder is not a corpus of one
+- 2026-09-04 · 73126c2* · mutant killed · exit 1 · `plugin/bin/adr-next` · CLAUDE.md section 10: a record is a work order only once Accepted, and the corpus path silently offered a Proposed record task as ready · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a corpus names an undecided record before offering its tasks
 
 ## Verification Log
 - 2026-09-04 · a9676f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:16044 · steps:S1,S2,S3,S4,S5,S6
 - 2026-09-04 · 8611497 · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:14797
 - 2026-09-04 · 8611497* · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:15123
+- 2026-09-04 · 73126c2* · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:20797
+- 2026-09-04 · 73126c2* · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:15961

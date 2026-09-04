@@ -305,8 +305,22 @@ def disposition_span(text):
     holds the one truth table all three are checked against, the way ADR-009
     binds `enforcement_pointers` to `declaredEnforcement`.
     """
+    # A DISPOSITION INSIDE A CODE SPAN IS A MENTION, NOT A DISPOSITION. Reported
+    # 2026-09-04: ADR-024's own T1 — the task whose subject is "could not resolve
+    # is not broken" — was reported BROKEN for `- The `(external: …)` disposition`,
+    # a line that NAMES the vocabulary rather than using it, because ADR-024 is the
+    # record that defines it. A gate finding fault with the prose documenting it is
+    # reporting an observation it did not make (ADR-005).
+    #
+    # Only an opening INSIDE a span is skipped. A disposition that CONTAINS one
+    # stays a disposition — `(permanent: the `archive()` helper …)` is in the
+    # shared truth table for exactly that reason, and blanking backticks wholesale
+    # would break it.
+    spans = [(m.start(), m.end()) for m in re.finditer(r"`[^`]*`", text)]
     for opening in re.finditer(r"\((?=permanent\b|deferred\b|external\b)", text):
         depth = 0
+        if any(a < opening.start() < b - 1 for a, b in spans):
+            continue
         for i in range(opening.start(), len(text)):
             if text[i] == "(":
                 depth += 1

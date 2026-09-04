@@ -564,7 +564,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (!projectCheckCommand(input.cwd)) return",
+      "from": "  if (!check) return",
       "to": "  if (false) return"
     },
     {
@@ -627,8 +627,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (!state.unverifiedSince(state.lastPublish)) {",
-      "to": "  if (!state.hasMutations || state.verifiedAfterLastMutation) {"
+      "from": "  const unverified = state.unverifiedSince(state.lastPublish)",
+      "to": "  const unverified = state.hasMutations && !state.verifiedAfterLastMutation"
     },
     {
       "label": "advisory: a verify script is the project's named check",
@@ -4603,8 +4603,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const claim = completionClaim(input.last_assistant_message)\n  const reason = claim.kind === 'asserted'",
-      "to": "  const claim = completionClaim(input.last_assistant_message)\n  const reason = false"
+      "from": "  const reason = claim.kind === 'asserted'",
+      "to": "  const reason = false && claim.kind === 'asserted'"
     },
     {
       "label": "stop: a negative final message is never read as an assertion",
@@ -4614,6 +4614,24 @@
       ],
       "from": "  if (interimResponse(message)) return { kind: 'hedged', phrase: null }",
       "to": "  if (false) return { kind: 'hedged', phrase: null }"
+    },
+    {
+      "label": "stop: every completion event is written to the ledger",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    appendFileSync(path.join(home, 'claims.jsonl'), `${JSON.stringify({",
+      "to": "    if (evidence) return\n    appendFileSync(path.join(home, 'claims.jsonl'), `${JSON.stringify({"
+    },
+    {
+      "label": "stop: a session with nowhere to record says so instead of skipping",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '",
+      "to": "    if (home === undefined) return\n    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '"
     }
   ]
 }

@@ -37,7 +37,7 @@ and an id the task never declared is refused before anything is touched.
 set -o pipefail
 node --test tests/evidence-chain.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/adr028-t3.out \
   && ! grep -qE "no tests to run|^not ok|^# fail [1-9]" /tmp/adr028-t3.out \
-  && python3 plugin/bin/adr-lint docs/adr/ADR-028-a-step-names-the-run-that-exercised-it.md
+  && python3 plugin/bin/adr-lint docs/adr/ADR-025-a-clean-run-is-evidence-of-itself.md
 ```
 
 ## Tests
@@ -70,6 +70,7 @@ node --test tests/evidence-chain.test.mjs tests/gates.test.mjs 2>&1 | tee /tmp/a
 ## Risks
 
 - Lifting the preflight changes what runs before `recover_mutant`'s tree repair. It does not: `recover_mutant(cwd)` stays first, and the preflight only reads the task text and may `fail()` — asserted by the test's check that no `MUTANT APPLIED` line precedes the refusal.
+- The fence lints **ADR-025**, not this task's own record, and that is not arbitrary. A fence that lints the record it belongs to cannot go green until the task is finished, because `adr-lint` refuses a task carrying passing acceptance evidence with an empty Mutation Log — so the first verification run fails on the absence of the mutation the run exists to produce. Measured here on 2026-09-04, and it is why T1's fence lints ADR-022. ADR-025 is the apt target anyway: the entry this task threads `steps` onto is the one ADR-025 made the mutation path write.
 
 ## Stop Condition
 

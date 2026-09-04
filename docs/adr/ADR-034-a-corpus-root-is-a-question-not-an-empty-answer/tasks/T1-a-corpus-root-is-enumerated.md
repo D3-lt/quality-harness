@@ -88,5 +88,10 @@ message defect it replaces, because callers already branch on those codes.
 
 ## Mutation Log
 
+- 2026-09-04 · 8611497 · mutant killed · exit 1 · `plugin/bin/adr-next` · without the branch a corpus root falls back to the single-record path and reports its own emptiness as the answer, which is the reported defect · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a corpus root is enumerated, not reported empty
+- 2026-09-04 · 8611497* · mutant killed · exit 1 · `plugin/bin/adr-next` · exit 0 on an empty answer is the exact shape issue #10 is about: a corpus with nothing ready must never report as a corpus with work · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · covers:next: a corpus with nothing ready is not a corpus with ready work
+
 ## Verification Log
 - 2026-09-04 · a9676f9 · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:16044 · steps:S1,S2,S3,S4,S5,S6
+- 2026-09-04 · 8611497 · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:14797
+- 2026-09-04 · 8611497* · exit 0 · `set -o pipefail …` · acceptance-sha256:830d98d41633fc6d08586395bd3ea69c78a678557ae0b6a13a7e150716705037 · ms:15123

@@ -16,7 +16,7 @@ a derived index — when it disagrees with a task file, the task file wins.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | [a corpus root is enumerated](T1-a-corpus-root-is-enumerated.md) | pending | — | `node --test tests/adr-next.test.mjs …` |
+| T1 | [a corpus root is enumerated](T1-a-corpus-root-is-enumerated.md) | done | — | `node --test tests/adr-next.test.mjs …` |
 
 ## Contract Coupling
 

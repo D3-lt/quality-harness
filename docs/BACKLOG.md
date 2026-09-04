@@ -1640,6 +1640,44 @@ requires enumerating from the SOURCE and diffing against the list, which is §5 
 back to itself. Exposing those three is a scope change rather than a boundary change, and it is
 deferred here.
 
+### 2026-09-04 — two of the three exposed, `qh-root` deliberately not, and the skills half re-opened
+
+**Exposed by ADR-012 T5:** `adr-retire-check` and `postmortem-verify`. The enumeration was run a
+third time rather than trusted from the two above — both return zero `subprocess` sites — so they are
+read-only by exactly the standard the original five meet, and `reading_tool()` is the only registrar
+that exists, which makes the annotation structural rather than asserted.
+
+**`qh-root` is NOT exposed, and that is a decision rather than an oversight.** It is safe — it spawns
+nothing — but it answers "which installed copy of this plugin is newest ON THIS MACHINE", and over
+MCP the answer would describe the machine running the SERVER. That is either useless to the caller or
+actively misleading, and it is the same shape as the defect ADR-031 was written to prevent: a version
+answer that is about a different thing than the caller believes. A tool whose answer cannot be about
+the caller's question does not become useful by being safe.
+
+**The skills half is re-opened.** ADR-012's Out of Scope excluded porting skills as `permanent`, on
+the reason that "Desktop has no mechanism for any of them". MEASURED 2026-09-04 on Desktop
+**1.46388.1** — six builds past the 1.40609.0 every Desktop measurement in this corpus is pinned to —
+Desktop loads skills from `~/Library/Application Support/Claude/local-agent-mode-sessions/
+skills-plugin/<uuid>/<uuid>/`, a directory holding `.claude-plugin/plugin.json` plus a `skills/` tree
+of `SKILL.md` files with `name:`/`description:` frontmatter. That is the same package shape `plugin/`
+already ships, and thirteen skills load through it.
+
+**What is NOT established, and must not be reported as though it were:** whether a USER can install
+their own skills plugin there. The directory declares `"name": "anthropic-skills"`, every entry is
+`creatorType: anthropic`, and the path is session-scoped. So ADR-012's JUSTIFICATION is false while
+its CONCLUSION is merely unverified. The one measurement that would settle it is whether a
+non-Anthropic skills plugin loads, and it needs a human at the client.
+
+**A second, unrelated finding from the same look, and it is the one worth acting on first.** This
+machine's `claude_desktop_config.json` registers `quality-harness` as
+`{"command": ".../python3.14", "args": ["<repo>/plugin/bin/qh-mcp"]}` — the WORKING TREE, not an
+install. `qh-mcp` spawns the gates as subprocesses (`plugin/bin/qh-mcp:142`), so Desktop executes
+whatever is on disk at call time, including a gate mid-mutation with a finding deliberately removed;
+mutation campaigns ran against `adr-lint` several times on 2026-09-04. This is CLAUDE.md §2's trap
+inverted — there a bare name reaches a stale INSTALL, here a client reaches an unstable WORKING TREE
+— and it is equally silent. Not fixed here: it is one operator's configuration, not a repository
+defect, and nothing this repository ships can see it.
+
 ## 34. CLOSED — FIXED — the coverage gate was rejecting good code one run in ten
 
 **Cause, found by reading rather than guessing.** `--experimental-test-coverage` measures only the

@@ -9,7 +9,8 @@ README must be regenerated. Regenerate rather than hand-edit.
 
 ## Execution Order
 
-Four tasks, sequential — each consumes the one before it.
+Five tasks. T1-T4 are sequential — each consumes the one before it. T5 was added 2026-09-04 and
+depends only on T2's registrar; it is a scope change, not a boundary change.
 
 | Order | Task | Depends-on |
 |-------|------|------------|
@@ -17,6 +18,7 @@ Four tasks, sequential — each consumes the one before it.
 | 2 | T2 | T1 |
 | 3 | T3 | T1, T2 |
 | 4 | T4 | T1, T2, T3 |
+| 5 | T5 | T2 |
 
 ## Task Index
 
@@ -26,6 +28,7 @@ Four tasks, sequential — each consumes the one before it.
 | T2 | Register the five reading gates, and make the two executing ones unregisterable | done | — | `node --test tests/mcp-server.test.mjs` |
 | T3 | A finding is content; the error channel is reserved for a gate that could not run | done | — | `node --test tests/mcp-server.test.mjs` |
 | T4 | Package the server, and measure whether a real Claude Desktop can use it | done | — | human-observed |
+| T5 | Expose the last two reading gates, and say why the third stays out | pending | — | `node --test tests/mcp-server.test.mjs` |
 
 Status: `pending` | `running` | `blocked` | `done` | `failed`.
 
@@ -37,6 +40,7 @@ Status: `pending` | `running` | `blocked` | `done` | `failed`.
 | T1 | `dispatch(request)` returning a JSON-RPC response object | T2, T3 | T1 before T2 and T3 |
 | T2 | the five tool definitions and their argument schemas | T3, T4 | T2 before T3 |
 | T3 | the tool result shape — findings and exit code as content | T4 | T3 before T4 |
+| T2 | the `reading_tool()` registrar and the exact-listing assertion over it | T5 | T2 before T5 — T5 adds two tools to the set T2 defined, and the listing assertion is what makes an unregistered one visible |
 
 ## Notes
 

@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { cached, collect, gitDir, render, shell } from '../scripts/branch-state.mjs'
+import { budgeted, cached, collect, gitDir, render, shell, usableCache } from '../scripts/branch-state.mjs'
 
 const ok = out => ({ ok: true, out })
 const no = note => ({ ok: false, out: '', note })
@@ -156,8 +156,81 @@ test('shell answers for a command that ran and one that could not', () => {
   assert.ok(absent.note, 'a failure without a reason cannot be reported to anyone')
 })
 
-test('gitDir asks git, and falls back rather than throwing', () => {
+// ⚠ THE FALLBACK USED TO BE `"."`, and that is worth a test of its own: it put
+// the cache in the process's WORKING DIRECTORY, where it could overwrite a
+// tracked file and where a repository-controlled file would then be read back as
+// this tool's own answer. There is no safe default for "I do not know where .git
+// is" — null means "use no cache", which is the only honest option.
+test('gitDir asks git, and answers null rather than guessing a directory', () => {
   assert.equal(gitDir(() => ({ ok: true, out: '/somewhere/.git' })), '/somewhere/.git')
-  assert.equal(gitDir(() => ({ ok: false, out: '', note: 'not a repository' })), '.',
-    'no git is a cache in the working directory, not a crash in a session-start hook')
+  assert.equal(gitDir(() => ({ ok: false, out: '', note: 'not a repository' })), null,
+    'a cache directory must never be guessed into a tracked tree')
+  assert.equal(gitDir(() => ({ ok: true, out: '' })), null, 'an empty answer is not a path')
+})
+
+// A cache file is an INPUT, and nothing had checked it. A future timestamp keeps
+// a forged answer fresh for ever; a malformed state threw out of render and took
+// the hook's exit code with it — a reader that cannot block a session, blocking
+// one. Both are refreshed instead.
+test('a cache is only reused when what it holds survives inspection', () => {
+  const now = 1_000_000
+  const good = { at: now - 1000, state: { looked: true, ci: {} } }
+  assert.equal(usableCache(good, now), true)
+
+  assert.equal(usableCache({ at: now + 60_000, state: { looked: true, ci: {} } }, now), false,
+    'a future timestamp would never go stale')
+  assert.equal(usableCache({ at: now - 1000, state: null }, now), false)
+  assert.equal(usableCache({ at: now - 1000, state: { looked: true } }, now), false,
+    'a looked state with no ci is what threw out of render')
+  assert.equal(usableCache({ at: 'soon', state: { looked: true, ci: {} } }, now), false)
+  assert.equal(usableCache(null, now), false)
+
+  // A could-not-look state is a legitimate thing to cache, and has no `ci`.
+  assert.equal(usableCache({ at: now - 1000, state: { looked: false, note: 'no git' } }, now), true)
+
+  // And the age never rounds to zero, or a cached answer is indistinguishable
+  // from one just taken.
+  const warm = cached(120, { read: () => good, write: () => {}, now: () => now, gather: () => { throw new Error('must not gather') } })
+  assert.equal(warm.fromCache, true)
+  assert.equal(warm.ageSeconds, 1)
+})
+
+// One deadline for the whole collection, not one per subprocess. Two `gh` calls
+// at 15s each outlive the hook's 20s budget, and a hook killed by its host is a
+// hook that blocked a prompt.
+test('the collection budget is spent once, and says so when it runs out', () => {
+  let clock = 0
+  const calls = []
+  const run = budgeted(15_000, (argv, options) => { calls.push(options.timeout); return { ok: true, out: 'x' } }, () => clock)
+
+  run(['git', 'status'])
+  assert.ok(calls[0] > 0 && calls[0] <= 15_000, 'a command inside the budget gets what is left of it')
+
+  clock = 14_000
+  run(['gh', 'run', 'list'])
+  assert.equal(calls[1], 1000, 'the second command gets the REMAINDER, never a fresh 15s')
+
+  clock = 20_000
+  const spent = run(['gh', 'run', 'view', '1'])
+  assert.equal(spent.ok, false, 'past the deadline nothing else is spawned')
+  assert.match(spent.note, /budget of 15000ms spent/)
+})
+
+// The honesty defect the reader exists to prevent, found in the reader: a failed
+// `git status` became `dirty: null`, and a truthiness test rendered that as
+// "clean" — stating more than was observed, in the tool whose whole job is not
+// to (CLAUDE.md §3).
+test('a cleanliness read that failed is not reported as clean', () => {
+  const blind = render(collect(runner([
+    ['git rev-parse --abbrev-ref', ok('main')],
+    ['git rev-parse --short', ok('abc1234')],
+    ['git rev-list', ok('0\t0')],
+    ['git describe', ok('v1.0.0')],
+    ['git diff --name-only', ok('')],
+    ['gh run list', ok(JSON.stringify([{ headSha: 'abc1234', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+  ])))
+  assert.match(blind, /cleanliness COULD NOT LOOK/)
+  // `/, clean/` also matches inside ", cleanliness" — the assertion passed for
+  // the wrong reason until it did not.
+  assert.doesNotMatch(blind, /, clean(?![a-z])/, 'an unread working tree is not a clean one')
 })

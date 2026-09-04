@@ -7934,7 +7934,7 @@ asserted and the bound is bound to a mutant.
 one sentence and the fix took one. Nothing flagged the remainder — no gate can — and the cost was a
 red release run on the platform the release existed to be tested on.
 
-**127b — OPEN. Two tests assert against wall-clock bounds and cannot fail honestly.**
+**127b — OPEN. Two tests assert against wall-clock bounds and cannot tell a defect from a busy runner.**
 
 - `tests/evidence-chain.test.mjs::the recorded duration is the clean fence, not the clean fence plus
   the mutant` — measured 2026-09-04 on one tree: **2.21s alone, 4.77s** with a `codex exec` review

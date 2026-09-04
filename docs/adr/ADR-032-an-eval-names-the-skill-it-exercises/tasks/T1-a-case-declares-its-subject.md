@@ -68,7 +68,14 @@ node --test tests/evals.test.mjs 2>&1 | tee /tmp/adr032-t1.out \
 
 ## Mutation Log
 
+- 2026-09-04 · a854f3b* · mutant killed · exit 1 · `plugin/evals/a-vacuous-test-is-not-a-review/prompt.md` · a case with no skill tag must be reported; counting it as covered is how the coverage number became a guess in the first place · acceptance-sha256:65266820fbe17c3294e32870e3fe40a9c72c41e7b53437ee63a98f29792c0c6c · covers:a case with no skill tag is reported rather than counted as covered
+- 2026-09-04 · a854f3b* · mutant killed · exit 1 · `plugin/evals/a-vacuous-test-is-not-a-review/prompt.md` · a tag naming no shipped skill is a pointer to nothing that reads as coverage — ADR-011 class, and the reason this check exists at all · acceptance-sha256:65266820fbe17c3294e32870e3fe40a9c72c41e7b53437ee63a98f29792c0c6c · covers:a skill tag that names no shipped skill is reported rather than resolving to nothing
+
 ## Verification Log
+
+- 2026-09-04 · a854f3b · exit 0 · `set -o pipefail …` · acceptance-sha256:65266820fbe17c3294e32870e3fe40a9c72c41e7b53437ee63a98f29792c0c6c · ms:491 · steps:S1,S2,S3,S4,S5,S6
+- 2026-09-04 · a854f3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:65266820fbe17c3294e32870e3fe40a9c72c41e7b53437ee63a98f29792c0c6c · ms:336 · steps:S7
+- 2026-09-04 · a854f3b* · exit 0 · `set -o pipefail …` · acceptance-sha256:65266820fbe17c3294e32870e3fe40a9c72c41e7b53437ee63a98f29792c0c6c · ms:404 · steps:S7
 
 ## Invariants
 

@@ -9,7 +9,8 @@
 // make a green run depend on having damaged something.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, readFileSync, readdirSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
@@ -78,6 +79,31 @@ function surfaceReport({ version, present, checkoutShips }) {
   return { findings, notes }
 }
 
+/**
+ * What is wrong with the agent definitions under `root`, if any are there.
+ *
+ * `root` is a PARAMETER for the reason `run` is: on this machine the installed
+ * copy predates `agents/`, so driven only from the real install this branch never
+ * executes at all, and a green run would include an assertion block that was never
+ * reached. That is CLAUDE.md §4's vacuity class one level up — not a vacuous
+ * assertion, an unreached one — and a fixture is what makes it reachable anywhere.
+ *
+ * An install with no `agents/` at all returns nothing: that is release lag, and
+ * `surfaceReport` already reports it as a note.
+ */
+function agentDefinitionFindings(root, version) {
+  const directory = join(root, 'agents')
+  if (!existsSync(directory)) return []
+  const definitions = readdirSync(directory).filter(name => name.endsWith('.md'))
+  if (definitions.length === 0) {
+    return [`installed ${version} ships agents/ but it holds no definition`]
+  }
+  return definitions
+    .filter(name => !/^---\r?\n[\s\S]*?\r?\n---/.test(readFileSync(join(directory, name), 'utf8')))
+    .map(name => `installed ${version}: agent ${name} has no frontmatter,`
+      + ` so subagent_type cannot resolve it`)
+}
+
 test('an absent install is UNRUN, not a pass and not a finding', () => {
   // Driven by a STUB, never by ambient absence: on a machine with an install this
   // branch would otherwise never execute, and in CI the other test's branch never
@@ -123,6 +149,25 @@ test('an absent install is UNRUN, not a pass and not a finding', () => {
   // A surface the checkout ships and the install lacks is RELEASE LAG, which is
   // qh-doctor's question. It is reported as a note naming both, never as a
   // finding about the install (ADR-005, and T2's S3 amendment).
+  // The definitions, driven from a FIXTURE. The installed copy on the authoring
+  // machine is 2.59.0, which predates agents/ — so read only from the real
+  // install, every line of this checker would sit unexecuted behind an existsSync.
+  const fixture = mkdtempSync(join(tmpdir(), 'quality-installed-'))
+  assert.deepEqual(agentDefinitionFindings(fixture, '2.59.0'), [],
+    'an install with no agents/ is release lag, reported as a note and not here')
+  mkdirSync(join(fixture, 'agents'))
+  assert.equal(agentDefinitionFindings(fixture, '2.59.0').length, 1,
+    'agents/ that ships empty is a finding — a directory nothing can address')
+  writeFileSync(join(fixture, 'agents', 'qh-good.md'), '---\nname: qh-good\nmodel: opus\n---\nbody\n')
+  assert.deepEqual(agentDefinitionFindings(fixture, '2.59.0'), [],
+    'a definition with frontmatter is reachable and is not a finding')
+  writeFileSync(join(fixture, 'agents', 'qh-bad.md'), 'no frontmatter here\n')
+  const bad = agentDefinitionFindings(fixture, '2.59.0')
+  assert.equal(bad.length, 1, `only the unparseable definition is a finding: ${bad}`)
+  assert.match(bad[0], /qh-bad\.md/)
+  assert.match(bad[0], /2\.59\.0/, 'every finding names the version it was measured against')
+  rmSync(fixture, { recursive: true, force: true })
+
   const lagging = surfaceReport({ version: '2.59.0', present: FLOOR, checkoutShips: [...FLOOR, 'agents'] })
   assert.deepEqual(lagging.findings, [], 'release lag is not a defect of the install')
   assert.ok(lagging.notes.some(line => line.includes('agents') && line.includes('2.59.0')),
@@ -183,14 +228,8 @@ test('every shipped surface is reachable from the installed plugin', () => {
       `${version}: workflow ${workflow} does not parse as installed: ${parsed.stderr}`)
   }
 
-  // Agent definitions, where the install has them. An install that predates them
-  // is release lag, already reported as a note above.
-  if (existsSync(join(root, 'agents'))) {
-    const definitions = readdirSync(join(root, 'agents')).filter(name => name.endsWith('.md'))
-    assert.ok(definitions.length > 0, `${version}: agents/ ships but holds no definition`)
-    for (const definition of definitions) {
-      assert.match(readFileSync(join(root, 'agents', definition), 'utf8'), /^---\r?\n[\s\S]*?\r?\n---/,
-        `${version}: agent ${definition} has no frontmatter, so subagent_type cannot resolve it`)
-    }
-  }
+  // Agent definitions, through the same checker the fixtures above drive. An
+  // install that predates them returns nothing here and is reported as a note.
+  const definitions = agentDefinitionFindings(root, version)
+  assert.deepEqual(definitions, [], definitions.join('\n'))
 })

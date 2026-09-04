@@ -68,6 +68,17 @@ Two of them carry the evidence chain and are worth knowing by name:
 Nothing in those logs is written by a model. If a row says `exit 0`, a process
 exited 0.
 
+## The roles you can address by name
+
+`${CLAUDE_PLUGIN_ROOT}/agents/` holds named agent definitions, so a delegating
+skill can say `subagent_type: qh-synthesis` instead of describing the role in prose
+and hoping it is reconstructed. Read the directory rather than a list here; each
+file's frontmatter states what the role is for and which capability CLASS it asks
+for — an alias the host binds, never a version-pinned model id, which would be a
+stored fact about a catalogue this plugin does not own.
+
+They are namespaced `qh-` so they cannot shadow a role you or your host defines.
+
 ## Where the vocabulary lives
 
 `${CLAUDE_PLUGIN_ROOT}/templates/adr-template.md` is the source of truth for record

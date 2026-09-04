@@ -2444,12 +2444,16 @@ test('an entry written without --steps is unchanged, and every reader still pars
 })
 
 test('--steps records the steps a run exercised, and every reader still parses it', () => {
-  // ONE entry, and it carries the field. Deliberately no mutation pass first:
-  // ADR-025 has `--mutant` record its own clean run, which writes a SECOND row
-  // WITHOUT steps — and a reader too narrow to parse the steps row still reads
-  // that one, so the corpus proves `done` either way and the assertion below
-  // could not fail. Measured 2026-09-03: the mutant on adr-next's pattern
-  // survived for exactly that reason.
+  // ONE entry, and it carries the field. Deliberately no mutation pass first: it
+  // would write a SECOND row, and a reader too narrow to parse the steps row could
+  // pass by reading the other one instead — measured 2026-09-03, when the mutant on
+  // adr-next's pattern survived for exactly that reason.
+  //
+  // That second row USED to be written without `steps:` at all, and this comment
+  // used to say so as though it were the design. It was the defect (BACKLOG §116),
+  // fixed in ADR-028 T3; both rows now carry the field. The one-row rule stays
+  // because the reason for it was never the missing field — it is that two rows
+  // give a narrow reader something else to succeed on.
   const copy = corpus()
   addStepIdentities(copy)
   expectExit(verify(copy, ['--cwd', '.', '--steps', 'S1']), 0, 'adr-verify --steps')
@@ -2490,4 +2494,79 @@ test('--steps refuses a step id the task never declared', () => {
   const after = readTask(copy)
   assert.doesNotMatch(after.split('## Verification Log')[1] ?? '', /steps:/,
     'a refused run writes nothing')
+})
+
+// ADR-028 T3. The clean entry a `--mutant` run writes is the SAME observation the
+// plain path writes — `adr-verify`'s own comment at that call site says so — so it
+// must carry `--steps` for the same reason the plain path's does. It did not: the
+// flag was parsed, validated against the task's declared identities, and then
+// dropped, because `record_run`'s `steps` parameter defaults to None and only the
+// plain call site passed it.
+//
+// The gap was KNOWN before it was fixed. The comment on the test above says
+// ADR-025's second row is written "WITHOUT steps" and routes around it by skipping
+// the mutation pass — a workaround in a test is how a silent drop survives, because
+// the suite then documents the defect instead of failing on it.
+test("a mutation run's own clean entry carries the steps it was given", () => {
+  const copy = corpus()
+  addStepIdentities(copy)
+  addMutationLog(copy)
+  expectExit(verify(copy, [
+    '--cwd', '.', '--steps', 'S1',
+    '--mutant', 'ADR-001-selftest.md',
+    '--from', '## Alternatives Considered', '--to', '## Alternatives Considred',
+    '--why', 'adr-lint must notice its required alternatives section going missing',
+  ]), 0, 'the mutant must be killed and the run recorded')
+
+  const entries = readTask(copy).split('## Verification Log')[1].split('## Mutation Log')[0]
+  const rows = entries.match(/^- \d{4}-.*$/gm) ?? []
+  assert.equal(rows.length, 1,
+    `a --mutant run writes exactly one Verification Log row: ${JSON.stringify(rows)}`)
+  assert.match(rows[0], / · steps:S1$/,
+    `the mutation path's clean entry must carry the field the plain path carries: ${rows[0]}`)
+
+  // Shown capable of the other answer, in the same test: without --steps the same
+  // path writes the same row WITHOUT the field. An assertion that only ever sees
+  // one side cannot tell "the field is written" from "the field is always there".
+  const bare = corpus()
+  addStepIdentities(bare)
+  addMutationLog(bare)
+  expectExit(mutate(bare), 0, 'the mutant must be killed')
+  assert.doesNotMatch(
+    bare && readTask(bare).split('## Verification Log')[1].split('## Mutation Log')[0],
+    /steps:/, 'no field appears on the mutation path either unless it was asked for')
+
+  // And the readers still accept it. `done` is the strictest path, so a row
+  // adr-lint could not parse fails here rather than silently ceasing to be evidence.
+  markDone(copy)
+  expectExit(lint(copy), 0, 'adr-lint must accept the mutation path row carrying steps')
+})
+
+// The same defect's other half, and the worse one. BACKLOG §116 reported the field
+// being dropped; the cause is that `main()` calls `run_mutant()` — which always
+// exits — BEFORE the `--steps` validation block runs at all. So on the `--mutant`
+// path an undeclared step id was not merely unrecorded, it was unchecked: the
+// preflight the plain path performs was unreachable. Measured 2026-09-04 by running
+// `--steps S9 --mutant` and watching it complete.
+test('--steps refuses an undeclared id on the --mutant path too', () => {
+  const copy = corpus()
+  addStepIdentities(copy)
+  addMutationLog(copy)
+  const refused = verify(copy, [
+    '--cwd', '.', '--steps', 'S9',
+    '--mutant', 'ADR-001-selftest.md',
+    '--from', '## Alternatives Considered', '--to', '## Alternatives Considred',
+    '--why', 'adr-lint must notice its required alternatives section going missing',
+  ])
+  assert.notEqual(refused.status, 0, 'an undeclared step id must be refused here as well')
+  const said = `${refused.stdout}${refused.stderr}`
+  assert.match(said, /declare[sd]? S1, S2/,
+    `refused for being undeclared, not for some other reason: ${said}`)
+  // The refusal must land BEFORE the mutant is applied. A refusal that arrives after
+  // the source has been edited leaves a tree this process broke on purpose, and the
+  // whole point of preflight ordering (ADR-016) is that it cannot.
+  assert.doesNotMatch(said, /MUTANT APPLIED/,
+    'the refusal must precede the mutant, not follow it')
+  assert.doesNotMatch(readTask(copy).split('## Verification Log')[1] ?? '', /^- \d{4}-/m,
+    'a refused run writes no entry')
 })

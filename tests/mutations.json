@@ -1075,8 +1075,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    recover_mutant(cwd)\n\n    if mutant is not None:",
-      "to": "    if mutant is not None:"
+      "from": "    recover_mutant(cwd)\n\n    # ADR-028 T1, corrected by T3.",
+      "to": "    # ADR-028 T1, corrected by T3."
     },
     {
       "label": "sync: a forwarder is not reported as drifted",
@@ -4027,7 +4027,7 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_elapsed_ms, entry_sha)",
+      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_elapsed_ms, entry_sha, steps)",
       "to": "    pass"
     },
     {
@@ -4263,6 +4263,24 @@
       ],
       "from": "    .filter(name => !/^---\\r?\\n[\\s\\S]*?\\r?\\n---/.test(readFileSync(join(directory, name), 'utf8')))",
       "to": "    .filter(() => false)"
+    },
+    {
+      "label": "steps: a --mutant run's own clean entry carries the field it was given",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "                   covers=covers, steps=steps)",
+      "to": "                   covers=covers)"
+    },
+    {
+      "label": "steps: the undeclared-id preflight is reachable on the --mutant path",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if steps is not None:",
+      "to": "    if steps is not None and mutant is None:"
     }
   ]
 }

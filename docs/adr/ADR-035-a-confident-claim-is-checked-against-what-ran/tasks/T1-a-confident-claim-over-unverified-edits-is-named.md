@@ -45,8 +45,19 @@ words made the claim and which check did not run; every other message keeps toda
 ```bash
 set -o pipefail
 out=$(mktemp)
-node --test --test-name-pattern 'false success' tests/lifecycle.test.mjs 2>&1 | tee "$out" && grep -qE '^ℹ pass [1-9]' "$out" && grep -qE '^ℹ fail 0$' "$out"
+node --test --test-name-pattern 'false success|honest final message|verified edits is not|completionClaim reads negation' tests/lifecycle.test.mjs 2>&1 | tee "$out" && grep -qE '^ℹ pass [1-9]' "$out" && grep -qE '^ℹ fail 0$' "$out"
 ```
+
+<WIDENED 2026-09-04, and the reason is in this task's own Mutation Log. The first
+fence filtered on `'false success'` alone, which runs ONE test — so a mutant
+breaking `the precedence of the negative classifiers` SURVIVED: that mechanism is
+asserted by the three tests the filter excluded, and the fence could not see
+them. It is the trap `templates/task-template.md` names, "a fence narrow enough
+to name ONE test leaves everything else outside it", and it took a mutation to
+find because the fence was green either way. Widening changes the digest and
+invalidates every entry taken under the old fence. That is correct: those entries
+proved a different command, and the survived row stays in the log as the finding
+that produced this one.>
 
 ## Tests
 
@@ -67,6 +78,12 @@ node --test --test-name-pattern 'false success' tests/lifecycle.test.mjs 2>&1 | 
 | 4 — it is used | T2's ledger row carries the claim kind; `claims-rate.mjs` (T3) counts it |
 
 ## Mutation Log
+
+- 2026-09-04 · 335ea07 · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the branch that selects the false-success advisory: without it a confident claim gets the plain evidence sentence · acceptance-sha256:357c53b5474cb1ced32ebc4cc57793d78df07d0f3c0040f5b53e326c2b6f55e2 · covers:the branch that selects the false-success advisory
+- 2026-09-04 · 335ea07* · mutant survived · exit 0 · `plugin/scripts/lifecycle.mjs` · the precedence of the negative classifiers: without it 'not done' and 'fixed but blocked' are read as assertions and the honest message is accused · acceptance-sha256:357c53b5474cb1ced32ebc4cc57793d78df07d0f3c0040f5b53e326c2b6f55e2 · covers:the precedence of the negative classifiers
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
 
 ## Invariants
 
@@ -91,3 +108,5 @@ premise needs re-checking.
 - Any change to what counts as evidence — `analyzeTranscript` is untouched.
 
 ## Verification Log
+- 2026-09-04 · 335ea07 · exit 0 · `set -o pipefail …` · acceptance-sha256:357c53b5474cb1ced32ebc4cc57793d78df07d0f3c0040f5b53e326c2b6f55e2 · ms:295
+- 2026-09-04 · 335ea07* · exit 0 · `set -o pipefail …` · acceptance-sha256:357c53b5474cb1ced32ebc4cc57793d78df07d0f3c0040f5b53e326c2b6f55e2 · ms:292

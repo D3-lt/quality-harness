@@ -3907,3 +3907,94 @@ test('completionClaim reads negation before assertion', () => {
   assert.ok(claim.phrase.length <= 80, 'the quoted phrase is bounded')
   assert.equal(completionClaim('Here is what I found.').phrase, null)
 })
+
+// ADR-035 T2. One row per completion event, or the rate has no denominator.
+// The ledger is machine-local under CLAUDE_PLUGIN_DATA — never in the user's
+// repository — and its absence is announced rather than skipped, because a
+// ledger that silently records nothing is the false-clean this corpus refuses.
+
+async function ledgerRows(dir) {
+  const raw = await readFile(path.join(dir, 'claims.jsonl'), 'utf8')
+  return raw.trim().split('\n').filter(Boolean).map(line => JSON.parse(line))
+}
+
+test('the claims ledger gets one row per completion event, classified', async () => {
+  const data = await mkdtemp(path.join(testTmp, 'quality-claims-data-'))
+  const env = { ...process.env, CLAUDE_PLUGIN_DATA: data }
+
+  // asserted × unverified — the false success.
+  const { dir, file } = await unverifiedProject('quality-claims-unverified-')
+  runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: file,
+    cwd: dir,
+    last_assistant_message: '✅ All tests pass. Task complete.',
+  }, { env })
+
+  // could-not-look — the transcript is unreadable, so nothing was observed.
+  runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: path.join(dir, 'no-such-transcript.jsonl'),
+    cwd: dir,
+    last_assistant_message: 'Done.',
+  }, { env })
+
+  // no-check — a project that declares and infers no check command.
+  const bare = await mkdtemp(path.join(testTmp, 'quality-claims-nocheck-'))
+  const bareFile = path.join(bare, 'agent.jsonl')
+  await writeFile(bareFile, transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(bare, 'a.ts') }),
+    toolResult('e1'),
+  ]))
+  runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: bareFile,
+    cwd: bare,
+    last_assistant_message: 'Done.',
+  }, { env })
+
+  const rows = await ledgerRows(data)
+  assert.equal(rows.length, 3, `one row per completion event, got ${JSON.stringify(rows)}`)
+  assert.deepEqual(rows.map(row => row.evidence), ['unverified', 'could-not-look', 'no-check'])
+  assert.equal(rows[0].claim, 'asserted')
+  assert.match(rows[0].phrase, /All tests pass/)
+  assert.equal(rows[0].event, 'Stop')
+  assert.ok(Number.isInteger(rows[0].mutations), 'the row counts the edits it was judging')
+  assert.ok(Date.parse(rows[0].at), `at must be a timestamp, got ${rows[0].at}`)
+  // could-not-look observed nothing, so it carries no claim about the work.
+  assert.equal(rows[1].evidence, 'could-not-look')
+})
+
+test('the claims ledger is not written without CLAUDE_PLUGIN_DATA, and says so', async () => {
+  const { dir, file } = await unverifiedProject('quality-claims-nodata-')
+  const env = { ...process.env }
+  delete env.CLAUDE_PLUGIN_DATA
+  const run = runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: file,
+    cwd: dir,
+    last_assistant_message: '✅ All tests pass. Task complete.',
+  }, { env })
+  assert.equal(run.status, 0, run.stderr)
+  assert.match(run.stderr, /CLAUDE_PLUGIN_DATA/,
+    `the absence must be announced, not skipped\n${run.stderr}`)
+  // The advisory still fires: recording is separate from judging.
+  assert.match(run.stdout, /All tests pass/, run.stdout)
+})
+
+test('the claims ledger row never throws out of the hook', async () => {
+  const { dir, file } = await unverifiedProject('quality-claims-unwritable-')
+  // A data dir that is a FILE: every write into it fails, at the OS level, on
+  // every platform. The hook must still judge and still exit 0.
+  const wall = path.join(dir, 'not-a-directory')
+  await writeFile(wall, 'x')
+  const run = runLifecycleHook({
+    hook_event_name: 'Stop',
+    transcript_path: file,
+    cwd: dir,
+    last_assistant_message: '✅ All tests pass. Task complete.',
+  }, { env: { ...process.env, CLAUDE_PLUGIN_DATA: wall } })
+  assert.equal(run.status, 0, `a ledger failure is not a hook failure\n${run.stderr}`)
+  assert.match(run.stdout, /All tests pass/,
+    `the advisory must survive an unwritable ledger\n${run.stdout}`)
+})

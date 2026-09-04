@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { existsSync, lstatSync, readdirSync, readlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -1993,6 +1993,48 @@ function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
   return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
 }
 
+// ADR-035. One line per completion event, machine-local, append-only.
+//
+// WHY IT IS NOT IN THE REPOSITORY: this harness writes into a user's tree only
+// through `adr-verify`, into a file they pointed it at. A telemetry file
+// appearing in every repository the plugin touches is a surprise, and one that
+// could reach a push (CLAUDE.md §6). `CLAUDE_PLUGIN_DATA` is where the mutant
+// journal already lives.
+//
+// WHY THE ABSENCE IS ANNOUNCED: a ledger that skips in silence reads exactly
+// like a ledger recording zero false successes. That is the false-clean this
+// corpus refuses everywhere else, so a session with nowhere to write says so
+// once, on stderr, where it cannot be mistaken for a finding about the work.
+//
+// It never throws. Recording is not judging: a hook that failed to write its
+// telemetry has still observed everything it observed, and turning that into a
+// hook failure would make the ledger able to break the gate.
+function recordClaim(input, claim, evidence, mutations) {
+  const home = process.env.CLAUDE_PLUGIN_DATA
+  if (!home) {
+    process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this completion '
+      + 'event was NOT recorded. No false-success rate can count it. This is a note about the '
+      + 'environment, not a finding about your work.\n')
+    return
+  }
+  try {
+    mkdirSync(home, { recursive: true })
+    appendFileSync(path.join(home, 'claims.jsonl'), `${JSON.stringify({
+      at: new Date().toISOString(),
+      event: input.hook_event_name,
+      cwd: typeof input.cwd === 'string' ? input.cwd : null,
+      session: typeof input.session_id === 'string' ? input.session_id : null,
+      claim: claim.kind,
+      phrase: claim.phrase,
+      evidence,
+      mutations,
+    })}\n`, 'utf8')
+  } catch (failure) {
+    process.stderr.write(`[quality-harness] could not append to the claims ledger (${failure.code
+      ?? failure.message}); this completion event is not counted.\n`)
+  }
+}
+
 // ADR-035. The sentence for a claim the evidence does not support.
 //
 // It differs from `missingEvidenceReason` in exactly one way that matters: it
@@ -3186,8 +3228,12 @@ export async function handleHook(input) {
   if (!['SubagentStop', 'TaskCompleted', 'Stop'].includes(event)) return
   if (input.stop_hook_active === true || (event === 'Stop' && hasBackgroundWork(input))) return
 
+  const claim = completionClaim(input.last_assistant_message)
   const raw = await readTranscript(input)
   if (!raw) {
+    // ADR-005: the hook could not look. That is its own bucket, in neither half
+    // of any rate — never a claim about the work, and never silence either.
+    recordClaim(input, claim, 'could-not-look', 0)
     const reason = 'Quality gate could not read the session transcript; completion evidence is '
       + 'unavailable. This is an environment problem, not a finding about your work: the hook was '
       + 'given a transcript path it cannot read.'
@@ -3196,6 +3242,14 @@ export async function handleHook(input) {
     return
   }
   const state = analyzeTranscript(raw, input.cwd)
+  // ADR-035. ONE row per completion event, written here because this is the one
+  // point every path below has already passed and none has yet returned. The
+  // rate's denominator is only honest if nothing can reach an exit without being
+  // counted, so this must not be pushed down into the branches that follow.
+  const check = projectCheckCommand(input.cwd)
+  const unverified = state.unverifiedSince(state.lastPublish)
+  recordClaim(input, claim, !check ? 'no-check' : unverified ? 'unverified' : 'verified',
+    state.mutationPathsSince(state.lastPublish).length)
   if (event !== 'Stop') {
     const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
     if (artifactFailure) {
@@ -3210,7 +3264,7 @@ export async function handleHook(input) {
   // it just ran before the commit that came after it. Reported from blueprints,
   // 2026-08-26. Work authored AFTER the publish still counts, which is the case
   // this gate is actually for.
-  if (!state.unverifiedSince(state.lastPublish)) {
+  if (!unverified) {
     // The check passed, so there is no finding. If an ADR task is waiting on
     // exactly this kind of evidence, say so — a V-Log entry written by
     // adr-verify is the difference between a claim and a record.
@@ -3229,9 +3283,9 @@ export async function handleHook(input) {
   // and fires in repositories that never opted into this harness. Reported from
   // redash-api on 2026-08-26: "this is useless.. repeats everywhere even when we
   // do not work with quality harness".
-  if (!projectCheckCommand(input.cwd)) return
+  if (!check) return
 
-  const claim = completionClaim(input.last_assistant_message)
+
   const reason = claim.kind === 'asserted'
     ? falseSuccessReason(claim, state, input.cwd)
     : missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))

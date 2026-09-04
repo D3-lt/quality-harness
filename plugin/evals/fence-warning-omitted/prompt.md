@@ -2,6 +2,9 @@
 max_turns: 4
 runs: 1
 allowed_tools: []
+# ADR-032. The skill this case exercises, declared rather than inferred:
+# The no-warning arm of the pair above. Same reason.
+tags: [skill-unattributed]
 ---
 
 I am writing the Acceptance fence for a task. The task adds one function,

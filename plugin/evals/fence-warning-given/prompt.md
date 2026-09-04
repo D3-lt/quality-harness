@@ -2,6 +2,10 @@
 max_turns: 4
 runs: 1
 allowed_tools: []
+# ADR-032. The skill this case exercises, declared rather than inferred:
+# An A/B PAIR with `fence-warning-omitted`, measuring whether the fence-falsifiability
+# warning changes the command a model proposes. Not a skill-invocation case.
+tags: [skill-unattributed]
 ---
 
 I am writing the Acceptance fence for a task. The task adds one function,

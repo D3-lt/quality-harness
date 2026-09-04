@@ -12,6 +12,9 @@
 max_turns: 8
 runs: 1
 allowed_tools: []
+# ADR-032. The skill this case exercises, declared rather than inferred:
+# The no-instruction arm of the pair above. Same reason.
+tags: [skill-unattributed]
 ---
 
 Write a Python function `parse_duration(text)` that turns a user-supplied duration string into an integer number of seconds.

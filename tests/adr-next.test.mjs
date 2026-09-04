@@ -371,6 +371,66 @@ test('a human sign-off that reports a PASS is still done', () => {
   assert.match(out, /^done\s+T1/m, `an affirmative sign-off is evidence:\n${out}`)
 })
 
+// Found 2026-09-04 on this repository's own ADR-012 T4, which the tasks README
+// calls done and which adr-next printed READY. The sign-off is affirmative — the
+// tool ran, the gate answered, the finding was reported — and one of the things
+// it honestly reports is that no server-level instruction BLOCK was visible to
+// the model. `block` is in NEGATIVE, so a noun describing a chunk of text was
+// read as the verdict "blocked", and a five-task record reported its last task
+// unfinished forever.
+//
+// The guard itself stays: an affirmative outcome must be stated, and a negative
+// word beats an affirmative one. What changes is that the ambiguous entries are
+// matched as VERBS. A sign-off worth reading describes what was observed, and
+// honest observation prose contains nouns.
+test('a negative word used as a noun is not read as a verdict', () => {
+  const { tasksDir } = corpus([
+    { id: 'T1', human: true, evidence: true,
+      signoff: '- 2026-08-30 · human-observed · Zy confirmed the tool answered correctly; '
+        + 'the client rendered no server-level instruction block, and the transport was fine' },
+  ])
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.match(out, /^done\s+T1/m,
+    `a noun was read as a stop:\n${out}`)
+})
+
+// The other direction, in the same file, or the change above is indistinguishable
+// from deleting `block` from NEGATIVE altogether.
+//
+// CLAUDE.md §5: the fix is one member of a class, so the class is enumerated
+// here rather than sampled. Sweeping every negative word through its verb forms
+// (2026-09-04) found a SECOND hole nobody had reported and this task did not
+// introduce: `refus(?:ed)?` never matched the bare word `refuse` at all, because
+// the stem stops at `refus` and the trailing lookahead rejects the `e`. Closed
+// in the same line. `block` on its own is the one deliberate absence — it is the
+// noun that started this — and asserting that absence is what keeps the fix from
+// being read later as an oversight.
+test('the verb forms of a negative word are still read as a stop', () => {
+  const stops = [
+    'decision BLOCKED — neither ship nor withdraw',
+    'confirmed, but the rollout blocks on legal',
+    'observed and passing; blocking on a second reviewer',
+  ]
+  for (const verb of ['stopped', 'stops', 'stopping', 'failed', 'fails', 'failing',
+    'refuse', 'refused', 'refuses', 'refusing', 'withdrawn', 'withdraws', 'withdrawing',
+    'rejected', 'rejects', 'rejecting', 'aborted', 'aborts', 'aborting']) {
+    stops.push(`confirmed and observed, but the release ${verb} on review`)
+  }
+  for (const note of stops) {
+    const signoff = `- 2026-08-26 · human-observed · ${note}`
+    const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true, signoff }])
+    const out = next([tasksDir, '--all'], root).stdout
+    assert.doesNotMatch(out, /^done\s+T1/m, `a stop was counted as done:\n${note}\n${out}`)
+  }
+
+  // The deliberate absence, asserted so it reads as a decision rather than a gap:
+  // the bare noun is NOT a stop, which is the whole point of the change.
+  const { tasksDir } = corpus([{ id: 'T1', human: true, evidence: true,
+    signoff: '- 2026-08-26 · human-observed · confirmed; the client rendered no instruction block' }])
+  assert.match(next([tasksDir, '--all'], root).stdout, /^done\s+T1/m,
+    'the bare noun must stay outside NEGATIVE, or this fix has been reverted')
+})
+
 test('a human-observed task is told how to sign itself off', () => {
   const { tasksDir } = corpus([{ id: 'T1', human: true }])
   const result = next([tasksDir], root)

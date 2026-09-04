@@ -1287,9 +1287,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # backwards turns a finding about NTP into a finding about the work.
         clean_started = time.monotonic()
         try:
-            clean = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
-                                   text=True, encoding="utf-8", errors="replace",
-                                   timeout=fence_timeout())
+            clean = run_bounded([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
+                                text=True, encoding="utf-8", errors="replace",
+                                timeout=fence_timeout())
         except subprocess.TimeoutExpired as expired:
             partial = decode_stream(expired.stdout) + decode_stream(expired.stderr)
             print(f"[adr-verify] UNPROVEN: the clean acceptance fence did not finish within "
@@ -1383,9 +1383,9 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             sys.exit(2)
 
         try:
-            r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
-                               text=True, encoding="utf-8", errors="replace",
-                               timeout=fence_timeout())
+            r = run_bounded([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True,
+                            text=True, encoding="utf-8", errors="replace",
+                            timeout=fence_timeout())
         except subprocess.TimeoutExpired:
             # The mutant is still applied, so the restore below is what matters —
             # `finish()` runs it. UNRUN, not survived and not killed: a fence that
@@ -1719,6 +1719,58 @@ _UNSET = object()
 FENCE_TIMEOUT_DEFAULT = 1800
 
 
+def kill_tree(pid, platform=None, run=subprocess.run):
+    """Kill PID and everything it started (BACKLOG §120).
+
+    `subprocess.run(timeout=)` kills its direct child and nothing else. A fence
+    runs through bash, so the real work — a test runner, a mutation campaign —
+    is a grandchild, and on 2026-09-04 one ran on with PPID 1 for minutes after
+    the sweep had filed its claim as unrunnable, rewriting this very file. A
+    timeout that reports "stopped" while the work continues is a false verdict,
+    not a slow one.
+
+    `platform` and `run` are the seam (CLAUDE.md §7): the Windows branch is
+    exercised on every host by injecting both, and taskkill is never spawned
+    where it does not exist. Copied verbatim into spec-verify and qh-mcp — a
+    shared module under bin/ would be read as a gate by the package tests.
+    """
+    if (platform or os.name) == "nt":
+        run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+        return
+    try:
+        os.killpg(os.getpgid(pid), signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def run_bounded(argv, *, timeout, platform=None, **popen):
+    """`subprocess.run(argv, timeout=…)` whose timeout reaches the whole tree.
+
+    The child starts in its own session (POSIX) or process group (Windows) so
+    `kill_tree` has something to address. On `TimeoutExpired` the tree is
+    killed, whatever the child had written is collected, and the exception is
+    re-raised carrying it, as `subprocess.run` would. Every other keyword goes
+    to Popen unchanged — `capture_output` included, spelled out here because
+    Popen does not take it.
+    """
+    platform = platform or os.name
+    if popen.pop("capture_output", False):
+        popen["stdout"] = popen["stderr"] = subprocess.PIPE
+    if platform == "nt":
+        popen["creationflags"] = (popen.get("creationflags", 0)
+                                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
+    else:
+        popen["start_new_session"] = True
+    with subprocess.Popen(argv, **popen) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            kill_tree(proc.pid, platform)
+            out, err = proc.communicate()
+            raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
+
+
 def fence_timeout(env=None):
     """Seconds before a recording fence is called hung, as a PARAMETER.
 
@@ -1964,9 +2016,9 @@ def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSE
                 child_env = dict(os.environ, **{SWEEP_REENTRY_ENV:
                     (chain + os.pathsep if chain else "") + str(Path(root).resolve())})
                 with tempfile.TemporaryFile() as out, tempfile.TemporaryFile() as err:
-                    r = subprocess.run([shell, "-c", fence], cwd=str(fence_cwd(task)),
-                                       env=child_env, stdin=subprocess.DEVNULL,
-                                       stdout=out, stderr=err, timeout=timeout)
+                    r = run_bounded([shell, "-c", fence], cwd=str(fence_cwd(task)),
+                                    env=child_env, stdin=subprocess.DEVNULL,
+                                    stdout=out, stderr=err, timeout=timeout)
                     out.seek(0); err.seek(0)
                     r = subprocess.CompletedProcess(
                         r.args, r.returncode,
@@ -2488,8 +2540,8 @@ def main():
     # the clock reported as a finding about the work.
     started = time.monotonic()
     try:
-        r = subprocess.run([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
-                           encoding="utf-8", errors="replace", timeout=fence_timeout())
+        r = run_bounded([bash_or_exit(), "-c", cmd], cwd=cwd, capture_output=True, text=True,
+                        encoding="utf-8", errors="replace", timeout=fence_timeout())
     except subprocess.TimeoutExpired as expired:
         # UNRUN, not FAILED. A fence that never returned has not judged the code,
         # and recording exit 1 would put a verdict in the log that nothing

@@ -22,7 +22,9 @@ one that just ran (ADR-031).
 """
 import argparse
 import ast
+import os
 import re
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -89,14 +91,57 @@ def is_unbound(test):
     return bool(UNBOUND_RE.fullmatch(test.strip()))
 
 
+def kill_tree(pid, platform=None, run=subprocess.run):
+    """Kill PID and everything it started (BACKLOG §120).
+
+    `subprocess.run(timeout=)` kills its direct child and nothing else; a
+    runner started through a shell is a grandchild and outlives the timeout.
+    `platform` and `run` are the seam (CLAUDE.md §7). Copied verbatim from
+    adr-verify — a shared module under bin/ would be read as a gate by the
+    package tests.
+    """
+    if (platform or os.name) == "nt":
+        run(["taskkill", "/F", "/T", "/PID", str(pid)], capture_output=True)
+        return
+    try:
+        os.killpg(os.getpgid(pid), signal.SIGKILL)
+    except ProcessLookupError:
+        pass
+
+
+def run_bounded(argv, *, timeout, platform=None, **popen):
+    """`subprocess.run(argv, timeout=…)` whose timeout reaches the whole tree.
+
+    Own session (POSIX) or process group (Windows), `kill_tree` on
+    `TimeoutExpired`, the exception re-raised with what the child wrote.
+    Every other keyword goes to Popen unchanged.
+    """
+    platform = platform or os.name
+    if popen.pop("capture_output", False):
+        popen["stdout"] = popen["stderr"] = subprocess.PIPE
+    if platform == "nt":
+        popen["creationflags"] = (popen.get("creationflags", 0)
+                                  | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
+    else:
+        popen["start_new_session"] = True
+    with subprocess.Popen(argv, **popen) as proc:
+        try:
+            out, err = proc.communicate(timeout=timeout)
+        except subprocess.TimeoutExpired:
+            kill_tree(proc.pid, platform)
+            out, err = proc.communicate()
+            raise subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err) from None
+    return subprocess.CompletedProcess(argv, proc.returncode, out, err)
+
+
 def repo_root(spec_path, override):
     if override:
         return Path(override).resolve()
     d = spec_path.resolve().parent
     try:
-        top = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
-                             capture_output=True, text=True, timeout=10,
-                             encoding="utf-8", errors="replace")
+        top = run_bounded(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
+                          capture_output=True, text=True, timeout=10,
+                          encoding="utf-8", errors="replace")
         if top.returncode == 0:
             return Path(top.stdout.strip())
     except Exception:
@@ -483,8 +528,8 @@ def test_exists(test, root, stack, collect):
         "molecule": ["molecule", "list", "-s", name],
     }
     try:
-        r = subprocess.run(cmds[stack], cwd=root, capture_output=True, text=True, timeout=300,
-                           encoding="utf-8", errors="replace")
+        r = run_bounded(cmds[stack], cwd=root, capture_output=True, text=True, timeout=300,
+                        encoding="utf-8", errors="replace")
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return "unrun", (f"the {stack} collector could not be run ({e}). Install it, drop "
                          "--collect to inspect the source instead, or give the binding a "
@@ -514,8 +559,8 @@ def test_runs(test, root, stack, override_cmd):
     """
     if override_cmd:
         try:
-            r = subprocess.run(override_cmd, shell=True, cwd=root, capture_output=True,
-                              text=True, timeout=1800, encoding="utf-8", errors="replace")
+            r = run_bounded(override_cmd, shell=True, cwd=root, capture_output=True,
+                            text=True, timeout=1800, encoding="utf-8", errors="replace")
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
             return "unrun", f"the Cmd override could not be run: {e}"
         return ("pass" if r.returncode == 0 else "fail"), (r.stdout + r.stderr)[-300:]
@@ -559,8 +604,8 @@ def test_runs(test, root, stack, override_cmd):
                          "test under a directory whose project markers name a runner "
                          "spec-verify knows.")
     try:
-        r = subprocess.run(cmds[stack], cwd=cwd, capture_output=True, text=True, timeout=1800,
-                           encoding="utf-8", errors="replace")
+        r = run_bounded(cmds[stack], cwd=cwd, capture_output=True, text=True, timeout=1800,
+                        encoding="utf-8", errors="replace")
     except (FileNotFoundError, subprocess.TimeoutExpired) as e:
         return "unrun", f"the {stack} command could not be run: {e}"
     return ("pass" if r.returncode == 0 else "fail"), (r.stdout + r.stderr)[-300:]

@@ -2299,8 +2299,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "                    r = subprocess.run([shell, \"-c\", fence], cwd=str(fence_cwd(task)),",
-      "to": "                    r = subprocess.run([shell, \"-c\", fence], cwd=str(task.parent),"
+      "from": "                    r = run_bounded([shell, \"-c\", fence], cwd=str(fence_cwd(task)),",
+      "to": "                    r = run_bounded([shell, \"-c\", fence], cwd=str(task.parent),"
     },
     {
       "label": "sweep: an environmental failure needs more than a matching string",
@@ -2398,8 +2398,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "                                       stdout=out, stderr=err, timeout=timeout)",
-      "to": "                                       stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)"
+      "from": "                                    stdout=out, stderr=err, timeout=timeout)",
+      "to": "                                    stdout=subprocess.PIPE, stderr=subprocess.PIPE, timeout=timeout)"
     },
     {
       "label": "sweep: a nested sweep refuses itself, whatever the fence is spelled like",
@@ -2992,8 +2992,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                           encoding=\"utf-8\", errors=\"replace\", timeout=fence_timeout())",
-      "to": "                           encoding=\"utf-8\", errors=\"replace\", timeout=None)"
+      "from": "                        encoding=\"utf-8\", errors=\"replace\", timeout=fence_timeout())",
+      "to": "                        encoding=\"utf-8\", errors=\"replace\", timeout=None)"
     },
     {
       "label": "verify: a mutant run that hangs is UNRUN, and the file is put back",
@@ -3001,8 +3001,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "                               text=True, encoding=\"utf-8\", errors=\"replace\",\n                               timeout=fence_timeout())",
-      "to": "                               text=True, encoding=\"utf-8\", errors=\"replace\",\n                               timeout=None)"
+      "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout())",
+      "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None)"
     },
     {
       "label": "checks: an inferred command says it was inferred, a declared one does not",
@@ -4524,6 +4524,33 @@
       ],
       "from": "        record_dir = (record_dir.absolute() if record_dir is not None",
       "to": "        record_dir = (tasks_dir.resolve().parent if record_dir is not None"
+    },
+    {
+      "label": "verify: a fence timeout kills the tree the fence started, not only bash",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "        os.killpg(os.getpgid(pid), signal.SIGKILL)",
+      "to": "        os.kill(pid, signal.SIGKILL)"
+    },
+    {
+      "label": "spec: a runner timeout kills the tree the runner started, not only the shell",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "        os.killpg(os.getpgid(pid), signal.SIGKILL)",
+      "to": "        os.kill(pid, signal.SIGKILL)"
+    },
+    {
+      "label": "mcp: a gate timeout kills the tree the gate started, not only the gate",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "        os.killpg(os.getpgid(pid), signal.SIGKILL)",
+      "to": "        os.kill(pid, signal.SIGKILL)"
     }
   ]
 }

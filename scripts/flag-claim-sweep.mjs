@@ -159,7 +159,7 @@ function gateSourceAt(sha) {
   return paths.map(p => { try { return git(['show', `${sha}:${p}`]) } catch { return '' } }).join('\n')
 }
 
-function main(argv) {
+export function main(argv) {
   if (argv[0] === '--help' || argv[0] === '-h') {
     console.log('Usage: node scripts/flag-claim-sweep.mjs [<git range>|--all]')
     return 0

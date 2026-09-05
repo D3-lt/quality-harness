@@ -2984,6 +2984,18 @@ re-running until green is exactly the habit this corpus exists to refuse. Candid
 with `--test-reporter=tap` in CI so a failing subtest cannot be swallowed, or split it — it is the
 largest file in the suite by a wide margin.
 
+**Addendum 2026-09-05 — the "timeout inside a spawned subprocess" hypothesis has a local instance.**
+On macOS, with a docker build of the same suite running alongside, `bash scripts/selftest.sh`
+failed exactly one test: `a bin/ gate is spawned in a way Windows can actually run`, with
+`AssertionError: null !== 0` after 10165ms. `spawnGate` there carried `timeout: 10_000`; `adr-next`
+was killed at the cap (`status null, signal SIGTERM` — reproduced on purpose with `timeout: 1`) and
+the assertion compared the status with no word about why. Idle, the same test passes in well under
+a second; the 10s cap was measuring the machine (§127b). Both 10s sites in the file now carry the
+60s the shared `run()` helpers use — a hang guard, not a speed assertion — and a null status is
+reported as a kill with its signal and the guard that fired. This does not close §49: the Windows
+occurrences are FILE-level `not ok` with every subtest `ok`, which a killed spawn inside a named
+test does not produce. It removes one way the file can go red without saying why, on any platform.
+
 **Frequency so far: one occurrence in the runs recorded to date.** Do not act on it as though it
 were established; do record the next one here with its run id, because two data points decide
 whether this is a timeout or something real.

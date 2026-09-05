@@ -1602,10 +1602,16 @@ test('a bin/ gate is spawned in a way Windows can actually run', async () => {
   await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks'),
     path.join(repo, 'tasks'), { recursive: true })
   const tool = path.join(pluginDir, 'bin', 'adr-next')
-  const options = { encoding: 'utf8', timeout: 10_000 }
+  // A hang guard, not a speed assertion: the shared run() helpers carry 60s for
+  // the same reason. At 10s this measured the machine — on 2026-09-05 a full
+  // local suite beside a docker build killed adr-next at the cap and the report
+  // read `null !== 0`, which attributes to nothing (BACKLOG §49, §127b).
+  const options = { encoding: 'utf8', timeout: 60_000 }
 
   const windows = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], options, 'win32')
-  assert.equal(windows.status, 0, windows.stderr)
+  assert.equal(windows.status, 0, windows.status === null
+    ? `adr-next was killed (${windows.signal}) before it answered — the ${options.timeout}ms hang guard fired, which is the machine, not the gate`
+    : windows.stderr)
   assert.ok(JSON.parse(windows.stdout).ready?.length, 'the win32 branch must reach the gate')
 
   // The POSIX branch execs the `#!` script itself, which is the thing Windows
@@ -1694,8 +1700,10 @@ test('a Windows python3 that is not Python is refused, not believed', async () =
   await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks'), path.join(repo, 'tasks'), { recursive: true })
   const tool = path.join(pluginDir, 'bin', 'adr-next')
   const chosen = resolvePython('win32', [decoy, ['python3']], spawnSync)
-  const run = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], { encoding: 'utf8', timeout: 10_000 }, 'win32', chosen)
-  assert.equal(run.status, 0, run.stderr)
+  const run = spawnGate(tool, [path.join(repo, 'tasks'), '--json'], { encoding: 'utf8', timeout: 60_000 }, 'win32', chosen)
+  assert.equal(run.status, 0, run.status === null
+    ? `adr-next was killed (${run.signal}) before it answered — the hang guard fired, which is the machine, not the gate`
+    : run.stderr)
   assert.ok(JSON.parse(run.stdout).ready?.length, 'the gate must be reached past the decoy')
 
   // Nothing answered: no verdict, and no pretence that a check ran.

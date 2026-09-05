@@ -73,14 +73,28 @@ node --check "$ROOT/workflows/quality-cycle.js"
 node --check "$ROOT/workflows/review-ring.js"
 
 # §130: a child still attached to this shell at the end is a leak, and a leak is
-# §130: a child still attached to this shell at the end is a leak, and a leak is
 # not a pass. Direct children only — a grandchild that reparented is out of
 # reach here, which is what the gates' own tree kill is for. Without pgrep the
 # check is UNRUN and says so; it never reads "no children" (ADR-005).
+#
+# ⚠ THE FIRST SHAPE OF THIS CHECK MEASURED ITSELF. `leftover=$(pgrep -P $$
+# 2>/dev/null)` reported one survivor on every Ubuntu run (33951187877,
+# 33952517573) and none on macOS: bash 5.2 execs a bare command substitution
+# in place, but the redirection defeats that, so it forks a subshell — a direct
+# child of $$ — and pgrep, which excludes only itself, reports the subshell.
+# bash 3.2 on macOS never matched. So pgrep writes to a file from THIS shell,
+# where it is the direct child and excludes itself, and a survivor is named
+# rather than only numbered: a bare "13461" attributes to nobody (BACKLOG §129).
 if ! command -v pgrep >/dev/null 2>&1; then
   printf 'leak check UNRUN — pgrep is not available on this host, so nothing here says the suite left no child\n' >&2
-elif leftover=$(pgrep -P $$ 2>/dev/null) && [ -n "$leftover" ]; then
-  printf 'FAIL — child process(es) still running after the suite: %s\n' "$leftover" >&2
-  exit 1
+else
+  leak_list=$(mktemp)
+  pgrep -P $$ >"$leak_list" 2>/dev/null || true
+  if [ -s "$leak_list" ]; then
+    printf 'FAIL — child process(es) still running after the suite:\n' >&2
+    ps -o pid,ppid,etime,args -p "$(tr '\n' ',' <"$leak_list" | sed 's/,$//')" >&2 || cat "$leak_list" >&2
+    rm -f "$leak_list"
+    exit 1
+  fi
+  rm -f "$leak_list"
 fi
-printf '%s\n' "$verdict"

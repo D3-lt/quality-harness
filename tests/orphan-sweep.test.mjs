@@ -14,7 +14,7 @@ import { orphanDefinitions, SHIPPED } from '../scripts/orphan-sweep.mjs'
 
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 const git = (...args) => execFileSync('git', args, {
-  cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28,
+  cwd: repoRoot, encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000,
 })
 
 function shippedAt(rev) {

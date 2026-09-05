@@ -365,7 +365,7 @@ test('adr-verify: an interrupted fence run takes its tree with it', posixOnly, a
   const path = task(dir, 'T1', HEARTBEAT_FENCE)
   const [command, ...prefix] = pythonArgv()
   const child = spawn(command, [...prefix, join(bin, 'adr-verify'), path, '--cwd', dir], {
-    cwd: dir, env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '60' }, stdio: ['ignore', 'pipe', 'pipe'],
+    cwd: dir, env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '60' }, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000,
   })
   const elapsed = await interruptOnceBeating(child, dir, 'interrupted fence run')
   await assertTreeDied(dir, 'interrupted fence run', elapsed)
@@ -395,7 +395,7 @@ for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
     const dir = scratch()
     const [command, ...prefix] = pythonArgv()
     const child = spawn(command, [...prefix, '-c', INTERRUPT_PROBE, join(bin, gate), dir], {
-      cwd: dir, stdio: ['ignore', 'pipe', 'pipe'],
+      cwd: dir, stdio: ['ignore', 'pipe', 'pipe'], timeout: 60_000,
     })
     const elapsed = await interruptOnceBeating(child, dir, gate)
     await assertTreeDied(dir, gate, elapsed)

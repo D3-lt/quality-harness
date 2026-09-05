@@ -273,7 +273,7 @@ test('a fence runs from the git root, not from the task directory', () => {
   // `bash scripts/selftest.sh` gave exit 127 and was filed as a false success.
   // Two of the live corpus's claims were wrong for that reason alone.
   const dir = corpus()
-  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 60_000 })
   writeFileSync(join(dir, 'marker-at-the-root.txt'), 'here\n', 'utf8')
   const nested = join(dir, 'docs', 'adr', 'REC', 'tasks')
   mkdirSync(nested, { recursive: true })
@@ -433,7 +433,7 @@ function record(dir, adr, taskName, opts) {
 }
 
 function configured(dir, body) {
-  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 60_000 })
   if (body !== undefined) writeFileSync(join(dir, '.quality-harness.json'), body, 'utf8')
   return dir
 }
@@ -528,7 +528,7 @@ test('an absent config leaves every finding at full strength', () => {
 
 /** A whole corpus in one call: [name, options] pairs laid out under docs/adr. */
 function population(dir, records) {
-  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 60_000 })
   for (const [adr, name, opts] of records) {
     const tasks = join(dir, 'docs', 'adr', adr, 'tasks')
     mkdirSync(tasks, { recursive: true })
@@ -913,7 +913,7 @@ test('a fence mentioning --sweep inside a string is still refused', () => {
 
 test('a fence using $PWD sees the git root', () => {
   const dir = corpus()
-  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 60_000 })
   writeFileSync(join(dir, 'marker.txt'), 'x\n', 'utf8')
   const nested = join(dir, 'docs', 'adr', 'REC', 'tasks')
   mkdirSync(nested, { recursive: true })
@@ -1090,7 +1090,7 @@ test('a corpus whose git probes cannot run is still reported', () => {
   const dir = corpus()
   task(dir, 'T1', { fence: 'exit 0' })
   const python = spawnSync(process.platform === 'win32' ? 'where' : 'which', ['python3'],
-    { encoding: 'utf8' }).stdout.trim().split(/\r?\n/)[0]
+    { encoding: 'utf8', timeout: 60_000 }).stdout.trim().split(/\r?\n/)[0]
   assert.ok(python, 'the interpreter must be resolvable before this can say anything')
   const run = spawnSync(python, [verify, '--sweep', dir, '--json'],
     { encoding: 'utf8', env: { ...process.env, PATH: '' }, timeout: 60_000 })

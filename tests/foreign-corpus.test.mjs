@@ -40,7 +40,7 @@ cpSync(join(testDir, 'fixtures', 'foreign'), corpus, { recursive: true })
   const env = { ...process.env, GIT_AUTHOR_NAME: 'T', GIT_AUTHOR_EMAIL: 't@example.invalid',
     GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
   for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'], ['commit', '-qm', 'fixture']]) {
-    const r = spawnSync('git', args, { cwd: corpus, env, encoding: 'utf8' })
+    const r = spawnSync('git', args, { cwd: corpus, env, encoding: 'utf8', timeout: 60_000 })
     assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
   }
 }

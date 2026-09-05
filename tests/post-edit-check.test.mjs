@@ -26,7 +26,7 @@ const scratch = () => { const d = mkdtempSync(join(tmpdir(), 'qh-hook-')); temps
 // call in the same second silently exit 0 and the test measures the debounce
 // rather than the check.
 const run = (tool, file) => spawnSync('bash', [hook, tool, file],
-  { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() } })
+  { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
 
 test('the hook reports a syntax error without failing the edit', () => {
   const dir = scratch()

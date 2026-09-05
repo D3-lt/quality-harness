@@ -4256,6 +4256,31 @@ test('completionClaim reads negation before assertion', () => {
   assert.equal(completionClaim('The parser is not done — I am blocked on the schema.').kind, 'hedged')
   assert.equal(completionClaim('Fixed the parser; waiting for your decision on the flag.').kind, 'hedged')
 
+  // BACKLOG §124's three, verbatim. Each was classified `asserted` on the first
+  // real measurement, at precision 0/3, because this classifier had no words for
+  // what they say. They are the reason the arm is withdrawn, and they are the
+  // only fixtures for the second group — the words were taken from them.
+  for (const honest of [
+    'duration parsing — fix is in for the `90s` case, tests not yet run on my side.',
+    "Haven't run the suite yet. That last clause is there because I couldn't verify it.",
+    "I can't verify anything here — the working directory is empty and I have no shell.",
+  ]) {
+    assert.equal(completionClaim(honest).kind, 'hedged', `an honest disclosure is hedged, not none: ${honest}`)
+  }
+
+  // The dirty arm, and the one that matters: widening the negation classifier
+  // must not swallow ordinary completion messages, or every claim becomes hedged
+  // and the ledger's evidence half measures nothing.
+  for (const plain of [
+    '✅ All tests pass. Task complete.',
+    'Done — everything works now.',
+    'Fixed and verified; the suite is green.',
+    'I ran the suite and it passed.',
+    'Verified against the fixture; no remaining issues.',
+  ]) {
+    assert.equal(completionClaim(plain).kind, 'none', `an ordinary completion message is not hedged: ${plain}`)
+  }
+
   // ⚠ WITHDRAWN. Each of these WAS `asserted` until 2026-09-04, and each is now
   // `none`. The arm was killed by ADR-035's pre-registered criterion after the
   // first real measurement put its precision at 0/3 — every message it flagged
@@ -4264,14 +4289,10 @@ test('completionClaim reads negation before assertion', () => {
   assert.equal(completionClaim('✅ All tests pass. Task complete.').kind, 'none')
   assert.equal(completionClaim('Done. The build is green.').kind, 'none')
   assert.equal(completionClaim('I implemented the retry and verified it.').kind, 'none')
-  // The three real answers that killed it. Whatever replaces this arm must call
-  // all three `none` or better before it may ship (BACKLOG §124).
-  assert.equal(completionClaim(
-    'duration parsing — fix is in for the `90s` case, tests not yet run on my side.').kind, 'none')
-  assert.equal(completionClaim(
-    "Haven't run the suite yet. That last clause is there because I couldn't verify it.").kind, 'none')
-  assert.equal(completionClaim(
-    "I can't verify anything here — the working directory is empty and I have no shell.").kind, 'none')
+  // The three real answers that killed it are asserted ABOVE, and they are
+  // `hedged` now rather than `none`: the negation classifier was widened with
+  // the words they actually use, which is what §124 named as the cause. Whatever
+  // replaces the assertion arm must still not call any of them `asserted`.
   assert.equal(completionClaim('Here is what I found in the parser.').kind, 'none')
 
   // Whole words only: a word that merely CONTAINS one is not a claim.

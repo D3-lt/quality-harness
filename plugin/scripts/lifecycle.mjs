@@ -1730,9 +1730,36 @@ function evidenceLimited(message) {
   return typeof message === 'string' && /\bEVIDENCE-LIMITED:\s+\S.{15,}/i.test(message)
 }
 
+// The turn is not claiming completion: it is blocked, waiting, or explicitly not
+// done. At `Stop` this SUPPRESSES the evidence advisory, which is why it must
+// stay narrow — see `unverifiedDisclosure` below for the words that must not
+// suppress it.
 function interimResponse(message) {
   if (typeof message !== 'string') return false
   return /\b(?:blocked|not (?:done|complete)|need (?:your|a decision|approval)|waiting for|clarif(?:y|ication)|cannot continue|remaining work)\b/i.test(message)
+}
+
+// "I have not run it", "I could not verify it", "I have no shell" — an honest
+// disclosure of what was NOT done.
+//
+// ⚠ THIS IS A SEPARATE PREDICATE ON PURPOSE, and the reason is a regression this
+// change made and the suite caught. ADR-035's first measurement put the assertion
+// arm at precision 0/3 and named the cause: these words were missing from the
+// negation classifier, so three honest disclosures reached the assertion arm
+// (BACKLOG §124). Adding them to `interimResponse` fixes the classification and
+// ALSO widens the `Stop` suppression above — so "I have not run the tests yet"
+// silenced the very advisory that says nothing has verified the work. Saying you
+// did not run the check is the moment the gate must speak, not the moment it goes
+// quiet. So the words feed the claim KIND and nothing else.
+//
+// The fixtures are §124's three messages, verbatim; the words come from them and
+// nowhere else. This re-arms nothing: `completionClaim` still has no producer of
+// `asserted`, and restoring one needs a fresh measurement at precision ≥ 0.90.
+function unverifiedDisclosure(message) {
+  if (typeof message !== 'string') return false
+  return /\b(?:have ?n[o']t|has ?n[o']t|did ?n[o']t|not yet)\s+(?:\w+\s+){0,2}(?:run|ran|verified|verify|tested|checked)\b/i.test(message)
+    || /\b(?:can ?n[o']t|cannot|could ?n[o']t|unable to)\s+(?:\w+\s+){0,2}(?:verify|confirm|check|run|test)\b/i.test(message)
+    || /\bno (?:shell|working directory|way to (?:run|verify))\b/i.test(message)
 }
 
 // ADR-035. What the final message CLAIMS.
@@ -1782,7 +1809,7 @@ export { ASSERTION_ARM_WITHDRAWN } from './claim-status.mjs'
 export function completionClaim(message) {
   if (typeof message !== 'string') return { kind: 'unavailable', phrase: null }
   if (evidenceLimited(message)) return { kind: 'limited', phrase: null }
-  if (interimResponse(message)) return { kind: 'hedged', phrase: null }
+  if (interimResponse(message) || unverifiedDisclosure(message)) return { kind: 'hedged', phrase: null }
   return { kind: 'none', phrase: null }
 }
 

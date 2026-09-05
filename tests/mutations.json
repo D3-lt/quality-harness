@@ -4729,7 +4729,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (interimResponse(message)) return { kind: 'hedged', phrase: null }",
+      "from": "  if (interimResponse(message) || unverifiedDisclosure(message)) return { kind: 'hedged', phrase: null }",
       "to": "  if (false) return { kind: 'hedged', phrase: null }"
     },
     {
@@ -5199,6 +5199,33 @@
       ],
       "from": "        elif state == \"line-comment\":\n            output.append(\"\\n\" if char == \"\\n\" else \" \")\n            if char == \"\\n\":\n                state = \"code\"",
       "to": "        elif state == \"line-comment\":\n            output.append(\"\\n\" if char == \"\\n\" else \" \")\n            if char == \"`\":\n                state = \"code\""
+    },
+    {
+      "label": "lifecycle: an honest disclosure of what was not run is hedged, not none",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return /\\b(?:have ?n[o']t|has ?n[o']t|did ?n[o']t|not yet)\\s+(?:\\w+\\s+){0,2}(?:run|ran|verified|verify|tested|checked)\\b/i.test(message)",
+      "to": "  return false"
+    },
+    {
+      "label": "lifecycle: widening the negation classifier does not swallow an ordinary completion message",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    || /\\b(?:can ?n[o']t|cannot|could ?n[o']t|unable to)\\s+(?:\\w+\\s+){0,2}(?:verify|confirm|check|run|test)\\b/i.test(message)",
+      "to": "    || /\\b(?:verify|confirm|check|run|test|ran|verified)\\b/i.test(message)"
+    },
+    {
+      "label": "lifecycle: an honest disclosure does not suppress the evidence advisory at Stop",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return",
+      "to": "  if (event === 'Stop' && (interimResponse(input.last_assistant_message) || unverifiedDisclosure(input.last_assistant_message))) return"
     }
   ]
 }

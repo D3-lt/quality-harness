@@ -7798,9 +7798,12 @@ handle it could have kept. The peers also found three blind instruments on the w
 with a 15×(2+N)s worst case, all fixed before merge — the record is in `wing_craft` and the decision
 in this wing's `decisions` room.
 
-**Still owed:** both boxes answered `gate already inside a job: False`. A CI runner is normally already
-inside a job; nested jobs are allowed since Windows 8; the probe is prototyped and reports a failed
-call now. The first Windows CI run of the merge is the first reading of that line.
+**And the nested case, read on the CI runner itself (run for `b019c42`, windows-latest):**
+`gate already inside a job: True (nested job follows) +7ms · job object holds 2508 +7ms · job object
+terminated the tree of 2508`, adr-verify back in 1141ms. Both peer boxes had honestly answered
+`False`; the runner is the one environment where the gate starts inside a job, and the nested
+assignment took and the terminate reached the tree. The probe that printed that line was silent one
+sha earlier — which is the whole reason the rule about prototypes became mechanical.
 ## 124. ADR-035's own criterion killed ADR-035's feature, four hours after it shipped
 
 The `asserted` arm of `completionClaim` is **withdrawn**, by the criterion the record
@@ -8189,9 +8192,11 @@ for **15.5 hours** — found by a hot laptop and its fans, not by any test outpu
 
 Every fence and runner already went through `run_bounded`, which carries the fence timeout and
 kills the tree; it was the *ancillary* calls around them that were open-ended. All six now carry
-`timeout=30`. `subprocess.run(timeout=)` kills only the direct child, and for these six that is
-the whole tree: `git` and the syntax checkers spawn nothing. Anything that does spawn goes through
-`run_bounded`, which is why `Popen` inside it is the checker's one exemption.
+`timeout=30`. `subprocess.run(timeout=)` kills only the direct child. For the syntax checkers and
+`git rev-parse`/`ls-files` that is the whole tree; `git status` is not — it can spawn an fsmonitor
+hook — so it goes through `run_bounded`, and every site returns its honest could-not-look answer on
+`TimeoutExpired` rather than a traceback (the review of `b019c42` found both). Anything that does
+spawn goes through
 
 **Kept true** by `tests/untimed-children.test.mjs`, which drives the checker on a fixture holding one
 untimed call, one timed call and one `run_bounded` — and must report exactly the first — before

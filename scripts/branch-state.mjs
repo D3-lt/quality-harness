@@ -47,6 +47,11 @@ export function gitDir(run = shell) {
  * a prompt. Past the deadline every further command answers "not ok" with the
  * reason, which renders as COULD NOT LOOK rather than as anything green.
  */
+// Total wall-clock a hook may spend collecting, on any path. Below the 20s the
+// host allows a hook, and short enough that a cold gh reads as COULD NOT LOOK
+// instead of a session that will not start.
+const BUDGET_MS = 8_000
+
 export function budgeted(totalMs, run = shell, now = Date.now) {
   const deadline = now() + totalMs
   return argv => {
@@ -209,8 +214,12 @@ export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = co
 function main(argv = process.argv.slice(2)) {
   const brief = argv.includes('--brief')
   const at = argv.indexOf('--cached')
+  // ONE budget for the whole collection, on every path. The first SessionStart
+  // ran this uncached with two 15s gh calls in series, and a cold start hung the
+  // session for as long as gh took — the reporter noticed on macOS. A slow gh is
+  // COULD NOT LOOK, which is honest; a hang before the first prompt is not.
   if (at < 0) {
-    process.stdout.write(`${render(collect(), { brief })}\n`)
+    process.stdout.write(`${render(collect(budgeted(BUDGET_MS)), { brief })}\n`)
     return 0
   }
   const home = gitDir()
@@ -219,7 +228,7 @@ function main(argv = process.argv.slice(2)) {
   const { state, fromCache, ageSeconds } = cached(Number(argv[at + 1]) || 120, {
     read: () => { if (!store) return null; try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null } },
     write: payload => { if (!store) return; try { writeFileSync(store, JSON.stringify(payload)) } catch { /* a cache that cannot be written is not a failure */ } },
-    gather: () => collect(budgeted(15_000)),
+    gather: () => collect(budgeted(BUDGET_MS)),
   })
   process.stdout.write(`${render(state, { brief })}${fromCache ? ` (read ${ageSeconds}s ago)` : ''}\n`)
   return 0

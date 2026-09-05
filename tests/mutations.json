@@ -2443,7 +2443,7 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    except OSError:\n        return None\n    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None",
+      "from": "    except (OSError, subprocess.TimeoutExpired):\n        return None\n    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None",
       "to": "    except ValueError:\n        return None\n    return r.stdout.strip() if r.returncode == 0 and r.stdout.strip() else None"
     },
     {

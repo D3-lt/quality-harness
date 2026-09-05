@@ -76,32 +76,43 @@ function task(dir, name, fence) {
   return path
 }
 
-// The beat is append-only, so its LENGTH is the counter and "" means only that
-// nothing has been written yet — never a half-written file (see HEARTBEAT_FENCE).
+// The beat is append-only and writes ONE LINE per beat, so the number of complete
+// lines is the beat count. Lines rather than bytes on purpose: a torn final write
+// is a partial line, and a partial line is not a beat that happened. Every
+// fixture here — the bash fences and both Python probes — terminates each beat
+// with a newline for exactly this reason; "" means no complete beat yet.
+const BEATS = 100
 const beat = dir => {
-  try { return String(readFileSync(join(dir, 'beat.txt'), 'utf8').length) } catch { return '' }
+  try {
+    const beats = (readFileSync(join(dir, 'beat.txt'), 'utf8').match(/\n/g) || []).length
+    return beats ? String(beats) : ''
+  } catch { return '' }
 }
 
-// The grandchild is bounded at twenty seconds. That bound is what makes the
-// stop-after-return check falsifiable: a helper that kills only the direct
-// child and then waits on the pipes the orphan still holds does not return until
-// the orphan finishes on its own, and every "did the beat stop" assertion after
-// that passes vacuously. Measured 2026-09-04: two catalogue mutants came back
-// GREEN for exactly that reason. So the first assertion is on WHEN the gate
-// returned — a one-second timeout has no business taking ten.
-const PROMPT_MS = 10_000
-
-/** The gate returned promptly, the heartbeat had started, and it stopped. */
+/**
+ * The gate returned while the grandchild was still alive, and the grandchild
+ * then stopped.
+ *
+ * ⚠ THE FIRST ASSERTION USED TO BE A CLOCK — `elapsedMs < 10_000` — and BACKLOG
+ * §127b is why that is the wrong instrument: on a loaded runner the same number
+ * is the runner, not the gate. What it was really asking has an answer that
+ * needs no clock, and the fixture already gives it. The grandchild is bounded at
+ * BEATS; if it had written all of them by the time the gate returned, it FINISHED
+ * ON ITS OWN, and every "did the beat stop" assertion after that passes vacuously
+ * — which is exactly how two catalogue mutants came back GREEN on 2026-09-04.
+ * Counting beats asks that directly, and a slow machine does not change the
+ * answer: the grandchild's own progress is the yardstick. `elapsedMs` is still
+ * carried into the message as diagnosis; it is not asserted.
+ */
 async function assertTreeDied(dir, label, elapsedMs) {
-  assert.ok(elapsedMs < PROMPT_MS,
-    `${label}: the gate took ${elapsedMs}ms to report a 1s timeout — it waited for the orphan to exit on its own, which means it never killed it`)
   const atReturn = beat(dir)
   assert.notEqual(atReturn, '', `${label}: the grandchild never wrote a beat, so the fixture proved nothing`)
+  assert.ok(Number(atReturn) < BEATS,
+    `${label}: the grandchild had written all ${BEATS} beats by the time the gate returned (${elapsedMs}ms) — it ran to completion on its own, so the gate never killed it and the check below would pass either way`)
   await new Promise(r => setTimeout(r, 1200))
   assert.equal(beat(dir), atReturn,
     `${label}: the heartbeat kept moving after the gate reported the timeout — the grandchild survived`)
 }
-
 // ⚠ WINDOWS IS UNPROVEN FOR THE TREE KILL, and this says so from the log rather
 // than by analogy (CLAUDE.md §7). `taskkill /F /T` does not reach a Git Bash
 // subshell tree, measured three times:
@@ -163,7 +174,7 @@ loader.exec_module(module)
 child = (
     "import subprocess, sys, time\\n"
     "subprocess.Popen([sys.executable, '-c', 'import time\\\\nfor i in range(100):\\\\n"
-    "    open(\\"beat.txt\\", \\"a\\").write(str(i))\\\\n    time.sleep(0.2)'])\\n"
+    "    open(\\"beat.txt\\", \\"a\\").write(str(i) + chr(10))\\\\n    time.sleep(0.2)'])\\n"
     "time.sleep(60)\\n"
 )
 try:
@@ -364,7 +375,7 @@ loader.exec_module(module)
 child = (
     "import subprocess, sys, time\\n"
     "subprocess.Popen([sys.executable, '-c', 'import time\\\\nfor i in range(100):\\\\n"
-    "    open(\\"beat.txt\\", \\"w\\").write(str(i))\\\\n    time.sleep(0.2)'])\\n"
+    "    open(\\"beat.txt\\", \\"a\\").write(str(i) + chr(10))\\\\n    time.sleep(0.2)'])\\n"
     "time.sleep(60)\\n"
 )
 try:
@@ -434,5 +445,70 @@ except subprocess.TimeoutExpired as expired:
     assert.equal(run.status, 0, run.stdout + run.stderr)
     assert.match(run.stdout.trim(), /^True (True|False)$/,
       `${gate}: run_bounded must carry what the cleanup observed — got ${run.stdout.trim()}`)
+  }
+})
+
+// ── BACKLOG §128: where the sixty seconds went ────────────────────────────────
+//
+// Three Windows CI runs sat at ~60s against a 1s fence timeout, and 1s + 15s +
+// 10s does not reach 60. The mechanism, reproduced on macOS with a bare pipe:
+// `communicate(timeout=)` on Windows reads from a daemon thread that holds the
+// BufferedReader's lock while blocked; `stream.close()` in the cleanup takes the
+// same lock and waits for the orphan to let go of the pipe. Sixty seconds is the
+// fence's `sleep 60`. The fix is to not close on Windows. This runs on EVERY
+// platform: on POSIX it is a regression, on Windows it is the proof — and if the
+// proof fails, the trace in the failure message is the attribution §128 asks for,
+// which is worth more than a skip.
+test('a timed-out fence returns within the bound the arithmetic gives, and says where the time went', async t => {
+  const dir = scratch()
+  const path = task(dir, 'T1', HEARTBEAT_FENCE)
+  const started = Date.now()
+  const run = runPython([join(bin, 'adr-verify'), path, '--cwd', dir], {
+    cwd: dir, encoding: 'utf8', timeout: 90_000,
+    env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '1', QUALITY_HARNESS_TRACE_TIMEOUT: '1' },
+  })
+  const elapsed = Date.now() - started
+  const trace = String(run.stderr || '').split('\n').filter(line => line.startsWith('[trace-timeout]'))
+  t.diagnostic(`${process.platform}: adr-verify returned in ${elapsed}ms · ${trace.join(' · ') || '(no trace)'}`)
+  assert.match(run.stdout + run.stderr, /UNRUN/, `the fence must be reported as not finished\n${run.stdout}${run.stderr}`)
+  // Both drain outcomes are honest: on POSIX the kill lands and communicate
+  // RETURNS; on Windows it may time out and the streams are released instead.
+  // What must be present either way is the kill's own answer and the drain's.
+  assert.ok(trace.some(line => /kill_tree end confirmed=(True|False)/.test(line))
+    && trace.some(line => /drain (communicate|streams)/.test(line)),
+    `the cleanup must attribute its own phases, or the next hang is unexplained again:\n${run.stderr}`)
+  // 1s timeout + 15s taskkill bound + 10s grace ≈ 26s worst case. Sixty is the
+  // orphan's sleep, and waiting for it is the defect.
+  assert.ok(elapsed < 40_000,
+    `adr-verify took ${elapsed}ms against a 1s timeout — it waited for the orphan's pipe. Trace:\n${trace.join('\n')}`)
+})
+
+// The Windows branch, driven on every host through the `platform` seam
+// (CLAUDE.md §7). A child that sleeps, a thread blocked reading its stdout the
+// way Windows' communicate leaves one, and a drain told it is on "nt": it must
+// return without waiting for the child. Under the catalogue mutant that closes
+// the streams anyway, close() blocks behind the reading thread until the child
+// exits — which is the hang, reproduced, and RED.
+test('drain_after_kill on Windows does not close a stream a reader thread still holds', () => {
+  const probe = `import importlib.machinery, importlib.util, subprocess, sys, threading, time
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(25)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+threading.Thread(target=lambda: proc.stdout.read(), daemon=True).start()
+time.sleep(0.3)
+started = time.monotonic()
+out, err, killed = module.drain_after_kill(proc, "nt", grace=0.5)
+print("returned", round(time.monotonic() - started, 2), flush=True)
+proc.kill()
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    const seconds = Number(/returned ([\d.]+)/.exec(run.stdout)?.[1])
+    assert.ok(seconds < 8,
+      `${gate}: drain_after_kill took ${seconds}s on the Windows arm — it waited on a stream a reader thread held`)
   }
 })

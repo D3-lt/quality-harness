@@ -168,8 +168,8 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    const timer = setTimeout(() => {\n      timedOut = true\n      terminateProcessTree(child, platform)\n    }, timeoutMs)",
-      "to": "    const timer = setTimeout(() => {\n    }, timeoutMs)"
+      "from": "    const timer = setTimeout(() => {\n      timedOut = true\n      killConfirmed = terminate(child, platform)",
+      "to": "    const timer = setTimeout(() => {\n      killConfirmed = null"
     },
     {
       "label": "hooks: the wrapper propagates a child's exit code",
@@ -4794,6 +4794,33 @@
       ],
       "from": "    if (task.unreadable) { totals.unreadable += 1; continue }",
       "to": "    if (task.unreadable) { totals.unevidenced += 1; continue }"
+    },
+    {
+      "label": "hooks: the Windows cleanup a timeout runs is itself bounded (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "      windowsHide: true,\n      timeout: TASKKILL_TIMEOUT_MS,\n    })",
+      "to": "      windowsHide: true,\n    })"
+    },
+    {
+      "label": "hooks: a cleanup that fails does not leave the hook pending until the host kills it (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "      grace = setTimeout(() => {\n        for (const stream of [child.stdout, child.stderr, child.stdin]) stream?.destroy()\n        child.unref?.()\n        settle(null, false)\n      }, cleanupGraceMs)",
+      "to": "      grace = null"
+    },
+    {
+      "label": "hooks: a taskkill that failed is not reported as a kill that was issued (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    return !run.error && run.status === 0",
+      "to": "    return true"
     }
   ]
 }

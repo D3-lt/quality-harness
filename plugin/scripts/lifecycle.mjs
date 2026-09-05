@@ -29,7 +29,7 @@ const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 // did nothing — the gate's cost grows with the corpus it reads, so the budget has
 // to be raisable by whoever owns the corpus.
 const ARTIFACT_GATE_TIMEOUT_MS = 30_000
-const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
+export const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
 const VALIDATION_PATTERNS = [
   /^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
   /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,

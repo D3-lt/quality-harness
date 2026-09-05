@@ -8040,6 +8040,29 @@ finds NOTHING rather than everything: this runs at commit time, and a guard that
 because it could not read one file is a guard people turn off (ADR-005). The hook resolves the script
 relative to ITSELF rather than to the repository being committed, which is what lets the suite drive
 the real guard from a scratch repo (CLAUDE.md §9) instead of asserting the hook's text.
+**Addendum 2026-09-05 — one sibling in the shipped JavaScript, and a second defect the review found
+behind it.** The class audit here was of the Python gates. The same command over the shipped JS
+(`git ls-files 'plugin/scripts/*.mjs' | xargs grep -nE '\b(spawnSync|execSync|execFileSync|spawn|execFile)\('`)
+found every site bounded except the one that is itself a cleanup: `run-shell-hook.mjs`
+`terminateProcessTree` ran `taskkill /T /F` with no timeout, on the `setTimeout` path a hook takes
+after ITS timeout fired — the exact shape of this section. The Codex review of the bound then found
+the worse defect underneath: `runWithTimeout` resolved ONLY on the child's `close`, so a cleanup that
+hung, failed or never started meant the timeout had fired and was then never reported — the promise
+stayed pending until the child exited on its own or the host's 120s deadline killed the runner
+(reviewer-measured: a forced cleanup failure made a 50ms run wait 777ms for natural exit). And the
+first bound chosen, 15s, did not fit the smallest outer margin, lifecycle's 5s
+`ARTIFACT_GATE_KILL_MARGIN_MS`: the outer kill would land first and the tree would never be reported.
+
+Now: `TASKKILL_TIMEOUT_MS` 2s and `CLEANUP_GRACE_MS` 1s, both synchronous on the timer path, tested
+to sum below every outer margin that waits on this runner (lifecycle's, and each `run-shell-hook.mjs`
+entry in `hooks.json`); `terminateProcessTree` returns whether the kill was ISSUED (taskkill exit 0
+or the group kill not throwing) through a `spawnSyncImpl` seam driven on every host; after the
+grace `runWithTimeout` settles with `cleanupConfirmed: false`, releases the pipes and unrefs the
+child, so a failed cleanup is a reported timeout rather than a hang. `cleanupConfirmed` is set only
+by `close` — a kill issued is not a kill that landed (ADR-005). Four catalogue mutants are RED:
+the dropped bound, the dropped grace settle, a failed taskkill reported as issued, and the timer
+that no longer terminates.
+
 
 ## 128. OPEN — the Windows hang has a mechanism, reproduced; the fix is proven on the CI runner and two Windows boxes; what occasionally survives the kill is still unattributed
 

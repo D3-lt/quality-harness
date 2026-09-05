@@ -122,19 +122,38 @@ export function shellHookTimeoutMs(env = process.env) {
     : DEFAULT_TIMEOUT_MS
 }
 
-function terminateProcessTree(child, platform) {
-  if (!child.pid) return
+// The cleanup a timeout runs is itself a child, and a cleanup nobody bounded is
+// how a hung taskkill wore the timeout's name for a full 60s in the Python gates
+// (BACKLOG §127, §128). These two bounds are SYNCHRONOUS on the timer path, so
+// their sum is what the outer caller pays after its own timeout before the
+// runner settles — and the smallest outer margin is lifecycle's
+// ARTIFACT_GATE_KILL_MARGIN_MS (5s). Both are tested against it. taskkill
+// answers in milliseconds; one that has not answered in 2s is hung.
+export const TASKKILL_TIMEOUT_MS = 2_000
+// After the kill, how long to wait for the child's `close` before settling
+// anyway. Without this a cleanup that failed left the promise pending until the
+// child exited on its own or the host killed the whole hook at its deadline —
+// a timeout that had fired and was then never reported (Codex review, 2026-09-05).
+export const CLEANUP_GRACE_MS = 1_000
+
+// Returns true only when the kill was CONFIRMED issued: taskkill exited 0, or
+// the POSIX group kill did not throw. `spawnSyncImpl` is the seam a test drives,
+// because taskkill exists on one platform.
+export function terminateProcessTree(child, platform, spawnSyncImpl = spawnSync) {
+  if (!child.pid) return false
   if (platform === 'win32') {
-    spawnSync('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
+    const run = spawnSyncImpl('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
       stdio: 'ignore',
       windowsHide: true,
+      timeout: TASKKILL_TIMEOUT_MS,
     })
-    return
+    return !run.error && run.status === 0
   }
   try {
     process.kill(-child.pid, 'SIGKILL')
+    return true
   } catch {
-    child.kill('SIGKILL')
+    try { child.kill('SIGKILL'); return true } catch { return false }
   }
 }
 
@@ -144,6 +163,8 @@ export function runWithTimeout(executable, args, options = {}) {
     timeoutMs = DEFAULT_TIMEOUT_MS,
     platform = process.platform,
     env = process.env,
+    terminate = terminateProcessTree,
+    cleanupGraceMs = CLEANUP_GRACE_MS,
   } = options
 
   return new Promise(resolve => {
@@ -157,6 +178,8 @@ export function runWithTimeout(executable, args, options = {}) {
     let stderr = ''
     let spawnError = null
     let timedOut = false
+    let killConfirmed = null
+    let grace = null
 
     child.stdout?.setEncoding('utf8')
     child.stderr?.setEncoding('utf8')
@@ -164,15 +187,32 @@ export function runWithTimeout(executable, args, options = {}) {
     child.stderr?.on('data', chunk => { stderr += chunk })
     child.on('error', error => { spawnError = error })
 
+    const settle = (status, closed) => {
+      clearTimeout(timer)
+      clearTimeout(grace)
+      resolve({
+        error: spawnError, status, stderr, stdout, timedOut, pid: child.pid,
+        // `closed` is the only observation that the tree is gone; a kill that
+        // was issued is not one that landed (ADR-005).
+        cleanupConfirmed: timedOut ? closed : null,
+        killIssued: timedOut ? killConfirmed : null,
+      })
+    }
+
     const timer = setTimeout(() => {
       timedOut = true
-      terminateProcessTree(child, platform)
+      killConfirmed = terminate(child, platform)
+      // Whatever the kill said, do not wait on the child forever: settle after
+      // the grace with the truth (cleanupConfirmed: false), and let go of the
+      // pipes so the runner can exit without it.
+      grace = setTimeout(() => {
+        for (const stream of [child.stdout, child.stderr, child.stdin]) stream?.destroy()
+        child.unref?.()
+        settle(null, false)
+      }, cleanupGraceMs)
     }, timeoutMs)
 
-    child.on('close', status => {
-      clearTimeout(timer)
-      resolve({ error: spawnError, status, stderr, stdout, timedOut })
-    })
+    child.on('close', status => settle(status, true))
     child.stdin?.on('error', () => {})
     child.stdin?.end(input)
   })

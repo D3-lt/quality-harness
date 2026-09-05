@@ -229,6 +229,85 @@ test('the timeout mechanism itself kills the child and says it timed out', async
   assert.equal(finished.status, 4, 'a command that finished keeps its own exit code')
 })
 
+test('the Windows cleanup a timeout runs carries a bound, and reports whether the kill was issued (BACKLOG §127)', async () => {
+  // A cleanup nobody bounded is how a hung taskkill wore the timeout's name in
+  // the Python gates. The win32 arm is driven through its seam on every host.
+  // This asserts the OPTION WIRING and the return value; the catalogue mutant
+  // that drops the timeout is the dirty arm, and the failed-cleanup path is the
+  // next test. Nothing here observes a real taskkill.
+  const { terminateProcessTree, TASKKILL_TIMEOUT_MS } = await import('../plugin/scripts/run-shell-hook.mjs')
+  const calls = []
+  const issued = terminateProcessTree({ pid: 4242 }, 'win32', (cmd, args, options) => { calls.push({ cmd, args, options }); return { status: 0 } })
+  assert.equal(issued, true, 'taskkill exit 0 is a kill that was issued')
+  assert.equal(calls.length, 1, 'the win32 arm spawns exactly one taskkill')
+  assert.equal(calls[0].cmd, 'taskkill')
+  assert.deepEqual(calls[0].args, ['/pid', '4242', '/T', '/F'])
+  assert.equal(calls[0].options.timeout, TASKKILL_TIMEOUT_MS,
+    `taskkill must carry the shared bound; got ${JSON.stringify(calls[0].options)}`)
+
+  // A taskkill that itself timed out, or could not start, is NOT an issued kill.
+  assert.equal(terminateProcessTree({ pid: 4242 }, 'win32', () => ({ status: null, error: Object.assign(new Error('spawnSync taskkill ETIMEDOUT'), { code: 'ETIMEDOUT' }) })), false)
+  assert.equal(terminateProcessTree({ pid: 4242 }, 'win32', () => ({ status: 1 })), false)
+  // No pid: nothing to kill, nothing spawned, nothing issued.
+  assert.equal(terminateProcessTree({ pid: undefined }, 'win32', () => { throw new Error('must not spawn without a pid') }), false)
+})
+
+test('a cleanup that fails does not leave the hook pending until the host kills it (BACKLOG §127)', async () => {
+  // Before this, runWithTimeout resolved ONLY on the child\'s `close`: a taskkill
+  // that hung, failed or never started meant the timeout had fired and was then
+  // never reported until the child exited on its own or the host\'s 120s deadline
+  // killed the runner. The cleanup is stubbed to do nothing, so the child lives
+  // on; the promise must settle within the grace and say the tree is unconfirmed.
+  const { runWithTimeout } = await import('../plugin/scripts/run-shell-hook.mjs')
+  const start = Date.now()
+  const run = await runWithTimeout(process.execPath, ['-e', 'setTimeout(() => {}, 8_000)'],
+    { timeoutMs: 200, cleanupGraceMs: 400, terminate: () => false })
+  const elapsed = Date.now() - start
+  try {
+    assert.equal(run.timedOut, true)
+    assert.equal(run.status, null)
+    assert.equal(run.killIssued, false, 'the stub reported no kill, and the result must say so')
+    assert.equal(run.cleanupConfirmed, false, 'nothing closed, so the tree is unconfirmed — never reported as gone')
+    assert.ok(elapsed < 4_000, `settled in ${elapsed}ms; the child sleeps 8s, so waiting on it would show here`)
+  } finally {
+    // The stub left a real child behind on purpose; reap it so the suite-end
+    // leak check has nothing to name.
+    try { process.kill(run.pid, 'SIGKILL') } catch {}
+  }
+
+  // The clean arm: a kill that lands closes the child, and the result says so.
+  const landed = await runWithTimeout(process.execPath, ['-e', 'setTimeout(() => {}, 8_000)'],
+    { timeoutMs: 200, cleanupGraceMs: 4_000 })
+  assert.equal(landed.timedOut, true)
+  assert.equal(landed.killIssued, true)
+  assert.equal(landed.cleanupConfirmed, true, 'the real kill must close the child inside the grace')
+})
+
+test('the cleanup bounds fit inside every outer margin that waits on the runner', async () => {
+  // Both bounds are synchronous on the timer path, so their sum is what an
+  // outer caller pays after the runner\'s own timeout. lifecycle gives the runner
+  // ARTIFACT_GATE_KILL_MARGIN_MS beyond the gate timeout; the direct hooks give
+  // the host\'s `timeout` beyond DEFAULT_TIMEOUT_MS. Either margin smaller than
+  // the sum means the outer kill lands first and the tree is never reported.
+  const { TASKKILL_TIMEOUT_MS, CLEANUP_GRACE_MS, shellHookTimeoutMs } = await import('../plugin/scripts/run-shell-hook.mjs')
+  const { ARTIFACT_GATE_KILL_MARGIN_MS } = await import('../plugin/scripts/lifecycle.mjs')
+  const cleanup = TASKKILL_TIMEOUT_MS + CLEANUP_GRACE_MS
+  assert.ok(cleanup < ARTIFACT_GATE_KILL_MARGIN_MS,
+    `taskkill ${TASKKILL_TIMEOUT_MS} + grace ${CLEANUP_GRACE_MS} must fit lifecycle's ${ARTIFACT_GATE_KILL_MARGIN_MS}ms kill margin`)
+  const hooks = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8'))
+  // Only the entries that run THIS runner: lifecycle.mjs hooks have their own
+  // budgets and are not what the cleanup arithmetic is about.
+  const runnerHooks = Object.values(hooks.hooks).flat().flatMap(group => group.hooks ?? [])
+    .filter(hook => (hook.args ?? []).some(arg => /run-shell-hook\.mjs$/.test(arg)))
+  assert.ok(runnerHooks.length, 'hooks.json must declare at least one run-shell-hook entry for this arithmetic to mean anything')
+  for (const hook of runnerHooks) {
+    const hostMs = Number(hook.timeout) * 1000
+    assert.ok(Number.isFinite(hostMs) && hostMs > 0, `a runner hook must declare a host timeout: ${JSON.stringify(hook)}`)
+    assert.ok(shellHookTimeoutMs({}) + cleanup < hostMs,
+      `default ${shellHookTimeoutMs({})} + cleanup ${cleanup} must fit the host's ${hostMs}ms (${hook.args.at(-1)})`)
+  }
+})
+
 test('a shell that aborted before judging is a failure, not a clean pass', async () => {
   // The MSYS runtime prints `*** fatal error -` and still exits 0. Measured on
   // Windows: four PostToolUse hooks died in add_item and every one was recorded

@@ -21,6 +21,19 @@ findings actually fail versus only advise. Every figure is measured at call time
 Nothing in this README counts anything, on purpose — a number written here would be
 wrong by the next release, which is the failure the harness exists to catch.
 
+## The status line
+
+The gates' reading of the current session, where you already look and with no prompt
+text spent on it: `QH ✓ checked`, `QH ✗ 3 unverified`, `QH · nothing edited`, or
+`QH ? transcript 61MB` when the transcript is past the size it will read per render.
+The plugin cannot set your `statusLine`; add the segment to your own command:
+
+    node "$(qh-root)/scripts/statusline.mjs" <<< "$input"
+
+It reads the JSON Claude Code pipes to the command, analyses the transcript only when
+it changed, spawns nothing, and never writes an error — a status line is the one
+surface you cannot dismiss.
+
 ## The stages, and what runs them
 
 | you want to | invoke |

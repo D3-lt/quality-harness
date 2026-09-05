@@ -4576,8 +4576,17 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "    if os.environ.get(\"QUALITY_HARNESS_TRACE_TIMEOUT\"):",
-      "to": "    if False:"
+      "from": "    if not os.environ.get(\"QUALITY_HARNESS_TRACE_TIMEOUT\"):\n        return",
+      "to": "    if True:\n        return"
+    },
+    {
+      "label": "verify: a trace that cannot be written never replaces the timeout it describes",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "    except Exception:  # a diagnostic must never replace the timeout it describes",
+      "to": "    except ZeroDivisionError:  # a diagnostic must never replace the timeout it describes"
     },
     {
       "label": "verify: an interrupted gate kills the tree it started",

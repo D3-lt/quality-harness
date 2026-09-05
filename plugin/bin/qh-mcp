@@ -253,11 +253,14 @@ class WindowsJob:
             # while the call behind it failed with ERROR_INVALID_HANDLE.
             trace_timeout(f"gate-in-job probe FAILED (GetLastError={last_error(ctypes)}); "
                           f"nesting unknown", started or time.monotonic())
+        # Read before any kernel object exists: a Popen without _handle raises
+        # here and leaks nothing, instead of after CreateJobObjectW.
+        target = int(proc._handle)
         self.handle = self.k32.CreateJobObjectW(None, None)
         if not self.handle:
             raise OSError(last_error(ctypes), "CreateJobObjectW failed")
         self._kill_on_close()
-        if not self.k32.AssignProcessToJobObject(self.handle, int(proc._handle)):
+        if not self.k32.AssignProcessToJobObject(self.handle, target):
             code = last_error(ctypes)
             self.k32.CloseHandle(self.handle)
             raise OSError(code, "AssignProcessToJobObject failed")
@@ -290,6 +293,7 @@ class WindowsJob:
         info.BasicLimitInformation.LimitFlags = self.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         if not self.k32.SetInformationJobObject(self.handle, self.JobObjectExtendedLimitInformation,
                                                 ctypes.byref(info), ctypes.sizeof(info)):
+            self.k32.CloseHandle(self.handle)
             raise OSError(last_error(ctypes), "SetInformationJobObject failed")
 
     def resume(self):
@@ -316,8 +320,21 @@ class WindowsJob:
                 if entry.th32OwnerProcessID == self.pid:
                     thread = self.k32.OpenThread(self.THREAD_SUSPEND_RESUME, False, entry.th32ThreadID)
                     if thread:
-                        self.k32.ResumeThread(thread)
+                        # ResumeThread answers the PREVIOUS suspend count, or
+                        # DWORD(-1) on failure. A fence created suspended has 1;
+                        # anything above that is still suspended after one call.
+                        # The first draft discarded the answer and counted the
+                        # thread as resumed either way (Codex review of b019c42).
+                        previous = self.k32.ResumeThread(thread)
+                        rounds = 0
+                        while previous not in (0xFFFFFFFF, 0, 1) and rounds < 16:
+                            previous = self.k32.ResumeThread(thread)
+                            rounds += 1
                         self.k32.CloseHandle(thread)
+                        if previous == 0xFFFFFFFF:
+                            raise OSError(last_error(ctypes), f"ResumeThread failed for thread {entry.th32ThreadID}")
+                        if previous not in (0, 1):
+                            raise OSError(0, f"thread {entry.th32ThreadID} still suspended (count {previous})")
                         resumed += 1
                 ok = self.k32.Thread32Next(snap, ctypes.byref(entry))
         finally:
@@ -328,6 +345,12 @@ class WindowsJob:
     def terminate(self):
         """Kill every member. True only when the call itself succeeded."""
         return bool(self.k32.TerminateJobObject(self.handle, 1))
+
+    def close(self):
+        """Release the job handle. With KILL_ON_JOB_CLOSE this is also the last kill."""
+        if self.handle:
+            self.k32.CloseHandle(self.handle)
+            self.handle = None
 
 
 def resume_suspended(proc):
@@ -580,20 +603,37 @@ def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
         # WindowsJob. An injected factory (tests) gets a running child.
         popen["creationflags"] = popen.get("creationflags", 0) | 0x4
     proc = subprocess.Popen(argv, **popen)
-    # The job is membership; it has to exist before the fence forks anything.
-    job = factory(proc, time.monotonic()) if platform == "nt" else None
     started = time.monotonic()
+    job = None
     try:
+        # The job is membership; it has to exist before the fence forks anything —
+        # and it is created INSIDE this try, so a Ctrl-C between the spawn and
+        # communicate still reaches the cleanup below instead of escaping with a
+        # suspended fence behind it (Codex review of b019c42).
+        job = factory(proc, started) if platform == "nt" else None
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         trace_timeout(f"fence timeout after {timeout}s", started)
         out, err, killed = drain_after_kill(proc, platform, started=started, job=job)
         expired = subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
+        # The cleanup's own answer travels ON the exception because the code
+        # that prints the verdict is nowhere near the code that did the killing.
         expired.tree_killed = killed
         raise expired from None
     except BaseException:
+        # subprocess.run kills its child on ANY exception — a Ctrl-C turned
+        # into KeyboardInterrupt, a SystemExit — so that a gate being stopped
+        # does not leave its fence behind.
         drain_after_kill(proc, platform, job=job)
         raise
+    finally:
+        # A job handle is a kernel object. Closing it is what KILL_ON_JOB_CLOSE
+        # keys on, and a long-lived qh-mcp would otherwise keep one per fence.
+        if job is not None:
+            try:
+                job.close()
+            except Exception:
+                pass
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 
 

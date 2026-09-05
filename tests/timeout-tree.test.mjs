@@ -725,3 +725,46 @@ print(repr(buf.getvalue()), repr(ok.getvalue()), flush=True)
       `${gate}: a probe that succeeds reports what it saw`)
   }
 })
+
+// ResumeThread answers the PREVIOUS suspend count, or DWORD(-1) on failure,
+// and the first draft discarded the answer and counted the thread as resumed
+// either way — a fence could stay suspended until the timeout with a job that
+// said everything was fine. Driven through the kernel32 seam: a snapshot that
+// yields one thread of the fence, and a ResumeThread that fails must make
+// `resume` raise; one that answers 1 (was suspended once, now running) must
+// count it. Both arms, because a resume that always raised would pass the first.
+test('a ResumeThread that fails is a failure, not a resumed thread', () => {
+  const probe = `import importlib.machinery, importlib.util, sys, ctypes
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+class FakeK32:
+    def __init__(self, resume_answer): self.answer = resume_answer; self.resumed = 0
+    def CreateToolhelp32Snapshot(self, kind, pid): return 77
+    def Thread32First(self, snap, ref):
+        ref._obj.th32OwnerProcessID = 4242; ref._obj.th32ThreadID = 9; return 1
+    def Thread32Next(self, snap, ref): return 0
+    def OpenThread(self, access, inherit, tid): return 88
+    def ResumeThread(self, h): self.resumed += 1; return self.answer
+    def CloseHandle(self, h): return 1
+def build(k32):
+    job = module.WindowsJob.__new__(module.WindowsJob)
+    from ctypes import wintypes
+    job.ctypes, job.wintypes, job.pid, job.k32 = ctypes, wintypes, 4242, k32
+    return job
+ok = build(FakeK32(1)); ok.resume(); print("ok", ok.k32.resumed)
+bad = build(FakeK32(0xFFFFFFFF))
+try:
+    bad.resume(); print("NO RAISE")
+except OSError as e:
+    print("raised", "ResumeThread failed" in str(e))
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    assert.match(run.stdout, /^ok 1$/m, `${gate}: a thread that answers 1 is resumed once and counted`)
+    assert.match(run.stdout, /^raised True$/m, `${gate}: DWORD(-1) from ResumeThread must raise, not count`)
+  }
+})

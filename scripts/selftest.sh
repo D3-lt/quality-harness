@@ -4,7 +4,7 @@ set -euo pipefail
 # behind — a fence, a probe, a heartbeat — is killed when the shell exits, and
 # the last step below asserts nothing is still attached, so a leak is a red run
 # here rather than a hot laptop later.
-trap 'pkill -P $$ 2>/dev/null || true' EXIT
+if command -v pkill >/dev/null 2>&1; then trap 'pkill -P $$ 2>/dev/null || true' EXIT; fi
 
 REPO=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 # ADR-008 split the two: the tests live in the repository, the thing they
@@ -73,9 +73,13 @@ node --check "$ROOT/workflows/quality-cycle.js"
 node --check "$ROOT/workflows/review-ring.js"
 
 # §130: a child still attached to this shell at the end is a leak, and a leak is
+# §130: a child still attached to this shell at the end is a leak, and a leak is
 # not a pass. Direct children only — a grandchild that reparented is out of
-# reach here, which is what the gates' own tree kill is for.
-if leftover=$(pgrep -P $$ 2>/dev/null) && [ -n "$leftover" ]; then
+# reach here, which is what the gates' own tree kill is for. Without pgrep the
+# check is UNRUN and says so; it never reads "no children" (ADR-005).
+if ! command -v pgrep >/dev/null 2>&1; then
+  printf 'leak check UNRUN — pgrep is not available on this host, so nothing here says the suite left no child\n' >&2
+elif leftover=$(pgrep -P $$ 2>/dev/null) && [ -n "$leftover" ]; then
   printf 'FAIL — child process(es) still running after the suite: %s\n' "$leftover" >&2
   exit 1
 fi

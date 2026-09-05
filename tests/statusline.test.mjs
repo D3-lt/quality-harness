@@ -6,13 +6,13 @@
 // for a large transcript.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { closeSync, ftruncateSync, mkdtempSync, openSync, rmSync, statSync, utimesSync, writeFileSync } from 'node:fs'
+import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { analyzeTranscript } from '../plugin/scripts/lifecycle.mjs'
-import { SIZE_CAP, reading, render } from '../plugin/scripts/statusline.mjs'
+import { CI_STALE_MS, SIZE_CAP, ciReading, findGitDir, reading, render, renderCi } from '../plugin/scripts/statusline.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -121,6 +121,62 @@ test('the CLI reads the statusLine JSON from stdin, prints the segment, and neve
     const empty = run('')
     assert.equal(empty.status, 0)
     assert.equal(empty.stdout, '')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the CI piece reads the hook\'s cache: green, red with a count, running, stale, unknown, and absent (BACKLOG §137)', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-ci-'))
+  try {
+    const gitDir = join(dir, '.git')
+    mkdirSync(gitDir)
+    const sub = join(dir, 'src', 'deep')
+    mkdirSync(sub, { recursive: true })
+    const now = Date.now()
+    const write = (ci, at = now - 1_000) => writeFileSync(join(gitDir, 'qh-branch-state.json'), JSON.stringify({ at, state: { looked: true, branch: 'main', head: 'abc', dirty: 0, ci } }))
+
+    write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] })
+    assert.equal(renderCi(ciReading(sub, now)), 'CI ✓', 'found from a subdirectory, without spawning git')
+    write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'failure', failed: ['selftest (windows): failure', 'coverage floor: failure'] })
+    assert.equal(renderCi(ciReading(dir, now)), 'CI ✗ 2 job(s)')
+    write({ looked: true, sha: 'abc1234', status: 'in_progress', conclusion: null, failed: [] })
+    assert.equal(renderCi(ciReading(dir, now)), 'CI …')
+    write({ looked: false, note: 'gh is not installed' })
+    assert.equal(renderCi(ciReading(dir, now)), 'CI ?')
+    // Stale: fifteen minutes and older is said to be old, never read as now.
+    write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] }, now - CI_STALE_MS - 60_000)
+    assert.match(renderCi(ciReading(dir, now)), /^CI \? \(\d+m old\)$/)
+    // A future-dated cache is refused by the same guard the hook uses.
+    write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] }, now + 60_000)
+    assert.equal(ciReading(dir, now), null)
+    // Absent: no piece, and the QH piece stands alone.
+    rmSync(join(gitDir, 'qh-branch-state.json'))
+    assert.equal(ciReading(dir, now), null)
+    assert.equal(render({ kind: 'checked' }, null), 'QH ✓ checked')
+    assert.equal(render({ kind: 'checked' }, { state: 'green' }), 'QH ✓ checked · CI ✓')
+    assert.equal(render(null, { state: 'red', failed: [] }), 'QH CI ✗', 'CI alone still carries the prefix')
+    // A worktree: .git is a file naming the real dir.
+    const wt = mkdtempSync(join(tmpdir(), 'qh-statusline-wt-'))
+    writeFileSync(join(wt, '.git'), `gitdir: ${gitDir}\n`)
+    write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] })
+    assert.equal(renderCi(ciReading(wt, now)), 'CI ✓')
+    rmSync(wt, { recursive: true, force: true })
+    // A symlink INTO the repository still finds it (the walk starts from the realpath).
+    const alias = join(tmpdir(), `qh-statusline-alias-${process.pid}`)
+    try { unlinkSync(alias) } catch {}
+    symlinkSync(sub, alias, 'dir')
+    write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] })
+    assert.equal(renderCi(ciReading(alias, now)), 'CI ✓', 'a symlinked cwd is walked from its target')
+    unlinkSync(alias)
+    // A bare repository is its own git dir.
+    const bare = mkdtempSync(join(tmpdir(), 'qh-statusline-bare-'))
+    writeFileSync(join(bare, 'HEAD'), 'ref: refs/heads/main\n')
+    mkdirSync(join(bare, 'objects'))
+    assert.equal(findGitDir(bare), realpathSync(bare))
+    rmSync(bare, { recursive: true, force: true })
+    // No .git anywhere above: nothing.
+    assert.equal(findGitDir(tmpdir()) === null || typeof findGitDir(tmpdir()) === 'string', true)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

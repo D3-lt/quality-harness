@@ -607,32 +607,75 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 module = importlib.util.module_from_spec(spec)
 loader.exec_module(module)
 calls = []
-def fake(argv, **kw):
-    calls.append(argv)
-    if argv[0] == "tasklist" and argv[2].startswith("PARENTPID"):
-        return subprocess.CompletedProcess(argv, 0, stdout='"bash.exe","1001","Console","1","5,000 K"\\n"sleep.exe","1002","Console","1","4,000 K"\\n')
-    if argv[0] == "tasklist":
-        pid = argv[2].split()[-1]
-        return subprocess.CompletedProcess(argv, 0, stdout=("sleep.exe  1002  Console" if pid == "1002" else "INFO: No tasks are running which match the specified criteria."))
-    return subprocess.CompletedProcess(argv, 0)
+def run(argv, **kw):
+    calls.append(argv[0]); return subprocess.CompletedProcess(argv, 0)
+# Two snapshots: before, bash and sleep are children of 4242; after, only sleep
+# is still anywhere in the table, and a NEW process has reused bash's pid.
+snapshots = [
+    [("bash.exe", 1001, 4242), ("sleep.exe", 1002, 4242), ("other.exe", 7, 1)],
+    [("sleep.exe", 1002, 1), ("notbash.exe", 1001, 1), ("other.exe", 7, 1)],
+]
+def processes():
+    return snapshots.pop(0)
+def blind():
+    raise OSError(5, "CreateToolhelp32Snapshot failed")
 buf = io.StringIO(); real = sys.stderr; sys.stderr = buf
 os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"] = "1"
-confirmed = module.kill_tree(4242, "nt", run=fake)
+confirmed = module.kill_tree(4242, "nt", run=run, processes=processes)
+blindbuf = io.StringIO(); sys.stderr = blindbuf
+module.kill_tree(4242, "nt", run=run, processes=blind)
 del os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"]
 quiet = io.StringIO(); sys.stderr = quiet
-module.kill_tree(4242, "nt", run=fake)
+module.kill_tree(4242, "nt", run=run, processes=blind)
 sys.stderr = real
-print(confirmed, len([c for c in calls if c[0] == "taskkill"]), repr(buf.getvalue()), repr(quiet.getvalue()), flush=True)
+print(confirmed, calls.count("taskkill"), repr(buf.getvalue()), repr(quiet.getvalue()), repr(blindbuf.getvalue()), flush=True)
 `
   for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     const out = run.stdout.trim()
-    assert.match(out, /^True 2 /, `${gate}: taskkill answered 0 both times, and was called once per kill_tree`)
-    assert.match(out, /tree before taskkill: leader 4242, children \[\('bash\.exe', '1001'\), \('sleep\.exe', '1002'\)\]/,
+    assert.match(out, /^True 3 /, `${gate}: taskkill answered 0 every time and was called once per kill_tree`)
+    assert.match(out, /tree before taskkill: leader 4242, children \[\('bash\.exe', 1001\), \('sleep\.exe', 1002\)\]/,
       `${gate}: the children must be named before the kill`)
-    assert.match(out, /tree after taskkill: rc=0, still alive \[\('sleep\.exe', '1002'\)\]/,
-      `${gate}: the survivor must be named after it — this is the whole instrument`)
-    assert.match(out, / ''$/, `${gate}: with the flag unset, nothing is written`)
+    assert.match(out, /tree after taskkill: rc=0, still alive \[\('sleep\.exe', 1002\)\]/,
+      `${gate}: the survivor must be named after it, and a reused pid under a new name must NOT be — this is the whole instrument`)
+    assert.match(out, /COULD NOT LIST \(OSError: \[Errno 5\] CreateToolhelp32Snapshot failed\)/,
+      `${gate}: a snapshot that fails must say so — a blind instrument that reports [] was the first draft`)
+    assert.match(out, / '' '\[trace-timeout\] tree before taskkill: COULD NOT LIST/, `${gate}: with the flag unset, nothing is written and nothing is snapshotted`)
+  }
+})
+
+// BACKLOG §123, the Windows killpg. A Job Object is membership, not ancestry:
+// when it answers, the whole tree is gone and taskkill would only report a dead
+// pid. Driven through the `job` seam on every host — a job whose terminate
+// succeeds must make kill_tree answer True WITHOUT calling taskkill; one whose
+// terminate fails must fall through to taskkill. The real WindowsJob (ctypes,
+// CREATE_SUSPENDED, toolhelp resume) can only run on Windows and is measured
+// there by peers; this proves the gate USES the answer, which is the half a
+// mutant can kill anywhere.
+test('kill_tree on Windows kills by job when it has one, and falls back to taskkill when the job cannot', () => {
+  const probe = `import importlib.machinery, importlib.util, io, os, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+calls = []
+def run(argv, **kw):
+    calls.append(argv[0]); return subprocess.CompletedProcess(argv, 0)
+class Job:
+    def __init__(self, answer): self.answer = answer; self.calls = 0
+    def terminate(self): self.calls += 1; return self.answer
+good = Job(True); bad = Job(False)
+a = module.kill_tree(4242, "nt", run=run, job=good)
+taskkills_after_good = calls.count("taskkill")
+b = module.kill_tree(4242, "nt", run=run, job=bad)
+print(a, good.calls, taskkills_after_good, b, bad.calls, calls.count("taskkill"), flush=True)
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    assert.equal(run.stdout.trim(), 'True 1 0 True 1 1',
+      `${gate}: a job that answers ends the kill without taskkill; one that cannot falls through to it — got ${run.stdout.trim()}`)
   }
 })

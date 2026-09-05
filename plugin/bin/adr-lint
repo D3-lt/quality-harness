@@ -3492,18 +3492,12 @@ def code_only(text, python=False):
         text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
         text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
         return text
-    # ⚠ LITERALS FIRST — see issue #7. This gate never FIRED the defect, because
-    # its caller brace-matches raw source and strips the extracted body, but the
-    # helper itself carried it: a bare `"//"` literal ate the rest of its line.
-    # Protected by call order is not protected by construction, and arch-lint
-    # inherited exactly that difference.
-    text = re.sub(r"`(?:[^`])*`", "``", text)
-    text = re.sub(r'"(?:[^"\\\n]|\\.)*"', '""', text)
-    text = re.sub(r"'(?:[^'\\\n]|\\.)*'", "''", text)
-    text = re.sub(r"/\*.*?\*/", " ", text, flags=re.S)
-    text = re.sub(r"(?m)(^|[^:])//.*$", r"\1 ", text)
-    text = re.sub(r"(?m)#.*$", " ", text)
-    return text
+    # ⚠ ONE PASS, NOT AN ORDERING. Both orderings have shipped here and both are
+    # wrong: comments-first let a `"//"` literal eat its line (issue #7);
+    # literals-first let a backtick inside a `//` comment eat the code after it
+    # (BACKLOG §139, found against a foreign corpus). `scan_code_only` holds one
+    # state at a time, so neither is expressible.
+    return scan_code_only(text, hash_comments=True)
 
 
 GO_TEST_BOOLEAN_FLAGS = {"-failfast", "-race", "-short"}
@@ -3734,8 +3728,21 @@ def _go_package_selects(scope, test_path, platform=None):
     return directory == package_parts
 
 
-def _go_code_only(text):
-    """Blank Go comments and literals without confusing delimiters inside strings."""
+def scan_code_only(text, hash_comments=False):
+    """Blank comments and literals in ONE left-to-right pass.
+
+    NEITHER ORDER OF REGEXES IS CORRECT, and this project has now shipped both
+    mistakes. Comments first let a "//" LITERAL eat the rest of its line, which
+    issue #7 reported. Literals first let a backtick inside a // COMMENT open a
+    raw string that ate the code after it — measured 2026-09-05 against a foreign
+    corpus, where a Go file whose comments quote a field name in backticks lost
+    three real `func Test` declarations and adr-lint told that repository it had
+    named tests it never wrote (BACKLOG 139). A scanner holds one state at a time
+    and can make neither mistake, which is what "by construction" means, and it
+    is why the fix is this function rather than a third ordering.
+
+    `hash_comments` adds `#` to end of line, except `#[`, a Rust attribute.
+    """
     output = []
     state = "code"
     escaped = False
@@ -3753,6 +3760,11 @@ def _go_code_only(text):
                 output.extend("  ")
                 state = "block-comment"
                 index += 2
+                continue
+            if hash_comments and char == "#" and pair != "#[":
+                output.append(" ")
+                state = "line-comment"
+                index += 1
                 continue
             if char in ('"', "'"):
                 output.append(" ")
@@ -3804,7 +3816,7 @@ def _go_direct_test_definitions(root, tracked, names):
         if not source_path.exists():
             continue  # a tracked deletion is not a test the worktree can run
         try:
-            source = _go_code_only(source_path.read_text(errors="replace", encoding="utf-8"))
+            source = scan_code_only(source_path.read_text(errors="replace", encoding="utf-8"))
         except OSError:
             return None
         for name in names:

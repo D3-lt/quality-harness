@@ -8655,3 +8655,51 @@ backlog. The natural invocation, `adr-lint docs/adr/*.md`, therefore produces no
 tried. It is the same class as the defect above: a document that never claimed to be a record is
 judged as a malformed one. Not fixed here because the fix is a recognition rule and this section is
 already the largest thing in it.
+
+## 139. CLOSED 2026-09-05 — the gate accused a repository of naming tests it had not written, and the cause was the fix to issue #7
+
+**Found by the foreign-corpus run of §138, and it is the finding that justifies the exercise.**
+`adr-lint` reported that agentsmemory's ADR-045 T3 names `TestNoToolDescriptionClaimsALongMemoryCannotBeMoved`
+in a file containing "no executable definition with that name". The function is declared there, plain,
+at line 97. Two more in the same file were reported the same way. That is a gate manufacturing a
+false accusation against real code — the failure this project exists to be the absence of — and no
+corpus here would ever have shown it, because it depends on a comment style this repository does not
+use.
+
+**The cause is the fix to issue #7.** `code_only` blanks comments and literals with a sequence of
+regexes, and the ORDER decides which class of defect you get:
+
+| order | what it eats |
+|---|---|
+| comments first (before #7) | a  LITERAL is read as a comment; the rest of the line, its closing quote and any brace after it are deleted |
+| literals first (after #7, until now) | a backtick inside a  COMMENT opens a raw string that runs to the next backtick — swallowing every declaration in between |
+
+Go comments quote field names in backticks routinely, so the second ordering deletes real code from
+ordinary Go. The file that exposed it says    in a comment; three `func Test…` declarations
+after it vanished. Both orderings have now shipped here, which is the whole argument: **there is no
+correct ordering.** A left-to-right scanner holds one state at a time and can express neither defect.
+One already existed in `adr-lint` for Go (`_go_code_only`, one caller); it is now `scan_code_only`,
+takes `hash_comments` for the PHP and shell cases the regex handled, and is what both `code_only`s
+return. Four mutants RED, including issue #7's own, repinned from the regex it used to describe to
+the state it now describes.
+
+**The two gates each keep their own copy, and a test now holds them to the same answers.** They are
+standalone executables with no shared module, and issue #7 is on record as having been fixed in one
+and inherited by the other — "protected by call order is not protected by construction, and arch-lint
+inherited exactly that difference". `tests/gates.test.mjs` runs both strippers over the same six
+fixtures and asserts the outputs are EQUAL, so the next divergence fails rather than waiting for a
+foreign corpus to notice.
+
+**One mutant came back GREEN on the first pass, and that was a finding about the test.** The
+arch-lint issue-#7 mutant survived: the fixtures put a comment marker inside a RAW string and never
+inside a quoted one, so nothing held the `"`-state to it — adr-lint was covered only by its own Go
+lexer fixture, which arch-lint has no equivalent of. The fixture set gained the quoted case rather
+than the mutant being softened (`CLAUDE.md` §4).
+
+**What it means for the corpora.** Re-linted after the fix, the five foreign corpora went from eight
+failing records to five, and agentsmemory's ADR-045 now passes. Of the three findings this run made
+against that repository, one was real and severe — ADR-049 T1's three tests had been deleted by a
+later commit, leaving an auth guard serving with no behaviour test for a week — one was this false
+positive, and one is a stale `Proposed` record for its owner. A gate whose findings are one-third
+fabricated is not a gate anyone should act on, which is why this section outranks the feature work it
+interrupted.

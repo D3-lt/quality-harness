@@ -178,4 +178,4 @@ persistent state, no migration.
 
 ## Follow-ups
 
-- [ ] After ten records authored under this, count uses of `Awaiting-decision:` and `(external: …)`. If both are zero, remove them — the pre-registered criterion in the Decision.
+- [x] 2026-09-05, at 35 records: `Awaiting-decision:` appears in 2 records and `(external: …)` 13 times. Neither is zero, so both stay — the criterion did not fire.

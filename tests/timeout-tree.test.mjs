@@ -588,3 +588,49 @@ print("traced" if "[trace-timeout]" in buf.getvalue() else "silent", flush=True)
     assert.equal(healthy, 'traced', `${gate}: with a working stderr the trace must still be written`)
   }
 })
+
+// BACKLOG §129. Under the trace flag the Windows arm names the leader's children
+// before taskkill and whichever of them is still alive after — the instrument
+// for a survivor the CI runner sometimes leaves and nothing has yet named.
+// Driven through the `run` seam on every host: a fake tasklist that lists two
+// children, a taskkill that answers 0, and a fake post-kill tasklist that says
+// one child is still there. Both lines must appear; the surviving one must be
+// named; and with the flag unset none of it runs — a diagnostic that always
+// speaks is noise, and one that speaks only on failure is not a diagnostic.
+test('under the trace flag, kill_tree on Windows names the tree before and the survivor after', () => {
+  const probe = `import importlib.machinery, importlib.util, io, os, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+calls = []
+def fake(argv, **kw):
+    calls.append(argv)
+    if argv[0] == "tasklist" and argv[2].startswith("PARENTPID"):
+        return subprocess.CompletedProcess(argv, 0, stdout='"bash.exe","1001","Console","1","5,000 K"\\n"sleep.exe","1002","Console","1","4,000 K"\\n')
+    if argv[0] == "tasklist":
+        pid = argv[2].split()[-1]
+        return subprocess.CompletedProcess(argv, 0, stdout=("sleep.exe  1002  Console" if pid == "1002" else "INFO: No tasks are running which match the specified criteria."))
+    return subprocess.CompletedProcess(argv, 0)
+buf = io.StringIO(); real = sys.stderr; sys.stderr = buf
+os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"] = "1"
+confirmed = module.kill_tree(4242, "nt", run=fake)
+del os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"]
+quiet = io.StringIO(); sys.stderr = quiet
+module.kill_tree(4242, "nt", run=fake)
+sys.stderr = real
+print(confirmed, len([c for c in calls if c[0] == "taskkill"]), repr(buf.getvalue()), repr(quiet.getvalue()), flush=True)
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    const out = run.stdout.trim()
+    assert.match(out, /^True 2 /, `${gate}: taskkill answered 0 both times, and was called once per kill_tree`)
+    assert.match(out, /tree before taskkill: leader 4242, children \[\('bash\.exe', '1001'\), \('sleep\.exe', '1002'\)\]/,
+      `${gate}: the children must be named before the kill`)
+    assert.match(out, /tree after taskkill: rc=0, still alive \[\('sleep\.exe', '1002'\)\]/,
+      `${gate}: the survivor must be named after it — this is the whole instrument`)
+    assert.match(out, / ''$/, `${gate}: with the flag unset, nothing is written`)
+  }
+})

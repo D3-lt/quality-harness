@@ -3252,6 +3252,40 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
     'an actually empty corpus is not reported as a discovery failure')
 })
 
+test('a path outside this corpus is said to be outside, never "none governs" (BACKLOG §138)', async () => {
+  // Measured against five foreign corpora on 2026-09-05: asked from one
+  // repository about another's file, this printed a confident "Read 35
+  // record(s); none governs …" while that file's own corpus named the record
+  // and the test enforcing it.
+  const { main, within } = await import('../plugin/scripts/adr-context.mjs')
+  const mine = await mkdtemp(path.join(testTmp, 'quality-context-mine-'))
+  const theirs = await mkdtemp(path.join(testTmp, 'quality-context-theirs-'))
+  const say = (argv, root) => {
+    const out = []
+    const stdout = process.stdout.write
+    process.stdout.write = chunk => { out.push(chunk); return true }
+    try { return { code: main(argv, root), text: out.join('') } } finally { process.stdout.write = stdout }
+  }
+
+  const foreign = say([path.join(theirs, 'src', 'a.go')], mine)
+  assert.equal(foreign.code, 2, 'a question this corpus cannot answer is not answered with 0')
+  assert.match(foreign.text, /Outside this corpus/)
+  assert.match(foreign.text, /NOT "no decision governs it"/)
+  assert.doesNotMatch(foreign.text, /none governs/)
+  const asJson = say(['--json', path.join(theirs, 'src', 'a.go')], mine)
+  assert.equal(JSON.parse(asJson.text).read, null, 'read: null — nothing was consulted')
+  assert.deepEqual(JSON.parse(asJson.text).governing, [])
+
+  // Inside: the ordinary answer, including the root itself and a sibling whose
+  // name merely starts the same way.
+  assert.equal(within(mine, mine), true)
+  assert.equal(within(mine, path.join(mine, 'src', 'a.go')), true)
+  assert.equal(within(mine, `${mine}-other/src/a.go`), false, 'a prefix is not a parent')
+  const own = say([path.join(mine, 'src', 'a.go')], mine)
+  assert.equal(own.code, 0)
+  assert.match(own.text, /No decision records found|none governs/)
+})
+
 test('adr-context answers which decisions govern a path, and which were killed there', async () => {
   // Called IN-PROCESS, not spawned. adr-state beside it is exercised by
   // spawnSync, which parent-process coverage cannot see — and this resolver is

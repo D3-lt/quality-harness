@@ -159,20 +159,41 @@ def _run_gate(gate, args, paths):
 
 
 def kernel32(ctypes, wintypes):
-    """kernel32 with the prototypes the snapshot calls need, declared once.
+    """kernel32 with EVERY prototype this file uses declared, once.
 
-    ⚠ The default restype is c_int, and a HANDLE is pointer-sized: a snapshot
-    handle can truncate, and the failure sentinel INVALID_HANDLE_VALUE (-1)
-    reads differently under each restype. Declared HANDLE, the sentinel is the
-    all-ones pointer that `wintypes.HANDLE(-1).value` also produces, so the
-    comparison and the return agree by construction. A peer measured the
-    struct-size cousin of this: Process32FirstW with the ANSI size returns 0 with
-    ERROR_BAD_LENGTH and an EMPTY list — silent, and shaped exactly like the
-    tasklist filter that never existed. Every first call below raises on 0.
+    ⚠ The default restype is c_int, and a HANDLE is pointer-sized. The first
+    draft declared the snapshot call only, and two Windows boxes independently
+    found the consequence: GetCurrentProcess() came back as -1 instead of the
+    all-ones pseudo-handle, IsProcessInJob failed with ERROR_INVALID_HANDLE, and
+    because the trace sat inside `if IsProcessInJob(...)` the failure printed
+    NOTHING — the third kernel32 call in this file whose failure the branch
+    around it swallowed. So the rule is now mechanical rather than per-call:
+    every function used below is declared here, and every call that can fail
+    is checked where it is made. A peer measured the struct-size cousin too:
+    Process32FirstW with the ANSI size returns 0 with ERROR_BAD_LENGTH and an
+    EMPTY list, shaped exactly like the tasklist filter that never existed.
     """
+    H, B, D = wintypes.HANDLE, wintypes.BOOL, wintypes.DWORD
+    P = ctypes.POINTER
     k32 = ctypes.WinDLL("kernel32", use_last_error=True)
-    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
-    k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    for name, restype, argtypes in (
+        ("GetCurrentProcess", H, []),
+        ("IsProcessInJob", B, [H, H, P(B)]),
+        ("CreateJobObjectW", H, [ctypes.c_void_p, wintypes.LPCWSTR]),
+        ("SetInformationJobObject", B, [H, ctypes.c_int, ctypes.c_void_p, D]),
+        ("AssignProcessToJobObject", B, [H, H]),
+        ("TerminateJobObject", B, [H, wintypes.UINT]),
+        ("CloseHandle", B, [H]),
+        ("CreateToolhelp32Snapshot", H, [D, D]),
+        ("Thread32First", B, [H, ctypes.c_void_p]),
+        ("Thread32Next", B, [H, ctypes.c_void_p]),
+        ("Process32FirstW", B, [H, ctypes.c_void_p]),
+        ("Process32NextW", B, [H, ctypes.c_void_p]),
+        ("OpenThread", H, [D, B, D]),
+        ("ResumeThread", D, [H]),
+    ):
+        fn = getattr(k32, name)
+        fn.restype, fn.argtypes = restype, argtypes
     return k32
 
 
@@ -217,6 +238,11 @@ class WindowsJob:
         if self.k32.IsProcessInJob(self.k32.GetCurrentProcess(), None, ctypes.byref(inside)):
             trace_timeout(f"gate already inside a job: {bool(inside.value)} (nested job follows)",
                           started or time.monotonic())
+        else:
+            # A probe that fails must say so: this line was silent on two boxes
+            # while the call behind it failed with ERROR_INVALID_HANDLE.
+            trace_timeout(f"gate-in-job probe FAILED (GetLastError={ctypes.get_last_error()}); "
+                          f"nesting unknown", started or time.monotonic())
         self.handle = self.k32.CreateJobObjectW(None, None)
         if not self.handle:
             raise OSError(ctypes.get_last_error(), "CreateJobObjectW failed")

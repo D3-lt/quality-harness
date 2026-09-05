@@ -92,7 +92,227 @@ def is_unbound(test):
     return bool(UNBOUND_RE.fullmatch(test.strip()))
 
 
-def kill_tree(pid, platform=None, run=subprocess.run, timeout=15):
+def kernel32(ctypes, wintypes):
+    """kernel32 with the prototypes the snapshot calls need, declared once.
+
+    ⚠ The default restype is c_int, and a HANDLE is pointer-sized: a snapshot
+    handle can truncate, and the failure sentinel INVALID_HANDLE_VALUE (-1)
+    reads differently under each restype. Declared HANDLE, the sentinel is the
+    all-ones pointer that `wintypes.HANDLE(-1).value` also produces, so the
+    comparison and the return agree by construction. A peer measured the
+    struct-size cousin of this: Process32FirstW with the ANSI size returns 0 with
+    ERROR_BAD_LENGTH and an EMPTY list — silent, and shaped exactly like the
+    tasklist filter that never existed. Every first call below raises on 0.
+    """
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    k32.CreateToolhelp32Snapshot.restype = wintypes.HANDLE
+    k32.CreateToolhelp32Snapshot.argtypes = [wintypes.DWORD, wintypes.DWORD]
+    return k32
+
+
+class WindowsJob:
+    """One Job Object around one fence — the Windows `killpg` (BACKLOG §123).
+
+    `taskkill /F /T` walks the process tree from a pid, and a fence whose bash
+    has already exited has no tree to walk: its backgrounded subshell is
+    reparented, and on 2026-09-05 a real Windows 11 box showed exactly that —
+    `tree before taskkill: leader 4732, children []`, taskkill answering non-zero
+    on the dead pid, and the orphan running all 100 beats to completion while
+    holding the pipe. A Job Object is membership, not ancestry: every process
+    the fence starts inherits it however it is reparented, TerminateJobObject
+    kills them all in one call, and KILL_ON_JOB_CLOSE means a gate that dies
+    takes its fence with it instead of leaving the orphan this replaces.
+
+    ⚠ THE SPAWN RACE IS CLOSED DELIBERATELY. Popen returns with the child already
+    running, and bash backgrounds its subshell within milliseconds — a grandchild
+    forked before AssignProcessToJobObject is outside the job, which is the very
+    shape this exists to kill. So `run_bounded` starts the fence CREATE_SUSPENDED,
+    this assigns it, and `resume` finds the primary thread through a toolhelp
+    snapshot (Popen closes the thread handle it could have kept) and resumes it.
+    A peer measured the alternative as "flaky rather than wrong, which is worse
+    to diagnose", and that is why the order is fixed here rather than left to
+    Popen. On a CI runner the gate itself is usually already inside a job;
+    nested jobs are allowed since Windows 8, and IsProcessInJob is traced so one
+    run says which case it was.
+    """
+
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE = 0x2000
+    JobObjectExtendedLimitInformation = 9
+    TH32CS_SNAPTHREAD = 0x4
+    THREAD_SUSPEND_RESUME = 0x2
+
+    def __init__(self, proc, started=None):
+        import ctypes
+        from ctypes import wintypes
+        self.ctypes, self.wintypes = ctypes, wintypes
+        self.k32 = kernel32(ctypes, wintypes)
+        self.pid = proc.pid
+        inside = wintypes.BOOL()
+        if self.k32.IsProcessInJob(self.k32.GetCurrentProcess(), None, ctypes.byref(inside)):
+            trace_timeout(f"gate already inside a job: {bool(inside.value)} (nested job follows)",
+                          started or time.monotonic())
+        self.handle = self.k32.CreateJobObjectW(None, None)
+        if not self.handle:
+            raise OSError(ctypes.get_last_error(), "CreateJobObjectW failed")
+        self._kill_on_close()
+        if not self.k32.AssignProcessToJobObject(self.handle, int(proc._handle)):
+            code = ctypes.get_last_error()
+            self.k32.CloseHandle(self.handle)
+            raise OSError(code, "AssignProcessToJobObject failed")
+
+    def _kill_on_close(self):
+        ctypes, wintypes = self.ctypes, self.wintypes
+
+        class IO_COUNTERS(ctypes.Structure):
+            _fields_ = [(name, ctypes.c_ulonglong) for name in (
+                "ReadOperationCount", "WriteOperationCount", "OtherOperationCount",
+                "ReadTransferCount", "WriteTransferCount", "OtherTransferCount")]
+
+        class BASIC(ctypes.Structure):
+            _fields_ = [("PerProcessUserTimeLimit", wintypes.LARGE_INTEGER),
+                        ("PerJobUserTimeLimit", wintypes.LARGE_INTEGER),
+                        ("LimitFlags", wintypes.DWORD),
+                        ("MinimumWorkingSetSize", ctypes.c_size_t),
+                        ("MaximumWorkingSetSize", ctypes.c_size_t),
+                        ("ActiveProcessLimit", wintypes.DWORD),
+                        ("Affinity", ctypes.c_size_t),
+                        ("PriorityClass", wintypes.DWORD),
+                        ("SchedulingClass", wintypes.DWORD)]
+
+        class EXTENDED(ctypes.Structure):
+            _fields_ = [("BasicLimitInformation", BASIC), ("IoInfo", IO_COUNTERS),
+                        ("ProcessMemoryLimit", ctypes.c_size_t), ("JobMemoryLimit", ctypes.c_size_t),
+                        ("PeakProcessMemoryUsed", ctypes.c_size_t), ("PeakJobMemoryUsed", ctypes.c_size_t)]
+
+        info = EXTENDED()
+        info.BasicLimitInformation.LimitFlags = self.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
+        if not self.k32.SetInformationJobObject(self.handle, self.JobObjectExtendedLimitInformation,
+                                                ctypes.byref(info), ctypes.sizeof(info)):
+            raise OSError(ctypes.get_last_error(), "SetInformationJobObject failed")
+
+    def resume(self):
+        """Resume every thread of the fence — the one it was created with. Raises on failure."""
+        ctypes, wintypes = self.ctypes, self.wintypes
+
+        class THREADENTRY32(ctypes.Structure):
+            _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                        ("th32ThreadID", wintypes.DWORD), ("th32OwnerProcessID", wintypes.DWORD),
+                        ("tpBasePri", wintypes.LONG), ("tpDeltaPri", wintypes.LONG),
+                        ("dwFlags", wintypes.DWORD)]
+
+        snap = self.k32.CreateToolhelp32Snapshot(self.TH32CS_SNAPTHREAD, 0)
+        if snap == wintypes.HANDLE(-1).value:
+            raise OSError(ctypes.get_last_error(), "CreateToolhelp32Snapshot failed")
+        resumed = 0
+        try:
+            entry = THREADENTRY32()
+            entry.dwSize = ctypes.sizeof(entry)
+            ok = self.k32.Thread32First(snap, ctypes.byref(entry))
+            if not ok:
+                raise OSError(ctypes.get_last_error(), "Thread32First failed on the first call")
+            while ok:
+                if entry.th32OwnerProcessID == self.pid:
+                    thread = self.k32.OpenThread(self.THREAD_SUSPEND_RESUME, False, entry.th32ThreadID)
+                    if thread:
+                        self.k32.ResumeThread(thread)
+                        self.k32.CloseHandle(thread)
+                        resumed += 1
+                ok = self.k32.Thread32Next(snap, ctypes.byref(entry))
+        finally:
+            self.k32.CloseHandle(snap)
+        if not resumed:
+            raise OSError(0, f"no thread of {self.pid} found to resume")
+
+    def terminate(self):
+        """Kill every member. True only when the call itself succeeded."""
+        return bool(self.k32.TerminateJobObject(self.handle, 1))
+
+
+def resume_suspended(proc):
+    """Resume a CREATE_SUSPENDED child with no job to do it — the same snapshot walk."""
+    job = WindowsJob.__new__(WindowsJob)
+    import ctypes
+    from ctypes import wintypes
+    job.ctypes, job.wintypes, job.pid = ctypes, wintypes, proc.pid
+    job.k32 = kernel32(ctypes, wintypes)
+    job.resume()
+
+
+def windows_job(proc, started=None):
+    """A job around a CREATE_SUSPENDED `proc`, resumed either way. NEVER RAISES.
+
+    The fence was started suspended so the job could exist before it forks. It
+    MUST be resumed whatever happens to the job: a fence left suspended is a
+    hang wearing the timeout's name. If even that fails, the fence is killed so
+    the gate reports UNRUN promptly instead of waiting out the timeout on a
+    process that never ran.
+    """
+    started = started or time.monotonic()
+    job = None
+    try:
+        job = WindowsJob(proc, started)
+        trace_timeout(f"job object holds {proc.pid}", started)
+    except Exception as failure:
+        trace_timeout(f"job object unavailable ({type(failure).__name__}: {failure}); "
+                      f"falling back to taskkill", started)
+    try:
+        if job is not None:
+            job.resume()
+        else:
+            resume_suspended(proc)
+    except Exception as failure:
+        trace_timeout(f"could not resume the suspended fence ({type(failure).__name__}: {failure}); "
+                      f"killing it so this reports UNRUN now rather than after the timeout", started)
+        try:
+            proc.kill()
+        except Exception:
+            pass
+    return job
+
+
+def windows_processes():
+    """Every process as (name, pid, parent pid), from one Toolhelp snapshot.
+
+    ⚠ NO SUBPROCESS. The first two drafts of the §129 instrument spawned
+    `tasklist` (with a filter it does not have) and then PowerShell/CIM — and a
+    peer measured the second as 15s × (2 + children) worst case under the very
+    flag someone sets to measure timing: an instrument able to out-hang the hang
+    it explains. A snapshot is a syscall, ~4ms measured on Windows 11, and the
+    same primitive `WindowsJob.resume` already uses. A row is reported, never
+    interpreted: an interactive leader shows a conhost child, a spawned one does
+    not, and neither is a survivor.
+    """
+    import ctypes
+    from ctypes import wintypes
+    k32 = kernel32(ctypes, wintypes)
+
+    class PROCESSENTRY32W(ctypes.Structure):
+        _fields_ = [("dwSize", wintypes.DWORD), ("cntUsage", wintypes.DWORD),
+                    ("th32ProcessID", wintypes.DWORD), ("th32DefaultHeapID", ctypes.c_size_t),
+                    ("th32ModuleID", wintypes.DWORD), ("cntThreads", wintypes.DWORD),
+                    ("th32ParentProcessID", wintypes.DWORD), ("pcPriClassBase", wintypes.LONG),
+                    ("dwFlags", wintypes.DWORD), ("szExeFile", wintypes.WCHAR * 260)]
+
+    snap = k32.CreateToolhelp32Snapshot(0x2, 0)
+    if snap == wintypes.HANDLE(-1).value:
+        raise OSError(ctypes.get_last_error(), "CreateToolhelp32Snapshot failed")
+    found = []
+    try:
+        entry = PROCESSENTRY32W()
+        entry.dwSize = ctypes.sizeof(entry)
+        ok = k32.Process32FirstW(snap, ctypes.byref(entry))
+        if not ok:
+            # ERROR_BAD_LENGTH (24) here means dwSize is not the WIDE struct.
+            raise OSError(ctypes.get_last_error(), "Process32FirstW failed on the first call")
+        while ok:
+            found.append((entry.szExeFile, int(entry.th32ProcessID), int(entry.th32ParentProcessID)))
+            ok = k32.Process32NextW(snap, ctypes.byref(entry))
+    finally:
+        k32.CloseHandle(snap)
+    return found
+
+
+def kill_tree(pid, platform=None, run=subprocess.run, timeout=15, job=None, processes=None):
     """Kill PID and everything it started (BACKLOG §120). NEVER RAISES.
 
     `subprocess.run(timeout=)` kills its direct child and nothing else; a
@@ -115,38 +335,43 @@ def kill_tree(pid, platform=None, run=subprocess.run, timeout=15):
     it work, never that it certainly failed. A caller that reports a kill on a
     False has reported an observation it did not make (CLAUDE.md §3).
     """
+    processes = windows_processes if processes is None else processes
     try:
         if (platform or os.name) == "nt":
+            # BACKLOG §123. Membership first, ancestry second: a job kills the
+            # reparented subshell taskkill cannot see. When the job answers, the
+            # tree is gone and taskkill would only report a dead pid.
+            if job is not None and job.terminate():
+                if os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"):
+                    sys.stderr.write(f"[trace-timeout] job object terminated the tree of {pid}\n")
+                return True
             # BOUNDED: taskkill can hang, and unbounded it wears the timeout's
             # name. A TimeoutExpired answers False — not confirmed.
             # BACKLOG §129. Under the trace flag, name what is there to kill and
             # what is left after — the CI runner sometimes leaves a survivor and
-            # nothing so far has said which process it was. Direct children of
-            # the leader before; the same pids after; diagnostics only, and any
-            # failure here is swallowed by the except below like the kill itself.
-            children = []
-            if os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"):
-                listed = run(["tasklist", "/FI", f"PARENTPID eq {pid}", "/FO", "CSV", "/NH"],
-                             capture_output=True, text=True, encoding="utf-8", errors="replace",
-                             timeout=timeout)
-                for row in str(getattr(listed, "stdout", "") or "").splitlines():
-                    cells = [c.strip('"') for c in row.split('","')]
-                    if len(cells) > 1 and cells[1].isdigit():
-                        children.append((cells[0], cells[1]))
-                sys.stderr.write(f"[trace-timeout] tree before taskkill: leader {pid}, "
-                                 f"children {children}\n")
+            # nothing so far has said which process it was. One snapshot before,
+            # one after, matched on (name, pid) so a reused pid is not read as
+            # a survivor; no subprocess, so no timeout to multiply (see
+            # windows_processes). A snapshot that fails SAYS so: the first
+            # draft's listing failed silently and reported no children for ever.
+            traced = bool(os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"))
+            before = []
+            if traced:
+                try:
+                    before = [(name, cpid) for name, cpid, parent in processes() if parent == pid]
+                    sys.stderr.write(f"[trace-timeout] tree before taskkill: leader {pid}, children {before}\n")
+                except Exception as failure:
+                    sys.stderr.write(f"[trace-timeout] tree before taskkill: COULD NOT LIST ({type(failure).__name__}: {failure})\n")
             done = run(["taskkill", "/F", "/T", "/PID", str(pid)],
                        capture_output=True, timeout=timeout)
-            if children:
-                alive = []
-                for name, cpid in children:
-                    probe = run(["tasklist", "/FI", f"PID eq {cpid}", "/NH"],
-                                capture_output=True, text=True, encoding="utf-8", errors="replace",
-                                timeout=timeout)
-                    if cpid in str(getattr(probe, "stdout", "") or ""):
-                        alive.append((name, cpid))
-                sys.stderr.write(f"[trace-timeout] tree after taskkill: rc="
-                                 f"{getattr(done, 'returncode', None)}, still alive {alive}\n")
+            if traced:
+                try:
+                    now = {(name, cpid) for name, cpid, parent in processes()}
+                    alive = [child for child in before if child in now]
+                    sys.stderr.write(f"[trace-timeout] tree after taskkill: rc="
+                                     f"{getattr(done, 'returncode', None)}, still alive {alive}\n")
+                except Exception as failure:
+                    sys.stderr.write(f"[trace-timeout] tree after taskkill: COULD NOT LIST ({type(failure).__name__}: {failure})\n")
             return getattr(done, "returncode", None) == 0
         os.killpg(pid, signal.SIGKILL)
         return True
@@ -177,7 +402,7 @@ def trace_timeout(label, started):
         pass
 
 
-def drain_after_kill(proc, platform, grace=10, started=None):
+def drain_after_kill(proc, platform, grace=10, started=None, job=None):
     """Kill the tree and collect what it wrote, bounded, without raising.
 
     Bounded because a descendant that made a session of its own escapes the
@@ -209,7 +434,7 @@ def drain_after_kill(proc, platform, grace=10, started=None):
     killed = False
     trace_timeout("kill_tree start", started)
     try:
-        killed = kill_tree(proc.pid, platform)
+        killed = kill_tree(proc.pid, platform, job=job)
         trace_timeout(f"kill_tree end confirmed={killed}", started)
         out, err = proc.communicate(timeout=grace)
         trace_timeout("drain communicate returned", started)
@@ -227,7 +452,7 @@ def drain_after_kill(proc, platform, grace=10, started=None):
         return None, None, killed
 
 
-def run_bounded(argv, *, timeout, platform=None, **popen):
+def run_bounded(argv, *, timeout, platform=None, job_factory=None, **popen):
     """`subprocess.run(argv, timeout=…)` whose timeout reaches the whole tree.
 
     Own session (POSIX) or process group (Windows), `kill_tree` on
@@ -244,18 +469,25 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
                                   | getattr(subprocess, "CREATE_NEW_PROCESS_GROUP", 0x200))
     else:
         popen["start_new_session"] = True
+    factory = windows_job if job_factory is None else job_factory
+    if platform == "nt" and factory is windows_job:
+        # Started SUSPENDED so the job exists before the fence can fork; see
+        # WindowsJob. An injected factory (tests) gets a running child.
+        popen["creationflags"] = popen.get("creationflags", 0) | 0x4
     proc = subprocess.Popen(argv, **popen)
+    # The job is membership; it has to exist before the fence forks anything.
+    job = factory(proc, time.monotonic()) if platform == "nt" else None
     started = time.monotonic()
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
         trace_timeout(f"fence timeout after {timeout}s", started)
-        out, err, killed = drain_after_kill(proc, platform, started=started)
+        out, err, killed = drain_after_kill(proc, platform, started=started, job=job)
         expired = subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
         expired.tree_killed = killed
         raise expired from None
     except BaseException:
-        drain_after_kill(proc, platform)
+        drain_after_kill(proc, platform, job=job)
         raise
     return subprocess.CompletedProcess(argv, proc.returncode, out, err)
 

@@ -8508,3 +8508,11 @@ directory rather than its target's — `realpath` first. What stands, and the re
 guard is a fail-open denylist by nature; an arbitrary script it cannot read can still write. The
 strong form would omit Bash from the reviewer roles, and they need it to run checks. Named here
 rather than solved.
+
+**The expansion question, answered from the reference rather than a run.** The plugins reference
+states that `${CLAUDE_PLUGIN_ROOT}` resolves "anywhere the placeholder appears" in skill and agent
+content, and that it is also exported as an environment variable to every hook process. The guard's
+command, `node "${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-guard.mjs"`, is therefore reached by either
+route — inline substitution when the agent file is read, or shell expansion from the environment
+when it is not. What a live run still adds is the guard's own stderr line in a reviewer's transcript;
+the first one after 2.73.0 remains worth reading, but the mechanism is documented, not assumed.

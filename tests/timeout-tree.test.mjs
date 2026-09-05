@@ -113,24 +113,29 @@ async function assertTreeDied(dir, label, elapsedMs) {
   assert.equal(beat(dir), atReturn,
     `${label}: the heartbeat kept moving after the gate reported the timeout — the grandchild survived`)
 }
-// ⚠ WINDOWS IS UNPROVEN FOR THE TREE KILL, and this says so from the log rather
-// than by analogy (CLAUDE.md §7). `taskkill /F /T` does not reach a Git Bash
-// subshell tree, measured three times:
-//   · CI run 33892254729 — 21.9s against a 1s timeout.
-//   · CI on 0a18d04 and again on 867592c — `a fence timeout kills the tree the
-//     fence started` sat to the test's own 60s cap, so adr-verify did not return
-//     at all. Between those two runs `taskkill` was given a bound (BACKLOG
-//     §127a), and the hang did not change: the hang is NOT the kill call itself,
-//     and that is the part still unexplained.
-// Skipped on Windows with the measurement attached, because the mechanism is
-// UNPROVEN there rather than proven working. BACKLOG §123 holds the record, and
-// §128 holds what the bound ruled out.
+// ⚠ THE TREE KILL ON WINDOWS IS NON-DETERMINISTIC, and this says so from the
+// logs rather than by analogy (CLAUDE.md §7). The same direct-path invocation,
+// with byte-identical gate code, on the same CI runner: 479fbef passed, 0a18d04
+// and 867592c sat at the 60s cap, df8740a returned in 1324ms with the tree dead
+// (`drain communicate returned`). Two real Windows 11 boxes returned in 1297ms
+// and 1489ms with beats at return = 5, three seconds later = 5. So `taskkill /F
+// /T` DOES reach a Git Bash subshell tree — usually — and BACKLOG §128 holds the
+// mechanism that turned an occasional survivor into a 60s hang (close() behind a
+// reader thread), now bounded at ~11s and named by the trace.
+//
+// What stays skipped here is the assertion that the tree DIED, because on the
+// CI runner it sometimes does not, for a reason nobody has attributed. Asserting
+// it would redden a release run at random on a real but unexplained survivor;
+// `a timed-out fence returns within the bound the arithmetic gives` runs there
+// instead and carries the trace either way. The leader-exits shape (§123) is a
+// separate gap — bash is gone before taskkill runs, so /T has no root to walk —
+// and is unproved on Windows on any box.
 const posixTree = {
   skip: process.platform === 'win32'
-    ? 'taskkill /F /T does not reach a Git Bash subshell tree: 21.9s against a 1s timeout '
-      + '(CI 33907570834-era run 33892254729), and a full 60s hang on 0a18d04 and 867592c that '
-      + 'bounding taskkill did not change. UNPROVEN on Windows, not proven working; BACKLOG '
-      + '§123 and §128.'
+    ? 'the Windows tree kill is non-deterministic on the CI runner (pass/fail/fail/pass on '
+      + 'identical gate code) and the survivor is unattributed; the trace test covers this path '
+      + 'there and bounds the bad case. Tree DEATH is asserted only where it is deterministic. '
+      + 'BACKLOG §123, §128, §129.'
     : false,
 }
 const LEADER_EXITS_FENCE = '( for i in $(seq 1 100); do echo "$i" >> beat.txt; sleep 0.2; done ) &'
@@ -471,6 +476,13 @@ test('a timed-out fence returns within the bound the arithmetic gives, and says 
   const trace = String(run.stderr || '').split('\n').filter(line => line.startsWith('[trace-timeout]'))
   t.diagnostic(`${process.platform}: adr-verify returned in ${elapsed}ms · ${trace.join(' · ') || '(no trace)'}`)
   assert.match(run.stdout + run.stderr, /UNRUN/, `the fence must be reported as not finished\n${run.stdout}${run.stderr}`)
+  // UNRUN is exit 2, and the interpreter has to get there: a fatal error at
+  // shutdown (the finalizer contending for a lock a frozen reader thread holds)
+  // would print UNRUN, print the trace, and then abort — passing every check
+  // below while leaving a crash on the user's screen. Found by the Codex review
+  // of df8740a; the exit code is the one thing that separates the two.
+  assert.equal(run.error, undefined, `adr-verify did not run to completion: ${run.error}`)
+  assert.equal(run.status, 2, `UNRUN exits 2; got ${run.status} (signal ${run.signal})\n${run.stderr}`)
   // Both drain outcomes are honest: on POSIX the kill lands and communicate
   // RETURNS; on Windows it may time out and the streams are released instead.
   // What must be present either way is the kill's own answer and the drain's.
@@ -489,7 +501,7 @@ test('a timed-out fence returns within the bound the arithmetic gives, and says 
 // return without waiting for the child. Under the catalogue mutant that closes
 // the streams anyway, close() blocks behind the reading thread until the child
 // exits — which is the hang, reproduced, and RED.
-test('drain_after_kill on Windows does not close a stream a reader thread still holds', () => {
+test('drain_after_kill on Windows does not close a stream a reader thread still holds', t => {
   const probe = `import importlib.machinery, importlib.util, subprocess, sys, threading, time
 sys.dont_write_bytecode = True
 loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
@@ -497,8 +509,21 @@ spec = importlib.util.spec_from_loader(loader.name, loader)
 module = importlib.util.module_from_spec(spec)
 loader.exec_module(module)
 proc = subprocess.Popen([sys.executable, "-c", "import time; time.sleep(25)"], stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-threading.Thread(target=lambda: proc.stdout.read(), daemon=True).start()
-time.sleep(0.3)
+reader = threading.Thread(target=lambda: proc.stdout.read(), daemon=True)
+reader.start()
+# PROVE the reader is inside read() before the drain runs, rather than sleeping
+# and hoping: its innermost Python frame must be the lambda's own line, which is
+# where a thread sits while the C-level read holds the buffer lock. A blind
+# sleep let a delayed thread turn the close-anyway mutant GREEN.
+deadline = time.monotonic() + 10
+while time.monotonic() < deadline:
+    frame = sys._current_frames().get(reader.ident)
+    if frame is not None and frame.f_code.co_name == "<lambda>":
+        break
+    time.sleep(0.01)
+else:
+    raise SystemExit("reader thread never reached read()")
+time.sleep(0.05)
 started = time.monotonic()
 out, err, killed = module.drain_after_kill(proc, "nt", grace=0.5)
 print("returned", round(time.monotonic() - started, 2), flush=True)
@@ -508,7 +533,58 @@ proc.kill()
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     const seconds = Number(/returned ([\d.]+)/.exec(run.stdout)?.[1])
+    // Spoken on success too. A peer running this on real Windows found the
+    // number only inside a failing assertion — a diagnostic that speaks only on
+    // failure is not a diagnostic.
+    t.diagnostic(`${gate}: drain_after_kill returned in ${seconds}s on the nt arm`)
     assert.ok(seconds < 8,
       `${gate}: drain_after_kill took ${seconds}s on the Windows arm — it waited on a stream a reader thread held`)
+  }
+})
+
+// The trace is a diagnostic, and a diagnostic that can raise inside the
+// TimeoutExpired handler REPLACES the timeout — the fence is then never killed
+// and the caller reports a ValueError instead of an UNRUN. Both arms: a stderr
+// that raises must leave TimeoutExpired intact, and a healthy stderr must still
+// carry the trace, or a helper that swallows everything passes this too.
+test('a trace that cannot be written never replaces the timeout it describes', () => {
+  const probe = `import importlib.machinery, importlib.util, subprocess, sys, os, io
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"] = "1"
+class Broken(io.TextIOBase):
+    def write(self, s): raise ValueError("stderr is closed")
+    def flush(self): raise ValueError("stderr is closed")
+healthy = sys.stderr
+sys.stderr = Broken()
+try:
+    module.run_bounded([sys.executable, "-c", "import time; time.sleep(30)"], timeout=0.5, capture_output=True, text=True)
+    outcome = "NO TIMEOUT"
+except subprocess.TimeoutExpired:
+    outcome = "TimeoutExpired"
+except Exception as e:
+    outcome = type(e).__name__
+finally:
+    sys.stderr = healthy
+print(outcome, flush=True)
+buf = io.StringIO(); sys.stderr = buf
+try:
+    module.run_bounded([sys.executable, "-c", "import time; time.sleep(30)"], timeout=0.5, capture_output=True, text=True)
+except subprocess.TimeoutExpired:
+    pass
+finally:
+    sys.stderr = healthy
+print("traced" if "[trace-timeout]" in buf.getvalue() else "silent", flush=True)
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    const [broken, healthy] = run.stdout.trim().split('\n')
+    assert.equal(broken, 'TimeoutExpired',
+      `${gate}: a stderr that raises replaced the timeout with ${broken} — the fence would never be killed`)
+    assert.equal(healthy, 'traced', `${gate}: with a working stderr the trace must still be written`)
   }
 })

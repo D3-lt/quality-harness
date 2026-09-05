@@ -3000,6 +3000,26 @@ test does not produce. It removes one way the file can go red without saying why
 were established; do record the next one here with its run id, because two data points decide
 whether this is a timeout or something real.
 
+**Addendum 2026-09-05 — a Windows reading, and a correction to this entry.** A peer session on a
+real Windows 11 box (node v24.20.0, not elevated, Developer Mode off) ran `lifecycle.test.mjs`
+twelve times at `a649e6c` under `--unhandled-rejections=strict --trace-uncaught` with a TAP
+reporter. The §49 shape did not appear in any run: no file-level `not ok`, stderr exactly empty all
+twelve times, so a plain unhandled rejection or stray exit code elsewhere in the file is excluded on
+that box. What it could NOT test: both symlink tests fail there at the `symlink()` call itself
+(`EPERM`, because that account cannot create symlinks), so everything downstream of a successful
+symlink — the region this entry's hypotheses point at — ran nowhere but CI. Those two tests now skip
+with the reason on such a box (`CLAUDE.md` §7) instead of failing.
+
+**The correction:** this entry said the file "removes temp trees". It did not — 75 `mkdtemp` sites,
+no `after` hook, three `rm` calls — so the "cleanup that throws on Windows" hypothesis had nothing
+to throw. The same run measured the consequence: ~93 directories left under the temp root per run,
+1117 after twelve, on every platform. Fixtures now go under one per-run root removed at the end.
+
+**A second reading that changes what §49 is:** one run of the file takes ~30s on that box; the two CI
+failures came ~3.3s in. Either those commits had far fewer subtests, or the file failed before the
+suite finished — and a TAP transcript with every subtest `ok` in 3.3s is the second. The next
+occurrence should be read with that in mind.
+
 ### 2026-08-29 — the diagnostic is in place; the flake itself is untouched
 
 The first half of the work above is done and the second deliberately is not. `scripts/selftest.sh`
@@ -8329,3 +8349,38 @@ exclusive create (`flag: 'wx'`), EEXIST being the second caller's answer — ass
 a sequential test cannot make two callers race. And the test had matched a substring and repeated
 only an identical state; it now asserts `additionalContext` equals the transcript's full text, and
 that a CHANGED finding in the same session is news again. Seven mutants on this section are RED.
+
+## 132. CLOSED 2026-09-05 — a slow hook was a pause with no name, and compaction kept the once-per-session markers that now had nothing to protect
+
+**Two things the owner asked about hooks, in one sitting.** First: a new session hung for seconds on
+macOS and nothing said why — the §15 `branch-state` hook, uncached, two 15s `gh` calls in series
+(fixed in `2830860`). The generalisation is that a hook has no way to name its own cost: Claude Code
+shows nothing while a hook runs, and a slow hook and a slow model look identical from the chair.
+Second: the plugin's `SessionStart` orientation already fires again after compaction (no matcher, no
+dedupe — this repository's own `SessionStart:compact` line is that hook), but the once-per-session
+markers from `firstMentionThisSession` — path context on the first edit of a file, and now the §131
+advisory dedupe — survived compaction. After compaction the agent has lost every context those
+markers gated, and a surviving marker kept the second mention to one line for exactly the session
+that no longer had the first.
+
+**Now.** `lifecycle.mjs` holds its one JSON object until `main()` returns (Claude Code parses one
+object per hook run; `emitJson` buffers, `flushOutput` writes) and, when the run took at least
+`SLOW_HOOK_MS` (5s; `QUALITY_HARNESS_SLOW_HOOK_MS` overrides, `0` names every run), adds one line on
+both channels — `quality-harness: the <event> hook took N.Ns — the pause has this name` — appended to
+whatever `systemMessage` the run already carried, never instead of it. And a session carries a
+generation: `SessionStart` with `source: compact` (or `clear`) bumps it, the marker stamp includes it,
+and every first mention is first again; a `resume` does not bump, because the context is still
+there. Three mutants RED: the generation ignored in the stamp, the bump dropped on `compact`, the
+threshold check removed.
+
+**What this does not do.** It does not budget any hook — a slow hook is still slow; it is named. The
+markers live in the OS temp directory keyed on the session id, as before; a machine that clears its
+temp mid-session makes every mention first again, which errs toward not hiding.
+
+**The Codex review found three, all fixed before commit.** The `clear` arm of the generation bump was
+untested and unmutated (a compact-only condition would have passed); it has both now. The hook
+subprocesses the tests spawn inherited the real OS temp directory, so the said-markers and
+generation files they wrote outlived the per-run root's cleanup — the child is now pointed at the
+run's root through `TMPDIR`/`TMP`/`TEMP`, and a test asserts the markers land there. And the
+cleanup swallowed every failure; it now retries a bounded number of times and lets the last failure
+surface, because a leak reported as a pass is the thing this repository exists to refuse.

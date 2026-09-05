@@ -8551,3 +8551,35 @@ put `./plugin` after the variadic `--allow-tools`, which would have swallowed it
 and a keyed run that wrote no result could read as green — it fails, while the keyless path carries a
 warning and a job summary saying UNRUN. "Not asked" became its own doctor state, because a caller that
 did not ask had not failed to look.
+
+## 137. CLOSED 2026-09-05 — the CI reader lived in one repository, and the status line could not say what CI said
+
+**The gap.** `branch-state.mjs` (§15) — branch, dirt, ahead, the CI verdict with its failing job names,
+unreleased shipped change — was this repository's own hook, wired in its `.claude/settings.json`.
+Every adopter had the same blind spot it was written for. And the status line (§134) could say what
+the gates measured but not what CI said, which needs `gh` and seconds, neither of which a status line
+can spend.
+
+**Now.** The reader ships in the plugin (`plugin/scripts/branch-state.mjs`, unchanged in behaviour;
+`git mv`) and the plugin's `hooks.json` declares it on `SessionStart` (`--cached 120`) and
+`UserPromptSubmit` (`--brief --cached 120`), so every adopter gets the line and this repository
+keeps no copy of its own: its `settings.json` now carries only the rules hook. The cache the hook
+writes into `.git/qh-branch-state.json` is the answer the status line reads — a second reader, never
+a second asker: `findGitDir` walks up without spawning git (a worktree's `.git` file is followed),
+`usableCache` is the same guard the hook uses, and the piece is `CI ✓`, `CI ✗ N job(s)`, `CI …`,
+`CI ? (Nm old)` past fifteen minutes, or `CI ?` when the hook could not look. No cache, no piece.
+Four mutants RED: a future-dated cache accepted, a red verdict without its alarm, a stale cache read
+as fresh, a red CI rendered green.
+
+**Trade-off, stated.** An adopter without `gh` now sees "COULD NOT LOOK — NOT a green branch; an
+unknown one" on every prompt. That is §15 applied to them, and the honest form; if it proves to be
+the line nobody reads by the third prompt, the per-prompt form should say it once per session and
+the SessionStart form every time — a change to `render`, with the marker `firstMentionThisSession`
+already provides.
+
+**The Codex review found two, fixed before commit.** `findGitDir` walked lexical parents, so a cwd
+that is a symlink into a repository missed it and a relative `gitdir:` resolved against the wrong
+directory — the walk starts from the realpath now, and a test aliases a subdirectory through a
+symlink. And a bare repository, whose cache the hook writes at its root, was never recognised — `HEAD`
+plus `objects/` at a directory is that directory. The reviewer also read the trade-off above and
+confirmed the channel: plain stdout on `UserPromptSubmit` reaches the model as context.

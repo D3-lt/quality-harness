@@ -172,6 +172,7 @@ export function runWithTimeout(executable, args, options = {}) {
   } = options
 
   return new Promise(resolve => {
+    // untimed-spawn: bounded by the timer below, which terminates the tree and settles after CLEANUP_GRACE_MS
     const child = spawn(executable, args, {
       detached: platform !== 'win32',
       env,

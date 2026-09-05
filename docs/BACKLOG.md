@@ -8448,3 +8448,23 @@ PreCompact left the previous note to be handed back as current — the old note 
 note said "verified" for what is one observation, a recognised check passing after the edits, while
 the commit gate also runs artifact gates — it says the narrower thing. Shell mutations were counted
 and then dropped from the row — they are kept and rendered. Six mutants RED.
+
+## 134. CLOSED 2026-09-05 — the gates' reading of a session had no surface a person sees without spending prompt text
+
+**The gap.** Everything the gates know about a session — edits since the last publish, whether a
+recognised check passed after them — reached a person only as hook text at a tool boundary (§131
+made that one line) or not at all. Claude Code's status line is the surface a person already looks
+at and cannot dismiss, and the plugin had no segment for it (§7361 named `statusLine` as unused).
+
+**Now.** `plugin/scripts/statusline.mjs` reads the statusLine JSON from stdin and prints one segment:
+`QH ✓ checked`, `QH ✗ N unverified`, `QH · nothing edited` (only where the project names a check),
+`QH ? transcript NMB` above a 50MB cap, or nothing. It spawns nothing — a status line renders
+constantly and a command that waits on git freezes the prompt — analyses the transcript only when its
+size or mtime changed, through a per-session cache in the temp directory, and never writes stderr or
+exits non-zero. The plugin cannot set a user's `statusLine`; the README shows the one line to add to
+their own command, through `qh-root`. Three mutants RED: the cache ignored, unverified rendered as
+checked, the cap ignored.
+
+**Not done.** No CI verdict, no ADR task in flight: both need a spawn or a network call per render,
+and both belong to a cache a hook writes (this repository's `branch-state.mjs --cached` is that shape
+for CI). A second reader of an answer that exists is the next step; a second asker is not.

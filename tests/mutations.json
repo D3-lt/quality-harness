@@ -4983,6 +4983,33 @@
       ],
       "from": "      try { unlinkSync(sessionNotePath(input.session_id)) } catch {}",
       "to": "      void sessionNotePath"
+    },
+    {
+      "label": "statusline: an unchanged transcript is not analysed twice",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "      if (cached.key === key) return cached.value",
+      "to": "      if (false) return cached.value"
+    },
+    {
+      "label": "statusline: unverified edits render as unverified, not as checked",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "    kind: edited.length === 0 ? 'nothing' : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',",
+      "to": "    kind: edited.length === 0 ? 'nothing' : 'checked',"
+    },
+    {
+      "label": "statusline: a transcript over the cap is said, not read",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  if (stat.size > SIZE_CAP) return { kind: 'too-large', bytes: stat.size }",
+      "to": "  if (false) return { kind: 'too-large', bytes: stat.size }"
     }
   ]
 }

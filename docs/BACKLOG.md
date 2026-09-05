@@ -8410,3 +8410,41 @@ generation files they wrote outlived the per-run root's cleanup — the child is
 run's root through `TMPDIR`/`TMP`/`TEMP`, and a test asserts the markers land there. And the
 cleanup swallowed every failure; it now retries a bounded number of times and lets the last failure
 surface, because a leak reported as a pass is the thing this repository exists to refuse.
+
+## 133. CLOSED 2026-09-05 — compaction dropped what the gates had measured, and a new session started knowing nothing about the last one
+
+**The gap.** After compaction a session has the model's summary of what it was doing and none of
+what the gates had measured: which paths were edited since the last publish, whether anything had
+checked them, what the last check said, which ADR task was in flight. §132 made the once-per-session
+markers reset on compaction; nothing handed the state back. And a NEW session in the same directory
+started blind to the previous one having ended with unverified edits — the exact state the commit
+gate exists to catch, carried across the one boundary the gate cannot see.
+
+**Now.** Two hook events the plugin had never declared. `PreCompact` reads the transcript the way the
+completion gates do and writes a note (`sessionStateNote`: paths since last publish, verified or
+NOT, last check and verdict, ADR task in flight) to a per-session file; the compact `SessionStart`
+appends it to the orientation as `What this session was doing before compaction (…)`. A resume does
+not. `SessionEnd` appends a row to `sessions.jsonl` under `CLAUDE_PLUGIN_DATA` — reason, whether it
+looked, whether anything was unverified, the files — and a `startup` `SessionStart` in the same
+directory reads the last row for that directory and, only when it was unverified, says so and names
+the project's check. A transcript that cannot be read is said on stderr and nothing is written
+(ADR-005); no data home is said the same way. Four mutants RED: the note not kept, the note not
+handed back, the row not written, the startup not reading it.
+
+**Not done here.** The sessions ledger is read whole; it is append-only and one row per session, so
+it grows slowly, but a reader that walks from the end is the next step if it ever matters. The note
+lives in the OS temp directory keyed on the session id, like the generation; a cleared temp loses
+it, which reads as "nothing to hand back", never as a wrong state.
+
+**The Codex review found six, all fixed before commit.** `SessionEnd` had analysed the transcript
+twice and spawned `adr-next` under the host's short end-of-session budget — it analyses once and
+spawns nothing now. A session that could not read its transcript wrote a row, and a session that
+edited nothing wrote `unverified: false`; either masked an earlier unverified session for a reader
+that stopped at the newest row — now no row is written for a blind session, rows carry a three-way
+`status` and the reader walks past `neutral`. "Here" was a lexical `path.resolve` on the cwd — it is
+now the realpath of the repository root, case-folded on Windows and macOS through a platform
+parameter, so `/tmp` and `/private/tmp` agree and a subdirectory is the same place. A failed
+PreCompact left the previous note to be handed back as current — the old note is removed first. The
+note said "verified" for what is one observation, a recognised check passing after the edits, while
+the commit gate also runs artifact gates — it says the narrower thing. Shell mutations were counted
+and then dropped from the row — they are kept and rendered. Six mutants RED.

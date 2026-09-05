@@ -4929,6 +4929,60 @@
       ],
       "from": "  if (elapsed >= slowHookThresholdMs(env)) {",
       "to": "  if (false) {"
+    },
+    {
+      "label": "lifecycle: PreCompact keeps the state note",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        try { writeFileSync(sessionNotePath(input.session_id), JSON.stringify(note)) } catch (failure) {",
+      "to": "        try { void note } catch (failure) {"
+    },
+    {
+      "label": "lifecycle: the compact SessionStart hands the note back",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
+      "to": "      void note"
+    },
+    {
+      "label": "lifecycle: SessionEnd writes the sessions ledger row",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      appendFileSync(path.join(home, 'sessions.jsonl'), `${JSON.stringify({",
+      "to": "      void (path.join(home, 'sessions.jsonl'), `${JSON.stringify({"
+    },
+    {
+      "label": "lifecycle: a startup reads what the previous session here left unverified",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (!row || row.status !== 'unverified') return ''",
+      "to": "  if (!row || row.status !== 'unverified' || row.status === 'unverified') return ''"
+    },
+    {
+      "label": "lifecycle: a neutral session does not mask what an earlier one left unverified",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (row.status === 'neutral') continue\n    return row",
+      "to": "    return row"
+    },
+    {
+      "label": "lifecycle: a PreCompact that fails leaves no earlier note to hand back",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      try { unlinkSync(sessionNotePath(input.session_id)) } catch {}",
+      "to": "      void sessionNotePath"
     }
   ]
 }

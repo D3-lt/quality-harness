@@ -582,7 +582,9 @@ print("traced" if "[trace-timeout]" in buf.getvalue() else "silent", flush=True)
   for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
-    const [broken, healthy] = run.stdout.trim().split('\n')
+    // Both separators (CLAUDE.md §7): on Windows this arrived as 'TimeoutExpired\r'
+    // and the behaviour it reports had held.
+    const [broken, healthy] = run.stdout.trim().split(/\r?\n/).map(line => line.trim())
     assert.equal(broken, 'TimeoutExpired',
       `${gate}: a stderr that raises replaced the timeout with ${broken} — the fence would never be killed`)
     assert.equal(healthy, 'traced', `${gate}: with a working stderr the trace must still be written`)

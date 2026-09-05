@@ -223,7 +223,7 @@ test('every shipped surface is reachable from the installed plugin', () => {
   assert.ok(workflows.length >= 3, `${version}: expected the shipped workflows, read ${workflows.length}`)
   for (const workflow of workflows) {
     const parsed = spawnSync(process.execPath, ['--check', join(root, 'workflows', workflow)],
-      { encoding: 'utf8' })
+      { encoding: 'utf8', timeout: 60_000 })
     assert.equal(parsed.status, 0,
       `${version}: workflow ${workflow} does not parse as installed: ${parsed.stderr}`)
   }

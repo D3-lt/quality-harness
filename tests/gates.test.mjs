@@ -826,7 +826,7 @@ test('adr-lint reports Go fences whose required success is unreachable', (t) => 
 // content rule broken and one evidence claim unbacked.
 function agedCorpus(prefix, config) {
   const repo = mkdtempSync(join(os.tmpdir(), prefix))
-  spawnSync('git', ['init', '-q', repo], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', repo], { encoding: 'utf8', timeout: 60_000 })
   const adrDir = join(repo, 'docs', 'adr')
   mkdirSync(adrDir, { recursive: true })
   cpSync(join(fixture, 'ADR-001-selftest.md'), join(adrDir, 'ADR-001-old.md'))

@@ -113,7 +113,7 @@ function throwawayRepo() {
   const tutorialRepo = join(temp, 'work')
   mkdirSync(tutorialRepo)
 
-  const git = (...args) => spawnSync('git', args, { cwd: tutorialRepo, encoding: 'utf8' })
+  const git = (...args) => spawnSync('git', args, { cwd: tutorialRepo, encoding: 'utf8', timeout: 60_000 })
   git('init', '-b', 'main', '.')
   git('config', 'user.email', 'tutorial@example.invalid')
   git('config', 'user.name', 'tutorial')

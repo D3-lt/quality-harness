@@ -234,7 +234,7 @@ function gitCorpus() {
     ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', 'add', '.'],
     ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', 'commit', '-qm', 'fixture'],
   ]) {
-    const result = spawnSync('git', args, { cwd: copy, env, encoding: 'utf8' })
+    const result = spawnSync('git', args, { cwd: copy, env, encoding: 'utf8', timeout: 60_000 })
     assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`)
   }
   return copy
@@ -251,7 +251,7 @@ test('the entry names the commit it was produced at, and says when the tree was 
     ['add', '.'],
     ['-c', 'user.email=t@example.invalid', '-c', 'user.name=T', 'commit', '-qm', 'mutation evidence'],
   ]) {
-    const result = spawnSync('git', args, { cwd: copy, env, encoding: 'utf8' })
+    const result = spawnSync('git', args, { cwd: copy, env, encoding: 'utf8', timeout: 60_000 })
     assert.equal(result.status, 0, `git ${args.join(' ')}: ${result.stderr}`)
   }
   // Clean tree: a bare short sha, no marker.
@@ -596,7 +596,7 @@ test('adr-verify restores declared generated outputs with their source', async (
     const win = process.platform === 'win32'
     const child = spawn(win ? 'python3' : join(bin, 'adr-verify'),
       win ? [join(bin, 'adr-verify'), ...args] : args,
-      { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal } })
+      { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal }, timeout: 60_000 })
     let output = ''
     child.stdout.on('data', chunk => { output += chunk })
     child.stderr.on('data', chunk => { output += chunk })
@@ -1633,7 +1633,7 @@ function spawnMutant(copy, journalHome) {
     '--from', '## Decision', '--to', '## Decisiun', '--why', 'kill probe']
   const child = spawn(process.platform === 'win32' ? 'python3' : join(bin, 'adr-verify'),
     process.platform === 'win32' ? [join(bin, 'adr-verify'), ...args] : args,
-    { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journalHome } })
+    { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journalHome }, timeout: 60_000 })
   let output = ''
   child.stdout.on('data', chunk => { output += chunk })
   return { child, said: () => output }
@@ -1675,7 +1675,7 @@ test('an interrupted clean baseline cannot silently lend its changed tree to a l
       '--from', 'THRESHOLD = 1', '--to', 'THRESHOLD = 99', '--why', `baseline ${label} probe`]
     const child = spawn(process.platform === 'win32' ? 'python3' : join(bin, 'adr-verify'),
       process.platform === 'win32' ? [join(bin, 'adr-verify'), ...args] : args,
-      { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal } })
+      { cwd: copy, env: { ...env, CLAUDE_PLUGIN_DATA: journal }, timeout: 60_000 })
     const sideEffectLanded = () => expected === null
       ? !existsSync(target)
       : existsSync(target) && readFileSync(target).equals(expected)

@@ -425,7 +425,7 @@ test('documented custom-validator wrapper executes through Node', () => {
     path.join(pluginDir, 'scripts/verify.mjs'),
     '--cwd', pluginDir,
     '--', process.execPath, '--check', path.join(pluginDir, 'scripts/lifecycle.mjs'),
-  ], { encoding: 'utf8' })
+  ], { encoding: 'utf8', timeout: 60_000 })
   assert.equal(run.status, 0, run.stderr)
 })
 
@@ -459,7 +459,7 @@ test('shell-hook runner rejects scripts outside its fixed hook set', () => {
   const run = spawnSync(process.execPath, [
     path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'),
     '../untrusted.sh',
-  ], { input: '{}', encoding: 'utf8' })
+  ], { input: '{}', encoding: 'utf8', timeout: 60_000 })
   // A broken invocation, not a verdict — still refused.
   assert.equal(run.status, 2)
   assert.match(run.stderr, /unsupported shell hook/)
@@ -635,7 +635,7 @@ test('advisory Python syntax check creates no project bytecode', async () => {
     'post-edit-check.sh',
   ], {
     input: JSON.stringify({ tool_name: 'Write', tool_input: { file_path: source } }),
-    encoding: 'utf8',
+    encoding: 'utf8', timeout: 60_000,
   })
   assert.equal(run.status, 0, run.stderr)
   assert.deepEqual(await readdir(dir), ['probe.py'])
@@ -1115,8 +1115,8 @@ test('an unresolved Bash deletion is answered by the repository, not held agains
   const fixtures = path.join(repoRoot, 'tests', 'fixtures', 'ok')
   await cp(path.join(fixtures, 'adr-archive'), path.join(repo, 'docs', 'adr-archive'), { recursive: true })
   await cp(path.join(fixtures, 'adr'), path.join(repo, 'docs', 'adr'), { recursive: true })
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
+  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000 })
   git('add', '-A')
   git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'archive')
 
@@ -1149,7 +1149,7 @@ test('every record gate advises, at the edit and at the boundary alike', async (
       input: JSON.stringify({
         hook_event_name: event, tool_name: 'Write', tool_input: { file_path: filePath },
       }),
-      encoding: 'utf8',
+      encoding: 'utf8', timeout: 60_000,
     },
   )
 
@@ -1731,7 +1731,7 @@ test('the gate names the check this project owns instead of asking for one', asy
   // And the blocking message carries it. The fixture repo sits on a task branch
   // with its own manifest, so this reads the project under test rather than the
   // host checkout — the trap that made this suite branch-sensitive before.
-  spawnSync('git', ['init', '-q', '-b', 'task/work', node], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', '-b', 'task/work', node], { encoding: 'utf8', timeout: 60_000 })
   const file = path.join(node, 'main.jsonl')
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: path.join(node, 'a.ts') }), toolResult('e1'),
@@ -1808,7 +1808,7 @@ test('a Windows python3 that is not Python is refused, not believed', async () =
   // new one: spawnable, no `error`, nothing on stderr, and a nonzero status that
   // is neither 0 nor the 3 readyTaskLines tolerates. A fixture that merely failed
   // to spawn would pass against the very code this replaces.
-  const misbehaves = spawnSync(decoy[0], [decoy[1], '-c', 'import sys'], { encoding: 'utf8' })
+  const misbehaves = spawnSync(decoy[0], [decoy[1], '-c', 'import sys'], { encoding: 'utf8', timeout: 60_000 })
   assert.equal(misbehaves.error, undefined, 'the alias must SPAWN — that is what defeated the error-keyed fallback')
   // 9009 on Windows; POSIX truncates a wait status to 8 bits, so this reads 49
   // here. The number is not the property — "nonzero, and neither the 0 nor the 3
@@ -2143,9 +2143,9 @@ test('an interim answer defers the gate at Stop, and never at TaskCompleted', as
 
 test('navigation refreshes the tree without counting as authored work', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-navigation-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
   await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8' })
+  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000 })
   git('add', '-A')
   git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
   git('branch', 'task/work')
@@ -2191,7 +2191,7 @@ test('session orientation states this project, and only this project', async () 
   assert.match(here, /bash scripts\/selftest\.sh/)
 
   const repo = await mkdtemp(path.join(testTmp, 'quality-orientation-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
   await writeFile(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'vitest' } }))
   const named = sessionOrientation(repo)
   assert.match(named, /npm run test/)
@@ -2210,7 +2210,7 @@ test('session orientation states this project, and only this project', async () 
   assert.doesNotMatch(sessionOrientation(loose), /ADR tasks in flight/)
 
   // Inside a repository the same records are read.
-  spawnSync('git', ['init', '-q', '-b', 'task/work', loose], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', '-b', 'task/work', loose], { encoding: 'utf8', timeout: 60_000 })
   assert.match(sessionOrientation(loose), /ADR tasks in flight/)
 
   // The hook itself is additive: it never blocks and never exits non-zero.
@@ -2278,7 +2278,7 @@ test('the harness has no opinion about git branches', async () => {
   // on a command whose first act was `git switch -c task/…`, the escape it was
   // itself demanding.
   const repo = await mkdtemp(path.join(testTmp, 'quality-nogit-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8' })
+  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
   await writeFile(path.join(repo, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
   await writeFile(path.join(repo, 'a.js'), 'x\n')
 
@@ -2824,7 +2824,7 @@ test('--link says what it does NOT handle, instead of "nothing to do"', async ()
 
   const run = spawnSync(process.execPath,
     [path.join(pluginDir, 'scripts', 'sync-standalone.mjs'), '--link'],
-    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home }, timeout: 60_000 })
   assert.equal(run.status ?? 0, 0, run.stderr)
   assert.match(run.stdout, /nothing for --link to do/)
   // The half that was missing: it must name the file it cannot fix.
@@ -2893,7 +2893,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   // a blanket rename once bound two `git -C` helpers to this repository and the
   // suite committed to main (CLAUDE.md §9).
   const sandbox = await mkdtemp(path.join(testTmp, 'adr-state-governs-'))
-  const inSandbox = (...args) => spawnSync('git', ['-C', sandbox, ...args], { encoding: 'utf8' })
+  const inSandbox = (...args) => spawnSync('git', ['-C', sandbox, ...args], { encoding: 'utf8', timeout: 60_000 })
   inSandbox('init', '-q')
   inSandbox('config', 'user.email', 'probe@example.invalid')
   inSandbox('config', 'user.name', 'probe')
@@ -2906,7 +2906,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   inSandbox('commit', '-qm', 'fixture')
 
   const state = spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), sandbox], { encoding: 'utf8' })
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), sandbox], { encoding: 'utf8', timeout: 60_000 })
   assert.equal(state.status, 0, 'adr-state reads and never judges')
   assert.match(state.stdout, /matching nothing git tracks/,
     `a declaration that resolves to nothing must be printed:\n${state.stdout}`)
@@ -2918,7 +2918,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   // check nobody can act on.
   await writeFile(path.join(sandbox, 'docs', 'adr', 'ADR-002-rotted.md'), record('002', '`src/pay.js`'))
   const repaired = spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), sandbox], { encoding: 'utf8' })
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), sandbox], { encoding: 'utf8', timeout: 60_000 })
   assert.doesNotMatch(repaired.stdout, /matching nothing git tracks/, repaired.stdout)
 
   await rm(sandbox, { recursive: true, force: true })
@@ -3342,7 +3342,7 @@ test('the sync command reports before it writes, and syncs from the newest insta
     path.join(cache, '2.10.0', 'bin', 'adr-judge'))
   const dry = spawnSync(process.execPath,
     [path.join(pluginDir, 'scripts', 'sync-standalone.mjs')],
-    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home }, timeout: 60_000 })
   assert.equal(dry.status ?? 0, 0)
   assert.match(dry.stdout, /Re-run with --apply/)
   // The canary has to be something a WRITE would actually change. It used to be
@@ -3358,7 +3358,7 @@ test('the sync command reports before it writes, and syncs from the newest insta
 
   const broken = spawnSync(process.execPath,
     [path.join(pluginDir, 'scripts', 'sync-standalone.mjs'), '--nope'],
-    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home } })
+    { encoding: 'utf8', env: { ...process.env, HOME: home, USERPROFILE: home }, timeout: 60_000 })
   assert.equal(broken.status, 2, 'a broken invocation is not a verdict')
 })
 
@@ -3379,7 +3379,7 @@ test('adr-state derives what is decided now, instead of asking anyone to maintai
   await write('ADR-005-trunk.md', '# ADR-005: Adopt trunk-based development\n\n**Status:** Accepted\n')
 
   const run = spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8' })
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8', timeout: 60_000 })
   assert.equal(run.status, 0, run.stderr)
   const state = JSON.parse(run.stdout)
 
@@ -3403,23 +3403,23 @@ test('adr-state derives what is decided now, instead of asking anyone to maintai
   assert.deepEqual(state.danglingSupersession, [])
   await rm(path.join(root, 'docs', 'adr', 'ADR-004-rq.md'))
   const after = JSON.parse(spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8' }).stdout)
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8', timeout: 60_000 }).stdout)
   assert.deepEqual(after.danglingSupersession.map(record => record.id), ['ADR-002'])
 
   // It reads and never judges: exit 0 whatever it finds, and a broken
   // invocation is not a verdict about a corpus.
   const prose = spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), root], { encoding: 'utf8' })
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), root], { encoding: 'utf8', timeout: 60_000 })
   assert.equal(prose.status, 0)
   assert.match(prose.stdout, /What governs what, as it stands now/)
   assert.match(prose.stdout, /Contested/)
   assert.equal(spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--nope'], { encoding: 'utf8' }).status, 2)
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--nope'], { encoding: 'utf8', timeout: 60_000 }).status, 2)
 
   // A directory with no records says so rather than printing an empty report.
   const empty = spawnSync(process.execPath,
     [path.join(pluginDir, 'scripts', 'adr-state.mjs'), await mkdtemp(path.join(testTmp, 'quality-none-'))],
-    { encoding: 'utf8' })
+    { encoding: 'utf8', timeout: 60_000 })
   assert.equal(empty.status, 0)
   assert.match(empty.stdout, /No decision records found/)
 })
@@ -3484,7 +3484,7 @@ test('reported: the layouts and scale a real corpus actually has', async () => {
     '# T1\n\n## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n'
     + '| `crates/zeus-harness/src/lib.rs` | edit | again |\n')
   const state = JSON.parse(spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8' }).stdout)
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], { encoding: 'utf8', timeout: 60_000 }).stdout)
   assert.deepEqual(state.contested, [],
     'two records editing one file over time is history, not a contradiction')
   assert.equal(state.touchedPaths, 1)
@@ -3742,7 +3742,7 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
 
   // It reads and never blocks, in every branch it can print.
   const cli = (...args) => spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'work-next.mjs'), ...args], { encoding: 'utf8' })
+    [path.join(pluginDir, 'scripts', 'work-next.mjs'), ...args], { encoding: 'utf8', timeout: 60_000 })
   const run = cli(root)
   assert.equal(run.status, 0)
   assert.match(run.stdout, /record\(s\)/)
@@ -3768,7 +3768,7 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
   // And the retirement branch prints its evidence.
   assert.match(cli(retire).stdout, /ADR-002-old\.md/)
   assert.equal(spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'work-next.mjs'), '--nope'], { encoding: 'utf8' }).status, 2)
+    [path.join(pluginDir, 'scripts', 'work-next.mjs'), '--nope'], { encoding: 'utf8', timeout: 60_000 }).status, 2)
 })
 
 test('a record the corpus reader cannot read is reported, not silently dropped', async () => {

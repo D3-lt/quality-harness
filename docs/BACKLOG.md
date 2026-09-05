@@ -8703,3 +8703,30 @@ later commit, leaving an auth guard serving with no behaviour test for a week �
 positive, and one is a stale `Proposed` record for its owner. A gate whose findings are one-third
 fabricated is not a gate anyone should act on, which is why this section outranks the feature work it
 interrupted.
+
+## 140. CLOSED 2026-09-05 — the classifier §124 named as the cause, fixed against §124's own three messages
+
+**What §124 left behind.** ADR-035's assertion arm was withdrawn at precision 0/3, and the section
+named the cause rather than leaving it: `interimResponse` — the negation classifier that takes
+precedence — had no words for "haven't run", "can't verify", "not yet run", "no shell". The three
+messages it misclassified are recorded there verbatim. That is a testable fixture set with no eval
+key and no model, so the cause could be fixed even though the arm cannot be re-armed.
+
+**What this does and does not do.** `unverifiedDisclosure` is a new predicate whose words come from
+those three messages and nowhere else; `completionClaim` now calls a message carrying them `hedged`
+rather than `none`. It **re-arms nothing**: there is still no producer of `asserted`, and restoring
+one needs a fresh measurement at precision ≥ 0.90, which needs the eval suite. What changes is the
+kind recorded today.
+
+**The regression it made, and why the predicate is separate.** Adding the words to `interimResponse`
+directly — the obvious fix, and the first one written — also widened what that predicate does at
+`Stop`, where it SUPPRESSES the evidence advisory for a turn that is blocked or waiting. So
+"I have not run the tests yet" silenced the advisory that says nothing has verified the work. Saying
+you did not run the check is the moment the gate must speak, not the moment it goes quiet. The suite
+caught it (`an honest final message over unverified edits gets the plain evidence advisory`), and the
+fix is two predicates: `interimResponse` stays narrow and keeps the suppression, `unverifiedDisclosure`
+feeds the claim kind and nothing else. A mutant merges them back and is RED.
+
+**Five mutants**, including the two repinned whose text moved into the new function. The dirty arm is
+asserted beside the fixtures: five ordinary completion messages must stay `none`, or a widened
+negation classifier swallows every claim and the ledger's evidence half measures nothing.

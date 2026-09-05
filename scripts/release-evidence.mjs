@@ -90,7 +90,7 @@ export function evaluateRun(run) {
 function fetchRun(sha) {
   let full = sha
   try {
-    full = execFileSync('git', ['rev-parse', sha], { encoding: 'utf8' }).trim()
+    full = execFileSync('git', ['rev-parse', sha], { encoding: 'utf8', timeout: 30_000 }).trim()
   } catch {
     return null // Not a sha this checkout knows — "could not look".
   }
@@ -98,7 +98,7 @@ function fetchRun(sha) {
   try {
     list = execFileSync('gh', [
       'run', 'list', '--commit', full, '--limit', '1', '--json', 'databaseId',
-    ], { encoding: 'utf8' })
+    ], { encoding: 'utf8', timeout: 60_000 })
   } catch {
     return null // gh absent, unauthenticated, or offline — "could not look".
   }
@@ -112,7 +112,7 @@ function fetchRun(sha) {
   try {
     return JSON.parse(execFileSync('gh', [
       'run', 'view', String(id), '--json', 'status,conclusion,headSha,jobs',
-    ], { encoding: 'utf8' }))
+    ], { encoding: 'utf8', timeout: 60_000 }))
   } catch {
     return null
   }
@@ -163,7 +163,7 @@ function main(argv) {
   let sha = argument.value
   if (!sha) {
     try {
-      sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8' }).trim()
+      sha = execFileSync('git', ['rev-parse', 'HEAD'], { encoding: 'utf8', timeout: 30_000 }).trim()
     } catch {
       console.error('release-evidence: could not resolve HEAD — pass a sha explicitly')
       return EXIT.unreadable

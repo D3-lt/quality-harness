@@ -130,7 +130,7 @@ export function isServedProse(path) {
 }
 
 function git(args) {
-  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60_000 })
 }
 
 /** The gate basenames present at a commit, from git rather than from the disk (CLAUDE.md §8). */

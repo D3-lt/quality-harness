@@ -223,7 +223,7 @@ export function resolveAgainstGit(candidates, cwd, runGit = defaultGit) {
 }
 
 function defaultGit(args, cwd) {
-  return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28 })
+  return execFileSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 1 << 28, timeout: 30_000 })
 }
 
 /** Which rules govern these paths. Order follows the rules' filenames, so a

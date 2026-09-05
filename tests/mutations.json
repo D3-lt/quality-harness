@@ -5226,6 +5226,24 @@
       ],
       "from": "  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return",
       "to": "  if (event === 'Stop' && (interimResponse(input.last_assistant_message) || unverifiedDisclosure(input.last_assistant_message))) return"
+    },
+    {
+      "label": "lint: a document with no Status line and no ADR name is not judged as a record",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        sys.exit(2)",
+      "to": "        pass"
+    },
+    {
+      "label": "lint: a file NAMED ADR- keeps its findings even with no Status line",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if not re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I) and not re.search(",
+      "to": "    if True and not re.search("
     }
   ]
 }

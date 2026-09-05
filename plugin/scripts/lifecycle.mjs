@@ -1071,8 +1071,31 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
   const executable = withoutHeredocBodies(command)
   if (!/\.md\b/i.test(executable)) return []
   const paths = []
+  // `A=docs/adr/X.md; tee "$A"` names the file through an assignment. The
+  // first shape of this unwrapped any `NAME=value` TOKEN, which resolved
+  // `printf 'file=docs/BACKLOG.md'` — data, not an assignment — to a real file
+  // (Codex review, 2026-09-05); before that the token was resolved as a path
+  // literally called `A=docs/…` and reported as changed on every commit
+  // (owner's terminal, same day). So assignments are read the way the deletion
+  // parser reads them: in assignment POSITION, one per shell segment, through
+  // the quote-aware tokenizer, which is also what makes `DOC='docs/My File.md'`
+  // one value rather than two tokens.
+  const assignments = new Map()
+  for (const region of shellCommandRegions(executable)) {
+    for (const segment of shellSegments(region)) {
+      const assignment = segment.match(SHELL_ASSIGNMENT)
+      if (!assignment) continue
+      const value = expandShellToken(assignment[2], assignments, false)
+      if (value === null) continue
+      assignments.set(assignment[1], value)
+      if (/\.md$/i.test(value)) paths.push(...expandExistingGlob(value, cwd))
+    }
+  }
   for (const match of executable.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
     let candidate = match[1] ?? match[2] ?? match[3]
+    // A `key=value` token that is not an assignment is an argument, and an
+    // argument is not a path this gate can check.
+    if (SHELL_ASSIGNMENT.test(candidate)) continue
     if (!/\.md(?:$|[),\]])/i.test(candidate)) continue
     // `origin/main:docs/adr/BACKLOG.md` is a git revision, not a file: `git show
     // <rev>:<path>` reads out of history and writes nothing, but the token was
@@ -2118,14 +2141,46 @@ function emitJson(value) {
 // on. What the harness gives up is the ability to STOP a fabricated claim; what
 // it keeps is the ability to name one, loudly, every time it sees it. That was
 // the owner's call, made explicitly and more than once.
-function advise(reason) {
+// The one line a person sees. The full text is for the agent; the person needs
+// to know a finding was made and where it went, not to read the instruction.
+function advisoryHeadline(reason) {
+  const first = String(reason).split('\n').find(line => line.trim()) ?? String(reason)
+  const sentence = first.trim().split(/(?<=[.:])\s/)[0]
+  return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
+}
+
+function advise(reason, input = null) {
   // BOTH channels, because each alone can hide the finding. Exit-0 stderr is
   // surfaced only in transcript view, so a finding written there alone reaches
   // nobody — advisory-that-nobody-sees is concealment, which the owner has
-  // named as worse than having no plugin at all. `systemMessage` is shown in
-  // the session regardless of exit code; stderr keeps it in the transcript.
-  emitJson({ systemMessage: reason })
+  // named as worse than having no plugin at all. stderr keeps it in the
+  // transcript; what the session shows depends on the event.
   process.stderr.write(`${reason}\n`)
+  if (input?.hook_event_name !== 'PreToolUse') {
+    emitJson({ systemMessage: reason })
+    return
+  }
+  // At a tool boundary the reader is the agent, and `systemMessage` is rendered
+  // to the PERSON, one "PreToolUse:Bash says:" line per line of text — a
+  // twelve-line adr-lint report became twelve of them, on every commit attempt,
+  // in the owner's terminal (2026-09-05). So the instruction goes where the
+  // agent reads, `additionalContext`, and the person gets one line saying a
+  // finding was made and where the rest is. Said in full once per finding per
+  // session; a repeat of the same finding is one line for the agent and nothing
+  // for the person, because the second reading of an unchanged report is the
+  // nag every advisory here exists not to be.
+  const key = `advisory:${createHash('sha256').update(String(reason)).digest('hex').slice(0, 32)}`
+  const first = firstMentionThisSession(input.session_id, key)
+  const headline = advisoryHeadline(reason)
+  emitJson({
+    hookSpecificOutput: {
+      hookEventName: 'PreToolUse',
+      additionalContext: first
+        ? reason
+        : `quality-harness: the same finding as earlier this session still stands — ${headline}`,
+    },
+    ...(first ? { systemMessage: `quality-harness advised the agent: ${headline} (full text in the transcript)` } : {}),
+  })
 }
 
 const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|tests?|spec|fixtures?|testdata|examples?)$/i
@@ -2840,8 +2895,11 @@ function firstMentionThisSession(sessionId, key) {
   if (typeof sessionId !== 'string' || !sessionId) return true
   const stamp = createHash('sha256').update(`${sessionId}\u0000${key}`).digest('hex').slice(0, 32)
   const marker = path.join(os.tmpdir(), `quality-harness-said-${stamp}`)
-  if (existsSync(marker)) return false
-  try { writeFileSync(marker, '') } catch { return true }
+  // Exclusive create: two parallel tool calls carrying the same finding both
+  // saw no marker and both said it in full (Codex review, 2026-09-05). EEXIST
+  // is the second caller's answer; any other failure means the marker cannot
+  // be kept and the finding is said, which errs toward not hiding.
+  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return error?.code !== 'EEXIST' }
   return true
 }
 
@@ -3177,7 +3235,7 @@ export async function handleHook(input) {
       advise('This command deletes by an unresolved path and commits in the same breath, so '
         + 'nothing can establish what was removed: before it runs the deletion has not happened, and '
         + 'after it HEAD no longer shows the difference. Name the deleted paths explicitly, or delete '
-        + 'and commit as two commands — a separate commit is checked against the repository.')
+        + 'and commit as two commands — a separate commit is checked against the repository.', input)
       return
     }
 
@@ -3186,7 +3244,7 @@ export async function handleHook(input) {
       advise('Quality gate could not read the session transcript, so it cannot tell whether this '
         + 'change was checked. Nothing is wrong with your change and nothing is blocked — the gate '
         + `is blind here, not unhappy. ${runTheCheckSentence(input.cwd)} If this repeats, the `
-        + 'transcript path the hook was given does not exist.')
+        + 'transcript path the hook was given does not exist.', input)
       return
     }
     const state = analyzeTranscript(raw, input.cwd)
@@ -3201,7 +3259,7 @@ export async function handleHook(input) {
     // the "fights you" behaviour this gate exists to avoid.
     const artifactFailure = runArtifactGates(state.mutationPathsSince(state.lastPublish), input.cwd, 45_000)
     if (artifactFailure) {
-      advise(artifactFailure)
+      advise(artifactFailure, input)
       return
     }
     // Since the last publish, for the same reason the artifact pass is: a commit
@@ -3214,7 +3272,7 @@ export async function handleHook(input) {
     if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {
       advise('Nothing has verified the work since your last change, so this commit would publish '
         + `unchecked. ${missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))} `
-        + 'Nothing is blocked — this is what the gate sees before you commit.')
+        + 'Nothing is blocked — this is what the gate sees before you commit.', input)
     }
     return
   }

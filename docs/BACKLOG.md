@@ -7996,7 +7996,7 @@ because it could not read one file is a guard people turn off (ADR-005). The hoo
 relative to ITSELF rather than to the repository being committed, which is what lets the suite drive
 the real guard from a scratch repo (CLAUDE.md §9) instead of asserting the hook's text.
 
-## 128. OPEN — the Windows hang has a mechanism, reproduced on macOS; the fix ships, and Windows CI is the proof
+## 128. OPEN — the Windows hang has a mechanism, reproduced; the fix is proven on the CI runner and two Windows boxes; what occasionally survives the kill is still unattributed
 
 `adr-verify: a fence timeout kills the tree the fence started, not only bash` sits to its own 60s
 cap on Windows. `runPython(..., timeout: 60_000)` returns at ~60.1s, which means **adr-verify did
@@ -8047,14 +8047,23 @@ a reading thread: `close()` blocked for the full 2s the probe allowed, and retur
 writer went away. The Windows-only part — that `communicate` leaves reader threads behind — is read
 from the interpreter's own `subprocess.py` (`_readerthread`), not inferred.
 
-⚠ **This means §123's attribution is now in doubt.** "`taskkill /F /T` did not reach a Git Bash
-subshell tree" was concluded from the 21.9s, and the 21.9s is fully explained by `close()` waiting on
-the heartbeat pipe. Whether `taskkill` reached the tree is now UNKNOWN rather than measured false.
+⚠ **What this does and does not say about §123.** `close()` can only wait while some writer still
+holds the pipe, so this mechanism explains the *duration* of a hang, never the *survival* that made
+one possible. §123's own fixture is the **leader-exits** shape — `( … ) &` and nothing else — where
+bash has already exited by the time `taskkill /T` runs on its pid, so there is no root to walk and
+the reparented subshell survives. That is a real Windows gap (kill-by-pid cannot reach a reparented
+child; POSIX closed the same gap with `killpg`) and it **stands**. What was too broad was the
+sentence "taskkill did not reach a Git Bash subshell tree": on the very CI runs where the direct
+test hung 60s, `adr-verify --sweep … takes its tree with it` — same fence, same `kill_tree`,
+asserting the heartbeat STOPPED — passed. The subshell dies there when bash is alive to be walked.
 
-**The fix**: on `nt`, the streams are not closed in the except branch. Left open, the handles die
-with the interpreter, and CPython's finalizer waits at most **one second** per buffered stream for a
-lock a frozen daemon thread still owns (`bufferedio.c`, `_enter_buffered_busy`) — a bounded cost,
-traded for a hang the length of whatever the orphan does. The Windows arm is driven on every host
+**The fix**: on `nt`, the streams are not closed in the except branch; the handles die with the
+interpreter. Measured rather than cited: on CPython 3.14.7 (macOS) the interpreter exited cleanly,
+exit 2, with such a thread still blocked, and two Windows 11 boxes exited 2 as well. If finalization
+ever does contend for the lock, CPython waits one second and then **aborts with a fatal error**
+(`bufferedio.c`, `_enter_buffered_busy`) — an earlier draft here said "at most one second per
+stream" as if it then continued; it does not, and the all-platform test now asserts the exit code so
+an abort would show rather than pass. The Windows arm is driven on every host
 through the `platform` seam: a child that sleeps, a thread blocked on its stdout, and a drain told it
 is on `nt` must return without waiting; under the mutant that closes anyway, `close()` blocks behind
 the thread and the campaign sees RED.
@@ -8063,3 +8072,67 @@ the thread and the campaign sees RED.
 now stamps every cleanup phase with its offset, and the test `a timed-out fence returns within the
 bound the arithmetic gives` runs on **every** platform with the trace on. On Windows it is the proof;
 if it fails, its message carries the trace, which is the attribution this section was opened for.
+
+**2026-09-05, measured on real Windows — two boxes, independently, on `df8740a`.** Windows 11 Pro
+25H2 (10.0.26200.9168), Python 3.14.7, node v24.20.0, Git Bash 5.2.37, `core.autocrlf=true`.
+
+| box | `adr-verify` returned | kill_tree | drain | exit |
+|---|---|---|---|---|
+| 1 | **1489ms** against a 1s fence | confirmed=True at +83ms | `communicate returned` at +58ms | 2 |
+| 2 | **1297ms** | confirmed=True at +86ms | `communicate returned` at +41ms | 2 |
+
+The 60s wait is gone. `drain communicate returned` means both pipes hit EOF — every holder died —
+so `taskkill /F /T` reached the whole tree including the foreground `sleep 60`. Box 1 then ran the
+heartbeat fixture by hand, twice: **beats at return = 5, three seconds later = 5.** Alive when the
+kill landed, dead after it — observed, not inferred. Box 2 ran the `--sweep` tree test: passes on
+win32. The seam test (a sleeping child, a thread blocked on its stdout, a drain told it is on `nt`)
+returned in ~80ms on all three gates.
+
+**Still open, and narrower than before:** what held the pipe for 60s in the *direct* path on the CI
+runner, when the `--sweep` path killed the same fence's subshell on the same runs. The `df8740a` CI
+trace names it either way. And the leader-exits shape (§123) is unproved on Windows on any box:
+neither peer ran it, and the test that would is still `posixTree`-skipped. The discriminator a peer
+named, and it is the right one: the process ancestry `taskkill /T` can walk — a reparented subshell is
+outside it, a foreground one is not.
+
+One correction from a peer that belongs here: the `returned N.NN` diagnostic in the seam test was
+interpolated only into a *failing* assertion, so a passing run never showed it. A diagnostic that
+speaks only on failure is not a diagnostic.
+
+**2026-09-05, the CI runner itself, on `df8740a`.** The un-skipped trace test ran on `windows-latest`:
+`adr-verify returned in 1324ms · kill_tree end confirmed=True +67ms · drain communicate returned
++108ms`. The same direct-path invocation, with byte-identical gate code, on the same runner: `479fbef`
+passed, `0a18d04` and `867592c` sat at 60s, `df8740a` returned in 1.3s. **The pre-fix hang was
+non-deterministic.** The fix therefore bounds the bad case (the trace would read `drain communicate
+TimeoutExpired` at ~+11s, under the test's 40s) rather than proving the survivor gone, and the
+survivor's identity is still unknown. The trace names the case when it recurs; that is what it is for.
+
+## 129. OPEN — the §128 fix exposed a fence orphan that sometimes outlives the kill on the CI runner
+
+Found on the first Windows CI run of `df8740a`: `tests/evidence-chain.test.mjs` failed as a **file**, in
+168ms, in its `test.after` hook —
+
+    Error: EPERM, Permission denied: \\?\C:\Users\RUNNER~1\AppData\Local\Temp\quality-harness-chain-rTcpbg
+        at rmSync (node:fs:1283:18)
+        at TestContext.<anonymous> (tests/evidence-chain.test.mjs:68:29)
+
+`rmSync` on Windows answers EPERM when a live process holds a file in the tree or has it as its cwd.
+Several fences in that file are `echo starting; sleep 30` (lines 390, 401, 1343, 1374) or `sleep 60`
+(1653) under a 1–2s `QUALITY_HARNESS_FENCE_TIMEOUT`, so a `sleep` that survived `taskkill /F /T` is
+the candidate — and §128 established that on this runner it sometimes does.
+
+**Why this is new rather than old.** Before `df8740a`, when the orphan survived, `adr-verify` blocked
+in `close()` until it exited (§128), so by the time the `after` hook ran nothing held the directory —
+the test just took 30–60s longer than it should and passed. Now `adr-verify` returns promptly, the
+orphan is still alive at cleanup, and the leak is visible. **The fix did not create a survivor; it
+stopped hiding one.** The file passed on `6250809` for that reason, not because the runner was clean.
+
+**What was done.** The `after` hook reports a held directory loudly, by name, with this section's
+number, instead of failing the whole file after every assertion in it has already been judged — on
+win32 only, and only for the error codes a held directory produces. That is not the same as ignoring
+it: every Windows log now names the leak, and a leak that stops appearing is the closure signal.
+
+**What would close it.** Attribute the survivor. The trace seam (§128) stamps the cleanup phases but
+not the fence's own process tree; a `tasklist /FI "PARENTPID eq <bash>"` snapshot taken by `kill_tree`
+just before `taskkill` on `nt`, printed under the same trace flag, would name what is there to kill and
+what is left after. That is one Windows run away from an answer and needs no Windows machine to write.

@@ -1789,9 +1789,17 @@ def trace_timeout(label, started):
     with its offset from the moment the fence was started. Off by default; a
     diagnostic, never a verdict.
     """
-    if os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"):
+    if not os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"):
+        return
+    try:
         sys.stderr.write(f"[trace-timeout] {label} +{round((time.monotonic() - started) * 1000)}ms\n")
         sys.stderr.flush()
+    except Exception:  # a diagnostic must never replace the timeout it describes
+        # The first call sits INSIDE the TimeoutExpired handler, before the tree
+        # is killed. A closed or broken stderr raising here would replace that
+        # exception and leave the fence running — a trace turning into the
+        # defect it exists to explain. Found by the Codex review of df8740a.
+        pass
 
 
 def drain_after_kill(proc, platform, grace=10, started=None):
@@ -1815,10 +1823,12 @@ def drain_after_kill(proc, platform, grace=10, started=None):
     measured hangs were 60.1s and 21.9s. Reproduced on macOS with a bare pipe
     and a reading thread: close() blocked until the writer went away. POSIX
     `communicate` uses selectors and holds no such lock, which is why only
-    Windows hung. Left open, the handles die with the interpreter: CPython's
-    finalizer waits at most one second per buffered stream for a lock a frozen
-    daemon thread still owns (bufferedio.c, `_enter_buffered_busy`), which is
-    the bounded cost this trades a 60s hang for.
+    Windows hung. Left open, the handles die with the interpreter. Measured on
+    CPython 3.14.7 (macOS): the interpreter exited cleanly, exit 2, with such a
+    thread still blocked; two Windows 11 boxes exited 2 as well. If finalization
+    ever does contend for that lock, CPython waits one second and then aborts
+    with a fatal error (bufferedio.c, `_enter_buffered_busy`) — bounded either
+    way, which is why the exit code is asserted rather than assumed.
     """
     started = time.monotonic() if started is None else started
     killed = False

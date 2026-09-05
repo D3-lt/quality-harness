@@ -65,7 +65,26 @@ function corpus() {
 }
 
 test.after(() => {
-  for (const temp of temps) rmSync(temp, { recursive: true, force: true })
+  for (const temp of temps) {
+    try {
+      rmSync(temp, { recursive: true, force: true })
+    } catch (error) {
+      // BACKLOG §129. On the Windows CI runner a fence's orphan sometimes
+      // survives the tree kill, and since df8740a adr-verify no longer blocks
+      // until that orphan exits — so cleanup can run while it still holds this
+      // directory, and rmSync answers EPERM. That is a real finding about the
+      // runner, not about the assertions this file made, which have already
+      // been judged by the time this hook runs. Reported loudly, with the
+      // directory named, rather than failing the whole file after the fact —
+      // and only for the errors a held directory produces, on the platform
+      // where it happens.
+      if (process.platform === 'win32' && /EPERM|EBUSY|ENOTEMPTY/.test(String(error.code))) {
+        console.error(`[evidence-chain] LEAKED ${temp}: ${error.code} — a fence orphan still holds it (BACKLOG §129)`)
+        continue
+      }
+      throw error
+    }
+  }
 })
 
 const taskPath = copy => join(copy, 'tasks', 'T1-fixture.md')

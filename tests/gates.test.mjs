@@ -1491,3 +1491,66 @@ test('a path::name pointer at a production function does not resolve as a test',
       `a real test file must still resolve, or the guard rejects everything: ${real.stdout}`)
   } finally { rmSync(temp, { recursive: true, force: true }) }
 })
+
+// BACKLOG §139 — neither ordering of comment/literal regexes is correct, and both
+// have shipped here. Issue #7 moved `code_only` from comments-first (a `"//"`
+// LITERAL ate its line) to literals-first (a backtick inside a `//` COMMENT ate
+// the code after it). The second was measured against a foreign Go corpus, where
+// three real `func Test…` declarations vanished and adr-lint told that repository
+// it had named tests it never wrote. Both gates now SCAN, and this holds them to
+// the same answers — the drift after #7 is the reason there are two assertions.
+const STRIP_CASES = [
+  ['a backtick inside a line comment does not open a raw string',
+    '// the `why` field is not a call argument\nfunc TestX(t *testing.T) {\n\tt.Fatal("x")\n}\n', 'func TestX'],
+  ['an ODD backtick across comments does not swallow the file',
+    '// opens a `quote\n// and never closes it\nfunc TestY(t *testing.T) {\n\tt.Fatal("y")\n}\n', 'func TestY'],
+  ['a "//" literal does not open a comment (issue #7)',
+    'func TestZ(t *testing.T) {\n\ts := "//"\n\tif s == "" { t.Fatal("z") }\n}\n', 'func TestZ'],
+  ['a quote inside a line comment does not open a string',
+    "// don't let this eat the file\nfunc TestQ(t *testing.T) {\n\tt.Fatal(\"q\")\n}\n", 'func TestQ'],
+  // The shape that made this mutant GREEN in arch-lint on the first pass: the
+  // fixtures had a comment marker inside a RAW string and none inside a quoted
+  // one, so nothing held the `"`-state to it. adr-lint was covered only by its
+  // own Go lexer fixture below, which arch-lint has no equivalent of.
+  ['a block-comment opener inside a quoted string is not a comment',
+    'const commentStart = "/*"\nfunc TestC2(t *testing.T) {\n\tt.Fatal("c")\n}\nconst commentEnd = "*/"\n', 'func TestC2'],
+  ['a comment marker inside a raw string is not a comment',
+    'var s = `// not a comment\nstill a string`\nfunc TestR(t *testing.T) {\n\tt.Fatal("r")\n}\n', 'func TestR'],
+]
+
+const stripProbe = `import sys, importlib.machinery, importlib.util, json
+sys.dont_write_bytecode = True
+def load(name, path):
+    loader = importlib.machinery.SourceFileLoader(name, path)
+    spec = importlib.util.spec_from_loader(loader.name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+adr = load('adr_probe', sys.argv[1])
+arch = load('arch_probe', sys.argv[2])
+cases = json.loads(sys.argv[3])
+print(json.dumps([[adr.code_only(c), arch.code_only(c)] for c in cases]))`
+
+test('neither gate loses code to a quote character inside a comment, and the two agree (BACKLOG §139)', () => {
+  const sources = STRIP_CASES.map(([, source]) => source)
+  const result = spawnSync('python3', ['-c', stripProbe, join(bin, 'adr-lint'), join(bin, 'arch-lint'),
+    JSON.stringify(sources)], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
+  const stripped = JSON.parse(result.stdout)
+  assert.equal(stripped.length, STRIP_CASES.length, 'every case must be answered')
+  STRIP_CASES.forEach(([label, , declaration], index) => {
+    const [fromAdr, fromArch] = stripped[index]
+    assert.ok(fromAdr.includes(declaration), `adr-lint: ${label}\n${fromAdr}`)
+    assert.ok(fromArch.includes(declaration), `arch-lint: ${label}\n${fromArch}`)
+    assert.equal(fromAdr, fromArch, `the two gates disagree on: ${label}`)
+  })
+
+  // Shown DIRTY: the thing they strip is still stripped, or these assertions
+  // would pass on a `code_only` that returns its input unchanged.
+  const [both] = JSON.parse(spawnSync('python3', ['-c', stripProbe, join(bin, 'adr-lint'), join(bin, 'arch-lint'),
+    JSON.stringify(['func TestS(t *testing.T) {\n\t// assert.Fail here is prose\n\ts := "assert.Fail in a string"\n}\n'])],
+  { encoding: 'utf8', timeout: 60_000 }).stdout)
+  assert.ok(both[0].includes('func TestS'), 'the declaration survives')
+  assert.doesNotMatch(both[0], /prose/, 'the comment body is gone')
+  assert.doesNotMatch(both[0], /assert\.Fail in a string/, 'the string body is gone')
+})

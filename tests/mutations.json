@@ -3860,13 +3860,22 @@
       "to": "      if ((uses.get(m[1]) ?? 0) <= 0) found.push({ path, name: m[1] })"
     },
     {
-      "label": "arch: a literal is blanked before a comment marker is removed",
+      "label": "arch: a comment marker inside a string literal is not a comment (issue #7)",
       "file": "plugin/bin/arch-lint",
       "tests": [
-        "tests/arch-lint.test.mjs"
+        "tests/gates.test.mjs"
       ],
-      "from": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)",
-      "to": "    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)"
+      "from": "            elif char == state:\n                state = \"code\"",
+      "to": "            elif char == state or pair == \"/*\":\n                state = \"code\""
+    },
+    {
+      "label": "adr-lint: a comment marker inside a string literal is not a comment (issue #7)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            elif char == state:\n                state = \"code\"",
+      "to": "            elif char == state or pair == \"/*\":\n                state = \"code\""
     },
     {
       "label": "lint: the sentinel is checked before a record reference is extracted",
@@ -5163,6 +5172,33 @@
       ],
       "from": "  return here.startsWith(base.endsWith(path.sep) ? base : base + path.sep)",
       "to": "  return here.startsWith(base)"
+    },
+    {
+      "label": "adr-lint: comments and literals are scanned in one pass, not stripped by regex order",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return scan_code_only(text, hash_comments=True)",
+      "to": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)\n    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    return text"
+    },
+    {
+      "label": "arch-lint: comments and literals are scanned in one pass, not stripped by regex order",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return scan_code_only(text, hash_comments=True)",
+      "to": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    return text"
+    },
+    {
+      "label": "scanner: a line comment ends at the newline and nothing else",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        elif state == \"line-comment\":\n            output.append(\"\\n\" if char == \"\\n\" else \" \")\n            if char == \"\\n\":\n                state = \"code\"",
+      "to": "        elif state == \"line-comment\":\n            output.append(\"\\n\" if char == \"\\n\" else \" \")\n            if char == \"`\":\n                state = \"code\""
     }
   ]
 }

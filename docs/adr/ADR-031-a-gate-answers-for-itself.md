@@ -169,4 +169,4 @@ consumes — the flag is a leaf, so removal is a deletion and nothing else.
 
 ## Follow-ups
 
-- [ ] After the next release, run the pre-registered grep and confirm every gate still resolves through its own `__file__`.
+- [x] 2026-09-05, after v2.66.0: every gate under `plugin/bin/` answers `--version` as `<gate> 2.66.0 (<this tree>)` and each resolves through its own `__file__` (`grep -c __file__` ≥ 1 in all eleven). Holds.

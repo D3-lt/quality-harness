@@ -192,14 +192,17 @@ jobs:
         with:
           python-version: '3.12'
       - name: Break each mechanism and check the tests notice
-        # ADR-023 T3. A tag and `main` measure the whole catalogue; everything
-        # else may reuse a RED verdict whose subject and tests are byte-identical
-        # to the run that took it. A released artifact is never partly evidenced
-        # by a verdict taken at another commit, and the pre-registered criterion
-        # in the record depends on this: a wrong reuse surfaces at the next tag
-        # precisely because tags keep running the full set.
+        # ADR-023 T3, corrected 2026-09-05 (BACKLOG §142). The full campaign runs
+        # on `workflow_dispatch` and nowhere else. It used to be forced on tags
+        # and on `main`: the TAG half was a branch nothing could take, because
+        # this workflow has no tag trigger and no run has ever been raised by one,
+        # and the `main` half made every push — a backlog edit, a test-only
+        # change — pay a 581-mutant campaign at ~23 minutes. What must be full is
+        # the run a RELEASE is cut from, so that is the run you ask for by hand,
+        # and `release-evidence.mjs` REFUSES a sha whose newest run was not a
+        # dispatch, so the cheap path cannot become a quiet evidence hole.
         env:
-          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
+          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           if [ "$QUALITY_HARNESS_FULL_CAMPAIGN" = "true" ]; then
             node scripts/mutate.mjs --shard ${{ matrix.shard }}/8 --no-cache

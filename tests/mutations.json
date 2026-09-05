@@ -4580,13 +4580,31 @@
       "to": "    if True:\n        return"
     },
     {
+      "label": "verify: a job object that answers ends the Windows kill (BACKLOG §123)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            if job is not None and job.terminate():",
+      "to": "            if False:"
+    },
+    {
+      "label": "verify: a tree listing that fails says so instead of reporting no children",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "                    sys.stderr.write(f\"[trace-timeout] tree before taskkill: COULD NOT LIST ({type(failure).__name__}: {failure})\\n\")",
+      "to": "                    pass"
+    },
+    {
       "label": "verify: the Windows trace names the survivor after taskkill (BACKLOG §129)",
       "file": "plugin/bin/adr-verify",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "                    if cpid in str(getattr(probe, \"stdout\", \"\") or \"\"):",
-      "to": "                    if False:"
+      "from": "                    alive = [child for child in before if child in now]",
+      "to": "                    alive = []"
     },
     {
       "label": "verify: a trace that cannot be written never replaces the timeout it describes",
@@ -4603,7 +4621,7 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "        drain_after_kill(proc, platform)\n        raise",
+      "from": "        drain_after_kill(proc, platform, job=job)\n        raise",
       "to": "        raise"
     },
     {
@@ -4612,8 +4630,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "    try:\n        killed = kill_tree(proc.pid, platform)",
-      "to": "    killed = kill_tree(proc.pid, platform)\n    try:"
+      "from": "    try:\n        killed = kill_tree(proc.pid, platform, job=job)",
+      "to": "    killed = kill_tree(proc.pid, platform, job=job)\n    try:"
     },
     {
       "label": "verify: kill_tree answers for the kill it made, never assumes one",

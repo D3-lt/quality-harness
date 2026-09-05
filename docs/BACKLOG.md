@@ -8061,7 +8061,13 @@ grace `runWithTimeout` settles with `cleanupConfirmed: false`, releases the pipe
 child, so a failed cleanup is a reported timeout rather than a hang. `cleanupConfirmed` is set only
 by `close` — a kill issued is not a kill that landed (ADR-005). Four catalogue mutants are RED:
 the dropped bound, the dropped grace settle, a failed taskkill reported as issued, and the timer
-that no longer terminates.
+that no longer terminates. The second review pass found two more, both fixed in the same change: the
+POSIX fallback returned true whenever `child.kill` did not throw, though `ChildProcess.kill` answers
+false when the signal could not be sent (now the boolean is the answer, through a `groupKill` seam);
+and the failed-cleanup test proved the PROMISE settled but not that the wrapper PROCESS exits, which
+is what the host deadline measures — an outer-process test now shows the runner exiting inside the
+grace with its abandoned child still alive, and a mutant that keeps the settle but drops the
+pipe-destroy/unref is RED. Six mutants in all.
 
 
 ## 128. OPEN — the Windows hang has a mechanism, reproduced; the fix is proven on the CI runner and two Windows boxes; what occasionally survives the kill is still unattributed

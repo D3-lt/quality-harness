@@ -157,12 +157,14 @@ CI not finished means not green.
 
 1. `bash scripts/selftest.sh` green after the last edit; Codex review done (§12).
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`; push.
-3. Wait for **every** CI job — ask for the list, never carry a count.
-4. `node scripts/release-evidence.mjs <sha>` and act only on its **SUCCESS**. Never read a watch's
+3. **Ask for the full campaign at the sha you are about to tag**: `gh workflow run selftest.yml --ref
+   main`. A push measures only what its cache could not reuse; only a dispatched run measures the
+   whole catalogue, and `release-evidence` refuses a sha whose newest run was a push.
+4. Wait for **every** CI job — ask for the list, never carry a count.
+5. `node scripts/release-evidence.mjs <sha>` and act only on its **SUCCESS**. Never read a watch's
    exit code. Its own header defines its exit codes; when a summary elsewhere disagrees, the header
    wins.
-5. **Do not push while the release run is in flight** — `cancel-in-progress` kills it silently.
-6. A release campaign is always full (`--no-cache` on tags and `main`).
+6. **Do not push while the release run is in flight** — `cancel-in-progress` kills it silently.
 7. `gh release create vX.Y.Z --latest` — `--latest` is not the default.
 
 Why: `.claude/rules/13-releasing.md`

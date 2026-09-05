@@ -19,7 +19,8 @@
 // Exit codes are distinct on purpose, so a caller can tell the three apart:
 //   0  every job concluded success — safe to release this sha
 //   1  a job did not conclude success (failed, cancelled, timed out, skipped)
-//   2  could not look (no gh, no run for this sha, unreadable answer)
+//   2  could not look (no gh, no run for this sha, unreadable answer, or the run
+//      was not a full campaign — see `cached` below)
 //   3  the run is not finished yet
 import { execFileSync } from 'node:child_process'
 import { pathToFileURL } from 'node:url'
@@ -74,6 +75,30 @@ export function evaluateRun(run) {
       jobs,
     }
   }
+  // ⚠ A GREEN RUN IS NOT AUTOMATICALLY A RELEASE-GRADE ONE (BACKLOG §142). Since
+  // 2026-09-05 only a `workflow_dispatch` run measures the whole catalogue; a
+  // push to `main` may reuse a cached RED verdict, which is right for iteration
+  // and not what a tag may rest on (ADR-023 rule 1). The event is the only thing
+  // that distinguishes them from outside, so it is asked here rather than
+  // assumed — a sha whose newest run was a push is "could not look at a full
+  // campaign", never "cleared".
+  if (run.event === undefined || run.event === null) {
+    return {
+      verdict: 'unreadable',
+      reason: 'the run does not say what raised it, so whether its campaign was full cannot be told '
+        + 'from here. That is "could not look", not "cleared" (ADR-005).',
+      jobs,
+    }
+  }
+  if (run.event !== 'workflow_dispatch') {
+    return {
+      verdict: 'cached',
+      reason: `the newest run for this sha was raised by \`${run.event}\`, so its mutation campaign `
+        + 'may have reused cached verdicts. A release must rest on a full campaign: run '
+        + '`gh workflow run selftest.yml --ref main` at this sha, wait for it, and ask again.',
+      jobs,
+    }
+  }
   return { verdict: 'success', reason: `${jobs.length} job(s) concluded success`, jobs }
 }
 
@@ -111,14 +136,16 @@ function fetchRun(sha) {
   if (!id) return null
   try {
     return JSON.parse(execFileSync('gh', [
-      'run', 'view', String(id), '--json', 'status,conclusion,headSha,jobs',
+      'run', 'view', String(id), '--json', 'status,conclusion,headSha,jobs,event',
     ], { encoding: 'utf8', timeout: 60_000 }))
   } catch {
     return null
   }
 }
 
-const EXIT = { success: 0, failed: 1, unreadable: 2, incomplete: 3 }
+// `cached` shares exit 2 with `unreadable` on purpose: both mean "I could not
+// look at a full campaign for this sha", which is the one thing a release needs.
+const EXIT = { success: 0, failed: 1, unreadable: 2, incomplete: 3, cached: 2 }
 
 
 // An option is not a sha, and until 2026-09-03 nothing here said so: `argv[0]`

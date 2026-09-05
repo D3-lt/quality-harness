@@ -48,13 +48,24 @@ how a missing job goes unnoticed — ask for the list.
 the run you are releasing on — correct for development, wrong for a release, and silent either way.
 Either wait, or re-run at the new head and release that (BACKLOG §104).
 
-## Why a release campaign is always full
+## Why a release campaign is full, and why it is asked for by hand
 
-`.github/workflows/selftest.yml` passes `--no-cache` for a tag and for `main`, so every entry is
-measured rather than reused. ADR-023 lets an ordinary push reuse a `RED` verdict whose subject and
-tests are byte-identical to the run that took it — that is for iteration, and a released artifact is
-never partly evidenced by a verdict taken at another commit. The record's own kill criterion depends
-on this: a wrong reuse surfaces at the next tag precisely because tags keep running the whole
-catalogue.
+`.github/workflows/selftest.yml` passes `--no-cache` when, and only when, the run was raised by
+`workflow_dispatch`. ADR-023 lets an ordinary push reuse a `RED` verdict whose subject and tests are
+byte-identical to the run that took it — that is for iteration, and a released artifact is never
+partly evidenced by a verdict taken at another commit.
+
+⚠ **This paragraph used to say `--no-cache` fires "for a tag and for `main`", and half of that was a
+branch nothing could take.** This workflow has no tag trigger — `on: push: branches: [main]`,
+`pull_request`, `workflow_dispatch` — and no run has ever been raised by a tag ref, so the tag half
+was dead code, while the `main` half made every push pay a 581-mutant campaign at about 23 minutes:
+a backlog edit, a test-only change, nine times in a day. ADR-023's own kill criterion said a wrong
+reuse "surfaces at the next tag precisely because tags keep running the whole catalogue", and that
+mechanism did not exist; what actually carried it was the `main` half (BACKLOG §142).
+
+So the full campaign is now the run you **ask for**, and the thing that stops that becoming a quiet
+evidence hole is `release-evidence.mjs`: it reads the run's `event`, and a sha whose newest run was a
+push is `cached` — exit 2, "could not look at a full campaign", never `SUCCESS`. A run that does not
+say what raised it is `unreadable` for the same reason. Both are mutants.
 
 `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.

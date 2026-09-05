@@ -825,9 +825,20 @@ test('continuous integration runs the checks this repository owns', () => {
   // everywhere and still looks like a guard.
   const forced = workflow.match(/mutate\.mjs --shard \$\{\{ matrix\.shard \}\}\/\d+ --no-cache/)?.[0] ?? ''
   assert.match(forced, /--no-cache/, 'the mutation job must be able to force a full campaign')
+  // BACKLOG §142. These two assertions used to require `refs/tags/` and
+  // `refs/heads/main` in the condition, and the first of them held the workflow
+  // to a branch nothing could take: there is no tag trigger, and no run has ever
+  // been raised by a tag ref. The test asserted a policy the file could not
+  // perform. What is true now is that the FULL campaign is the dispatched run,
+  // and the workflow must have that trigger for the release procedure to exist.
   const condition = workflow.match(/QUALITY_HARNESS_FULL_CAMPAIGN: [^\n]*/)?.[0] ?? ''
-  assert.match(condition, /refs\/tags\//, 'a tag must force a full campaign')
-  assert.match(condition, /refs\/heads\/main/, 'main must force a full campaign')
+  assert.match(condition, /workflow_dispatch/, 'a dispatched run must force a full campaign')
+  assert.match(workflow, /^ {2}workflow_dispatch:$/m,
+    'the release procedure asks for that run by hand, so the trigger must exist')
+  // And the claim is not made about a trigger this workflow does not have: a
+  // condition naming tags would be dead code again, and §142 is that lesson.
+  assert.doesNotMatch(condition, /refs\/tags\//,
+    'no tag trigger exists, so a tag condition here would be unreachable')
   // Pull requests must be covered; a workflow that only runs on push to main
   // reports regressions after they land.
   assert.match(workflow, /^\s{2}pull_request:/m)

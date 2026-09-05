@@ -8756,3 +8756,44 @@ of the three — noise rather than a false accusation — and it was visible fro
 run. It went last because §139 was a gate telling a repository its real tests did not exist, and that
 outranks tidiness. What the three share is the shape ADR-005 names: a tool answering about something
 it was not looking at, in a vocabulary that reads as a verdict.
+
+## 142. CLOSED 2026-09-05 — every push paid for a release, and the rule that was supposed to justify it named a trigger that does not exist
+
+**Reported by the owner, in the form "23 minutes to release is nonsense", and the first answer was
+wrong.** The suspicion was that tags re-run what `main` already measured. They do not: this workflow
+has no tag trigger at all — `on: push: branches: [main]`, `pull_request`, `workflow_dispatch` — and
+`gh run list --limit 100` finds zero runs ever raised by a tag ref. So the condition
+
+    QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}
+
+had a first half that nothing could take. The real cost was the second half: **every** push to `main`
+ran the full 581-mutant catalogue, eight shards at 17–23 minutes each. On this day that was roughly
+ten pushes, most of them backlog records, tests, or documentation.
+
+**Three places asserted the dead half as policy**, which is the part that matters more than the
+minutes. `CLAUDE.md` §13.6 said "always full (`--no-cache` on tags and `main`)".
+`.claude/rules/13-releasing.md` explained why "tags keep running the whole catalogue".
+`tests/package.test.mjs` ASSERTED it: `assert.match(condition, /refs\/tags\//, 'a tag must force a
+full campaign')` — a test holding the workflow to a behaviour the workflow could not perform, green
+for as long as the dead code stayed dead. A mutant on the same line was pinned to the dead text too.
+
+⚠ **ADR-023's pre-registered criterion rests on this.** Rule 1 reads: a wrong reuse "surfaces at the
+next tag precisely because tags keep running the full set". That mechanism has never existed. The
+criterion is not void — the `main` half was doing the work all along — but the record names the wrong
+reason, and a criterion whose stated mechanism is absent is one nobody can check as written. Recorded
+here rather than edited into the record, which is history (`CLAUDE.md` §10).
+
+**Now.** `--no-cache` fires when, and only when, the run was raised by `workflow_dispatch`. An
+ordinary push reuses what ADR-023 already allows it to. The release procedure gains one step: ask for
+the campaign at the sha you are about to tag (`gh workflow run selftest.yml --ref main`).
+
+**And the cheap path cannot become a quiet evidence hole**, which is the only reason this is safe:
+`release-evidence.mjs` now reads the run's `event`. A sha whose newest run was a push is `cached` —
+exit 2, "could not look at a full campaign" — never `SUCCESS`, however green every job is. A run that
+does not say what raised it is `unreadable` for the same reason: an older `gh`, or an answer missing
+the field, must not read as a full campaign (ADR-005). Both are mutants, as are the workflow
+condition and the two documentation claims' replacements.
+
+**What this costs.** A release now needs a deliberate dispatch and a wait; forgetting it produces a
+refusal rather than a silent under-evidenced tag, which is the trade this project always takes. An
+ordinary push to `main` drops from about 23 minutes to a few.

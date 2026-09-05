@@ -3937,8 +3937,8 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/main' }}",
-      "to": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ startsWith(github.ref, 'refs/tags/') }}"
+      "from": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}",
+      "to": "          QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'push' }}"
     },
     {
       "label": "arch: a test may reach its failure call through a same-file helper",
@@ -5244,6 +5244,24 @@
       ],
       "from": "    if not re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I) and not re.search(",
       "to": "    if True and not re.search("
+    },
+    {
+      "label": "release-evidence: a run raised by a push is not a full campaign",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (run.event !== 'workflow_dispatch') {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "release-evidence: a run that does not say what raised it is could-not-look",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (run.event === undefined || run.event === null) {",
+      "to": "  if (false) {"
     }
   ]
 }

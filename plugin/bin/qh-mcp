@@ -996,6 +996,31 @@ reading_tool(
 )
 
 
+def _orientation(arguments):
+    # `directory` is required by the schema, which the registrar checks before
+    # this runs; _paths still refuses one that does not exist.
+    root = _paths(arguments.get("directory"))
+    return _run_node("orientation.mjs", [root[0]], root, root[0])
+
+
+reading_tool(
+    "qh_orientation",
+    "The session orientation Claude Code gets from this plugin's SessionStart hook, "
+    "for a client that runs no hooks: the project's own check and how the gates "
+    "treat it, ADR tasks in flight, and whether a stale standalone copy would "
+    "answer instead of the plugin. Reads the directory named; changes nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "directory": {"type": "string", "description": "The repository or directory to orient in."},
+        },
+        "required": ["directory"],
+        "additionalProperties": False,
+    },
+    _orientation,
+)
+
+
 _JSON_TYPES = {"string": str, "boolean": bool, "array": list, "object": dict}
 
 

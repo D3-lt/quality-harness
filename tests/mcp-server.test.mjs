@@ -158,7 +158,7 @@ const bin = join(repoRoot, 'plugin', 'bin')
 // that machine is the SERVER's, not the caller's — an answer about a different
 // thing than the caller believes, which is the defect ADR-031 exists to prevent.
 const READING_GATES = ['qh_adr_lint', 'qh_adr_next', 'qh_adr_debt', 'qh_adr_judge', 'qh_arch_lint',
-  'qh_adr_retire_check', 'qh_postmortem_verify', 'qh_adr_context']
+  'qh_adr_retire_check', 'qh_postmortem_verify', 'qh_adr_context', 'qh_orientation']
 
 // The server captures the gate in Python's text mode, which translates CRLF to
 // LF; Node's spawnSync captures the bytes as written. So on Windows the same
@@ -208,6 +208,23 @@ test("every reading gate is listed, and calling it returns that gate's own outpu
     assert.ok(lf(text).includes(lf(direct.stdout).trim().split('\n')[0]),
       `${tool} did not return the gate output\nMCP:\n${text}\ndirect:\n${direct.stdout}`)
   }
+})
+
+test('qh_orientation returns the SessionStart orientation for a directory, and names its absence (BACKLOG §136)', () => {
+  const reply = call('qh_orientation', { directory: repoRoot })
+  assert.equal(reply.error, undefined, JSON.stringify(reply.error))
+  const text = reply.result.content.map(part => part.text).join('')
+  assert.match(text, /^orientation\.mjs exit 0/)
+  assert.match(text, /Verification: this project's own check is/)
+  const direct = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'orientation.mjs'), repoRoot], { encoding: 'utf8', timeout: 60_000 })
+  assert.ok(lf(text).includes(lf(direct.stdout).trim().split('\n')[0]))
+  // A directory with nothing to orient says so; a missing directory could not run.
+  const bare = mkdtempSync(join(tmpdir(), 'qh-orient-'))
+  assert.match(call('qh_orientation', { directory: bare }).result.content[0].text, /Nothing to orient in/)
+  assert.match(JSON.stringify(call('qh_orientation', { directory: join(bare, 'nope') })), /could not run/)
+  // The registrar validates `required` before the handler runs, so a missing
+  // directory is the schema's refusal, not the tool's.
+  assert.match(JSON.stringify(call('qh_orientation', {})), /requires 'directory'/)
 })
 
 test('qh_adr_context answers which decisions govern a path, from the repository the path is in (BACKLOG §135)', () => {

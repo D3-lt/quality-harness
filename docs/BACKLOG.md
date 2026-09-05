@@ -8516,3 +8516,38 @@ command, `node "${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-guard.mjs"`, is therefore
 route — inline substitution when the agent file is read, or shell expansion from the environment
 when it is not. What a live run still adds is the guard's own stderr line in a reviewer's transcript;
 the first one after 2.73.0 remains worth reading, but the mechanism is documented, not assumed.
+
+## 136. CLOSED 2026-09-05 — the install tracked main head and nothing said so; Desktop still lacked the orientation; the evals ran nowhere
+
+**Three leftovers from the same assessment.** `claude plugin update` installs the marketplace's
+`./plugin` at the head of `main`, not at a tag: on this date the local install read 2.72.0 before
+that version's CI had finished, and nothing on the machine could tell a release from a head. Claude
+Desktop, reaching the plugin over MCP, had `qh_adr_context` (§135) but not the orientation the
+SessionStart hook gives Claude Code. And the eval suite — the only measurement here with a control
+arm — ran only on a laptop that remembered to run it.
+
+**Now.** `qh-doctor` carries a `release` section: it asks the remote, bounded, whether `v<installed>`
+is a tag (the marketplace clone fetches `main` only, so its own tags stop where it was first made)
+and says `is a published tag`, `has NO tag on the remote: this is main head`, or `COULD NOT LOOK` —
+never "released" for a remote it could not reach. `plugin/scripts/orientation.mjs` prints the
+SessionStart orientation for a directory, or one line naming its absence, and `qh_orientation`
+exposes it through the read-only registrar. `.github/workflows/evals.yml` runs weekly and on
+dispatch: with `ANTHROPIC_API_KEY` it runs `claude plugin eval`, prints the with/without table and
+the false-claims reading, and keeps the results as an artifact; without the key it prints UNRUN and
+exits 0 — a green that measured nothing is the shape ADR-005 forbids. It gates nothing.
+
+**Not done.** `qh_doctor` over MCP is deliberately absent, for the reason `qh-root` is (ADR-031): it
+answers about the SERVER's machine, and only when Desktop runs the server locally is that the
+caller's. A CI-verdict segment for the status line needs a cache a hook writes per repository; this
+repository's `branch-state.mjs --cached` is that shape, and generalising it is a later step.
+
+**The Codex review found five, fixed before commit.** A release lookup that could not look left the
+doctor at exit 0 — it is now part of the incomplete-report condition (exit 2). `git ls-remote` could
+hang on a credential prompt, match `v2.73.0-rc` for `v2.73.0`, or read a repointed clone — now
+`GIT_TERMINAL_PROMPT=0`, `--refs`, an exact ref comparison, and the origin checked against this
+plugin's repository. `orientation.mjs` accepted any existing path and phrased an empty orientation
+as three claims about the directory — now a directory check and a neutral absence. The eval command
+put `./plugin` after the variadic `--allow-tools`, which would have swallowed it — target first now;
+and a keyed run that wrote no result could read as green — it fails, while the keyless path carries a
+warning and a job summary saying UNRUN. "Not asked" became its own doctor state, because a caller that
+did not ask had not failed to look.

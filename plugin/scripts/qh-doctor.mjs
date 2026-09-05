@@ -153,6 +153,43 @@ export function drift(pluginRoot = PLUGIN_ROOT) {
 }
 
 /**
+ * Whether what is installed is a RELEASE. `claude plugin update` installs the
+ * marketplace's `./plugin` at the head of `main`, not at a tag: on 2026-09-05
+ * the local install read 2.72.0 before that version's CI had finished (BACKLOG
+ * §136). The marketplace clone fetches `main` only — its tags stop where the
+ * clone was first made — so the question goes to the remote, bounded, and an
+ * unreachable remote is could-not-look, never "released".
+ */
+export function releaseReport({
+  version, cloneDir = join(os.homedir(), '.claude', 'plugins', 'marketplaces', 'quality-harness'),
+  // No terminal prompt: a credential helper that asks would hold the doctor past
+  // its own timeout, which is a wall around the child, not around the prompt.
+  run = (args, options) => execFileSync('git', args, {
+    encoding: 'utf8', timeout: 15_000, env: { ...process.env, GIT_TERMINAL_PROMPT: '0' }, ...options,
+  }),
+} = {}) {
+  if (!version) return { looked: false, note: 'the installed version is unreadable' }
+  if (!existsSync(join(cloneDir, '.git'))) return { looked: false, note: `no marketplace clone at ${cloneDir}` }
+  let head = null
+  try { head = run(['-C', cloneDir, 'rev-parse', '--short', 'HEAD']).trim() } catch { head = null }
+  // The remote must be THIS plugin's repository: a clone repointed elsewhere can
+  // carry any tag it likes (Codex review, 2026-09-05).
+  let remote = ''
+  try { remote = run(['-C', cloneDir, 'remote', 'get-url', 'origin']).trim() } catch { remote = '' }
+  if (!/[/:]quality-harness(?:\.git)?\/?$/i.test(remote)) {
+    return { looked: false, head, note: `the marketplace clone's origin is ${remote || 'unset'}, not this plugin's repository` }
+  }
+  let tags
+  const ref = `refs/tags/v${version}`
+  try { tags = run(['-C', cloneDir, 'ls-remote', '--tags', '--refs', 'origin', ref]) } catch (failure) {
+    return { looked: false, head, note: `the remote could not be asked for v${version} (${failure.code ?? String(failure.message).split('\n')[0]})` }
+  }
+  // Exact: `v2.73.0-rc` answers a query for `v2.73.0` and is not it.
+  const released = tags.split(/\r?\n/).some(line => line.trim().split(/\s+/)[1] === ref)
+  return { looked: true, head, version, released }
+}
+
+/**
  * The claims ledger, read ONCE, with "could not look" kept apart from "nothing
  * there".
  *
@@ -189,6 +226,8 @@ export function report({
   // with `file: null` is "there was nothing to look at", not "I failed to look".
   ledger = { file: null, looked: true, rows: null, note: null },
   armWithdrawn = ASSERTION_ARM_WITHDRAWN,
+  // "Not asked" is its own state: a caller that did not ask has not failed to look.
+  release = { looked: true, asked: false },
 }) {
   const lines = []
   const split = severitySplit(gateSource)
@@ -214,6 +253,13 @@ export function report({
   // ADR-035. What the harness has recorded ABOUT ITSELF on this machine. A count
   // rather than a rate: `claims-rate.mjs` owns the arithmetic and the buckets,
   // and two places computing one number is how they come to disagree.
+  lines.push('release')
+  if (release.asked === false) lines.push('  not asked')
+  else if (!release.looked) lines.push(`  COULD NOT LOOK — ${release.note}`)
+  else if (release.released) lines.push(`  ${release.version} is a published tag (marketplace clone at ${release.head ?? '?'})`)
+  else lines.push(`  ${release.version} has NO tag on the remote: this is main head (clone at ${release.head ?? '?'}), not a release — `
+    + '`claude plugin update` installs main, not the latest tag')
+  lines.push('')
   lines.push('claims ledger')
   if (!ledger.file) {
     lines.push('  CLAUDE_PLUGIN_DATA is unset, so no completion event is being recorded.')
@@ -240,7 +286,7 @@ export function report({
   // A COPY outranks an unreadable read: a finding you can act on is more useful
   // than "some of this could not be seen", and reporting the weaker verdict would
   // hide the stronger one.
-  if (!home.looked || !moved.looked || !ledger.looked) {
+  if (!home.looked || !moved.looked || !ledger.looked || !release.looked) {
     lines.push('Some of this could not be read, so this is not a clean bill — only an incomplete one.')
     return { lines, exit: 2 }
   }
@@ -253,7 +299,7 @@ function main() {
   try { gateSource = readFileSync(join(PLUGIN_ROOT, 'bin', 'adr-lint'), 'utf8') } catch { gateSource = '' }
   const { lines, exit } = report({
     counted: inventory(), home: homeReport(), moved: drift(), gateSource,
-    ledger: ledgerReport(),
+    ledger: ledgerReport(), release: releaseReport({ version: inventory().version }),
   })
   for (const line of lines) console.log(line)
   return exit

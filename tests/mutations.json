@@ -5091,6 +5091,42 @@
       ],
       "from": "  stdout.write(`${text || `Nothing to orient in ${directory}: the orientation is empty for this directory.`}\\n`)",
       "to": "  stdout.write(`${text}\\n`)"
+    },
+    {
+      "label": "branch-state: a future-dated cache is not a usable one",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (!Number.isFinite(previous.at) || previous.at > now) return false",
+      "to": "  if (!Number.isFinite(previous.at)) return false"
+    },
+    {
+      "label": "branch-state: a red CI keeps its alarm in the brief form",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = true",
+      "to": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = false"
+    },
+    {
+      "label": "statusline: a stale CI cache is said to be stale, not read as current",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  if (age > CI_STALE_MS) return { state: 'stale', ageMinutes: Math.round(age / 60_000) }",
+      "to": "  if (false) return { state: 'stale', ageMinutes: Math.round(age / 60_000) }"
+    },
+    {
+      "label": "statusline: a red CI is not rendered green",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  if (ci.conclusion === 'success') return { state: 'green', sha: ci.sha }",
+      "to": "  return { state: 'green', sha: ci.sha }"
     }
   ]
 }

@@ -193,7 +193,7 @@ Why: `.claude/rules/14-mrw-and-agentsmemory.md`
   green is not `coverage.sh` green, and neither is "the branch is green".
 - **A branch whose CI you have not read is UNKNOWN, not green.** So is one whose run is still
   running, and so is one you could not look at because `gh` is absent.
-- `scripts/branch-state.mjs` says it unprompted, the way the memory bootstrap does — **once at
+- `plugin/scripts/branch-state.mjs` says it unprompted, the way the memory bootstrap does — **once at
   `SessionStart` in full, and briefly on every `UserPromptSubmit`** (one line while the branch is
   green; a red CI keeps its ⚠ and its failing job names on a second). A reader wired only to
   It reads, blocks nothing, and exits 0 whatever it finds. Run it by hand any time.

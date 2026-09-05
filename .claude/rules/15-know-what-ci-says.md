@@ -17,10 +17,12 @@ So the fix is not another gate. It is the agentsmemory wake-up pattern pointed a
 state the facts a session would otherwise assume, once, unprompted, at the start.
 
 ```bash
-node scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unreleased plugin change
+node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unreleased plugin change
 ```
 
-- Wired as **both** a `SessionStart` and a `UserPromptSubmit` hook in `.claude/settings.json`, so
+- Wired as **both** a `SessionStart` and a `UserPromptSubmit` hook in the plugin's `hooks.json` (it
+  ships with the plugin since 2.75.0, so every adopter gets it; this repository gets it through the
+  installed plugin and keeps no copy of its own), so
   it costs no discipline. ⚠ `SessionStart` ALONE IS NOT ENOUGH and that was measured the moment it
   shipped: it fires when a session begins, so the session already running — the one about to plan a
   release on a red branch — never sees it, and one message at the very start is the message a

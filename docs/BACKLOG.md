@@ -8468,3 +8468,43 @@ checked, the cap ignored.
 **Not done.** No CI verdict, no ADR task in flight: both need a spawn or a network call per render,
 and both belong to a cache a hook writes (this repository's `branch-state.mjs --cached` is that shape
 for CI). A second reader of an answer that exists is the next step; a second asker is not.
+
+## 135. CLOSED 2026-09-05 — a read-only reviewer could write through Bash, and Desktop could not ask what governs a file
+
+**Two gaps from the same assessment.** The three read-only roles (`qh-correctness-reviewer`,
+`qh-scope-reviewer`, `qh-synthesis`) said "never edits" and omitted Edit and Write from their tools
+— and kept Bash, which writes through `sed -i`, a heredoc, `git commit`. The contract was a sentence.
+And Claude Desktop reaches this plugin only through MCP, where the seven reading gates were exposed
+but not the one question a session asks most, which decisions govern the file I am about to touch —
+answered for Claude Code by the SessionStart and PreToolUse hooks, which Desktop never runs.
+
+**Now.** `plugin/scripts/reviewer-guard.mjs` is a PreToolUse hook declared in the three agents' own
+frontmatter (`hooks:` scoped to the subagent, matcher `Bash|Edit|Write|MultiEdit|NotebookEdit`). It
+refuses, with exit 2 and the reason, a Bash command the mutation classifier reads as a write outside
+the temp roots, a publish, and any editing tool; it passes reads, diffs, checks, scratch writes, and
+a payload it cannot read — a guard broken on its own bug must not stop a reviewer reading. This is a
+role boundary, not a quality gate advising on work (`CLAUDE.md` §3): the role says never, and the
+tool list could not reach Bash. A test asserts every agent that says read-only declares the guard on
+every writing tool, and no other agent carries it. Three mutants RED.
+
+`qh_adr_context` joins the MCP registry through the same read-only registrar: the paths named, an
+optional root, JSON on request; run through `node` from PATH with the corpus root derived from the
+first path (`.git` or `docs/adr` above it), because the server's own cwd is nobody's repository.
+No node, no root, no path: could not run, never an empty answer. One mutant RED.
+
+**Unverified live, said plainly.** Whether `${CLAUDE_PLUGIN_ROOT}` expands in an agent-frontmatter
+hook command was not confirmed by running a reviewer under the installed plugin from this session
+(the agents load at session start). If it does not, the hook command fails to start, Claude Code
+treats a non-2 exit as not blocking, and the guard is silent — the shape this repository names as the
+worst one. The first reviewer run after this release should be watched for the guard's line, and the
+reading recorded here.
+
+**The Codex review (second pass; the first was killed at its deadline and certified nothing, §12)
+found two, fixed before commit.** Three shapes passed the first guard: `bash -c '<write>'`, a write
+inside `$(…)` or backticks, and an editor (`vim`, `nano`, `code`…), because the classifier reads
+the OUTER command. The guard now judges each inner payload as a command of its own (three levels
+deep) and names the editors; both are mutants now. And `_repo_root` walked up from a symlink's own
+directory rather than its target's — `realpath` first. What stands, and the reviewer said so: the
+guard is a fail-open denylist by nature; an arbitrary script it cannot read can still write. The
+strong form would omit Bash from the reviewer roles, and they need it to run checks. Named here
+rather than solved.

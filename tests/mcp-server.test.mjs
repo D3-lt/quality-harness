@@ -3,6 +3,7 @@
 // Calling `dispatch()` directly would test the dispatch and not the transport,
 // and the framing is exactly where a hand-written JSON-RPC server goes wrong.
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
@@ -157,7 +158,7 @@ const bin = join(repoRoot, 'plugin', 'bin')
 // that machine is the SERVER's, not the caller's — an answer about a different
 // thing than the caller believes, which is the defect ADR-031 exists to prevent.
 const READING_GATES = ['qh_adr_lint', 'qh_adr_next', 'qh_adr_debt', 'qh_adr_judge', 'qh_arch_lint',
-  'qh_adr_retire_check', 'qh_postmortem_verify']
+  'qh_adr_retire_check', 'qh_postmortem_verify', 'qh_adr_context']
 
 // The server captures the gate in Python's text mode, which translates CRLF to
 // LF; Node's spawnSync captures the bytes as written. So on Windows the same
@@ -207,6 +208,31 @@ test("every reading gate is listed, and calling it returns that gate's own outpu
     assert.ok(lf(text).includes(lf(direct.stdout).trim().split('\n')[0]),
       `${tool} did not return the gate output\nMCP:\n${text}\ndirect:\n${direct.stdout}`)
   }
+})
+
+test('qh_adr_context answers which decisions govern a path, from the repository the path is in (BACKLOG §135)', () => {
+  // The one JavaScript tool: run through node, with the corpus root derived from
+  // the path, because the server's cwd is nobody's repository. Compared with the
+  // script run directly from that root.
+  const target = join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
+  const reply = call('qh_adr_context', { paths: [target] })
+  assert.equal(reply.error, undefined, JSON.stringify(reply.error))
+  const text = reply.result.content.map(part => part.text).join('')
+  const direct = spawnSync(process.execPath, [join(repoRoot, 'plugin', 'scripts', 'adr-context.mjs'), target],
+    { cwd: repoRoot, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(direct.status, 0, direct.stderr)
+  assert.match(direct.stdout, /GOVERNS/, 'the fixture must be governed by something for this to mean anything')
+  assert.ok(lf(text).includes(lf(direct.stdout).trim().split('\n')[0]), `MCP:\n${text}\ndirect:\n${direct.stdout}`)
+  assert.match(text, /^adr-context\.mjs exit 0/)
+
+  // A path with no repository above it is a tool that could not run, not an
+  // empty answer.
+  const nowhere = call('qh_adr_context', { paths: [tmpdir()] })
+  const said = JSON.stringify(nowhere)
+  assert.match(said, /could not run/)
+  // JSON output is the script's own JSON.
+  const asJson = call('qh_adr_context', { paths: [target], json: true })
+  assert.match(asJson.result.content[0].text, /"governing"/)
 })
 
 test('no tool executes text the corpus supplies', () => {

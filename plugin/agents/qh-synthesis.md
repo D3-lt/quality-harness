@@ -3,6 +3,15 @@ name: qh-synthesis
 description: Adjudicates between independent reviews and returns one deduplicated verdict. Use when two or more reviews disagree, overlap, or must be reduced to what actually blocks. Judges only what the reviews and the source support; never edits and never invents a finding.
 model: opus
 tools: Read, Grep, Glob, Bash
+# Read-only by contract, and the contract is checked: Bash can write, so the guard
+# refuses a write, a commit, or an editing tool inside this role (BACKLOG §135).
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit"
+      hooks:
+        - type: command
+          command: node "${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-guard.mjs"
+          timeout: 15
 ---
 
 You reduce several independent reviews to one verdict.

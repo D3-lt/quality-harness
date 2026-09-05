@@ -5013,7 +5013,7 @@
     },
     {
       "label": "reviewer-guard: a write outside the temp roots is refused inside a read-only role",
-      "file": "plugin/scripts/reviewer-guard.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
@@ -5022,7 +5022,7 @@
     },
     {
       "label": "reviewer-guard: a publish is refused inside a read-only role",
-      "file": "plugin/scripts/reviewer-guard.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
@@ -5031,11 +5031,11 @@
     },
     {
       "label": "reviewer-guard: an editing tool is refused inside a read-only role",
-      "file": "plugin/scripts/reviewer-guard.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
-      "from": "  if (EDITING_TOOLS.has(tool)) {",
+      "from": "  if (READ_ONLY_EDITING_TOOLS.has(tool)) {",
       "to": "  if (false) {"
     },
     {
@@ -5049,7 +5049,7 @@
     },
     {
       "label": "reviewer-guard: a shell payload or a command substitution is judged as a command of its own",
-      "file": "plugin/scripts/reviewer-guard.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
@@ -5058,7 +5058,7 @@
     },
     {
       "label": "reviewer-guard: an editor is refused inside a read-only role",
-      "file": "plugin/scripts/reviewer-guard.mjs",
+      "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
@@ -5127,6 +5127,24 @@
       ],
       "from": "  if (ci.conclusion === 'success') return { state: 'green', sha: ci.sha }",
       "to": "  return { state: 'green', sha: ci.sha }"
+    },
+    {
+      "label": "lifecycle: inside a read-only role the plugin-level hook denies a write",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (readOnlyRole(input.agent_type) && (input.tool_name === 'Bash' || MUTATION_TOOLS.has(input.tool_name))) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "reviewer-guard: the CLI refuses with exit 2, not a pass",
+      "file": "plugin/scripts/reviewer-guard.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  stderr.write(`quality-harness reviewer guard: ${reason}\\n`)\n  return 2",
+      "to": "  stderr.write(`quality-harness reviewer guard: ${reason}\\n`)\n  return 0"
     }
   ]
 }

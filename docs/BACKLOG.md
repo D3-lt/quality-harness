@@ -3020,6 +3020,16 @@ failures came ~3.3s in. Either those commits had far fewer subtests, or the file
 suite finished — and a TAP transcript with every subtest `ok` in 3.3s is the second. The next
 occurrence should be read with that in mind.
 
+**Third occurrence, 2026-09-05, run 33970787579 on \`fcf5c53\`, with the TAP read properly this time.**
+Node 24 reports a file's subtests FLAT above the file's own line, so "every subtest ok, then the file
+\`not ok\` at 3.2s" means the subtests ran and passed and the file process then exited 1. The one thing
+that runs after every subtest since \`3760354\` is the \`after()\` that removes the per-run temp root —
+written to let its last failure surface (a leak reported as a pass). On Windows a handle lock makes
+that an intermittent throw, which the runner reports as \`'test failed'\` with no subtest: exactly this
+shape. It now retries longer and SAYS what it could not remove on stderr, never throws. The two
+earlier occurrences predate that hook and remain unattributed; this one is the likeliest of the
+three to have a cause, and if the shape recurs after this change the cause is elsewhere.
+
 ### 2026-08-29 — the diagnostic is in place; the flake itself is untouched
 
 The first half of the work above is done and the second deliberately is not. `scripts/selftest.sh`
@@ -8516,6 +8526,25 @@ command, `node "${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-guard.mjs"`, is therefore
 route — inline substitution when the agent file is read, or shell expansion from the environment
 when it is not. What a live run still adds is the guard's own stderr line in a reviewer's transcript;
 the first one after 2.73.0 remains worth reading, but the mechanism is documented, not assumed.
+
+**Measured inert, 2026-09-05, same day.** A peer session on a real Windows 11 box installed 2.74.0
+(main head at the time), started fresh \`claude -p\` sessions in a scratch repository, and spawned a
+real \`quality-harness:qh-correctness-reviewer\`. It ran \`sed -i\` on a tracked file, the file changed,
+and no hook was called: zero occurrences of \`reviewer guard\` in either transcript. The discriminator:
+the same payload piped into \`reviewer-guard.mjs\` directly gave the right message and exit 2. Both
+on-disk copies carried the frontmatter hook verbatim. So the script was fine and the frontmatter
+hook was never invoked — on that box, for a plugin-shipped agent, it is inert. The peer's caveat: the
+parent session that spawned the nested ones had not been restarted after the update.
+
+**The guard now lives where the hook fires.** The plugin-level \`PreToolUse\` in \`lifecycle.mjs\` runs
+inside a subagent (the peer's subagent found and named it), and the payload there carries
+\`agent_type\`. For a role in \`READ_ONLY_ROLES\` the hook emits \`permissionDecision: "deny"\` with the
+guard's reason and writes the guard's line to stderr; the verdict itself (\`readOnlyVerdict\`) moved
+into \`lifecycle.mjs\`, because \`reviewer-guard.mjs\` imports it and a dynamic import of the guard from
+inside the handler deadlocked on the ESM cycle while this module was the entry with a top-level
+await pending. The frontmatter declaration stays, harmless, for a host where it does fire. A live
+reading of the Bash arm at 2.75.0 is the one still owed; the local reading is a reviewer payload
+piped into the hook, which denies.
 
 ## 136. CLOSED 2026-09-05 — the install tracked main head and nothing said so; Desktop still lacked the orientation; the evals ran nowhere
 

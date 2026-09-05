@@ -8306,6 +8306,20 @@ ran, so the container proves the mechanism, not the suite; the next Ubuntu CI ru
 reading. This is the second instrument in two days that read its own presence as a finding
 (§127b was the first), and the lesson is the same: prove the clean arm on every platform the check
 runs on, not the one in front of you.
+**Addendum 2026-09-05 — the AST count the grep could not be.** `scripts/untimed-spawns.mjs` reads
+every tracked `.mjs`/`.js` with the acorn Node ships for its own REPL (`--expose-internals`; no
+dependency, and when the path is not there the tool is UNRUN, exit 2). A multi-line call is one
+call, an options object is read for `timeout` wherever it sits, and options this tool cannot read
+— a variable, a spread with no explicit `timeout` — are UNKNOWN: a place to look, never clean and
+never a finding. `// untimed-spawn: <reason>` above a call acknowledges it; a bare acknowledgement is
+refused. Run over the whole tree on this date it said **39 timed · 95 untimed · 8 unknown · 1
+acknowledged · 0 unparsed** — against the grep's "~116", which counted first lines. The shipped tree
+(`plugin/scripts`, `plugin/workflows`) is gated by `tests/untimed-spawns.test.mjs` at 0 untimed: its
+one untimed call, the runner's own `spawn` inside `runWithTimeout`, is acknowledged with its reason
+(the timer below it terminates the tree and settles after the grace), and its four UNKNOWNs are
+`spawnSync(…, options)` where `options` carries `timeout` a line above. The 95 in `tests/` and
+`scripts/` are reported, not gated: the count is printed into every test run from the live tree,
+and the next step is a ratchet from that number, not a floor written here.
 
 ## 131. CLOSED 2026-09-05 — a PreToolUse advisory was rendered to the person, one prefixed line per line, on every commit attempt
 

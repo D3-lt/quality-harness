@@ -37,6 +37,7 @@ python3 plugin/bin/adr-lint <adr>   # a record's own gate
 node scripts/flag-claim-sweep.mjs     # advisory sweeps: a place to look, never a verdict
 node scripts/backlog-claim-sweep.mjs
 node scripts/orphan-sweep.mjs
+node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a timeout; UNKNOWN is a place to look
 ```
 
 - **Never pipe the gate.** `| tail` and `|| true` hide the exit code. Run it, read it, then commit.

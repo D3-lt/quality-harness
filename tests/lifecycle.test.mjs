@@ -2802,7 +2802,7 @@ test('--link says what it does NOT handle, instead of "nothing to do"', async ()
   // True about the MODE, false about the install, and the user had to read the
   // source to find that out.
   const { forwarderScript, forwarderCmd } = await import('../plugin/scripts/standalone-link.mjs')
-  const home = await mkdtemp(path.join(os.tmpdir(), 'linkmode-'))
+  const home = await mkdtemp(path.join(testTmp, 'linkmode-'))
   const cache = path.join(home, '.claude', 'plugins', 'cache', 'quality-harness', 'quality-harness')
   // NOT `pluginDir` — that is this suite's own checkout root, and shadowing it
   // made the fixture copy bin/ onto itself.
@@ -2840,7 +2840,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   // records' `Governs:` lines named paths that no longer existed. Nothing said
   // the declarations had stopped matching; the tool simply had less to say.
   const { adrCorpus, __pathMatchesDeclarationForTest } = await import('../plugin/scripts/lifecycle.mjs')
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'adr-governs-'))
+  const dir = await mkdtemp(path.join(testTmp, 'adr-governs-'))
   await mkdir(path.join(dir, 'docs', 'adr'), { recursive: true })
   const record = (n, governs) =>
     `# ADR-${n}: decision ${n}\n\n**Status:** Accepted\n**Governs:** ${governs}\n\n## Context\n\nx\n`
@@ -2892,7 +2892,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   // other one. `sandbox` is deliberately named nothing like a repository root:
   // a blanket rename once bound two `git -C` helpers to this repository and the
   // suite committed to main (CLAUDE.md §9).
-  const sandbox = await mkdtemp(path.join(os.tmpdir(), 'adr-state-governs-'))
+  const sandbox = await mkdtemp(path.join(testTmp, 'adr-state-governs-'))
   const inSandbox = (...args) => spawnSync('git', ['-C', sandbox, ...args], { encoding: 'utf8' })
   inSandbox('init', '-q')
   inSandbox('config', 'user.email', 'probe@example.invalid')
@@ -3125,7 +3125,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
   // what the edit-boundary hook calls, so it is worth asserting directly rather
   // than through a subprocess whose output is all the test can inspect.
   const { main } = await import('../plugin/scripts/adr-context.mjs')
-  const dir = await mkdtemp(path.join(os.tmpdir(), 'adr-context-'))
+  const dir = await mkdtemp(path.join(testTmp, 'adr-context-'))
   const record = (n, status, governs, enforcedBy = null) =>
     `# ADR-${n}: decision ${n}\n\n**Status:** ${status}\n**Governs:** \`${governs}\`\n`
     + (enforcedBy ? `**Enforced-by:** \`${enforcedBy}\`\n` : '')
@@ -3235,7 +3235,7 @@ test('adr-context answers which decisions govern a path, and which were killed t
 
   // A repository with no corpus at all says so rather than reporting emptiness
   // as an absence of governance.
-  const bare = await mkdtemp(path.join(os.tmpdir(), 'adr-context-bare-'))
+  const bare = await mkdtemp(path.join(testTmp, 'adr-context-bare-'))
   cap = say()
   try { main(['src/pay.js'], bare) } finally { cap.done() }
   assert.match(cap.written.join(''), /No decision records found/)

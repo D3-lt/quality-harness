@@ -483,8 +483,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  emitJson({ systemMessage: reason })\n  process.stderr.write(`${reason}\\n`)",
-      "to": "  process.stderr.write(`${reason}\\n`)"
+      "from": "  process.stderr.write(`${reason}\\n`)\n  if (input?.hook_event_name !== 'PreToolUse') {\n    emitJson({ systemMessage: reason })\n    return\n  }",
+      "to": "  process.stderr.write(`${reason}\\n`)\n  if (input?.hook_event_name !== 'PreToolUse') {\n    return\n  }"
     },
     {
       "label": "advisory: a wrapper does not launder a mutation",
@@ -546,8 +546,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.')",
-      "to": "        + 'This commit is blocked until the check runs.')"
+      "from": "        + 'Nothing is blocked — this is what the gate sees before you commit.', input)",
+      "to": "        + 'This commit is blocked until the check runs.', input)"
     },
     {
       "label": "advisory: a commit is not unverified work for the next commit",
@@ -762,8 +762,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (existsSync(marker)) return false",
-      "to": "  if (false) return false"
+      "from": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return error?.code !== 'EEXIST' }",
+      "to": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return true }"
     },
     {
       "label": "context: only type path is resolved",
@@ -4839,6 +4839,60 @@
       ],
       "from": "        for (const stream of [child.stdout, child.stderr, child.stdin]) stream?.destroy()\n        child.unref?.()\n        settle(null, false)",
       "to": "        settle(null, false)"
+    },
+    {
+      "label": "lifecycle: a PreToolUse advisory reaches the agent as additionalContext, not only the person",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      additionalContext: first\n        ? reason\n        : `quality-harness: the same finding as earlier this session still stands — ${headline}`,",
+      "to": "      additionalContext: '',"
+    },
+    {
+      "label": "lifecycle: the person sees one line of a PreToolUse advisory, not the report",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    ...(first ? { systemMessage: `quality-harness advised the agent: ${headline} (full text in the transcript)` } : {}),",
+      "to": "    systemMessage: reason,"
+    },
+    {
+      "label": "lifecycle: the same PreToolUse finding is said in full once per session",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const first = firstMentionThisSession(input.session_id, key)\n  const headline = advisoryHeadline(reason)",
+      "to": "  const first = true\n  const headline = advisoryHeadline(reason)"
+    },
+    {
+      "label": "lifecycle: a shell assignment names the markdown file through its value, not as a path called NAME=…",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (/\\.md$/i.test(value)) paths.push(...expandExistingGlob(value, cwd))",
+      "to": "      if (/\\.md$/i.test(value)) paths.push(...expandExistingGlob(`${assignment[1]}=${value}`, cwd))"
+    },
+    {
+      "label": "lifecycle: a key=value argument is data, not a path the gate reports",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (SHELL_ASSIGNMENT.test(candidate)) continue\n    if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue",
+      "to": "    if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue"
+    },
+    {
+      "label": "lifecycle: a changed PreToolUse finding is news again, not a repeat",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const key = `advisory:${createHash('sha256').update(String(reason)).digest('hex').slice(0, 32)}`",
+      "to": "  const key = 'advisory:any'"
     }
   ]
 }

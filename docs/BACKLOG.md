@@ -8213,3 +8213,21 @@ line, which over-counts multi-line options and is a place to look, not a number 
 `git init` in a scratch dir or a node script over a fixture; the CI job cap and the `selftest.sh`
 trap bound what they leave. An AST-level checker for JavaScript, the way `untimed-children.py` is
 for the gates, is the next step if that count is ever to be believed.
+
+**Addendum 2026-09-05 — the leak check measured itself, on Linux only.** The first two CI runs
+carrying it (`33951187877` on `b019c42`, `33952517573` on `2830860`) failed `selftest (ubuntu-latest)`
+with `FAIL — child process(es) still running after the suite: 13461` and nothing else — one pid, no
+name, so no attribution — while macOS and Windows passed on the same commits. The pid was the
+instrument's own subshell. `leftover=$(pgrep -P $$ 2>/dev/null)`: bash 5.2 execs a bare command
+substitution in place, but the redirection defeats that optimisation and it forks a subshell, which
+is a direct child of `$$`; `pgrep` excludes only itself, so it reported the subshell. bash 3.2 on
+macOS never matched. Reproduced in a `node:24-bookworm` container with one line —
+`x=$(pgrep -P $$); echo "[$x]"` prints `[]`, `y=$(pgrep -P $$ 2>/dev/null)` prints `[118]` — and
+absent on the macOS shell. The check now runs `pgrep` from the main shell into a file, where it is
+the direct child and excludes itself, and names a survivor through `ps -o pid,ppid,etime,args`; both
+arms were run on bash 5.2 and 3.2 (clean shell → exit 0; a backgrounded `sleep 30` → named, exit 1).
+A full non-root run of the suite in that container was `Killed` by the container before the check
+ran, so the container proves the mechanism, not the suite; the next Ubuntu CI run is the suite's own
+reading. This is the second instrument in two days that read its own presence as a finding
+(§127b was the first), and the lesson is the same: prove the clean arm on every platform the check
+runs on, not the one in front of you.

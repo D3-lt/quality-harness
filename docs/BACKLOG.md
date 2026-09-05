@@ -7919,7 +7919,7 @@ early return leaves the corpus asserting things about code that can no longer ru
 the three signals above was a check this repository already owned, already running, reporting
 correctly, with nobody reading it.
 
-## 127. PARTLY CLOSED 2026-09-04 — a cleanup nobody bounded, and two tests that measure the runner's mood
+## 127. CLOSED 2026-09-05 — a cleanup nobody bounded, and two tests that measured the runner's mood
 
 Three findings from the release of v2.65.0, all about the same thing: a check whose answer depends
 on the machine's load rather than on the code.
@@ -7938,8 +7938,8 @@ asserted and the bound is bound to a mutant.
 one sentence and the fix took one. Nothing flagged the remainder — no gate can — and the cost was a
 red release run on the platform the release existed to be tested on.
 
-**127b — ONE OF TWO CLOSED 2026-09-04. Tests that assert against wall-clock bounds cannot tell a
-defect from a busy runner.**
+**127b — BOTH CLOSED, the second on 2026-09-05. Tests that asserted against wall-clock bounds could not
+tell a defect from a busy runner.**
 
 - ✅ `tests/evidence-chain.test.mjs::the recorded duration is the clean fence, not the clean fence
   plus the mutant` — measured on one tree: **2.21s alone, 4.77s** with a `codex exec` review running
@@ -7964,11 +7964,16 @@ defect from a busy runner.**
   followed by a slow run can still false-fail, and a slow baseline followed by a fast run carrying
   the defect could false-pass. This is strictly better than a constant and it is not immune. The
   immune version needs both numbers from one process.
-  is right that a gate taking ten seconds to report a one-second timeout has not killed anything, but
-  on a loaded runner the same number is the runner. The signal that is not a clock is already in the
-  fixture: the heartbeat's own counter says whether the grandchild was still alive when the gate
-  returned, which is the actual property. Left because the counter is a byte LENGTH rather than a
-  beat count, so the swap needs the fence changed too — and this one has not been observed failing.
+- ✅ `tests/timeout-tree.test.mjs::assertTreeDied`'s `PROMPT_MS = 10_000` — closed 2026-09-05. The
+  signal that is not a clock was in the fixture all along: the grandchild is bounded at 100 beats, so
+  if it had written all of them by the time the gate returned it FINISHED ON ITS OWN, and every
+  "did the beat stop" check after that is vacuous — the exact way two mutants came back GREEN on
+  2026-09-04. `beat()` now counts newline-terminated LINES and the assertion is `beats < 100` at
+  return; a slow machine does not change the answer. The first attempt at this (2026-09-04, reverted)
+  failed for a reason worth keeping: the two Python probes wrote beats with no newline, so a line
+  count read zero everywhere — the idea was right and the fixtures were the missing piece. Both now
+  append `str(i) + chr(10)`; the bash fences always did. (A 2026-09-04 edit to this section also ate
+  this bullet's head, so it read as a fragment until now — noted rather than hidden.)
 
 A release run that reddens at random is a gate people learn to re-run rather than read, which is the
 failure mode this corpus rejects everywhere else. **The general rule the closed half earned: when an
@@ -7991,7 +7996,7 @@ because it could not read one file is a guard people turn off (ADR-005). The hoo
 relative to ITSELF rather than to the repository being committed, which is what lets the suite drive
 the real guard from a scratch repo (CLAUDE.md §9) instead of asserting the hook's text.
 
-## 128. OPEN — bounding `taskkill` did not fix the Windows hang, so the hang is not the kill call
+## 128. OPEN — the Windows hang has a mechanism, reproduced on macOS; the fix ships, and Windows CI is the proof
 
 `adr-verify: a fence timeout kills the tree the fence started, not only bash` sits to its own 60s
 cap on Windows. `runPython(..., timeout: 60_000)` returns at ~60.1s, which means **adr-verify did
@@ -8027,3 +8032,34 @@ permanently red on a platform whose behaviour nobody has yet explained.
 to; or an instrumented run that prints a timestamp on each side of `kill_tree` and `communicate` so
 the 60 seconds can be attributed rather than guessed at. The second is cheap and does not need a
 Windows machine to design — only to run.
+
+**2026-09-05 — the mechanism, and it reproduces on macOS.** Python's `Popen.communicate(timeout=)`
+is two different things on two platforms. On POSIX it multiplexes the pipes with a selector and no
+thread holds anything. On Windows it starts a **daemon reader thread per pipe**, and when the
+timeout fires those threads are still blocked inside `read()`, each **holding its BufferedReader's
+lock**. `drain_after_kill`'s except branch then called `stream.close()` — which takes the same lock,
+and so waits until the read returns, which is when the orphan lets go of the pipe. The test fence
+sleeps 60s: 60.1s measured. The leader-exits fence beats for 20s: 21.9s measured in §123. Two fences,
+two durations, both equal to the orphan's pipe-hold time.
+
+The lock behaviour is CPython's `io` module, not Windows', so it reproduces here with a bare pipe and
+a reading thread: `close()` blocked for the full 2s the probe allowed, and returned the instant the
+writer went away. The Windows-only part — that `communicate` leaves reader threads behind — is read
+from the interpreter's own `subprocess.py` (`_readerthread`), not inferred.
+
+⚠ **This means §123's attribution is now in doubt.** "`taskkill /F /T` did not reach a Git Bash
+subshell tree" was concluded from the 21.9s, and the 21.9s is fully explained by `close()` waiting on
+the heartbeat pipe. Whether `taskkill` reached the tree is now UNKNOWN rather than measured false.
+
+**The fix**: on `nt`, the streams are not closed in the except branch. Left open, the handles die
+with the interpreter, and CPython's finalizer waits at most **one second** per buffered stream for a
+lock a frozen daemon thread still owns (`bufferedio.c`, `_enter_buffered_busy`) — a bounded cost,
+traded for a hang the length of whatever the orphan does. The Windows arm is driven on every host
+through the `platform` seam: a child that sleeps, a thread blocked on its stdout, and a drain told it
+is on `nt` must return without waiting; under the mutant that closes anyway, `close()` blocks behind
+the thread and the campaign sees RED.
+
+**What is still not proved**: that this is the whole of the Windows hang. `QUALITY_HARNESS_TRACE_TIMEOUT`
+now stamps every cleanup phase with its offset, and the test `a timed-out fence returns within the
+bound the arithmetic gives` runs on **every** platform with the trace on. On Windows it is the proof;
+if it fails, its message carries the trace, which is the attribution this section was opened for.

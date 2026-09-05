@@ -679,3 +679,49 @@ print(a, good.calls, taskkills_after_good, b, bad.calls, calls.count("taskkill")
       `${gate}: a job that answers ends the kill without taskkill; one that cannot falls through to it — got ${run.stdout.trim()}`)
   }
 })
+
+// The in-job probe's FAILED arm exists because the probe was silent on two
+// Windows boxes while the call behind it failed with ERROR_INVALID_HANDLE. A
+// branch that exists because silence was the bug must be shown to speak, and
+// a peer noted no run had ever printed it. Driven on any host through the
+// kernel32 seam: a fake whose IsProcessInJob answers 0 with a GetLastError,
+// and a fake whose probe answers True — both lines, or a probe that always
+// prints FAILED would pass the first and mislead every reader.
+test('the in-job probe reports a failed call, and a successful one, in those words', () => {
+  const probe = `import importlib.machinery, importlib.util, io, sys, ctypes
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+class FakeK32:
+    def __init__(self, answers, inside=False, err=0):
+        self.answers, self.inside, self.err = answers, inside, err
+    def GetCurrentProcess(self): return 0xFFFFFFFFFFFFFFFF
+    def IsProcessInJob(self, proc, job, out):
+        out._obj.value = self.inside if hasattr(out, "_obj") else self.inside
+        return self.answers
+    def CreateJobObjectW(self, a, b): return 1234
+    def SetInformationJobObject(self, *a): return 1
+    def AssignProcessToJobObject(self, *a): return 1
+    def CloseHandle(self, h): return 1
+class Proc:
+    pid = 4242; _handle = 99
+import os; os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"] = "1"
+real = sys.stderr
+buf = io.StringIO(); sys.stderr = buf
+module.WindowsJob(Proc(), 0.0, k32=FakeK32(0))
+ok = io.StringIO(); sys.stderr = ok
+module.WindowsJob(Proc(), 0.0, k32=FakeK32(1, inside=True))
+sys.stderr = real
+print(repr(buf.getvalue()), repr(ok.getvalue()), flush=True)
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    assert.match(run.stdout, /gate-in-job probe FAILED \(GetLastError=(\d+|None)\); nesting unknown/,
+      `${gate}: a probe that fails must say so — this arm was silent on two boxes`)
+    assert.match(run.stdout, /gate already inside a job: True \(nested job follows\)/,
+      `${gate}: a probe that succeeds reports what it saw`)
+  }
+})

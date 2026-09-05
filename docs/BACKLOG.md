@@ -8671,11 +8671,11 @@ regexes, and the ORDER decides which class of defect you get:
 
 | order | what it eats |
 |---|---|
-| comments first (before #7) | a  LITERAL is read as a comment; the rest of the line, its closing quote and any brace after it are deleted |
-| literals first (after #7, until now) | a backtick inside a  COMMENT opens a raw string that runs to the next backtick — swallowing every declaration in between |
+| comments first (before #7) | a `"//"` LITERAL is read as a comment; the rest of the line, its closing quote and any brace after it are deleted |
+| literals first (after #7, until now) | a backtick inside a `//` COMMENT opens a raw string that runs to the next backtick — swallowing every declaration in between |
 
 Go comments quote field names in backticks routinely, so the second ordering deletes real code from
-ordinary Go. The file that exposed it says    in a comment; three `func Test…` declarations
+ordinary Go. The file that exposed it quotes a field name in backticks in a comment; three `func Test…` declarations
 after it vanished. Both orderings have now shipped here, which is the whole argument: **there is no
 correct ordering.** A left-to-right scanner holds one state at a time and can express neither defect.
 One already existed in `adr-lint` for Go (`_go_code_only`, one caller); it is now `scan_code_only`,

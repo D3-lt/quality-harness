@@ -8183,8 +8183,12 @@ asserting the tree is clean. `scripts/selftest.sh` now traps EXIT to `pkill -P $
 step, fails if any child is still attached (direct children only; a reparented grandchild is what the
 gates' own tree kill is for, §120/§123).
 
-**Not covered here, named:** the ~131 spawn sites in `tests/` and `scripts/` without an explicit
-timeout. Most route through three shared helpers (`tests/gates.test.mjs::run`,
-`tests/evidence-chain.test.mjs::run`, `scripts/python-interpreter.mjs::runPython`) and the rest are
-`git init` in a scratch dir; the suite has a 20-minute CI cap and the trap above reaps what it leaves.
-A default timeout in those three helpers would close most of it in one edit and is the next step.
+**Not covered here, named.** The suite's own spawns. The four shared `run()` helpers
+(`tests/gates.test.mjs`, `evidence-chain`, `tutorial`, `gate-rules`) already carried 60–120s;
+`scripts/python-interpreter.mjs::runPython` — which most Python spawns in tests go through — carried
+none and now defaults to 120s, keeping any caller's own. What remains is direct `spawnSync` calls in
+tests and repository scripts: a line-based count says ~116 without `timeout` on the call's first
+line, which over-counts multi-line options and is a place to look, not a number to trust. Most are
+`git init` in a scratch dir or a node script over a fixture; the CI job cap and the `selftest.sh`
+trap bound what they leave. An AST-level checker for JavaScript, the way `untimed-children.py` is
+for the gates, is the next step if that count is ever to be believed.

@@ -59,12 +59,17 @@ export function pythonArgv(platform = process.platform, resolve = resolvePython)
  * return value.
  */
 export function runPython(args, options = {}, platform = process.platform, resolve = resolvePython) {
+  // BACKLOG §130: no child outlives the suite. Most Python spawns in tests go
+  // through here, so a default here is most of the rule. A caller that passes
+  // its own timeout keeps it; one that passes none gets two minutes, which is
+  // longer than any gate run the suite makes and shorter than a hung laptop.
+  const bounded = { timeout: 120_000, ...options }
   if (cached === UNPROBED || platform !== process.platform) {
     const argv = pythonArgv(platform, resolve)
     if (platform === process.platform) cached = argv
     const [command, ...prefix] = argv
-    return spawnSync(command, [...prefix, ...args], options)
+    return spawnSync(command, [...prefix, ...args], bounded)
   }
   const [command, ...prefix] = cached
-  return spawnSync(command, [...prefix, ...args], options)
+  return spawnSync(command, [...prefix, ...args], bounded)
 }

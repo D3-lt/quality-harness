@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -1572,6 +1572,130 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
   // With nothing to say and nothing slow, nothing is written at all.
   const quiet = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: await mkdtemp(path.join(testTmp, 'quality-quiet-')) })
   assert.equal(quiet.stdout.trim(), '', 'no finding, no time: no output')
+})
+
+test('PreCompact records what the gates measured, and the compact SessionStart hands it back', async () => {
+  // Compaction keeps the model's summary and drops the state the gates measured.
+  // PreCompact writes a note — paths since the last publish, whether a
+  // recognised check passed after them, the last check, task in flight — and
+  // the compact-source SessionStart injects it alongside the orientation. A
+  // resume does not: that context is still there.
+  const repo = await checkedProject('quality-precompact-')
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+    toolUse('e2', 'Write', { file_path: path.join(repo, 'other.py') }), toolResult('e2'),
+  ]))
+  const session = `precompact-${Date.now()}-${process.pid}`
+  const pre = runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'auto', cwd: repo, session_id: session, transcript_path: file })
+  assert.equal(pre.status, 0, pre.stderr)
+  assert.equal(pre.stdout.trim(), '', 'PreCompact has nothing to say to the model; it writes')
+
+  const compact = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session })
+  assert.equal(compact.status, 0, compact.stderr)
+  const context = JSON.parse(compact.stdout).hookSpecificOutput.additionalContext
+  assert.match(context, /What this session was doing before compaction/, 'the note is handed back')
+  assert.match(context, /2 path\(s\) edited since the last publish; no recognised check has passed since: (service\.py, other\.py|other\.py, service\.py)/)
+  assert.match(context, /No check has run this session/)
+
+  const resume = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: repo, session_id: session })
+  assert.doesNotMatch(resume.stdout, /before compaction/, 'a resume still has its context')
+
+  // A checked session says so, narrowly, with the check named.
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'npm run test' }), toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'manual', cwd: repo, session_id: session, transcript_path: file })
+  const checked = JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout)
+  assert.match(checked.hookSpecificOutput.additionalContext, /1 path\(s\) edited since the last publish; a recognised check passed after them: service\.py\. Last check: `npm run test` passed/)
+
+  // A PreCompact that cannot read the transcript says so, and the note from the
+  // EARLIER compaction is not handed back as current: the old note goes first.
+  const blind = runLifecycleHook({ hook_event_name: 'PreCompact', cwd: repo, session_id: session, transcript_path: path.join(repo, 'missing.jsonl') })
+  assert.equal(blind.status, 0)
+  assert.match(blind.stderr, /transcript could not be read/)
+  assert.doesNotMatch(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout, /before compaction/,
+    'a failed PreCompact must not leave the previous note to be handed back')
+})
+
+test('SessionEnd records what was left unverified, and the next startup here says so', async () => {
+  // The ledger row is what lets a NEW session in the same place start knowing
+  // the last one ended with unchecked edits. A neutral session (nothing edited)
+  // does not mask it; a checked end clears it; a different place is not here;
+  // a subdirectory of the same repository is.
+  const repo = await checkedProject('quality-sessionend-')
+  // A repository, so "here" is the repository root and a subdirectory is the
+  // same place; only ever spawned in a directory this test created (CLAUDE.md §9).
+  assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 60_000 }).status, 0)
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+    toolUse('b1', 'Bash', { command: 'printf x > notes.txt' }), toolResult('b1'),
+  ]))
+  const end = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'prompt_input_exit', cwd: repo, session_id: 'ended-1', transcript_path: file })
+  assert.equal(end.status, 0, end.stderr)
+  const rows = () => readFileSync(path.join(ledgerHome, 'sessions.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
+  const row = rows().findLast(entry => entry.cwd === repo)
+  assert.ok(row, 'a row for this place')
+  assert.equal(row.status, 'unverified')
+  assert.deepEqual(row.files, [path.join(repo, 'service.py')])
+  assert.equal(row.other, 1, 'the shell mutation is counted, not dropped')
+  assert.equal(row.reason, 'prompt_input_exit')
+  assert.equal(typeof row.location, 'string')
+
+  const notice = cwd => JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd }).stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
+  assert.match(notice(repo), /The previous session in this directory ended \(prompt_input_exit, .*\) with 1 edit\(s\) and 1 shell mutation\(s\) after which no recognised check passed: service\.py\. Run `npm run test` before building on them\./)
+
+  // A subdirectory of the same repository is the same place.
+  await mkdir(path.join(repo, 'src'), { recursive: true })
+  assert.match(notice(path.join(repo, 'src')), /previous session in this directory/)
+
+  // Elsewhere: not here.
+  const other = await checkedProject('quality-sessionend-other-')
+  assert.doesNotMatch(notice(other), /previous session/)
+
+  // A neutral session in between — nothing edited — does not mask the finding.
+  await writeFile(file, transcript([toolUse('r1', 'Read', { file_path: path.join(repo, 'service.py') }), toolResult('r1')]))
+  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-neutral', transcript_path: file })
+  assert.equal(rows().findLast(entry => entry.cwd === repo).status, 'neutral')
+  assert.match(notice(repo), /previous session in this directory/, 'a neutral session says nothing about what was left')
+
+  // A transcript that cannot be read writes NO row — a could-not-look row would be
+  // walked over as if it had looked.
+  const before = rows().length
+  const blind = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-blind', transcript_path: path.join(repo, 'missing.jsonl') })
+  assert.match(blind.stderr, /transcript could not be read/)
+  assert.equal(rows().length, before, 'nothing written for a session that could not be read')
+  assert.match(notice(repo), /previous session in this directory/)
+
+  // A checked end clears it.
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+    toolUse('t1', 'Bash', { command: 'npm run test' }), toolResult('t1', false, 'tests 1\npass 1'),
+  ]))
+  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-2', transcript_path: file })
+  assert.doesNotMatch(notice(repo), /previous session/)
+
+  // No data home: said on stderr, nothing written, nothing invented.
+  const env = { ...process.env }
+  delete env.CLAUDE_PLUGIN_DATA
+  const homeless = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-3', transcript_path: file }, { env })
+  assert.equal(homeless.status, 0)
+  assert.match(homeless.stderr, /CLAUDE_PLUGIN_DATA is not set/)
+})
+
+test('a location key is the realpath of the repository root, case-folded where the filesystem is', async () => {
+  const { locationKey } = await import('../plugin/scripts/lifecycle.mjs')
+  const dir = await mkdtemp(path.join(testTmp, 'quality-location-'))
+  const mixed = path.join(dir, 'MixedCase')
+  await mkdir(mixed)
+  assert.equal(locationKey(mixed, 'linux'), realpathSync(mixed), 'exact on Linux')
+  assert.equal(locationKey(mixed, 'win32'), realpathSync(mixed).toLowerCase(), 'folded on Windows')
+  assert.equal(locationKey(mixed, 'darwin'), realpathSync(mixed).toLowerCase(), 'folded on macOS')
+  assert.notEqual(locationKey(mixed, 'linux'), locationKey(mixed, 'win32'), 'the parameter changes the answer')
+  // A path that does not exist still keys, unresolved.
+  assert.equal(locationKey(path.join(dir, 'nope'), 'linux'), path.join(dir, 'nope'))
 })
 
 test('reported: a build in a container is a build, not a deletion', () => {

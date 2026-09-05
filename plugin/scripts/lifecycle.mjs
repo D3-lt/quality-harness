@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -2935,6 +2935,98 @@ export function bumpSessionGeneration(sessionId) {
   return next
 }
 
+// What a session was doing, in the words the NEXT context needs: paths edited
+// since the last publish and whether anything has checked them, the last check
+// and its verdict, the ADR task in flight. Written at PreCompact and handed back
+// by the compact SessionStart — compaction keeps the summary the model wrote
+// and drops the state the gates measured, and the two are not the same thing.
+// Also the row SessionEnd writes, so the next session in the same directory
+// starts knowing what the last one left unverified.
+export function sessionStateNote(state, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
+  const edited = state.mutationPathsSince(state.lastPublish)
+  const files = edited.filter(entry => !entry.startsWith('<'))
+  const other = edited.length - files.length
+  const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
+  if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
+  const pending = state.unverifiedSince(state.lastPublish)
+  // Three states, not two: 'neutral' is a session that edited nothing since its
+  // last publish, which says nothing about what an EARLIER session left — a
+  // reader walking back must not stop on it (Codex review, 2026-09-05).
+  const status = edited.length === 0 ? 'neutral' : pending ? 'unverified' : 'verified'
+  const parts = []
+  if (edited.length) {
+    // The observation, narrowly: whether a recognised check passed after the
+    // edits. The commit gate also runs artifact gates, so this is not its verdict.
+    parts.push(`${files.length} path(s) edited since the last publish${other ? ` and ${other} shell mutation(s)` : ''}; `
+      + `${pending ? 'no recognised check has passed since' : 'a recognised check passed after them'}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
+  } else {
+    parts.push('nothing edited since the last publish.')
+  }
+  parts.push(state.lastVerdictCommand
+    ? `Last check: \`${state.lastVerdictCommand}\` ${state.lastVerdict ?? 'unknown'}.`
+    : 'No check has run this session.')
+  if (tasks) {
+    const ready = readyTaskLines(root, insideRepository)
+    if (ready.length) parts.push(`ADR task in flight: ${ready[0].trim()}`)
+  }
+  return { at: now.toISOString(), status, unverified: pending, files, other, text: parts.join(' ') }
+}
+
+function sessionNotePath(sessionId) {
+  const stamp = createHash('sha256').update(sessionId).digest('hex').slice(0, 32)
+  return path.join(os.tmpdir(), `quality-harness-note-${stamp}`)
+}
+
+function readSessionNote(sessionId) {
+  if (typeof sessionId !== 'string' || !sessionId) return null
+  try { return JSON.parse(readFileSync(sessionNotePath(sessionId), 'utf8')) } catch { return null }
+}
+
+// "Here" is the repository (or the directory, outside one), realpath'd so
+// /tmp and /private/tmp agree, and case-folded where the filesystem is — a
+// parameter, not an assumption (CLAUDE.md §7). A subdirectory of the same
+// repository is the same place.
+export function locationKey(root, platform = process.platform) {
+  let resolved = path.resolve(root)
+  try { resolved = realpathSync(resolved) } catch {}
+  return platform === 'win32' || platform === 'darwin' ? resolved.toLowerCase() : resolved
+}
+
+// The last row SessionEnd wrote for this location that SAYS something: a
+// neutral session (nothing edited since its last publish) is skipped, because
+// it proves nothing about what an earlier one left. Null when there is no
+// home, no ledger, or no such row — "nothing known", which a first session
+// deserves. Rows from before `location` existed are matched on cwd.
+function previousSessionHere(cwd, platform = process.platform) {
+  const home = process.env.CLAUDE_PLUGIN_DATA
+  if (!home || typeof cwd !== 'string') return null
+  let rows
+  try { rows = readFileSync(path.join(home, 'sessions.jsonl'), 'utf8').split('\n').filter(Boolean) } catch { return null }
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  const here = locationKey((directory && gitRepositoryRoot(directory)) ?? directory ?? cwd, platform)
+  for (let index = rows.length - 1; index >= 0; index -= 1) {
+    let row
+    try { row = JSON.parse(rows[index]) } catch { continue }
+    const key = typeof row.location === 'string' ? row.location : typeof row.cwd === 'string' ? locationKey(row.cwd, platform) : null
+    if (key !== here) continue
+    if (row.status === 'neutral') continue
+    return row
+  }
+  return null
+}
+
+function previousSessionNotice(cwd, platform = process.platform) {
+  const row = previousSessionHere(cwd, platform)
+  if (!row || row.status !== 'unverified') return ''
+  const files = Array.isArray(row.files) ? row.files.slice(0, 5).map(file => path.relative(cwd, file) || file) : []
+  const other = Number(row.other) || 0
+  const what = [row.files?.length ? `${row.files.length} edit(s)` : '', other ? `${other} shell mutation(s)` : ''].filter(Boolean).join(' and ') || 'edits'
+  const check = projectCheckCommand(cwd)
+  return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
+    + `${what} after which no recognised check passed${files.length ? `: ${files.join(', ')}` : ''}. `
+    + (check ? `Run \`${check}\` before building on them.` : 'Nothing has checked them since.')
+}
+
 function firstMentionThisSession(sessionId, key) {
   if (typeof sessionId !== 'string' || !sessionId) return true
   const generation = sessionGeneration(sessionId)
@@ -3214,14 +3306,83 @@ export async function handleHook(input) {
     // After compaction the session has none of the context the once-per-session
     // markers gated; a new generation makes every first mention first again.
     if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)
+    const sections = []
     const orientation = sessionOrientation(input.cwd)
-    if (orientation) {
+    if (orientation) sections.push(orientation)
+    if (input.source === 'compact') {
+      // The compaction summary is the model's; this is the gates'. Hand back what
+      // PreCompact measured, so the next context knows what is unverified and
+      // what task was in flight without re-deriving either.
+      const note = readSessionNote(input.session_id)
+      if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
+    } else if (input.source === 'startup' || input.source === undefined) {
+      const previous = previousSessionNotice(input.cwd)
+      if (previous) sections.push(previous)
+    }
+    if (sections.length) {
       emitJson({
         hookSpecificOutput: {
           hookEventName: 'SessionStart',
-          additionalContext: orientation,
+          additionalContext: sections.join('\n\n'),
         },
       })
+    }
+    return
+  }
+
+  if (event === 'PreCompact' || event === 'SessionEnd') {
+    // Both read the transcript the way the completion gates do — ONCE. A
+    // transcript this hook cannot read is said and nothing is written (ADR-005):
+    // a row that says "could not look" would be walked over as if it had, and
+    // a note left from an earlier compaction would be handed back as current.
+    // Neither event has a decision to make, so neither blocks.
+    if (event === 'PreCompact' && typeof input.session_id === 'string' && input.session_id) {
+      // The old note goes first, so a PreCompact that fails below cannot leave
+      // a stale one behind to be handed back (Codex review, 2026-09-05).
+      try { unlinkSync(sessionNotePath(input.session_id)) } catch {}
+    }
+    const raw = await readTranscript(input)
+    if (!raw) {
+      process.stderr.write(`[quality-harness] ${event}: the session transcript could not be read, so nothing was recorded about this session's state.\n`)
+      return
+    }
+    const cwd = typeof input.cwd === 'string' ? input.cwd : process.cwd()
+    const directory = nearestExistingDirectory(path.resolve(cwd))
+    const repositoryRoot = directory ? gitRepositoryRoot(directory) : null
+    const root = repositoryRoot ?? directory ?? cwd
+    const state = analyzeTranscript(raw, cwd)
+    if (event === 'PreCompact') {
+      const note = sessionStateNote(state, cwd, root, repositoryRoot !== null)
+      if (typeof input.session_id === 'string' && input.session_id) {
+        try { writeFileSync(sessionNotePath(input.session_id), JSON.stringify(note)) } catch (failure) {
+          process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message}).\n`)
+        }
+      }
+      return
+    }
+    // SessionEnd runs under the host's own short budget, so nothing here spawns
+    // a gate: the row is the transcript's reading and the location key, no more.
+    const home = process.env.CLAUDE_PLUGIN_DATA
+    if (!home) {
+      process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this session\'s end was NOT recorded; the next session here starts knowing nothing about it.\n')
+      return
+    }
+    const note = sessionStateNote(state, cwd, root, false, new Date(), { tasks: false })
+    try {
+      mkdirSync(home, { recursive: true })
+      appendFileSync(path.join(home, 'sessions.jsonl'), `${JSON.stringify({
+        at: note.at,
+        session: typeof input.session_id === 'string' ? input.session_id : null,
+        cwd,
+        location: locationKey(root),
+        reason: input.reason ?? null,
+        status: note.status,
+        files: note.files,
+        other: note.other,
+        lastVerdict: state.lastVerdict ?? null,
+      })}\n`, 'utf8')
+    } catch (failure) {
+      process.stderr.write(`[quality-harness] could not append to the sessions ledger (${failure.code ?? failure.message}).\n`)
     }
     return
   }

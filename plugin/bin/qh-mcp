@@ -33,6 +33,7 @@ one that just ran (ADR-031).
 
 import json
 import os
+import shutil
 import signal
 import subprocess
 import sys
@@ -913,6 +914,85 @@ reading_tool(
         "additionalProperties": False,
     },
     _postmortem_verify,
+)
+
+
+# BACKLOG §135 — Desktop parity. Claude Desktop reaches this plugin only through
+# MCP, and the one question a session asks most — which decisions govern the file
+# I am about to touch — was answered only by the SessionStart/PreToolUse hooks,
+# which Desktop never runs. `adr-context` is JavaScript, so it is run through
+# `node`, resolved on PATH the way a hook host would; a host without node is a
+# gate that COULD NOT RUN (ADR-005), never an empty answer. It reads the corpus
+# and prints; it executes nothing the corpus supplies.
+SCRIPTS = os.path.join(os.path.dirname(BIN), "scripts")
+
+
+def _repo_root(path):
+    """The nearest ancestor holding `.git` or `docs/adr` — the corpus root that
+    adr-context reads from its cwd. Over MCP the server's own cwd is nobody's
+    repository, so it is derived from the path the caller named."""
+    # realpath first: a symlink to a file lives in one directory and its target
+    # in another's repository (Codex review, 2026-09-05).
+    path = os.path.realpath(path)
+    here = path if os.path.isdir(path) else os.path.dirname(path)
+    while True:
+        if os.path.isdir(os.path.join(here, ".git")) or os.path.isdir(os.path.join(here, "docs", "adr")):
+            return here
+        parent = os.path.dirname(here)
+        if parent == here:
+            return None
+        here = parent
+
+
+def _run_node(script, args, paths, cwd):
+    node = shutil.which("node")
+    if node is None:
+        raise GateDidNotRun("could not run: {} needs node on PATH and none was found".format(script))
+    target = os.path.join(SCRIPTS, script)
+    if not os.path.exists(target):
+        raise GateDidNotRun("could not run: {} is not installed at {}".format(script, target))
+    argv = [node, target, *[str(arg) for arg in args]]
+    try:
+        completed = run_bounded(argv, capture_output=True, text=True, timeout=120,
+                                encoding="utf-8", errors="replace", cwd=cwd)
+    except OSError as unstartable:
+        raise GateDidNotRun("could not run: {} did not start ({})".format(script, unstartable))
+    except subprocess.TimeoutExpired:
+        raise GateDidNotRun("could not run: {} did not finish within 120s".format(script))
+    return _gate_result(script, completed, paths)
+
+
+def _adr_context(arguments):
+    paths = _paths(*(arguments.get("paths") or []))
+    if not paths:
+        raise GateDidNotRun("could not run: no path was named")
+    root = arguments.get("root")
+    root = _paths(root)[0] if root else _repo_root(paths[0])
+    if root is None:
+        raise GateDidNotRun("could not run: no repository root (.git or docs/adr) above {}".format(paths[0]))
+    return _run_node("adr-context.mjs", [*(["--json"] if arguments.get("json") else []), *paths], paths, root)
+
+
+reading_tool(
+    "qh_adr_context",
+    "Which accepted decisions govern the given paths, and which retired ones were "
+    "killed there — the context a Claude Code session gets from the plugin's hooks "
+    "before it edits, for a client that runs no hooks. Reads the ADR corpus under "
+    "the repository root (derived from the first path, or given); changes nothing.",
+    {
+        "type": "object",
+        "properties": {
+            "paths": {"type": "array", "items": {"type": "string"},
+                      "description": "One or more files or directories to ask about."},
+            "root": {"type": "string",
+                     "description": "Repository root holding docs/adr. Defaults to the nearest "
+                                    "ancestor of the first path with .git or docs/adr."},
+            "json": {"type": "boolean", "description": "Machine-readable output."},
+        },
+        "required": ["paths"],
+        "additionalProperties": False,
+    },
+    _adr_context,
 )
 
 

@@ -58,10 +58,19 @@ const pluginDir = path.join(repoRoot, 'plugin')
 // temp is no different. realpath'd, because /tmp is a symlink on macOS and the
 // judgements under test compare realpaths.
 const testTmp = realpathSync(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'quality-lifecycle-')))
-// Bounded retries for Windows handle locks, and the last failure SURFACES: a
-// leak the suite swallowed would be a leak reported as a pass (Codex review,
-// 2026-09-05).
-after(() => rmSync(testTmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
+// Bounded retries for Windows handle locks. A failure here is SAID, loudly, and
+// never thrown: on 2026-09-05 (CI run 33970787579) the file failed at FILE level
+// on windows-latest with every subtest ok — the shape BACKLOG §49 had seen twice
+// before — and the one thing that runs after every subtest is this hook. A
+// leaked scratch tree is noise; a red run that names no test is a verdict about
+// nothing.
+after(() => {
+  try {
+    rmSync(testTmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 })
+  } catch (error) {
+    process.stderr.write(`[lifecycle.test] could not remove the per-run temp root ${testTmp}: ${error?.code ?? ''} ${error?.message ?? error}\n`)
+  }
+})
 
 // A symlink needs a privilege Windows grants only to Developer Mode or an
 // elevated shell; without it symlink() is EPERM for the account, every time
@@ -4337,4 +4346,29 @@ test('the claims ledger row never throws out of the hook', async () => {
   assert.equal(run.status, 0, `a ledger failure is not a hook failure\n${run.stderr}`)
   assert.match(run.stdout, /after the final edit|Run `/,
     `the advisory must survive an unwritable ledger\n${run.stdout}`)
+})
+
+test('inside a read-only role, the plugin-level PreToolUse hook denies a write; elsewhere it does not (BACKLOG §135)', async () => {
+  // The agent-frontmatter guard was measured inert on a real Windows box: a
+  // qh-correctness-reviewer ran `sed -i` on a tracked file and no hook was
+  // called. The plugin-level PreToolUse hook does run inside a subagent and
+  // carries agent_type, so the role is read from it here.
+  const repo = await checkedProject('quality-readonly-role-')
+  const deny = (agentType, toolName, toolInput) => JSON.parse(runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: toolName, cwd: repo, agent_type: agentType, agent_id: 'a1',
+    tool_input: toolInput,
+  }).stdout || '{}')
+  for (const role of ['qh-correctness-reviewer', 'quality-harness:qh-correctness-reviewer', 'qh-scope-reviewer', 'qh-synthesis']) {
+    const said = deny(role, 'Bash', { command: "sed -i 's/a/b/' README.md" })
+    assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', `${role}: a write must be denied`)
+    assert.match(said.hookSpecificOutput.permissionDecisionReason, /reviewer guard \(qh-[a-z-]+\): This role is read-only/)
+  }
+  assert.equal(deny('qh-synthesis', 'Edit', { file_path: path.join(repo, 'x') }).hookSpecificOutput?.permissionDecision, 'deny')
+  // Reads pass, in the role.
+  assert.notEqual(deny('qh-correctness-reviewer', 'Bash', { command: 'git diff HEAD' }).hookSpecificOutput?.permissionDecision, 'deny')
+  // Outside the role — the main thread, Explore, the fixer — nothing is denied.
+  for (const other of [undefined, 'Explore', 'qh-narrow-fixer', 'general-purpose']) {
+    const said = deny(other, 'Bash', { command: "sed -i 's/a/b/' README.md" })
+    assert.notEqual(said.hookSpecificOutput?.permissionDecision, 'deny', `${other}: not a read-only role`)
+  }
 })

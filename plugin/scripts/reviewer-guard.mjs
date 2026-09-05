@@ -14,58 +14,12 @@
 // cannot read passes too: a guard that fails closed on its own bug would stop
 // a reviewer from reading, which is the one thing it exists to do.
 import { pathToFileURL } from 'node:url'
-import { isPotentialMutationCommand, mutatesOnlyTempPaths, isGitPublishCommand } from './lifecycle.mjs'
+import { readOnlyVerdict } from './lifecycle.mjs'
 
-const EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
-
-// Interactive editors and anything that opens a file to write it. A reviewer
-// has no business in one; the classifier reads none of them as a mutation.
-const EDITORS = /(?:^|[\s;&|(])(?:vim?|nvim|nano|emacs|ed|ex|pico|micro|code|subl|open\s+-e)\b/
-
-// Payloads a shell would run: `bash -c '…'`, `$(…)`, backticks. The classifier
-// looks at the outer command; these are the inner ones, each judged as a
-// command of its own (Codex review, 2026-09-05: all three passed the first
-// shape of this guard).
-function innerCommands(command) {
-  const inner = []
-  for (const match of command.matchAll(/\b(?:ba|z|da)?sh\s+(?:-[a-zA-Z]*\s+)*-c\s+(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')/g)) {
-    inner.push(match[1] ?? match[2])
-  }
-  for (const match of command.matchAll(/\$\(((?:[^()]|\([^()]*\))*)\)/g)) inner.push(match[1])
-  for (const match of command.matchAll(/`([^`]*)`/g)) inner.push(match[1])
-  return inner.filter(text => text && text.trim())
-}
-
-function bashVerdict(command, cwd, depth = 0) {
-  if (isGitPublishCommand(command)) {
-    return 'This role is read-only: it does not commit, push, or stage. Name the commit you would make in the review.'
-  }
-  if (EDITORS.test(command)) {
-    return 'This role is read-only: an editor is not available to it. Read the file and report the change you would make.'
-  }
-  if (isPotentialMutationCommand(command) && !mutatesOnlyTempPaths(command, cwd)) {
-    return 'This role is read-only: that command writes outside the temp roots. Read, grep, diff and run checks; report the edit rather than making it.'
-  }
-  if (depth < 3) {
-    for (const inner of innerCommands(command)) {
-      const reason = bashVerdict(inner, cwd, depth + 1)
-      if (reason) return reason
-    }
-  }
-  return null
-}
-
-export function verdict(input) {
-  const tool = input?.tool_name
-  if (EDITING_TOOLS.has(tool)) {
-    return `This role is read-only: ${tool} is not available to it. Report the change you would make; do not make it.`
-  }
-  if (tool !== 'Bash') return null
-  const command = input?.tool_input?.command
-  if (typeof command !== 'string' || !command.trim()) return null
-  const cwd = typeof input?.cwd === 'string' ? input.cwd : process.cwd()
-  return bashVerdict(command, cwd)
-}
+// The verdict is lifecycle.mjs's (readOnlyVerdict); this file is the CLI the
+// agents' frontmatter names, kept so a frontmatter hook that DOES fire on some
+// host refuses the same way. Re-exported under its old name for the tests.
+export const verdict = readOnlyVerdict
 
 export async function main(stdin = process.stdin, stderr = process.stderr) {
   let text = ''

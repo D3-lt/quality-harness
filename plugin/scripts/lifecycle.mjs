@@ -3298,6 +3298,71 @@ function decisionContextFor(input) {
   if (!context) return ''
   return firstMentionThisSession(input.session_id, resolved) ? context : ''
 }
+// The roles that say "never edits". Read from the agent type the hook payload
+// carries inside a subagent, with or without the plugin namespace. A test holds
+// this list to the agents' own frontmatter.
+// The read-only verdict itself (BACKLOG §135). It lives HERE, not in
+// reviewer-guard.mjs, because that file imports this one: a dynamic import of it
+// from inside handleHook deadlocked on the ESM cycle while this module was the
+// entry with a top-level await pending (Node: "unsettled top-level await").
+const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+
+// Interactive editors and anything that opens a file to write it. A reviewer
+// has no business in one; the classifier reads none of them as a mutation.
+const EDITORS = /(?:^|[\s;&|(])(?:vim?|nvim|nano|emacs|ed|ex|pico|micro|code|subl|open\s+-e)\b/
+
+// Payloads a shell would run: `bash -c '…'`, `$(…)`, backticks. The classifier
+// looks at the outer command; these are the inner ones, each judged as a
+// command of its own (Codex review, 2026-09-05: all three passed the first
+// shape of this guard).
+function innerCommands(command) {
+  const inner = []
+  for (const match of command.matchAll(/\b(?:ba|z|da)?sh\s+(?:-[a-zA-Z]*\s+)*-c\s+(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')/g)) {
+    inner.push(match[1] ?? match[2])
+  }
+  for (const match of command.matchAll(/\$\(((?:[^()]|\([^()]*\))*)\)/g)) inner.push(match[1])
+  for (const match of command.matchAll(/`([^`]*)`/g)) inner.push(match[1])
+  return inner.filter(text => text && text.trim())
+}
+
+function bashVerdict(command, cwd, depth = 0) {
+  if (isGitPublishCommand(command)) {
+    return 'This role is read-only: it does not commit, push, or stage. Name the commit you would make in the review.'
+  }
+  if (EDITORS.test(command)) {
+    return 'This role is read-only: an editor is not available to it. Read the file and report the change you would make.'
+  }
+  if (isPotentialMutationCommand(command) && !mutatesOnlyTempPaths(command, cwd)) {
+    return 'This role is read-only: that command writes outside the temp roots. Read, grep, diff and run checks; report the edit rather than making it.'
+  }
+  if (depth < 3) {
+    for (const inner of innerCommands(command)) {
+      const reason = bashVerdict(inner, cwd, depth + 1)
+      if (reason) return reason
+    }
+  }
+  return null
+}
+
+export function readOnlyVerdict(input) {
+  const tool = input?.tool_name
+  if (READ_ONLY_EDITING_TOOLS.has(tool)) {
+    return `This role is read-only: ${tool} is not available to it. Report the change you would make; do not make it.`
+  }
+  if (tool !== 'Bash') return null
+  const command = input?.tool_input?.command
+  if (typeof command !== 'string' || !command.trim()) return null
+  const cwd = typeof input?.cwd === 'string' ? input.cwd : process.cwd()
+  return bashVerdict(command, cwd)
+}
+
+export const READ_ONLY_ROLES = ['qh-correctness-reviewer', 'qh-scope-reviewer', 'qh-synthesis']
+export function readOnlyRole(agentType) {
+  if (typeof agentType !== 'string') return null
+  const bare = agentType.replace(/^quality-harness:/, '')
+  return READ_ONLY_ROLES.includes(bare) ? bare : null
+}
+
 
 export async function handleHook(input) {
   const event = input.hook_event_name
@@ -3398,6 +3463,26 @@ export async function handleHook(input) {
   }
 
   if (event === 'PreToolUse') {
+    // A read-only role is read-only by contract, and the contract is checked HERE
+    // — in the plugin-level hook, which does run inside a subagent (BACKLOG
+    // §135). The same guard declared in the agents' own frontmatter was measured
+    // inert on a real box: a qh-correctness-reviewer ran `sed -i` on a tracked
+    // file and no hook was called. `agent_type` is what the payload carries
+    // inside a subagent, so the role is read from it; the verdict is the guard's.
+    if (readOnlyRole(input.agent_type) && (input.tool_name === 'Bash' || MUTATION_TOOLS.has(input.tool_name))) {
+      const reason = readOnlyVerdict(input)
+      if (reason) {
+        emitJson({
+          hookSpecificOutput: {
+            hookEventName: 'PreToolUse',
+            permissionDecision: 'deny',
+            permissionDecisionReason: `quality-harness reviewer guard (${readOnlyRole(input.agent_type)}): ${reason}`,
+          },
+        })
+        process.stderr.write(`quality-harness reviewer guard: ${reason}\n`)
+        return
+      }
+    }
     // What has already been decided about this file. Not a finding — there is
     // nothing to fix and nothing to answer for; it is the one thing the corpus
     // knows that the code does not say, handed over at the moment it applies.

@@ -4648,8 +4648,8 @@
       "tests": [
         "tests/qh-doctor.test.mjs"
       ],
-      "from": "  if (!home.looked || !moved.looked || !ledger.looked) {",
-      "to": "  if (!home.looked || !moved.looked) {"
+      "from": "  if (!home.looked || !moved.looked || !ledger.looked || !release.looked) {",
+      "to": "  if (!home.looked || !moved.looked || !release.looked) {"
     },
     {
       "label": "rate: a value outside the vocabulary is excluded, never counted as held",
@@ -5064,6 +5064,33 @@
       ],
       "from": "  if (EDITORS.test(command)) {",
       "to": "  if (false) {"
+    },
+    {
+      "label": "doctor: a tag on the remote is the only thing that makes an install a release",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "  const released = tags.split(/\\r?\\n/).some(line => line.trim().split(/\\s+/)[1] === ref)",
+      "to": "  const released = true"
+    },
+    {
+      "label": "doctor: an unreachable remote is could-not-look, never released",
+      "file": "plugin/scripts/qh-doctor.mjs",
+      "tests": [
+        "tests/qh-doctor.test.mjs"
+      ],
+      "from": "    return { looked: false, head, note: `the remote could not be asked for v${version} (${failure.code ?? String(failure.message).split('\\n')[0]})` }",
+      "to": "    return { looked: true, head, version, released: true }"
+    },
+    {
+      "label": "orientation: an empty orientation is a named absence, never an empty answer",
+      "file": "plugin/scripts/orientation.mjs",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "  stdout.write(`${text || `Nothing to orient in ${directory}: the orientation is empty for this directory.`}\\n`)",
+      "to": "  stdout.write(`${text}\\n`)"
     }
   ]
 }

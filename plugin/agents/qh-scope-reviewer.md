@@ -3,6 +3,15 @@ name: qh-scope-reviewer
 description: Read-only review of scope and design economy — duplicated knowledge, real ownership seams, speculative complexity. Use alongside a correctness pass when a change may be larger or more abstract than the requirement it serves. Returns findings; never edits.
 model: sonnet
 tools: Read, Grep, Glob, Bash
+# Read-only by contract, and the contract is checked: Bash can write, so the guard
+# refuses a write, a commit, or an editing tool inside this role (BACKLOG §135).
+hooks:
+  PreToolUse:
+    - matcher: "Bash|Edit|Write|MultiEdit|NotebookEdit"
+      hooks:
+        - type: command
+          command: node "${CLAUDE_PLUGIN_ROOT}/scripts/reviewer-guard.mjs"
+          timeout: 15
 ---
 
 You review one named target for scope and design economy.

@@ -5010,6 +5010,60 @@
       ],
       "from": "  if (stat.size > SIZE_CAP) return { kind: 'too-large', bytes: stat.size }",
       "to": "  if (false) return { kind: 'too-large', bytes: stat.size }"
+    },
+    {
+      "label": "reviewer-guard: a write outside the temp roots is refused inside a read-only role",
+      "file": "plugin/scripts/reviewer-guard.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  if (isPotentialMutationCommand(command) && !mutatesOnlyTempPaths(command, cwd)) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "reviewer-guard: a publish is refused inside a read-only role",
+      "file": "plugin/scripts/reviewer-guard.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  if (isGitPublishCommand(command)) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "reviewer-guard: an editing tool is refused inside a read-only role",
+      "file": "plugin/scripts/reviewer-guard.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  if (EDITING_TOOLS.has(tool)) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "mcp: adr-context with no repository above the path could not run, not an empty answer",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    if root is None:\n        raise GateDidNotRun(\"could not run: no repository root (.git or docs/adr) above {}\".format(paths[0]))",
+      "to": "    if root is None:\n        root = os.getcwd()"
+    },
+    {
+      "label": "reviewer-guard: a shell payload or a command substitution is judged as a command of its own",
+      "file": "plugin/scripts/reviewer-guard.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  if (depth < 3) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "reviewer-guard: an editor is refused inside a read-only role",
+      "file": "plugin/scripts/reviewer-guard.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs"
+      ],
+      "from": "  if (EDITORS.test(command)) {",
+      "to": "  if (false) {"
     }
   ]
 }

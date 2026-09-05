@@ -231,7 +231,7 @@ def tracked_paths(root):
     try:
         r = subprocess.run(["git", "-C", str(root), "ls-files", "--cached"],
                            capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace")
-    except OSError:
+    except (OSError, subprocess.TimeoutExpired):
         return None
     if r.returncode != 0:
         return None

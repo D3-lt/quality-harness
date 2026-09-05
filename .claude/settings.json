@@ -16,7 +16,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/branch-state.mjs\"",
+            "command": "node \"$CLAUDE_PROJECT_DIR/scripts/branch-state.mjs\" --cached 120",
             "timeout": 30
           }
         ]

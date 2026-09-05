@@ -7729,7 +7729,7 @@ Two things this did NOT establish, and neither should be read into it:
 - **No other plugin's data was read, altered or lost.** Only the file this suite created was
   removed, and its rows were checked one by one first.
 
-## 123. PARTLY CLOSED 2026-09-05 — the process-tree kill is proved on macOS, unproved on Linux, and on Windows reaches the tree usually; the leader-exits shape is the gap that stands
+## 123. CLOSED 2026-09-05 on two real Windows boxes — a Job Object kills the reparented subshell taskkill could not see; the nested-job case on the CI runner is the one reading still owed
 
 CI run `33892254729` on `5642b53`, which is the first run that carried §120's fix through every job.
 Three mutants GREEN on the Linux campaign, four tests red on Windows, and both halves say the same
@@ -7785,6 +7785,22 @@ with no Windows equivalent here, unproved on any Windows box because the test th
 still skipped. And on the CI runner the kill is **non-deterministic** even in the foreground shape:
 pass / 60s / 60s / pass on byte-identical gate code, survivor unattributed (§129). The three Linux
 findings above are unchanged.
+
+**2026-09-05, closed by measurement.** The leader-exits fixture (`( … ) &` alone) run by hand on two
+Windows 11 boxes on branch `windows-job-object`: before, `taskkill` non-zero on the dead leader pid,
+`drain communicate TimeoutExpired` at +11.1s, the orphan running **all 100 beats** to completion;
+after, `job object terminated the tree of <pid>`, `kill_tree end confirmed=True` within 1ms,
+`drain communicate returned`, exit 2 in **1.2s**, beats **5 at return, 5 at 3s, 5 at 15s**, twice
+per box. `taskkill /T` walks ancestry and a reparented subshell has none; a Job Object is membership.
+The fence starts CREATE_SUSPENDED so the job exists before bash can fork, KILL_ON_JOB_CLOSE ties the
+fence's life to the gate's, and the resume walks a Toolhelp thread snapshot because Popen closes the
+handle it could have kept. The peers also found three blind instruments on the way and one design
+with a 15×(2+N)s worst case, all fixed before merge — the record is in `wing_craft` and the decision
+in this wing's `decisions` room.
+
+**Still owed:** both boxes answered `gate already inside a job: False`. A CI runner is normally already
+inside a job; nested jobs are allowed since Windows 8; the probe is prototyped and reports a failed
+call now. The first Windows CI run of the merge is the first reading of that line.
 ## 124. ADR-035's own criterion killed ADR-035's feature, four hours after it shipped
 
 The `asserted` arm of `completionClaim` is **withdrawn**, by the criterion the record

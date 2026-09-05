@@ -170,6 +170,23 @@ test('tracks mutation-capable Bash commands without treating read-only probes as
     [under('docs/spec.md')],
   )
   assert.deepEqual(bashMarkdownMutationPaths('python rewrite.py $DOC/spec.md', '/repo'), [])
+  // `A=docs/spec.md; tee "$A"` names the file through an assignment: the path is
+  // the value, not a file called `A=docs/spec.md` (owner's terminal, 2026-09-05).
+  assert.deepEqual(
+    bashMarkdownMutationPaths('A=docs/spec.md; printf x | tee "$A"', '/repo'),
+    [path.resolve('/repo', 'docs/spec.md')])
+  assert.deepEqual(
+    bashMarkdownMutationPaths("DOC='docs/spec.md' && printf x > docs/other.md", '/repo').sort(),
+    [path.resolve('/repo', 'docs/other.md'), path.resolve('/repo', 'docs/spec.md')].sort())
+  // A quoted value with a space is ONE value; the token scanner alone split it
+  // in two and matched neither (Codex review, 2026-09-05).
+  assert.deepEqual(
+    bashMarkdownMutationPaths("DOC='docs/My File.md'; printf x | tee \"$DOC\"", '/repo'),
+    [path.resolve('/repo', 'docs/My File.md')])
+  // A `key=value` ARGUMENT is data, not an assignment: neither the literal token
+  // nor its value is a path this gate can report.
+  assert.deepEqual(bashMarkdownMutationPaths("printf '%s' 'file=docs/BACKLOG.md' > out.txt", '/repo'), [])
+  assert.deepEqual(bashMarkdownMutationPaths('curl -d name=docs/x.md https://h/', '/repo'), [])
   assert.deepEqual(bashMarkdownMutationPaths("sed -i '' docs/specs/*.md", '/repo'), [])
   assert.deepEqual(
     bashDeletionMutationPaths('rm -rf /repo/adr-archive', '/elsewhere'),
@@ -1379,12 +1396,13 @@ test('reported: a Windows path is a path, not an escape sequence', () => {
   }
 })
 
-test('no finding is ever hidden: every advisory surfaces as a systemMessage', async () => {
+test('no finding is ever hidden: a completion advisory is a systemMessage, and a PreToolUse one reaches the agent in full', async () => {
   // The owner's rule, stated three times: never block, never hide. The advisory
   // conversion nearly violated the second half — exit-0 stderr alone is surfaced
-  // only in transcript view, so a finding written there reaches nobody. Every
-  // advisory therefore emits a systemMessage, which the session shows regardless
-  // of exit code, alongside stderr for the transcript.
+  // only in transcript view, so a finding written there reaches nobody. A
+  // completion-boundary advisory emits a systemMessage, which the session shows
+  // regardless of exit code, alongside stderr for the transcript. At a tool
+  // boundary the reader is the agent (BACKLOG §131), and that arm is below.
   const repo = await checkedProject('quality-visible-')
   const file = path.join(repo, 'agent.jsonl')
   await writeFile(file, transcript([
@@ -1400,13 +1418,49 @@ test('no finding is ever hidden: every advisory surfaces as a systemMessage', as
   assert.match(completion.stdout, /"systemMessage"/, 'the session must see it')
   assert.match(completion.stderr, /\S/, 'the transcript must see it')
 
-  // The commit boundary, same contract.
+  // The commit boundary: the person sees ONE line, the agent gets the whole
+  // instruction as context. `systemMessage` is rendered to the person one
+  // "PreToolUse:Bash says:" line per line of text, and a full report was
+  // littering the owner's terminal on every commit attempt (2026-09-05).
+  const session = `visible-${Date.now()}-${process.pid}`
   const commit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
     transcript_path: file, tool_input: { command: 'git commit -m x' },
   })
   assert.equal(commit.status, 0, commit.stderr)
-  assert.match(commit.stdout, /"systemMessage"/)
+  const said = JSON.parse(commit.stdout)
+  assert.match(said.systemMessage ?? '', /^quality-harness advised the agent: /, 'the person must still see that a finding was made')
+  assert.doesNotMatch(said.systemMessage, /\n/, 'and see it as one line')
+  assert.equal(said.hookSpecificOutput?.additionalContext, commit.stderr.trim(),
+    'the agent gets the WHOLE finding, byte for byte what the transcript holds')
+  assert.equal(said.hookSpecificOutput.hookEventName, 'PreToolUse')
+  assert.match(commit.stderr, /Nothing has verified the work/, 'the transcript keeps the full text')
+
+  // The same finding again in the same session: one line for the agent, nothing
+  // for the person.
+  const again = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
+    transcript_path: file, tool_input: { command: 'git commit -m y' },
+  })
+  const repeated = JSON.parse(again.stdout)
+  assert.equal(repeated.systemMessage, undefined, 'a repeat must not re-litter the terminal')
+  assert.match(repeated.hookSpecificOutput?.additionalContext ?? '', /still stands/, 'the agent is still reminded')
+  assert.ok(repeated.hookSpecificOutput.additionalContext.length < 400, 'as a line, not the report')
+
+  // A CHANGED finding in the same session is said in full again: one more
+  // unverified edit changes the changed-path list, and the person hears of it.
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+    toolUse('e2', 'Write', { file_path: path.join(repo, 'other.py') }), toolResult('e2'),
+  ]))
+  const changed = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
+    transcript_path: file, tool_input: { command: 'git commit -m z' },
+  })
+  const fresh = JSON.parse(changed.stdout)
+  assert.match(fresh.systemMessage ?? '', /^quality-harness advised the agent: /, 'a changed finding is news again')
+  assert.equal(fresh.hookSpecificOutput.additionalContext, changed.stderr.trim())
+  assert.match(fresh.hookSpecificOutput.additionalContext, /other\.py/, 'and it is the new finding, not the old one')
 
   // And a clean state stays silent — guidance, not noise.
   const clean = await mkdtemp(path.join(testTmp, 'quality-visible-clean-'))

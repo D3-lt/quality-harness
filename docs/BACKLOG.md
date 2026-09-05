@@ -8286,3 +8286,46 @@ ran, so the container proves the mechanism, not the suite; the next Ubuntu CI ru
 reading. This is the second instrument in two days that read its own presence as a finding
 (§127b was the first), and the lesson is the same: prove the clean arm on every platform the check
 runs on, not the one in front of you.
+
+## 131. CLOSED 2026-09-05 — a PreToolUse advisory was rendered to the person, one prefixed line per line, on every commit attempt
+
+**Observed by the owner, two terminals, 2026-09-05.** In one, every commit attempt in a
+tool-multipathreadwrite session printed `PreToolUse:Bash says: Nothing has verified the work since
+your last change …` with the full changed-path list and the run-the-check instruction. In another,
+an agentsmemory session, a twelve-line adr-lint report arrived as twelve `PreToolUse:Bash says:`
+lines, blank lines included. Every line of both was addressed to the agent. The person had nothing
+to do with them and saw all of them, repeatedly.
+
+**Two mechanisms.** `advise()` emitted the whole finding as `systemMessage`, which Claude Code renders
+to the person line by line; the agent-facing channel at a tool boundary is
+`hookSpecificOutput.additionalContext`, which the plugin already used for orientation but not for
+advisories. And the gate had no memory: the same finding for the same state was said in full on every
+commit attempt. A third, smaller: `bashMarkdownMutationPaths` resolved a shell assignment
+`A=docs/adr/X.md` as a path literally called `A=docs/…` (the unwrap ran only for `-flag=value`), so
+the owner's changed-path list carried a file that does not exist.
+
+**Now.** At `PreToolUse` the full text goes to `additionalContext` and stderr; the person gets one line,
+`quality-harness advised the agent: <first sentence> (full text in the transcript)`. The same
+finding (keyed on its text) is said in full once per session, through the same marker
+`firstMentionThisSession` already uses for path context; a repeat is one line for the agent and
+nothing for the person, and a CHANGED finding — an adr-lint report after a fix — is said in full
+again. Completion-event advisories (`TaskCompleted`, `SubagentStop`, `Stop`) are unchanged: they
+fire once per boundary and `systemMessage` is the right channel there. Assignments are unwrapped
+before the `.md` test, so a quoted value is seen too. Four catalogue mutants are RED: the context
+dropped, the report restored as `systemMessage`, the dedupe removed, the unwrap removed.
+
+**The rule "never hide a finding" is kept, not relaxed.** stderr still carries every advisory in
+full; the person is still told, once, that one was made; the agent still gets the instruction every
+time. What changed is who reads what, which is what the two terminals were measuring.
+
+**The Codex review of the change found four things, all fixed before commit.** The first unwrap
+treated any `NAME=value` TOKEN as an assignment, so `printf 'file=docs/BACKLOG.md'` — data — resolved
+to a real file; assignments are now read in assignment position, one per shell segment, through
+the quote-aware tokenizer the deletion parser already uses, which also makes `DOC='docs/My File.md'`
+one value (the token scanner had split it in two and matched neither). A `key=value` token that is
+not an assignment is skipped as an argument. The once-per-session marker was `existsSync` then
+`writeFileSync`, so two parallel tool calls with the same finding both said it in full; it is now an
+exclusive create (`flag: 'wx'`), EEXIST being the second caller's answer — asserted by reading, since
+a sequential test cannot make two callers race. And the test had matched a substring and repeated
+only an identical state; it now asserts `additionalContext` equals the transcript's full text, and
+that a CHANGED finding in the same session is news again. Seven mutants on this section are RED.

@@ -92,6 +92,13 @@ def is_unbound(test):
     return bool(UNBOUND_RE.fullmatch(test.strip()))
 
 
+def last_error(ctypes):
+    """GetLastError where it exists. Windows-only in ctypes; None elsewhere, so the
+    seam that drives these branches off-Windows does not raise inside the very
+    report it is checking."""
+    return getattr(ctypes, "get_last_error", lambda: None)()
+
+
 def kernel32(ctypes, wintypes):
     """kernel32 with EVERY prototype this file uses declared, once.
 
@@ -162,11 +169,14 @@ class WindowsJob:
     TH32CS_SNAPTHREAD = 0x4
     THREAD_SUSPEND_RESUME = 0x2
 
-    def __init__(self, proc, started=None):
+    def __init__(self, proc, started=None, k32=None):
         import ctypes
         from ctypes import wintypes
         self.ctypes, self.wintypes = ctypes, wintypes
-        self.k32 = kernel32(ctypes, wintypes)
+        # Injectable so the FAILED arm of the probe below can be driven on any
+        # host: it exists because that arm was silent, and a branch that exists
+        # for that reason must be shown to speak.
+        self.k32 = k32 or kernel32(ctypes, wintypes)
         self.pid = proc.pid
         inside = wintypes.BOOL()
         if self.k32.IsProcessInJob(self.k32.GetCurrentProcess(), None, ctypes.byref(inside)):
@@ -175,14 +185,14 @@ class WindowsJob:
         else:
             # A probe that fails must say so: this line was silent on two boxes
             # while the call behind it failed with ERROR_INVALID_HANDLE.
-            trace_timeout(f"gate-in-job probe FAILED (GetLastError={ctypes.get_last_error()}); "
+            trace_timeout(f"gate-in-job probe FAILED (GetLastError={last_error(ctypes)}); "
                           f"nesting unknown", started or time.monotonic())
         self.handle = self.k32.CreateJobObjectW(None, None)
         if not self.handle:
-            raise OSError(ctypes.get_last_error(), "CreateJobObjectW failed")
+            raise OSError(last_error(ctypes), "CreateJobObjectW failed")
         self._kill_on_close()
         if not self.k32.AssignProcessToJobObject(self.handle, int(proc._handle)):
-            code = ctypes.get_last_error()
+            code = last_error(ctypes)
             self.k32.CloseHandle(self.handle)
             raise OSError(code, "AssignProcessToJobObject failed")
 
@@ -214,7 +224,7 @@ class WindowsJob:
         info.BasicLimitInformation.LimitFlags = self.JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE
         if not self.k32.SetInformationJobObject(self.handle, self.JobObjectExtendedLimitInformation,
                                                 ctypes.byref(info), ctypes.sizeof(info)):
-            raise OSError(ctypes.get_last_error(), "SetInformationJobObject failed")
+            raise OSError(last_error(ctypes), "SetInformationJobObject failed")
 
     def resume(self):
         """Resume every thread of the fence — the one it was created with. Raises on failure."""
@@ -228,14 +238,14 @@ class WindowsJob:
 
         snap = self.k32.CreateToolhelp32Snapshot(self.TH32CS_SNAPTHREAD, 0)
         if snap == wintypes.HANDLE(-1).value:
-            raise OSError(ctypes.get_last_error(), "CreateToolhelp32Snapshot failed")
+            raise OSError(last_error(ctypes), "CreateToolhelp32Snapshot failed")
         resumed = 0
         try:
             entry = THREADENTRY32()
             entry.dwSize = ctypes.sizeof(entry)
             ok = self.k32.Thread32First(snap, ctypes.byref(entry))
             if not ok:
-                raise OSError(ctypes.get_last_error(), "Thread32First failed on the first call")
+                raise OSError(last_error(ctypes), "Thread32First failed on the first call")
             while ok:
                 if entry.th32OwnerProcessID == self.pid:
                     thread = self.k32.OpenThread(self.THREAD_SUSPEND_RESUME, False, entry.th32ThreadID)
@@ -321,7 +331,7 @@ def windows_processes():
 
     snap = k32.CreateToolhelp32Snapshot(0x2, 0)
     if snap == wintypes.HANDLE(-1).value:
-        raise OSError(ctypes.get_last_error(), "CreateToolhelp32Snapshot failed")
+        raise OSError(last_error(ctypes), "CreateToolhelp32Snapshot failed")
     found = []
     try:
         entry = PROCESSENTRY32W()
@@ -329,7 +339,7 @@ def windows_processes():
         ok = k32.Process32FirstW(snap, ctypes.byref(entry))
         if not ok:
             # ERROR_BAD_LENGTH (24) here means dwSize is not the WIDE struct.
-            raise OSError(ctypes.get_last_error(), "Process32FirstW failed on the first call")
+            raise OSError(last_error(ctypes), "Process32FirstW failed on the first call")
         while ok:
             found.append((entry.szExeFile, int(entry.th32ProcessID), int(entry.th32ParentProcessID)))
             ok = k32.Process32NextW(snap, ctypes.byref(entry))

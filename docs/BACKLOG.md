@@ -8150,3 +8150,41 @@ it: every Windows log now names the leak, and a leak that stops appearing is the
 not the fence's own process tree; a `tasklist /FI "PARENTPID eq <bash>"` snapshot taken by `kill_tree`
 just before `taskkill` on `nt`, printed under the same trace flag, would name what is there to kill and
 what is left after. That is one Windows run away from an answer and needs no Windows machine to write.
+
+## 130. CLOSED 2026-09-05 — six children a shipped gate spawned carried no timeout, and the runner never reaped
+
+**The rule, from the owner, relayed by a peer session the same day it was earned:** every child a
+test, hook or script spawns has a timeout, and the runner reaps its children before it exits. The
+incident behind it: two hook children from another project hung in catastrophic regex backtracking
+*after* their test had recorded FAILED, were reparented to launchd, and burned ~90% of a core each
+for **15.5 hours** — found by a hot laptop and its fans, not by any test output.
+
+**Enumerated by AST, not grep** (`scripts/untimed-children.py`), because a multi-line
+`subprocess.run(` is one call and a grep for `timeout` on its first line lies. On `main` at
+`32f1525`, six calls in shipped gates named no timeout:
+
+| site | what it runs | why it can hang |
+|---|---|---|
+| `adr-verify:557` `syntax_ok` | `bash -n` / `php -l` / `gofmt -e` over a path from a user's task file | an external parser on uncontrolled input — the incident's exact shape |
+| `adr-verify:671`, `:676` `git_sha` | `git rev-parse`, `git status --porcelain` | `index.lock`, a credential helper, a slow mount |
+| `adr-verify:1978` `git_says` | `git -C … <args>` | same |
+| `adr-verify:2643` `main` | `git rev-parse --show-toplevel` | same |
+| `arch-lint:232` `tracked_paths` | `git ls-files --cached` | same |
+
+Every fence and runner already went through `run_bounded`, which carries the fence timeout and
+kills the tree; it was the *ancillary* calls around them that were open-ended. All six now carry
+`timeout=30`. `subprocess.run(timeout=)` kills only the direct child, and for these six that is
+the whole tree: `git` and the syntax checkers spawn nothing. Anything that does spawn goes through
+`run_bounded`, which is why `Popen` inside it is the checker's one exemption.
+
+**Kept true** by `tests/untimed-children.test.mjs`, which drives the checker on a fixture holding one
+untimed call, one timed call and one `run_bounded` — and must report exactly the first — before
+asserting the tree is clean. `scripts/selftest.sh` now traps EXIT to `pkill -P $$` and, as its last
+step, fails if any child is still attached (direct children only; a reparented grandchild is what the
+gates' own tree kill is for, §120/§123).
+
+**Not covered here, named:** the ~131 spawn sites in `tests/` and `scripts/` without an explicit
+timeout. Most route through three shared helpers (`tests/gates.test.mjs::run`,
+`tests/evidence-chain.test.mjs::run`, `scripts/python-interpreter.mjs::runPython`) and the rest are
+`git init` in a scratch dir; the suite has a 20-minute CI cap and the trap above reaps what it leaves.
+A default timeout in those three helpers would close most of it in one edit and is the next step.

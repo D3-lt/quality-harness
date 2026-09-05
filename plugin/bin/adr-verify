@@ -554,7 +554,7 @@ def syntax_ok(path):
     if not cmd:
         return True, f"no cheap parser for {suf or 'this file'} — not checked"
     try:
-        r = subprocess.run(cmd + [str(path)], capture_output=True, text=True,
+        r = subprocess.run(cmd + [str(path)], capture_output=True, timeout=30, text=True,
                            encoding="utf-8", errors="replace")
     except FileNotFoundError:
         return True, f"{cmd[0]} not installed — not checked"
@@ -669,12 +669,12 @@ def append_entry(task, text, block, section="Verification Log"):
 def git_sha(cwd):
     """Short HEAD sha, `*`-suffixed when the tree is dirty; `no-git` outside a repo."""
     g = subprocess.run(["git", "-C", str(cwd), "rev-parse", "--short", "HEAD"],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+                       capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace")
     if g.returncode != 0:
         return "no-git"
     sha = g.stdout.strip()
     d = subprocess.run(["git", "-C", str(cwd), "status", "--porcelain"],
-                       capture_output=True, text=True, encoding="utf-8", errors="replace")
+                       capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace")
     return sha + ("*" if d.stdout.strip() else "")
 
 
@@ -1975,7 +1975,7 @@ def git_says(args, cwd):
     fall over when the answer is "all of it".
     """
     try:
-        r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True,
+        r = subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, timeout=30,
                            text=True, encoding="utf-8", errors="replace")
     except OSError:
         return None
@@ -2641,7 +2641,7 @@ def main():
 
     if cwd is None:
         r = subprocess.run(["git", "-C", str(task.parent), "rev-parse", "--show-toplevel"],
-                           capture_output=True, text=True, encoding="utf-8", errors="replace")
+                           capture_output=True, timeout=30, text=True, encoding="utf-8", errors="replace")
         cwd = Path(r.stdout.strip()) if r.returncode == 0 else task.parent
 
     # Before anything else touches this tree: a mutant a killed run left behind

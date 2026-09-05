@@ -156,7 +156,7 @@ export function verdictFor({ backlogAtCommit, diff, section }) {
 }
 
 function git(args) {
-  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 })
+  return execFileSync('git', args, { encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, timeout: 60_000 })
 }
 
 function main(argv) {

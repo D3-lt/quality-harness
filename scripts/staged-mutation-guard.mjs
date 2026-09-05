@@ -66,7 +66,7 @@ function main(stdin, catalogue = join(HERE, '..', 'tests', 'mutations.json')) {
   const added = stdin.split('\n').map(line => line.trim()).filter(Boolean)
   if (!added.length) return 0
   const text = stagedCatalogue(
-    args => spawnSync('git', args, { encoding: 'utf8' }), catalogue)
+    args => spawnSync('git', args, { encoding: 'utf8', timeout: 30_000 }), catalogue)
   if (!text) return 0
   const { looked, missing } = missingMutations(added, text)
   if (!looked || !missing.length) return 0

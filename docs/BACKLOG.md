@@ -8319,7 +8319,13 @@ one untimed call, the runner's own `spawn` inside `runWithTimeout`, is acknowled
 (the timer below it terminates the tree and settles after the grace), and its four UNKNOWNs are
 `spawnSync(…, options)` where `options` carries `timeout` a line above. The 95 in `tests/` and
 `scripts/` are reported, not gated: the count is printed into every test run from the live tree,
-and the next step is a ratchet from that number, not a floor written here.
+and the next step is a ratchet from that number, not a floor written here. **Same day, second pass:**
+the sixteen in `scripts/` — every one a `git`, `gh` or suite runner that CI executes — now carry a
+bound (30-60s for git and gh; 20 minutes for the whole-suite runs `unasserted.mjs` makes under a
+neutered gate, so a hung mutant run is restored and reported HUNG before the job cap kills it
+mid-restore), and the test asserts `scripts/` at zero. The suite's own count is a ratchet in the
+test, `RATCHET = 79`, which may fall and never rise; the checker's summary line printed into every
+run is the live number.
 
 ## 131. CLOSED 2026-09-05 — a PreToolUse advisory was rendered to the person, one prefixed line per line, on every commit attempt
 

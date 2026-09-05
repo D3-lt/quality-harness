@@ -25,6 +25,10 @@ import { fileURLToPath } from 'node:url'
 import { runPython } from './python-interpreter.mjs'
 
 const root = path.dirname(path.dirname(fileURLToPath(import.meta.url)))
+// A whole suite run under a neutered gate. The suite itself takes ~1-2 minutes;
+// this is the bound a hung mutant run hits before the CI job cap does, so the
+// tool can restore the gate and say HUNG rather than be killed mid-restore.
+const SUITE_TIMEOUT_MS = 20 * 60_000
 const [target, ...suites] = process.argv.slice(2)
 if (!target) {
   process.stderr.write('usage: node scripts/unasserted.mjs <gate> [suites...]\n')
@@ -60,7 +64,7 @@ const original = readFileSync(file, 'utf8')
 // wholesale, so an edit made while this runs is silently rolled back -- the same
 // way mutate.mjs lost two patches on 2026-08-26.
 const dirty = spawnSync('git', ['status', '--porcelain', '--', target],
-  { cwd: root, encoding: 'utf8' })
+  { cwd: root, encoding: 'utf8', timeout: 60_000 })
 if (dirty.status === 0 && dirty.stdout.trim()) {
   process.stderr.write(`${target} has uncommitted changes, and this run restores it wholesale -- `
     + 'an edit made while it works would be rolled back. Commit or stash first.\n')
@@ -90,14 +94,14 @@ const run = () => (suites.length
   // after exactly that: the guard fired on the sweep's own baseline, the sweep
   // refused, and the journal it had already written failed every later run.
   ? spawnSync('node', ['--test', ...suites.map(s => path.join(root, s))],
-    { cwd: root, encoding: 'utf8',
+    { cwd: root, encoding: 'utf8', timeout: SUITE_TIMEOUT_MS,
       env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
   // BOTH branches, and missing this one is how the deadlock survived its own
   // fix: with no suites named this runs the WHOLE selftest, which carries the
   // same guard. One path was taught and the other was not, so the tool went on
   // refusing at baseline while the targeted path worked.
   : spawnSync('bash', [path.join(root, 'scripts', 'selftest.sh')],
-    { cwd: root, encoding: 'utf8',
+    { cwd: root, encoding: 'utf8', timeout: SUITE_TIMEOUT_MS,
       env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
 ).status !== 0
 

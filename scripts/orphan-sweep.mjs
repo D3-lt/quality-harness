@@ -79,13 +79,13 @@ export function orphanDefinitions(files) {
 /** The shipped tree at `rev`, as {path: source}. Throws only when git cannot answer. */
 function shippedTreeAt(rev) {
   const names = execFileSync('git', ['ls-tree', '-r', '--name-only', rev], {
-    encoding: 'utf8', maxBuffer: 1 << 28,
+    encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000,
   }).split('\n').filter(Boolean).filter(SHIPPED)
   const files = {}
   for (const path of names) {
     try {
       files[path] = execFileSync('git', ['show', `${rev}:${path}`], {
-        encoding: 'utf8', maxBuffer: 1 << 28,
+        encoding: 'utf8', maxBuffer: 1 << 28, timeout: 60_000,
       })
     } catch { /* a path git lists but cannot show is not a reachability fact. */ }
   }

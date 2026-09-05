@@ -17,7 +17,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  classifyBinEntry, drift, homeReport, inventory, ledgerReport, report, severitySplit,
+  classifyBinEntry, drift, homeReport, inventory, ledgerReport, releaseReport, report, severitySplit,
 } from '../plugin/scripts/qh-doctor.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -234,6 +234,41 @@ test('an unreadable claims ledger is could-not-look, not an empty one', () => {
   } finally {
     rmSync(home, { recursive: true, force: true })
     rmSync(blindHome, { recursive: true, force: true })
+  }
+})
+
+test('the release report says released, main-head, or could-not-look — and never released for an unreachable remote', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-doctor-release-'))
+  try {
+    mkdirSync(join(dir, '.git'))
+    const remote = answer => (args) => {
+      if (args.includes('rev-parse')) return 'abc1234\n'
+      if (args.includes('get-url')) return 'https://github.com/D3-lt/quality-harness.git\n'
+      if (typeof answer === 'function') return answer()
+      return answer
+    }
+    const released = releaseReport({ version: '2.73.0', cloneDir: dir, run: remote('deadbeef\trefs/tags/v2.73.0\n') })
+    assert.deepEqual(released, { looked: true, head: 'abc1234', version: '2.73.0', released: true })
+    const ahead = releaseReport({ version: '2.74.0', cloneDir: dir, run: remote('') })
+    assert.equal(ahead.released, false)
+    // A near miss is not the tag: the remote answers a prefix query with every match.
+    assert.equal(releaseReport({ version: '2.73.0', cloneDir: dir, run: remote('cafe\trefs/tags/v2.73.0-rc\n') }).released, false)
+    // A clone repointed elsewhere proves nothing about this plugin.
+    const elsewhere = releaseReport({ version: '2.73.0', cloneDir: dir, run: args => args.includes('get-url') ? 'https://github.com/someone/else.git\n' : 'x\trefs/tags/v2.73.0\n' })
+    assert.equal(elsewhere.looked, false)
+    assert.match(elsewhere.note, /not this plugin's repository/)
+    const offline = releaseReport({ version: '2.73.0', cloneDir: dir, run: remote(() => { throw Object.assign(new Error('git ls-remote timed out'), { code: 'ETIMEDOUT' }) }) })
+    assert.equal(offline.looked, false)
+    assert.match(offline.note, /could not be asked/)
+    assert.equal(releaseReport({ version: '2.73.0', cloneDir: join(dir, 'nope') }).looked, false)
+    assert.equal(releaseReport({ version: null }).looked, false)
+
+    const lines = state => report({ counted: COUNTED, home: CLEAN_HOME, moved: CLEAN_DRIFT, gateSource: '', release: state }).lines.join('\n')
+    assert.match(lines(released), /2\.73\.0 is a published tag/)
+    assert.match(lines(ahead), /NO tag on the remote: this is main head/)
+    assert.match(lines(offline), /release\n  COULD NOT LOOK/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
   }
 })
 

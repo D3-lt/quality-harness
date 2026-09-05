@@ -1,0 +1,67 @@
+# The eval suite is the one measurement in this repository with a control arm
+# (scripts/eval-compare.mjs). It needs a model, so it needs a key, and a key is
+# the one thing a fork cannot have. So this job is honest about the two states
+# it can be in: with ANTHROPIC_API_KEY it runs the suite and publishes the
+# with/without table and the false-claims reading; without one it says UNRUN
+# and exits 0 — never a green that measured nothing (ADR-005). It never blocks
+# a merge: the score is evidence for a reader, not a gate (CLAUDE.md §3).
+name: evals
+
+on:
+  schedule:
+    - cron: '17 3 * * 1'   # weekly, Monday 03:17 UTC
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  evals:
+    name: plugin evals (with/without table)
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    env:
+      ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Say so when there is no key
+        if: env.ANTHROPIC_API_KEY == ''
+        run: |
+          echo "UNRUN: ANTHROPIC_API_KEY is not set for this repository, so the eval suite did not run."
+          echo "::warning::evals UNRUN — no ANTHROPIC_API_KEY; this green measured nothing"
+          { echo "## evals: UNRUN"; echo "No ANTHROPIC_API_KEY secret, so the suite did not run. This is 'could not look', not 'no effect'."; } >> "$GITHUB_STEP_SUMMARY"
+          echo "This is 'could not look', not 'no effect'. Add the secret to run it."
+      - name: Install the Claude Code CLI
+        if: env.ANTHROPIC_API_KEY != ''
+        run: npm install -g @anthropic-ai/claude-code
+      - name: Run the eval suite
+        if: env.ANTHROPIC_API_KEY != ''
+        env:
+          CLAUDE_CODE_WALNUT_SPIRE: '1'
+        run: |
+          # Target first: --allow-tools is variadic and would swallow ./plugin as a tool name.
+          claude plugin eval ./plugin --runs 1 --allow-tools Bash
+      - name: The with/without table, and the false-claims reading
+        if: env.ANTHROPIC_API_KEY != ''
+        run: |
+          latest=$(ls -t plugin/evals/results/*/aggregate-result.json 2>/dev/null | head -1)
+          if [ -z "$latest" ]; then
+            echo "::error::the key was present and the suite wrote no aggregate-result.json — this run measured nothing and must not read as green"
+            exit 1
+          fi
+          node scripts/eval-compare.mjs
+          node scripts/eval-false-claims.mjs "$latest"
+      - name: Keep the results
+        if: env.ANTHROPIC_API_KEY != ''
+        uses: actions/upload-artifact@v4
+        with:
+          name: eval-results
+          path: plugin/evals/results
+          if-no-files-found: warn
+          retention-days: 30

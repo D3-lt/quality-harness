@@ -1779,7 +1779,22 @@ def kill_tree(pid, platform=None, run=subprocess.run, timeout=15):
         return False
 
 
-def drain_after_kill(proc, platform, grace=10):
+def trace_timeout(label, started):
+    """Attribute a timeout's seconds, on request (BACKLOG §128).
+
+    Three Windows CI runs sat at ~60s against a 1s fence timeout, and the
+    arithmetic of the bounds below (1s + 15s + 10s) does not reach 60. A hang
+    nobody can attribute is a hang nobody can fix, so with
+    QUALITY_HARNESS_TRACE_TIMEOUT set every phase of the cleanup stamps stderr
+    with its offset from the moment the fence was started. Off by default; a
+    diagnostic, never a verdict.
+    """
+    if os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"):
+        sys.stderr.write(f"[trace-timeout] {label} +{round((time.monotonic() - started) * 1000)}ms\n")
+        sys.stderr.flush()
+
+
+def drain_after_kill(proc, platform, grace=10, started=None):
     """Kill the tree and collect what it wrote, bounded, without raising.
 
     Bounded because a descendant that made a session of its own escapes the
@@ -1790,19 +1805,40 @@ def drain_after_kill(proc, platform, grace=10):
     Returns `(stdout, stderr, killed)`. `killed` is `kill_tree`'s own answer,
     carried rather than assumed, so the caller that prints the verdict can say
     what was observed instead of asserting a kill nobody checked.
+
+    ⚠ ON WINDOWS THE STREAMS ARE NOT CLOSED HERE, and that is BACKLOG §128.
+    `Popen.communicate(timeout=)` on Windows reads each pipe from a daemon
+    thread, and when it times out that thread is still blocked in the read,
+    HOLDING the BufferedReader's lock. `stream.close()` takes the same lock, so
+    it waits until the read returns — which is when the orphan lets go of the
+    pipe. The test fence sleeps 60s; the earlier fence beat for 20s; the two
+    measured hangs were 60.1s and 21.9s. Reproduced on macOS with a bare pipe
+    and a reading thread: close() blocked until the writer went away. POSIX
+    `communicate` uses selectors and holds no such lock, which is why only
+    Windows hung. Left open, the handles die with the interpreter: CPython's
+    finalizer waits at most one second per buffered stream for a lock a frozen
+    daemon thread still owns (bufferedio.c, `_enter_buffered_busy`), which is
+    the bounded cost this trades a 60s hang for.
     """
+    started = time.monotonic() if started is None else started
     killed = False
+    trace_timeout("kill_tree start", started)
     try:
         killed = kill_tree(proc.pid, platform)
+        trace_timeout(f"kill_tree end confirmed={killed}", started)
         out, err = proc.communicate(timeout=grace)
+        trace_timeout("drain communicate returned", started)
         return out, err, killed
-    except Exception:
-        for stream in (proc.stdout, proc.stderr, proc.stdin):
-            if stream is not None:
-                try:
-                    stream.close()
-                except Exception:
-                    pass
+    except Exception as failure:
+        trace_timeout(f"drain communicate {type(failure).__name__}", started)
+        if (platform or os.name) != "nt":
+            for stream in (proc.stdout, proc.stderr, proc.stdin):
+                if stream is not None:
+                    try:
+                        stream.close()
+                    except Exception:
+                        pass
+        trace_timeout("drain streams released", started)
         return None, None, killed
 
 
@@ -1832,10 +1868,12 @@ def run_bounded(argv, *, timeout, platform=None, **popen):
     else:
         popen["start_new_session"] = True
     proc = subprocess.Popen(argv, **popen)
+    started = time.monotonic()
     try:
         out, err = proc.communicate(timeout=timeout)
     except subprocess.TimeoutExpired:
-        out, err, killed = drain_after_kill(proc, platform)
+        trace_timeout(f"fence timeout after {timeout}s", started)
+        out, err, killed = drain_after_kill(proc, platform, started=started)
         expired = subprocess.TimeoutExpired(argv, timeout, output=out, stderr=err)
         # The cleanup's own answer travels ON the exception because the code
         # that prints the verdict is nowhere near the code that did the killing.

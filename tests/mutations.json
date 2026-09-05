@@ -4562,6 +4562,24 @@
       "to": "        os.kill(pid, signal.SIGKILL)"
     },
     {
+      "label": "verify: the Windows drain does not close a stream a reader thread holds (BACKLOG §128)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "        if (platform or os.name) != \"nt\":\n            for stream in (proc.stdout, proc.stderr, proc.stdin):",
+      "to": "        if True:\n            for stream in (proc.stdout, proc.stderr, proc.stdin):"
+    },
+    {
+      "label": "verify: a timed-out cleanup attributes its own phases when asked",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "    if os.environ.get(\"QUALITY_HARNESS_TRACE_TIMEOUT\"):",
+      "to": "    if False:"
+    },
+    {
       "label": "verify: an interrupted gate kills the tree it started",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -4576,8 +4594,8 @@
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
-      "from": "    killed = False\n    try:\n        killed = kill_tree(proc.pid, platform)\n        out, err = proc.communicate(timeout=grace)",
-      "to": "    killed = kill_tree(proc.pid, platform)\n    try:\n        out, err = proc.communicate(timeout=grace)"
+      "from": "    try:\n        killed = kill_tree(proc.pid, platform)",
+      "to": "    killed = kill_tree(proc.pid, platform)\n    try:"
     },
     {
       "label": "verify: kill_tree answers for the kill it made, never assumes one",

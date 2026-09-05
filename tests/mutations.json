@@ -5145,6 +5145,24 @@
       ],
       "from": "  stderr.write(`quality-harness reviewer guard: ${reason}\\n`)\n  return 2",
       "to": "  stderr.write(`quality-harness reviewer guard: ${reason}\\n`)\n  return 0"
+    },
+    {
+      "label": "adr-context: a path outside the corpus is not answered with 'none governs'",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const outside = targets.filter(target => !within(root, target))\n  if (outside.length) {",
+      "to": "  const outside = []\n  if (outside.length) {"
+    },
+    {
+      "label": "adr-context: a sibling directory sharing a prefix is not inside the corpus",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  return here.startsWith(base.endsWith(path.sep) ? base : base + path.sep)",
+      "to": "  return here.startsWith(base)"
     }
   ]
 }

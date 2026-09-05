@@ -7,6 +7,7 @@
 //
 // The hook calls the same resolver in-process, so this and the edit-boundary
 // context can never drift apart.
+import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
@@ -14,6 +15,28 @@ import { adrCorpus, decisionsGoverning } from './lifecycle.mjs'
 
 // The CLI is behind an import guard (BACKLOG §27). It used to run at module
 // scope, so importing this file — to test it, or from any tool that walks the
+/**
+ * Whether a target lies inside the corpus root. Both sides realpath'd where they
+ * exist, so `/tmp` and `/private/tmp` agree, and compared by path SEGMENT: a
+ * prefix test alone makes `/repo-other` look like it is inside `/repo`.
+ */
+export function within(root, target) {
+  const base = (() => {
+    const absolute = path.resolve(root)
+    try { return realpathSync(absolute) } catch { return absolute }
+  })()
+  // A RELATIVE target is repository-relative, the way `decisionsGoverning`
+  // reads it — resolving it against the process's directory instead would make
+  // `adr-context src/pay.js` outside its own corpus whenever the caller ran it
+  // from elsewhere with an explicit root.
+  const here = (() => {
+    const absolute = path.isAbsolute(target) ? target : path.resolve(base, target)
+    try { return realpathSync(absolute) } catch { return absolute }
+  })()
+  if (here === base) return true
+  return here.startsWith(base.endsWith(path.sep) ? base : base + path.sep)
+}
+
 // directory — read the corpus and printed a report as a side effect of the
 // import itself.
 export function main(argv, root = process.cwd()) {
@@ -22,6 +45,23 @@ export function main(argv, root = process.cwd()) {
 
   if (!targets.length) {
     process.stderr.write('usage: adr-context [--json] <path>...\n')
+    return 2
+  }
+
+  // A path outside this corpus's repository is a question this corpus cannot
+  // answer, and "none governs" is the wrong words for it (ADR-005, ADR-031).
+  // Measured 2026-09-05 against five foreign corpora: run from one repository
+  // and asked about another's file, this printed "Read 35 record(s); none
+  // governs …/internal/auth/origin.go" — while that file's own corpus names
+  // ADR-049 and the test enforcing it. A confident negative about a tree the
+  // tool never read (BACKLOG §138).
+  const outside = targets.filter(target => !within(root, target))
+  if (outside.length) {
+    const message = `Outside this corpus: ${outside.join(', ')} ${outside.length > 1 ? 'are' : 'is'} not under ${root}, `
+      + 'so the records here say nothing about it. This is NOT "no decision governs it" — ask from that '
+      + "repository, where its own corpus can answer."
+    if (json) process.stdout.write(`${JSON.stringify({ read: null, outside, governing: [], graveyard: [] }, null, 2)}\n`)
+    else process.stdout.write(`${message}\n`)
     return 2
   }
 

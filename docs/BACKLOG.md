@@ -8612,3 +8612,46 @@ directory — the walk starts from the realpath now, and a test aliases a subdir
 symlink. And a bare repository, whose cache the hook writes at its root, was never recognised — `HEAD`
 plus `objects/` at a directory is that directory. The reviewer also read the trade-off above and
 confirmed the channel: plain stdout on `UserPromptSubmit` reaches the model as context.
+
+## 138. CLOSED 2026-09-05 — the gates answered about the wrong repository, and said "none governs" while doing it
+
+**Why this was run.** Every number in this repository describes a corpus that USED the lifecycle,
+with nothing to compare against; the one measurement with a control arm is the eval suite, which is
+deliberately unrun (no key). The alternative costs nothing and has form: v2.38.0's closed sections
+were found by foreign corpora, not by this repository's CI. So the read-only gates were pointed at
+the five other ADR corpora on this machine — `depozitas_laravel` (6 records),
+`pirkiniukampelis_cms_laravel` (8), `crossagentschat` (3), `tool-multipathreadwrite` (22),
+`agentsmemory-main` (61) — nothing in those trees was edited.
+
+**The defect it found, in the tool shipped hours earlier as Desktop parity.** `adr-context`, run from
+one repository and asked about another's file, printed:
+
+    Read 35 record(s); none governs /Users/…/agentsmemory-main/internal/auth/origin.go
+
+35 is THIS corpus's record count. It read its own corpus, never looked at that file's repository, and
+rendered the result as a confident negative about that file — while, asked from that repository, the
+same path answers `GOVERNS … ADR-049` and names the test enforcing it. Identical output for "no
+decision governs this" and "I consulted a corpus with no relation to this path": the ADR-005 class,
+and the exact defect ADR-031 exists to prevent (an answer about a different thing than the caller
+believes — the reason `qh-root` is not exposed over MCP). Five corpora, five wrong answers.
+
+Now a target outside the corpus root is named as outside, with exit 2 and `read: null` in JSON, and
+never counted as "none governs". `within()` realpaths both sides (so `/tmp` and `/private/tmp`
+agree), compares by path segment (a sibling `…-other` is not inside), and resolves a RELATIVE target
+against the ROOT rather than the process's directory — which the first shape got wrong, and the
+existing test caught by refusing where it used to answer. The MCP tool was already correct: it
+derives the root from the path. Two mutants RED.
+
+**What the run found in THEM, reported and not fixed** (`wing_agentmemories/inbox`, and to that
+session directly): agentsmemory's ADR-049 T1 carries passing acceptance evidence and its Tests table
+names three Go tests that exist nowhere in the repository — the fence's own `-run` alternation names
+them too, and `go test -run` over a pattern matching nothing exits 0. Whether the behaviour is
+covered under other names is their judgement, not mine.
+
+**Left standing, named rather than fixed.** Every corpus keeps non-ADR documents in `docs/adr/`
+(`BACKLOG.md` in all five, plus `README.md`, `WAVE.md`, `PREREGISTRATION-….md`), and `adr-lint`
+given one reports content findings against it — "Alternatives Considered has no entries" about a
+backlog. The natural invocation, `adr-lint docs/adr/*.md`, therefore produces noise on every corpus
+tried. It is the same class as the defect above: a document that never claimed to be a record is
+judged as a malformed one. Not fixed here because the fix is a recognition rule and this section is
+already the largest thing in it.

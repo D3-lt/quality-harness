@@ -136,10 +136,12 @@ export const TASKKILL_TIMEOUT_MS = 2_000
 // a timeout that had fired and was then never reported (Codex review, 2026-09-05).
 export const CLEANUP_GRACE_MS = 1_000
 
-// Returns true only when the kill was CONFIRMED issued: taskkill exited 0, or
-// the POSIX group kill did not throw. `spawnSyncImpl` is the seam a test drives,
-// because taskkill exists on one platform.
-export function terminateProcessTree(child, platform, spawnSyncImpl = spawnSync) {
+// Returns true only when the kill was CONFIRMED issued: taskkill exited 0, the
+// POSIX group kill did not throw, or the direct kill reported the signal sent.
+// `spawnSyncImpl` and `groupKill` are the seams a test drives, because taskkill
+// exists on one platform and a group that cannot be signalled is not something
+// a test should have to manufacture.
+export function terminateProcessTree(child, platform, spawnSyncImpl = spawnSync, groupKill = pid => process.kill(-pid, 'SIGKILL')) {
   if (!child.pid) return false
   if (platform === 'win32') {
     const run = spawnSyncImpl('taskkill', ['/pid', String(child.pid), '/T', '/F'], {
@@ -150,10 +152,12 @@ export function terminateProcessTree(child, platform, spawnSyncImpl = spawnSync)
     return !run.error && run.status === 0
   }
   try {
-    process.kill(-child.pid, 'SIGKILL')
+    groupKill(child.pid)
     return true
   } catch {
-    try { child.kill('SIGKILL'); return true } catch { return false }
+    // ChildProcess.kill answers false when the signal could not be sent; that
+    // answer is the evidence, not the absence of a throw (Codex review, 2026-09-05).
+    try { return child.kill('SIGKILL') === true } catch { return false }
   }
 }
 

@@ -8067,7 +8067,21 @@ false when the signal could not be sent (now the boolean is the answer, through 
 and the failed-cleanup test proved the PROMISE settled but not that the wrapper PROCESS exits, which
 is what the host deadline measures — an outer-process test now shows the runner exiting inside the
 grace with its abandoned child still alive, and a mutant that keeps the settle but drops the
-pipe-destroy/unref is RED. Six mutants in all.
+pipe-destroy/unref is RED. Five mutants carry this section's label; the pre-existing timer mutant,
+repinned to the new body, is the sixth.
+
+**Windows evidence, 2026-09-05, a real Windows 11 box at 5017c43 (peer session, worktree, nothing
+edited):** `tests/gate-rules.test.mjs` 36/36; the platform arm read `[win32] the abandoned child
+after the wrapper exited: ESRCH` — the same reading that had turned the CI windows job red on
+70021d7, reproduced independently, so on Windows the non-detached child does not outlive the
+wrapper and the exit timing is the whole proof there; all five labelled mutants RED
+(`5/5 mutations were noticed`); one real `taskkill /T /F` of a live node child measured
+`taskkill ms 105 status 0` against the 2s bound. The peer's caveats stand: that is one child, no
+tree, on an idle box — not what taskkill costs under CI load against a deep tree, which is the case
+the bound exists for. The same run surfaced a `DEP0190` deprecation (args passed with
+`shell: true`) from the gate-rules file, not a failure: it is the pre-existing cmd-forwarder test at
+`tests/gate-rules.test.mjs:1125`, which exercises `spawnSync` with `shell: true` on purpose, and is
+unrelated to this section.
 
 
 ## 128. OPEN — the Windows hang has a mechanism, reproduced; the fix is proven on the CI runner and two Windows boxes; what occasionally survives the kill is still unattributed

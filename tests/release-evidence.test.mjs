@@ -14,8 +14,13 @@ const NINE = [
   'mutations 1/4', 'mutations 2/4', 'mutations 3/4', 'mutations 4/4',
   'plugin validate', 'coverage floor',
 ]
+// `event` is what tells a full campaign from a cached one (BACKLOG §142): only a
+// `workflow_dispatch` run measures the whole catalogue, so the fixture for "a run
+// that could clear a release" must carry it. A run WITHOUT the field is a separate
+// case below, and it is not a pass.
 const allGreen = () => ({
   status: 'completed', conclusion: 'success', headSha: 'a'.repeat(40),
+  event: 'workflow_dispatch',
   jobs: NINE.map(n => job(n, 'success')),
 })
 
@@ -99,7 +104,33 @@ test('an empty or unreadable answer is "could not look", never a pass', () => {
   }
 })
 
-test('the verdicts are four distinct answers, not a boolean wearing four names', () => {
+test('a green run raised by a push is not release evidence, because its campaign may be cached (BACKLOG §142)', () => {
+  // Since 2026-09-05 only a `workflow_dispatch` run measures the whole 581-mutant
+  // catalogue; a push to `main` may reuse cached RED verdicts, which is right for
+  // iteration and is not what a tag may rest on (ADR-023 rule 1). Every job green
+  // is therefore NOT sufficient, and the event is the only thing that tells the
+  // two apart from outside.
+  const pushed = evaluateRun({ ...allGreen(), event: 'push' })
+  assert.equal(pushed.verdict, 'cached', 'a push run is not a full campaign')
+  assert.match(pushed.reason, /gh workflow run selftest\.yml/, 'it must say how to get one')
+  assert.notEqual(pushed.verdict, 'success')
+
+  for (const event of ['pull_request', 'schedule', 'release']) {
+    assert.equal(evaluateRun({ ...allGreen(), event }).verdict, 'cached', event)
+  }
+  assert.equal(evaluateRun(allGreen()).verdict, 'success', 'a dispatch run still clears')
+
+  // A run that does not say what raised it is COULD NOT LOOK, not cleared: an
+  // older `gh`, or an answer missing the field, must never read as a full
+  // campaign (ADR-005).
+  const silent = { ...allGreen() }
+  delete silent.event
+  assert.equal(evaluateRun(silent).verdict, 'unreadable')
+  assert.match(evaluateRun(silent).reason, /does not say what raised it/)
+  assert.equal(evaluateRun({ ...allGreen(), event: null }).verdict, 'unreadable')
+})
+
+test('the verdicts are five distinct answers, not a boolean wearing five names', () => {
   // Guards the mapping the exit codes rest on. If two verdicts ever collapse,
   // the caller loses the distinction between "fix the build" and "wait", which
   // is the whole reason the exit codes are separate.
@@ -108,8 +139,9 @@ test('the verdicts are four distinct answers, not a boolean wearing four names',
     evaluateRun({ ...allGreen(), jobs: [job('windows', 'cancelled')] }).verdict,
     evaluateRun({ ...allGreen(), jobs: [job('windows', null, 'in_progress')] }).verdict,
     evaluateRun(null).verdict,
+    evaluateRun({ ...allGreen(), event: 'push' }).verdict,
   ])
-  assert.deepEqual([...seen].sort(), ['failed', 'incomplete', 'success', 'unreadable'])
+  assert.deepEqual([...seen].sort(), ['cached', 'failed', 'incomplete', 'success', 'unreadable'])
 })
 
 test('an option is not a sha, and a bare dash-argument never reaches git rev-parse', () => {

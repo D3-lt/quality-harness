@@ -26,7 +26,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url'
 const repoRoot = dirname(dirname(fileURLToPath(import.meta.url)))
 
 const git = (...args) =>
-  execFileSync('git', ['-C', repoRoot, ...args], { encoding: 'utf8' })
+  execFileSync('git', ['-C', repoRoot, ...args], { encoding: 'utf8', timeout: 60_000 })
 
 const tracked = pattern => git('ls-files', pattern).split('\n').filter(Boolean)
 

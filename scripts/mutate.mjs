@@ -115,7 +115,7 @@ function releaseTheRun() {
 function dirtyTargets(selected) {
   const targets = [...new Set(selected.map(mutation => mutation.file))]
   const status = spawnSync('git', ['-C', root, 'status', '--porcelain', '--', ...targets],
-    { encoding: 'utf8' })
+    { encoding: 'utf8', timeout: 60_000 })
   if (status.status !== 0) return []
   return status.stdout.split('\n').map(line => line.slice(3).trim()).filter(Boolean)
 }
@@ -587,7 +587,7 @@ export function main(argv) {
   // rather than a half-updated one.
   if (!argv.includes('--no-cache')) {
     const sha = (() => {
-      const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8' })
+      const r = spawnSync('git', ['rev-parse', '--short', 'HEAD'], { cwd: root, encoding: 'utf8', timeout: 30_000 })
       return r.status === 0 ? r.stdout.trim() : null
     })()
     const entries = { ...cache }

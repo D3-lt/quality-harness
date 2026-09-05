@@ -1121,7 +1121,9 @@ test('on Windows the shim runs the gate the documented invocation names', { skip
   const dir = scratch('windows-shim')
   cpSync(join(repoRoot, 'tests', 'fixtures', 'ok'), dir, { recursive: true })
   const shim = join(bin, 'adr-lint.cmd')
-  const result = spawnSync(shim, ['ADR-001-selftest.md', 'tasks'],
+  // One command string: an args array with `shell: true` is DEP0190 and will
+  // become an error (seen on a Windows box, 2026-09-05).
+  const result = spawnSync(`"${shim}" ADR-001-selftest.md tasks`,
     { cwd: dir, env, encoding: 'utf8', timeout: 60_000, shell: true })
   assert.equal(result.status, 0, `${result.stdout}${result.stderr}`)
   assert.match(result.stdout, /\[PASS\]/)

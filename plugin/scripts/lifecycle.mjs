@@ -2121,8 +2121,33 @@ function subagentContract(input) {
   ].filter(Boolean).join(' ')
 }
 
+// ONE JSON object per run is what Claude Code parses from a hook's stdout, so
+// output is held here and written once by main() — which is also where the
+// hook's own wall-clock is known. A hook that is slow used to be a pause with
+// no name (the §15 SessionStart hook hung new sessions for seconds and said
+// nothing, 2026-09-05); above SLOW_HOOK_MS the run names itself on both
+// channels, as one more line, never instead of the finding.
+let pendingOutput = null
 function emitJson(value) {
-  process.stdout.write(`${JSON.stringify(value)}\n`)
+  pendingOutput = value
+}
+
+const SLOW_HOOK_MS = 5_000
+export function slowHookThresholdMs(env = process.env) {
+  const configured = Number(env.QUALITY_HARNESS_SLOW_HOOK_MS)
+  return Number.isSafeInteger(configured) && configured >= 0 ? configured : SLOW_HOOK_MS
+}
+
+export function flushOutput(startedAt, input, env = process.env, now = Date.now()) {
+  const elapsed = now - startedAt
+  let out = pendingOutput
+  pendingOutput = null
+  if (elapsed >= slowHookThresholdMs(env)) {
+    const note = `quality-harness: the ${input?.hook_event_name ?? 'hook'} hook took ${(elapsed / 1000).toFixed(1)}s — the pause has this name`
+    process.stderr.write(`${note}\n`)
+    out = { ...(out ?? {}), systemMessage: out?.systemMessage ? `${out.systemMessage}\n${note}` : note }
+  }
+  if (out) process.stdout.write(`${JSON.stringify(out)}\n`)
 }
 
 // ADVISORY ONLY. This harness does not refuse a tool call — it tells the agent
@@ -2891,9 +2916,29 @@ export function decisionContext(paths, root) {
 // same decisions all session for a hot file, which is how a delivery becomes a
 // nag — the failure this whole release is about. Session-scoped because a marker
 // that outlived the session would silence the FIRST edit of the next one.
+// Compaction is the one event that empties what these markers protect: after
+// it the agent has lost every context they gated, and a marker that survived
+// would keep the SECOND mention silent for exactly the session that no longer
+// has the first. So a session carries a generation, bumped at SessionStart on
+// `compact` (and `clear`), and the stamp includes it.
+function sessionGenerationPath(sessionId) {
+  const stamp = createHash('sha256').update(sessionId).digest('hex').slice(0, 32)
+  return path.join(os.tmpdir(), `quality-harness-gen-${stamp}`)
+}
+function sessionGeneration(sessionId) {
+  try { return Number(readFileSync(sessionGenerationPath(sessionId), 'utf8').trim()) || 0 } catch { return 0 }
+}
+export function bumpSessionGeneration(sessionId) {
+  if (typeof sessionId !== 'string' || !sessionId) return 0
+  const next = sessionGeneration(sessionId) + 1
+  try { writeFileSync(sessionGenerationPath(sessionId), String(next)) } catch {}
+  return next
+}
+
 function firstMentionThisSession(sessionId, key) {
   if (typeof sessionId !== 'string' || !sessionId) return true
-  const stamp = createHash('sha256').update(`${sessionId}\u0000${key}`).digest('hex').slice(0, 32)
+  const generation = sessionGeneration(sessionId)
+  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`).digest('hex').slice(0, 32)
   const marker = path.join(os.tmpdir(), `quality-harness-said-${stamp}`)
   // Exclusive create: two parallel tool calls carrying the same finding both
   // saw no marker and both said it in full (Codex review, 2026-09-05). EEXIST
@@ -3166,6 +3211,9 @@ export async function handleHook(input) {
   const event = input.hook_event_name
 
   if (event === 'SessionStart') {
+    // After compaction the session has none of the context the once-per-session
+    // markers gated; a new generation makes every first mention first again.
+    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)
     const orientation = sessionOrientation(input.cwd)
     if (orientation) {
       emitJson({
@@ -3355,13 +3403,18 @@ async function readStdin() {
 }
 
 async function main() {
+  const startedAt = Date.now()
   let input
   try {
     input = JSON.parse(await readStdin())
   } catch {
     return
   }
-  await handleHook(input)
+  try {
+    await handleHook(input)
+  } finally {
+    flushOutput(startedAt, input)
+  }
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {

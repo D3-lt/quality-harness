@@ -4893,6 +4893,42 @@
       ],
       "from": "  const key = `advisory:${createHash('sha256').update(String(reason)).digest('hex').slice(0, 32)}`",
       "to": "  const key = 'advisory:any'"
+    },
+    {
+      "label": "lifecycle: a once-per-session marker is scoped to the session's generation",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const generation = sessionGeneration(sessionId)\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)",
+      "to": "  const generation = 0\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)"
+    },
+    {
+      "label": "lifecycle: compaction bumps the session generation; a resume does not",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
+      "to": "    if (input.source === 'clear') bumpSessionGeneration(input.session_id)"
+    },
+    {
+      "label": "lifecycle: /clear bumps the session generation too",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
+      "to": "    if (input.source === 'compact') bumpSessionGeneration(input.session_id)"
+    },
+    {
+      "label": "lifecycle: a slow hook names itself",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (elapsed >= slowHookThresholdMs(env)) {",
+      "to": "  if (false) {"
     }
   ]
 }

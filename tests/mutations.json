@@ -4821,6 +4821,24 @@
       ],
       "from": "    return !run.error && run.status === 0",
       "to": "    return true"
+    },
+    {
+      "label": "hooks: the POSIX fallback reports what ChildProcess.kill answered (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "    try { return child.kill('SIGKILL') === true } catch { return false }",
+      "to": "    try { child.kill('SIGKILL'); return true } catch { return false }"
+    },
+    {
+      "label": "hooks: after a failed cleanup the runner lets go of the child so the process can exit (BACKLOG §127)",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "from": "        for (const stream of [child.stdout, child.stderr, child.stdin]) stream?.destroy()\n        child.unref?.()\n        settle(null, false)",
+      "to": "        settle(null, false)"
     }
   ]
 }

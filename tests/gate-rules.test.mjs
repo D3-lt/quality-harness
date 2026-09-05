@@ -15,7 +15,7 @@ import { basename, delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 
 import { parse } from '../plugin/scripts/verify.mjs'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import { runPython } from '../scripts/python-interpreter.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -250,6 +250,51 @@ test('the Windows cleanup a timeout runs carries a bound, and reports whether th
   assert.equal(terminateProcessTree({ pid: 4242 }, 'win32', () => ({ status: 1 })), false)
   // No pid: nothing to kill, nothing spawned, nothing issued.
   assert.equal(terminateProcessTree({ pid: undefined }, 'win32', () => { throw new Error('must not spawn without a pid') }), false)
+})
+
+test('the POSIX fallback reports what ChildProcess.kill answered, not merely that it did not throw', async () => {
+  // process.kill(-pid) throws ESRCH when the group is gone; the fallback then
+  // asks the child directly, and ChildProcess.kill answers false (no throw) when
+  // the signal could not be sent. The first shape returned true on that answer.
+  const { terminateProcessTree } = await import('../plugin/scripts/run-shell-hook.mjs')
+  const groupGone = () => { throw Object.assign(new Error('kill ESRCH'), { code: 'ESRCH' }) }
+  assert.equal(terminateProcessTree({ pid: 4242, kill: () => false }, 'linux', undefined, groupGone), false,
+    'a direct kill that answered false is not an issued kill')
+  assert.equal(terminateProcessTree({ pid: 4242, kill: () => true }, 'linux', undefined, groupGone), true)
+  assert.equal(terminateProcessTree({ pid: 4242, kill: () => { throw new Error('EPERM') } }, 'linux', undefined, groupGone), false)
+  const seen = []
+  assert.equal(terminateProcessTree({ pid: 4242, kill: () => { throw new Error('must not reach the child when the group kill landed') } }, 'linux', undefined, pid => { seen.push(pid) }), true)
+  assert.deepEqual(seen, [4242], 'the group kill is asked first, with the leader pid')
+})
+
+test('the runner process itself exits after a failed cleanup, with the child still alive', async () => {
+  // The in-process test above proves the PROMISE settles. This proves the
+  // wrapper PROCESS exits — which is what the host's deadline measures — and
+  // it can only pass if the settle also lets go of the pipes and unrefs the
+  // child, because either one alone keeps Node's loop alive on a live child.
+  const runner = join(root, 'scripts', 'run-shell-hook.mjs')
+  const probe = `
+    import { runWithTimeout } from ${JSON.stringify(pathToFileURL(runner).href)}
+    const run = await runWithTimeout(process.execPath, ['-e', 'setTimeout(() => {}, 8000)'],
+      { timeoutMs: 200, cleanupGraceMs: 400, terminate: () => false })
+    process.stdout.write(JSON.stringify({ pid: run.pid, timedOut: run.timedOut, cleanupConfirmed: run.cleanupConfirmed }))
+  `
+  const start = Date.now()
+  const outer = spawnSync(process.execPath, ['--input-type=module', '-e', probe], { encoding: 'utf8', timeout: 6_000 })
+  const elapsed = Date.now() - start
+  let child = null
+  try {
+    assert.equal(outer.status, 0, `the wrapper must exit on its own: status ${outer.status} signal ${outer.signal}\n${outer.stderr}`)
+    child = JSON.parse(outer.stdout)
+    assert.equal(child.timedOut, true)
+    assert.equal(child.cleanupConfirmed, false)
+    assert.ok(elapsed < 4_000, `the wrapper exited in ${elapsed}ms; the child sleeps 8s, so a wrapper held open by it would show here`)
+    // The child the stub refused to kill must still be alive — otherwise this
+    // proved nothing about letting go of a LIVE child.
+    assert.equal(process.kill(child.pid, 0), true, 'the abandoned child must still be running when the wrapper has exited')
+  } finally {
+    if (child?.pid) { try { process.kill(child.pid, 'SIGKILL') } catch {} }
+  }
 })
 
 test('a cleanup that fails does not leave the hook pending until the host kills it (BACKLOG §127)', async () => {

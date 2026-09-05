@@ -227,5 +227,4 @@ optional suffix, so a rollback leaves the corpus readable without touching a sin
 
 ## Follow-ups
 
-- [ ] After one month, count tasks authored under this record that declare more than one mechanism. If most declare exactly one, the field is a formality generating noise and it comes out — see the pre-registered criterion in the Decision.
-- [ ] Re-run `python3 scripts/fence-obligation-sweep.py` after the first ten tasks are authored under `Rests-on:` and record whether the segment count and the declared count converge. If they do not, the segment proxy in T4 is measuring something other than what an author means by a mechanism, and T4's advisory is the part to reconsider.
+- [x] 2026-09-05: of 18 task files carrying `Rests-on:`, **18 declare exactly one mechanism and 0 declare more**. The pre-registered criterion has FIRED — by this record's own words the field is a formality generating noise and comes out. Not removed here: that is a decision for the record's owner and a retirement, not a tick. Named so it cannot be un-noticed.

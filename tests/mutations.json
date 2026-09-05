@@ -4580,6 +4580,15 @@
       "to": "    if True:\n        return"
     },
     {
+      "label": "verify: the Windows trace names the survivor after taskkill (BACKLOG §129)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "                    if cpid in str(getattr(probe, \"stdout\", \"\") or \"\"):",
+      "to": "                    if False:"
+    },
+    {
       "label": "verify: a trace that cannot be written never replaces the timeout it describes",
       "file": "plugin/bin/adr-verify",
       "tests": [

@@ -151,4 +151,4 @@ written under this record remains valid, because each one recorded a run that re
 
 ## Follow-ups
 
-- [ ] After ten tasks recorded under this, compare the `--mutant`-written entries with the plain path's for grammar drift — the pre-registered criterion in the Decision.
+- [ ] 2026-09-05, attempted: cannot be run from the rows. A Verification Log entry written by the `--mutant` path is byte-for-byte the plain grammar (96 rows match it; nothing marks which path wrote them), so the comparison this asks for needs the trace §98 leaves open. Stays open for that reason, not for lack of trying.

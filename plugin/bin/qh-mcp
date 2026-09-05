@@ -188,8 +188,34 @@ def kill_tree(pid, platform=None, run=subprocess.run, timeout=15):
         if (platform or os.name) == "nt":
             # BOUNDED: taskkill can hang, and unbounded it wears the timeout's
             # name. A TimeoutExpired answers False — not confirmed.
+            # BACKLOG §129. Under the trace flag, name what is there to kill and
+            # what is left after — the CI runner sometimes leaves a survivor and
+            # nothing so far has said which process it was. Direct children of
+            # the leader before; the same pids after; diagnostics only, and any
+            # failure here is swallowed by the except below like the kill itself.
+            children = []
+            if os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"):
+                listed = run(["tasklist", "/FI", f"PARENTPID eq {pid}", "/FO", "CSV", "/NH"],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace",
+                             timeout=timeout)
+                for row in str(getattr(listed, "stdout", "") or "").splitlines():
+                    cells = [c.strip('"') for c in row.split('","')]
+                    if len(cells) > 1 and cells[1].isdigit():
+                        children.append((cells[0], cells[1]))
+                sys.stderr.write(f"[trace-timeout] tree before taskkill: leader {pid}, "
+                                 f"children {children}\n")
             done = run(["taskkill", "/F", "/T", "/PID", str(pid)],
                        capture_output=True, timeout=timeout)
+            if children:
+                alive = []
+                for name, cpid in children:
+                    probe = run(["tasklist", "/FI", f"PID eq {cpid}", "/NH"],
+                                capture_output=True, text=True, encoding="utf-8", errors="replace",
+                                timeout=timeout)
+                    if cpid in str(getattr(probe, "stdout", "") or ""):
+                        alive.append((name, cpid))
+                sys.stderr.write(f"[trace-timeout] tree after taskkill: rc="
+                                 f"{getattr(done, 'returncode', None)}, still alive {alive}\n")
             return getattr(done, "returncode", None) == 0
         os.killpg(pid, signal.SIGKILL)
         return True

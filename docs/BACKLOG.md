@@ -7729,7 +7729,7 @@ Two things this did NOT establish, and neither should be read into it:
 - **No other plugin's data was read, altered or lost.** Only the file this suite created was
   removed, and its rows were checked one by one first.
 
-## 123. The process-tree kill is proved on macOS, unproved on Linux, and does not work on Windows
+## 123. PARTLY CLOSED 2026-09-05 — the process-tree kill is proved on macOS, unproved on Linux, and on Windows reaches the tree usually; the leader-exits shape is the gap that stands
 
 CI run `33892254729` on `5642b53`, which is the first run that carried §120's fix through every job.
 Three mutants GREEN on the Linux campaign, four tests red on Windows, and both halves say the same
@@ -7771,6 +7771,20 @@ Windows children of `bash.exe` in the way `/T` walks), and whether the drain nee
 bound. Neither can be measured from this machine — `windows-latest` is a VM and Docker Desktop on
 macOS has no Windows container mode — so the next attempt is a CI round, not a local one.
 
+
+**2026-09-05 — corrected by measurement, not rewritten.** "Does not work on Windows" above was too
+broad, and this section's own numbers were the reason: the 21.9s and the 30.0s were `close()` waiting
+behind a Windows `communicate` reader thread on a pipe a survivor still held (§128) — they measure
+how long a survivor lived, not whether the kill reached anything. Then measured on two Windows 11
+boxes and the CI runner: `taskkill /F /T` **does** kill a Git Bash fence's subshell tree when bash is
+alive to be walked — beats at return 5, three seconds later 5, on a real box; the `--sweep` tree test
+passing on win32; the CI runner's own direct path returning in 1.3s with the tree dead. What
+**stands** is narrower and real: the leader-exits shape (`( … ) &` alone), where bash has exited
+before `taskkill /T` runs on its pid and there is no root to walk — the gap POSIX closed with `killpg`,
+with no Windows equivalent here, unproved on any Windows box because the test that would prove it is
+still skipped. And on the CI runner the kill is **non-deterministic** even in the foreground shape:
+pass / 60s / 60s / pass on byte-identical gate code, survivor unattributed (§129). The three Linux
+findings above are unchanged.
 ## 124. ADR-035's own criterion killed ADR-035's feature, four hours after it shipped
 
 The `asserted` arm of `completionClaim` is **withdrawn**, by the criterion the record

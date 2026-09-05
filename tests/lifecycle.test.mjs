@@ -1,10 +1,10 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, realpathSync } from 'node:fs'
+import { existsSync, mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
-import test from 'node:test'
+import test, { after } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   analyzeTranscript,
@@ -52,7 +52,34 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
-const testTmp = process.platform === 'darwin' ? '/private/tmp' : os.tmpdir()
+// One root per run, removed at the end. Every fixture used to go straight under
+// the OS temp directory and nothing removed it: a Windows peer measured ~93
+// directories left per run, 1117 after twelve (2026-09-05), and the runner's
+// temp is no different. realpath'd, because /tmp is a symlink on macOS and the
+// judgements under test compare realpaths.
+const testTmp = realpathSync(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'quality-lifecycle-')))
+// Bounded retries for Windows handle locks, and the last failure SURFACES: a
+// leak the suite swallowed would be a leak reported as a pass (Codex review,
+// 2026-09-05).
+after(() => rmSync(testTmp, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
+
+// A symlink needs a privilege Windows grants only to Developer Mode or an
+// elevated shell; without it symlink() is EPERM for the account, every time
+// (measured on a real Windows 11 box, 2026-09-05, BACKLOG §49). That is a
+// fixture this platform cannot build, so the test says so rather than failing
+// (CLAUDE.md §7) — and says it AFTER the arms that need no symlink have run.
+async function symlinkOrSkip(t, target, link, type) {
+  try {
+    await symlink(target, link, type)
+    return true
+  } catch (error) {
+    if (process.platform === 'win32' && error?.code === 'EPERM') {
+      t.skip(`symlink is EPERM for this account (Windows without Developer Mode or an elevated shell), so the symlink arm cannot be built here: ${error.message}`)
+      return false
+    }
+    throw error
+  }
+}
 
 function transcript(entries) {
   return entries.map(entry => JSON.stringify(entry)).join('\n')
@@ -108,12 +135,18 @@ const ledgerHome = path.join(testTmp, 'claims-ledger')
 
 
 function runLifecycleHook(payload, options = {}) {
+  const { env: extraEnv, ...rest } = options
   return spawnSync(process.execPath, [path.join(pluginDir, 'scripts/lifecycle.mjs')], {
     cwd: testTmp,
     input: JSON.stringify({ cwd: testTmp, ...payload }),
     encoding: 'utf8',
-    env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome },
-    ...options,
+    // The hook's own temp files — said-markers and the session generation — go
+    // under os.tmpdir() in the child, so the child is pointed at THIS run's
+    // root or they outlive the cleanup (Codex review, 2026-09-05). An explicit
+    // `env` is the whole environment, as before (a test that deletes a variable
+    // must see it gone); only the temp pointers are always set.
+    env: { ...(extraEnv ?? { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome }), TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
+    ...rest,
   })
 }
 
@@ -1233,7 +1266,7 @@ test('the artifact gate budget is raisable, and running out of it names the budg
   assert.doesNotMatch(judged, /timed out/)
 })
 
-test('scratch writes under the temp root are not the repository\'s edits', async () => {
+test('scratch writes under the temp root are not the repository\'s edits', async t => {
   // pluginDir stands in for a real (non-temp) project checkout; the scratch
   // base comes from the platform so the truths hold off-macOS too.
   const scratch = path.join(os.tmpdir(), 'qh-scratch')
@@ -1269,10 +1302,10 @@ test('scratch writes under the temp root are not the repository\'s edits', async
   // it points at a directory, a file, or nothing yet.
   const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-link-'))
   const directoryLink = path.join(linkDir, 'repo-link')
-  await symlink(pluginDir, directoryLink)
+  if (!await symlinkOrSkip(t, pluginDir, directoryLink)) return
   assert.equal(mutatesOnlyTempPaths(`printf x > "${directoryLink}/smuggled.txt"`, pluginDir), false)
   const fileLink = path.join(linkDir, 'file-link')
-  await symlink(path.join(repoRoot, 'README.md'), fileLink)
+  if (!await symlinkOrSkip(t, path.join(repoRoot, 'README.md'), fileLink)) return
   assert.equal(mutatesOnlyTempPaths(`printf x > "${fileLink}"`, pluginDir), false)
   const danglingLink = path.join(linkDir, 'dangling-link')
   await symlink(path.join(repoRoot, 'does-not-exist-yet.md'), danglingLink)
@@ -1474,6 +1507,71 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   })
   assert.equal(quiet.status, 0)
   assert.doesNotMatch(quiet.stdout, /"systemMessage"/)
+})
+
+test('compaction makes a once-per-session finding first again', async () => {
+  // The markers gate context the agent HAS. After compaction it has none of it,
+  // and a marker that survived would keep the reminder to one line for exactly
+  // the session that lost the full text. SessionStart with source "compact"
+  // bumps the session's generation; the same finding is then news again.
+  const repo = await checkedProject('quality-compact-')
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+  ]))
+  const session = `compact-${Date.now()}-${process.pid}`
+  const commit = () => JSON.parse(runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo, session_id: session,
+    transcript_path: file, tool_input: { command: 'git commit -m x' },
+  }).stdout)
+  assert.match(commit().systemMessage ?? '', /^quality-harness advised/, 'first: in full')
+  assert.equal(commit().systemMessage, undefined, 'second: a repeat')
+
+  // A resume is not a compaction: the context is still there.
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: repo, session_id: session })
+  assert.equal(commit().systemMessage, undefined, 'after a resume: still a repeat')
+
+  const compacted = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session })
+  assert.equal(compacted.status, 0, compacted.stderr)
+  assert.match(commit().systemMessage ?? '', /^quality-harness advised/, 'after compaction: in full again')
+  assert.equal(commit().systemMessage, undefined, 'and then a repeat again')
+
+  // /clear is the other source that empties the context; it bumps too.
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'clear', cwd: repo, session_id: session })
+  assert.match(commit().systemMessage ?? '', /^quality-harness advised/, 'after /clear: in full again')
+  assert.equal(commit().systemMessage, undefined, 'and then a repeat')
+
+  // The markers and the generation live under the per-run root, not the OS temp
+  // directory the cleanup never touches.
+  const own = (await readdir(testTmp)).filter(name => /^quality-harness-(said|gen)-/.test(name))
+  assert.ok(own.length >= 2, `the hook's markers must land under the run's root: ${own}`)
+})
+
+test('a slow hook names itself; a fast one says nothing about its time', async () => {
+  // A hook that is slow was a pause with no name. Above the threshold the run
+  // adds one line on both channels — never instead of the finding.
+  const repo = await checkedProject('quality-slow-')
+  const file = path.join(repo, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
+  ]))
+  const payload = {
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+    transcript_path: file, tool_input: { command: 'git commit -m x' },
+  }
+  const slow = runLifecycleHook(payload, { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, QUALITY_HARNESS_SLOW_HOOK_MS: '0' } })
+  assert.equal(slow.status, 0, slow.stderr)
+  const said = JSON.parse(slow.stdout)
+  assert.match(said.systemMessage, /the PreToolUse hook took \d+\.\ds/, 'the pause is named to the person')
+  assert.match(said.systemMessage, /^quality-harness advised the agent/, 'and the finding is still first')
+  assert.match(slow.stderr, /hook took \d+\.\ds/, 'and in the transcript')
+  assert.match(said.hookSpecificOutput?.additionalContext ?? '', /Nothing has verified/, 'the finding itself is untouched')
+
+  const fast = JSON.parse(runLifecycleHook(payload).stdout)
+  assert.doesNotMatch(fast.systemMessage ?? '', /hook took/, 'a fast run does not talk about its time')
+  // With nothing to say and nothing slow, nothing is written at all.
+  const quiet = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: await mkdtemp(path.join(testTmp, 'quality-quiet-')) })
+  assert.equal(quiet.stdout.trim(), '', 'no finding, no time: no output')
 })
 
 test('reported: a build in a container is a build, not a deletion', () => {
@@ -2297,7 +2395,7 @@ test('reported: a shared tasks directory does not make every record claim its ne
     'an unattributable task file must not be claimed by every record in the directory')
 })
 
-test('reported: a symlinked checkout is not an empty corpus', async () => {
+test('reported: a symlinked checkout is not an empty corpus', async t => {
   // /tmp is a symlink to /private/tmp on macOS: git answers with the real path
   // while the hook payload carries the spelling, so path.relative produced
   // `../../tmp/...`, every path was filtered as outside the root, and the corpus
@@ -2307,7 +2405,7 @@ test('reported: a symlinked checkout is not an empty corpus', async () => {
   // A genuine symlink, because testTmp is already realpath'd on darwin and the
   // trap would otherwise be invisible on every platform.
   const link = path.join(await mkdtemp(path.join(testTmp, 'quality-corpus-via-')), 'repo')
-  await symlink(real, link, 'dir')
+  if (!await symlinkOrSkip(t, real, link, 'dir')) return
   const spelled = path.join(link, 'src', 'orders', 'schema.ts')
 
   // Root spelled through the link, file spelled through the link.

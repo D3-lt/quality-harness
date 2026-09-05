@@ -1554,3 +1554,42 @@ test('neither gate loses code to a quote character inside a comment, and the two
   assert.doesNotMatch(both[0], /prose/, 'the comment body is gone')
   assert.doesNotMatch(both[0], /assert\.Fail in a string/, 'the string body is gone')
 })
+
+test('a document that never claimed to be a record is not judged as a malformed one (BACKLOG §141)', () => {
+  // Five foreign corpora, five out of five: every one keeps non-record documents
+  // in `docs/adr/` — a BACKLOG, a README, a WAVE, a pre-registration — so
+  // `adr-lint docs/adr/*.md` reported "Alternatives Considered has no entries"
+  // about a backlog. The discriminator is `**Status:**`, which every record
+  // carries and none of those documents does.
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-not-a-record-'))
+  try {
+    const write = (name, body) => { const p = join(dir, name); writeFileSync(p, body); return p }
+    const backlog = write('BACKLOG.md', '# Backlog — what is not yet an ADR\n\n## 1. something\n\nprose\n')
+    const readme = write('README.md', '# Architecture Decision Records\n\nIndex of records.\n')
+    const wave = write('WAVE.md', '# Wave 2 — order of work\n\nprose\n')
+
+    for (const [label, file] of [['a backlog', backlog], ['a README', readme], ['a wave plan', wave]]) {
+      const result = run('adr-lint', [file], dir)
+      expectExit(result, 2, `${label} is not a record and must not be judged as one`)
+      assert.match(result.stdout, /NOT A DECISION RECORD/, label)
+      assert.doesNotMatch(result.stdout, /Alternatives Considered/, `${label}: no content finding may be made`)
+    }
+
+    // ⚠ THE ARM THAT MUST NOT MOVE. A file NAMED `ADR-…` keeps its findings
+    // whatever it contains — a record missing its Status line is a real finding,
+    // and this must never become the way to silence one.
+    const named = write('ADR-901-no-status.md', '# ADR-901: a draft\n\n## Context\n\nprose\n')
+    const namedResult = run('adr-lint', [named], dir)
+    expectExit(namedResult, 1, 'a file named ADR- is judged even with no Status line')
+    assert.doesNotMatch(namedResult.stdout, /NOT A DECISION RECORD/)
+
+    // And a document carrying a Status line is a record whatever it is called.
+    const odd = write('decision-2026-09-05.md',
+      '# A decision\n\n**Status:** Accepted\n\n## Context\n\nprose\n')
+    const oddResult = run('adr-lint', [odd], dir)
+    assert.notEqual(oddResult.status, 2, `a Status line makes it a record: ${oddResult.stdout}`)
+    assert.doesNotMatch(oddResult.stdout, /NOT A DECISION RECORD/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

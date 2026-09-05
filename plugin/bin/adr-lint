@@ -4314,6 +4314,27 @@ def main():
         print("  there is no whole-corpus mode; `adr-debt <corpus-dir>` is the tool that "
               "reads a directory")
         sys.exit(1)
+    # ⚠ A DOCUMENT THAT NEVER CLAIMED TO BE A RECORD IS NOT A MALFORMED ONE.
+    # Measured 2026-09-05 against five foreign corpora: every one keeps non-record
+    # documents in `docs/adr/` — `BACKLOG.md` in all five, plus `README.md`,
+    # `WAVE.md`, `PREREGISTRATION-….md` — so the natural invocation
+    # `adr-lint docs/adr/*.md` reported "Alternatives Considered has no entries"
+    # about a backlog, five times out of five (BACKLOG §141). That is the same
+    # class as the defect §138 fixed: a verdict about a thing the tool was never
+    # looking at.
+    #
+    # The discriminator is `**Status:**`, which every record carries and none of
+    # those five documents does. A file NAMED `ADR-…` keeps its findings whatever
+    # it contains — a record missing its Status line is a real finding, and this
+    # must not become the way to silence one.
+    if not re.match(r"(?:adr|spec)[-_]?\d", adr.name, re.I) and not re.search(
+            r"(?m)^\*\*Status:\*\*", adr.read_text(errors="replace", encoding="utf-8")):
+        print(f"NOT A DECISION RECORD: {adr} has no **Status:** line and is not named ADR-…, "
+              f"so nothing here was checked. This is not a finding about that file — "
+              f"`adr-lint` reads one record at a time, and a backlog, a README or a "
+              f"pre-registration kept beside the records is not one. `adr-debt <corpus-dir>` "
+              f"reads a whole directory.")
+        sys.exit(2)
     errors = Findings()
     root = git_root(adr.parent)
     # Before any check runs, so every finding this record produces is judged the

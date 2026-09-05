@@ -8730,3 +8730,29 @@ feeds the claim kind and nothing else. A mutant merges them back and is RED.
 **Five mutants**, including the two repinned whose text moved into the new function. The dirty arm is
 asserted beside the fixtures: five ordinary completion messages must stay `none`, or a widened
 negation classifier swallows every claim and the ledger's evidence half measures nothing.
+
+## 141. CLOSED 2026-09-05 — a backlog was judged as a malformed decision record, in five corpora out of five
+
+**§138 named this and left it.** Every ADR corpus on this machine keeps non-record documents beside
+the records: `BACKLOG.md` in all five, plus `README.md`, `WAVE.md` and a `PREREGISTRATION-….md`.
+`adr-lint` reads one record at a time, so the natural invocation `adr-lint docs/adr/*.md` handed it
+those documents — and it reported "Alternatives Considered has no entries" and "Wiring & Contract
+Changes empty" about a backlog. Eight documents across the five corpora, every one a verdict about a
+file that never claimed to be a record: the same class as §138's "none governs" and §139's "no
+executable definition", which is three in one day from one exercise.
+
+**The discriminator is `**Status:**`.** Every record carries it; none of those eight documents does.
+A file with no Status line AND no `ADR-…`/`SPEC-…` name is now reported as NOT A DECISION RECORD,
+with the sentence saying nothing was checked and pointing at `adr-debt <corpus-dir>` for the
+directory-level question, and it exits 2 — the could-not-look code, not the findings code.
+
+**The arm that must not move**, and it is a mutant: a file NAMED `ADR-…` keeps its findings whatever
+it contains. A record missing its Status line is a real finding, and this must never become the way
+to silence one. A document carrying a Status line is judged whatever it is called, so a corpus with
+its own naming convention loses nothing.
+
+**Why this is the last of the foreign-corpus findings rather than the first.** It is the least severe
+of the three — noise rather than a false accusation — and it was visible from the first minute of the
+run. It went last because §139 was a gate telling a repository its real tests did not exist, and that
+outranks tidiness. What the three share is the shape ADR-005 names: a tool answering about something
+it was not looking at, in a vocabulary that reads as a verdict.

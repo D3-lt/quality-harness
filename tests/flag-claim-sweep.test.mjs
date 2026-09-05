@@ -106,7 +106,7 @@ function repoWithAFlagChange({ proseNamesFlag, proseNamesGate }) {
   const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-flagsweep-'))
   // `dir` is a directory this test created. It is never the repository under
   // test, and the two must not share a variable name (CLAUDE.md §9).
-  const git = args => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8' })
+  const git = args => execFileSync('git', ['-C', dir, ...args], { encoding: 'utf8', timeout: 60_000 })
   git(['init', '-q', '-b', 'main'])
   git(['config', 'user.email', 'test@example.invalid'])
   git(['config', 'user.name', 'Test'])

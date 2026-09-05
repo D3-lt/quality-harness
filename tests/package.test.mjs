@@ -11,7 +11,7 @@ import { fileURLToPath } from 'node:url'
 const testDir = dirname(fileURLToPath(import.meta.url))
 /** Every file git tracks — the exact set `source: "."` publishes. */
 function tracked() {
-  return spawnSync('git', ['-C', repoRoot, 'ls-files'], { encoding: 'utf8' })
+  return spawnSync('git', ['-C', repoRoot, 'ls-files'], { encoding: 'utf8', timeout: 60_000 })
     .stdout.split('\n').filter(Boolean)
 }
 
@@ -42,7 +42,7 @@ const workflows = ['consensus.js', 'quality-cycle.js', 'review-ring.js']
 function isExecutable(path) {
   if (process.platform !== 'win32') return (statSync(path).mode & 0o111) !== 0
   const entry = spawnSync('git', ['-C', repoRoot, 'ls-files', '-s', '--', relative(repoRoot, path)], {
-    encoding: 'utf8',
+    encoding: 'utf8', timeout: 60_000,
   })
   return /^100755 /.test(entry.stdout)
 }
@@ -115,10 +115,10 @@ test('what ships is the plugin and nothing else', () => {
   // personal home path into a public repository, and the Windows job depends on
   // the gates arriving with LF endings.
   const ignored = spawnSync('git', ['-C', repoRoot, 'check-ignore', '-q',
-    join(shipRoot, 'evals', 'results', 'probe.json')])
+    join(shipRoot, 'evals', 'results', 'probe.json')], { timeout: 60_000 })
   assert.equal(ignored.status, 0, 'eval results must stay ignored from their new path')
   const eol = spawnSync('git', ['-C', repoRoot, 'check-attr', 'eol', '--',
-    join(shipRoot, 'bin', 'adr-lint')], { encoding: 'utf8' })
+    join(shipRoot, 'bin', 'adr-lint')], { encoding: 'utf8', timeout: 60_000 })
   assert.match(eol.stdout, /eol: lf$/m, 'the gates must keep LF endings from their new path')
 })
 
@@ -151,7 +151,7 @@ test('the instruction files name paths that exist', () => {
   // file added in the same commit as the sentence naming it is legitimate, and a
   // gitignored one never is.
   const pending = spawnSync('git', ['-C', repoRoot, 'ls-files', '--others', '--exclude-standard'],
-    { encoding: 'utf8' }).stdout.split('\n').filter(Boolean)
+    { encoding: 'utf8', timeout: 60_000 }).stdout.split('\n').filter(Boolean)
   const inRepo = new Set([...tracked(), ...pending])
   const exists = path => {
     const clean = path.replace(/\/?\*+$/, '').replace(/\/$/, '')
@@ -245,7 +245,7 @@ test('a fence whose runner never starts must fail', () => {
   const out = join(mkdtempSync(join(tmpdir(), 'qh-fence-')), 'o')
   const broken = `nosuchrunner --test x 2>&1 | tee ${out}; ! grep -qE "no tests to run|^FAIL" ${out}`
   const fixed = `set -o pipefail\nnosuchrunner --test x 2>&1 | tee ${out} && ! grep -qE "no tests to run|^FAIL" ${out}`
-  const run = f => spawnSync('bash', ['-c', f], { encoding: 'utf8' }).status
+  const run = f => spawnSync('bash', ['-c', f], { encoding: 'utf8', timeout: 60_000 }).status
   assert.equal(run(broken), 0, 'the old form passes with the runner absent — that is the defect')
   assert.notEqual(run(fixed), 0, 'the form this project now uses does not')
 })
@@ -418,14 +418,14 @@ test('every path an eval run writes to is ignored, wherever it is run from', () 
   for (const path of ['evals/results', 'plugin/evals/results',
     'evals/results/2026-01-01T00-00-00Z/report.html',
     'plugin/evals/results/2026-01-01T00-00-00Z/report.html']) {
-    const asked = spawnSync('git', ['check-ignore', '-q', path], { cwd: repoRoot })
+    const asked = spawnSync('git', ['check-ignore', '-q', path], { cwd: repoRoot, timeout: 60_000 })
     assert.equal(asked.status, 0,
       `${path} is not ignored — an eval run writing there would be committable, and `
       + 'the results carry transcripts and another corpus\'s content (CLAUDE.md §6)')
   }
   // ...and the check is shown capable of the other answer, or it passes equally
   // against a `check-ignore` that always succeeds.
-  const tracked = spawnSync('git', ['check-ignore', '-q', 'README.md'], { cwd: repoRoot })
+  const tracked = spawnSync('git', ['check-ignore', '-q', 'README.md'], { cwd: repoRoot, timeout: 60_000 })
   assert.notEqual(tracked.status, 0, 'a tracked file must not report as ignored')
 })
 
@@ -449,8 +449,8 @@ test('the pre-commit hook refuses a commit taken mid-mutation, and only then', (
   assert.ok(existsSync(hook), 'the hook must exist to be installable')
 
   const scratch = mkdtempSync(join(tmpdir(), 'qh-hook-'))
-  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8' })
-  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
+  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8', timeout: 60_000 })
+  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8', timeout: 60_000 })
   git('init', '-q', '-b', 'main', '.')
 
   // NOTHING IN FLIGHT: the hook must stay out of the way. Without this the
@@ -500,8 +500,8 @@ test('the staged-mutation guard finds an uncovered addition, and only that', asy
 test('the pre-commit hook refuses a staged shipped file that nothing mutates', () => {
   const hook = join(repoRoot, '.githooks', 'pre-commit')
   const scratch = mkdtempSync(join(tmpdir(), 'qh-staged-'))
-  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
-  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8' })
+  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8', timeout: 60_000 })
+  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8', timeout: 60_000 })
   try {
     git('init', '-q', '-b', 'main', '.')
 
@@ -550,8 +550,8 @@ test('the staged guard reads the catalogue as staged, and falls back only when i
 test('the hook covers shipped .sh and leaves the .cmd shims alone', () => {
   const hook = join(repoRoot, '.githooks', 'pre-commit')
   const scratch = mkdtempSync(join(tmpdir(), 'qh-scope-'))
-  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8' })
-  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8' })
+  const git = (...args) => spawnSync('git', args, { cwd: scratch, encoding: 'utf8', timeout: 60_000 })
+  const run = () => spawnSync('bash', [hook], { cwd: scratch, encoding: 'utf8', timeout: 60_000 })
   try {
     git('init', '-q', '-b', 'main', '.')
     mkdirSync(join(scratch, 'plugin', 'bin'), { recursive: true })
@@ -630,7 +630,7 @@ test('every catalogue mutant still parses, so a kill is behavioural', () => {
       const scratch = join(dir, name)
       writeFileSync(scratch, text)
       const check = isJs
-        ? spawnSync(process.execPath, ['--check', scratch], { encoding: 'utf8' })
+        ? spawnSync(process.execPath, ['--check', scratch], { encoding: 'utf8', timeout: 60_000 })
         : runPython(['-c', `import ast,sys;ast.parse(open(sys.argv[1],encoding="utf-8").read())`, scratch],
           { encoding: 'utf8' })
       return check.status === 0
@@ -954,7 +954,7 @@ test('every catalogue entry still matches the source it mutates, exactly once', 
 test('a mutation that matches across lines targets a file git checks out with LF', () => {
   const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8')).mutations
   const eolOf = file => spawnSync('git', ['-C', repoRoot, 'check-attr', 'eol', '--', file],
-    { encoding: 'utf8' }).stdout.trim().split(': ').pop()
+    { encoding: 'utf8', timeout: 60_000 }).stdout.trim().split(': ').pop()
 
   const risky = files => files.filter(file => eolOf(file) !== 'lf')
 
@@ -985,7 +985,7 @@ test('code that ships is checked out LF whatever its extension', () => {
   // seeing .mjs pinned will assume .js is, and §1 records four things that break
   // silently when a file moves — an unpinned extension is a fifth.
   const eolOf = file => spawnSync('git', ['-C', repoRoot, 'check-attr', 'eol', '--', file],
-    { encoding: 'utf8' }).stdout.trim().split(': ').pop()
+    { encoding: 'utf8', timeout: 60_000 }).stdout.trim().split(': ').pop()
 
   // Shown able to fire first, or the assertion below is `[] === []`. LICENSE has
   // no eol rule and is deliberately not meant to.
@@ -995,7 +995,7 @@ test('code that ships is checked out LF whatever its extension', () => {
   // Every tracked file whose extension implies executable source. Resolved
   // against `git ls-files`, not the working tree: a check whose answer depends on
   // what is on this disk is not a check (§8).
-  const tracked = spawnSync('git', ['-C', repoRoot, 'ls-files'], { encoding: 'utf8' })
+  const tracked = spawnSync('git', ['-C', repoRoot, 'ls-files'], { encoding: 'utf8', timeout: 60_000 })
     .stdout.split('\n').filter(Boolean)
   const source = tracked.filter(file => /\.(js|mjs|py|sh)$/.test(file))
   assert.ok(source.length > 0, 'expected tracked source files to check')
@@ -1060,7 +1060,7 @@ test('every shipped gate carries at least one mutation', () => {
   // extension. Trivial forwarders are named EXPLICITLY below rather than excluded
   // by a rule, because a rule is what a new file slips through.
   const shippedScripts = spawnSync('git', ['ls-files', '--', 'plugin/scripts'],
-    { cwd: repoRoot, encoding: 'utf8' })
+    { cwd: repoRoot, encoding: 'utf8', timeout: 60_000 })
   assert.equal(shippedScripts.status, 0, 'git must list the shipped scripts')
   const scriptPaths = shippedScripts.stdout.split('\n').filter(Boolean)
   assert.ok(scriptPaths.length >= 5, `expected the shipped scripts, found ${scriptPaths.length}`)
@@ -1179,7 +1179,7 @@ test('a CLI entry guard resolves on Windows, not only where argv is already a UR
 // id is a stored fact about a catalogue this project does not own.
 function agentDefinitions() {
   const listed = spawnSync('git', ['-C', repoRoot, 'ls-files', '--', 'plugin/agents'],
-    { encoding: 'utf8' })
+    { encoding: 'utf8', timeout: 60_000 })
   assert.equal(listed.status, 0, 'git must list the shipped agent definitions')
   return listed.stdout.split('\n').filter(path => path.endsWith('.md'))
 }

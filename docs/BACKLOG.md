@@ -8325,7 +8325,13 @@ bound (30-60s for git and gh; 20 minutes for the whole-suite runs `unasserted.mj
 neutered gate, so a hung mutant run is restored and reported HUNG before the job cap kills it
 mid-restore), and the test asserts `scripts/` at zero. The suite's own count is a ratchet in the
 test, `RATCHET = 79`, which may fall and never rise; the checker's summary line printed into every
-run is the live number.
+run is the live number. **Third pass, same day: zero.** The 79 suite sites were given `timeout:
+60_000` in one pass generated from the checker's own AST positions and applied as 79 single-line
+`mrw` hunks (every one a `*Sync` call, so the only behaviour change is that a hung git or node in a
+test dies at 60s instead of at the job cap); the checker then read 134 timed · 0 untimed · 8 unknown,
+and the test's ratchet became a floor: `parsed.untimed` must be empty, naming any new site. The 8
+UNKNOWN are options passed as a variable — `runPython`'s own default and lifecycle's objects that
+carry `timeout` a line up — and stay printed, not gated.
 
 ## 131. CLOSED 2026-09-05 — a PreToolUse advisory was rendered to the person, one prefixed line per line, on every commit attempt
 

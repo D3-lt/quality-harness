@@ -40,7 +40,7 @@ function lint(doc, files = {}, afterCommit = {}) {
     GIT_COMMITTER_NAME: 'T', GIT_COMMITTER_EMAIL: 't@example.invalid' }
   for (const args of [['init', '-q', '-b', 'main', '.'], ['add', '.'],
     ['commit', '-qm', 'fixture']]) {
-    const g = spawnSync('git', args, { cwd: dir, env, encoding: 'utf8' })
+    const g = spawnSync('git', args, { cwd: dir, env, encoding: 'utf8', timeout: 60_000 })
     assert.equal(g.status, 0, `git ${args.join(' ')}: ${g.stderr}`)
   }
   // Written AFTER the commit, so they are on disk and not in the index.

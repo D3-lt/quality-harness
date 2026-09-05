@@ -195,7 +195,7 @@ test('end to end, in a repository the test creates: mrw_read delivers what Read 
     '---\npaths:\n  - ".github/**"\n---\n\nA GREEN SHIPPED CHANGE IS RELEASED\n')
   writeFileSync(join(sandbox, 'scripts', 'selftest.sh'), '#!/usr/bin/env bash\n')
 
-  const git = (...args) => execFileSync('git', args, { cwd: sandbox, encoding: 'utf8' })
+  const git = (...args) => execFileSync('git', args, { cwd: sandbox, encoding: 'utf8', timeout: 60_000 })
   git('init', '-q')
   git('add', '-A')
 
@@ -210,7 +210,7 @@ test('end to end, in a repository the test creates: mrw_read delivers what Read 
   const hook = (payload) => execFileSync('node', [HOOK], {
     cwd: sandbox,
     encoding: 'utf8',
-    input: JSON.stringify({ cwd: sandbox, session_id: randomUUID(), ...payload }),
+    input: JSON.stringify({ cwd: sandbox, session_id: randomUUID(), ...payload }), timeout: 60_000,
   })
 
   // The regression runs through the same call the report came through
@@ -301,7 +301,7 @@ test('end to end, in a repository the test creates: mrw_read delivers what Read 
 test('the hook exits 0 on garbage, so a broken hook never takes the turn', () => {
   for (const input of ['', 'not json', '{"tool_name":']) {
     const result = execFileSync('node', [HOOK], {
-      cwd: repoRoot, encoding: 'utf8', input,
+      cwd: repoRoot, encoding: 'utf8', input, timeout: 60_000,
     })
     // execFileSync throws on a non-zero exit, so reaching here IS the assertion
     // that the exit code was 0; the empty stdout is the second half.

@@ -43,7 +43,7 @@ function resolve(versions, directory) {
   for (const [name, hasBin] of Object.entries(versions)) {
     mkdirSync(path.join(cache, name, hasBin ? 'bin' : 'docs'), { recursive: true })
   }
-  return spawnSync(process.execPath, ['-e', RESOLVER, cache], { encoding: 'utf8' }).stdout
+  return spawnSync(process.execPath, ['-e', RESOLVER, cache], { encoding: 'utf8', timeout: 60_000 }).stdout
 }
 
 
@@ -148,7 +148,7 @@ test('the resolver says nothing rather than guessing when the cache is absent', 
   const directory = home()
   try {
     assert.equal(spawnSync(process.execPath,
-      ['-e', RESOLVER, path.join(directory, 'nowhere')], { encoding: 'utf8' }).stdout, '')
+      ['-e', RESOLVER, path.join(directory, 'nowhere')], { encoding: 'utf8', timeout: 60_000 }).stdout, '')
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -175,7 +175,7 @@ test('the resolver asks what is INSTALLED, and falls back to the cache scan', ()
   for (const version of ['2.33.1', '9.9.9']) {
     mkdirSync(path.join(cache, version, 'bin'), { recursive: true })
   }
-  const resolve = () => spawnSync('node', ['-e', RESOLVER, cache], { encoding: 'utf8' }).stdout
+  const resolve = () => spawnSync('node', ['-e', RESOLVER, cache], { encoding: 'utf8', timeout: 60_000 }).stdout
 
   try {
     // THE DIRTY CASE FIRST: no manifest, so the scan answers — and it picks the
@@ -315,7 +315,7 @@ test('a forwarder that could not run the gate does not report a pass', { skip: p
   chmodSync(script, 0o755)
   try {
     const env = { ...process.env, HOME: directory }
-    const run = spawnSync(script, [], { encoding: 'utf8', env })
+    const run = spawnSync(script, [], { encoding: 'utf8', env, timeout: 60_000 })
     assert.equal(run.status, 4, `could-not-run has its own code, not 0:\n${run.stderr}`)
     assert.match(run.stderr, /did NOT run/, run.stderr)
     assert.match(run.stderr, /not a pass/, run.stderr)
@@ -324,7 +324,7 @@ test('a forwarder that could not run the gate does not report a pass', { skip: p
 
     // THE CONSEQUENCE, asserted rather than inferred from the exit code. This is
     // the shape that fabricated the evidence, and it is what has to stop working.
-    const fence = spawnSync('sh', ['-c', `"${script}" && echo CONTINUED`], { encoding: 'utf8', env })
+    const fence = spawnSync('sh', ['-c', `"${script}" && echo CONTINUED`], { encoding: 'utf8', env, timeout: 60_000 })
     assert.doesNotMatch(fence.stdout, /CONTINUED/,
       `an acceptance fence must not continue past a gate that never ran:\n${fence.stdout}`)
     assert.notEqual(fence.status, 0, 'and the fence itself must not exit 0')
@@ -354,7 +354,7 @@ test('a real forwarder resolves and runs the gate it names', { skip: process.pla
     const run = spawnSync(script, ['ADR-001-selftest.md', 'tasks'], {
       cwd: path.join(repoRoot, 'tests', 'fixtures', 'ok'),
       encoding: 'utf8',
-      env: { ...process.env, HOME: directory },
+      env: { ...process.env, HOME: directory }, timeout: 60_000,
     })
     assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
     assert.match(run.stdout, /\[PASS\]/)
@@ -962,7 +962,7 @@ test('neither write mode touches a file it named as an orphan', () => {
   const sync = path.join(process.cwd(), 'plugin', 'scripts', 'sync-standalone.mjs')
   for (const argv of [['--apply'], ['--link', '--apply']]) {
     spawnSync(process.execPath, [sync, ...argv],
-      { encoding: 'utf8', env: { ...process.env, HOME: directory, USERPROFILE: directory } })
+      { encoding: 'utf8', env: { ...process.env, HOME: directory, USERPROFILE: directory }, timeout: 60_000 })
     assert.equal(readFileSync(target, 'utf8'), body,
       `${argv.join(' ')} must leave a named orphan present and byte-identical`)
   }

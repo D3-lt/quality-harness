@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, resolve } from 'node:path'
+import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { loadAcorn, main } from '../scripts/untimed-spawns.mjs'
@@ -113,14 +113,14 @@ test('the suite and repository scripts: counted, reported, not yet a floor', () 
   const parsed = JSON.parse(run.stdout)
   process.stderr.write(`[untimed-spawns] whole tree: ${parsed.timed} timed, ${parsed.untimed.length} untimed, ${parsed.unknown.length} unknown, ${parsed.acknowledged.length} acknowledged, ${parsed.unparsed.length} unparsed\n`)
   assert.equal(parsed.unparsed.length, 0, `every tracked JavaScript file must parse: ${JSON.stringify(parsed.unparsed)}`)
-  // The ratchet: the count may fall, never rise. The repository scripts are at
-  // zero; what remains is the suite, whose spawns the CI job cap and the
-  // selftest trap bound. Lower this when you lower the count.
-  const RATCHET = 79
-  assert.ok(parsed.untimed.length <= RATCHET,
-    `untimed spawns rose from ${RATCHET} to ${parsed.untimed.length}; a new child must carry a timeout:\n${parsed.untimed.map(f => `${f.file}:${f.line} ${f.call}`).join('\n')}`)
-  const scripts = parsed.untimed.filter(f => /[\\/]scripts[\\/]/.test(f.file) && !/[\\/]plugin[\\/]/.test(f.file))
-  assert.deepEqual(scripts, [], 'the repository scripts run in CI; every child they spawn is bounded')
+  // The floor: zero. Every child the suite spawns carries a timeout as of
+  // 2026-09-05 (79 sites given one in a single AST-generated pass); a new one
+  // without a bound is named here.
+  assert.deepEqual(parsed.untimed.map(f => `${relative(repoRoot, f.file)}:${f.line} ${f.call}`), [],
+    'a new child must carry a timeout (BACKLOG §130)')
+  // UNKNOWN stays a place to look, printed above: options passed as a variable
+  // (python-interpreter.mjs's runPython carries its own default, lifecycle.mjs
+  // passes objects that hold a timeout one line up). Not a floor.
 })
 
 test('the documented signatures are classified through the CLI, one fixture per shape', () => {

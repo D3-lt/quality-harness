@@ -100,14 +100,14 @@ test('end to end on a real repository, both answers from one sweep', () => {
   const temp = mkdtempSync(join(os.tmpdir(), 'qh-claim-sweep-'))
   const scratchRepo = join(temp, 'work')
   mkdirSync(join(scratchRepo, 'docs'), { recursive: true })
-  const git = (...args) => execFileSync('git', args, { cwd: scratchRepo, encoding: 'utf8' })
+  const git = (...args) => execFileSync('git', args, { cwd: scratchRepo, encoding: 'utf8', timeout: 60_000 })
   const backlog = join(scratchRepo, 'docs', 'BACKLOG.md')
   // Resolved from THIS file, not from `process.cwd()` — a test that only works
   // when the runner happens to start in the repository root is a test that
   // depends on who is asking (CLAUDE.md §8).
   const script = fileURLToPath(new URL('../scripts/backlog-claim-sweep.mjs', import.meta.url))
   const sweep = () => execFileSync(process.execPath, [script, '--all'],
-    { cwd: scratchRepo, encoding: 'utf8' })
+    { cwd: scratchRepo, encoding: 'utf8', timeout: 60_000 })
 
   // `§` MUST NOT travel through argv. On Windows an argument crosses
   // CreateProcess through the system codepage, so `git commit -m 'BACKLOG §87'`

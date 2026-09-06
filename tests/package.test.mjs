@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { delimiter, dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
-import { runPython } from '../scripts/python-interpreter.mjs'
+import { pythonArgv, runPython } from '../scripts/python-interpreter.mjs'
 import { fileURLToPath } from 'node:url'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -605,7 +605,7 @@ test('no mutation tool left a gate neutered in this tree', () => {
   }
 })
 
-test('every catalogue mutant still parses, so a kill is behavioural', () => {
+test('every catalogue mutant still parses, so a kill is behavioural', async (t) => {
   // BACKLOG §102. A mutant that does not PARSE is counted RED: the suite dies at
   // import, mutate.mjs reads a non-zero exit, and the entry joins the
   // `N/N noticed` headline having asserted nothing. It proves the file is fed to
@@ -623,27 +623,79 @@ test('every catalogue mutant still parses, so a kill is behavioural', () => {
   //
   // §102 measured one such entry; by the time this landed there were two, which
   // is why it is a check and not a one-time cleanup.
+  // ⚠ ONE TEMP DIRECTORY, DEDUPED ORIGINALS, ONE PYTHON PROCESS, PARALLEL NODE.
+  // This test was 44 seconds — 585x the suite's median and a sixth of its whole
+  // wall-clock — and it GREW with the catalogue, because it spawned a parser
+  // twice per entry (about 1,180 processes at 618 entries) and mkdtemp'd a
+  // directory per entry that nothing ever removed. Found 2026-09-06 by
+  // scripts/slow-tests.mjs on its first run, which is what BACKLOG §144 built it
+  // for. The CHECKS are unchanged; only how many processes take them is.
   const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8'))
-  const unparseable = []
+  const dir = mkdtempSync(join(tmpdir(), 'qh-parse-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+
+  const jobs = []
+  const originals = new Map()          // file -> scratch path, written once however many entries name it
   for (const entry of catalogue.mutations) {
     const target = join(repoRoot, entry.file)
     if (!existsSync(target)) continue
     const source = readFileSync(target, 'utf8')
     if (source.split(entry.from).length - 1 !== 1) continue
-    const mutated = source.replace(entry.from, entry.to)
     const isJs = /\.(mjs|js)$/.test(entry.file)
     const isPy = entry.file.startsWith('plugin/bin/') || entry.file.endsWith('.py')
     if (!isJs && !isPy) continue
-    const dir = mkdtempSync(join(tmpdir(), 'qh-parse-'))
-    const parses = (text, name) => {
-      const scratch = join(dir, name)
-      writeFileSync(scratch, text)
-      const check = isJs
-        ? spawnSync(process.execPath, ['--check', scratch], { encoding: 'utf8', timeout: 60_000 })
-        : runPython(['-c', `import ast,sys;ast.parse(open(sys.argv[1],encoding="utf-8").read())`, scratch],
-          { encoding: 'utf8' })
-      return check.status === 0
+
+    if (!originals.has(entry.file)) {
+      const scratch = join(dir, `orig-${originals.size}.${isJs ? 'mjs' : 'py'}`)
+      writeFileSync(scratch, source)
+      originals.set(entry.file, scratch)
     }
+    const mutant = join(dir, `mutant-${jobs.length}.${isJs ? 'mjs' : 'py'}`)
+    writeFileSync(mutant, source.replace(entry.from, entry.to))
+    jobs.push({ label: entry.label, isJs, original: originals.get(entry.file), mutant })
+  }
+
+  // Python in ONE process: interpreter startup dominates a per-file spawn, and
+  // there are hundreds of gate files here.
+  const pythonFiles = [...new Set(jobs.filter(j => !j.isJs).flatMap(j => [j.original, j.mutant]))]
+  const badPython = new Set()
+  if (pythonFiles.length) {
+    const list = join(dir, 'python-files.json')
+    writeFileSync(list, JSON.stringify(pythonFiles))
+    const batched = 'import ast,sys,json\n'
+      + 'bad=[]\n'
+      + 'for p in json.load(open(sys.argv[1],encoding="utf-8")):\n'
+      + '    try: ast.parse(open(p,encoding="utf-8").read())\n'
+      + '    except Exception: bad.append(p)\n'
+      + 'print(json.dumps(bad))\n'
+    const out = runPython(['-c', batched, list], { encoding: 'utf8' })
+    // A batch that did not run is NOT a batch in which everything parsed
+    // (ADR-005); fail loudly rather than reporting a clean sweep nobody took.
+    assert.equal(out.status, 0, `the batched python parse did not run: ${out.stderr ?? ''}`)
+    for (const p of JSON.parse(out.stdout)) badPython.add(p)
+  }
+
+  // Node in parallel: `node --check` is one file per process and there is no
+  // stable in-process ESM syntax check, so the win here is concurrency rather
+  // than batching.
+  const jsFiles = [...new Set(jobs.filter(j => j.isJs).flatMap(j => [j.original, j.mutant]))]
+  const badJs = new Set()
+  const checkJs = file => new Promise(resolve => {
+    const child = spawn(process.execPath, ['--check', file], { stdio: 'ignore', timeout: 60_000 })
+    child.on('exit', code => resolve(code === 0))
+    child.on('error', () => resolve(false))
+  })
+  let next = 0
+  await Promise.all(Array.from({ length: Math.min(8, jsFiles.length) }, async () => {
+    while (next < jsFiles.length) {
+      const file = jsFiles[next]; next += 1
+      if (!await checkJs(file)) badJs.add(file)
+    }
+  }))
+
+  const parses = (file, isJs) => !(isJs ? badJs : badPython).has(file)
+  const unparseable = []
+  for (const job of jobs) {
     // COMPARED AGAINST THE ORIGINAL, not judged alone. A workflow script is a
     // FUNCTION BODY — `plugin/workflows/*.js` use top-level `return`, which is
     // illegal in a module — so it does not parse standalone even unmutated, and
@@ -652,9 +704,10 @@ test('every catalogue mutant still parses, so a kill is behavioural', () => {
     // review-ring.js. A file that could not be parsed before the mutation tells us
     // nothing about the mutation, which is "I could not look" and not a finding
     // (ADR-005).
-    if (!parses(source, isJs ? 'orig.mjs' : 'orig.py')) continue
-    if (!parses(mutated, isJs ? 'm.mjs' : 'm.py')) unparseable.push(entry.label)
+    if (!parses(job.original, job.isJs)) continue
+    if (!parses(job.mutant, job.isJs)) unparseable.push(job.label)
   }
+  assert.ok(jobs.length > 100, `the sweep must have real entries to judge: ${jobs.length}`)
   assert.deepEqual(unparseable, [],
     'these mutants do not parse, so their RED says the file reached a parser and nothing more')
 

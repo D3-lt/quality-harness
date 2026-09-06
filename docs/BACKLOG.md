@@ -9546,3 +9546,102 @@ mutation row alone should make a task evidenced. The first keeps ADR-010's bucke
 a second counter; the second changes what "evidenced" has meant across every number this project has
 published. Do not pick one by reading — the ratio is quoted in `README.md` and in the research note,
 so whichever is chosen has to say what the old figures meant.
+
+## 151. MEASURED 2026-09-06 — the mechanism has now run on three corpora, not one, and two of them are not mine
+
+§12 of the research says the position plainly: *"the only tool that does X" is a claim about a set of
+one until somebody else runs the sweep on their corpus and reports the buckets.* Three peer sessions
+were asked; two answered within the hour, both at plugin 2.82.0, both having checked the numbers
+against their own tree rather than eyeballing them.
+
+| corpus | records | task files | evidenced | shown able to fail | entries | red | killed | survived | inconclusive |
+|---|---|---|---|---|---|---|---|---|---|
+| quality-harness | 35 | 73 | 72 | 71 (99%) | 176 | 8 | 151 | 10 | 2 |
+| agentsmemory | 58 | 163 | 132 | 126 (95%) | 534 | 95 | 373 | 49 | 10 |
+| mrw (**Go**) | 25 | 52 | 52 | 52 (100%) | 310 | 27 | 246 | 9 | 2 |
+
+**No path leaked from any of them**, which is the §6 property the review of `6896ed6` was about; two
+independent readers checked the block for a home directory or a username before pasting it.
+
+⚠ **DO NOT QUOTE `survived` AS A DEFECT COUNT.** The agentsmemory owner flagged it unprompted: in
+that corpus a survived mutant is a FINDING kept deliberately, so 49 is partly backlog and not 49
+holes. The mrw owner said the same of theirs — three of the nine are from that day and the bucket
+did its job. A ratio a corpus's owner has to caveat is a ratio this project must not publish bare.
+
+**The tool was righter than a grep, and that is worth keeping.** mrw's owner cross-checked
+`killed 246` against `grep -rho 'mutant killed' docs/adr | wc -l` = **247** and traced the extra to
+prose in an ADR's Follow-ups discussing mutants. The counter reads log ROWS; a grep reads strings.
+Anyone auditing these numbers with a grep will hit the same discrepancy and conclude the tool is
+wrong.
+
+**Stack-neutral, tested rather than assumed.** The Go corpus reported no JavaScript assumption
+anywhere across `adr-lint`, `adr-verify`, `adr-debt` and `corpus-report`.
+
+**OPEN, asked for independently by BOTH readers:** `--json` should name WHICH entries are
+entry-shaped and unjudged. "4 of 52" is a number nobody can act on, and the mrw owner's grep for
+such rows found none — so either the row-shape rule is broader than a hand-written pattern, or the
+four are shaped unexpectedly. Naming them is what settles it.
+
+## 152. OPEN — advice that fires every run trains filtering, and the filtering produced a false statement
+
+Reported 2026-09-06 by the mrw session, and it is the evidence §85 never had. `adr-lint`'s
+fence-segments-vs-`Rests-on` advice fires on every task, every run, unchanged — six identical lines
+on a six-task record. The owner began filtering them with `grep -v`, then told a reviewer
+*"adr-lint PASS, no advice outstanding"*, which was FALSE, and the reviewer caught it.
+
+That is the whole cost of a true-but-unactionable message, measured: it does not annoy, it trains a
+habit, and the habit produces a false claim about a gate's output — in a project whose subject is
+false claims about work. §85 has stood as a taste complaint; this is a consequence.
+
+Shape to look at: emit once per record, or only when the count CHANGES. Neither is obviously right —
+advice that vanishes on the second run is advice a reader never sees if they only ever read the
+second run.
+
+**Two siblings from the same report, one fix:** `adr-verify`'s refusal of a malformed `--covers` is
+the one line it emits WITHOUT the `[adr-verify]` prefix, so a scripted caller's
+`grep -E 'mutant (killed|SURVIVED)'` swallows it and the run looks like it produced nothing. A
+non-matching `--mutant --from` is then indistinguishable from a genuine survivor, because both end
+as "no verdict line". Could-not-look wearing the shape of a verdict (ADR-005), in a tool that
+enforces that rule on everyone else.
+
+## 153. OPEN — a THIRD route to "the router offers work the record forbids starting", and it needs a decision rather than a patch
+
+Found 2026-09-06 by asking the reporter of `f8a0698` whether that fix covered their case. It did
+not, and the answer is worth more than the fix was.
+
+**Three distinct routes to one sentence**, two closed and one open:
+
+1. A human sign-off whose note says STOP — closed 2026-09-04 (`stopped_by`).
+2. `**Blocked-on:** <event>` in the task file — closed 2026-09-06 (`f8a0698`); `adr-next` had never
+   read the field at all, `grep -c` returned 0.
+3. **`**Status:** blocked` in the TASK FILE, with no `Blocked-on:` field.** Open.
+
+**What route 3 actually is, checked rather than assumed.** `KNOWN_TASK_STATUS` is applied by
+`status_word(cell)` to a README TABLE CELL (`adr-lint:1916-1933`). A `**Status:**` header inside a
+task file is read by NEITHER tool. So the reporter's word did not "pass lint" — lint never looked
+there. `adr-next` reads task files and deliberately never the README, which is a derived index
+(`CLAUDE.md` §10, and `adr-next:10` says so in its own header). The two tools therefore do not
+disagree about a status; they read two different files, and a status written in the file the router
+reads is read by nobody.
+
+**How the reporter got there, which is the part that indicts the vocabulary rather than the code:**
+they reached for a status word, `adr-lint` refused their invented `skipped` and named
+`done`/`pending`/`blocked`, and they took `blocked`. The refusal was good behaviour and it routed
+them to a word that changes no routing. The one moment a reader is being told what the vocabulary
+IS, is the moment to name `Blocked-on:` for a task waiting on an external event.
+
+**THE DECISION, and it should not be made by patching whichever file is open:**
+
+- **(a) `adr-next` reads a task-file `**Status:**` header.** Makes a field nobody currently reads
+  load-bearing, and puts a second source of truth for "is this task done/blocked" beside the
+  evidence rules — which is exactly what `is_done` exists to prevent (a typed word is not
+  evidence). A typed `blocked` stopping the router is far less dangerous than a typed `done`
+  finishing a task, but it is the same shape.
+- **(b) Leave routing to `Blocked-on:` and the sign-off, and make `adr-lint` SAY so** — when it
+  advises about a status word, name `Blocked-on:` as the thing that stops the router. Costs
+  nothing semantically and closes the gap the reporter actually fell into.
+- **(c) Both**, with (a) narrowed to `blocked` only and never to `done`.
+
+Whichever is chosen has to answer: what does a README cell reading `blocked` mean if the task file
+says nothing? Today it means nothing to the router, and the README is the file most corpora edit
+first.

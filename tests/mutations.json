@@ -5262,6 +5262,96 @@
       ],
       "from": "  if (run.event === undefined || run.event === null) {",
       "to": "  if (false) {"
+    },
+    {
+      "label": "adr-verify: the survivor walk finds the grandchild, not only the child (§128)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            if parent in wanted and cpid not in wanted:",
+      "to": "            if False:"
+    },
+    {
+      "label": "spec-verify: the survivor walk finds the grandchild, not only the child (§128)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            if parent in wanted and cpid not in wanted:",
+      "to": "            if False:"
+    },
+    {
+      "label": "qh-mcp: the survivor walk finds the grandchild, not only the child (§128)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            if parent in wanted and cpid not in wanted:",
+      "to": "            if False:"
+    },
+    {
+      "label": "adr-verify: a drain timeout names the job's members, not an empty list (§128)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "        trace_timeout(f\"drain timeout survivors by job membership: {job.members()}\", started)",
+      "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)"
+    },
+    {
+      "label": "spec-verify: a drain timeout names the job's members, not an empty list (§128)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "        trace_timeout(f\"drain timeout survivors by job membership: {job.members()}\", started)",
+      "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)"
+    },
+    {
+      "label": "qh-mcp: a drain timeout names the job's members, not an empty list (§128)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "        trace_timeout(f\"drain timeout survivors by job membership: {job.members()}\", started)",
+      "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)"
+    },
+    {
+      "label": "adr-verify: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            k32 = RefusingAssignment(k32)",
+      "to": "            pass"
+    },
+    {
+      "label": "spec-verify: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            k32 = RefusingAssignment(k32)",
+      "to": "            pass"
+    },
+    {
+      "label": "qh-mcp: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            k32 = RefusingAssignment(k32)",
+      "to": "            pass"
+    },
+    {
+      "label": "lifecycle: the marker sweep removes what is stale, not nothing (§146)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (!stale(file)) { report.kept += 1; continue }",
+      "to": "      if (true) { report.kept += 1; continue }"
     }
   ]
 }

@@ -794,3 +794,119 @@ except OSError as e:
     assert.match(run.stdout, /^raised True$/m, `${gate}: DWORD(-1) from ResumeThread must raise, not count`)
   }
 })
+
+// BACKLOG §129 — the arm BELOW the job had never executed on a real Windows
+// host: every measured run took the job, and the stubbed test above drives
+// kill_tree's answer, not the live fallback. QUALITY_HARNESS_JOB_UNAVAILABLE
+// refuses AssignProcessToJobObject at the kernel32 boundary and lets everything
+// after it run live. Driven here through the k32 seam on any host, both arms:
+// the same fake yields a job when the variable is unset and a refusal when it
+// is set; the refusal must be traced as INDUCED, resume the fence through the
+// fallback, and close the job handle it created.
+test('QUALITY_HARNESS_JOB_UNAVAILABLE refuses the job at the kernel32 boundary and says the refusal was induced', () => {
+  const probe = `import importlib.machinery, importlib.util, io, os, sys, ctypes
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+class FakeK32:
+    def __init__(self): self.assigned = 0; self.closed = []; self.resumed = 0
+    def GetCurrentProcess(self): return 0xFFFFFFFFFFFFFFFF
+    def IsProcessInJob(self, proc, job, out): out._obj.value = True; return 1
+    def CreateJobObjectW(self, a, b): return 1234
+    def SetInformationJobObject(self, *a): return 1
+    def AssignProcessToJobObject(self, job, proc): self.assigned += 1; return 1
+    def CloseHandle(self, h): self.closed.append(h); return 1
+    def CreateToolhelp32Snapshot(self, kind, pid): return 77
+    def Thread32First(self, snap, ref):
+        ref._obj.th32OwnerProcessID = 4242; ref._obj.th32ThreadID = 9; return 1
+    def Thread32Next(self, snap, ref): return 0
+    def OpenThread(self, access, inherit, tid): return 88
+    def ResumeThread(self, h): self.resumed += 1; return 1
+class Proc:
+    pid = 4242; _handle = 99
+    def __init__(self): self.killed = False
+    def kill(self): self.killed = True
+os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"] = "1"
+real = sys.stderr
+def drive(induced):
+    if induced: os.environ["QUALITY_HARNESS_JOB_UNAVAILABLE"] = "1"
+    else: os.environ.pop("QUALITY_HARNESS_JOB_UNAVAILABLE", None)
+    k32 = FakeK32(); proc = Proc()
+    buf = io.StringIO(); sys.stderr = buf
+    job = module.windows_job(proc, 0.0, k32=k32)
+    sys.stderr = real
+    return job, k32, proc, buf.getvalue()
+job, k32, proc, trace = drive(False)
+print("observed", job is not None, k32.assigned, k32.resumed, proc.killed, "INDUCED" in trace, "job object holds 4242" in trace)
+job, k32, proc, trace = drive(True)
+print("induced", job is None, k32.assigned, k32.resumed, proc.killed, "INDUCED, not observed" in trace,
+      "AssignProcessToJobObject failed" in trace, "falling back to taskkill" in trace, 1234 in k32.closed)
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    assert.match(run.stdout, /^observed True 1 1 False False True$/m,
+      `${gate}: with the variable unset the same fake yields a job — assigned once, resumed once, nothing induced — got ${run.stdout}`)
+    assert.match(run.stdout, /^induced True 0 1 False True True True True$/m,
+      `${gate}: with it set the assignment never reaches kernel32, the fence is still resumed through the fallback, the trace says INDUCED, and the job handle is closed — got ${run.stdout}`)
+  }
+})
+
+// BACKLOG §128 — a drain that times out had, so far, named nothing: the CI
+// runner sat at 60s on byte-identical code and the survivor holding the pipe
+// was never identified. Under the trace flag the drain now lists what is still
+// alive two ways, ancestry and job membership, each with its own could-not-look.
+// Driven through the seams on any host: a proc whose communicate times out, a
+// snapshot with a grandchild, a stranger and a reused pid, a job that answers
+// members — then each listing failing, which must be said in those words and
+// not as an empty list (ADR-005). With the flag unset nothing is written and
+// no snapshot is taken.
+test('a drain that times out names the survivors by ancestry and by job membership, or says it could not', () => {
+  const probe = `import importlib.machinery, importlib.util, io, os, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+class Proc:
+    pid = 4242; stdout = stderr = stdin = None
+    def communicate(self, timeout=None): raise subprocess.TimeoutExpired("x", timeout)
+class Job:
+    def __init__(self, answer): self.answer = answer
+    def terminate(self): return True
+    def members(self):
+        if isinstance(self.answer, Exception): raise self.answer
+        return self.answer
+rows = [("bash.exe", 1, 4242), ("sleep.exe", 2, 1), ("stranger.exe", 3, 999), ("Idle", 0, 0), ("ghost.exe", 1, 2)]
+snapshots = []
+def processes(): snapshots.append(1); return rows
+def blind(): raise OSError(5, "snapshot refused")
+real = sys.stderr
+def drive(flag, job, procs):
+    if flag: os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"] = "1"
+    else: os.environ.pop("QUALITY_HARNESS_TRACE_TIMEOUT", None)
+    buf = io.StringIO(); sys.stderr = buf
+    module.drain_after_kill(Proc(), "nt", grace=0.01, job=job, processes=procs)
+    sys.stderr = real
+    return buf.getvalue()
+print(repr(drive(True, Job([1, 2]), processes)))
+print(repr(drive(True, Job(OSError(87, "query refused")), blind)))
+print(repr(drive(True, None, processes)))
+before = len(snapshots)
+print(repr(drive(False, Job([1, 2]), processes)), len(snapshots) - before)
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    const [full, refused, nojob, silent] = run.stdout.trim().split('\n')
+    assert.match(full, /survivors below 4242 by ancestry: \[\('bash\.exe', 1\), \('sleep\.exe', 2\)\]/,
+      `${gate}: the grandchild is named, the stranger is not, and a reused pid does not loop the walk — ${full}`)
+    assert.match(full, /survivors by job membership: \[1, 2\]/, `${gate}: the job's members are named — ${full}`)
+    assert.match(refused, /by ancestry: COULD NOT LIST \(OSError: \[Errno 5\] snapshot refused\)/, `${gate}: a snapshot that fails is said — ${refused}`)
+    assert.match(refused, /by job membership: COULD NOT LIST \(OSError: \[Errno 87\] query refused\)/, `${gate}: a query that fails is said — ${refused}`)
+    assert.match(nojob, /by job membership: no job/, `${gate}: no job is said in those words, not shown as an empty list — ${nojob}`)
+    assert.match(silent, /^'' 0$/, `${gate}: with the flag unset nothing is written and no snapshot is taken — ${silent}`)
+  }
+})

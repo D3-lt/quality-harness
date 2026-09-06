@@ -3054,11 +3054,67 @@ function previousSessionNotice(cwd, platform = process.platform) {
     + (check ? `Run \`${check}\` before building on them.` : 'Nothing has checked them since.')
 }
 
+// Where the "already said this" markers live, and the sweep that bounds them
+// (BACKLOG §146). One zero-byte file per (session, generation, finding), and
+// nothing ever removed one: a Windows peer counted 48 from a single review
+// session still sitting in TEMP the next day. Markers now live in a directory
+// of their own, so the sweep reads that directory and not the whole temp root,
+// and a once-a-day guard bounds even that to one readdir per machine per day.
+const SAID_MARKER_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
+const SAID_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
+// The shapes that sat directly under the temp root before the directory
+// existed: said- markers from earlier releases, and the one-per-session
+// generation and note files — the same class, found by the same sweep of this
+// file (CLAUDE.md §5). Exactly 32 hex, so nothing else is ever matched.
+const LEGACY_MARKER = /^quality-harness-(?:said|gen|note)-[0-9a-f]{32}$/
+
+export function saidMarkerDirectory(tmp = os.tmpdir()) {
+  return path.join(tmp, 'quality-harness-said')
+}
+
+// Remove markers older than a week, at most once a day per machine. NEVER
+// THROWS: it runs inside a hook on the way to saying a finding, and a sweep
+// that failed must not cost the finding. Returns what it did — `swept` false
+// means the daily guard held and nothing was read; `unreadable` names every
+// place it could not look — so a caller or a test can tell "nothing was old"
+// from "could not look" (ADR-005). A live marker belongs to a session under a
+// week old; one older is re-said at worst once, which is the side this whole
+// mechanism errs toward. The guard stores the time it was given rather than
+// trusting its own mtime, so a test can drive the clock.
+export function sweepStaleMarkers(tmp = os.tmpdir(), now = Date.now()) {
+  const directory = saidMarkerDirectory(tmp)
+  const report = { swept: false, removed: 0, kept: 0, unreadable: [] }
+  try { mkdirSync(directory, { recursive: true }) } catch (error) { report.unreadable.push(`mkdir: ${error?.code ?? error}`); return report }
+  const guard = path.join(directory, '.swept')
+  try { if (now - Number(readFileSync(guard, 'utf8')) < SAID_SWEEP_INTERVAL_MS) return report } catch {}
+  // Written before the sweep, so a sweep that fails halfway does not retry on
+  // every hook call for the rest of the day.
+  try { writeFileSync(guard, String(now)) } catch (error) { report.unreadable.push(`guard: ${error?.code ?? error}`) }
+  report.swept = true
+  const stale = file => {
+    try { return now - statSync(file).mtimeMs > SAID_MARKER_MAX_AGE_MS } catch { return false }
+  }
+  const sweep = (dir, accept) => {
+    let names
+    try { names = readdirSync(dir) } catch (error) { report.unreadable.push(`${dir}: ${error?.code ?? error}`); return }
+    for (const name of names) {
+      if (!accept(name)) continue
+      const file = path.join(dir, name)
+      if (!stale(file)) { report.kept += 1; continue }
+      try { unlinkSync(file); report.removed += 1 } catch { report.kept += 1 }
+    }
+  }
+  sweep(directory, name => name !== '.swept')
+  sweep(tmp, name => LEGACY_MARKER.test(name))
+  return report
+}
+
 function firstMentionThisSession(sessionId, key) {
   if (typeof sessionId !== 'string' || !sessionId) return true
   const generation = sessionGeneration(sessionId)
   const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`).digest('hex').slice(0, 32)
-  const marker = path.join(os.tmpdir(), `quality-harness-said-${stamp}`)
+  sweepStaleMarkers()
+  const marker = path.join(saidMarkerDirectory(), stamp)
   // Exclusive create: two parallel tool calls carrying the same finding both
   // saw no marker and both said it in full (Codex review, 2026-09-05). EEXIST
   // is the second caller's answer; any other failure means the marker cannot

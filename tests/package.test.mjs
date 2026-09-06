@@ -896,27 +896,33 @@ test('no job in the release workflow is conditioned so a dispatched run skips it
   // A step may skip freely; a job may not. That is the whole rule, and it is the
   // difference between a job that concludes `success` having done nothing and a
   // job that concludes `skipped`.
-  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
-  const jobs = workflow.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1)
-  assert.ok(jobs.length > 1, 'the split must actually find the jobs, or this asserts nothing')
-
-  for (const job of jobs) {
-    const name = job.split('\n', 1)[0].replace(':', '')
+  // ⚠ THE PREDICATE IS A FUNCTION AND BOTH ANSWERS GO THROUGH IT. Written as a
+  // loop over the real workflow with a separate "and here is a bad shape" check
+  // beside it, the assertion is never executed against a job that must fail it:
+  // the campaign proved that, returning GREEN for a mutant that replaced
+  // `doesNotMatch` with `ok` — every real job's condition is truthy, so nothing
+  // noticed. One function, two inputs, is what makes the mutant die.
+  const skipsItself = yaml => yaml.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1)
     // Job-level keys sit at four spaces; a step's `if` is deeper, or inside a
     // `- ` item. Only the four-space form decides whether the JOB runs.
-    const jobIf = job.match(/^ {4}if: (.+)$/m)
-    if (!jobIf) continue
-    assert.doesNotMatch(jobIf[1], /workflow_dispatch/,
-      `job ${name} skips itself on some events — put the condition on its steps instead, `
-      + 'or release-evidence reads the skip as a job that did not succeed')
-  }
+    .filter(job => /^ {4}if: .*workflow_dispatch/m.test(job))
+    .map(job => job.split('\n', 1)[0].replace(':', ''))
 
-  // DIRTY, in the same test: the check must reject the shape it exists to
-  // prevent, or it is a loop that never fires.
-  const bad = '  cache:\n    runs-on: ubuntu-latest\n    if: github.event_name != \'workflow_dispatch\'\n    steps:\n'
-  const badJobs = bad.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1)
-  assert.equal(badJobs.length, 1)
-  assert.match(badJobs[0].match(/^ {4}if: (.+)$/m)[1], /workflow_dispatch/)
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  assert.ok(workflow.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1).length > 1,
+    'the split must actually find the jobs, or this asserts nothing')
+  assert.deepEqual(skipsItself(workflow), [],
+    'a job that skips itself on some events — put the condition on its steps instead, '
+    + 'or release-evidence reads the skip as a job that did not succeed')
+
+  // DIRTY, through the same function: the shape this exists to prevent must come
+  // back named, or the empty answer above means nothing.
+  assert.deepEqual(skipsItself(
+    '  cache:\n    runs-on: ubuntu-latest\n'
+    + "    if: github.event_name != 'workflow_dispatch'\n    steps:\n"), ['cache'])
+  // And a condition that skips no job is not reported: the check must separate
+  // the two, not flag every `if:` it finds.
+  assert.deepEqual(skipsItself('  cache:\n    runs-on: ubuntu-latest\n    if: always()\n    steps:\n'), [])
 })
 
 test('importing a script runs its CLI on nobody', async () => {

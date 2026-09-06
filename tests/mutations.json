@@ -5625,13 +5625,49 @@
       "to": "    'RECORDED CLAIMS RE-CHECKED LATER.',"
     },
     {
-      "label": "corpus-report: an absolute corpus path is shown relative, so a shared report carries no home directory",
+      "label": "corpus-report: a path escaping the corpus becomes a placeholder, so a shared report names no person",
       "file": "plugin/scripts/corpus-report.mjs",
       "tests": [
         "tests/corpus-report.test.mjs"
       ],
-      "from": "  const shown = path.isAbsolute(given) ? (path.relative(cwd, given) || '.') : given",
-      "to": "  const shown = given"
+      "from": "  if (rel.split(/[\\\\/]/)[0] === '..') return OUTSIDE",
+      "to": ""
+    },
+    {
+      "label": "corpus-report: a different drive or UNC share is a placeholder, not an absolute path printed in public",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  if (flavour.isAbsolute(rel)) return OUTSIDE",
+      "to": ""
+    },
+    {
+      "label": "corpus-report: an unreadable root has no totals, rather than a full set of zeros nobody measured",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  const totals = rootUnreadable ? null : measure(files, read)",
+      "to": "  const totals = measure(files, read)"
+    },
+    {
+      "label": "corpus-report: an entry nobody could judge is reported, so outcome-only never reads as passed",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "    if (t.unjudgedEntries) {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "corpus-report: a record is a FILE, so a directory named like one is not counted",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/.test(entry.name)).length",
+      "to": "      .filter(entry => /^ADR-.*\\.md$/.test(entry.name)).length"
     }
   ]
 }

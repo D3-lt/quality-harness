@@ -9181,6 +9181,23 @@ know that.
 it grows with the corpus and is now a sixth of the suite's wall-clock on its own. Whether that is
 worth batching is a separate question from this section, and nothing here measured it.
 
+**THAT SIBLING IS DONE, the same day, and the numbers are worth the honesty.** The test spawned a
+parser TWICE PER ENTRY — about 1,180 processes at 618 entries — and `mkdtemp`'d a directory per
+entry that nothing ever removed. Now: originals are deduped by file (many entries name the same
+one), every Python file goes through ONE batched `ast.parse` process instead of ~578, the Node
+`--check` calls run eight at a time, and there is one temp directory, removed.
+
+**Measured: 44,151 ms → 5,322 ms for the test.** ⚠ **And the suite's wall-clock did NOT move** —
+47.5 s against 48.4 / 48.1 / 51.1 / 48.8 s before, which is inside the noise. `node --test` runs
+FILES concurrently, so this test was never alone on the critical path and shortening it frees a
+core rather than a minute. The win that is real is the test's own cost, which grew with the
+catalogue, and about 880 fewer processes per run on four platforms.
+
+The checks themselves are unchanged, and that was verified rather than assumed: an entry whose `to`
+was temporarily made unparseable is still caught and still named. A batched parse that did not RUN
+is asserted to fail loudly, because "the batch did not start" must never read as "everything
+parsed" (ADR-005).
+
 ## 145. MEASURED 2026-09-06 on a real Windows 11 box — three deferred questions answered, and one of them for a reason nobody predicted
 
 **§128, §129 and §123 all deferred to CI because Windows cannot be run locally (§7).** A peer

@@ -179,6 +179,50 @@ deleting an entry from the table fails a test on any host. The audit is of the
 mapping, which is where the bug was: before the taxonomy, 8 of 9 Windows shapes were
 misread and 6 of them as `passed` — a check that never ran, reported as a clean pass.
 
+
+## What a mutant costs, and how you choose its tests
+
+A campaign costs `mutants × (setup + test time)`. Per entry, only `setup` is yours
+to choose, and it is where hand-written and agent-written catalogues go wrong:
+given no rule, the entry names the suite whose command is already known, and a
+suite that builds a database builds it once per mutant.
+
+**The rule: a mutant's `tests` is the narrowest set that can observe the mutated
+line.** Narrow means fewest processes started and least state created. It is not a
+tier — a unit test with a database fixture is expensive and an end-to-end test with
+none is cheap. Choose by what a test builds, never by what it is called.
+
+Five rules, in the order they save the most:
+
+1. **A mutant never owns setup.** Databases, containers, servers and fixtures are
+   built once for the campaign, or reused through a template or a rolled-back
+   transaction. Per-mutant setup multiplies by the mutant count, so nothing else
+   here is worth doing until this holds.
+2. **Never catalogue a mutant on a line no test executes.** It answers a coverage
+   question rather than a detection one, and it answers it slowly. Drop those
+   entries before the campaign, not after.
+3. **If the only test that can kill a mutant needs expensive shared state, that is
+   a finding about the code, not a cost to pay.** The behaviour has no cheap
+   observation point. Record that and move on; do not buy it.
+4. **Restrict the operators you delegate.** Where you hand ordinary code to a
+   language mutation tool, cut its operator set rather than running the default —
+   published results put a well-chosen ~30% at parity with the full set, and two
+   operators at 2-3× cheaper for negligible loss. The hand-written classes above
+   are already a restricted set, chosen for the same reason.
+5. **Reuse verdicts.** A verdict is a function of `(file, from, to, tests)`. When
+   none of those changed, the run is a lookup.
+
+**One trade-off, stated here because it is otherwise found late.** Narrowing test
+sets raises the number of DISTINCT sets, and a runner takes one unmutated baseline
+per distinct set — so narrowing trades per-mutant time for baseline spawns. Measure
+your own crossover rather than carrying a number: count the mutants, count the
+distinct `tests` sets, and the baselines cost `sets / mutants` of the campaign. On
+this plugin's own catalogue on 2026-09-06 that ratio was under a tenth, which is why
+narrowing wins here. Narrow until baselines cost more than the narrowing saves, and
+stop there.
+
+And run the cheap half first. A `CATALOGUED`-without-`ASSERTED` finding costs one
+read; the campaign that would find it costs the whole table above.
 ## Running the mutations
 
 The catalogue is JSON. Each entry names the file, the exact string to replace, its

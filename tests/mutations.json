@@ -5678,6 +5678,16 @@
       "only": "a task waiting on an OUTSIDE event is not offered as ready",
       "from": "        if inf.get(\"blocked_on\"):",
       "to": "        if False:"
+    },
+    {
+      "label": "lint: the status advisory names the field that actually stops the router, where the reader is choosing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "partial",
+      "from": "            f\"⚠ A STATUS IN THIS FILE ROUTES NOTHING: if the task is waiting on an event OUTSIDE \"",
+      "to": "            f\"\""
     }
   ]
 }

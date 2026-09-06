@@ -9604,7 +9604,7 @@ non-matching `--mutant --from` is then indistinguishable from a genuine survivor
 as "no verdict line". Could-not-look wearing the shape of a verdict (ADR-005), in a tool that
 enforces that rule on everyone else.
 
-## 153. OPEN — a THIRD route to "the router offers work the record forbids starting", and it needs a decision rather than a patch
+## 153. DECIDED (b) 2026-09-06 — a THIRD route to "the router offers work the record forbids starting"
 
 Found 2026-09-06 by asking the reporter of `f8a0698` whether that fix covered their case. It did
 not, and the answer is worth more than the fix was.
@@ -9644,4 +9644,39 @@ IS, is the moment to name `Blocked-on:` for a task waiting on an external event.
 
 Whichever is chosen has to answer: what does a README cell reading `blocked` mean if the task file
 says nothing? Today it means nothing to the router, and the README is the file most corpora edit
+
+**DECIDED (b), 2026-09-06, on a measurement rather than a preference.** The reporter counted their
+own 58-record / 163-task corpus:
+
+```
+task READMEs with a Status column        48
+task FILES with a **Status:** header      5   (done ×2, partial, Withdrawn, blocked)
+task files with Blocked-on:               0
+```
+
+48 against 5 settles which file records status in practice, and **zero** settles the rest: the field
+that stops the router is used NOWHERE in that corpus, so the only way anyone there learns it exists
+is being told while choosing a word. That is the advisory, and it now names `Blocked-on:` and says
+in as many words that a status in the README routes nothing.
+
+**(a) and (c) are rejected, and the reason is in those five values.** They are not one vocabulary —
+`done` twice, `partial`, `Withdrawn 2026-08-22. Not deferred, not blocked:…`, and a `blocked`.
+Nobody was following a scheme; each session invented what it needed. Making that header load-bearing
+would promote four improvisations into router input. And narrowing (a) to `blocked` only works until
+someone writes the other word in the same place — **two task files there already carry
+`**Status:** done`, neither evidenced**. A typed `done` finishing a task is precisely what `is_done`
+exists to prevent.
+
+⚠ **AND THE REPORTER'S OWN MECHANISM CLAIM WAS WRONG, which is why this was checked rather than
+acted on.** They said `adr-lint` refused their invented status and named the three words — true —
+and passed it on as lint having read the TASK FILE. Lint's message said `README.md: T3 has status
+skipped`; it never read the task file. They had the evidence in front of them and reported the
+mechanism from a read rather than from the output. The observation was right, the mechanism was not,
+and a fix built on their sentence would have taught `adr-next` to read the wrong file. A peer report
+is a lead to confirm against source.
+
+**What is NOT closed:** the `**Status:**` header in a task file is still read by nobody. It stays
+unread deliberately — five ad-hoc values across six weeks is not a vocabulary to route on — but a
+field a user can write in the obvious place with no reader is a wart, and the honest options are to
+have `adr-lint` say so when it sees one, or to stop the template implying it exists.
 first.

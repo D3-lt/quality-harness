@@ -338,6 +338,27 @@ evidence than it looks: **one in five "solved" patches on SWE-bench Verified is
 semantically wrong**, passing only because the tests were too weak to expose it.
 
 Sources and effect sizes: [`docs/research/2026-08-28-verification-is-the-bottleneck.md`](docs/research/2026-08-28-verification-is-the-bottleneck.md).
+
+### Run the same numbers on your own corpus
+
+Everything this project claims about itself, it measures with tools that ship. One
+command puts your corpus's figures in front of you:
+
+```bash
+node "$(qh-root)/scripts/corpus-report.mjs" docs/adr
+```
+
+It is **read-only and never runs your fences** — re-checking a recorded claim means
+executing that task's own acceptance command, and a reporting tool has no business
+doing that to your checkout. The half it cannot take without running something is
+reported as `UNRUN`, with the command that would take it (`adr-verify --sweep`).
+
+**And the numbers would be worth more from you than from here.** On mechanism this
+project appears to be alone among spec-driven tools — every comparable one decides
+"done" by model judgement and records it as prose. But it has been exercised on
+essentially one corpus, its own. *"The only tool that does X"* is a claim about a set
+of one until somebody else reports their buckets. If you run it, the output is shaped
+to paste straight into an issue.
 Its §10 is the narrower list — what this repository measured itself, including a
 null it will not promote to support, a retraction of its own published number, and
 a column for findings it negated, left empty because it has negated none.

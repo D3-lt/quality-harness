@@ -5566,8 +5566,8 @@
         "tests/package.test.mjs"
       ],
       "only": "every mutation shard computes its slice from one snapshot",
-      "from": "  assert.doesNotMatch(mutations, /uses: actions\\/cache\\/restore/,",
-      "to": "  assert.ok(mutations, "
+      "from": "  const resolvesOwnCache = job => /uses: actions\\/cache\\/restore/.test(job)",
+      "to": "  const resolvesOwnCache = () => false"
     }
   ]
 }

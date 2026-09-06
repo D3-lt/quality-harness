@@ -171,7 +171,13 @@ test('catalogue output carries the runner schema and none of this tool notes', (
     label: 'l', file: 'f', from: 'a', to: 'b', tests: [],
     kind: 'routing-clause', coverage: 'unasserted', absolute: '/tmp/f',
   }])
-  assert.deepEqual(Object.keys(entries[0]).sort(), ['file', 'from', 'label', 'tests', 'to'])
+  assert.deepEqual(Object.keys(entries[0]).sort(), ['file', 'from', 'label', 'only', 'tests', 'to'])
+  // `only` is EMPTY and present, and this tool never fills it: the value is the name
+  // of the test that killed the mutant, which only a run produces. An empty one runs
+  // the whole file, which is what a catalogue without the field always did — so the
+  // field's whole job here is to tell a reader copying the schema that the narrowing
+  // exists.
+  assert.equal(entries[0].only, '')
 })
 
 test('a root given without --tests is the root that gets scanned', () => {

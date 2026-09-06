@@ -254,6 +254,7 @@ export function catalogueEntries(found) {
     from: candidate.from,
     to: candidate.to,
     tests: candidate.tests,
+    only: '',
   }))
 }
 

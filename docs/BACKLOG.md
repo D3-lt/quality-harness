@@ -8247,6 +8247,11 @@ neither peer ran it, and the test that would is still `posixTree`-skipped. The d
 named, and it is the right one: the process ancestry `taskkill /T` can walk — a reparented subshell is
 outside it, a foreground one is not.
 
+⚠ **Superseded in part, 2026-09-06 — see §145.** The leader-exits shape has now run on a real
+Windows 11 box: 8/8 pass. The discriminator above is not what decided it. That host never calls
+`taskkill`; a Job Object kills by membership, so a reparented subshell is still in the job. The
+ancestry gap stands as written and is unreachable wherever job setup succeeds.
+
 One correction from a peer that belongs here: the `returned N.NN` diagnostic in the seam test was
 interpolated only into a *failing* assertion, so a passing run never showed it. A diagnostic that
 speaks only on failure is not a diagnostic.
@@ -8314,6 +8319,11 @@ the skip being lifted — which is the outcome that would justify the lift most.
 
 **Still open and untouched:** the two tree-death assertions, the unattributed 60s pipe holder in the
 direct path, and the leader-exits shape (§123) on Windows.
+
+⚠ **Measured 2026-09-06 — see §145.** All three cleanup-raises tests pass 8/8 on a real Windows 11
+box, with no surviving processes and no leftover temp directories. That is not this residual being
+cleared: every run took the Job Object path, so the fallback branch the residual is conditional on
+never executed.
 
 ⚠ **A residual the Codex review named, NOT fixed here, and deliberately so.** Lifting the skip means
 the cleanup-raises probe now runs on Windows, where it stubs `kill_tree` with a function that raises
@@ -9034,3 +9044,100 @@ this test is slow because it spawns a gate per table row, or because something i
 being reaped, is not established here — measuring that is the first task, not a fix.
 
 **Not scheduled.** Recorded because run 5 cost a diagnosis that only the earlier logs could settle.
+
+## 145. MEASURED 2026-09-06 on a real Windows 11 box — three deferred questions answered, and one of them for a reason nobody predicted
+
+**§128, §129 and §123 all deferred to CI because Windows cannot be run locally (§7).** A peer
+session with a Windows 11 Pro box ran the suite directly. This is the log §7 says to wait for.
+
+**Environment.** Windows 11 Pro 10.0.26200.0 · node v24.20.0 · Python 3.14.7 · git
+2.49.0.windows.1 · `core.autocrlf` system `true`, so a CRLF checkout · Git Bash 5.2.37(1) under
+`Program Files\Git\bin` · clone of `29e83ca` into a scratch directory, read-only, nothing repaired.
+
+**Command, eight full runs:** `QUALITY_HARNESS_FORCE_TREE_TESTS=1 node --test
+tests/timeout-tree.test.mjs`. Every run: 24 tests, 20 pass, 0 fail, 4 skipped, exit 0, wall
+27151–27290 ms. The four skips are the SIGINT group, self-declared — `process.kill(pid, 'SIGINT')`
+terminates a Windows process outright, so no Python handler runs.
+
+| assertion | verdict | per-run ms |
+|---|---|---|
+| a fence timeout kills the tree the fence started, not only bash | 8/8 pass | 2414–2448 (spread 34) |
+| a fence whose leader exits still has its tree killed (§123) | 8/8 pass | 2368–2395 |
+| `spec-verify`: a cleanup that raises does not replace the timeout | 8/8 pass | 1136–1164 |
+| `qh-mcp`: same | 8/8 pass | 1136–1153 |
+| `adr-verify`: same | 8/8 pass | 1174–1188 |
+
+### §123 passes on Windows, and the discriminator this repository wrote down does not apply
+
+§128's entry names the discriminator a peer proposed and this file endorsed: `taskkill /T` walks
+process **ancestry**, so a reparented subshell sits outside the reachable tree. **On this box
+`taskkill` is never called.** The peer rebuilt the `LEADER_EXITS_FENCE` fixture by hand outside the
+clone and ran `plugin/bin/adr-verify` against it with `QUALITY_HARNESS_TRACE_TIMEOUT=1`:
+
+    [trace-timeout] gate already inside a job: True (nested job follows) +6ms
+    [trace-timeout] job object holds 33316 +6ms
+    [trace-timeout] fence timeout after 1s +1060ms
+    [trace-timeout] kill_tree start +1060ms
+    [trace-timeout] job object terminated the tree of 33316
+    [trace-timeout] kill_tree end confirmed=True +1060ms
+    [trace-timeout] drain communicate returned +1061ms
+
+Returned in 1252 ms, exit 2, the `UNRUN … its process tree was killed` beat. `beat.txt` held five
+lines at return and still five three seconds later — the reparented subshell is dead, not merely
+orphaned. The same trace shape appears on the ordinary fence-timeout path, so this is the normal
+arm on this host and not something the hand-built fixture provoked.
+
+**Why:** a Job Object kills by **membership**, not by ancestry, and reparenting a child does not
+remove it from the job. The ancestry gap is real and it is unreachable wherever job setup succeeds.
+So the right reading is not "§123 was wrong" — it is that the failure mode this repository reasoned
+its way to is **gated behind a fallback nobody has executed on a real host**.
+
+### What is NOT closed by this
+
+- **§128 is not closed.** The CI runner saw pass / 60 s / 60 s / 1.3 s on byte-identical code; this
+  box shows a 34 ms spread across eight runs and never approaches the 60 s bound. That is evidence
+  about **this machine** as much as about the code, and the peer said so unprompted. The
+  unattributed pipe holder in the direct path stays unattributed.
+- **§129's residual is unreproduced, not cleared, and the distinction is the whole entry.** Zero
+  surviving `python`/`bash`/`sleep` in `Win32_Process` after every run, zero leftover
+  `qh-timeout-tree-*` or `quality-harness-*` directories, no `EPERM` on `rmdir`. But the residual
+  the Codex review named was **conditional on Job Object setup taking its fallback**, and every run
+  logged `gate already inside a job: True`. The stubbed unit test drives both arms; a stub is not
+  the live fallback. **The specific risk was not exercised.** Forcing job setup to fail is the
+  measurement that would settle it, and nothing here does that.
+- **The four SIGINT tests still have no Windows answer.** The suite skips them itself on win32.
+
+### An incidental confirmation worth more than it looks
+
+Bare `bash` on this box resolves to the **WSL stub under `System32`**, which reports itself as
+`x86_64-pc-linux-gnu`. Git Bash is not first on `PATH` for a plain process. `resolve_bash()`
+returned the `Program Files\Git` path unaided, skipping both the System32 and WindowsApps stubs.
+`.claude/rules/07-platforms-and-paths.md` has been wrong about that guard **in both directions**;
+this is a third independent execution of it, on a host where the wrong answer was the one sitting
+first on `PATH`.
+
+**Not scheduled.** Recorded because three entries deferred a measurement to CI and a real box
+answered two of them differently than the reasoning predicted.
+
+## 146. OPEN — the "already said this" dedupe markers are never cleaned up
+
+The same Windows session counted **48 zero-byte files** named `quality-harness-said-<32 hex>` under
+`TEMP`, dated the day before its work, unchanged across all eight runs. It was right that they are
+ours and right about what they are for.
+
+`plugin/scripts/lifecycle.mjs:3057` — `firstMentionThisSession()` writes one marker per
+`(sessionId, generation, key)` with `flag: 'wx'`, so a second parallel tool call carrying the same
+finding sees `EEXIST` and stays quiet (Codex review, 2026-09-05). That mechanism is correct and
+should stay.
+
+**Nothing ever removes them.** One file per distinct finding per session generation, for the life of
+the machine's temp directory. Zero bytes each, so this is not a disk problem — it is unbounded file
+growth in a shared directory, on every adopter, from a shipped plugin.
+
+**What is not established:** whether it matters. A temp directory the OS sweeps makes this a
+non-issue; one that is never swept makes it slow `readdir` for everything else eventually. Neither
+was measured, and the count above is one machine on one day.
+
+**Do not "fix" it by removing the marker.** The marker is what stops a finding being said twice, and
+that was itself a review finding. The candidate is an age-based sweep at session start — which is a
+new failure surface (deleting a live session's marker) and needs its own thought, not a one-liner.

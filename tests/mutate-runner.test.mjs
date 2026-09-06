@@ -1,7 +1,10 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
+import { spawnSync } from 'node:child_process'
+import { dirname, resolve } from 'node:path'
+import { fileURLToPath } from 'node:url'
 
-import { baselineOf, cacheKey, classify, killedBy, renderLine, reusable, setKeyOf, shardByCost, summarise, testArgs, testSets, testsRun } from '../scripts/mutate.mjs'
+import { baselineOf, cacheKey, childEnv, classify, killedBy, leafTestsRun, renderLine, reusable, setKeyOf, shardByCost, summarise, testArgs, testSets } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -104,9 +107,10 @@ test('a baseline that never ran is not reported as an already-failing suite', ()
   // code that may be perfectly fine.
   const timedOut = baselineOf({ status: null, signal: 'SIGTERM' })
   assert.equal(timedOut.state, 'unrun')
-  const reallyFailed = baselineOf({ status: 1, signal: null })
+  // A run the reporter narrated: the leaf lines are what say tests executed.
+  const reallyFailed = baselineOf({ status: 1, signal: null, stdout: '✖ one (1ms)\nℹ tests 1\nℹ fail 1\n' })
   assert.equal(reallyFailed.state, 'fail')
-  assert.equal(baselineOf({ status: 0, signal: null }).state, 'pass')
+  assert.equal(baselineOf({ status: 0, signal: null, stdout: '✔ one (1ms)\nℹ tests 1\nℹ pass 1\n' }).state, 'pass')
 
   // Both still make the verdict UNPROVEN — neither is evidence — but they must
   // not say the same thing about the suite.
@@ -419,9 +423,10 @@ test('`only` becomes a --test-name-pattern for the mutant and its baseline alike
   const root = '/r'
   const plain = { tests: ['tests/b.test.mjs', 'tests/a.test.mjs'] }
   const narrowed = { ...plain, only: 'kills the tree' }
-  assert.deepEqual(testArgs(root, plain).slice(0, 1), ['--test'])
+  const owned = ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout']
+  assert.deepEqual(testArgs(root, plain).slice(0, 3), owned, 'the reporter is named, never inherited')
   assert.ok(!testArgs(root, plain).includes('--test-name-pattern'), 'no pattern without only')
-  assert.deepEqual(testArgs(root, narrowed).slice(0, 3), ['--test', '--test-name-pattern', 'kills the tree'])
+  assert.deepEqual(testArgs(root, narrowed).slice(0, 5), [...owned, '--test-name-pattern', 'kills the tree'])
   // Sorted files, so two entries naming the same files in a different order run the same argv.
   assert.deepEqual(testArgs(root, plain).slice(1), testArgs(root, { tests: [...plain.tests].reverse() }).slice(1))
   // An empty `only` is no `only`.
@@ -445,24 +450,48 @@ test('a baseline taken under one pattern licenses nothing about another', () => 
   assert.equal(cacheKey({ ...c, file: 'f', from: 'x', to: 'y' }, read), cacheKey({ ...d, file: 'f', from: 'x', to: 'y' }, read))
 })
 
-// THE TRAP. A pattern that matches no test makes `node --test` exit 0 with
-// `ℹ tests 0`. Read as a passing baseline, every mutant under it is GREEN — a
-// finding about tests that never ran. It is could-not-look, in those words. And
-// output that does not SAY how many ran is not read as zero: that would turn
-// every reporter change into a wall of UNPROVEN.
+// THE TRAP, and the review that found the first guard did not close it. A
+// pattern that matches no test makes `node --test` exit 0 — and Node reports the
+// test FILE as one passing test, `✔ tests/x.test.mjs` with `ℹ tests 1`, so a
+// guard reading the summary count never fired. And an inherited
+// `--test-reporter=dot` removed every line the runner reads. Both are driven
+// here against REAL node output, not fabricated stdout, because fabricated
+// stdout is exactly what let the first version pass (Codex review, 2026-09-06).
 test('a run in which no test executed is an unrun baseline, never a passing one', () => {
-  const nothing = { status: 0, signal: null, stdout: 'ℹ tests 0\nℹ suites 0\nℹ pass 0\n' }
-  const some = { status: 0, signal: null, stdout: 'ℹ tests 3\nℹ pass 3\n' }
-  const silent = { status: 0, signal: null, stdout: '' }
-  assert.equal(testsRun(nothing.stdout), 0)
-  assert.equal(testsRun(some.stdout), 3)
-  assert.equal(testsRun(silent.stdout), null, 'no count line is unknown, not zero')
-  assert.equal(baselineOf(nothing).state, 'unrun')
-  assert.match(baselineOf(nothing).why, /no test ran/)
+  // Synthetic shapes first, for the arithmetic.
+  const wrapperOnly = { status: 0, signal: null, stdout: '✔ tests/x.test.mjs (5.1ms)\nℹ tests 1\nℹ pass 1\n' }
+  const some = { status: 0, signal: null, stdout: '✔ one (1ms)\n✔ two (1ms)\nℹ tests 2\nℹ pass 2\n' }
+  const silent = { status: 0, signal: null, stdout: '.\n' }
+  assert.equal(leafTestsRun(wrapperOnly.stdout), 0, 'the file wrapper is not a test that ran')
+  assert.equal(leafTestsRun(some.stdout), 2)
+  assert.equal(leafTestsRun(silent.stdout), null, 'no spec lines at all is unknown')
+  assert.equal(baselineOf(wrapperOnly).state, 'unrun')
+  assert.match(baselineOf(wrapperOnly).why, /no test ran/)
   assert.equal(baselineOf(some).state, 'pass')
-  assert.equal(baselineOf(silent).state, 'pass', 'exit status decides when the output does not say')
-  // And the verdict a mutant gets under that baseline is UNPROVEN, not GREEN.
-  const verdict = classify({ occurrences: 1, baseline: baselineOf(nothing), run: nothing })
-  assert.equal(verdict.verdict, 'UNPROVEN')
-  assert.equal(verdict.observed, 'GREEN', 'what the run showed is still reported, as UNPROVEN always does')
+  assert.equal(baselineOf(silent).state, 'unrun', 'output the runner cannot read is not a pass')
+  assert.equal(classify({ occurrences: 1, baseline: baselineOf(wrapperOnly), run: wrapperOnly }).verdict, 'UNPROVEN')
+})
+
+test('end to end: a nonsense pattern under an inherited dot reporter is unrun, and a matching one passes', () => {
+  const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
+  const file = 'tests/mutate-runner.test.mjs'
+  // The environment a shell might leave: a reporter that prints one dot. The
+  // runner must neither inherit it nor crash by stacking its own on top.
+  const env = childEnv({ ...process.env, NODE_OPTIONS: '--test-reporter=dot' })
+  assert.doesNotMatch(env.NODE_OPTIONS, /test-reporter/, 'the inherited reporter is stripped')
+  assert.ok(!('NODE_TEST_CONTEXT' in childEnv({ ...process.env, NODE_TEST_CONTEXT: 'child-v8' })),
+    'the test runner\'s own child marker is dropped, or an inner node --test prints nothing to stdout')
+  // NOT named `spawn`: scripts/untimed-spawns.mjs matches callee NAMES, so a
+  // helper called `spawn` reads as an untimed child at every call site while the
+  // real spawnSync inside it carries a timeout (BACKLOG §130).
+  const runNode = only => spawnSync(process.execPath, testArgs(repoRoot, { tests: [file], only }),
+    { cwd: repoRoot, encoding: 'utf8', env, timeout: 120_000 })
+  const nothing = runNode('zzz-no-such-test-zzz')
+  assert.equal(nothing.status, 0, `node must start and exit 0 with no match\n${nothing.stderr}`)
+  assert.equal(baselineOf(nothing).state, 'unrun', `a no-match run is not a passing baseline: ${nothing.stdout.slice(0, 200)}`)
+  assert.match(baselineOf(nothing).why, /selected nothing/)
+  const one = runNode('^a stale entry is decided before any baseline')
+  assert.equal(one.status, 0, one.stderr)
+  assert.equal(leafTestsRun(one.stdout), 1, `exactly the matching test ran: ${one.stdout.slice(0, 300)}`)
+  assert.equal(baselineOf(one).state, 'pass')
 })

@@ -7782,6 +7782,32 @@ Two siblings, named rather than fixed:
 
 ## 122. CLOSED 2026-09-04 — the suite wrote its new ledger into ANOTHER plugin's data directory
 
+
+**THE FIRST SIBLING IS CLOSED, 2026-09-06, and it was reproduced a fourth time getting there.** A
+session running `bash scripts/selftest.sh` with a Codex review in flight got exit 1 and a log of
+**359 bytes** ending right after the third `✔ Validation passed` — the same signature to the byte —
+and initially wrote it off as unrelated scratch-directory flakiness. It is this.
+
+**What was measured, and what still is not.** Forty consecutive isolated runs of
+`claude plugin validate --strict plugin/skills` all exited 0, so this is not the CLI failing
+deterministically, and the cause remains unattributed. The fix does not need it. `selftest.sh` now
+runs each validate through a `validate()` wrapper that captures output and status, and a non-zero
+exit **with no output at all** is reported as `UNRUN` by name — saying that nothing was validated
+and that this is not a finding about the manifest — instead of `set -euo pipefail` ending the script
+wordlessly.
+
+It still FAILS, and that is deliberate: a check that did not run must never read as one that
+passed. What changes is that the reader is told which of the two happened, which is the whole of
+ADR-005 applied to this repository's own entry point.
+
+`tests/package.test.mjs::a plugin validate that dies saying nothing is UNRUN, not a finding about
+the manifest` drives both arms through a stub `claude` on `PATH`: silent non-zero must say `UNRUN`
+and name this section; a non-zero **with** output must NOT — otherwise the fix has only moved the
+lie to the other side. The stub fails on the FIRST validate so the script exits before the suite,
+which keeps the test at about a second (§144, closed the same day).
+
+**The second sibling — a backgrounded fence escaping the group kill by making its own session — is
+untouched and stays open.**
 Found the same hour it was introduced, by running `qh-doctor` and not believing the number.
 
 ADR-035 T2 gave the Stop hook a ledger at `$CLAUDE_PLUGIN_DATA/claims.jsonl`. `tests/lifecycle.test.mjs`

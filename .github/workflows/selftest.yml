@@ -143,13 +143,13 @@ jobs:
           if-no-files-found: warn
 
   mutations:
-    name: mutations ${{ matrix.shard }}/8
+    name: mutations ${{ matrix.shard }}/12
     runs-on: ubuntu-latest
     # Sharded, and timed out on purpose. The campaign went from 145 entries to
     # 268 in two days and its job was killed at thirty minutes on 2026-08-28
     # with exit 143 — which reads as infrastructure noise rather than as "this
     # gate outgrew its slot". An explicit timeout makes the difference legible,
-    # and eight shards keep each one well inside it.
+    # and the shards keep each one inside it.
     #
     # ADR-023 T1: four -> eight on 2026-09-02. The campaign is ~80 minutes of
     # serial work at 430 entries, and index-sliced quarters came out 24.6 / 16.1
@@ -158,11 +158,33 @@ jobs:
     # wall-clock. The three places this number appears are asserted to agree by
     # tests/package.test.mjs, because a job named `x/8` running `--shard x/4`
     # skips half the catalogue and still reports success.
+    #
+    # eight -> twelve on 2026-09-06, for the same reason and on sharper evidence.
+    # BOTH runs on 4b7045c were cancelled at exactly 25:15, each losing ONE shard
+    # — 3/8 on the dispatched run and 4/8 on the push. The partition is
+    # deterministic, so identical contents timing out in different places is not
+    # one unlucky shard: it is several shards sitting AT the budget with runner
+    # variance choosing the loser. The catalogue had just gone 593 -> 600, and
+    # the added entries name the two slowest suites (lifecycle, timeout-tree),
+    # which is the per-mutant cost the mutation-audit skill warns about, made
+    # against this repository's own catalogue.
+    #
+    # ⚠ THE TIMEOUT IS NOT THE THING TO RAISE. It exists to make "this gate
+    # outgrew its slot" legible rather than to read as infrastructure noise, and
+    # it did exactly that. More shards restores the margin; a longer slot would
+    # only hide the next 25 minutes of growth.
+    #
+    # ⚠ AND THE SHARDS ARE NOT COST-BALANCED HERE. `shardByCost` reads timings
+    # from ADR-023's cache, and the dispatched run passes --no-cache, so on a
+    # fresh runner every cost is unknown and it degrades to round-robin — which
+    # partitions correctly and claims nothing about balance, as its own docstring
+    # says. Twelve buys headroom under round-robin; it does not make the split
+    # even, and nothing here should be read as claiming it does.
     timeout-minutes: 25
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
     # 145 catalogue entries that had never run anywhere but a laptop, in the
     # project whose own thesis is that a suite nobody runs is a claim. It is the
     # highest-value check here — it is the only one that measures whether the
@@ -205,9 +227,9 @@ jobs:
           QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           if [ "$QUALITY_HARNESS_FULL_CAMPAIGN" = "true" ]; then
-            node scripts/mutate.mjs --shard ${{ matrix.shard }}/8 --no-cache
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/12 --no-cache
           else
-            node scripts/mutate.mjs --shard ${{ matrix.shard }}/8
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/12
           fi
 
   plugin-validate:

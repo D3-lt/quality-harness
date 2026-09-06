@@ -73,6 +73,28 @@ export function merge(reports, expected) {
     }
   }
 
+  // ⚠ A COUNT IS NOT COMPLETENESS, and the gap is reachable. Twelve reports in
+  // which `2/12` appears twice and `3/12` not at all passes any count check —
+  // and then shard 3's deletions never happen (a stale RED survives) or its new
+  // verdicts are lost. The identities are in the files; ask for all of them.
+  // Found by review, 2026-09-06.
+  if (expected > 1) {
+    const missing = []
+    const seen = new Map()
+    for (const report of reports) seen.set(report.shard, (seen.get(report.shard) ?? 0) + 1)
+    for (let i = 1; i <= expected; i += 1) {
+      const identity = `${i}/${expected}`
+      if (seen.get(identity) !== 1) missing.push(`${identity} x${seen.get(identity) ?? 0}`)
+    }
+    if (missing.length) {
+      return {
+        ok: false,
+        reason: `shard identities are not exactly 1..${expected}: ${missing.join(', ')}`,
+        failures: [],
+      }
+    }
+  }
+
   const entries = {}
   // The prior, from any report: they all carry it, and a key nobody measured
   // must keep exactly what it had.
@@ -97,19 +119,40 @@ export function merge(reports, expected) {
   return { ok: true, entries, measured: seen.size, deleted: deleted.size }
 }
 
-/** Read every path, merge, and write. Returns the process exit code. */
+/**
+ * Read every path, merge, and write. Returns the process exit code.
+ *
+ * ⚠ OPTIONS ARE CONSUMED BEFORE POSITIONALS, and that ordering is the whole
+ * correctness of this function. Filtering out only the flags themselves leaves
+ * every OPERAND behind, so `--expect 12` contributed a thirteenth "path" named
+ * `12`, every real invocation refused as incomplete, and the save never ran. The
+ * CLI test missed it because its refusal arm passed for the wrong reason: eleven
+ * files plus a stray `12` is twelve paths, one of them unreadable, which is also
+ * a refusal. Found by review, 2026-09-06.
+ */
 export function run(argv, { read = readFileSync, write = writeFileSync, log = console.log } = {}) {
-  const outAt = argv.indexOf('--out')
-  if (outAt === -1 || !argv[outAt + 1]) {
-    log('usage: mutation-cache-merge.mjs --out <file> <shard-cache>...')
-    return 2
-  }
-  const out = argv[outAt + 1]
-  const paths = argv.filter((a, i) => i !== outAt && i !== outAt + 1 && !a.startsWith('--'))
-  if (!paths.length) { log('usage: mutation-cache-merge.mjs --out <file> <shard-cache>...'); return 2 }
+  const usage = () => { log('usage: mutation-cache-merge.mjs --out <file> [--expect <n>] <shard-cache>...'); return 2 }
+  const OPTIONS = new Set(['--out', '--expect'])
 
-  const expectedAt = argv.indexOf('--expect')
-  const expected = expectedAt === -1 ? paths.length : Number(argv[expectedAt + 1])
+  const values = new Map()
+  const paths = []
+  for (let i = 0; i < argv.length; i += 1) {
+    const arg = argv[i]
+    if (OPTIONS.has(arg)) {
+      if (argv[i + 1] === undefined) return usage()
+      values.set(arg, argv[i + 1])
+      i += 1               // the OPERAND, never a path
+      continue
+    }
+    if (arg.startsWith('--')) { log(`mutation-cache-merge: unknown option: ${arg}`); return 2 }
+    paths.push(arg)
+  }
+
+  const out = values.get('--out')
+  if (!out) return usage()
+  if (!paths.length) return usage()
+
+  const expected = values.has('--expect') ? Number(values.get('--expect')) : paths.length
   if (!Number.isInteger(expected) || expected < 1) {
     log('mutation-cache-merge: --expect wants a positive integer')
     return 2

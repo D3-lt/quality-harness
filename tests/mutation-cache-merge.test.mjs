@@ -72,9 +72,29 @@ test('a shard that never reported refuses the merge instead of freezing its keys
   assert.equal(refused.ok, false)
   assert.match(refused.reason, /11 shard report\(s\), expected 12/)
 
-  // The same reports with an honest expectation merge cleanly, so the refusal is
-  // about completeness and not about these eleven files.
-  assert.equal(merge(eleven, 11).ok, true)
+  // The same eleven RELABELLED as a complete eleven-shard run merge cleanly, so
+  // the refusal is about completeness and not about these eleven files.
+  const relabelled = eleven.map((r, i) => ({ ...r, shard: `${i + 1}/11` }))
+  assert.equal(merge(relabelled, 11).ok, true)
+})
+
+test('twelve reports are not twelve shards when one identity appears twice', () => {
+  // A count is not completeness. If `2/12` arrives twice and `3/12` never does,
+  // the count check passes and shard 3's deletions simply never happen — a stale
+  // RED survives a mutant that went GREEN, which is the whole failure this file
+  // exists to prevent, reached by a route the count cannot see.
+  const twelve = twelveShards({ measuredBy: '3/12', apply: e => { delete e.k1; return ['k1'] } })
+  const duplicated = twelve.map(r => (r.shard === '3/12' ? { ...r, shard: '2/12' } : r))
+
+  const refused = merge(duplicated, 12)
+  assert.equal(refused.ok, false)
+  assert.match(refused.reason, /shard identities are not exactly 1\.\.12/)
+  assert.match(refused.reason, /2\/12 x2/)
+  assert.match(refused.reason, /3\/12 x0/)
+
+  // CLEAN, in the same test: the untouched twelve merge, so the refusal is about
+  // the identities and not about these reports.
+  assert.equal(merge(twelve, 12).ok, true)
 })
 
 test('a report that cannot say what it measured is no report, not an empty one', () => {
@@ -104,10 +124,12 @@ test('a report that cannot say what it measured is no report, not an empty one',
 test('when two shards measure one key, the deletion wins whichever order they arrive in', () => {
   // Two catalogue entries whose file, from, to, only and test bytes are all
   // identical share a cache key, so this needs no bug to reach.
-  const keeps = report({ k1: RED('one') }, ['k1'], 'a')
-  const drops = report({}, ['k1'], 'b')
+  const keeps = report({ k1: RED('one') }, ['k1'], '1/2')
+  const drops = report({}, ['k1'], '2/2')
 
   for (const order of [[keeps, drops], [drops, keeps]]) {
+    // Reversed, the identities are still exactly 1/2 and 2/2 — order is what is
+    // under test here, not completeness.
     const merged = merge(order, 2)
     assert.equal(merged.ok, true)
     assert.equal(merged.entries.k1, undefined,
@@ -116,17 +138,22 @@ test('when two shards measure one key, the deletion wins whichever order they ar
   }
 })
 
-test('the CLI writes only when the merge held, and says which it did', () => {
+test('the CLI writes only when the merge held, and the workflow call is the one under test', () => {
   const good = twelveShards({ measuredBy: '2/12', apply: e => { delete e.k1; return ['k1'] } })
-  const read = p => JSON.stringify(good[Number(p.split('-')[1]) - 1])
+  const readPaths = []
+  const read = p => { readPaths.push(p); return JSON.stringify(good[Number(p.split('-')[1]) - 1]) }
   const paths = good.map((_, i) => `shard-${i + 1}`)
 
+  // ⚠ EXACTLY THE ARGUMENTS THE WORKFLOW PASSES, `--expect 12` included. Written
+  // without it, this test passed while the real invocation refused every time:
+  // the operand `12` was collected as a thirteenth report path. A CLI regression
+  // belongs at the boundary the caller actually uses (CLAUDE.md §4).
   const written = []
   const said = []
-  const code = run(['--out', 'merged.json', ...paths],
+  const code = run(['--out', 'merged.json', '--expect', '12', ...paths],
     { read, write: (f, c) => written.push([f, c]), log: m => said.push(m) })
 
-  assert.equal(code, 0)
+  assert.equal(code, 0, said.join('\n'))
   assert.equal(written.length, 1)
   const [file, contents] = written[0]
   assert.equal(file, 'merged.json')
@@ -135,9 +162,12 @@ test('the CLI writes only when the merge held, and says which it did', () => {
   assert.equal(parsed.entries.k1, undefined)
   assert.equal(parsed.measured, undefined, 'a merged cache is a cache, not a report')
   assert.match(said.join('\n'), /1 key\(s\) measured this run, 1 deleted/)
+  assert.deepEqual(readPaths, paths, 'an option operand must never be read as a report')
 
-  // DIRTY, in the same test: one path short of --expect writes NOTHING, so the
-  // previous cache stands rather than being replaced by a partial one.
+  // DIRTY, in the same test: one report short writes NOTHING, and the reason
+  // must be the COUNT. Asserting only /REFUSED/ is what let the defect above
+  // through — eleven files plus a stray `12` is also twelve paths, one of them
+  // unreadable, which refuses for an entirely different reason.
   const refusedWrites = []
   const refusedSaid = []
   const refusedCode = run(['--out', 'merged.json', '--expect', '12', ...paths.slice(0, 11)],
@@ -145,7 +175,9 @@ test('the CLI writes only when the merge held, and says which it did', () => {
 
   assert.equal(refusedCode, 1)
   assert.deepEqual(refusedWrites, [], 'a refusal must not leave a half-merged cache behind')
-  assert.match(refusedSaid.join('\n'), /REFUSED/)
+  assert.match(refusedSaid.join('\n'), /REFUSED — 11 shard report\(s\), expected 12/)
+  assert.doesNotMatch(refusedSaid.join('\n'), /unreadable/,
+    'the count is the reason; an operand read as a path would say unreadable instead')
 })
 
 test('the CLI refuses a call it cannot understand rather than guessing an output path', () => {
@@ -153,9 +185,15 @@ test('the CLI refuses a call it cannot understand rather than guessing an output
   const opts = { read: () => '{}', write: () => { throw new Error('must not write') }, log: m => said.push(m) }
 
   assert.equal(run([], opts), 2)
-  assert.equal(run(['--out'], opts), 2)
+  assert.equal(run(['--out'], opts), 2, 'a flag with no operand')
   assert.equal(run(['--out', 'merged.json'], opts), 2, 'no shard files named')
+  assert.equal(run(['--out', 'merged.json', '--expect'], opts), 2, '--expect with no operand')
   assert.equal(run(['--out', 'merged.json', '--expect', 'twelve', 'shard-1'], opts), 2)
+  // An option nobody implemented must be named, never silently ignored: ignoring
+  // one is how a caller gets a different measurement than the one they asked for
+  // (the --filter/--case lesson in scripts/mutate.mjs).
+  assert.equal(run(['--out', 'merged.json', '--strict', 'shard-1'], opts), 2)
+  assert.match(said.join('\n'), /unknown option: --strict/)
   assert.match(said.join('\n'), /usage: mutation-cache-merge/)
 })
 

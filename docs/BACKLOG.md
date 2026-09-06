@@ -9715,3 +9715,46 @@ belongs" this project keeps finding.
 
 ⚠ A tie is not rare here: a push and a hand-dispatch issued from one shell land in the same second
 routinely. This will recur on every release cut the fast way.
+
+## 155. OPEN — "waiting on an outside event, with a runnable fence" has no representation, and §153's advice walked a reader into the refusal
+
+Found 2026-09-06 within hours of §153 shipping, by the same peer TRYING TO FOLLOW IT. They added
+`**Blocked-on:** ADR-014 reconsidering FUSION=linear as the default` to the exact task that started
+the thread. `adr-lint` exit 1:
+
+> `Blocked-on says this task waits on something outside the repository, but its Acceptance is a
+> runnable ```bash fence — a task that can run its own acceptance is not waiting, it is unfinished,
+> which is `pending` or `partial`. Blocked-on belongs on a task whose Acceptance is human-observed.`
+
+Same refusal on the other genuinely-blocked task there. They reverted both, and measured:
+
+```
+task files with a runnable ```bash acceptance:  162 of 163
+```
+
+**THE RULE IS COHERENT AND THE VOCABULARY HAS A HOLE.** Their task IS waiting on an external event
+and its acceptance IS runnable — it would run today and produce four tables nobody should spend the
+compute on. "Waiting on something outside, with a runnable fence" cannot be said. That is not an
+exotic shape: it is what every CONDITIONAL MEASUREMENT task looks like.
+
+⚠ **AND IT INDICTS §153's ANSWER, WHICH I SHIPPED HOURS EARLIER.** The advisory sent a reader
+choosing a status word to `Blocked-on:` — a field `errors.append` REFUSES on 162 of those 163 files.
+A dead end one step further along than the one they started in. Advice that ends in a blocking
+refusal is worse than no advice: it spends the reader's turn and teaches them the tool is wrong.
+Corrected the same evening — the advisory now names the constraint, says `Blocked-on` is refused on
+a runnable-fence task, and says what to do instead.
+
+**And the zero now reads differently.** §153 recorded `Blocked-on:` unused in 163 task files and
+read it as undiscoverable. It is also REFUSABLE almost everywhere. Discoverability was the smaller
+half.
+
+**The open question, and it may have an honest negative answer.** If a runnable-fence task waiting
+on an external event is correctly `pending` with the reason in prose, then routing genuinely cannot
+help it and the right outcome is that NOTHING PRETENDS TO — which is what the corrected advisory now
+says. The alternative is a representation for the shape: a `Blocked-on` that is legal beside a
+runnable fence and understood as "do not run this yet" rather than "this cannot run". That is a
+change to what an Acceptance means when it is present but must not be executed, and it wants a
+record rather than a patch.
+
+⚠ Reported against 2.82.0. They have not seen `adr-next`'s `Blocked-on` routing work at all — only
+lint's refusal to let them use the field.

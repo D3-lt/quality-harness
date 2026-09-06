@@ -5568,6 +5568,33 @@
       "only": "every mutation shard computes its slice from one snapshot",
       "from": "  const resolvesOwnCache = job => /uses: actions\\/cache\\/restore/.test(job)",
       "to": "  const resolvesOwnCache = () => false"
+    },
+    {
+      "label": "slow-tests: a duration belongs to the assertion above it, so an innocent test is never named as the slow one",
+      "file": "scripts/slow-tests.mjs",
+      "tests": [
+        "tests/slow-tests.test.mjs"
+      ],
+      "from": "      pending = { name: assertion[3], depth: assertion[1].length / 4, ok: assertion[2] === 'ok' }",
+      "to": "      pending = { name: assertion[3], depth: 0, ok: assertion[2] === 'ok' }"
+    },
+    {
+      "label": "slow-tests: only leaf tests form the yardstick, because a suite line is the sum of its children",
+      "file": "scripts/slow-tests.mjs",
+      "tests": [
+        "tests/slow-tests.test.mjs"
+      ],
+      "from": "  const leaves = tests.filter(t => t.depth === 0)",
+      "to": "  const leaves = tests"
+    },
+    {
+      "label": "slow-tests: a median of zero is UNRUN, not a run in which everything is infinitely slow",
+      "file": "scripts/slow-tests.mjs",
+      "tests": [
+        "tests/slow-tests.test.mjs"
+      ],
+      "from": "  if (mid === null || mid <= 0) return { median: mid, unusable: true, found: [] }",
+      "to": "  if (mid === null) return { median: mid, unusable: true, found: [] }"
     }
   ]
 }

@@ -257,8 +257,21 @@ except BaseException as exc:
     print("%s %.1f" % (type(exc).__name__, time.monotonic() - started))
 `
 
+// ⚠ NOT `posixTree`, and the difference is the point. BACKLOG §128's skip exists
+// because the Windows tree kill is non-deterministic on the CI runner and
+// asserting the tree DIED would redden a release run on an unattributed
+// survivor. This test asserts neither: it replaces `kill_tree` with `boom`, so
+// the platform-specific path it was skipped for never executes. What is left —
+// does a raising cleanup replace the exception that caused it, and does the
+// caller still report inside its bound — is the same question on every host, and
+// the answer is exactly ADR-005's class.
+//
+// It was skipped on Windows by ANALOGY with its neighbours, which `CLAUDE.md` §7
+// forbids in those words: a skip is earned after the log shows the fixture
+// cannot be built there, never by resemblance. Nothing in the log ever showed it
+// for this one. Un-skipped 2026-09-06 (BACKLOG §129).
 for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
-  test(`${gate}: a cleanup that raises does not replace the timeout`, posixTree, () => {
+  test(`${gate}: a cleanup that raises does not replace the timeout`, () => {
     const run = runPython(['-c', CLEANUP_RAISES_PROBE, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, `${gate} probe\n${run.stdout}${run.stderr}`)
     const [kind, seconds] = run.stdout.trim().split(/\s+/)

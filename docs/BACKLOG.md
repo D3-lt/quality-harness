@@ -7897,6 +7897,40 @@ before the code, it was measurable in an afternoon for under a dollar, and it ki
 own author wanted — which is the only evidence that any of the other criteria in this corpus mean
 anything either.
 
+**MEASURED 2026-09-06, and it turned up a SECOND arm with no observed producer.** ADR-035 T4 asked
+for a calibration of the `asserted` arm over at least thirty real final messages. That exercise
+cannot be run — the arm was withdrawn on 2026-09-04, before the measurement it was pre-registered
+against ever happened, so there are no `asserted` rows to label and a reported
+"precision 1.00 over 0 rows" would be arithmetic on an empty set. `scripts/claims-calibrate.mjs`
+refuses to print one and says why.
+
+What it can measure is the distribution the arms that remain produce on real data. Over the 80
+newest transcripts on this machine, 68 of which carried a final assistant message:
+
+| arm | count | share |
+|---|---|---|
+| `none` | 63 | 92.6% |
+| `hedged` | 5 | 7.4% |
+| `limited` | **0** | — |
+| `unavailable` | 0 | — |
+| `asserted` | 0 | unreachable by construction |
+
+⚠ **`limited` fired on nothing.** It is not withdrawn and not unreachable — `evidenceLimited()` is
+live and a message could take it — but across 68 real final messages nothing did. That is the same
+SHAPE as the defect this section records, one step earlier: an arm whose producer nobody has
+observed, sitting in a classifier that is trusted because its other arms behave. It is not evidence
+of a defect; it is the absence of evidence that it works, which is precisely what §124 says the
+`asserted` arm had before it was measured.
+
+**Do not read this as a reason to withdraw `limited`.** Zero observations over 68 messages from one
+machine, one week, one person's writing is a thin sample, and the arm exists for a case (a session
+that genuinely could not look) that is rare by design. The finding is that nothing has ever
+confirmed it fires, and that is now written down rather than assumed.
+
+**What a restored `asserted` arm owes**, unchanged and now with a baseline: precision ≥ 0.90 over
+≥ 30 real final messages, labelled by a human, and the table above is what it must beat rather than
+a number invented at the time.
+
 ## 125. CLOSED 2026-09-04 (after v2.65.0) — two ways an unjudged row became a favourable verdict
 
 **Left by** the Codex `gpt-5.6-sol` xhigh review of `v2.64.0..d7a764b` on 2026-09-04, run under

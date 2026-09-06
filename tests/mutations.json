@@ -5595,6 +5595,16 @@
       ],
       "from": "  if (mid === null || mid <= 0) return { median: mid, unusable: true, found: [] }",
       "to": "  if (mid === null) return { median: mid, unusable: true, found: [] }"
+    },
+    {
+      "label": "issue-11: adr-lint still reads the `ms:` field adr-verify writes, so the two gates cannot drift apart",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "adr-lint accepts the entry adr-verify wrote",
+      "from": "MS_FIELD = r\"(?: · ms:(?P<ms>\\d+))?\"",
+      "to": "MS_FIELD = r\"\""
     }
   ]
 }

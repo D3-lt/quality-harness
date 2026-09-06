@@ -36,7 +36,8 @@ from pathlib import Path
 # plugin cache keeps lib/ beside bin/. Star-imported so the gate's namespace
 # carries the fence's names, which is how the tests reach them (module.<name>).
 _lib = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib")
-if not os.path.isfile(os.path.join(_lib, "fence.py")):
+_fence_file = os.path.join(_lib, "fence.py")
+if not os.path.isfile(_fence_file):
     # A gate COPIED somewhere without plugin/lib beside its bin/ — the stale-copy
     # shape the standalone forwarders exist to replace. Said in one sentence as
     # could-not-run (exit 2, ADR-005), never as a traceback.
@@ -44,7 +45,19 @@ if not os.path.isfile(os.path.join(_lib, "fence.py")):
                      f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
                      f"or through a forwarder.\n")
     sys.exit(2)
-sys.path.insert(0, _lib)
+# Loaded from its EXACT path, and replaced if something else already answers to
+# the name. `sys.path.insert(0, lib)` beats an earlier search-path entry but not
+# the import cache: a sitecustomize or an embedding loader that had imported some
+# other top-level `fence` handed this gate that module's run_bounded, and a probe
+# showed it (Codex review, 2026-09-06). The gate owns its process, so a foreign
+# module under this name is displaced rather than deferred to.
+import importlib.util as _ilu
+_loaded = sys.modules.get("fence")
+if os.path.realpath(getattr(_loaded, "__file__", None) or "") != os.path.realpath(_fence_file):
+    _spec = _ilu.spec_from_file_location("fence", _fence_file)
+    _loaded = _ilu.module_from_spec(_spec)
+    sys.modules["fence"] = _loaded
+    _spec.loader.exec_module(_loaded)
 from fence import *  # noqa: E402,F401,F403
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------

@@ -151,19 +151,37 @@ function dirtyTargets(selected) {
  * introduced to fix.
  */
 /** How many tests the reporter says ran, or null when the output does not say. */
-export function testsRun(stdout) {
-  const m = /^ℹ tests (\d+)$/m.exec(stdout ?? '')
-  return m ? Number(m[1]) : null
+/**
+ * How many LEAF tests the spec reporter says ran — ✔ and ✖ lines whose name is
+ * not a path — or null when the output carries no spec markers at all.
+ *
+ * ⚠ NOT `ℹ tests N`. With a name pattern that matches nothing, Node reports the
+ * test FILE as one passing test — `✔ tests/x.test.mjs` and `ℹ tests 1` — so a
+ * count read from the summary said 1 where 0 tests ran, and the guard built on
+ * it never fired (Codex review, 2026-09-06; reproduced on Node 26). The file
+ * wrapper's name is a path with no whitespace, the same discriminator killedBy
+ * uses (BACKLOG §53); a test whose NAME looks like a path is discounted with it,
+ * which is the documented limit of that rule.
+ */
+export function leafTestsRun(stdout) {
+  const text = stdout ?? ''
+  if (!/^\s*(?:[✔✖﹣]|ℹ tests) /m.test(text)) return null
+  return [...text.matchAll(/^\s*[✔✖] (.+?) \(\d[\d.]*ms\)\s*$/gm)]
+    .filter(m => !(/^\S+$/.test(m[1]) && /\.(mjs|js|py|cjs)$/.test(m[1]))).length
 }
 
 export function baselineOf(run) {
   if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }
   // A run in which NO test executed is not a passing baseline, whatever its exit
-  // status. A name pattern that matches nothing exits 0 with `ℹ tests 0`, and a
-  // mutant measured against that reads GREEN — "the tests did not notice", said
-  // of tests that never ran. Could-not-look, in those words (ADR-005). Output
-  // that does not say how many ran is not read as zero.
-  if (testsRun(run.stdout) === 0) return { state: 'unrun', why: 'no test ran — the name pattern selected nothing' }
+  // status: a mutant measured against it reads GREEN — "the tests did not
+  // notice", said of tests that never ran. Could-not-look, in those words
+  // (ADR-005). Output with no spec markers at all is unrun too: the runner OWNS
+  // the reporter (testArgs, childEnv), so their absence means the run did not
+  // happen the way this reads it — an inherited `--test-reporter=dot` did
+  // exactly that before the child's environment was scrubbed.
+  const ran = leafTestsRun(run.stdout)
+  if (ran === null) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }
+  if (ran === 0) return run.status === 0 ? { state: 'unrun', why: 'no test ran — the name pattern selected nothing' } : { state: 'fail' }
   return run.status === 0 ? { state: 'pass' } : { state: 'fail' }
 }
 
@@ -221,9 +239,32 @@ export function testSets(mutations) {
  */
 export function testArgs(root, entry) {
   const only = typeof entry.only === 'string' && entry.only ? ['--test-name-pattern', entry.only] : []
-  return ['--test', ...only, ...[...entry.tests].sort().map(t => path.join(root, t))]
+  // The reporter is OWNED: spec, to stdout, named here — baselineOf reads its
+  // leaf lines and killedBy its failing block. It cannot be added ON TOP of an
+  // inherited one: Node refuses to start when reporters and destinations do not
+  // pair up, so childEnv strips the inherited flags instead.
+  return ['--test', '--test-reporter=spec', '--test-reporter-destination=stdout', ...only,
+    ...[...entry.tests].sort().map(t => path.join(root, t))]
 }
 
+/**
+ * The child's environment: the caller's, minus what would change what the
+ * child PRINTS. Two inherited variables did that. `--test-reporter=dot` in
+ * NODE_OPTIONS made every run print one dot, which read as "no count, trust the
+ * exit status" — a passing baseline over tests that produced no evidence they
+ * ran. And NODE_TEST_CONTEXT, which `node --test` sets for its own children,
+ * makes an inner `node --test` speak the parent runner's binary protocol on a
+ * private channel: stdout is EMPTY. Six test files in this repository spawn
+ * the campaign from inside `node --test`, so every run they drove had children
+ * nobody could read — it worked because exit status alone used to decide.
+ */
+export function childEnv(base = process.env) {
+  const { NODE_TEST_CONTEXT: _inherited, ...rest } = base
+  const tokens = (rest.NODE_OPTIONS ?? '').split(/\s+/).filter(Boolean)
+  const kept = tokens.filter((token, i, all) => !/^--test-reporter(?:-destination)?(?:=|$)/.test(token)
+    && !(i > 0 && /^--test-reporter(?:-destination)?$/.test(all[i - 1])))
+  return { ...rest, NODE_OPTIONS: kept.join(' '), QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }
+}
 /**
  * The test names that failed in a mutated run, read from the reporter's own
  * "failing tests" block.
@@ -559,8 +600,7 @@ export function main(argv) {
     // The same files and the same arguments as the mutated run below, or this
     // would be measuring a different thing than the one it licenses.
     const run = spawnSync(process.execPath, testArgs(root, set),
-      { cwd: root, encoding: 'utf8', timeout: timeoutMs,
-        env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
+      { cwd: root, encoding: 'utf8', timeout: timeoutMs, env: childEnv() })
     baselines.set(setKeyOf(set), baselineOf(run))
   }
 
@@ -598,8 +638,7 @@ export function main(argv) {
     writeFileSync(file, original.replace(mutation.from, mutation.to))
     const startedAt = Date.now()
     const run = spawnSync(process.execPath, testArgs(root, mutation),
-      { cwd: root, encoding: 'utf8', timeout: timeoutMs,
-        env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
+      { cwd: root, encoding: 'utf8', timeout: timeoutMs, env: childEnv() })
     const elapsedMs = Date.now() - startedAt
     finish(file, original)
 

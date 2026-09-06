@@ -47,14 +47,23 @@ function isExecutable(path) {
   return /^100755 /.test(entry.stdout)
 }
 
+// The files under a directory that are IN THE REPOSITORY — tracked, or untracked
+// and not ignored, which is what a commit would add (CLAUDE.md §8).
+//
+// ⚠ IT USED TO WALK THE DISK, and that made the personal-path scan below depend
+// on who had run what. Since 2026-09-06 the gates import plugin/lib/fence.py as
+// a real module, so running one writes plugin/lib/__pycache__/fence.cpython-*.pyc
+// — a file whose header embeds the ABSOLUTE source path. It is gitignored and
+// ships with nothing, but a scan reading it found `/Users/<name>/…` inside a
+// compiled artifact and failed a §6 assertion about source. A gate whose answer
+// depends on whether you have run a gate is not a gate.
 function filesBelow(directory) {
-  const files = []
-  for (const entry of readdirSync(directory, { withFileTypes: true })) {
-    const path = join(directory, entry.name)
-    if (entry.isDirectory()) files.push(...filesBelow(path))
-    else if (entry.isFile()) files.push(path)
-  }
-  return files
+  if (!existsSync(directory)) return []
+  const listed = spawnSync('git', ['-C', repoRoot, 'ls-files', '--cached', '--others',
+    '--exclude-standard', '-z', '--', relative(repoRoot, directory) || '.'],
+  { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(listed.status, 0, `git ls-files under ${directory}: ${listed.stderr}`)
+  return listed.stdout.split('\0').filter(Boolean).map(name => join(repoRoot, name))
 }
 
 // ADR-008. `marketplace.json`'s `source` is the single thing that decides what a

@@ -262,18 +262,27 @@ loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
 spec = importlib.util.spec_from_loader(loader.name, loader)
 module = importlib.util.module_from_spec(spec)
 loader.exec_module(module)
-def boom(pid, platform=None, run=subprocess.run):
+called = []
+def boom(pid, platform=None, run=subprocess.run, **kw):
+    called.append(pid)
     raise PermissionError(1, "Operation not permitted")
-module.kill_tree = boom
+# ⚠ Patch the FENCE module, not the gate's namespace. The gate star-imports the
+# fence (plugin/lib/fence.py since 2026-09-06), so \`module.kill_tree\` is a
+# second binding that drain_after_kill never reads — it calls fence's own. The
+# first version of this line patched the gate, the stub never ran, the test
+# passed vacuously, and the mutant it exists to kill came back GREEN in the
+# first parallel campaign. \`called\` is printed so that vacuity is asserted away.
+import fence
+fence.kill_tree = boom
 started = time.monotonic()
 try:
     module.run_bounded([sys.executable, "-c", "import time; time.sleep(30)"],
                        timeout=1, capture_output=True, text=True)
-    print("NO EXCEPTION")
+    print("NO EXCEPTION stub_calls=%d" % len(called))
 except subprocess.TimeoutExpired:
-    print("TimeoutExpired %.1f" % (time.monotonic() - started))
+    print("TimeoutExpired %.1f stub_calls=%d" % (time.monotonic() - started, len(called)))
 except BaseException as exc:
-    print("%s %.1f" % (type(exc).__name__, time.monotonic() - started))
+    print("%s %.1f stub_calls=%d" % (type(exc).__name__, time.monotonic() - started, len(called)))
 `
 
 // ⚠ NOT `posixTree`, and the difference is the point. BACKLOG §128's skip exists
@@ -293,7 +302,11 @@ for (const gate of FENCE_GATES) {
   test(`${gate}: a cleanup that raises does not replace the timeout`, () => {
     const run = runPython(['-c', CLEANUP_RAISES_PROBE, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, `${gate} probe\n${run.stdout}${run.stderr}`)
-    const [kind, seconds] = run.stdout.trim().split(/\s+/)
+    const [kind, seconds, stub] = run.stdout.trim().split(/\s+/)
+    // The stub must have RUN, or the assertion below is about the real kill_tree
+    // and says nothing about a raising one. That is how this test passed for a
+    // whole gate run while its mutant survived (2026-09-06).
+    assert.equal(stub, 'stub_calls=1', `${gate}: the raising kill_tree was never reached — the test measured the real one: ${run.stdout}`)
     assert.equal(kind, 'TimeoutExpired',
       `${gate}: a raising kill_tree replaced the timeout with ${kind} — the caller reports the wrong thing`)
     assert.ok(Number(seconds) < 10,

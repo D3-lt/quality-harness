@@ -2378,6 +2378,44 @@ def main():
         found = lint.test_body(source, "t_name", python=False) is not None
         assert found is present, f"test_body on {label}: found={found}, expected={present}"
 
+
+    # ⚠ A MULTI-LINE `def` SIGNATURE MADE THIS GATE ACCUSE CORRECT TESTS. The
+    # closing `):` sits at the def's OWN indent, so the indentation scan that found
+    # the body stopped there: the "body" was the parameter list, no assertion was in
+    # it, and `check_tests_can_fail` reported the test as unable to go red. Reported
+    # 2026-09-06 from a foreign corpus mid status-audit — THIRTEEN tests named,
+    # including concurrency and money-integrity ones, all of which assert. The
+    # reporter collapsed one signature to a single line, the finding vanished, and
+    # restoring it brought the finding back.
+    multi = ('def test_money(\n    ledger,\n    clock,\n):\n'
+             '    assert ledger.total() == 0\n')
+    assert "assert" in (lint.test_body(multi, "test_money", python=True) or ""), \
+        "a multi-line def signature hid the body, so a correct test read as unable to fail"
+
+    # The one-line form must still work, and a default value containing a bracket
+    # must not fool it — which is why this reads the body with `ast` rather than by
+    # counting parentheses.
+    one = 'def test_money(ledger, clock):\n    assert ledger.total() == 0\n'
+    assert "assert" in (lint.test_body(one, "test_money", python=True) or "")
+    paren = 'def test_money(sep=")"):\n    assert sep == ")"\n'
+    assert "assert" in (lint.test_body(paren, "test_money", python=True) or "")
+    method = 'class T:\n    def test_money(\n        self,\n    ):\n        assert self.ok\n'
+    assert "assert" in (lint.test_body(method, "test_money", python=True) or "")
+
+    # ⚠ AND THE CHECK MUST STILL BE ABLE TO FIRE. A body extractor that returned
+    # something asserting for every input would silence the gate entirely, which is
+    # a worse failure than the false positive it was fixed for.
+    empty = 'def test_money():\n    pass\n'
+    assert "assert" not in (lint.test_body(empty, "test_money", python=True) or ""), \
+        "a genuinely assertion-free body must still read as one"
+    assert lint.test_body(one, "test_absent", python=True) is None, \
+        "a name that is not there is None, not the whole file"
+
+    # A file that does not PARSE falls back to the scan rather than to silence:
+    # "I could not read it" must never become "it cannot fail" (ADR-005).
+    broken = 'def test_money(\n    ledger,\n):\n    assert x ===== 1\n'
+    assert "assert" in (lint.test_body(broken, "test_money", python=True) or ""), \
+        "an unparseable file must fall back, not report an empty body"
     # BACKLOG §57, second half — and the reason this assertion goes through
     # `check_tests_exist` instead of through `test_body`. The BDD fix above
     # passed its own assertions while being UNREACHABLE in production: the caller

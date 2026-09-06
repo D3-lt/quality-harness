@@ -5475,6 +5475,61 @@
       ],
       "from": "    only: '',",
       "to": ""
+    },
+    {
+      "label": "cache-merge: a deletion actually removes the key, rather than only being counted",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      if (value === undefined) { deleted.add(key); delete entries[key] }",
+      "to": "      if (value === undefined) { deleted.add(key) }"
+    },
+    {
+      "label": "cache-merge: an incomplete run is refused, not merged from whatever arrived",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "  if (failures.length || reports.length !== expected) {",
+      "to": "  if (failures.length) {"
+    },
+    {
+      "label": "cache-merge: a report with no `measured` claim is unreadable, not a shard that measured nothing",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "  if (!Array.isArray(parsed.measured)) return { path, error: 'no measured claim' }",
+      "to": ""
+    },
+    {
+      "label": "cache-merge: a deletion stays final when a later shard reports the same key RED",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      if (deleted.has(key)) continue",
+      "to": ""
+    },
+    {
+      "label": "campaign: the runner records the keys it measured, so a merge can tell a deletion from a shard that never looked",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      measured.push(key)",
+      "to": ""
+    },
+    {
+      "label": "ci: a job that skips itself on a dispatch makes every release unreleasable, and something says so",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "only": "no job in the release workflow is conditioned so a dispatched run skips it",
+      "from": "    assert.doesNotMatch(jobIf[1], /workflow_dispatch/,",
+      "to": "    assert.ok(jobIf[1], "
     }
   ]
 }

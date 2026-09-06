@@ -5605,6 +5605,33 @@
       "only": "adr-lint accepts the entry adr-verify wrote",
       "from": "MS_FIELD = r\"(?: · ms:(?P<ms>\\d+))?\"",
       "to": "MS_FIELD = r\"\""
+    },
+    {
+      "label": "corpus-report: a mutant count is read from the real field, never defaulted to a confident zero",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "    `  entries ${t.entries} · red ${t.redEntries} · killed ${t.killed}`",
+      "to": "    `  entries ${t.entries} · red ${t.redEntries} · killed ${t.killed ?? 0}`"
+    },
+    {
+      "label": "corpus-report: the re-check nobody ran is called UNRUN, in a report meant to be pasted in public",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "    'RECORDED CLAIMS RE-CHECKED LATER — UNRUN.',",
+      "to": "    'RECORDED CLAIMS RE-CHECKED LATER.',"
+    },
+    {
+      "label": "corpus-report: an absolute corpus path is shown relative, so a shared report carries no home directory",
+      "file": "plugin/scripts/corpus-report.mjs",
+      "tests": [
+        "tests/corpus-report.test.mjs"
+      ],
+      "from": "  const shown = path.isAbsolute(given) ? (path.relative(cwd, given) || '.') : given",
+      "to": "  const shown = given"
     }
   ]
 }

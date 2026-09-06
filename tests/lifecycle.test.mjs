@@ -4450,8 +4450,9 @@ test('stale said-markers are swept once a day; live ones and everything else are
   const aged = (file, ageMs) => { writeFileSync(file, ''); const t = (now - ageMs) / 1000; utimesSync(file, t, t) }
   aged(path.join(dir, hex(1)), 8 * day)                            // old marker: removed
   aged(path.join(dir, hex(2)), 1 * day)                            // live marker: kept
+  aged(path.join(dir, 'not-a-marker.txt'), 8 * day)                // wrong shape, our dir: kept
   aged(path.join(tmp, `quality-harness-said-${hex(3)}`), 8 * day)  // legacy said: removed
-  aged(path.join(tmp, `quality-harness-gen-${hex(4)}`), 8 * day)   // legacy gen: removed
+  aged(path.join(tmp, `quality-harness-gen-${hex(4)}`), 8 * day)   // session STATE: kept
   aged(path.join(tmp, `quality-harness-note-${hex(5)}`), 8 * day)  // legacy note: removed
   aged(path.join(tmp, `quality-harness-note-${hex(6)}`), 1 * day)  // legacy, live: kept
   aged(path.join(tmp, 'quality-harness-said-short'), 8 * day)      // wrong shape: not ours
@@ -4460,11 +4461,19 @@ test('stale said-markers are swept once a day; live ones and everything else are
   const first = sweepStaleMarkers(tmp, now)
   assert.equal(first.swept, true)
   assert.deepEqual(first.unreadable, [])
-  assert.equal(first.removed, 4, JSON.stringify(first))
+  assert.equal(first.removed, 3, JSON.stringify(first))
   assert.equal(existsSync(path.join(dir, hex(1))), false, 'an old marker is removed')
   assert.equal(existsSync(path.join(dir, hex(2))), true, 'a live marker is kept')
+  assert.equal(existsSync(path.join(dir, 'not-a-marker.txt')), true,
+    'a file in the marker directory that is not marker-shaped is not ours to delete')
   assert.equal(existsSync(path.join(tmp, `quality-harness-said-${hex(3)}`)), false, 'a legacy said-marker is removed')
-  assert.equal(existsSync(path.join(tmp, `quality-harness-gen-${hex(4)}`)), false, 'an old generation file is removed')
+  // ⚠ A GENERATION FILE IS STATE, NOT A MARKER, and the two fail in opposite
+  // directions (Codex review, 2026-09-06). Losing a marker re-says a finding;
+  // losing a generation resets it to 0, and a later compaction bumps it back
+  // to 1 where a live generation-1 marker then SUPPRESSES a finding. Age
+  // cannot tell a long session from an abandoned one, so this is left alone.
+  assert.equal(existsSync(path.join(tmp, `quality-harness-gen-${hex(4)}`)), true,
+    'an old generation file is session state and is kept')
   assert.equal(existsSync(path.join(tmp, `quality-harness-note-${hex(5)}`)), false, 'an old note is removed')
   assert.equal(existsSync(path.join(tmp, `quality-harness-note-${hex(6)}`)), true, 'a live legacy file is kept')
   assert.equal(existsSync(path.join(tmp, 'quality-harness-said-short')), true, 'a name of the wrong shape is not ours')
@@ -4491,4 +4500,60 @@ test('a sweep that cannot look says where, and never throws', () => {
   assert.equal(report.swept, false)
   assert.equal(report.removed, 0)
   assert.match(report.unreadable.join(' '), /mkdir: /, `the failure is named, not swallowed — ${JSON.stringify(report)}`)
+})
+
+// A guard that wedges shut is worse than no guard, because nothing says it
+// happened: a stamp in the future (a clock that jumped and was corrected) or
+// `Infinity` from a corrupted file would suppress every sweep from then on.
+// Only a finite stamp inside the window may hold it. Each arm is shown BOTH
+// holding and not holding, so a guard that always swept would fail this too.
+test('only a finite guard stamp inside the window holds the sweep', () => {
+  const day = 24 * 60 * 60 * 1000
+  const hex = n => String(n).padStart(32, '0')
+  const plant = label => {
+    const tmp = mkdtempSync(path.join(testTmp, `said-guard-${label}-`))
+    const dir = saidMarkerDirectory(tmp)
+    mkdirSync(dir, { recursive: true })
+    const marker = path.join(dir, hex(1))
+    writeFileSync(marker, '')
+    const old = (Date.now() - 8 * day) / 1000
+    utimesSync(marker, old, old)
+    return { tmp, marker }
+  }
+  const now = Date.now()
+  for (const [label, stamp] of [['future', String(now + 5 * day)], ['infinity', 'Infinity'], ['garbage', 'not-a-number']]) {
+    const { tmp, marker } = plant(label)
+    writeFileSync(path.join(saidMarkerDirectory(tmp), '.swept'), stamp)
+    const report = sweepStaleMarkers(tmp, now)
+    assert.equal(report.swept, true, `${label}: an unusable stamp must not hold the sweep — ${JSON.stringify(report)}`)
+    assert.equal(existsSync(marker), false, `${label}: and the stale marker is removed`)
+  }
+  // The one stamp that DOES hold it, so the assertions above are not vacuous.
+  const { tmp, marker } = plant('recent')
+  writeFileSync(path.join(saidMarkerDirectory(tmp), '.swept'), String(now - 60_000))
+  const held = sweepStaleMarkers(tmp, now)
+  assert.equal(held.swept, false, 'a stamp a minute old holds the sweep')
+  assert.equal(existsSync(marker), true)
+})
+
+// If the guard cannot be persisted the work cannot be bounded, and an
+// unbounded readdir of the temp root on every hook call is worse than markers
+// accumulating. It says so and reads nothing.
+test('a guard that cannot be written stops the sweep instead of running unbounded', () => {
+  const tmp = mkdtempSync(path.join(testTmp, 'said-guard-blocked-'))
+  const dir = saidMarkerDirectory(tmp)
+  mkdirSync(dir, { recursive: true })
+  const hex = n => String(n).padStart(32, '0')
+  const marker = path.join(dir, hex(1))
+  writeFileSync(marker, '')
+  const old = (Date.now() - 8 * 24 * 60 * 60 * 1000) / 1000
+  utimesSync(marker, old, old)
+  // A DIRECTORY where the guard file goes: readFileSync and writeFileSync both
+  // fail, and only the write failure is the one that must stop the sweep.
+  mkdirSync(path.join(dir, '.swept'))
+  const report = sweepStaleMarkers(tmp, Date.now())
+  assert.equal(report.swept, false, `nothing was read — ${JSON.stringify(report)}`)
+  assert.equal(report.removed, 0)
+  assert.match(report.unreadable.join(' '), /guard: E/, 'and the failure is named')
+  assert.equal(existsSync(marker), true, 'the stale marker is left, which is only the state §146 described')
 })

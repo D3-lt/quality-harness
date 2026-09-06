@@ -8252,6 +8252,18 @@ Windows 11 box: 8/8 pass. The discriminator above is not what decided it. That h
 `taskkill`; a Job Object kills by membership, so a reparented subshell is still in the job. The
 ancestry gap stands as written and is unreachable wherever job setup succeeds.
 
+**Instrumented 2026-09-06 (`292fed8`), still OPEN.** The survivor is still unattributed; what changed
+is that the next occurrence names it. A drain that times out now lists, under the trace flag, what
+is still alive two ways: the tree below the fence by ancestry (`descendants`, a pure fixpoint walk
+over one Toolhelp snapshot, reused-pid-safe) and the job's members by membership
+(`WindowsJob.members`, `QueryInformationJobObject`). Each is its own observation with its own
+`COULD NOT LIST`, and "no job" is said in those words rather than shown as an empty list
+(ADR-005). The reading, when it fires: a holder in the tree and not the job forked before
+assignment or broke away; one in the job is a kill that did not take; one in neither is not a
+process the gate started. Driven on every host through the `processes` and `job` seams
+(`tests/timeout-tree.test.mjs`, three copies), six mutants RED. What closes this is a CI or
+Windows run that hangs WITH the flag set — the instrument only speaks when asked.
+
 One correction from a peer that belongs here: the `returned N.NN` diagnostic in the seam test was
 interpolated only into a *failing* assertion, so a passing run never showed it. A diagnostic that
 speaks only on failure is not a diagnostic.
@@ -8324,6 +8336,22 @@ direct path, and the leader-exits shape (§123) on Windows.
 box, with no surviving processes and no leftover temp directories. That is not this residual being
 cleared: every run took the Job Object path, so the fallback branch the residual is conditional on
 never executed.
+
+**The seam exists as of `292fed8` (2026-09-06); the measurement has not been taken.**
+`QUALITY_HARNESS_JOB_UNAVAILABLE=1` refuses `AssignProcessToJobObject` at the kernel32 boundary
+(`RefusingAssignment`: answers 0 with ERROR_ACCESS_DENIED, the shape Windows gives when a process
+may not join a nested job) and lets everything after it run live — the fallback resume, the
+taskkill kill, the streams left open. The refusal is traced as INDUCED so a forced fallback is
+never read as an observed one. Both arms drive on any host through the `k32` seam; three mutants
+RED. The command a Windows box runs to exercise this residual for real:
+
+    QUALITY_HARNESS_JOB_UNAVAILABLE=1 QUALITY_HARNESS_FORCE_TREE_TESTS=1 QUALITY_HARNESS_TRACE_TIMEOUT=1 node --test tests/timeout-tree.test.mjs
+
+The trace must show `INDUCED, not observed` and `falling back to taskkill`; the three
+cleanup-raises tests then run on the taskkill arm with their 30-second child, which is the exact
+shape the residual predicts. Survivors in `Win32_Process` afterwards, or an `EPERM` on the temp
+directory, would be this residual reproduced; none would be the fallback measured clean on one
+host. This stays OPEN until that run exists.
 
 ⚠ **A residual the Codex review named, NOT fixed here, and deliberately so.** Lifting the skip means
 the cleanup-raises probe now runs on Windows, where it stubs `kill_tree` with a function that raises
@@ -9109,6 +9137,9 @@ its way to is **gated behind a fallback nobody has executed on a real host**.
   fallback. **The specific risk was not exercised.** Forcing job setup to fail is the measurement
   that would settle it, and nothing here does that.
 
+  → The seam now exists: `QUALITY_HARNESS_JOB_UNAVAILABLE` (§129, `292fed8`). The measurement is
+  still a Windows box's to take.
+
   ⚠ **This bullet first read "every run logged `gate already inside a job: True`", and that
   overstated the evidence.** Exactly ONE test per suite run surfaces that trace, the one that
   reports where the time went; every other `kill_tree` test captures the gate's stderr and emits
@@ -9131,7 +9162,7 @@ first on `PATH`.
 **Not scheduled.** Recorded because three entries deferred a measurement to CI and a real box
 answered two of them differently than the reasoning predicted.
 
-## 146. OPEN — the "already said this" dedupe markers are never cleaned up
+## 146. CLOSED 2026-09-06 — the "already said this" dedupe markers are never cleaned up
 
 The same Windows session counted **48 zero-byte files** named `quality-harness-said-<32 hex>` under
 `TEMP`, dated the day before its work, unchanged across all eight runs. It was right that they are
@@ -9153,3 +9184,21 @@ was measured, and the count above is one machine on one day.
 **Do not "fix" it by removing the marker.** The marker is what stops a finding being said twice, and
 that was itself a review finding. The candidate is an age-based sweep at session start — which is a
 new failure surface (deleting a live session's marker) and needs its own thought, not a one-liner.
+
+**Closed in `292fed8`.** Markers now live under `<tmp>/quality-harness-said/` and
+`sweepStaleMarkers()` removes anything older than a week, at most once a day per machine — it
+reads that one directory, not the whole temp root, and a guard file holding the time it last ran
+bounds even that. The legacy shapes that sat under the temp root are swept too: `said-` markers
+from earlier releases, and the one-per-session `gen-` and `note-` files, which are the same class
+and were found by the same sweep of the file (`CLAUDE.md` §5) — matched on exactly 32 hex and
+nothing else, so nothing that is not ours is ever touched. The sweep never throws, returns what it
+did, and names every place it could not look, so a test can tell "nothing was old" from "could not
+look" (ADR-005). The exclusive-create dedupe is unchanged: the marker still stops a finding being
+said twice.
+
+The failure surface the entry warned about — deleting a live session's marker — is bounded by the
+week: a session older than that has its finding said once more, which is the side this mechanism
+has always erred toward. Old-removed, live-kept, wrong-shape-untouched and could-not-look are one
+test each in `tests/lifecycle.test.mjs`; one mutant (a sweep that removes nothing) RED. Relocating
+the directory also moved one assertion in the compaction test, which looked for markers at the
+temp root — updated to look where they now are, with the same intent.

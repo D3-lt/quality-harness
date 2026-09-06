@@ -3063,10 +3063,25 @@ function previousSessionNotice(cwd, platform = process.platform) {
 const SAID_MARKER_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000
 const SAID_SWEEP_INTERVAL_MS = 24 * 60 * 60 * 1000
 // The shapes that sat directly under the temp root before the directory
-// existed: said- markers from earlier releases, and the one-per-session
-// generation and note files — the same class, found by the same sweep of this
-// file (CLAUDE.md §5). Exactly 32 hex, so nothing else is ever matched.
-const LEGACY_MARKER = /^quality-harness-(?:said|gen|note)-[0-9a-f]{32}$/
+// existed: said- markers from earlier releases, and the one-per-session note
+// file, which is written at PreCompact and consumed seconds later by the
+// compact SessionStart — a week-old one is dead by construction.
+//
+// ⚠ `gen-` IS DELIBERATELY NOT HERE, and that is a correction (Codex review,
+// 2026-09-06). A generation file is not a marker, it is session STATE, and the
+// two fail in opposite directions: losing a marker re-says a finding, which is
+// the side this mechanism errs toward, while losing a generation resets it to
+// 0 — after which a compaction bumps it back to 1 and a generation-1 marker
+// that is still live suppresses a finding that should have been said. Age
+// cannot tell a long-running session from an abandoned one, so gen files are
+// left to accumulate until something knows which sessions are alive; that
+// residual is named in BACKLOG §146 rather than traded for a wrong suppression.
+const LEGACY_MARKER = /^quality-harness-(?:said|note)-[0-9a-f]{32}$/
+// A marker's own name, and the only thing the marker directory sweep will
+// unlink. `!== '.swept'` was the first draft and it made the directory's whole
+// contents eligible, which is not what this file claims anywhere (Codex
+// review, 2026-09-06).
+const MARKER_NAME = /^[0-9a-f]{32}$/
 
 export function saidMarkerDirectory(tmp = os.tmpdir()) {
   return path.join(tmp, 'quality-harness-said')
@@ -3086,10 +3101,23 @@ export function sweepStaleMarkers(tmp = os.tmpdir(), now = Date.now()) {
   const report = { swept: false, removed: 0, kept: 0, unreadable: [] }
   try { mkdirSync(directory, { recursive: true }) } catch (error) { report.unreadable.push(`mkdir: ${error?.code ?? error}`); return report }
   const guard = path.join(directory, '.swept')
-  try { if (now - Number(readFileSync(guard, 'utf8')) < SAID_SWEEP_INTERVAL_MS) return report } catch {}
+  // ⚠ ONLY A FINITE STAMP INSIDE THE WINDOW HOLDS THE SWEEP. A stamp in the
+  // future — a clock that jumped forward and was corrected, or `Infinity` from
+  // a corrupted file — would otherwise suppress every sweep from then on, and
+  // a guard that wedges shut is worse than no guard because nothing says it
+  // happened (Codex review, 2026-09-06). Garbage reads as NaN and self-heals.
+  let last = NaN
+  try { last = Number(readFileSync(guard, 'utf8')) } catch {}
+  if (Number.isFinite(last) && last <= now && now - last < SAID_SWEEP_INTERVAL_MS) return report
   // Written before the sweep, so a sweep that fails halfway does not retry on
-  // every hook call for the rest of the day.
-  try { writeFileSync(guard, String(now)) } catch (error) { report.unreadable.push(`guard: ${error?.code ?? error}`) }
+  // every hook call for the rest of the day. If it cannot be written the work
+  // cannot be bounded AT ALL, and an unbounded readdir of the temp root on
+  // every hook call is worse than markers accumulating — which is only the
+  // state §146 already described. So it is said and nothing is read.
+  try { writeFileSync(guard, String(now)) } catch (error) {
+    report.unreadable.push(`guard: ${error?.code ?? error}`)
+    return report
+  }
   report.swept = true
   const stale = file => {
     try { return now - statSync(file).mtimeMs > SAID_MARKER_MAX_AGE_MS } catch { return false }
@@ -3104,7 +3132,7 @@ export function sweepStaleMarkers(tmp = os.tmpdir(), now = Date.now()) {
       try { unlinkSync(file); report.removed += 1 } catch { report.kept += 1 }
     }
   }
-  sweep(directory, name => name !== '.swept')
+  sweep(directory, name => MARKER_NAME.test(name))
   sweep(tmp, name => LEGACY_MARKER.test(name))
   return report
 }

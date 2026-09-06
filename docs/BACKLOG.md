@@ -9680,3 +9680,38 @@ unread deliberately — five ad-hoc values across six weeks is not a vocabulary 
 field a user can write in the obvious place with no reader is a wart, and the honest options are to
 have `adr-lint` say so when it sees one, or to stop the template implying it exists.
 first.
+
+## 154. OPEN — dispatching immediately after a push ties on `createdAt`, and `release-evidence` then reads the push run
+
+Hit 2026-09-06 cutting v2.83.0, and it cost a full CI cycle. `git push` then
+`gh workflow run selftest.yml` in the same command produced two runs at sha `6fa18bd` with the
+**identical** `createdAt` of `2026-09-06T19:11:25Z`:
+
+```
+34054097512 workflow_dispatch 6fa18bd completed/success created=2026-09-06T19:11:25Z
+34054097463 push              6fa18bd completed/success created=2026-09-06T19:11:25Z
+```
+
+Both concluded success. `release-evidence.mjs` reads the NEWEST run for the sha, the tie resolved to
+the push run, and it correctly refused: **`CACHED` — "the newest run for this sha was raised by
+`push`, so its mutation campaign may have reused cached verdicts"**. The dispatched full campaign had
+run and passed; the gate could not tell which of the two it was looking at.
+
+**The refusal is right and must stay.** A tag resting on a cached campaign is exactly the quiet
+evidence hole §142 closed, and the tool choosing the safe branch under ambiguity is the behaviour
+this project wants everywhere. The defect is that the ambiguity is REACHABLE by the documented
+release sequence — §13 says push, then dispatch, and doing both promptly is the obvious way to do
+it.
+
+**Worked around by hand:** wait for the push run to register, then dispatch, so the dispatch is
+unambiguously newer (53s apart on the successful attempt).
+
+**Shapes to consider, none chosen:** prefer a `workflow_dispatch` run over a `push` run when both
+carry the same sha and the same timestamp, rather than ordering on time alone — the event is the
+thing the verdict actually depends on, and it is already read. Or ask for runs filtered by event and
+compare the two candidates explicitly. Or have §13 tell the reader to wait, which is the
+documentation-shaped answer and the weakest, because it is the same "instruction where a mechanism
+belongs" this project keeps finding.
+
+⚠ A tie is not rare here: a push and a hand-dispatch issued from one shell land in the same second
+routinely. This will recur on every release cut the fast way.

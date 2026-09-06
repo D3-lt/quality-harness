@@ -5530,6 +5530,44 @@
       "only": "no job in the release workflow is conditioned so a dispatched run skips it",
       "from": "    .filter(job => /^ {4}if: .*workflow_dispatch/m.test(job))",
       "to": "    .filter(job => /^ {4}if: /m.test(job))"
+    },
+    {
+      "label": "cache-merge: an option's operand is consumed, never collected as a thirteenth report",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      i += 1               // the OPERAND, never a path",
+      "to": ""
+    },
+    {
+      "label": "cache-merge: twelve reports are not twelve shards unless the identities are 1..n exactly once",
+      "file": "scripts/mutation-cache-merge.mjs",
+      "tests": [
+        "tests/mutation-cache-merge.test.mjs"
+      ],
+      "from": "      if (seen.get(identity) !== 1) missing.push(`${identity} x${seen.get(identity) ?? 0}`)",
+      "to": ""
+    },
+    {
+      "label": "ci: an upload of a dotfile without include-hidden-files uploads nothing and reports success",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "only": "an artifact upload of a dotfile asks for hidden files",
+      "from": "    .filter(b => !/include-hidden-files: true/.test(b))",
+      "to": "    .filter(() => false)"
+    },
+    {
+      "label": "ci: a shard that resolves its own cache generation can compute a different partition",
+      "file": "tests/package.test.mjs",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "only": "every mutation shard computes its slice from one snapshot",
+      "from": "  assert.doesNotMatch(mutations, /uses: actions\\/cache\\/restore/,",
+      "to": "  assert.ok(mutations, "
     }
   ]
 }

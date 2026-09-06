@@ -2107,8 +2107,20 @@ test('a partial task is a status the reader acts on, not an unknown word', () =>
   // while the reader is choosing.
   assert.match(unknownSaid, /A STATUS IN THIS FILE ROUTES NOTHING/,
     `the advisory must say a README status routes nothing: ${unknownSaid.slice(0, 600)}`)
-  assert.match(unknownSaid, /\*\*Blocked-on:\*\* <the event>` in the TASK FILE/,
+  assert.match(unknownSaid, /\*\*Blocked-on:\*\* <the event>` in the\s+TASK FILE/,
     `and must name the field that does stop the router: ${unknownSaid.slice(0, 600)}`)
+  // ⚠ AND IT MUST NAME THE CONSTRAINT ON THAT FIELD. `Blocked-on` is REFUSED —
+  // blocking, not advice — on any task whose Acceptance is a runnable fence. The
+  // corpus that asked for this advisory measured 162 of 163 task files carrying
+  // one, so an unqualified "use Blocked-on" sent almost every reader there into a
+  // refusal one step further along. Advice that ends in a rejection is worse than
+  // none: it spends a turn and teaches the reader the tool is wrong.
+  assert.match(unknownSaid, /HUMAN-OBSERVED/,
+    `the advisory must say when Blocked-on is legal: ${unknownSaid.slice(0, 800)}`)
+  assert.match(unknownSaid, /`Blocked-on` is REFUSED there/,
+    `and must say when it is not: ${unknownSaid.slice(0, 800)}`)
+  assert.match(unknownSaid, /leave it `pending` or `partial`/,
+    `and must say what to do instead: ${unknownSaid.slice(0, 800)}`)
 
   // CLEAN, in the same test: a KNOWN status says none of this. Advice that fires
   // on every row is advice a reader learns to filter, and a peer measured that

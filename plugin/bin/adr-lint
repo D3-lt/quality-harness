@@ -2018,9 +2018,21 @@ def check_task_status_vocabulary(infos, readme_text, errors):
             # 48 READMEs carrying a Status column and ZERO tasks carrying
             # `Blocked-on:` — so the only way anyone there learns the field exists
             # is being told here, while choosing.
-            f"⚠ A STATUS IN THIS FILE ROUTES NOTHING: if the task is waiting on an event OUTSIDE "
-            f"this corpus, put `**Blocked-on:** <the event>` in the TASK FILE — that is what stops "
-            f"`adr-next` offering it as ready.")
+            # ⚠ AND IT NAMES THE CONSTRAINT, because the first version did not and a
+            # reader following it hit a BLOCKING refusal one step further along.
+            # `Blocked-on` is rejected — errors.append, not advice — on any task
+            # whose Acceptance is a runnable fence, on the rule that a task able to
+            # run its own acceptance is not waiting. The corpus that asked for this
+            # advisory measured 162 of 163 task files carrying a runnable fence, so
+            # the unqualified sentence was a dead end for almost every task in it.
+            # Advice that sends someone into a refusal is worse than no advice: it
+            # spends their turn and teaches them the tool is wrong.
+            f"⚠ A STATUS IN THIS FILE ROUTES NOTHING. If this task's Acceptance is HUMAN-OBSERVED "
+            f"and it waits on an event outside this corpus, `**Blocked-on:** <the event>` in the "
+            f"TASK FILE is what stops `adr-next` offering it. If its Acceptance is a runnable "
+            f"fence, `Blocked-on` is REFUSED there — a task that can run its own acceptance is not "
+            f"waiting — and nothing routes it: leave it `pending` or `partial` and say why in the "
+            f"task.")
 
 
 # What a fence CANNOT do faster than, by its own shape. Deliberately a short list

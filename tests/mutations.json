@@ -5680,13 +5680,13 @@
       "to": "        if False:"
     },
     {
-      "label": "lint: the status advisory names the field that actually stops the router, where the reader is choosing",
+      "label": "lint: the status advisory says WHEN Blocked-on is legal, so it does not walk a reader into a refusal",
       "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
       "only": "partial",
-      "from": "            f\"⚠ A STATUS IN THIS FILE ROUTES NOTHING: if the task is waiting on an event OUTSIDE \"",
+      "from": "            f\"fence, `Blocked-on` is REFUSED there — a task that can run its own acceptance is not \"",
       "to": "            f\"\""
     },
     {

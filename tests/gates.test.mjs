@@ -1373,6 +1373,10 @@ test('every shipped gate answers --version with the version of the tree it was r
   const temp = mkdtempSync(join(os.tmpdir(), 'qh-version-'))
   try {
     mkdirSync(join(temp, 'bin'), { recursive: true })
+    // An installed tree carries lib/ beside bin/ — the plugin ships as a directory
+    // and the forwarders exec $root/bin/<gate>. A fixture without it models a gate
+    // copied on its own, which is the next test's subject, not this one's.
+    cpSync(join(root, 'lib'), join(temp, 'lib'), { recursive: true })
     mkdirSync(join(temp, '.claude-plugin'), { recursive: true })
     writeFileSync(join(temp, '.claude-plugin', 'plugin.json'),
       JSON.stringify({ name: 'quality-harness', version: '0.0.0-fixture' }))
@@ -1401,6 +1405,30 @@ test('every shipped gate answers --version with the version of the tree it was r
         `${gate} leaked the repository's version ${real} into a run from another tree: ${out.stdout}`)
     }
   } finally { rmSync(temp, { recursive: true, force: true }) }
+})
+
+// A gate copied somewhere without plugin/lib beside its bin/ is the stale-copy
+// shape the forwarders exist to replace. It must say so in one sentence and exit
+// 2 — could not run, ADR-005 — never die in a traceback. And the same gate WITH
+// lib/ beside it must run, or this would pass for a gate that always refused.
+test('a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs', () => {
+  for (const gate of ['adr-verify', 'spec-verify', 'qh-mcp']) {
+    const temp = mkdtempSync(join(os.tmpdir(), 'qh-nolib-'))
+    try {
+      mkdirSync(join(temp, 'bin'), { recursive: true })
+      mkdirSync(join(temp, '.claude-plugin'), { recursive: true })
+      writeFileSync(join(temp, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'quality-harness', version: '0.0.0-fixture' }))
+      cpSync(join(bin, gate), join(temp, 'bin', gate))
+      const without = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(without.status, 2, `${gate} without lib/: could-not-run is exit 2, got ${without.status}\n${without.stdout}${without.stderr}`)
+      assert.match(without.stderr, /could not run: plugin\/lib\/fence\.py is not beside this gate's bin\//,
+        `${gate}: the reason is a sentence, not a traceback — ${without.stderr}`)
+      assert.doesNotMatch(without.stderr, /Traceback/, `${gate}: no traceback`)
+      cpSync(join(root, 'lib'), join(temp, 'lib'), { recursive: true })
+      const withLib = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(withLib.status, 0, `${gate} with lib/ beside it must run: ${withLib.stdout}${withLib.stderr}`)
+    } finally { rmSync(temp, { recursive: true, force: true }) }
+  }
 })
 
 // ADR-005, applied to this flag: "could not read" is not a version. A gate that

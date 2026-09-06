@@ -2008,7 +2008,18 @@ def check_task_status_vocabulary(infos, readme_text, errors):
             f"checks that run for an evidenced task did NOT run for it, including whether its "
             f"Verification Log backs what it claims and whether it carries a Mutation Log. That is "
             f"'not looked at', not 'nothing found'. Use `done`, `pending` or `blocked`, or say in "
-            f"the task file what the status means.")
+            f"the task file what the status means. "
+            # BACKLOG §153. This sentence is the ONE moment a reader is being told
+            # what the vocabulary is, and until now it sent them to a word that
+            # stops nothing: `adr-next` routes from TASK FILES and never from this
+            # README, which is a derived index, so a cell reading `blocked` changes
+            # no routing at all. A corpus of 163 task files measured 2026-09-06 had
+            # 48 READMEs carrying a Status column and ZERO tasks carrying
+            # `Blocked-on:` — so the only way anyone there learns the field exists
+            # is being told here, while choosing.
+            f"⚠ A STATUS IN THIS FILE ROUTES NOTHING: if the task is waiting on an event OUTSIDE "
+            f"this corpus, put `**Blocked-on:** <the event>` in the TASK FILE — that is what stops "
+            f"`adr-next` offering it as ready.")
 
 
 # What a fence CANNOT do faster than, by its own shape. Deliberately a short list

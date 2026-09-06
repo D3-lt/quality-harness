@@ -2097,6 +2097,24 @@ test('a partial task is a status the reader acts on, not an unknown word', () =>
   const unknownSaid = `${lint(unknown).stdout ?? ''}${lint(unknown).stderr ?? ''}`
   assert.match(unknownSaid, /does not act on/,
     `a word outside the vocabulary must still say the checks did not run: ${unknownSaid.slice(0, 400)}`)
+
+  // BACKLOG §153. This advisory is the ONE moment a reader is told what the
+  // vocabulary is, and it used to send them to `blocked` — a README word that
+  // routes NOTHING, because `adr-next` reads task files and never this derived
+  // index. A peer corpus of 163 task files measured 48 READMEs carrying a Status
+  // column and ZERO tasks carrying `Blocked-on:`: the field that does stop the
+  // router was unknown to everyone writing there. So the sentence has to name it
+  // while the reader is choosing.
+  assert.match(unknownSaid, /A STATUS IN THIS FILE ROUTES NOTHING/,
+    `the advisory must say a README status routes nothing: ${unknownSaid.slice(0, 600)}`)
+  assert.match(unknownSaid, /\*\*Blocked-on:\*\* <the event>` in the TASK FILE/,
+    `and must name the field that does stop the router: ${unknownSaid.slice(0, 600)}`)
+
+  // CLEAN, in the same test: a KNOWN status says none of this. Advice that fires
+  // on every row is advice a reader learns to filter, and a peer measured that
+  // habit producing a FALSE statement to a reviewer the same day (BACKLOG §152).
+  assert.doesNotMatch(said, /A STATUS IN THIS FILE ROUTES NOTHING/,
+    'a status the reader acts on must not be lectured about routing')
 })
 
 test('a partial task with a passing fence still owes a killed mutant', () => {

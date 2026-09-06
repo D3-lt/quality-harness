@@ -9101,10 +9101,22 @@ its way to is **gated behind a fallback nobody has executed on a real host**.
 - **§129's residual is unreproduced, not cleared, and the distinction is the whole entry.** Zero
   surviving `python`/`bash`/`sleep` in `Win32_Process` after every run, zero leftover
   `qh-timeout-tree-*` or `quality-harness-*` directories, no `EPERM` on `rmdir`. But the residual
-  the Codex review named was **conditional on Job Object setup taking its fallback**, and every run
-  logged `gate already inside a job: True`. The stubbed unit test drives both arms; a stub is not
-  the live fallback. **The specific risk was not exercised.** Forcing job setup to fail is the
-  measurement that would settle it, and nothing here does that.
+  the Codex review named was **conditional on Job Object setup taking its fallback**, and that
+  fallback was never observed: both tree fixtures (§128's heartbeat fence and §123's leader-exits
+  fence) were rebuilt by hand outside the clone and traced directly, and each took the job arm with
+  `confirmed=True` — 1234 ms and 1252 ms, identical trace shape. `taskkill` appears in no trace line
+  on that host across 11 suite runs. The stubbed unit test drives both arms; a stub is not the live
+  fallback. **The specific risk was not exercised.** Forcing job setup to fail is the measurement
+  that would settle it, and nothing here does that.
+
+  ⚠ **This bullet first read "every run logged `gate already inside a job: True`", and that
+  overstated the evidence.** Exactly ONE test per suite run surfaces that trace, the one that
+  reports where the time went; every other `kill_tree` test captures the gate's stderr and emits
+  nothing, and `QUALITY_HARNESS_TRACE_TIMEOUT=1` across the suite does not change that. So the claim
+  originally rested on one traced test per run plus a single hand-built fixture. The peer measured
+  the missing half and corrected its own report unprompted; the conclusion is unchanged and the
+  wording above is the one the evidence carries. **The residual is exactly the place not to let that
+  slide** — a sentence stronger than its measurement is how an open risk gets read as closed.
 - **The four SIGINT tests still have no Windows answer.** The suite skips them itself on win32.
 
 ### An incidental confirmation worth more than it looks

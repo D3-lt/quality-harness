@@ -4244,7 +4244,22 @@ def adr_number(path, text):
 # is what lets a test assert they have not drifted apart. Read at run time and
 # never baked at release: a substituted constant is a stored count, and this
 # corpus keeps finding stored counts wrong.
-def report_version():
+def gate_identity():
+    """Who is answering: this gate's name, version and plugin root.
+
+    BACKLOG §143. A verdict that names only the record it judged is
+    indistinguishable from a verdict reached by a different build, and that
+    ambiguity was reported three times as a corpus defect — each time phrased
+    "the linter is wrong about my tree" — before anyone established it was
+    version skew. The PATH is carried as well as the version because a working
+    checkout, an installed plugin cache and a generated forwarder can all
+    report a plausible version while being different code, and which one
+    answered is the question the reports could not reach.
+
+    ADR-005: an unreadable manifest is said in those words. It is never a guess
+    and never a fallback to a resolver, which would answer about a different
+    tree and look exactly like success.
+    """
     import json as _json
     from pathlib import Path as _Path
     here = _Path(__file__).resolve()
@@ -4252,12 +4267,12 @@ def report_version():
     try:
         version = _json.loads(manifest.read_text(encoding="utf-8"))["version"]
     except Exception as exc:
-        # ADR-005: could not read is not a version. Never guess, and never fall
-        # back to a resolver — that would answer about a different tree and look
-        # exactly like success.
-        print(f"{here.name} (version unreadable: {manifest} — {exc})")
-        return
-    print(f"{here.name} {version} ({here.parent.parent})")
+        return f"{here.name} (version unreadable: {manifest} — {exc})"
+    return f"{here.name} {version} ({here.parent.parent})"
+
+
+def report_version():
+    print(gate_identity())
 
 
 def main():
@@ -4451,7 +4466,12 @@ def main():
     status = "PASS" if not errors else "FAIL"
     if errors.demotion:
         print(f"[strictFrom] {errors.demotion}")
-    print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only)"))
+    # BACKLOG §143: the verdict names the BINARY as well as the record. The
+    # suffix rides on the verdict line rather than a line of its own because the
+    # case that produced this is someone pasting `[PASS] …` into a PR body: the
+    # identity has to travel with the claim, not sit above it where a copy drops
+    # it.
+    print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only)") + f" · {gate_identity()}")
     for e in errors:
         print(f"  {e}")
     # Advice is printed on a PASS too: a record that is acceptable and a record

@@ -1593,3 +1593,82 @@ test('a document that never claimed to be a record is not judged as a malformed 
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// BACKLOG §143. A verdict that names only the record it judged cannot be told
+// apart from one reached by a different build. That ambiguity was reported
+// three times as a corpus defect — each phrased "the linter is wrong about my
+// tree" — and was version skew every time, because the only thing that could
+// have settled it lived behind `--version`, which nobody runs while a gate is
+// accusing their code.
+//
+// ⚠ THE PATH IS ASSERTED STRUCTURALLY, NEVER AS A LITERAL. CLAUDE.md §6 forbids
+// an absolute home path reaching this repository, and a fixture that hardcoded
+// one would put the author's home directory in every clone. The expectation is
+// derived from `root`, which the suite already computes from its own location,
+// and compared with separators normalised (§7) so the Windows job reads it the
+// same way.
+test('every gate that returns a verdict names the binary that reached it (BACKLOG §143)', () => {
+  // CLAUDE.md §9: a test only spawns git or a gate in a directory it created
+  // itself, and the temp-directory variable is named so it can never be
+  // confused with `root` or `repoRoot`.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-identity-'))
+  const dir = temp
+
+  // One fixture per gate is not the point here — the point is the SUFFIX, so
+  // each gate is given the smallest input that makes it print a verdict at all,
+  // and a gate is listed only if it prints one. adr-next, adr-verify, qh-root
+  // and qh-mcp are deliberately absent: they emit a table, evidence, a bare path
+  // and MCP responses respectively, and appending prose to a machine-readable
+  // emitter breaks its consumers. They are named in §143 as siblings, not fixed
+  // here.
+  const record = join(dir, 'ADR-001-probe.md')
+  writeFileSync(record, [
+    '# ADR-001: Probe', '', '**Status:** Accepted', '**Date:** 2026-09-06',
+    '**Governs:** `nothing/**`', '', '## Context', '', 'A probe.', '',
+    '## Decision', '', 'Probe.', '', '## Consequences', '', 'None.', ''].join('\n'))
+
+  const cases = [
+    ['adr-lint', [record]],
+    ['adr-judge', [record]],
+  ]
+
+  const normalise = text => text.replace(/\\/g, '/')
+  const expectedRoot = normalise(root)
+
+  for (const [gate, args] of cases) {
+    const result = run(gate, args, dir)
+    const line = (result.stdout || '').split('\n').find(l => l.startsWith('['))
+    assert.ok(line, `${gate} printed no verdict line:\n${result.stdout}${result.stderr}`)
+
+    // The three parts, each checked on its own so a failure says WHICH is
+    // missing rather than "the line changed".
+    assert.match(line, new RegExp(`\\b${gate}\\b`), `${gate}: verdict does not name the gate:\n${line}`)
+    assert.match(line, /\b\d+\.\d+\.\d+\b/, `${gate}: verdict carries no version:\n${line}`)
+    assert.ok(normalise(line).includes(expectedRoot),
+      `${gate}: verdict does not name the plugin root it ran from:\n${line}`)
+  }
+})
+
+// ⚠ THE VACUITY GUARD FOR THE TEST ABOVE (CLAUDE.md §4). Every check that can
+// return "clean" must be shown returning "dirty" in the same suite, because
+// coverage cannot see an assertion that could never fail. Here the dirty case
+// is a gate whose manifest cannot be read: it must say so IN THOSE WORDS and
+// must not emit a version — ADR-005, could-not-look is never the vocabulary of
+// a verdict. Without this, the test above would still pass against a
+// gate_identity() hardcoded to a constant string.
+test('a gate whose manifest is unreadable says so, and states no version (BACKLOG §143)', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-identity-unreadable-'))
+  const dir = temp
+  // A copy of the gate with NO plugin manifest above it: same code, no version
+  // to find. Copied rather than executed in place, because the real tree has a
+  // readable manifest and this case cannot otherwise be reached.
+  const fakeBin = join(dir, 'bin')
+  mkdirSync(fakeBin, { recursive: true })
+  const copied = join(fakeBin, 'adr-lint')
+  writeFileSync(copied, readFileSync(join(bin, 'adr-lint'), 'utf8'))
+
+  const result = spawnSync('python3', [copied, '--version'], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+  const out = `${result.stdout}${result.stderr}`
+  assert.match(out, /version unreadable/, `expected the unreadable arm, got:\n${out}`)
+  assert.doesNotMatch(out, /\b\d+\.\d+\.\d+\b/, `a version was stated for an unreadable manifest:\n${out}`)
+})

@@ -8798,7 +8798,7 @@ condition and the two documentation claims' replacements.
 refusal rather than a silent under-evidenced tag, which is the trade this project always takes. An
 ordinary push to `main` drops from about 23 minutes to a few.
 
-## 143. A gate's verdict never says which binary reached it, so a version skew reads as an accusation about your code
+## 143. PARTLY CLOSED 2026-09-06 — a gate's verdict never said which binary reached it, so a version skew read as an accusation about your code
 
 **Reported from outside, by a session running these gates on the agentsmemory corpus (GitHub issue
 D3-lt/quality-harness#11, 2026-09-05).** It reported two defects. Both were real, both were already
@@ -8868,3 +8868,92 @@ in at all.
 **Not scheduled.** Filed with the reporter's two corpora as the evidence, credited to them; they
 isolated `ms:` as the cause on PR #294 after having it as vague version skew, then reproduced the
 inverse direction on #295.
+
+**CLOSED for the seven gates that return a verdict, 2026-09-06.** `report_version()` was split: a
+new `gate_identity()` returns the name/version/root string and `report_version()` prints it, so the
+same identity can be appended to a verdict without a second source of truth. All eleven copies of
+the helper were byte-identical before the change and are byte-identical after it, which is what
+made a single eleven-file plan safe.
+
+`adr-lint`, `arch-lint`, `spec-verify`, `adr-judge`, `postmortem-verify`, `adr-debt` and
+`adr-retire-check` now end every verdict with ` · <gate> <version> (<plugin root>)`:
+
+    [PASS] docs/adr/ADR-020-….md + docs/adr/ADR-020-…/tasks · adr-lint 2.79.0 (…/plugin)
+
+**The suffix rides ON the verdict line, not above it.** The case that produced this issue is
+somebody pasting `[PASS] …` into a PR body, where a header on its own line is dropped by the copy
+and the claim travels without the thing that qualifies it. That decision came from the reporter's
+own argument, quoted on GitHub issue #11: a `[PASS]` is true or false depending on which binary the
+reader has.
+
+**Four gates are deliberately NOT changed, and they are the siblings this entry owes (`CLAUDE.md`
+§5).** None of them prints a verdict; each emits something a consumer parses, and appending prose
+to a machine-readable emitter breaks it:
+
+| gate | what it emits instead | why not here |
+|---|---|---|
+| `adr-next` | a status table, one row per task | a suffix would land inside a column |
+| `adr-verify` | evidence, and operational notices | see below — deliberately excluded twice over |
+| `qh-root` | a bare path, consumed by scripts | a suffix would corrupt every caller |
+| `qh-mcp` | MCP tool responses, no stdout verdict | **the sharpest case and the real gap** |
+
+⚠ **`qh-mcp` remains open and is the one that matters.** Over MCP there is no shell to run
+`--version` in at all, so a client-side reader has no way whatsoever to establish which build
+answered — which is strictly worse than the CLI case this entry closed. Carrying the identity into
+the tool responses is a payload change with its own compatibility question, and it is a new task,
+not a line of this one.
+
+⚠ **`adr-verify` does NOT write the version into a Verification Log row, deliberately.** The row is
+evidence about a RUN; its grammar is already versioned by `DURATION_REQUIRED_FROM`; and widening a
+tool-written line is how a log stops being comparable across ages (`CLAUDE.md` §4). Recorded here
+so the next reader does not re-open it as an oversight.
+
+**The path is carried as well as the version**, because a working checkout, an installed plugin
+cache and a generated forwarder can all report a plausible version while being different code, and
+which one answered is exactly the question three reports could not reach. ⚠ It is printed at
+RUNTIME and never written into a fixture: `tests/gates.test.mjs` derives the expectation from the
+suite's own `root` and compares with separators normalised, because a literal would put the
+author's home directory into every clone (`CLAUDE.md` §6, §7).
+
+**Both new tests were shown able to fail**, by reverting `plugin/bin/adr-lint` and re-running: the
+verdict test goes red naming which of the three parts is missing, and the vacuity guard — a gate
+copied where no manifest is above it must say `version unreadable` and state no version — stays
+green, because the revert does not touch that arm. A check that returns "clean" and was never seen
+returning "dirty" is not evidence (`CLAUDE.md` §4).
+
+## 144. One test degraded 12x during a single session, and the suite only notices when it crosses a cap
+
+`tests/gate-rules.test.mjs::arch-lint rejects a gate that cannot fail and a symbol that is not there`
+was measured five times on 2026-09-06 across one session, on an unchanged machine:
+
+| run | tree | duration | result |
+|---|---|---|---|
+| 1 | before any edit | 19,320 ms | pass |
+| 2 | before any edit | 23,348 ms | pass |
+| 3 | before any `plugin/bin` edit | 242,534 ms | pass |
+| 4 | with §143 applied | 241,588 ms | pass |
+| 5 | same code as 4 | 60,015 ms | **fail — hit a cap** |
+| 6 | same code as 4 | 231,743 ms | pass |
+
+**The change under test was exonerated by runs 3 and 4**: it was already taking 242 s before any
+gate was touched, and it passed WITH the change applied. Run 5 is the same code as runs 4 and 6.
+So this is load-dependent slowness, not a regression — the machine was running repeated gate
+invocations and a second agent session at the time.
+
+**The defect is not the slowness, it is that nothing reports it.** A test that takes 19 s and a test
+that takes 232 s are both a green tick, and the suite says nothing until the duration crosses a
+timeout — at which point it reports a FAILURE, which is what a correctness defect looks like. A
+session that had not kept its earlier logs would have read run 5 as "my change broke arch-lint" and
+gone looking in the wrong place. That is the same class as §143 one level up: the output does not
+carry what a reader needs to tell two different causes apart.
+
+⚠ **Do not "fix" this by raising the cap.** The cap is what eventually surfaced it at all. What is
+missing is a duration a reader can compare against — the suite already prints per-test milliseconds,
+so the material is there and nothing reads it.
+
+**Related and probably the same root**: §121 (a truncating heartbeat made a timeout test flaky, and
+two siblings the same day) and §26 (orphaned child processes a killed run leaves behind). Whether
+this test is slow because it spawns a gate per table row, or because something it spawns is not
+being reaped, is not established here — measuring that is the first task, not a fix.
+
+**Not scheduled.** Recorded because run 5 cost a diagnosis that only the earlier logs could settle.

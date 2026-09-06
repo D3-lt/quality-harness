@@ -687,7 +687,13 @@ test('every catalogue entry names tests the campaign can actually spawn', () => 
 
   // And a declared test file that is not in the repository is a pointer to
   // nothing — resolved against git, never the disk (CLAUDE.md §8).
-  const inRepo = new Set(tracked())
+  // ⚠ TRACKED **PLUS BEING ADDED**. `git ls-files` alone does not know about a
+  // test file created in the same commit as the entry that names it, so this
+  // check reported a brand-new suite as a pointer to nothing — CLAUDE.md §8 says
+  // exactly this, and the first version of this test did it anyway.
+  const added = spawnSync('git', ['-C', repoRoot, 'ls-files', '--others', '--exclude-standard'],
+    { encoding: 'utf8', timeout: 60_000 }).stdout.split('\n').filter(Boolean)
+  const inRepo = new Set([...tracked(), ...added])
   const missing = catalogue.mutations.flatMap(e => (e.tests ?? [])
     .filter(t => !inRepo.has(t)).map(t => `${e.label} -> ${t}`))
   assert.deepEqual(missing, [], 'these entries declare a test file the repository does not track')

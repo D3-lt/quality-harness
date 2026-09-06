@@ -9074,7 +9074,7 @@ copied where no manifest is above it must say `version unreadable` and state no 
 green, because the revert does not touch that arm. A check that returns "clean" and was never seen
 returning "dirty" is not evidence (`CLAUDE.md` §4).
 
-## 144. One test degraded 12x during a single session, and the suite only notices when it crosses a cap
+## 144. CLOSED 2026-09-06 — one test degraded 12x during a single session, and the suite only notices when it crosses a cap
 
 `tests/gate-rules.test.mjs::arch-lint rejects a gate that cannot fail and a symbol that is not there`
 was measured five times on 2026-09-06 across one session, on an unchanged machine:
@@ -9110,6 +9110,50 @@ this test is slow because it spawns a gate per table row, or because something i
 being reaped, is not established here — measuring that is the first task, not a fix.
 
 **Not scheduled.** Recorded because run 5 cost a diagnosis that only the earlier logs could settle.
+
+**CLOSED 2026-09-06.** The first task was the measurement, and it answers the question this section
+left open — *"whether this test is slow because it spawns a gate per table row, or because something
+it spawns is not being reaped"* — with **neither**.
+
+`arch-lint rejects a gate that cannot fail and a symbol that is not there`, measured today on an
+otherwise idle machine: **1,103 ms alone** (`node --test --test-name-pattern`), and **2,217 /
+2,260 / 2,455 ms** inside three full-suite runs. So its own spawns cost about a second, and its
+floor in-suite is ~2.2 s. Run 1's 19,320 ms was already 9x that floor and run 3's 242,534 ms about
+110x it. The table above is a record of MACHINE LOAD, and this section's own reading — "load
+dependent slowness, not a regression" — is confirmed rather than merely argued.
+
+**The defect was the reporting, and that is what closed.** `scripts/slow-tests.mjs` reads the TAP
+`selftest.sh` already knows how to write (`QUALITY_HARNESS_TAP`), which until now nothing read — the
+script says so itself: *"it is a diagnostic, not a gate, and nothing reads the file here."*
+
+⚠ **NO STORED BASELINE, and that is the whole design.** A checked-in table of expected durations is
+a list kept beside the artifact — right the day it is written, silently wrong after any machine,
+runner or suite change, with nothing to report the drift. That is the defect §106 named when it made
+the campaign's shard costs come from the campaign's own last run. So the comparison is WITHIN ONE
+RUN: every test against the median of the same run. A uniformly slower afternoon moves the median
+with the outliers and reports the same answer — asserted in the tests, both directions.
+
+It reports and never blocks (§3), and could-not-look is said in those words: an unreadable
+transcript, one with no timed tests, and a run whose median is 0 ms are each `UNRUN`, never a clean
+report.
+
+**It found something on its first real run**, which is the receipt worth more than the tool:
+
+```
+median 75.4ms over 762 top-level test(s).
+     44151ms   585x  every catalogue mutant still parses, so a kill is behavioural
+     11968ms   159x  focused false-green regressions remain closed
+      5592ms    74x  adr-verify restores declared generated outputs with their source
+```
+
+`arch-lint rejects a gate that cannot fail` — the test this section is ABOUT — is not in the top
+eight. The suite's real cost is one test at 44 seconds, 585x the median, and nobody had a reason to
+know that.
+
+**SIBLING, named and not done (§5):** `every catalogue mutant still parses` spawns `node --check` or
+`python3 -c ast.parse` twice per catalogue entry, and the catalogue is past six hundred entries — so
+it grows with the corpus and is now a sixth of the suite's wall-clock on its own. Whether that is
+worth batching is a separate question from this section, and nothing here measured it.
 
 ## 145. MEASURED 2026-09-06 on a real Windows 11 box — three deferred questions answered, and one of them for a reason nobody predicted
 

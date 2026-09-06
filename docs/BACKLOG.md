@@ -8289,6 +8289,31 @@ not the fence's own process tree; a `tasklist /FI "PARENTPID eq <bash>"` snapsho
 just before `taskkill` on `nt`, printed under the same trace flag, would name what is there to kill and
 what is left after. That is one Windows run away from an answer and needs no Windows machine to write.
 
+
+**2026-09-06 — one of the three skips was never earned, and it is now off.**
+`tests/timeout-tree.test.mjs` applied `posixTree` to three tests. Two assert that the process tree
+DIED, which is the non-deterministic thing §128 measured, and their skip is correct. The third —
+`<gate>: a cleanup that raises does not replace the timeout`, run for `spec-verify`, `qh-mcp` and
+`adr-verify` — was skipped by ANALOGY with its neighbours.
+
+It never needed to be. That test replaces `kill_tree` with a function that raises, so the
+platform-specific path the skip exists for is the one thing it does not execute. What it asserts is
+that a raising cleanup does not replace the `TimeoutExpired` that caused it, and that the caller
+still reports inside its bound — the same question on every host, and precisely ADR-005's class: a
+gate that ran and timed out being reported as one that did not start.
+
+`CLAUDE.md` §7 says a skip is earned after the log shows the fixture cannot be built on that
+platform, never by resemblance. Nothing in any log ever showed it for this one. Three tests now run
+on Windows that did not before, on the deterministic half of exactly the mechanism §128 and §129 are
+about.
+
+⚠ **Passing on Windows is NOT claimed here.** They pass on macOS, where they already ran; this
+change is that Windows executes them at all. Windows cannot be run locally (§7), so CI is what
+answers, and if one of them is red there that is a finding about the gate on Windows and not about
+the skip being lifted — which is the outcome that would justify the lift most.
+
+**Still open and untouched:** the two tree-death assertions, the unattributed 60s pipe holder in the
+direct path, and the leader-exits shape (§123) on Windows.
 ## 130. CLOSED 2026-09-05 — six children a shipped gate spawned carried no timeout, and the runner never reaped
 
 **The rule, from the owner, relayed by a peer session the same day it was earned:** every child a

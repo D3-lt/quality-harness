@@ -2408,6 +2408,19 @@ def main():
     empty = 'def test_money():\n    pass\n'
     assert "assert" not in (lint.test_body(empty, "test_money", python=True) or ""), \
         "a genuinely assertion-free body must still read as one"
+
+    # ⚠ THE BODY IS THE BODY, NOT THE DECLARATION — and this assertion exists
+    # because the campaign said so. The first version of these checks only asked
+    # whether "assert" appeared somewhere in what came back, which is true whether
+    # or not the `def` line is included, so a mutant moving the start from the first
+    # STATEMENT back to the `def` line came back GREEN. A test whose NAME contains
+    # the word is then read as asserting when its body does not: the signature
+    # smuggles the evidence in.
+    named = ('def test_assertion_is_missing(\n    ledger,\n):\n    ledger.total()\n')
+    body = lint.test_body(named, "test_assertion_is_missing", python=True) or ""
+    assert "assert" not in body, \
+        f"the def line leaked into the body, so the test's NAME reads as its evidence: {body!r}"
+    assert "def " not in body, f"a declaration is not a body: {body!r}"
     assert lint.test_body(one, "test_absent", python=True) is None, \
         "a name that is not there is None, not the whole file"
 

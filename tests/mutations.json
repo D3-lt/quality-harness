@@ -3901,8 +3901,8 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "    name: mutations ${{ matrix.shard }}/8",
-      "to": "    name: mutations ${{ matrix.shard }}/4"
+      "from": "    name: mutations ${{ matrix.shard }}/12",
+      "to": "    name: mutations ${{ matrix.shard }}/8"
     },
     {
       "label": "mutate: a reused verdict is refused when its subject or its tests changed",

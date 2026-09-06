@@ -9270,7 +9270,7 @@ reasoning, as the mutation journal at `scripts/mutate.mjs:50-51`.
 **Not scheduled: worktrees in `mutate.mjs`.** Writing the cleanup before there is a caller is the
 speculative complexity YAGNI refuses; it lands with the feature.
 
-## 148. OPEN — the mutation cache is never persisted between CI runs, so every push measures everything
+## 148. CLOSED 2026-09-06 — the mutation cache is never persisted between CI runs, so every push measures everything
 
 `.mutation-cache.json` reuses a RED verdict whose `(file, from, to, tests, only)` are byte-identical
 to the run that took it (ADR-023), and it works — locally. CI passes `--no-cache` on the dispatched
@@ -9288,6 +9288,46 @@ Sketch: the cache file gains `measured: [keys]` (the loader ignores unknown fiel
 break); `scripts/mutation-cache-merge.mjs` resolves each key by its measuring shard, absent meaning
 deleted; the workflow restores by prefix, uploads per shard, merges, and saves. Release runs keep
 `--no-cache`, so a tag is still fully measured — that is ADR-023 T3 and does not change.
+
+**CLOSED 2026-09-06**, in `0b7d220` and `cf379e3`, and the sketch above survived contact with
+two exceptions worth more than the feature.
+
+`scripts/mutate.mjs` now writes `measured` — the keys a run took a verdict on, empty for the ones
+it reused — and `scripts/mutation-cache-merge.mjs` resolves each key by its measuring shard. The
+workflow restores by prefix, uploads one artifact per shard, merges, and saves.
+
+**What the sketch did not say, and it is the load-bearing half.** Absence arrives TWICE, and only
+one of the two is a deletion. Inside a `measured` claim an absent key means the shard deleted it;
+a shard that never REPORTED — killed at the 25-minute wall, which happened twice on `4b7045c` —
+makes its keys carry no claim from anyone, so their prior verdicts survive untouched and a mutant
+that went GREEN stays RED for ever. The same resurrection, reached through silence. So the merge
+refuses an incomplete run (`--expect 12`) and writes nothing rather than publishing a cache that
+freezes one.
+
+**And the shape that would have made every release impossible.** The merge must not run on a
+dispatch, and the obvious `if:` goes on the JOB — but `release-evidence.mjs` filters on
+`j.conclusion !== 'success'`, so `skipped` is exit 1 there exactly like `failed`, and a release may
+only be cut from a dispatched run. A job-level condition would have made every release
+permanently unreleasable, first symptom a release refused for a job that did what it was told. The
+job always runs; its STEPS skip. `tests/package.test.mjs` fails on any job-level
+`workflow_dispatch` condition now, and shows itself rejecting that shape.
+
+**The balance half closed itself.** `--no-cache` suppresses reuse, but the `--shard` block reads
+the same file for its `ms` timings unconditionally — so a restored cache gives the dispatched run
+a cost-balanced split instead of round-robin, with no flag semantics changed. That is the comment
+at `.github/workflows/selftest.yml` about shards not being cost-balanced on the run that most
+needs to fit in 25 minutes.
+
+**Two instruments found what reading did not.** The campaign returned GREEN on the CI-shape
+mutant: the test looped its assertion over the real workflow and checked the bad fixture BESIDE
+that loop with a different assertion, so the mutated line never ran against a shape that must fail
+it — one predicate, two inputs, fixed it. And the Windows entry-guard sweep caught
+`mutation-cache-merge.mjs` comparing `import.meta.url` to a ``file://${process.argv[1]}`` template,
+inert on Windows, which would have exited 0 having merged nothing.
+
+**LEFT OPEN, and named rather than done quietly:** `--no-cache` fuses "do not reuse" with "do not
+write", so a dispatched run measures all 611 entries and stores none of it. Splitting it would let
+the run a release is cut from refresh the cache it just proved. Not needed for this section.
 
 ## 149. CI went red on a49ab52 — one cause, two symptoms, and a race it exposed
 

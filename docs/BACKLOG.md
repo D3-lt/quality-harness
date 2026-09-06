@@ -9288,3 +9288,47 @@ Sketch: the cache file gains `measured: [keys]` (the loader ignores unknown fiel
 break); `scripts/mutation-cache-merge.mjs` resolves each key by its measuring shard, absent meaning
 deleted; the workflow restores by prefix, uploads per shard, merges, and saves. Release runs keep
 `--no-cache`, so a tag is still fully measured — that is ADR-023 T3 and does not change.
+
+## 149. CI went red on a49ab52 — one cause, two symptoms, and a race it exposed
+
+The Windows job and `mutations 6/12` both failed, and every local gate was green. Both trace to
+the `NODE_TEST_CONTEXT` fix in fc03c7c, which is worth stating plainly: **the fix was correct and
+it made previously-hollow work real.**
+
+`node --test` sets `NODE_TEST_CONTEXT` for its children, and an inner `node --test` that
+inherits it speaks the parent's binary protocol on a private channel — stdout empty. Six test files
+here spawn the campaign from inside `node --test`, so every campaign they drove produced nothing
+readable and cost almost nothing. Stripping the variable made those campaigns actually run.
+
+**Symptom 1 — the lock test timed out (Windows, 60,276 ms).**
+`tests/gate-rules.test.mjs`'s dead-owner arm is the one arm that does not refuse: it PROCEEDS, so
+it runs a real campaign of whatever `--case` names. It named `mktemp -d is a temp`, whose test
+file is `tests/lifecycle.test.mjs` — 4,500 lines, run twice for baseline and mutant. Survivable
+only while the inner runs were hollow. `spawnSync` killed it at 60 s, before `releaseTheRun()`,
+leaving a LIVE pid in the lock: `'4696' !== ''`. Now pointed at the cheapest entry in the
+catalogue (`post-edit-check.test.mjs`, three tests, 0.2 s): **60,276 ms → 465 ms**. The arm also
+asserts the run FINISHED, because a lock cleared by a killed run is cleared for the wrong reason.
+
+**Symptom 2 — the catalogue test, in a different file, was the victim.**
+`every catalogue entry still matches the source it mutates` reported `advisory: mktemp -d is a
+temp directory — matches 0x`. Nothing was wrong with that entry. The killed runner had left
+`plugin/scripts/lifecycle.mjs` mutated, and the catalogue test read the mutated file.
+
+⚠ **THE RACE IS REAL AND PRE-EXISTING, and this only narrowed it.** `node --test` runs FILES
+concurrently, so a test that spawns the mutation runner has a real source file rewritten while
+sibling test files read it. `QUALITY_HARNESS_MUTATION_IN_FLIGHT` covers the runner's OWN inner
+run (`tests/package.test.mjs:598`) and says nothing to a sibling. The window was 60 s here and is
+~0.2 s now; it is not closed. **§147's worktrees close it properly** — a campaign that mutates its
+own checkout cannot be seen by anything reading the main tree — which is one more reason that work
+is worth doing beyond the 3.5x.
+
+**Symptom 3 — a GREEN mutant, `mutations 6/12`.** `mutate: a baseline that never ran is not
+called a failing suite` survived. Correct, and mine: fc03c7c added a SECOND branch answering
+`unrun` (output with no spec reporter lines), and a killed run has no stdout either — so deleting
+the signal check changed the reason and not the verdict, while the test asserted only the state.
+It asserts the `why` now: a killed run is named by its signal, not by its silence. RED again.
+
+**What this says about the local gate.** It was green on all three. The lock test's cost is
+platform-dependent (Windows is slower), and the other two are a concurrency race and a mutant —
+neither of which `selftest.sh` measures. §15's rule earned again: a local green is not a branch
+being green, and they are different checks.

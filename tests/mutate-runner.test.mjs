@@ -105,8 +105,14 @@ test('a baseline that never ran is not reported as an already-failing suite', ()
   // before this mutation was applied; repair that suite". Nothing failed. The
   // suite was never executed, and "repair that suite" sends the reader to fix
   // code that may be perfectly fine.
+  // ⚠ THE *WHY*, NOT ONLY THE STATE. Since 2026-09-06 a second branch also
+  // answers 'unrun' — output carrying no spec reporter lines — so asserting the
+  // state alone let a mutant that deleted this line survive: a killed run has no
+  // stdout either, and fell through to the other branch with the same verdict
+  // and a different reason. The CI campaign caught it (mutations 6/12, GREEN).
   const timedOut = baselineOf({ status: null, signal: 'SIGTERM' })
   assert.equal(timedOut.state, 'unrun')
+  assert.equal(timedOut.why, 'SIGTERM', 'a killed run is named by its signal, not by its silence')
   // A run the reporter narrated: the leaf lines are what say tests executed.
   const reallyFailed = baselineOf({ status: 1, signal: null, stdout: '✖ one (1ms)\nℹ tests 1\nℹ fail 1\n' })
   assert.equal(reallyFailed.state, 'fail')

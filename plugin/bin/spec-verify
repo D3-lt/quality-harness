@@ -126,6 +126,7 @@ def kernel32(ctypes, wintypes):
         ("TerminateJobObject", B, [H, wintypes.UINT]),
         ("CloseHandle", B, [H]),
         ("CreateToolhelp32Snapshot", H, [D, D]),
+        ("QueryInformationJobObject", B, [H, ctypes.c_int, ctypes.c_void_p, D, P(D)]),
         ("Thread32First", B, [H, ctypes.c_void_p]),
         ("Thread32Next", B, [H, ctypes.c_void_p]),
         ("Process32FirstW", B, [H, ctypes.c_void_p]),
@@ -280,6 +281,30 @@ class WindowsJob:
         """Kill every member. True only when the call itself succeeded."""
         return bool(self.k32.TerminateJobObject(self.handle, 1))
 
+    def members(self):
+        """Pids still in the job — survivors by MEMBERSHIP (BACKLOG §128).
+
+        Ancestry cannot answer this. A process still holding the pipe after
+        TerminateJobObject is either in the job (the kill did not take) or
+        outside it (forked before assignment, or broke away), and those are
+        different defects. Raises when the query fails, so the caller reports
+        COULD NOT LIST rather than an empty job (ADR-005).
+        """
+        ctypes, wintypes = self.ctypes, self.wintypes
+        JOB_OBJECT_BASIC_PROCESS_ID_LIST = 3
+        capacity = 512
+
+        class PROCESS_ID_LIST(ctypes.Structure):
+            _fields_ = [("NumberOfAssignedProcesses", wintypes.DWORD),
+                        ("NumberOfProcessIdsInList", wintypes.DWORD),
+                        ("ProcessIdList", ctypes.c_size_t * capacity)]
+
+        info = PROCESS_ID_LIST()
+        if not self.k32.QueryInformationJobObject(self.handle, JOB_OBJECT_BASIC_PROCESS_ID_LIST,
+                                                  ctypes.byref(info), ctypes.sizeof(info), None):
+            raise OSError(last_error(ctypes), "QueryInformationJobObject failed")
+        return [int(info.ProcessIdList[index]) for index in range(int(info.NumberOfProcessIdsInList))]
+
     def close(self):
         """Release the job handle. With KILL_ON_JOB_CLOSE this is also the last kill."""
         if self.handle:
@@ -287,17 +312,17 @@ class WindowsJob:
             self.handle = None
 
 
-def resume_suspended(proc):
+def resume_suspended(proc, k32=None):
     """Resume a CREATE_SUSPENDED child with no job to do it — the same snapshot walk."""
     job = WindowsJob.__new__(WindowsJob)
     import ctypes
     from ctypes import wintypes
     job.ctypes, job.wintypes, job.pid = ctypes, wintypes, proc.pid
-    job.k32 = kernel32(ctypes, wintypes)
+    job.k32 = k32 or kernel32(ctypes, wintypes)
     job.resume()
 
 
-def windows_job(proc, started=None):
+def windows_job(proc, started=None, k32=None):
     """A job around a CREATE_SUSPENDED `proc`, resumed either way. NEVER RAISES.
 
     The fence was started suspended so the job could exist before it forks. It
@@ -305,11 +330,28 @@ def windows_job(proc, started=None):
     hang wearing the timeout's name. If even that fails, the fence is killed so
     the gate reports UNRUN promptly instead of waiting out the timeout on a
     process that never ran.
+
+    ⚠ QUALITY_HARNESS_JOB_UNAVAILABLE is the seam for the arm BELOW the job
+    (BACKLOG §129). With it set, AssignProcessToJobObject is refused at the
+    kernel32 boundary and everything after — the fallback resume, the taskkill
+    kill, the streams left open — runs live. It exists because that arm had
+    never executed on a real Windows host: every measured run took the job, and
+    a stubbed test driving both arms is not the live fallback. The refusal is
+    traced as INDUCED so a reader never mistakes a forced fallback for an
+    observed one. A diagnostic; never set it where the gate is trusted.
     """
     started = started or time.monotonic()
     job = None
     try:
-        job = WindowsJob(proc, started)
+        if os.environ.get("QUALITY_HARNESS_JOB_UNAVAILABLE"):
+            trace_timeout("QUALITY_HARNESS_JOB_UNAVAILABLE is set: AssignProcessToJobObject "
+                          "will be refused (INDUCED, not observed)", started)
+            if k32 is None:
+                import ctypes
+                from ctypes import wintypes
+                k32 = kernel32(ctypes, wintypes)
+            k32 = RefusingAssignment(k32)
+        job = WindowsJob(proc, started, k32=k32)
         trace_timeout(f"job object holds {proc.pid}", started)
     except Exception as failure:
         trace_timeout(f"job object unavailable ({type(failure).__name__}: {failure}); "
@@ -318,7 +360,7 @@ def windows_job(proc, started=None):
         if job is not None:
             job.resume()
         else:
-            resume_suspended(proc)
+            resume_suspended(proc, k32=k32)
     except Exception as failure:
         trace_timeout(f"could not resume the suspended fence ({type(failure).__name__}: {failure}); "
                       f"killing it so this reports UNRUN now rather than after the timeout", started)
@@ -369,6 +411,87 @@ def windows_processes():
     finally:
         k32.CloseHandle(snap)
     return found
+
+
+class RefusingAssignment:
+    """kernel32 whose AssignProcessToJobObject answers 0 with ERROR_ACCESS_DENIED.
+
+    The §129 seam, at the API boundary and nowhere higher: every other call
+    reaches the real kernel32, so what runs after the refusal is the live
+    fallback rather than a stub of it. ERROR_ACCESS_DENIED (5) is what Windows
+    answers when a process may not join a nested job — the real shape of "job
+    unavailable" on a host where it happens.
+    """
+
+    ERROR_ACCESS_DENIED = 5
+
+    def __init__(self, real):
+        self._real = real
+
+    def __getattr__(self, name):
+        return getattr(self._real, name)
+
+    def AssignProcessToJobObject(self, job, process):
+        import ctypes
+        setter = getattr(ctypes, "set_last_error", None)
+        if setter is not None:
+            setter(self.ERROR_ACCESS_DENIED)
+        return 0
+
+
+def descendants(pid, rows):
+    """Everything below PID in a snapshot, as (name, pid), by walking parents.
+
+    `rows` are (name, pid, parent) as `windows_processes` reports them. Pure,
+    so the walk runs on any host. A pid already found is never re-added, so a
+    process that is its own parent (the idle process) or a parent pid that was
+    reused cannot loop it. Reported, never interpreted.
+    """
+    wanted = {pid}
+    found = []
+    remaining = list(rows)
+    grew = True
+    while grew:
+        grew = False
+        rest = []
+        for name, cpid, parent in remaining:
+            if parent in wanted and cpid not in wanted:
+                wanted.add(cpid)
+                found.append((name, cpid))
+                grew = True
+            else:
+                rest.append((name, cpid, parent))
+        remaining = rest
+    return found
+
+
+def trace_survivors(pid, job, processes, started):
+    """Name what is still alive after a drain timed out, on request (BACKLOG §128).
+
+    The CI runner sat at 60s on byte-identical code and nothing ever said which
+    process was holding the pipe. Two listings, each its own observation with
+    its own could-not-look (ADR-005): the tree below the fence by ancestry, and
+    the job's members by membership. A holder in the first and not the second
+    forked before assignment or broke away; one in the second is a kill that
+    did not take; one in neither is not a process this gate started. Off by
+    default like every trace here.
+    """
+    traced = bool(os.environ.get("QUALITY_HARNESS_TRACE_TIMEOUT"))
+    if not traced:
+        return
+    try:
+        trace_timeout(f"drain timeout survivors below {pid} by ancestry: {descendants(pid, processes())}", started)
+    except Exception as failure:
+        trace_timeout(f"drain timeout survivors below {pid} by ancestry: COULD NOT LIST "
+                      f"({type(failure).__name__}: {failure})", started)
+    if job is None:
+        trace_timeout("drain timeout survivors by job membership: no job", started)
+        return
+    try:
+        trace_timeout(f"drain timeout survivors by job membership: {job.members()}", started)
+    except Exception as failure:
+        trace_timeout(f"drain timeout survivors by job membership: COULD NOT LIST "
+                      f"({type(failure).__name__}: {failure})", started)
 
 
 def kill_tree(pid, platform=None, run=subprocess.run, timeout=15, job=None, processes=None):
@@ -461,7 +584,7 @@ def trace_timeout(label, started):
         pass
 
 
-def drain_after_kill(proc, platform, grace=10, started=None, job=None):
+def drain_after_kill(proc, platform, grace=10, started=None, job=None, processes=None):
     """Kill the tree and collect what it wrote, bounded, without raising.
 
     Bounded because a descendant that made a session of its own escapes the
@@ -500,6 +623,11 @@ def drain_after_kill(proc, platform, grace=10, started=None, job=None):
         return out, err, killed
     except Exception as failure:
         trace_timeout(f"drain communicate {type(failure).__name__}", started)
+        # BACKLOG §128: the one moment the survivor can be named is now, while
+        # it is still holding the pipe. Windows only — POSIX closes the streams
+        # below and has no job to ask.
+        if (platform or os.name) == "nt":
+            trace_survivors(proc.pid, job, windows_processes if processes is None else processes, started)
         if (platform or os.name) != "nt":
             for stream in (proc.stdout, proc.stderr, proc.stdin):
                 if stream is not None:

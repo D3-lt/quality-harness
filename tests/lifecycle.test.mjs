@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -36,6 +36,8 @@ import {
   runArtifactGates,
   shellSegments,
   completionClaim,
+  saidMarkerDirectory,
+  sweepStaleMarkers,
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
@@ -1551,9 +1553,12 @@ test('compaction makes a once-per-session finding first again', async () => {
   assert.equal(commit().systemMessage, undefined, 'and then a repeat')
 
   // The markers and the generation live under the per-run root, not the OS temp
-  // directory the cleanup never touches.
-  const own = (await readdir(testTmp)).filter(name => /^quality-harness-(said|gen)-/.test(name))
-  assert.ok(own.length >= 2, `the hook's markers must land under the run's root: ${own}`)
+  // directory the cleanup never touches: the generation beside the root, the
+  // said-markers in their own directory below it (BACKLOG §146).
+  const own = (await readdir(testTmp)).filter(name => /^quality-harness-gen-/.test(name))
+  assert.ok(own.length >= 1, `the hook's generation file must land under the run's root: ${own}`)
+  const said = (await readdir(saidMarkerDirectory(testTmp))).filter(name => /^[0-9a-f]{32}$/.test(name))
+  assert.ok(said.length >= 1, `the hook's said-markers must land under the run's root: ${said}`)
 })
 
 test('a slow hook names itself; a fast one says nothing about its time', async () => {
@@ -4426,4 +4431,64 @@ test('inside a read-only role, the plugin-level PreToolUse hook denies a write; 
     const said = deny(other, 'Bash', { command: "sed -i 's/a/b/' README.md" })
     assert.notEqual(said.hookSpecificOutput?.permissionDecision, 'deny', `${other}: not a read-only role`)
   }
+})
+
+// BACKLOG §146 — the "already said this" markers were never removed: one
+// zero-byte file per (session, generation, finding), for ever, on every
+// adopter; a Windows peer counted 48 from one day's session. The sweep must
+// remove the old and keep the live, in the marker directory AND for the legacy
+// shapes under the temp root (said-, gen-, note-), touch nothing else there,
+// and read the directory at most once a day. Old-removed and live-kept in the
+// same test, so a sweep that removed everything or nothing fails it (§4).
+test('stale said-markers are swept once a day; live ones and everything else are kept', () => {
+  const tmp = mkdtempSync(path.join(testTmp, 'said-sweep-'))
+  const dir = saidMarkerDirectory(tmp)
+  mkdirSync(dir, { recursive: true })
+  const hex = n => String(n).padStart(32, '0')
+  const day = 24 * 60 * 60 * 1000
+  const now = Date.now()
+  const aged = (file, ageMs) => { writeFileSync(file, ''); const t = (now - ageMs) / 1000; utimesSync(file, t, t) }
+  aged(path.join(dir, hex(1)), 8 * day)                            // old marker: removed
+  aged(path.join(dir, hex(2)), 1 * day)                            // live marker: kept
+  aged(path.join(tmp, `quality-harness-said-${hex(3)}`), 8 * day)  // legacy said: removed
+  aged(path.join(tmp, `quality-harness-gen-${hex(4)}`), 8 * day)   // legacy gen: removed
+  aged(path.join(tmp, `quality-harness-note-${hex(5)}`), 8 * day)  // legacy note: removed
+  aged(path.join(tmp, `quality-harness-note-${hex(6)}`), 1 * day)  // legacy, live: kept
+  aged(path.join(tmp, 'quality-harness-said-short'), 8 * day)      // wrong shape: not ours
+  aged(path.join(tmp, `unrelated-${hex(7)}`), 8 * day)             // not ours at all
+
+  const first = sweepStaleMarkers(tmp, now)
+  assert.equal(first.swept, true)
+  assert.deepEqual(first.unreadable, [])
+  assert.equal(first.removed, 4, JSON.stringify(first))
+  assert.equal(existsSync(path.join(dir, hex(1))), false, 'an old marker is removed')
+  assert.equal(existsSync(path.join(dir, hex(2))), true, 'a live marker is kept')
+  assert.equal(existsSync(path.join(tmp, `quality-harness-said-${hex(3)}`)), false, 'a legacy said-marker is removed')
+  assert.equal(existsSync(path.join(tmp, `quality-harness-gen-${hex(4)}`)), false, 'an old generation file is removed')
+  assert.equal(existsSync(path.join(tmp, `quality-harness-note-${hex(5)}`)), false, 'an old note is removed')
+  assert.equal(existsSync(path.join(tmp, `quality-harness-note-${hex(6)}`)), true, 'a live legacy file is kept')
+  assert.equal(existsSync(path.join(tmp, 'quality-harness-said-short')), true, 'a name of the wrong shape is not ours')
+  assert.equal(existsSync(path.join(tmp, `unrelated-${hex(7)}`)), true, 'nothing else in the temp root is touched')
+
+  // The daily guard: an old marker planted an hour later is NOT swept...
+  aged(path.join(dir, hex(8)), 8 * day)
+  const held = sweepStaleMarkers(tmp, now + 60 * 60 * 1000)
+  assert.equal(held.swept, false, 'within a day the guard holds and nothing is read')
+  assert.equal(existsSync(path.join(dir, hex(8))), true)
+  // ...and is swept once a day has passed.
+  const later = sweepStaleMarkers(tmp, now + 25 * 60 * 60 * 1000)
+  assert.equal(later.swept, true)
+  assert.equal(later.removed, 1, JSON.stringify(later))
+  assert.equal(existsSync(path.join(dir, hex(8))), false)
+  assert.equal(existsSync(path.join(dir, hex(2))), true, 'still live two days on')
+})
+
+test('a sweep that cannot look says where, and never throws', () => {
+  const tmp = mkdtempSync(path.join(testTmp, 'said-sweep-blocked-'))
+  // The marker "directory" is a FILE, so nothing below it can be read.
+  writeFileSync(saidMarkerDirectory(tmp), 'not a directory')
+  const report = sweepStaleMarkers(tmp, Date.now())
+  assert.equal(report.swept, false)
+  assert.equal(report.removed, 0)
+  assert.match(report.unreadable.join(' '), /mkdir: /, `the failure is named, not swallowed — ${JSON.stringify(report)}`)
 })

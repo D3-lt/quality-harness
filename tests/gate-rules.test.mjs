@@ -1263,9 +1263,9 @@ test('the mutation runner names an option it does not know, instead of running e
   assert.match(wrong.stderr, /--case/)
 
   // The flags it does know still work: --list selects and exits without running.
-  const listed = call(['--case', 'mktemp -d is a temp', '--list'])
+  const listed = call(['--case', 'the post-edit check acts only on the edit tools', '--list'])
   assert.equal(listed.status, 0, listed.stdout + listed.stderr)
-  assert.match(listed.stdout, /mktemp -d is a temp/)
+  assert.match(listed.stdout, /the post-edit check acts only on the edit tools/)
 })
 
 test('the mutation runner refuses to run over an editor, or beside another runner', () => {
@@ -1278,8 +1278,20 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   // Its own lock file, so exercising these guards cannot collide with a real
   // campaign running in the same checkout.
   const isolated = join(mkdtempSync(join(os.tmpdir(), 'qh-mutate-')), 'lock')
+  // ⚠ THE CHEAPEST ENTRY IN THE CATALOGUE, and the choice is load-bearing. The
+  // dead-owner arm below does not refuse — it PROCEEDS, so it runs a real
+  // campaign: the named entry's tests, twice, for baseline and mutant. This
+  // used to name `mktemp -d is a temp`, whose test file is
+  // tests/lifecycle.test.mjs — 4,500 lines. That was survivable only while an
+  // inherited NODE_TEST_CONTEXT made the inner `node --test` produce nothing;
+  // once the runner began stripping it (2026-09-06) the campaign became real,
+  // and the Windows job hit this test's 60s cap, was killed before
+  // `releaseTheRun()`, and left both a live pid in the lock AND
+  // plugin/scripts/lifecycle.mjs mutated — which then failed the catalogue test
+  // in another file. `post-edit-check.test.mjs` is three tests and 0.2s.
+  const CHEAPEST = 'the post-edit check acts only on the edit tools'
   const call = (extraArgs, lock = isolated) => spawnSync(process.execPath,
-    [runner, '--case', 'mktemp -d is a temp', ...extraArgs],
+    [runner, '--case', CHEAPEST, ...extraArgs],
     { cwd: root, env: { ...env, QUALITY_HARNESS_MUTATE_LOCK: lock }, encoding: 'utf8', timeout: 60_000 })
 
   // A live owner is refused. `process.pid` is this test, which is certainly alive.
@@ -1296,10 +1308,10 @@ test('the mutation runner refuses to run over an editor, or beside another runne
   // The other guard: a file this run rewrites that has uncommitted changes. The
   // runner restores from a journal, so an edit made while it runs is silently
   // rolled back — which is how two patches were lost on 2026-08-26.
-  const target = join(root, 'scripts', 'lifecycle.mjs')
+  const target = join(root, 'scripts', 'post-edit-check.sh')
   const pristine = readFileSync(target, 'utf8')
   try {
-    writeFileSync(target, `${pristine}\n// scratch\n`)
+    writeFileSync(target, `${pristine}\n# scratch\n`)
     const overAnEditor = call([])
     assert.equal(overAnEditor.status, 2, overAnEditor.stdout + overAnEditor.stderr)
     assert.match(overAnEditor.stderr, /uncommitted changes/)
@@ -1344,6 +1356,10 @@ test('the mutation runner refuses to run over an editor, or beside another runne
     // usually does. What matters is that the stale lock is not the reason.
     assert.doesNotMatch(reclaimed.stderr, /another run is in flight/,
       'a stale lock must not wedge the runner')
+    // The run must also have FINISHED, or the lock below is clear for the wrong
+    // reason. A killed run leaves its own live pid there (Windows, 2026-09-06).
+    assert.notEqual(reclaimed.status, null,
+      `the reclaiming run must finish rather than be killed: ${reclaimed.stdout}${reclaimed.stderr}`)
     assert.equal(existsSync(lock) ? readFileSync(lock, 'utf8').trim() : '', '',
       'the dead owner\'s lock is cleared rather than inherited')
   } finally {

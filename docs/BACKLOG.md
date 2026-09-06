@@ -7582,7 +7582,7 @@ of "a command that cannot fail for this change" is what per-runner reachability 
 **Receipt:** this entry names `ADR-015-a-go-fence-can-reach-its-required-success.md`, and ADR-015's
 deferral is repointed here from §78.
 
-## 119. The mutation campaign cannot run a Python test, so 352 assertions can never kill a mutant
+## 119. CLOSED 2026-09-06 — the mutation campaign cannot run a Python test, so 352 assertions can never kill a mutant
 
 Found 2026-09-04 by CI on `dd8b6e5`, shard `mutations 3/8`: 60 of 61 noticed. The GREEN was
 `lint: a path::name pointer names a test file, not a production function`, and the mechanism it
@@ -7634,6 +7634,44 @@ timeout semantics in `scripts/mutate.mjs` are written against `node --test`'s ou
 
 **Receipt:** the campaign is what enumerates this class, and a tag runs it in full with `--no-cache`
 (CLAUDE.md §13.6), which is why this surfaced on a release run rather than on a push.
+
+**CLOSED 2026-09-06, and the heading above is WRONG — left standing because it is what was
+believed.** The measurement this section asked for ("a count of how many of those 352 assert a
+mechanism that NO `.mjs` test also covers") was never the right question, and doing it would have
+produced a number about nothing.
+
+**THE 352 ASSERTIONS ARE REACHABLE BY THE CAMPAIGN, and always were.**
+`tests/gates.test.mjs:531` — `focused false-green regressions remain closed` — SPAWNS
+`python3 tests/gate-regressions.py` and asserts its exit status. So every assertion in that file
+runs inside any campaign entry that declares `tests/gates.test.mjs`, and its failure fails the
+entry. Measured: `node scripts/mutate.mjs --no-cache --case 'a path::name pointer names a test
+file'` → **RED, killed by `focused false-green regressions remain closed`**, and applying the
+mutant by hand fails at `tests/gate-regressions.py:1738` — the exact assertion this section named
+as unreachable.
+
+**AND THE 2026-09-04 GREEN WAS REAL, so the section was not a misreport either.** Reproduced in a
+detached worktree at `dd8b6e5`: the same mutation, the same assertion, and the Python suite
+**passes**. Everything material is byte-identical between then and now — `tests/gate-regressions.py`
+does not appear in `git diff --stat dd8b6e5 HEAD` at all, and both the mutated line and the
+assertion match at that sha. `plugin/bin/adr-lint` gained 105 lines elsewhere in between, and one
+of them made that assertion sensitive to this guard. So the mutant was genuinely un-killed then and
+is killed now, by a Python assertion, through a `.mjs` declaration.
+
+**What was actually true, and is all that was ever true:** a `.py` path written DIRECTLY in a
+`tests:` list is unreachable, because `scripts/mutate.mjs` spawns `node --test` and nothing else.
+That is a DECLARATION-SHAPE limit, not a coverage hole — the assertions behind it are reached
+through the `.mjs` file that spawns them. The section read the one instance as evidence of the
+other, and the "352 assertions the campaign grades nothing about" sentence is the cost of that.
+
+**Closed by saying so at authoring time**, since the honest branch (a failing baseline, reported
+UNPROVEN) is silent about *why*: `tests/package.test.mjs::every catalogue entry names tests the
+campaign can actually spawn` fails on any `tests:` path `node --test` cannot spawn, and on any that
+the repository does not track, and shows itself rejecting a `.py` path in the same test.
+
+**NOT DONE, and no longer justified by this section:** teaching the runner a second test language.
+This section was the argument for it, and the argument does not hold — the Python assertions
+already grade mutants. Anyone reopening it needs a new reason, and the ADR §119 called for should
+not be written on this one.
 
 ## 120. CLOSED 2026-09-04 (855d14d, 08344b7) — `adr-verify --sweep`'s fence timeout killed the fence and left its campaign running
 

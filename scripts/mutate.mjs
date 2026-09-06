@@ -150,8 +150,20 @@ function dirtyTargets(selected) {
  * this class from the mutated run. The baseline had inherited the defect it was
  * introduced to fix.
  */
+/** How many tests the reporter says ran, or null when the output does not say. */
+export function testsRun(stdout) {
+  const m = /^ℹ tests (\d+)$/m.exec(stdout ?? '')
+  return m ? Number(m[1]) : null
+}
+
 export function baselineOf(run) {
   if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }
+  // A run in which NO test executed is not a passing baseline, whatever its exit
+  // status. A name pattern that matches nothing exits 0 with `ℹ tests 0`, and a
+  // mutant measured against that reads GREEN — "the tests did not notice", said
+  // of tests that never ran. Could-not-look, in those words (ADR-005). Output
+  // that does not say how many ran is not read as zero.
+  if (testsRun(run.stdout) === 0) return { state: 'unrun', why: 'no test ran — the name pattern selected nothing' }
   return run.status === 0 ? { state: 'pass' } : { state: 'fail' }
 }
 
@@ -176,15 +188,40 @@ export function classify({ occurrences, baseline, run }) {
  * a baseline per mutation would roughly double it. Sorted, so two entries naming
  * the same files in a different order share one baseline.
  */
+/** The key a baseline is memoised under: the sorted files AND the name pattern. */
+export function setKeyOf(entry) {
+  const only = typeof entry.only === 'string' && entry.only ? entry.only : ''
+  return `${[...entry.tests].sort().join('\0')}\0${only}`
+}
+
 export function testSets(mutations) {
   const byKey = new Map()
   for (const mutation of mutations) {
     const tests = [...mutation.tests].sort()
-    const key = tests.join('\0')
-    if (!byKey.has(key)) byKey.set(key, { tests, mutations: [] })
+    // `only` narrows what runs, so a baseline taken with one pattern licenses
+    // nothing about another: the pattern is part of the set, not a detail of it.
+    const only = typeof mutation.only === 'string' && mutation.only ? mutation.only : null
+    const key = setKeyOf(mutation)
+    if (!byKey.has(key)) byKey.set(key, { tests, only, mutations: [] })
     byKey.get(key).mutations.push(mutation)
   }
   return [...byKey.values()]
+}
+
+/**
+ * The argv `node` runs for one entry — the SAME for its baseline and its mutant,
+ * or the baseline licenses a different measurement than the one taken.
+ *
+ * `only` is a Node `--test-name-pattern`. A mutant killed by one test in a
+ * 149-entry file paid for the whole file, every time — 51 seconds of deliberate
+ * sleeps in timeout-tree to learn what one 2-second test would say. The pattern
+ * makes a mutant pay for the tests that can see it. The trap is a pattern that
+ * matches nothing: Node exits 0 with `ℹ tests 0`, which would read as GREEN.
+ * `baselineOf` refuses that run as unrun, so the verdict is UNPROVEN and says why.
+ */
+export function testArgs(root, entry) {
+  const only = typeof entry.only === 'string' && entry.only ? ['--test-name-pattern', entry.only] : []
+  return ['--test', ...only, ...[...entry.tests].sort().map(t => path.join(root, t))]
 }
 
 /**
@@ -285,7 +322,7 @@ export function cacheKey(mutation, readFile) {
   const hash = createHash('sha256')
   // The edit itself, first: a mutation whose from/to text changed is a
   // different mutant even against identical files.
-  for (const part of [mutation.file, mutation.from, mutation.to]) {
+  for (const part of [mutation.file, mutation.from, mutation.to, mutation.only ?? '']) {
     hash.update(String(part)); hash.update('\0')
   }
   // Sorted, so two entries naming the same tests in a different order share a
@@ -459,7 +496,7 @@ export function main(argv) {
   const width = Math.max(0, ...selected.map(m => m.label.length))
 
   if (argv.includes('--list')) {
-    for (const m of selected) console.log(`${m.label}\n  ${m.file} -> ${m.tests.join(', ')}`)
+    for (const m of selected) console.log(`${m.label}\n  ${m.file} -> ${m.tests.join(', ')}${m.only ? `  only: /${m.only}/` : ''}`)
     return 0
   }
 
@@ -521,11 +558,10 @@ export function main(argv) {
   for (const set of sets) {
     // The same files and the same arguments as the mutated run below, or this
     // would be measuring a different thing than the one it licenses.
-    const run = spawnSync(process.execPath,
-      ['--test', ...set.tests.map(t => path.join(root, t))],
+    const run = spawnSync(process.execPath, testArgs(root, set),
       { cwd: root, encoding: 'utf8', timeout: timeoutMs,
         env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
-    baselines.set(set.tests.join('\0'), baselineOf(run))
+    baselines.set(setKeyOf(set), baselineOf(run))
   }
 
   const results = []
@@ -541,7 +577,7 @@ export function main(argv) {
     const file = path.join(root, mutation.file)
     const original = readFileSync(file, 'utf8')
     const occurrences = original.split(mutation.from).length - 1
-    const baseline = baselines.get([...mutation.tests].sort().join('\0'))
+    const baseline = baselines.get(setKeyOf(mutation))
       ?? { state: 'unrun', why: 'no baseline was taken' }
 
     if (occurrences !== 1) {
@@ -561,8 +597,7 @@ export function main(argv) {
     begin(file, original)
     writeFileSync(file, original.replace(mutation.from, mutation.to))
     const startedAt = Date.now()
-    const run = spawnSync(process.execPath,
-      ['--test', ...mutation.tests.map(t => path.join(root, t))],
+    const run = spawnSync(process.execPath, testArgs(root, mutation),
       { cwd: root, encoding: 'utf8', timeout: timeoutMs,
         env: { ...process.env, QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' } })
     const elapsedMs = Date.now() - startedAt

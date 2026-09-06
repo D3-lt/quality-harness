@@ -1885,7 +1885,7 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "    const key = tests.join('\\0')",
+      "from": "    const key = setKeyOf(mutation)",
       "to": "    const key = Math.random().toString()"
     },
     {
@@ -4550,7 +4550,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "        os.killpg(pid, signal.SIGKILL)",
-      "to": "        os.kill(pid, signal.SIGKILL)"
+      "to": "        os.kill(pid, signal.SIGKILL)",
+      "only": "^adr\\-verify: a fence timeout kills the tree the fence started, not only bash$|^adr\\-verify \\-\\-sweep: a fence that times out takes its tree with it$|^adr\\-verify: run_bounded kills the tree on timeout$|^adr\\-verify: a fence whose leader exits still has its tree killed$|^adr\\-verify: an interrupted fence run takes its tree with it$|^adr\\-verify: an interrupted run_bounded kills the tree$"
     },
     {
       "label": "fence: the Windows drain does not close a stream a reader thread holds (BACKLOG §128)",
@@ -4559,7 +4560,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "        if (platform or os.name) != \"nt\":\n            for stream in (proc.stdout, proc.stderr, proc.stdin):",
-      "to": "        if True:\n            for stream in (proc.stdout, proc.stderr, proc.stdin):"
+      "to": "        if True:\n            for stream in (proc.stdout, proc.stderr, proc.stdin):",
+      "only": "^drain_after_kill on Windows does not close a stream a reader thread still holds$"
     },
     {
       "label": "fence: a timed-out cleanup attributes its own phases when asked",
@@ -4568,7 +4570,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "    if not os.environ.get(\"QUALITY_HARNESS_TRACE_TIMEOUT\"):\n        return",
-      "to": "    if True:\n        return"
+      "to": "    if True:\n        return",
+      "only": "^a timed\\-out fence returns within the bound the arithmetic gives, and says where the time went$|^a trace that cannot be written never replaces the timeout it describes$|^the in\\-job probe reports a failed call, and a successful one, in those words$|^QUALITY_HARNESS_JOB_UNAVAILABLE refuses the job at the kernel32 boundary and says the refusal was induced$|^a drain that times out names the survivors by ancestry and by job membership, or says it could not$"
     },
     {
       "label": "fence: a job object that answers ends the Windows kill (BACKLOG §123)",
@@ -4577,7 +4580,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "            if job is not None and job.terminate():",
-      "to": "            if False:"
+      "to": "            if False:",
+      "only": "^kill_tree on Windows kills by job when it has one, and falls back to taskkill when the job cannot$|^a survivor trace that fails outside Exception does not replace the timeout$"
     },
     {
       "label": "fence: a tree listing that fails says so instead of reporting no children",
@@ -4586,7 +4590,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "                    sys.stderr.write(f\"[trace-timeout] tree before taskkill: COULD NOT LIST ({type(failure).__name__}: {failure})\\n\")",
-      "to": "                    pass"
+      "to": "                    pass",
+      "only": "^under the trace flag, kill_tree on Windows names the tree before and the survivor after$"
     },
     {
       "label": "fence: the Windows trace names the survivor after taskkill (BACKLOG §129)",
@@ -4595,7 +4600,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "                    alive = [child for child in before if child in now]",
-      "to": "                    alive = []"
+      "to": "                    alive = []",
+      "only": "^under the trace flag, kill_tree on Windows names the tree before and the survivor after$"
     },
     {
       "label": "fence: a trace that cannot be written never replaces the timeout it describes",
@@ -4604,7 +4610,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "    except Exception:  # a diagnostic must never replace the timeout it describes",
-      "to": "    except ZeroDivisionError:  # a diagnostic must never replace the timeout it describes"
+      "to": "    except ZeroDivisionError:  # a diagnostic must never replace the timeout it describes",
+      "only": "^a trace that cannot be written never replaces the timeout it describes$"
     },
     {
       "label": "fence: an interrupted gate kills the tree it started",
@@ -4613,7 +4620,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "        drain_after_kill(proc, platform, job=job)\n        raise",
-      "to": "        raise"
+      "to": "        raise",
+      "only": "^adr\\-verify: an interrupted fence run takes its tree with it$|^adr\\-verify: an interrupted run_bounded kills the tree$"
     },
     {
       "label": "fence: a cleanup that raises never replaces the exception that caused it",
@@ -4622,7 +4630,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "    try:\n        killed = kill_tree(proc.pid, platform, job=job)",
-      "to": "    killed = kill_tree(proc.pid, platform, job=job)\n    try:"
+      "to": "    killed = kill_tree(proc.pid, platform, job=job)\n    try:",
+      "only": "^adr\\-verify: a cleanup that raises does not replace the timeout$"
     },
     {
       "label": "fence: kill_tree answers for the kill it made, never assumes one",
@@ -4631,7 +4640,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "            return getattr(done, \"returncode\", None) == 0",
-      "to": "            return True"
+      "to": "            return True",
+      "only": "^kill_tree answers for the kill it made, on both arms$"
     },
     {
       "label": "doctor: an unreadable claims ledger reaches the exit code",
@@ -4667,7 +4677,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "                       capture_output=True, timeout=timeout)",
-      "to": "                       capture_output=True)"
+      "to": "                       capture_output=True)",
+      "only": "^a taskkill that hangs is bounded, and answers \"not confirmed\"$"
     },
     {
       "label": "status: the withdrawn label cannot be flipped without a classifier to match it",
@@ -5252,7 +5263,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "            if parent in wanted and cpid not in wanted:",
-      "to": "            if False:"
+      "to": "            if False:",
+      "only": "^a drain that times out names the survivors by ancestry and by job membership, or says it could not$"
     },
     {
       "label": "fence: a drain timeout names the job's members, not an empty list (§128)",
@@ -5261,7 +5273,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "        trace_timeout(f\"drain timeout survivors by job membership: {job.members()}\", started)",
-      "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)"
+      "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)",
+      "only": "^a drain that times out names the survivors by ancestry and by job membership, or says it could not$"
     },
     {
       "label": "fence: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
@@ -5270,7 +5283,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "            k32 = RefusingAssignment(k32)",
-      "to": "            pass"
+      "to": "            pass",
+      "only": "^QUALITY_HARNESS_JOB_UNAVAILABLE refuses the job at the kernel32 boundary and says the refusal was induced$"
     },
     {
       "label": "lifecycle: the marker sweep removes what is stale, not nothing (§146)",
@@ -5324,7 +5338,8 @@
         "tests/timeout-tree.test.mjs"
       ],
       "from": "            except BaseException:\n                pass",
-      "to": "            except ValueError:\n                pass"
+      "to": "            except ValueError:\n                pass",
+      "only": "^a survivor trace that fails outside Exception does not replace the timeout$"
     },
     {
       "label": "adr-verify: a gate copied without plugin/lib says so instead of dying in a traceback",
@@ -5352,6 +5367,42 @@
       ],
       "from": "if not os.path.isfile(os.path.join(_lib, \"fence.py\")):",
       "to": "if False:"
+    },
+    {
+      "label": "mutate: a run in which no test executed is an unrun baseline, never a passing one",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (testsRun(run.stdout) === 0) return { state: 'unrun', why: 'no test ran — the name pattern selected nothing' }",
+      "to": "  if (false) return { state: 'unrun', why: 'no test ran — the name pattern selected nothing' }"
+    },
+    {
+      "label": "mutate: `only` actually reaches node as a --test-name-pattern",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const only = typeof entry.only === 'string' && entry.only ? ['--test-name-pattern', entry.only] : []",
+      "to": "  const only = []"
+    },
+    {
+      "label": "mutate: a baseline under one pattern is not memoised for another",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  return `${[...entry.tests].sort().join('\\0')}\\0${only}`",
+      "to": "  return `${[...entry.tests].sort().join('\\0')}`"
+    },
+    {
+      "label": "mutate: a verdict cached under one pattern is not reused under another",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  for (const part of [mutation.file, mutation.from, mutation.to, mutation.only ?? '']) {",
+      "to": "  for (const part of [mutation.file, mutation.from, mutation.to]) {"
     }
   ]
 }

@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { baselineOf, cacheKey, classify, killedBy, renderLine, reusable, shardByCost, summarise, testSets } from '../scripts/mutate.mjs'
+import { baselineOf, cacheKey, classify, killedBy, renderLine, reusable, setKeyOf, shardByCost, summarise, testArgs, testSets, testsRun } from '../scripts/mutate.mjs'
 
 // The runner had no test file of its own until ADR-006. It was exercised only by
 // lifecycle.test.mjs spawning a whole campaign, which is why its verdict logic —
@@ -410,4 +410,59 @@ test('a stale mutation renders a line rather than a blank', () => {
   const line = renderLine({ verdict: 'STALE', label: 'x: y', detail: 'matches 0 times' }, 10)
   assert.match(line, /^STALE/, 'the verdict leads the line')
   assert.match(line, /matches 0 times/, 'and the line says why it could not run')
+})
+
+// A mutant killed by one test in a 149-entry file paid for the whole file. `only`
+// is a Node --test-name-pattern the runner passes for that entry — and passes
+// IDENTICALLY for its baseline, or the baseline licenses a different run.
+test('`only` becomes a --test-name-pattern for the mutant and its baseline alike, and nothing without it', () => {
+  const root = '/r'
+  const plain = { tests: ['tests/b.test.mjs', 'tests/a.test.mjs'] }
+  const narrowed = { ...plain, only: 'kills the tree' }
+  assert.deepEqual(testArgs(root, plain).slice(0, 1), ['--test'])
+  assert.ok(!testArgs(root, plain).includes('--test-name-pattern'), 'no pattern without only')
+  assert.deepEqual(testArgs(root, narrowed).slice(0, 3), ['--test', '--test-name-pattern', 'kills the tree'])
+  // Sorted files, so two entries naming the same files in a different order run the same argv.
+  assert.deepEqual(testArgs(root, plain).slice(1), testArgs(root, { tests: [...plain.tests].reverse() }).slice(1))
+  // An empty `only` is no `only`.
+  assert.ok(!testArgs(root, { ...plain, only: '' }).includes('--test-name-pattern'))
+})
+
+test('a baseline taken under one pattern licenses nothing about another', () => {
+  const a = { label: 'a', tests: ['tests/x.test.mjs'], only: 'one' }
+  const b = { label: 'b', tests: ['tests/x.test.mjs'], only: 'two' }
+  const c = { label: 'c', tests: ['tests/x.test.mjs'] }
+  const d = { label: 'd', tests: ['tests/x.test.mjs'] }
+  const sets = testSets([a, b, c, d])
+  assert.equal(sets.length, 3, 'same files, different patterns: different sets; no pattern: one set')
+  assert.notEqual(setKeyOf(a), setKeyOf(b))
+  assert.equal(setKeyOf(c), setKeyOf(d))
+  assert.equal(sets.find(s => s.only === 'one').mutations.length, 1)
+  assert.equal(sets.find(s => s.only === null).mutations.length, 2)
+  // And the cache: a verdict measured under one pattern must not be reused under another.
+  const read = () => 'same bytes'
+  assert.notEqual(cacheKey({ ...a, file: 'f', from: 'x', to: 'y' }, read), cacheKey({ ...b, file: 'f', from: 'x', to: 'y' }, read))
+  assert.equal(cacheKey({ ...c, file: 'f', from: 'x', to: 'y' }, read), cacheKey({ ...d, file: 'f', from: 'x', to: 'y' }, read))
+})
+
+// THE TRAP. A pattern that matches no test makes `node --test` exit 0 with
+// `ℹ tests 0`. Read as a passing baseline, every mutant under it is GREEN — a
+// finding about tests that never ran. It is could-not-look, in those words. And
+// output that does not SAY how many ran is not read as zero: that would turn
+// every reporter change into a wall of UNPROVEN.
+test('a run in which no test executed is an unrun baseline, never a passing one', () => {
+  const nothing = { status: 0, signal: null, stdout: 'ℹ tests 0\nℹ suites 0\nℹ pass 0\n' }
+  const some = { status: 0, signal: null, stdout: 'ℹ tests 3\nℹ pass 3\n' }
+  const silent = { status: 0, signal: null, stdout: '' }
+  assert.equal(testsRun(nothing.stdout), 0)
+  assert.equal(testsRun(some.stdout), 3)
+  assert.equal(testsRun(silent.stdout), null, 'no count line is unknown, not zero')
+  assert.equal(baselineOf(nothing).state, 'unrun')
+  assert.match(baselineOf(nothing).why, /no test ran/)
+  assert.equal(baselineOf(some).state, 'pass')
+  assert.equal(baselineOf(silent).state, 'pass', 'exit status decides when the output does not say')
+  // And the verdict a mutant gets under that baseline is UNPROVEN, not GREEN.
+  const verdict = classify({ occurrences: 1, baseline: baselineOf(nothing), run: nothing })
+  assert.equal(verdict.verdict, 'UNPROVEN')
+  assert.equal(verdict.observed, 'GREEN', 'what the run showed is still reported, as UNPROVEN always does')
 })

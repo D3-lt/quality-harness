@@ -8314,6 +8314,24 @@ the skip being lifted — which is the outcome that would justify the lift most.
 
 **Still open and untouched:** the two tree-death assertions, the unattributed 60s pipe holder in the
 direct path, and the leader-exits shape (§123) on Windows.
+
+⚠ **A residual the Codex review named, NOT fixed here, and deliberately so.** Lifting the skip means
+the cleanup-raises probe now runs on Windows, where it stubs `kill_tree` with a function that raises
+before killing anything and then leaves a 30-second child behind. On Windows the communication
+streams are deliberately not closed (§128's fix), so if Job Object setup ever takes its documented
+unavailable fallback, that child can outlive the probe and delay or contaminate the rest of the run —
+the §129 leak, arriving through the door §129's own fix opened. The outer 60-second test timeout
+bounds it, so it is a delay and not an indefinite hang.
+
+Two fixes were considered and both rejected for now. Shortening the child's sleep would weaken the
+assertion that gives the test its meaning: `elapsed < 10s` against a 30-second child is what proves
+the caller did not wait for it, and a 5-second child makes a waiting caller pass. Reaping the pid in
+the probe needs a handle `run_bounded` owns and does not hand back.
+
+**So it is recorded rather than guessed at.** `CLAUDE.md` §7: Windows cannot be run locally, and when
+the log is minutes away, wait for it rather than inventing the platform difference. If CI shows the
+delay, the mechanism is already written down here and the fix is a seam on `run_bounded`, not a
+smaller sleep.
 ## 130. CLOSED 2026-09-05 — six children a shipped gate spawned carried no timeout, and the runner never reaped
 
 **The rule, from the owner, relayed by a peer session the same day it was earned:** every child a

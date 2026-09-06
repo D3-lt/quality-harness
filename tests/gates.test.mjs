@@ -1608,67 +1608,112 @@ test('a document that never claimed to be a record is not judged as a malformed 
 // and compared with separators normalised (§7) so the Windows job reads it the
 // same way.
 test('every gate that returns a verdict names the binary that reached it (BACKLOG §143)', () => {
-  // CLAUDE.md §9: a test only spawns git or a gate in a directory it created
-  // itself, and the temp-directory variable is named so it can never be
-  // confused with `root` or `repoRoot`.
+  // CLAUDE.md §9: a test only spawns a gate in a directory it created itself,
+  // and the temp-directory variable is named so it can never be confused with
+  // `root` or `repoRoot`.
   const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-identity-'))
-  const dir = temp
+  try {
+    const record = join(temp, 'ADR-001-probe.md')
+    writeFileSync(record, [
+      '# ADR-001: Probe', '', '**Status:** Accepted', '**Date:** 2026-09-06',
+      '**Governs:** `nothing/**`', '', '## Context', '', 'A probe.', '',
+      '## Decision', '', 'Probe.', '', '## Consequences', '', 'None.', ''].join('\n'))
 
-  // One fixture per gate is not the point here — the point is the SUFFIX, so
-  // each gate is given the smallest input that makes it print a verdict at all,
-  // and a gate is listed only if it prints one. adr-next, adr-verify, qh-root
-  // and qh-mcp are deliberately absent: they emit a table, evidence, a bare path
-  // and MCP responses respectively, and appending prose to a machine-readable
-  // emitter breaks its consumers. They are named in §143 as siblings, not fixed
-  // here.
-  const record = join(dir, 'ADR-001-probe.md')
-  writeFileSync(record, [
-    '# ADR-001: Probe', '', '**Status:** Accepted', '**Date:** 2026-09-06',
-    '**Governs:** `nothing/**`', '', '## Context', '', 'A probe.', '',
-    '## Decision', '', 'Probe.', '', '## Consequences', '', 'None.', ''].join('\n'))
+    // ⚠ THE EARLY-REFUSAL BRANCH IS HERE ON PURPOSE. Codex review 2026-09-06
+    // found `adr-retire-check --adopt` with absent roots still printing an
+    // anonymous `[FAIL]`, because the first sweep's regex looked for `print(f"[`
+    // and that line is a plain `print("[`. A class enumerated by a pattern is
+    // only as complete as the pattern (§5), so the branch a pattern missed is
+    // the one worth driving.
+    const cases = [
+      ['adr-lint', [record]],
+      ['adr-judge', [record]],
+      ['adr-debt', [temp]],
+      ['adr-retire-check', ['--adopt', join(temp, 'absent-active'), join(temp, 'absent-archive')]],
+    ]
 
-  const cases = [
-    ['adr-lint', [record]],
-    ['adr-judge', [record]],
-  ]
+    const normalise = text => text.replace(/\\/g, '/')
+    const expectedRoot = normalise(root)
 
-  const normalise = text => text.replace(/\\/g, '/')
-  const expectedRoot = normalise(root)
+    for (const [gate, args] of cases) {
+      const result = run(gate, args, temp)
+      const line = (result.stdout || '').split('\n').find(l => l.startsWith('['))
+      assert.ok(line, `${gate} printed no verdict line:\n${result.stdout}${result.stderr}`)
 
-  for (const [gate, args] of cases) {
-    const result = run(gate, args, dir)
-    const line = (result.stdout || '').split('\n').find(l => l.startsWith('['))
-    assert.ok(line, `${gate} printed no verdict line:\n${result.stdout}${result.stderr}`)
-
-    // The three parts, each checked on its own so a failure says WHICH is
-    // missing rather than "the line changed".
-    assert.match(line, new RegExp(`\\b${gate}\\b`), `${gate}: verdict does not name the gate:\n${line}`)
-    assert.match(line, /\b\d+\.\d+\.\d+\b/, `${gate}: verdict carries no version:\n${line}`)
-    assert.ok(normalise(line).includes(expectedRoot),
-      `${gate}: verdict does not name the plugin root it ran from:\n${line}`)
+      // The three parts, each checked on its own so a failure says WHICH is
+      // missing rather than "the line changed".
+      assert.match(line, new RegExp(`\\b${gate}\\b`), `${gate}: verdict does not name the gate:\n${line}`)
+      assert.match(line, /\b\d+\.\d+\.\d+\b/, `${gate}: verdict carries no version:\n${line}`)
+      assert.ok(normalise(line).includes(expectedRoot),
+        `${gate}: verdict does not name the plugin root it ran from:\n${line}`)
+    }
+  } finally {
+    rmSync(temp, { recursive: true, force: true })
   }
 })
 
-// ⚠ THE VACUITY GUARD FOR THE TEST ABOVE (CLAUDE.md §4). Every check that can
-// return "clean" must be shown returning "dirty" in the same suite, because
-// coverage cannot see an assertion that could never fail. Here the dirty case
-// is a gate whose manifest cannot be read: it must say so IN THOSE WORDS and
-// must not emit a version — ADR-005, could-not-look is never the vocabulary of
-// a verdict. Without this, the test above would still pass against a
+// ⚠ THE SWEEP THAT COVERS WHAT NO FIXTURE REACHES. The test above drives four
+// gates; `arch-lint`, `spec-verify` and `postmortem-verify` each need a
+// conforming document of their own kind, and every gate has refusal branches
+// reached only by inputs nobody would build a fixture for. Codex review
+// 2026-09-06 named exactly that gap: "five gates and special verdict branches
+// are untested".
+//
+// So this reads the SOURCE, and it is the one place in this file that does.
+// ADR-003 says a gate asserts behaviour and not shape, and that rule is about
+// what a GATE may assert; here the property under test is itself syntactic —
+// every line that prints a bracketed verdict must carry the identity — and no
+// behavioural test can reach a branch whose fixture cannot be built. The two
+// tests are complementary: this one cannot tell whether the identity is
+// CORRECT, and the one above cannot tell whether it is EVERYWHERE.
+test('no bracketed verdict is printed without the identity, in any branch (BACKLOG §143)', () => {
+  const verdictGates = ['adr-lint', 'arch-lint', 'spec-verify', 'adr-judge',
+    'postmortem-verify', 'adr-debt', 'adr-retire-check']
+  const anonymous = []
+  for (const gate of verdictGates) {
+    const lines = readFileSync(join(bin, gate), 'utf8').split(/\r?\n/)
+    lines.forEach((line, i) => {
+      if (!/print\(f?"\[(?:PASS|FAIL|JUDGE|DEBT|\{status\}|\{label\})/.test(line)) return
+      // A multi-line print carries the identity on its LAST fragment, so the
+      // window is the whole statement. It ends where the parentheses balance —
+      // ⚠ NOT at the first `")`, which the first draft of this test used and
+      // which truncated `…checks only)") + f" · {gate_identity()}"` inside the
+      // literal `only)"`, reporting a line that carries the identity as one that
+      // does not. A sweep that cries wolf is worse than none: the next reader
+      // learns to skip it.
+      let depth = 0
+      let statement = ''
+      for (let j = i; j < lines.length && j < i + 8; j += 1) {
+        statement += `${lines[j]}\n`
+        for (const ch of lines[j]) {
+          if (ch === '(') depth += 1
+          else if (ch === ')') depth -= 1
+        }
+        if (depth <= 0) break
+      }
+      if (!/gate_identity\(\)/.test(statement)) anonymous.push(`${gate}:${i + 1}: ${line.trim()}`)
+    })
+  }
+  assert.deepEqual(anonymous, [],
+    `these verdict lines name no binary — a reader cannot tell which build judged them:\n${anonymous.join('\n')}`)
+})
 // gate_identity() hardcoded to a constant string.
 test('a gate whose manifest is unreadable says so, and states no version (BACKLOG §143)', () => {
   const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-identity-unreadable-'))
-  const dir = temp
-  // A copy of the gate with NO plugin manifest above it: same code, no version
-  // to find. Copied rather than executed in place, because the real tree has a
-  // readable manifest and this case cannot otherwise be reached.
-  const fakeBin = join(dir, 'bin')
-  mkdirSync(fakeBin, { recursive: true })
-  const copied = join(fakeBin, 'adr-lint')
-  writeFileSync(copied, readFileSync(join(bin, 'adr-lint'), 'utf8'))
+  try {
+    // A copy of the gate with NO plugin manifest above it: same code, no version
+    // to find. Copied rather than executed in place, because the real tree has a
+    // readable manifest and this case cannot otherwise be reached.
+    const fakeBin = join(temp, 'bin')
+    mkdirSync(fakeBin, { recursive: true })
+    const copied = join(fakeBin, 'adr-lint')
+    writeFileSync(copied, readFileSync(join(bin, 'adr-lint'), 'utf8'))
 
-  const result = spawnSync('python3', [copied, '--version'], { cwd: dir, encoding: 'utf8', timeout: 60_000 })
-  const out = `${result.stdout}${result.stderr}`
-  assert.match(out, /version unreadable/, `expected the unreadable arm, got:\n${out}`)
-  assert.doesNotMatch(out, /\b\d+\.\d+\.\d+\b/, `a version was stated for an unreadable manifest:\n${out}`)
+    const result = spawnSync('python3', [copied, '--version'], { cwd: temp, encoding: 'utf8', timeout: 60_000 })
+    const out = `${result.stdout}${result.stderr}`
+    assert.match(out, /version unreadable/, `expected the unreadable arm, got:\n${out}`)
+    assert.doesNotMatch(out, /\b\d+\.\d+\.\d+\b/, `a version was stated for an unreadable manifest:\n${out}`)
+  } finally {
+    rmSync(temp, { recursive: true, force: true })
+  }
 })

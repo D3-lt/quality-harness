@@ -46,20 +46,35 @@ const PROJECTS = join(homedir(), '.claude', 'projects')
 /** The last assistant text message in one transcript, or null. */
 async function finalMessage(file) {
   let last = null
-  const rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity })
-  for await (const line of rl) {
-    if (!line.trim()) continue
-    let row
-    try { row = JSON.parse(line) } catch { continue }
-    const message = row?.message
-    if (message?.role !== 'assistant' || !Array.isArray(message.content)) continue
-    const text = message.content.filter(b => b?.type === 'text').map(b => b.text).join('\n').trim()
-    if (text) last = text
+  // A transcript that cannot be read is not a transcript with no final message.
+  // Codex review 2026-09-06: without this, one unreadable or vanished file
+  // rejects main() and the run dies with a stack trace instead of the exit-2
+  // report this tool documents. `unreadable` is returned so the caller can
+  // count it rather than silently treating it as an absence (ADR-005).
+  try {
+    const rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity })
+    for await (const line of rl) {
+      if (!line.trim()) continue
+      let row
+      try { row = JSON.parse(line) } catch { continue }
+      const message = row?.message
+      if (message?.role !== 'assistant' || !Array.isArray(message.content)) continue
+      const text = message.content.filter(b => b?.type === 'text').map(b => b.text).join('\n').trim()
+      if (text) last = text
+    }
+  } catch {
+    return { text: null, unreadable: true }
   }
-  return last
+  return { text: last, unreadable: false }
 }
 
-/** The newest `count` transcripts across every project, newest first. */
+/** The newest `count` transcripts across every project, newest first.
+ *
+ * ⚠ `isFile()` is REQUIRED, not tidiness. Codex review 2026-09-06: a directory,
+ * FIFO or symlink named `*.jsonl` was followed by the previous version — a FIFO
+ * would block the read forever, which is the one failure this tool cannot report
+ * because it never returns to report it. `withFileTypes` answers without a
+ * second syscall and without following the link. */
 function newestTranscripts(count) {
   const files = []
   let projects
@@ -68,20 +83,24 @@ function newestTranscripts(count) {
     if (!entry.isDirectory()) continue
     const dir = join(PROJECTS, entry.name)
     let names
-    try { names = readdirSync(dir) } catch { continue }
-    for (const name of names) {
-      if (!name.endsWith('.jsonl')) continue
-      const path = join(dir, name)
-      try { files.push({ path, mtime: statSync(path).mtimeMs, project: entry.name }) } catch { /* gone */ }
+    try { names = readdirSync(dir, { withFileTypes: true }) } catch { continue }
+    for (const child of names) {
+      if (!child.isFile() || !child.name.endsWith('.jsonl')) continue
+      const path = join(dir, child.name)
+      try { files.push({ path, mtime: statSync(path).mtimeMs, project: entry.name }) } catch { /* gone between readdir and stat */ }
     }
   }
   return files.sort((a, b) => b.mtime - a.mtime).slice(0, count)
 }
 
 async function main() {
+  // The cap is not arithmetic safety, it is a bound on how much of somebody's
+  // history one command reads. 500 is far above the thirty ADR-035 T4 asks for
+  // and far below "every transcript on the machine".
+  const MAX_COUNT = 500
   const count = Number(process.argv[2] ?? 30)
-  if (!Number.isInteger(count) || count < 1) {
-    console.log('usage: node scripts/claims-calibrate.mjs [count]   (default 30)')
+  if (!Number.isInteger(count) || count < 1 || count > MAX_COUNT) {
+    console.log(`usage: node scripts/claims-calibrate.mjs [count]   (default 30, max ${MAX_COUNT})`)
     process.exitCode = 2
     return
   }
@@ -98,11 +117,29 @@ async function main() {
   }
 
   const rows = []
+  let unreadable = 0
   for (const t of transcripts) {
-    const text = await finalMessage(t.path)
+    const { text, unreadable: bad } = await finalMessage(t.path)
+    if (bad) { unreadable += 1; continue }
     if (text === null) continue
     rows.push({ project: t.project, claim: completionClaim(text).kind, text })
   }
+
+  // ⚠ TRANSCRIPTS EXISTING IS NOT A SAMPLE EXISTING. Codex review 2026-09-06:
+  // the previous version guarded only the empty file inventory, so a machine
+  // whose transcripts all lacked a final assistant message printed
+  // "0 session(s)", called it a distribution and exited 0. That is the exact
+  // shape ADR-005 forbids — a could-not-measure wearing the vocabulary of a
+  // measurement — in the tool whose whole purpose is refusing to report a
+  // number over an empty set.
+  if (!rows.length) {
+    console.log(`UNRUN: ${transcripts.length} transcript(s) were read and none carried a final assistant message`
+      + `${unreadable ? `; ${unreadable} could not be read` : ''}.`)
+    console.log('Nothing was measured. This is not a distribution of zero.')
+    process.exitCode = 2
+    return
+  }
+  if (unreadable) console.log(`(${unreadable} transcript(s) could not be read and are counted nowhere below)`)
 
   console.log(`claims-calibrate · ${rows.length} session(s) with a final assistant message, of ${transcripts.length} newest transcripts`)
   console.log('')

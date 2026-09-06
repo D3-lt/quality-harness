@@ -48,7 +48,7 @@ const digestOf = fence => createHash('sha256').update(fence, 'utf8').digest('hex
  */
 function task({ id, goal = `do ${id}`, dependsOn = 'none', consumes = 'none',
                 produces = 'none', fence = `printf ${id}`, human = false, evidence = false,
-                signoff = null }) {
+                signoff = null, blockedOn = null }) {
   const acceptance = human
     ? 'Acceptance is human-observed: a person confirms it.'
     : `\`\`\`bash\n${fence}\n\`\`\``
@@ -58,7 +58,8 @@ function task({ id, goal = `do ${id}`, dependsOn = 'none', consumes = 'none',
       : `- 2026-08-26 · no-git · exit 0 · \`${fence}\` · acceptance-sha256:${digestOf(fence)}\n`)
     : ''
   return `# Task ${id}: ${goal}\n\n`
-    + `**Depends-on:** ${dependsOn}\n**Consumes:** ${consumes}\n**Produces:** ${produces}\n\n`
+    + `**Depends-on:** ${dependsOn}\n${blockedOn ? `**Blocked-on:** ${blockedOn}\n` : ''}`
+    + `**Consumes:** ${consumes}\n**Produces:** ${produces}\n\n`
     + `## Acceptance\n\n${acceptance}\n\n## Verification Log\n${log}`
 }
 
@@ -334,6 +335,40 @@ test('a malformed foreign pointer is unevaluated, not ignored', () => {
   // vanish into a ready verdict.
   assert.doesNotMatch(out, /^READY\s+T1/m, `a pointer nobody can read was ignored:\n${out}`)
 })
+test('a task waiting on an OUTSIDE event is not offered as ready', () => {
+  // ADR-014 T2 defines `**Blocked-on:** <event>` for a task nobody here can
+  // hasten, `adr-lint` reads it, and the shipped task template documents it — and
+  // this router had never heard of the field: `grep -c Blocked-on` on
+  // `plugin/bin/adr-next` returned 0, so such a task was offered as READY.
+  //
+  // ⚠ THE INSTANCE WAS FIXED AND THE CLASS WAS NOT (CLAUDE.md §5). A 2026-09-02
+  // report of the same complaint — the router offering work the record forbids
+  // starting — was closed by handling ONE route to it, a human sign-off whose
+  // note says STOP (see `stopped_by`). `Blocked-on` is the second route, and it
+  // took a third corpus reporting the same sentence on 2026-09-06 to find it.
+  const { tasksDir } = corpus([
+    { id: 'T1', blockedOn: 'the vendor publishes the replacement certificate', human: true },
+  ])
+  const stopped = next([tasksDir], root)
+  assert.equal(stopped.status, 3, `${stopped.stdout}${stopped.stderr}`)
+  assert.match(stopped.stderr, /waiting on an outside event — the vendor publishes/)
+  assert.doesNotMatch(stopped.stdout, /READY/)
+
+  // DIRTY, in the same test: the SAME task without the field must still be
+  // offered, or this "fix" is a router that refuses everything.
+  const { tasksDir: open } = corpus([{ id: 'T1', human: true }])
+  const ready = next([open], root)
+  assert.equal(ready.status, 0, `${ready.stdout}${ready.stderr}`)
+  assert.match(ready.stdout, /T1/)
+
+  // And it is reported as STOPPED rather than `blocked`: a dependency is work
+  // someone here can go and do, and sending a reader hunting for an upstream that
+  // does not exist is the confusion the neighbouring comment names.
+  const all = next([tasksDir, '--all'], root).stdout
+  assert.match(all, /^stopped\s+T1/m, all)
+  assert.doesNotMatch(all, /^blocked\s+T1/m, all)
+})
+
 
 test('a human sign-off that reports a STOP is not counted as done', () => {
   // Reported 2026-08-28 from another corpus, one step from executing on it. A

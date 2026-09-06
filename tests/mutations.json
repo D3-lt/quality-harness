@@ -5668,6 +5668,16 @@
       ],
       "from": "      .filter(entry => entry.isFile() && /^ADR-.*\\.md$/.test(entry.name)).length",
       "to": "      .filter(entry => /^ADR-.*\\.md$/.test(entry.name)).length"
+    },
+    {
+      "label": "adr-next: a task waiting on an OUTSIDE event is not offered as ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a task waiting on an OUTSIDE event is not offered as ready",
+      "from": "        if inf.get(\"blocked_on\"):",
+      "to": "        if False:"
     }
   ]
 }

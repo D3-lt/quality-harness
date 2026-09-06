@@ -282,6 +282,16 @@ def load(tasks_dir):
             # claimed "`human_verdict` below carries the reason" and NO SUCH NAME
             # EXISTED — the comment described a mechanism nobody wrote.
             "stopped_by": human_stop(text) if human else None,
+            # ADR-014 T2, and the SECOND route to "a human said do not start yet".
+            # The 2026-09-02 report above was closed by handling a sign-off that
+            # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this
+            # corpus, which the shipped task template documents and `adr-lint`
+            # already reads — was never read here at all (`grep -c Blocked-on` on
+            # this file returned 0). So a task the record itself marks as waiting
+            # on the outside was offered as READY. Reported again 2026-09-06 from
+            # a third corpus, reproduced hermetically the same day: the instance
+            # was fixed and the CLASS was not (CLAUDE.md §5).
+            "blocked_on": header_val(text, "Blocked-on") or None,
         }
     return infos
 
@@ -536,6 +546,13 @@ def classify(infos, corpus_dir):
         # checked before the dependency edges because it is a statement about THIS
         # task: a person looked and said do not proceed. Reporting it as `blocked`
         # would send the reader hunting for an upstream that does not exist.
+        # An OUTSIDE event nobody here can hasten is not readiness either, and it
+        # is checked with the human stop rather than with the dependency edges: a
+        # dependency is work someone here can go and do, `Blocked-on` by
+        # definition is not (the header comment at the Depends-on rule says so).
+        if inf.get("blocked_on"):
+            stopped.append({**inf, "stopped_by": f"waiting on an outside event — {inf['blocked_on']}"})
+            continue
         if inf["stopped_by"]:
             stopped.append(inf)
             continue

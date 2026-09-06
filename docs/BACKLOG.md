@@ -9202,3 +9202,89 @@ has always erred toward. Old-removed, live-kept, wrong-shape-untouched and could
 test each in `tests/lifecycle.test.mjs`; one mutant (a sweep that removes nothing) RED. Relocating
 the directory also moved one assertion in the compaction test, which looked for markers at the
 temp root — updated to look where they now are, with the same intent.
+
+## 147. MEASURED 2026-09-06 — what actually makes the campaign slow, and what a Go port would and would not buy
+
+Adopters report the mutation campaign taking 30 minutes or more. The cause was assumed to be the
+interpreter. It is not, and the numbers say so.
+
+**The runner spawns `node --test` and nothing else** (`scripts/mutate.mjs`) — no external mutation
+tool, no Python. Its cost was `mutants × whole-test-file`, serially, because it passed FILES to the
+test runner and never a test name. Measured on this machine:
+
+| | |
+|---|---|
+| `tests/timeout-tree.test.mjs`, one run | 51.9 s |
+| of which deliberate `sleep` | ~32 s — a test proving a 1 s timeout kills a tree waits 1 s, then 1.2 s to watch a heartbeat STOP |
+| of which interpreter startup | ~20 s — a 3,200-line Python gate through `SourceFileLoader`, three times per test before the fence was shared |
+| actual computation | none worth measuring |
+
+**So faster hardware buys almost nothing here**, and that is the finding a port would have been
+sold on. The sleeps are wall-clock and the startups are process spawn.
+
+### The two changes that did buy something, and neither is a language
+
+- **`--test-name-pattern` per entry (`only`), 6750937.** The same mutant: **42 s → 0.12 s**. A
+  mutant killed by one test in a 26-test file had been paying for all 26, including 13 fence
+  timeouts with nothing to do with it.
+- **Parallelism, measured with a throwaway Go runner** — 5 workers, one `git worktree` each, same 15
+  mutants, same commit, same machine: **3 m 28 s against 12 m 01 s** serial, with byte-identical
+  verdicts. ~3.5× on a 10-core box, and the win comes from the work being SLEEP: a dozen sleeping
+  processes cost one core between them.
+
+The two compose, and narrowing is worth an order of magnitude more than parallelism.
+
+### Why Node, and where Go would actually pay
+
+Neither win was the language. Node spawns children in parallel perfectly well — 8 × `sleep 1` in
+1.02 s wall from one process — and the runner is serial because it was WRITTEN serial, with
+`spawnSync` in a `for` loop. What a port would have cost: 672 lines with 29 tests of its own and 14
+catalogue mutants proving those tests bind, all re-earned from zero, for a script that does not even
+ship (it reads `tests/`).
+
+⚠ **The place Go would genuinely pay is the GATES, and it is not a performance question.** They are
+Python, they ship, and they are the source of most of `CLAUDE.md` §7 — the `python3`-that-is-not-
+Python, the Git Bash resolution, the version drift. That is an 11,000-line port with 600 catalogue
+entries pinned to Python source strings, and it deserves its own decision on its own evidence.
+
+### The worktree, and the hazard that did not bite
+
+Parallel mutants cannot share a working tree: two runs rewriting one file corrupt each other, which
+is what the pid lock forbids. One worktree per WORKER (not per mutant) is the answer, and it removes
+the journal's whole failure class — a disposable tree cannot leave a mutated file behind.
+
+⚠ `wing_craft` records that a linked worktree's `.git` is a POINTER FILE, and that four tests went
+red inside one at a green tag — including "a mutation-cleanup test that drives a real repository".
+It did not bite here: 15 mutants in 5 worktrees gave verdicts identical to the main tree. The hazard
+is conditional on the worktree being ISOLATED from the main checkout — a container mount, a chroot,
+a different mount namespace — where the directory its `.git` points at is absent. Same filesystem,
+same answers. **So worktrees are safe for local and CI parallelism and would break inside a
+container**, and that belongs in the code when the worktrees land.
+
+⚠ **AND CLEANUP IS NOT AUTOMATIC.** The Go experiment leaked all five on its first GREEN: `os.Exit`
+skips deferred functions, exactly as `process.exit()` skips `finally`. Removal must happen BEFORE
+the exit call, a registry must be written BEFORE the first worktree exists so a SIGKILLed run is
+reaped at next startup, and `git worktree prune` must follow removal — the same shape, and the same
+reasoning, as the mutation journal at `scripts/mutate.mjs:50-51`.
+
+**Not scheduled: worktrees in `mutate.mjs`.** Writing the cleanup before there is a caller is the
+speculative complexity YAGNI refuses; it lands with the feature.
+
+## 148. OPEN — the mutation cache is never persisted between CI runs, so every push measures everything
+
+`.mutation-cache.json` reuses a RED verdict whose `(file, from, to, tests, only)` are byte-identical
+to the run that took it (ADR-023), and it works — locally. CI passes `--no-cache` on the dispatched
+run by design, but the PUSH runs have no cache to reuse either: nothing restores or saves one, and
+the only artifact uploaded is the TAP transcript. So a commit touching one line of prose re-measures
+600 mutants across 12 shards.
+
+**What makes this more than an `actions/cache` step.** The runner writes `prev ∪ own` and DELETES
+keys whose verdict went GREEN. Twelve shards each restoring the same previous cache and uploading
+their own would, under a naive union, re-add a GREEN's stale RED from the eleven shards that did not
+measure it — a verdict resurrected by shards that never took it. **Deletions have to win**, so each
+shard must say which keys it MEASURED this run, and a merge job must apply that.
+
+Sketch: the cache file gains `measured: [keys]` (the loader ignores unknown fields, so no format
+break); `scripts/mutation-cache-merge.mjs` resolves each key by its measuring shard, absent meaning
+deleted; the workflow restores by prefix, uploads per shard, merges, and saves. Release runs keep
+`--no-cache`, so a tag is still fully measured — that is ADR-023 T3 and does not change.

@@ -931,21 +931,34 @@ test('every mutation shard computes its slice from one snapshot, not its own cac
   const jobOf = (yaml, name) => yaml.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m)
     .find(j => j.startsWith(`${name}:`)) ?? ''
 
+  // ⚠ ONE PREDICATE, TWO INPUTS. Written as `assert.doesNotMatch(realJob, ...)`
+  // with a bad fixture checked BESIDE it, the assertion is never executed against
+  // a job that must fail it — and the campaign proved it, returning GREEN for a
+  // mutant that replaced `doesNotMatch` with `ok`. The real job is a non-empty
+  // string, so the mutated assertion passed. This is the second time this exact
+  // shape survived in this file; the cure is always to make the check a function
+  // and run both answers through it.
+  const resolvesOwnCache = job => /uses: actions\/cache\/restore/.test(job)
+  const takesTheSeed = job =>
+    /uses: actions\/download-artifact@v4\n\s+with:\n\s+name: mutation-cache-seed/.test(job)
+
   const mutations = jobOf(workflow, 'mutations')
   assert.ok(mutations.includes('--shard ${{ matrix.shard }}'), 'the matrix job must be the one found')
-  assert.doesNotMatch(mutations, /uses: actions\/cache\/restore/,
+  assert.equal(resolvesOwnCache(mutations), false,
     'the shard job must not resolve its own cache generation — take the seed artifact instead')
-  assert.match(mutations, /uses: actions\/download-artifact@v4\n\s+with:\n\s+name: mutation-cache-seed/,
+  assert.equal(takesTheSeed(mutations), true,
     'the shard job must download the one snapshot the seed job published')
 
   // The seed job is where the single lookup lives, and every shard waits for it.
-  assert.match(jobOf(workflow, 'mutation-cache-seed'), /uses: actions\/cache\/restore/)
+  assert.equal(resolvesOwnCache(jobOf(workflow, 'mutation-cache-seed')), true)
   assert.match(mutations, /^ {4}needs: mutation-cache-seed$/m)
 
-  // DIRTY, through the same predicate: a matrix job that restores for itself is
-  // exactly the shape this rejects.
+  // DIRTY, through the same two predicates: the shape this rejects must come back
+  // true, and a job with neither must come back false — so the checks are shown
+  // separating the cases rather than answering the same way to everything.
   const bad = 'mutations:\n    steps:\n      - uses: actions/cache/restore@v4\n'
-  assert.match(bad, /uses: actions\/cache\/restore/)
+  assert.equal(resolvesOwnCache(bad), true, 'the check must recognise a shard that restores for itself')
+  assert.equal(takesTheSeed(bad), false, 'and must not credit it with taking the seed')
 })
 
 test('no job in the release workflow is conditioned so a dispatched run skips it', () => {

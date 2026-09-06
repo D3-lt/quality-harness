@@ -45,7 +45,7 @@ def untimed(source, label):
 
 
 def main(argv):
-    paths = [pathlib.Path(p) for p in argv] or sorted(pathlib.Path("plugin/bin").iterdir())
+    paths = [pathlib.Path(p) for p in argv] or sorted(pathlib.Path("plugin/bin").iterdir()) + sorted(pathlib.Path("plugin/lib").glob("*.py"))
     findings = []
     for path in paths:
         if path.suffix == ".cmd" or not path.is_file():

@@ -83,7 +83,7 @@ test('what ships is the plugin and nothing else', () => {
   // directory: ADR-008's gate admits a new shipped surface deliberately or the
   // surface is worked around later, which is how 603 K grew back once already.
   const shipped = [
-    '.claude-plugin/plugin.json', 'README.md', 'agents', 'bin', 'evals', 'hooks',
+    '.claude-plugin/plugin.json', 'README.md', 'agents', 'bin', 'evals', 'hooks', 'lib',
     'scripts', 'skills', 'templates', 'workflows',
   ]
   for (const entry of shipped) assert.ok(existsSync(join(shipRoot, entry)), `${entry} must ship`)
@@ -702,7 +702,7 @@ test('the publishable plugin has no dependency on a personal install or retired 
   // and tests above it. Both sides are swept: the rule is about what this
   // project may depend on, not only about what it publishes.
   const textRoots = [
-    ...['.claude-plugin', 'bin', 'hooks', 'scripts', 'skills', 'templates', 'workflows']
+    ...['.claude-plugin', 'bin', 'hooks', 'lib', 'scripts', 'skills', 'templates', 'workflows']
       .map(name => join(root, name)),
     ...['scripts', 'tests'].map(name => join(repoRoot, name)),
   ]

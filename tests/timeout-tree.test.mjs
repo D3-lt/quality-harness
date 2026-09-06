@@ -29,6 +29,12 @@ import { pythonArgv, runPython } from '../scripts/python-interpreter.mjs'
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
 const bin = join(repoRoot, 'plugin', 'bin')
+// The fence helper was copied into three gates until 2026-09-06, and every test
+// below ran three times to prove three copies. It is plugin/lib/fence.py now,
+// driven here through adr-verify — the call the defects came in through
+// (CLAUDE.md §4). What the other two gates owe is proof that they import THAT
+// object rather than a copy, which is one test at the end of this file.
+const FENCE_GATES = ['adr-verify']
 
 const temps = []
 function scratch() {
@@ -202,7 +208,7 @@ except subprocess.TimeoutExpired:
     print("timed out")
 `
 
-for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+for (const gate of FENCE_GATES) {
   test(`${gate}: run_bounded kills the tree on timeout`, async () => {
     const dir = scratch()
     const started = Date.now()
@@ -283,7 +289,7 @@ except BaseException as exc:
 // forbids in those words: a skip is earned after the log shows the fixture
 // cannot be built there, never by resemblance. Nothing in the log ever showed it
 // for this one. Un-skipped 2026-09-06 (BACKLOG §129).
-for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+for (const gate of FENCE_GATES) {
   test(`${gate}: a cleanup that raises does not replace the timeout`, () => {
     const run = runPython(['-c', CLEANUP_RAISES_PROBE, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, `${gate} probe\n${run.stdout}${run.stderr}`)
@@ -338,7 +344,7 @@ def hangs(argv, **kw):
 print(module.kill_tree(4242, "nt", run=bounded), seen["timeout"],
       module.kill_tree(4242, "nt", run=hangs))
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, run.stdout + run.stderr)
     const [confirmed, timeout, hung] = run.stdout.trim().split(/\s+/)
@@ -416,7 +422,7 @@ except KeyboardInterrupt:
     print("interrupted", flush=True)
 `
 
-for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+for (const gate of FENCE_GATES) {
   test(`${gate}: an interrupted run_bounded kills the tree`, posixOnly, async () => {
     const dir = scratch()
     const [command, ...prefix] = pythonArgv()
@@ -445,7 +451,7 @@ print(module.kill_tree(4242, "nt", run=answers(0)),
       module.kill_tree(4242, "nt", run=answers(1)),
       module.kill_tree(4242, "nt", run=lambda argv, **kw: None))
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, run.stdout + run.stderr)
     assert.equal(run.stdout.trim(), 'True False False',
@@ -471,7 +477,7 @@ try:
 except subprocess.TimeoutExpired as expired:
     print(hasattr(expired, "tree_killed"), expired.tree_killed)
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, run.stdout + run.stderr)
     assert.match(run.stdout.trim(), /^True (True|False)$/,
@@ -555,7 +561,7 @@ out, err, killed = module.drain_after_kill(proc, "nt", grace=0.5)
 print("returned", round(time.monotonic() - started, 2), flush=True)
 proc.kill()
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     const seconds = Number(/returned ([\d.]+)/.exec(run.stdout)?.[1])
@@ -605,7 +611,7 @@ finally:
     sys.stderr = healthy
 print("traced" if "[trace-timeout]" in buf.getvalue() else "silent", flush=True)
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 60_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     // Both separators (CLAUDE.md §7): on Windows this arrived as 'TimeoutExpired\r'
@@ -656,7 +662,7 @@ module.kill_tree(4242, "nt", run=run, processes=blind)
 sys.stderr = real
 print(confirmed, calls.count("taskkill"), repr(buf.getvalue()), repr(quiet.getvalue()), repr(blindbuf.getvalue()), flush=True)
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     const out = run.stdout.trim()
@@ -698,7 +704,7 @@ taskkills_after_good = calls.count("taskkill")
 b = module.kill_tree(4242, "nt", run=run, job=bad)
 print(a, good.calls, taskkills_after_good, b, bad.calls, calls.count("taskkill"), flush=True)
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     assert.equal(run.stdout.trim(), 'True 1 0 True 1 1',
@@ -742,7 +748,7 @@ module.WindowsJob(Proc(), 0.0, k32=FakeK32(1, inside=True))
 sys.stderr = real
 print(repr(buf.getvalue()), repr(ok.getvalue()), flush=True)
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     assert.match(run.stdout, /gate-in-job probe FAILED \(GetLastError=(\d+|None)\); nesting unknown/,
@@ -787,7 +793,7 @@ try:
 except OSError as e:
     print("raised", "ResumeThread failed" in str(e))
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     assert.match(run.stdout, /^ok 1$/m, `${gate}: a thread that answers 1 is resumed once and counted`)
@@ -844,7 +850,7 @@ job, k32, proc, trace = drive(True)
 print("induced", job is None, k32.assigned, k32.resumed, proc.killed, "INDUCED, not observed" in trace,
       "AssignProcessToJobObject failed" in trace, "falling back to taskkill" in trace, 1234 in k32.closed)
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     assert.match(run.stdout, /^observed True 1 1 False False True$/m,
@@ -897,7 +903,7 @@ print(repr(drive(True, None, processes)))
 before = len(snapshots)
 print(repr(drive(False, Job([1, 2]), processes)), len(snapshots) - before)
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     const [full, refused, nojob, silent] = run.stdout.trim().split('\n')
@@ -954,12 +960,37 @@ drive("base_processes", Job(OSError(5, "x")), raises(Boom()))
 drive("base_members", Job(Boom()), lambda: [])
 drive("unprintable", Job(OSError(5, "x")), raises(Nasty()))
 `
-  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+  for (const gate of FENCE_GATES) {
     const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
     for (const label of ['base_processes', 'base_members', 'unprintable']) {
       assert.match(run.stdout, new RegExp(`^${label} returned True True True$`, 'm'),
         `${gate}: ${label} must be swallowed by the drain, not raised through it — got ${run.stdout}`)
     }
+  }
+})
+
+// One module, three gates. Every test above drives plugin/lib/fence.py through
+// adr-verify; this is the proof that spec-verify and qh-mcp run THAT object and
+// not a copy — the identity check, not a re-run. A gate that quietly grew its own
+// run_bounded again would pass everything above and fail here.
+test('spec-verify and qh-mcp run the same fence adr-verify does, not a copy of it', () => {
+  const probe = `import importlib.machinery, importlib.util, sys
+sys.dont_write_bytecode = True
+def load(name, file):
+    loader = importlib.machinery.SourceFileLoader(name, file)
+    spec = importlib.util.spec_from_loader(name, loader)
+    module = importlib.util.module_from_spec(spec)
+    loader.exec_module(module)
+    return module
+a = load("a", sys.argv[1]); b = load("b", sys.argv[2])
+import fence
+print(a.run_bounded is fence.run_bounded, b.run_bounded is fence.run_bounded, a.kill_tree is b.kill_tree, fence.__file__)
+`
+  for (const gate of ['spec-verify', 'qh-mcp']) {
+    const run = runPython(['-c', probe, join(bin, 'adr-verify'), join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    assert.match(run.stdout, /^True True True .*[\\/]plugin[\\/]lib[\\/]fence\.py$/m,
+      `${gate}: must import the shared fence, not carry a copy — got ${run.stdout}`)
   }
 })

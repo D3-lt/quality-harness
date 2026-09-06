@@ -257,6 +257,11 @@ export const NEVER_MIRRORED = new Set([
   // The plugin manifest. One per installed plugin, resolved by the loader; a copy
   // under the home is not a plugin.
   '.claude-plugin',
+  // Shared code the gates import from the plugin root (`plugin/lib/fence.py`,
+  // 2026-09-06). A forwarder execs `$root/bin/<gate>`, which resolves lib/ from
+  // its own path — so a copy under the home would be exactly the stale
+  // duplicate this whole module exists to keep out, and nothing would read it.
+  'lib',
 ])
 
 /**

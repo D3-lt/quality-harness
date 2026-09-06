@@ -5528,8 +5528,8 @@
         "tests/package.test.mjs"
       ],
       "only": "no job in the release workflow is conditioned so a dispatched run skips it",
-      "from": "    assert.doesNotMatch(jobIf[1], /workflow_dispatch/,",
-      "to": "    assert.ok(jobIf[1], "
+      "from": "    .filter(job => /^ {4}if: .*workflow_dispatch/m.test(job))",
+      "to": "    .filter(job => /^ {4}if: /m.test(job))"
     }
   ]
 }

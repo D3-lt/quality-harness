@@ -130,12 +130,25 @@ async function assertTreeDied(dir, label, elapsedMs) {
 // instead and carries the trace either way. The leader-exits shape (§123) is a
 // separate gap — bash is gone before taskkill runs, so /T has no root to walk —
 // and is unproved on Windows on any box.
+//
+// ⚠ THE SKIP IS DEFAULT-ON, NOT MANDATORY. `QUALITY_HARNESS_FORCE_TREE_TESTS=1`
+// runs them anyway. It exists because the questions §128 and §129 leave open are
+// answerable only ON Windows, and the answer was previously reachable only by
+// editing this file — which is why the leader-exits shape (§123) has never been
+// run there by anyone. A measurement that needs a source edit to take is a
+// measurement nobody takes.
+//
+// It is opt-in on purpose: CI must not redden at random on an unattributed
+// survivor, so nothing sets this variable in `.github/`. A human on a Windows box
+// sets it, reads the result, and reports it into §128/§129.
+const forceTree = process.env.QUALITY_HARNESS_FORCE_TREE_TESTS === '1'
 const posixTree = {
-  skip: process.platform === 'win32'
+  skip: process.platform === 'win32' && !forceTree
     ? 'the Windows tree kill is non-deterministic on the CI runner (pass/fail/fail/pass on '
       + 'identical gate code) and the survivor is unattributed; the trace test covers this path '
       + 'there and bounds the bad case. Tree DEATH is asserted only where it is deterministic. '
-      + 'BACKLOG §123, §128, §129.'
+      + 'Set QUALITY_HARNESS_FORCE_TREE_TESTS=1 to run them anyway and report the result into '
+      + 'BACKLOG §128/§129. BACKLOG §123, §128, §129.'
     : false,
 }
 const LEADER_EXITS_FENCE = '( for i in $(seq 1 100); do echo "$i" >> beat.txt; sleep 0.2; done ) &'

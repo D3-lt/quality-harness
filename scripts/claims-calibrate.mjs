@@ -1,150 +1,147 @@
 #!/usr/bin/env node
-// claims-calibrate.mjs — put real final messages next to what completionClaim()
-// calls them, so a human can label them.
+// claims-calibrate.mjs — print real final assistant messages beside what
+// `completionClaim()` says about them, so a human can label them.
 //
-// ADR-035 T4. This is the record's pre-registered criterion made runnable: the
-// `asserted` arm of the vocabulary survives only if, over at least thirty real
-// final messages, at most three classified `asserted` carry no completion
-// assertion a reader would recognise — precision ≥ 0.90. Below that the arm is
-// withdrawn in the same commit that records the measurement.
+//   node scripts/claims-calibrate.mjs [count]
 //
-// REPOSITORY TOOLING. It never ships (CLAUDE.md §1), it reads and writes
-// nothing, and it prints only what it found. The labelling is the measurement
-// and it is the operator's, not this script's: nothing here decides whether a
-// message asserts completion, because a tool grading its own classifier is the
-// LLM judge this record rejected wearing a different hat.
+// ADR-035 T4. Repository tooling: it never ships, and nothing consumes its
+// output but a person reading it.
 //
-// It reads the transcripts Claude Code writes under its projects directory. The
-// last assistant message of a session is the one the Stop hook would have seen.
-import { createReadStream, readdirSync, statSync } from 'node:fs'
+// ⚠ WHAT THIS CAN AND CANNOT MEASURE, AS OF 2026-09-06.
+//
+// T4 was written to measure the PRECISION of `completionClaim()`'s `asserted`
+// arm: at least thirty real final messages, at most three `asserted` rows that
+// no reader would call a completion claim, or the arm is withdrawn.
+//
+// The arm was withdrawn first — on 2026-09-04, by that same criterion, after the
+// first real eval run classified three answers `asserted` and all three were
+// honest disclosures (BACKLOG §124). `completionClaim()` now returns only
+// `unavailable`, `limited`, `hedged` or `none`; there is no producer of
+// `asserted` anywhere.
+//
+// So the labelling exercise T4 describes CANNOT BE RUN: it asks a human to label
+// rows of a kind the classifier can no longer emit, and a run that reports
+// "0 asserted, 0 false positives, precision 1.00" would be arithmetic on an
+// empty set dressed as a measurement. This tool refuses to print that number.
+//
+// What it does instead is the half that is still true and still useful: show the
+// distribution over REAL final messages of the arms that do exist. That is what
+// a future attempt to restore `asserted` has to beat, and it is the baseline
+// nobody has taken.
+//
+// Exit codes:
+//   0  a sample was printed
+//   2  usage, or no transcripts could be read
+import { createReadStream } from 'node:fs'
+import { readdirSync, statSync } from 'node:fs'
 import { createInterface } from 'node:readline'
-import os from 'node:os'
-import path from 'node:path'
-import process from 'node:process'
-import { pathToFileURL } from 'node:url'
+import { homedir } from 'node:os'
+import { join } from 'node:path'
+import { completionClaim } from '../plugin/scripts/lifecycle.mjs'
 
-import { ASSERTION_ARM_WITHDRAWN } from '../plugin/scripts/claim-status.mjs'
+// The transcripts directory is assembled at runtime and never written down:
+// it names a person, and this repository publishes its own corpus (CLAUDE.md §6).
+const PROJECTS = join(homedir(), '.claude', 'projects')
 
-const HOME = path.join(os.homedir(), '.claude', 'projects')
-
-/** Every transcript under the projects directory, newest first. */
-export function transcripts(root = HOME) {
-  const found = []
-  let projects
-  try {
-    projects = readdirSync(root, { withFileTypes: true })
-  } catch {
-    return found
-  }
-  for (const project of projects) {
-    if (!project.isDirectory()) continue
-    const dir = path.join(root, project.name)
-    let entries
-    try {
-      entries = readdirSync(dir, { withFileTypes: true })
-    } catch { continue }
-    for (const entry of entries) {
-      if (!entry.isFile() || !entry.name.endsWith('.jsonl')) continue
-      const file = path.join(dir, entry.name)
-      try {
-        found.push({ file, at: statSync(file).mtimeMs, project: project.name })
-      } catch { /* a file that vanished between readdir and stat is not a sample */ }
-    }
-  }
-  return found.sort((a, b) => b.at - a.at)
-}
-
-/**
- * The last assistant text of a session — what the Stop hook would have read.
- *
- * Streamed rather than read whole: a long session's transcript is tens of
- * megabytes, and thirty of them read into memory at once is a different tool.
- */
-export async function finalMessage(file) {
+/** The last assistant text message in one transcript, or null. */
+async function finalMessage(file) {
   let last = null
   const rl = createInterface({ input: createReadStream(file), crlfDelay: Infinity })
   for await (const line of rl) {
     if (!line.trim()) continue
     let row
-    try {
-      row = JSON.parse(line)
-    } catch { continue }
+    try { row = JSON.parse(line) } catch { continue }
     const message = row?.message
-    if (typeof message !== 'object' || message === null) continue
-    if (message.role !== 'assistant') continue
-    const text = (Array.isArray(message.content) ? message.content : [])
-      .filter(block => block && block.type === 'text' && typeof block.text === 'string')
-      .map(block => block.text).join('\n').trim()
+    if (message?.role !== 'assistant' || !Array.isArray(message.content)) continue
+    const text = message.content.filter(b => b?.type === 'text').map(b => b.text).join('\n').trim()
     if (text) last = text
   }
   return last
 }
 
-async function main(argv = process.argv.slice(2)) {
-  if (argv.includes('--help') || argv.includes('-h')) {
-    process.stdout.write([
-      'claims-calibrate.mjs — real final messages beside completionClaim()\'s answer (ADR-035 T4).',
-      '',
-      'Usage: node scripts/claims-calibrate.mjs [--limit <n>] [--kind <claim kind>]',
-      '',
-      'Prints one numbered row per session, newest first. Label the `asserted` rows',
-      'by hand: does the message assert completion? Then record the sign-off with',
-      'adr-verify --human, naming the sample size, the count, and the precision.',
-      '',
-    ].join('\n'))
-    return 0
+/** The newest `count` transcripts across every project, newest first. */
+function newestTranscripts(count) {
+  const files = []
+  let projects
+  try { projects = readdirSync(PROJECTS, { withFileTypes: true }) } catch { return [] }
+  for (const entry of projects) {
+    if (!entry.isDirectory()) continue
+    const dir = join(PROJECTS, entry.name)
+    let names
+    try { names = readdirSync(dir) } catch { continue }
+    for (const name of names) {
+      if (!name.endsWith('.jsonl')) continue
+      const path = join(dir, name)
+      try { files.push({ path, mtime: statSync(path).mtimeMs, project: entry.name }) } catch { /* gone */ }
+    }
   }
-  const limitAt = argv.indexOf('--limit')
-  const limit = limitAt >= 0 ? Number(argv[limitAt + 1]) : 30
-  const kindAt = argv.indexOf('--kind')
-  const only = kindAt >= 0 ? argv[kindAt + 1] : null
+  return files.sort((a, b) => b.mtime - a.mtime).slice(0, count)
+}
 
-  const { completionClaim } = await import('../plugin/scripts/lifecycle.mjs')
-  const files = transcripts()
-  if (!files.length) {
-    process.stdout.write(`claims-calibrate: no transcripts under ${HOME}. `
-      + 'Nothing to label — say so rather than padding the sample.\n')
-    return 0
+async function main() {
+  const count = Number(process.argv[2] ?? 30)
+  if (!Number.isInteger(count) || count < 1) {
+    console.log('usage: node scripts/claims-calibrate.mjs [count]   (default 30)')
+    process.exitCode = 2
+    return
+  }
+
+  const transcripts = newestTranscripts(count)
+  if (!transcripts.length) {
+    // ADR-005: could-not-look is said in those words, never reported as a clean
+    // sample. A machine with no transcripts and a machine whose finals are all
+    // `none` must not print the same thing.
+    console.log(`UNRUN: no transcripts found under the Claude projects directory (${PROJECTS}).`)
+    console.log('Nothing was measured. This is not a sample of zero.')
+    process.exitCode = 2
+    return
   }
 
   const rows = []
-  for (const entry of files) {
-    if (rows.length >= limit) break
-    const message = await finalMessage(entry.file)
-    if (!message) continue
-    const claim = completionClaim(message)
-    if (only && claim.kind !== only) continue
-    rows.push({ ...entry, message, claim })
+  for (const t of transcripts) {
+    const text = await finalMessage(t.path)
+    if (text === null) continue
+    rows.push({ project: t.project, claim: completionClaim(text).kind, text })
   }
 
-  const counts = {}
-  for (const row of rows) counts[row.claim.kind] = (counts[row.claim.kind] ?? 0) + 1
-
-  rows.forEach((row, index) => {
-    const head = row.message.replace(/\s+/g, ' ').slice(0, 200)
-    process.stdout.write(`\n[${String(index + 1).padStart(3)}] ${row.claim.kind.toUpperCase()}`
-      + `${row.claim.phrase ? ` — matched: ${JSON.stringify(row.claim.phrase)}` : ''}\n`)
-    process.stdout.write(`      ${row.project}\n`)
-    process.stdout.write(`      ${head}${row.message.length > 200 ? ' …' : ''}\n`)
+  console.log(`claims-calibrate · ${rows.length} session(s) with a final assistant message, of ${transcripts.length} newest transcripts`)
+  console.log('')
+  rows.forEach((r, i) => {
+    const preview = r.text.replace(/\s+/g, ' ').slice(0, 200)
+    console.log(`${String(i + 1).padStart(3)}. [${r.claim}] ${preview}`)
   })
 
-  process.stdout.write(`\n${rows.length} session(s) with a final message, of ${files.length} `
-    + `transcript(s). By kind: ${Object.entries(counts).sort().map(([k, n]) => `${k}=${n}`).join(' ')}\n`)
-  process.stdout.write(ASSERTION_ARM_WITHDRAWN
-    // With no `asserted` producer there is nothing to label, and telling a human
-    // to label ASSERTED rows would send them looking for a category that cannot
-    // occur — the reader would conclude the sample was clean.
-    ? '\n⚠ claim detection is WITHDRAWN (BACKLOG §124): the classifier above cannot return '
-      + 'ASSERTED, so a run with none is not a precision result. Restoring the arm — a corrected '
-      + 'negation vocabulary and a fresh sample — comes before this measurement means anything.\n'
-    : 'Label every ASSERTED row: does it assert completion? '
-      + 'precision = 1 - (false positives / asserted). The criterion is ≥ 0.90 over ≥ 30 messages.\n')
-  process.stdout.write('This script does not judge them. That is the measurement, and it is yours.\n')
-  return 0
+  const tally = new Map()
+  for (const r of rows) tally.set(r.claim, (tally.get(r.claim) ?? 0) + 1)
+  console.log('')
+  console.log('DISTRIBUTION')
+  for (const [kind, n] of [...tally].sort((a, b) => b[1] - a[1])) {
+    console.log(`  ${kind.padEnd(14)} ${String(n).padStart(4)}`)
+  }
+
+  console.log('')
+  if (!tally.has('asserted')) {
+    // The refusal T4's criterion earns. Printing a precision here would be
+    // arithmetic over an empty set wearing the costume of a measurement, which
+    // is the class this whole record exists to refuse (CLAUDE.md §4).
+    console.log('NO PRECISION IS REPORTED, and that is the finding.')
+    console.log('')
+    console.log('  `completionClaim()` has no `asserted` arm: it can return only unavailable,')
+    console.log('  limited, hedged or none. The arm T4 was written to calibrate was withdrawn')
+    console.log('  on 2026-09-04 by ADR-035\'s own pre-registered criterion (BACKLOG §124),')
+    console.log('  before this measurement was ever taken.')
+    console.log('')
+    console.log('  So there is nothing to label, and "0 false positives, precision 1.00" would')
+    console.log('  be a number computed over an empty set. T4\'s criterion is satisfied by its')
+    console.log('  OTHER branch — the arm is withdrawn — not by a calibration that passed.')
+    console.log('')
+    console.log('  The distribution above is the baseline a restored `asserted` arm must beat.')
+    console.log('  It is not a verdict on anything.')
+  } else {
+    console.log('LABEL EVERY `asserted` ROW ABOVE BY HAND (ADR-035 T4 step 2).')
+    console.log('The labels are the operator\'s, not this tool\'s. Count the rows that assert')
+    console.log('no completion a reader would recognise; precision below 0.90 withdraws the arm.')
+  }
 }
 
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exit(await main())
-}
-
-export { main }
+main()

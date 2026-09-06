@@ -306,7 +306,11 @@ def adoption_report(active_root, archive_root):
     active_root, archive_root = active_root.resolve(), archive_root.resolve()
     errors = Findings()
     if not active_root.is_dir() or not archive_root.is_dir():
-        print("[FAIL] --adopt needs existing active and archive directories")
+        # BACKLOG §143. This early refusal is a verdict too, and it was missed by
+        # the first sweep because it is a plain print rather than an f-string —
+        # the sweep's regex looked for `print(f"[`. A class enumerated by a
+        # pattern is only as complete as the pattern (CLAUDE.md §5).
+        print(f"[FAIL] --adopt needs existing active and archive directories · {gate_identity()}")
         raise SystemExit(1)
     if contained(active_root, archive_root) or contained(archive_root, active_root):
         errors.append("active and archive roots overlap; recursive gates will still scan history")

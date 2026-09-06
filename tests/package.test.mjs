@@ -884,6 +884,41 @@ test('continuous integration runs the checks this repository owns', () => {
   assert.match(selftest, /PARTIAL —/)
 })
 
+test('no job in the release workflow is conditioned so a dispatched run skips it', () => {
+  // BACKLOG §148 nearly shipped this. `scripts/release-evidence.mjs` asks whether
+  // EVERY job concluded `success` and filters on `j.conclusion !== 'success'`, so
+  // a SKIPPED job is exit 1 there exactly like a failed one. A release may only
+  // be cut from a `workflow_dispatch` run, so a job carrying
+  // `github.event_name != 'workflow_dispatch'` at JOB level makes every release
+  // permanently impossible — and the symptom is a release refused for a job that
+  // did precisely what it was told, which reads as a bug in the evidence tool.
+  //
+  // A step may skip freely; a job may not. That is the whole rule, and it is the
+  // difference between a job that concludes `success` having done nothing and a
+  // job that concludes `skipped`.
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  const jobs = workflow.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1)
+  assert.ok(jobs.length > 1, 'the split must actually find the jobs, or this asserts nothing')
+
+  for (const job of jobs) {
+    const name = job.split('\n', 1)[0].replace(':', '')
+    // Job-level keys sit at four spaces; a step's `if` is deeper, or inside a
+    // `- ` item. Only the four-space form decides whether the JOB runs.
+    const jobIf = job.match(/^ {4}if: (.+)$/m)
+    if (!jobIf) continue
+    assert.doesNotMatch(jobIf[1], /workflow_dispatch/,
+      `job ${name} skips itself on some events — put the condition on its steps instead, `
+      + 'or release-evidence reads the skip as a job that did not succeed')
+  }
+
+  // DIRTY, in the same test: the check must reject the shape it exists to
+  // prevent, or it is a loop that never fires.
+  const bad = '  cache:\n    runs-on: ubuntu-latest\n    if: github.event_name != \'workflow_dispatch\'\n    steps:\n'
+  const badJobs = bad.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1)
+  assert.equal(badJobs.length, 1)
+  assert.match(badJobs[0].match(/^ {4}if: (.+)$/m)[1], /workflow_dispatch/)
+})
+
 test('importing a script runs its CLI on nobody', async () => {
   // BACKLOG §27. Four scripts ran their whole CLI at module scope, so importing
   // one — to test it, or from any tool walking the directory — executed it.

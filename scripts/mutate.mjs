@@ -665,10 +665,18 @@ export function main(argv) {
       return r.status === 0 ? r.stdout.trim() : null
     })()
     const entries = { ...cache }
+    // BACKLOG §148. The keys THIS run actually took a verdict on. A shard's file
+    // is `prior ∪ own`, so twelve of them cannot be merged by union: eleven
+    // shards carry a stale RED for a key the twelfth just deleted, and the union
+    // resurrects it. `measured` is what lets a merge tell "this shard deleted it"
+    // from "this shard never looked at it" — absence inside a claim is a
+    // deletion, absence of the claim is no observation at all (ADR-005).
+    const measured = []
     for (const result of results) {
       const key = keys.get(result.label)
       if (!key) continue
       if (result.reused) continue
+      measured.push(key)
       // The duration rides along for BACKLOG §106's cost-balanced slicing: a
       // measurement from the campaign's own last run, never a table beside it.
       if (result.verdict === 'RED') {
@@ -676,8 +684,9 @@ export function main(argv) {
       }
       else delete entries[key]
     }
+    const shard = argv.includes('--shard') ? argv[argv.indexOf('--shard') + 1] : null
     try {
-      writeFileSync(cacheFile, `${JSON.stringify({ version: 1, entries }, null, 2)}\n`)
+      writeFileSync(cacheFile, `${JSON.stringify({ version: 1, entries, measured, shard }, null, 2)}\n`)
     } catch { /* a cache that cannot be written costs a re-run, never a verdict. */ }
   }
 

@@ -884,6 +884,70 @@ test('continuous integration runs the checks this repository owns', () => {
   assert.match(selftest, /PARTIAL —/)
 })
 
+test('an artifact upload of a dotfile asks for hidden files, or it uploads nothing and says success', () => {
+  // `actions/upload-artifact@v4` excludes HIDDEN files by default — even when the
+  // path names one explicitly — and `if-no-files-found` then reports the empty
+  // upload as a success. `.mutation-cache.json` is a dotfile, so without
+  // `include-hidden-files: true` no shard report ever reaches the merge, the
+  // merge refuses every run, and nothing anywhere says why. Found by review
+  // 2026-09-06, before it ran once.
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+
+  // A `with:` block per upload step, so the path and the flag are judged together
+  // rather than as two independent greps over the whole file.
+  const uploads = yaml => yaml.split(/uses: actions\/upload-artifact@/).slice(1)
+    .map(block => block.split(/^ {6}- /m)[0])
+  const hidden = yaml => uploads(yaml)
+    .filter(b => /^\s*path: \./m.test(b))
+    .filter(b => !/include-hidden-files: true/.test(b))
+
+  assert.ok(uploads(workflow).length >= 2, 'the split must find the real upload steps')
+  assert.deepEqual(hidden(workflow), [],
+    'an upload whose path is a dotfile must set include-hidden-files: true')
+
+  // DIRTY, through the same function: the shape it exists to catch must come back.
+  const bad = '        uses: actions/upload-artifact@v4\n        with:\n'
+    + '          name: x\n          path: .mutation-cache.json\n          if-no-files-found: ignore\n'
+  assert.equal(hidden(bad).length, 1, 'the check must reject an upload that omits the flag')
+  assert.equal(hidden(`${bad}          include-hidden-files: true\n`).length, 0)
+  // And a NON-dotfile upload is not flagged: the rule is about hidden paths, not
+  // about every upload in the file.
+  assert.equal(hidden('        uses: actions/upload-artifact@v4\n        with:\n'
+    + '          name: x\n          path: selftest.tap\n').length, 0)
+})
+
+test('every mutation shard computes its slice from one snapshot, not its own cache lookup', () => {
+  // `shardByCost` is deterministic FOR A GIVEN INPUT, and twelve jobs compute
+  // their slice with no coordination — so agreement rests entirely on the inputs
+  // being identical. A prefix `cache/restore` inside the matrix job does not give
+  // that: partial-key matching returns the newest matching cache at the moment of
+  // each lookup, and a concurrent save between two jobs' lookups hands them
+  // different cost maps. Two different maps do not compose into a partition: a
+  // reviewer's probe measured one entry twice and another never. `--no-cache`
+  // cannot save it — it forbids reusing a verdict, it cannot measure an entry no
+  // shard selected — so a "full" campaign could come back short and
+  // release-evidence would accept it.
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  const jobOf = (yaml, name) => yaml.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m)
+    .find(j => j.startsWith(`${name}:`)) ?? ''
+
+  const mutations = jobOf(workflow, 'mutations')
+  assert.ok(mutations.includes('--shard ${{ matrix.shard }}'), 'the matrix job must be the one found')
+  assert.doesNotMatch(mutations, /uses: actions\/cache\/restore/,
+    'the shard job must not resolve its own cache generation — take the seed artifact instead')
+  assert.match(mutations, /uses: actions\/download-artifact@v4\n\s+with:\n\s+name: mutation-cache-seed/,
+    'the shard job must download the one snapshot the seed job published')
+
+  // The seed job is where the single lookup lives, and every shard waits for it.
+  assert.match(jobOf(workflow, 'mutation-cache-seed'), /uses: actions\/cache\/restore/)
+  assert.match(mutations, /^ {4}needs: mutation-cache-seed$/m)
+
+  // DIRTY, through the same predicate: a matrix job that restores for itself is
+  // exactly the shape this rejects.
+  const bad = 'mutations:\n    steps:\n      - uses: actions/cache/restore@v4\n'
+  assert.match(bad, /uses: actions\/cache\/restore/)
+})
+
 test('no job in the release workflow is conditioned so a dispatched run skips it', () => {
   // BACKLOG §148 nearly shipped this. `scripts/release-evidence.mjs` asks whether
   // EVERY job concluded `success` and filters on `j.conclusion !== 'success'`, so

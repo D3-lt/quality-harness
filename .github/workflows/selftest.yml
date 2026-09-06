@@ -142,9 +142,42 @@ jobs:
           path: selftest.tap
           if-no-files-found: warn
 
+  mutation-cache-seed:
+    name: mutation cache seed
+    runs-on: ubuntu-latest
+    # BACKLOG §148. One prefix restore for the whole run, so all twelve shards
+    # compute their slice from the SAME timings — see the note in `mutations`.
+    # It always publishes a file, empty when nothing was restored, so a shard's
+    # download has no zero-artifact arm to get wrong and a first-ever run behaves
+    # exactly like a run whose cache expired.
+    steps:
+      - uses: actions/cache/restore@v4
+        with:
+          path: .mutation-cache.json
+          key: mutation-cache-${{ github.ref_name }}-${{ github.sha }}
+          restore-keys: |
+            mutation-cache-${{ github.ref_name }}-
+            mutation-cache-main-
+      - name: Publish the snapshot, empty if there was nothing to restore
+        run: |
+          test -f .mutation-cache.json || echo '{"version":1,"entries":{}}' > .mutation-cache.json
+          node -e 'JSON.parse(require("fs").readFileSync(".mutation-cache.json","utf8"))'
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mutation-cache-seed
+          path: .mutation-cache.json
+          # ⚠ REQUIRED, AND ITS ABSENCE IS SILENT. upload-artifact@v4 excludes
+          # DOTFILES by default even when the path names one explicitly, and
+          # `if-no-files-found` then reports the empty upload as a success. So
+          # without this line no shard ever receives a snapshot, no shard ever
+          # reports, the merge refuses every run, and nothing anywhere says why.
+          include-hidden-files: true
+          retention-days: 1
+
   mutations:
     name: mutations ${{ matrix.shard }}/12
     runs-on: ubuntu-latest
+    needs: mutation-cache-seed
     # Sharded, and timed out on purpose. The campaign went from 145 entries to
     # 268 in two days and its job was killed at thirty minutes on 2026-08-28
     # with exit 143 — which reads as infrastructure noise rather than as "this
@@ -213,26 +246,26 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Restore the previous campaign's verdicts and timings
-        # BACKLOG §148. Without this every push re-measured the whole catalogue:
-        # ADR-023's cache works, and CI had none to work with — nothing restored
-        # one and nothing saved one, so `loadCache` read an absent file and got
-        # `{}` on every run. Restore-only here; the save is one job below, after
-        # the twelve shards have been merged.
+      - name: Take the shard plan from ONE snapshot, not twelve prefix restores
+        # ⚠ EVERY SHARD MUST SEE THE SAME TIMINGS OR THE PARTITION IS NOT A
+        # PARTITION. `shardByCost` is deterministic for a given input and each
+        # job computes its own slice with no coordination, so agreement rests
+        # entirely on the inputs being identical. A prefix `cache/restore` in
+        # each of the twelve jobs does NOT guarantee that: partial-key matching
+        # returns the most recently created matching cache AT THE MOMENT OF THE
+        # LOOKUP, and a concurrent run can save between two jobs' lookups. Two
+        # different cost maps do not compose — a reviewer's probe produced
+        # ["a","a","c"], measuring `a` twice and `b` never. `--no-cache` does not
+        # save you: it forbids reusing a verdict, it cannot measure an entry no
+        # shard selected, so a "full" campaign could come back complete-looking
+        # and short, and release-evidence would accept it. Found by review
+        # 2026-09-06, before it ever ran.
         #
-        # ⚠ RESTORED ON THE DISPATCHED RUN TOO, and that is deliberate rather than
-        # sloppy. `--no-cache` suppresses REUSE, but the shard split reads the
-        # same file for its `ms` timings unconditionally (scripts/mutate.mjs, the
-        # --shard block), so restoring it is what gives the release run a
-        # cost-balanced split instead of round-robin — the run that most needs to
-        # fit inside 25 minutes. Its verdicts are still all measured fresh.
-        uses: actions/cache/restore@v4
+        # So the snapshot is resolved ONCE, in `mutation-cache-seed`, and handed
+        # to every shard as an immutable artifact.
+        uses: actions/download-artifact@v4
         with:
-          path: .mutation-cache.json
-          key: mutation-cache-${{ github.ref_name }}-${{ github.sha }}
-          restore-keys: |
-            mutation-cache-${{ github.ref_name }}-
-            mutation-cache-main-
+          name: mutation-cache-seed
       - name: Break each mechanism and check the tests notice
         # ADR-023 T3, corrected 2026-09-05 (BACKLOG §142). The full campaign runs
         # on `workflow_dispatch` and nowhere else. It used to be forced on tags
@@ -261,6 +294,7 @@ jobs:
         with:
           name: mutation-cache-shard-${{ matrix.shard }}
           path: .mutation-cache.json
+          include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 1
 

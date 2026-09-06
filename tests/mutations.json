@@ -4324,8 +4324,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        print(f\"{here.name} (version unreadable: {manifest} — {exc})\")",
-      "to": "        print(f\"{here.name} 2.60.0\")"
+      "from": "        return f\"{here.name} (version unreadable: {manifest} — {exc})\"",
+      "to": "        return f\"{here.name} 2.60.0\""
     },
     {
       "label": "steps: the UNPROVEN early return records the steps its run named",

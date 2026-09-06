@@ -139,7 +139,9 @@ cat > "$WORK/coverage.cfg" <<CFG
 branch = True
 parallel = True
 data_file = $WORK/.coverage
-source = $ROOT/bin
+source =
+    $ROOT/bin
+    $ROOT/lib
 CFG
 
 (

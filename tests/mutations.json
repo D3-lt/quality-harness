@@ -4544,8 +4544,8 @@
       "to": "        record_dir = (tasks_dir.resolve().parent if record_dir is not None"
     },
     {
-      "label": "verify: a fence timeout kills the tree the fence started, not only bash",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: a fence timeout kills the tree the fence started, not only bash",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4553,26 +4553,8 @@
       "to": "        os.kill(pid, signal.SIGKILL)"
     },
     {
-      "label": "spec: a runner timeout kills the tree the runner started, not only the shell",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "        os.killpg(pid, signal.SIGKILL)",
-      "to": "        os.kill(pid, signal.SIGKILL)"
-    },
-    {
-      "label": "mcp: a gate timeout kills the tree the gate started, not only the gate",
-      "file": "plugin/bin/qh-mcp",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "        os.killpg(pid, signal.SIGKILL)",
-      "to": "        os.kill(pid, signal.SIGKILL)"
-    },
-    {
-      "label": "verify: the Windows drain does not close a stream a reader thread holds (BACKLOG §128)",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: the Windows drain does not close a stream a reader thread holds (BACKLOG §128)",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4580,8 +4562,8 @@
       "to": "        if True:\n            for stream in (proc.stdout, proc.stderr, proc.stdin):"
     },
     {
-      "label": "verify: a timed-out cleanup attributes its own phases when asked",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: a timed-out cleanup attributes its own phases when asked",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4589,8 +4571,8 @@
       "to": "    if True:\n        return"
     },
     {
-      "label": "verify: a job object that answers ends the Windows kill (BACKLOG §123)",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: a job object that answers ends the Windows kill (BACKLOG §123)",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4598,8 +4580,8 @@
       "to": "            if False:"
     },
     {
-      "label": "verify: a tree listing that fails says so instead of reporting no children",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: a tree listing that fails says so instead of reporting no children",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4607,8 +4589,8 @@
       "to": "                    pass"
     },
     {
-      "label": "verify: the Windows trace names the survivor after taskkill (BACKLOG §129)",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: the Windows trace names the survivor after taskkill (BACKLOG §129)",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4616,8 +4598,8 @@
       "to": "                    alive = []"
     },
     {
-      "label": "verify: a trace that cannot be written never replaces the timeout it describes",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: a trace that cannot be written never replaces the timeout it describes",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4625,8 +4607,8 @@
       "to": "    except ZeroDivisionError:  # a diagnostic must never replace the timeout it describes"
     },
     {
-      "label": "verify: an interrupted gate kills the tree it started",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: an interrupted gate kills the tree it started",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4634,8 +4616,8 @@
       "to": "        raise"
     },
     {
-      "label": "verify: a cleanup that raises never replaces the exception that caused it",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: a cleanup that raises never replaces the exception that caused it",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4643,8 +4625,8 @@
       "to": "    killed = kill_tree(proc.pid, platform, job=job)\n    try:"
     },
     {
-      "label": "verify: kill_tree answers for the kill it made, never assumes one",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: kill_tree answers for the kill it made, never assumes one",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -4679,8 +4661,8 @@
       "to": "    unjudged: 0,"
     },
     {
-      "label": "verify: taskkill is bounded, so a hung cleanup cannot wear the timeout's name",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: taskkill is bounded, so a hung cleanup cannot wear the timeout's name",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -5264,8 +5246,8 @@
       "to": "  if (false) {"
     },
     {
-      "label": "adr-verify: the survivor walk finds the grandchild, not only the child (§128)",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: the survivor walk finds the grandchild, not only the child (§128)",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -5273,26 +5255,8 @@
       "to": "            if False:"
     },
     {
-      "label": "spec-verify: the survivor walk finds the grandchild, not only the child (§128)",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "            if parent in wanted and cpid not in wanted:",
-      "to": "            if False:"
-    },
-    {
-      "label": "qh-mcp: the survivor walk finds the grandchild, not only the child (§128)",
-      "file": "plugin/bin/qh-mcp",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "            if parent in wanted and cpid not in wanted:",
-      "to": "            if False:"
-    },
-    {
-      "label": "adr-verify: a drain timeout names the job's members, not an empty list (§128)",
-      "file": "plugin/bin/adr-verify",
+      "label": "fence: a drain timeout names the job's members, not an empty list (§128)",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -5300,44 +5264,8 @@
       "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)"
     },
     {
-      "label": "spec-verify: a drain timeout names the job's members, not an empty list (§128)",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "        trace_timeout(f\"drain timeout survivors by job membership: {job.members()}\", started)",
-      "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)"
-    },
-    {
-      "label": "qh-mcp: a drain timeout names the job's members, not an empty list (§128)",
-      "file": "plugin/bin/qh-mcp",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "        trace_timeout(f\"drain timeout survivors by job membership: {job.members()}\", started)",
-      "to": "        trace_timeout(\"drain timeout survivors by job membership: []\", started)"
-    },
-    {
-      "label": "adr-verify: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
-      "file": "plugin/bin/adr-verify",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "            k32 = RefusingAssignment(k32)",
-      "to": "            pass"
-    },
-    {
-      "label": "spec-verify: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
-      "file": "plugin/bin/spec-verify",
-      "tests": [
-        "tests/timeout-tree.test.mjs"
-      ],
-      "from": "            k32 = RefusingAssignment(k32)",
-      "to": "            pass"
-    },
-    {
-      "label": "qh-mcp: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
-      "file": "plugin/bin/qh-mcp",
+      "label": "fence: QUALITY_HARNESS_JOB_UNAVAILABLE actually refuses the assignment (§129)",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/timeout-tree.test.mjs"
       ],
@@ -5390,31 +5318,40 @@
       "to": "    report.unreadable.push(`guard: ${error?.code ?? error}`)\n  }"
     },
     {
-      "label": "adr-verify: a survivor trace failing outside Exception does not replace the timeout (Codex, §128)",
+      "label": "fence: a survivor trace failing outside Exception does not replace the timeout (Codex, §128)",
+      "file": "plugin/lib/fence.py",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            except BaseException:\n                pass",
+      "to": "            except ValueError:\n                pass"
+    },
+    {
+      "label": "adr-verify: a gate copied without plugin/lib says so instead of dying in a traceback",
       "file": "plugin/bin/adr-verify",
       "tests": [
-        "tests/timeout-tree.test.mjs"
+        "tests/gates.test.mjs"
       ],
-      "from": "            except BaseException:\n                pass",
-      "to": "            except ValueError:\n                pass"
+      "from": "if not os.path.isfile(os.path.join(_lib, \"fence.py\")):",
+      "to": "if False:"
     },
     {
-      "label": "spec-verify: a survivor trace failing outside Exception does not replace the timeout (Codex, §128)",
+      "label": "spec-verify: a gate copied without plugin/lib says so instead of dying in a traceback",
       "file": "plugin/bin/spec-verify",
       "tests": [
-        "tests/timeout-tree.test.mjs"
+        "tests/gates.test.mjs"
       ],
-      "from": "            except BaseException:\n                pass",
-      "to": "            except ValueError:\n                pass"
+      "from": "if not os.path.isfile(os.path.join(_lib, \"fence.py\")):",
+      "to": "if False:"
     },
     {
-      "label": "qh-mcp: a survivor trace failing outside Exception does not replace the timeout (Codex, §128)",
+      "label": "qh-mcp: a gate copied without plugin/lib says so instead of dying in a traceback",
       "file": "plugin/bin/qh-mcp",
       "tests": [
-        "tests/timeout-tree.test.mjs"
+        "tests/gates.test.mjs"
       ],
-      "from": "            except BaseException:\n                pass",
-      "to": "            except ValueError:\n                pass"
+      "from": "if not os.path.isfile(os.path.join(_lib, \"fence.py\")):",
+      "to": "if False:"
     }
   ]
 }

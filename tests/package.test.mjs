@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
-import { dirname, join, relative, resolve, sep } from 'node:path'
+import { delimiter, dirname, join, relative, resolve, sep } from 'node:path'
 import { pathToFileURL } from 'node:url'
 import test from 'node:test'
 import { runPython } from '../scripts/python-interpreter.mjs'
@@ -925,6 +925,50 @@ test('continuous integration runs the checks this repository owns', () => {
   assert.match(selftest, /PARTIAL —/)
 })
 
+test('a plugin validate that dies saying nothing is UNRUN, not a finding about the manifest', (t) => {
+  // BACKLOG §121. Three times this script has exited 1 with its output ending at
+  // 359 bytes right after a `claude plugin validate --strict`, no message
+  // anywhere, and a re-run passed with the whole suite green. `set -euo pipefail`
+  // turned any non-zero from that CLI into a wordless exit, so the repository's
+  // own entry point reported "could not look" in the vocabulary of a verdict —
+  // the thing ADR-005 forbids every gate below it from doing.
+  //
+  // Measured 2026-09-06: 40 consecutive isolated runs of the third validate all
+  // exited 0, so the cause is NOT a deterministically flaky CLI and remains
+  // unattributed. This check does not need the cause; it needs the silence gone.
+  const bash = spawnSync('bash', ['--version'], { encoding: 'utf8', timeout: 60_000 })
+  // A measured precondition, not a platform guess (CLAUDE.md §7): if there is no
+  // bash here, say so rather than asserting about a script nothing can run.
+  t.skip ??= () => {}
+  if (bash.status !== 0) return t.skip('bash is not on PATH, so scripts/selftest.sh cannot be run here')
+
+  const dir = mkdtempSync(join(tmpdir(), 'qh-validate-'))
+  t.after(() => rmSync(dir, { recursive: true, force: true }))
+  const stub = body => {
+    writeFileSync(join(dir, 'claude'), `#!/bin/sh\n${body}\n`)
+    chmodSync(join(dir, 'claude'), 0o755)
+    return { ...process.env, PATH: `${dir}${delimiter}${process.env.PATH ?? ''}` }
+  }
+  // The stub fails on the FIRST validate, so the script exits before the suite —
+  // this test costs a second, not a minute (BACKLOG §144, closed the same day).
+  const selftest = (env) => spawnSync('bash', [join(repoRoot, 'scripts', 'selftest.sh')],
+    { cwd: repoRoot, env, encoding: 'utf8', timeout: 300_000 })
+
+  const silent = selftest(stub('exit 3'))
+  assert.equal(silent.status, 3, 'a check that did not run must never read as one that passed')
+  assert.match(silent.stderr, /UNRUN — `claude plugin validate --strict .*` exited 3 and wrote nothing/)
+  assert.match(silent.stderr, /BACKLOG §121/)
+
+  // DIRTY, in the same test: a validate that fails WITH something to say is a
+  // real finding and must NOT be dressed up as could-not-look — otherwise the
+  // fix has only moved the lie to the other side.
+  const noisy = selftest(stub('echo "✖ Validation failed: skills/x/SKILL.md" >&2\nexit 1'))
+  assert.equal(noisy.status, 1)
+  assert.match(noisy.stdout + noisy.stderr, /Validation failed: skills\/x\/SKILL\.md/)
+  assert.doesNotMatch(noisy.stderr, /UNRUN/,
+    'output means the CLI looked and found something; that is a verdict, not a silence')
+})
+
 test('an artifact upload of a dotfile asks for hidden files, or it uploads nothing and says success', () => {
   // `actions/upload-artifact@v4` excludes HIDDEN files by default — even when the
   // path names one explicitly — and `if-no-files-found` then reports the empty
@@ -932,7 +976,12 @@ test('an artifact upload of a dotfile asks for hidden files, or it uploads nothi
   // `include-hidden-files: true` no shard report ever reaches the merge, the
   // merge refuses every run, and nothing anywhere says why. Found by review
   // 2026-09-06, before it ran once.
-  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  // ⚠ CRLF STRIPPED FOR THE STRUCTURAL READ, and the line endings asserted
+  // SEPARATELY (below, via `git check-attr`). These patterns cross line
+  // boundaries, so on a CRLF checkout they find nothing and the test fails naming
+  // a shape that is plainly in the file — which is a finding about git, not about
+  // the workflow (CLAUDE.md §7). Two questions, two checks.
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8').replace(/\r\n/g, '\n')
 
   // A `with:` block per upload step, so the path and the flag are judged together
   // rather than as two independent greps over the whole file.
@@ -968,7 +1017,7 @@ test('every mutation shard computes its slice from one snapshot, not its own cac
   // cannot save it — it forbids reusing a verdict, it cannot measure an entry no
   // shard selected — so a "full" campaign could come back short and
   // release-evidence would accept it.
-  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8').replace(/\r\n/g, '\n')
   const jobOf = (yaml, name) => yaml.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m)
     .find(j => j.startsWith(`${name}:`)) ?? ''
 
@@ -980,8 +1029,13 @@ test('every mutation shard computes its slice from one snapshot, not its own cac
   // shape survived in this file; the cure is always to make the check a function
   // and run both answers through it.
   const resolvesOwnCache = job => /uses: actions\/cache\/restore/.test(job)
+  // ⚠ `\r?\n`, NOT `\n`. This pattern spans a line boundary, and a CRLF checkout
+  // makes `\n` find nothing — the Windows job failed on exactly this line on
+  // 9286898 while every other platform passed, naming a shape that is plainly in
+  // the file (CLAUDE.md §7). `.gitattributes` now pins `*.yml` to LF as well, and
+  // the attribute is asserted below; this makes the check right either way.
   const takesTheSeed = job =>
-    /uses: actions\/download-artifact@v4\n\s+with:\n\s+name: mutation-cache-seed/.test(job)
+    /uses: actions\/download-artifact@v4\r?\n\s+with:\r?\n\s+name: mutation-cache-seed/.test(job)
 
   const mutations = jobOf(workflow, 'mutations')
   assert.ok(mutations.includes('--shard ${{ matrix.shard }}'), 'the matrix job must be the one found')
@@ -992,7 +1046,15 @@ test('every mutation shard computes its slice from one snapshot, not its own cac
 
   // The seed job is where the single lookup lives, and every shard waits for it.
   assert.equal(resolvesOwnCache(jobOf(workflow, 'mutation-cache-seed')), true)
-  assert.match(mutations, /^ {4}needs: mutation-cache-seed$/m)
+  assert.match(mutations, /^ {4}needs: mutation-cache-seed\r?$/m)
+
+  // The rule, not just this instance: a pattern that crosses a line boundary is
+  // only reliable if git puts LF on disk, so ASK GIT rather than reading bytes.
+  const attr = spawnSync('git', ['-C', repoRoot, 'check-attr', 'text', 'eol', '--',
+    '.github/workflows/selftest.yml'], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(attr.status, 0, attr.stderr)
+  assert.match(attr.stdout, /eol: lf/,
+    'the workflow is matched across line boundaries, so it must be checked out LF everywhere')
 
   // DIRTY, through the same two predicates: the shape this rejects must come back
   // true, and a job with neither must come back false — so the checks are shown
@@ -1026,7 +1088,7 @@ test('no job in the release workflow is conditioned so a dispatched run skips it
     .filter(job => /^ {4}if: .*workflow_dispatch/m.test(job))
     .map(job => job.split('\n', 1)[0].replace(':', ''))
 
-  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8')
+  const workflow = readFileSync(join(repoRoot, '.github', 'workflows', 'selftest.yml'), 'utf8').replace(/\r\n/g, '\n')
   assert.ok(workflow.split(/^ {2}(?=[A-Za-z][\w-]*:$)/m).slice(1).length > 1,
     'the split must actually find the jobs, or this asserts nothing')
   assert.deepEqual(skipsItself(workflow), [],

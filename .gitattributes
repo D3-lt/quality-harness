@@ -7,3 +7,10 @@ plugin/bin/* text eol=lf
 *.js text eol=lf
 *.py text eol=lf
 *.cmd text eol=crlf
+# BACKLOG §148 / CLAUDE.md §7: tests/package.test.mjs matches the workflow ACROSS
+# a line boundary (a `uses:` line followed by its `with:` block), and on a CRLF
+# checkout `\n` in that pattern finds nothing. The Windows job said so on
+# 9286898 — the test failed there and nowhere else, naming a shape that is in
+# the file. Asserted with `git check-attr`, never by reading the bytes.
+*.yml text eol=lf
+*.yaml text eol=lf

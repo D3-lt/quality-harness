@@ -18,11 +18,44 @@ ROOT="$REPO/plugin"
 # silently vanishes is the failure mode this project exists to prevent. CI sets
 # QUALITY_HARNESS_REQUIRE_CLI=1 so the absence is an error there, where the CLI
 # is installed on purpose.
+# ⚠ A VALIDATE THAT DIES WITHOUT SAYING ANYTHING IS `UNRUN`, NOT A FAILING GATE.
+# BACKLOG §121, observed three times: this script exits 1 with its output ending
+# at 359 bytes right after a `claude plugin validate --strict`, no message
+# anywhere, and a re-run passes with the whole suite green. `set -euo pipefail`
+# turns any non-zero from that CLI into an immediate exit and the CLI writes
+# nothing on the way out, so the repository's own entry point reported "could not
+# look" in the vocabulary of a verdict — which is exactly what ADR-005 forbids
+# every gate below it from doing.
+#
+# Measured 2026-09-06: 40 consecutive isolated runs of the third validate all
+# exited 0, so this is NOT the CLI failing deterministically and the cause is
+# still unattributed. That is the point of the arm below — it does not need to
+# know the cause to stop the silence. A non-zero WITH output is a real finding
+# and still fails; a non-zero with NO output says so, by name, and still fails,
+# because a check that did not run must never read as one that passed.
+validate() {
+  local target="$1" out code
+  set +e
+  out=$(claude plugin validate --strict "$target" 2>&1)
+  code=$?
+  set -e
+  [ -n "$out" ] && printf '%s\n' "$out"
+  if [ "$code" -ne 0 ]; then
+    if [ -z "$out" ]; then
+      printf 'UNRUN — `claude plugin validate --strict %s` exited %s and wrote nothing at all.\n' \
+        "$target" "$code" >&2
+      printf '  Nothing was validated, and this is not a finding about the manifest. It is\n' >&2
+      printf '  BACKLOG §121s signature; a re-run has passed every time it has been seen.\n' >&2
+    fi
+    exit "$code"
+  fi
+}
+
 verdict="PASS — quality-harness is self-contained and verified."
 if command -v claude >/dev/null 2>&1; then
-  claude plugin validate --strict "$REPO"
-  claude plugin validate --strict "$ROOT/.claude-plugin/plugin.json"
-  claude plugin validate --strict "$ROOT/skills"
+  validate "$REPO"
+  validate "$ROOT/.claude-plugin/plugin.json"
+  validate "$ROOT/skills"
 elif [ "${QUALITY_HARNESS_REQUIRE_CLI:-0}" = "1" ]; then
   printf 'FAIL — the Claude Code CLI is required here and was not found on PATH.\n' >&2
   exit 1

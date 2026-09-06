@@ -9325,6 +9325,28 @@ it — one predicate, two inputs, fixed it. And the Windows entry-guard sweep ca
 `mutation-cache-merge.mjs` comparing `import.meta.url` to a ``file://${process.argv[1]}`` template,
 inert on Windows, which would have exited 0 having merged nothing.
 
+**The Codex review found four things, and the first two meant NONE of this would have worked**
+(`916e124`, `291d292`). `--expect 12`'s operand was collected as a thirteenth report path, so the
+workflow's exact invocation always refused and the save never ran — and the test passed because
+its refusal arm asserted only `/REFUSED/`, which eleven files plus a stray `12` also satisfies.
+`upload-artifact@v4` excludes DOTFILES by default even when the path names one, and
+`if-no-files-found` reports the empty upload as a success, so no shard report would have reached
+the merge and nothing would have said why. Then the one that mattered most for this project's own
+thesis: twelve prefix `cache/restore` lookups are not one snapshot — partial-key matching returns
+the newest match at the moment of each lookup, so a concurrent save hands two jobs different cost
+maps, and two cost maps do not compose into a partition. `--no-cache` cannot save that, because it
+forbids reusing a verdict and cannot measure an entry no shard selected: a "full" campaign could
+have come back complete-looking and short, and `release-evidence` would have accepted it. A
+`mutation-cache-seed` job now resolves the snapshot once and hands every shard the same artifact.
+Fourth, a count is not completeness — twelve reports with `2/12` twice and no `3/12` passed, so
+the merge now requires each identity exactly once.
+
+**And the campaign found the same weak TEST shape twice in one file, hours apart.** Both times an
+`assert.doesNotMatch(realArtifact, ...)` with the counter-fixture checked BESIDE it instead of
+THROUGH it. A negative assertion over the real artifact is unkillable on its own — the artifact
+satisfies almost any weakened form of it. It becomes killable only when the check is a FUNCTION
+and a fixture that must fail goes through the same function. Worth more than either fix.
+
 **LEFT OPEN, and named rather than done quietly:** `--no-cache` fuses "do not reuse" with "do not
 write", so a dispatched run measures all 611 entries and stores none of it. Splitting it would let
 the run a release is cut from refresh the cache it just proved. Not needed for this section.

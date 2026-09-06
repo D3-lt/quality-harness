@@ -5352,6 +5352,69 @@
       ],
       "from": "      if (!stale(file)) { report.kept += 1; continue }",
       "to": "      if (true) { report.kept += 1; continue }"
+    },
+    {
+      "label": "lifecycle: the marker directory sweep unlinks marker-shaped names only (Codex, §146)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  sweep(directory, name => MARKER_NAME.test(name))",
+      "to": "  sweep(directory, name => name !== '.swept')"
+    },
+    {
+      "label": "lifecycle: a generation file is session state and is never age-swept (Codex, §146)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const LEGACY_MARKER = /^quality-harness-(?:said|note)-[0-9a-f]{32}$/",
+      "to": "const LEGACY_MARKER = /^quality-harness-(?:said|gen|note)-[0-9a-f]{32}$/"
+    },
+    {
+      "label": "lifecycle: only a finite guard stamp inside the window holds the sweep (Codex, §146)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (Number.isFinite(last) && last <= now && now - last < SAID_SWEEP_INTERVAL_MS) return report",
+      "to": "  if (now - last < SAID_SWEEP_INTERVAL_MS) return report"
+    },
+    {
+      "label": "lifecycle: a guard that cannot be written stops the sweep (Codex, §146)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    report.unreadable.push(`guard: ${error?.code ?? error}`)\n    return report\n  }",
+      "to": "    report.unreadable.push(`guard: ${error?.code ?? error}`)\n  }"
+    },
+    {
+      "label": "adr-verify: a survivor trace failing outside Exception does not replace the timeout (Codex, §128)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            except BaseException:\n                pass",
+      "to": "            except ValueError:\n                pass"
+    },
+    {
+      "label": "spec-verify: a survivor trace failing outside Exception does not replace the timeout (Codex, §128)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            except BaseException:\n                pass",
+      "to": "            except ValueError:\n                pass"
+    },
+    {
+      "label": "qh-mcp: a survivor trace failing outside Exception does not replace the timeout (Codex, §128)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "            except BaseException:\n                pass",
+      "to": "            except ValueError:\n                pass"
     }
   ]
 }

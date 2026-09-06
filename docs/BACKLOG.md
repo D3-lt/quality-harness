@@ -9758,3 +9758,20 @@ record rather than a patch.
 
 ⚠ Reported against 2.82.0. They have not seen `adr-next`'s `Blocked-on` routing work at all — only
 lint's refusal to let them use the field.
+
+**THE COST, IN CONCRETE TERMS, ON A REAL CORPUS, TODAY.** The reporter marked ADR-002 T3
+`**Status:** blocked` in the task file believing it would stop the router. It stopped nothing — that
+header is read by no tool (§153). Their words: *"the prose in the task is the only thing standing
+between the next session and four eval runs nobody should pay for."*
+
+That is the whole of this section in one sentence. A human looked, decided the work must not
+proceed, wrote it down in the obvious place, and the only thing carrying that decision to the next
+session is prose nobody is required to read. `adr-next` will offer T3 as ready.
+
+⚠ **AND THE TWO MESSAGES ARE DIFFERENT ONES, which matters for anybody verifying this.** §153's fix
+changed the UNKNOWN-STATUS ADVISORY — the line that fires when a README cell carries a word outside
+`done`/`pending`/`blocked`/`partial`. It did NOT change the `Blocked-on`-beside-a-runnable-fence
+REFUSAL, which is a separate `errors.append` and still reads as it did. A reader checking the fix by
+re-adding `Blocked-on:` to a fenced task will see the same refusal as before and could reasonably
+conclude nothing shipped. The refusal already names `pending` or `partial`; what it does not say is
+that nothing routes that case at all, which is the sentence the advisory now carries.

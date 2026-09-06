@@ -983,27 +983,34 @@ drive("unprintable", Job(OSError(5, "x")), raises(Nasty()))
   }
 })
 
-// One module, three gates. Every test above drives plugin/lib/fence.py through
-// adr-verify; this is the proof that spec-verify and qh-mcp run THAT object and
-// not a copy — the identity check, not a re-run. A gate that quietly grew its own
-// run_bounded again would pass everything above and fail here.
-test('spec-verify and qh-mcp run the same fence adr-verify does, not a copy of it', () => {
-  const probe = `import importlib.machinery, importlib.util, sys
+// One module, three gates — and NOT whatever already answers to the name. Every
+// test above drives plugin/lib/fence.py through adr-verify; this proves each
+// gate binds THAT object: not a copy, and not a foreign module a sitecustomize
+// or an embedding loader had already put in sys.modules under "fence" — which
+// `sys.path.insert` cannot displace and a probe showed being used (Codex review,
+// 2026-09-06). Each gate is loaded FIRST in its own process with the fake
+// preloaded, so a guard that only worked because another gate had already fixed
+// sys.modules would fail here.
+test('every gate binds the shared fence from its exact path, displacing a foreign module of the same name', () => {
+  const probe = `import importlib.machinery, importlib.util, os, sys, types
 sys.dont_write_bytecode = True
+fake = types.ModuleType("fence"); fake.run_bounded = lambda *a, **k: None; fake.__file__ = os.path.join("nowhere", "fence.py")
+sys.modules["fence"] = fake
 def load(name, file):
     loader = importlib.machinery.SourceFileLoader(name, file)
     spec = importlib.util.spec_from_loader(name, loader)
     module = importlib.util.module_from_spec(spec)
     loader.exec_module(module)
     return module
-a = load("a", sys.argv[1]); b = load("b", sys.argv[2])
+g = load("g", sys.argv[1])
 import fence
-print(a.run_bounded is fence.run_bounded, b.run_bounded is fence.run_bounded, a.kill_tree is b.kill_tree, fence.__file__)
+a = load("a", sys.argv[2])
+print(g.run_bounded is fence.run_bounded, a.run_bounded is g.run_bounded, fence is not fake, g.run_bounded is not fake.run_bounded, fence.__file__)
 `
-  for (const gate of ['spec-verify', 'qh-mcp']) {
-    const run = runPython(['-c', probe, join(bin, 'adr-verify'), join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+  for (const gate of ['adr-verify', 'spec-verify', 'qh-mcp']) {
+    const run = runPython(['-c', probe, join(bin, gate), join(bin, 'adr-verify')], { encoding: 'utf8', timeout: 30_000 })
     assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
-    assert.match(run.stdout, /^True True True .*[\\/]plugin[\\/]lib[\\/]fence\.py$/m,
-      `${gate}: must import the shared fence, not carry a copy — got ${run.stdout}`)
+    assert.match(run.stdout, /^True True True True .*[\\/]plugin[\\/]lib[\\/]fence\.py$/m,
+      `${gate}: must bind the shared fence from its own path and displace the preloaded fake — got ${run.stdout}`)
   }
 })

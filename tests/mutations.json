@@ -5347,7 +5347,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "if not os.path.isfile(os.path.join(_lib, \"fence.py\")):",
+      "from": "if not os.path.isfile(_fence_file):",
       "to": "if False:"
     },
     {
@@ -5356,7 +5356,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "if not os.path.isfile(os.path.join(_lib, \"fence.py\")):",
+      "from": "if not os.path.isfile(_fence_file):",
       "to": "if False:"
     },
     {
@@ -5365,7 +5365,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "if not os.path.isfile(os.path.join(_lib, \"fence.py\")):",
+      "from": "if not os.path.isfile(_fence_file):",
       "to": "if False:"
     },
     {
@@ -5374,8 +5374,71 @@
       "tests": [
         "tests/mutate-runner.test.mjs"
       ],
-      "from": "  if (testsRun(run.stdout) === 0) return { state: 'unrun', why: 'no test ran — the name pattern selected nothing' }",
-      "to": "  if (false) return { state: 'unrun', why: 'no test ran — the name pattern selected nothing' }"
+      "from": "  if (ran === 0) return run.status === 0 ? { state: 'unrun', why: 'no test ran — the name pattern selected nothing' } : { state: 'fail' }",
+      "to": "  if (ran === 0 && false) return run.status === 0 ? { state: 'unrun', why: 'no test ran — the name pattern selected nothing' } : { state: 'fail' }"
+    },
+    {
+      "label": "mutate: the file wrapper is not counted as a test that ran (Codex, no-match trap)",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "    .filter(m => !(/^\\S+$/.test(m[1]) && /\\.(mjs|js|py|cjs)$/.test(m[1]))).length",
+      "to": "    .length"
+    },
+    {
+      "label": "mutate: an inherited test reporter is stripped from the child's NODE_OPTIONS (Codex)",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const kept = tokens.filter((token, i, all) => !/^--test-reporter(?:-destination)?(?:=|$)/.test(token)",
+      "to": "  const kept = tokens.filter((token, i, all) => true"
+    },
+    {
+      "label": "mutate: NODE_TEST_CONTEXT is dropped from the child, or an inner node --test prints nothing",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  const { NODE_TEST_CONTEXT: _inherited, ...rest } = base",
+      "to": "  const rest = base"
+    },
+    {
+      "label": "mutate: output with no spec lines is unrun, not a pass on exit status (Codex)",
+      "file": "scripts/mutate.mjs",
+      "tests": [
+        "tests/mutate-runner.test.mjs"
+      ],
+      "from": "  if (ran === null) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }",
+      "to": "  if (ran === null && false) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }"
+    },
+    {
+      "label": "adr-verify: a foreign module already named fence is displaced, not used (Codex)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "if os.path.realpath(getattr(_loaded, \"__file__\", None) or \"\") != os.path.realpath(_fence_file):",
+      "to": "if _loaded is None:"
+    },
+    {
+      "label": "spec-verify: a foreign module already named fence is displaced, not used (Codex)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "if os.path.realpath(getattr(_loaded, \"__file__\", None) or \"\") != os.path.realpath(_fence_file):",
+      "to": "if _loaded is None:"
+    },
+    {
+      "label": "qh-mcp: a foreign module already named fence is displaced, not used (Codex)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/timeout-tree.test.mjs"
+      ],
+      "from": "if os.path.realpath(getattr(_loaded, \"__file__\", None) or \"\") != os.path.realpath(_fence_file):",
+      "to": "if _loaded is None:"
     },
     {
       "label": "mutate: `only` actually reaches node as a --test-name-pattern",

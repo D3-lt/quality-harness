@@ -9519,3 +9519,30 @@ It asserts the `why` now: a killed run is named by its signal, not by its silenc
 platform-dependent (Windows is slower), and the other two are a concurrency race and a mutant —
 neither of which `selftest.sh` measures. §15's rule earned again: a local green is not a branch
 being green, and they are different checks.
+
+## 150. OPEN — a mutation verdict is parsed and then discarded when its task has no verification row
+
+Raised by the Codex review of `6896ed6` (2026-09-06) as a MEDIUM against
+`plugin/scripts/trajectory-metrics.mjs`, and left rather than folded into that change because it is
+not a defect in it — the tool is older and the fix is a decision about buckets, not a patch.
+
+`measure` classifies a task first and counts second (`trajectory-metrics.mjs:138-145`). A task with
+no verification entries and one *survived* mutation is `unevidenced`, so the loop `continue`s before
+`totals.survived` is touched: the verdict was read out of the file and then thrown away. The
+reviewer reproduced both shapes — `unevidenced: 1, survived: 0` for a survivor, and the same for an
+inconclusive.
+
+**Why it matters now rather than before:** `plugin/scripts/corpus-report.mjs` publishes those
+counts, so a corpus can print `survived 0` while holding a parsed survived mutant, in a report whose
+whole purpose is to be handed to someone else. A number that is wrong in the flattering direction is
+the worst kind this project can emit.
+
+**Why the existing test misses it:** `tests/trajectory-metrics.test.mjs:37-50` supplies a survivor
+*with* a green verification row, so the task is evidenced and the count lands.
+
+**The decision, not the patch:** whether such a task belongs outside the evidenced ratio (it has
+claimed nothing) while its mutation verdicts are still aggregated in a separate bucket, or whether a
+mutation row alone should make a task evidenced. The first keeps ADR-010's buckets intact and needs
+a second counter; the second changes what "evidenced" has meant across every number this project has
+published. Do not pick one by reading — the ratio is quoted in `README.md` and in the research note,
+so whichever is chosen has to say what the old figures meant.

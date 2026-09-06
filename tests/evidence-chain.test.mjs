@@ -117,6 +117,36 @@ const mutate = copy => verify(copy, [
   '--from', '## Alternatives Considered', '--to', '## Alternatives Considred',
   '--why', 'adr-lint must notice its required alternatives section going missing',
 ])
+test('every refusal wears the tool name, so a scripted caller can see it at all', () => {
+  // BACKLOG §152, reported 2026-09-06 from a Go corpus. `fail()` printed its
+  // message BARE while thirty-seven other lines in adr-verify carry
+  // `[adr-verify]`. A caller grepping for verdict lines swallowed the refusal, the
+  // run looked like it had produced nothing, and — the part that matters — a
+  // non-matching `--mutant --from` and a GENUINE SURVIVOR read identically,
+  // because both end as "no verdict line". Could-not-look wearing the shape of a
+  // verdict (ADR-005), in the tool that enforces that rule on everyone else.
+  //
+  // Driven through the CLI at three DIFFERENT refusal paths rather than one: the
+  // fix is in `fail()`, which is the funnel for sixty-five call sites, and a test
+  // that exercised one would not show that.
+  const copy = corpus()
+  const refusals = [
+    ['--steps', 'bogus'],
+    ['--covers', ''],
+    ['--mutant', 'nowhere.txt', '--from', 'a', '--to', 'b', '--why', 'x'],
+  ]
+  for (const args of refusals) {
+    const out = verify(copy, args)
+    const said = `${out.stdout ?? ''}${out.stderr ?? ''}`.trim()
+    assert.notEqual(out.status, 0, `${args[0]} must be refused:\n${said}`)
+    assert.ok(said.startsWith('[adr-verify]'),
+      `a refusal a grep cannot see is a refusal that did not happen — ${args[0]}:\n${said}`)
+    // Idempotent: a few call sites prefix their own message, and doubling it
+    // would be its own small lie about what the tool printed.
+    assert.doesNotMatch(said, /\[adr-verify\]\s*\[adr-verify\]/, `doubled prefix on ${args[0]}`)
+  }
+})
+
 
 test('adr-lint accepts the entry adr-verify wrote, as it wrote it', () => {
   const copy = corpus()

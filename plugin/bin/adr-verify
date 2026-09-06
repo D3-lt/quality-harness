@@ -599,7 +599,22 @@ def syntax_ok(path):
 
 
 def fail(msg):
-    print(msg)
+    """Refuse, and wear the tool's name while doing it.
+
+    ⚠ A REFUSAL A SCRIPTED CALLER CANNOT SEE IS A REFUSAL THAT DID NOT HAPPEN.
+    Reported 2026-09-06 from a Go corpus: a malformed `--covers` was refused
+    correctly and well worded, but this function printed the message BARE while
+    thirty-seven other lines in this file carry `[adr-verify]`. The caller's
+    `grep -E 'mutant (killed|SURVIVED)'` swallowed it, the run looked like it had
+    produced nothing, and — the part that matters — a non-matching `--mutant
+    --from` and a GENUINE SURVIVOR then read identically, because both end as "no
+    verdict line". That is could-not-look wearing the shape of a verdict
+    (ADR-005), in the tool that enforces that rule on everyone else.
+
+    Idempotent: a few call sites already prefix their own message, and doubling it
+    would be its own small lie about what the tool printed.
+    """
+    print(msg if msg.startswith("[adr-verify]") else f"[adr-verify] {msg}")
     sys.exit(2)
 
 

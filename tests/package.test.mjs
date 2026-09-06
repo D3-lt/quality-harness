@@ -657,6 +657,41 @@ test('every catalogue mutant still parses, so a kill is behavioural', () => {
   }
   assert.deepEqual(unparseable, [],
     'these mutants do not parse, so their RED says the file reached a parser and nothing more')
+
+test('every catalogue entry names tests the campaign can actually spawn', () => {
+  // BACKLOG §119. `scripts/mutate.mjs` spawns `node --test` and nothing else, so
+  // a `.py` path in a `tests:` list is unreachable BY CONSTRUCTION: the entry's
+  // BASELINE fails, the mutant is reported UNPROVEN, and the declaration quietly
+  // grades nothing. That is the honest branch rather than a false RED — but
+  // nothing said so at authoring time, and the fix for the one real instance was
+  // applied at the boundary instead (`8692148`).
+  //
+  // ⚠ IT IS THE DECLARATION SHAPE THAT IS UNREACHABLE, NOT THE PYTHON
+  // ASSERTIONS. Measured 2026-09-06: `tests/gates.test.mjs` SPAWNS
+  // `tests/gate-regressions.py` and asserts its exit status, so every one of that
+  // file's assertions runs inside a campaign that declares the .mjs file — and
+  // `lint: a path::name pointer names a test file...` is killed by
+  // `gate-regressions.py:1738` today. So the catalogue reaches them; it just
+  // cannot NAME them directly.
+  const catalogue = JSON.parse(readFileSync(join(repoRoot, 'tests', 'mutations.json'), 'utf8'))
+  const spawnable = t => /\.(mjs|js|cjs)$/.test(t)
+  const unrunnable = entry => (entry.tests ?? []).filter(t => !spawnable(t))
+
+  const offenders = catalogue.mutations.flatMap(e => unrunnable(e).map(t => `${e.label} -> ${t}`))
+  assert.deepEqual(offenders, [],
+    'node --test cannot run these, so the entry\'s baseline fails and its mutant is UNPROVEN')
+
+  // DIRTY, through the same predicate, so the empty answer above is not vacuous.
+  assert.deepEqual(unrunnable({ tests: ['tests/gate-regressions.py'] }), ['tests/gate-regressions.py'])
+  assert.deepEqual(unrunnable({ tests: ['tests/gates.test.mjs'] }), [])
+
+  // And a declared test file that is not in the repository is a pointer to
+  // nothing — resolved against git, never the disk (CLAUDE.md §8).
+  const inRepo = new Set(tracked())
+  const missing = catalogue.mutations.flatMap(e => (e.tests ?? [])
+    .filter(t => !inRepo.has(t)).map(t => `${e.label} -> ${t}`))
+  assert.deepEqual(missing, [], 'these entries declare a test file the repository does not track')
+})
 })
 
 test('nothing tracked in this repository names a personal filesystem path', () => {

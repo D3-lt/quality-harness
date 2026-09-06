@@ -40,6 +40,7 @@ resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
 which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 """
+import ast
 import hashlib
 import ipaddress
 import json
@@ -3396,6 +3397,38 @@ def test_body(text, name, python=False):
         # dict as the whole body. Every assertion after it was invisible, so
         # correct tests were reported as unable to go red. Python bodies are
         # delimited by indentation, so read them that way.
+        # ⚠ A MULTI-LINE `def` SIGNATURE BROKE THIS, and the failure was a FALSE
+        # ACCUSATION about someone's tests. The closing `):` of a signature spanning
+        # several lines sits at the DEF's OWN indent, so an indentation scan started
+        # at the line after `def` stops there — the "body" was the parameter list and
+        # nothing else, no assertion in it, and `check_tests_can_fail` reported the
+        # test as unable to go red. Reported 2026-09-06 from a foreign corpus doing a
+        # status audit: THIRTEEN tests named, including concurrency and
+        # money-integrity ones, all of which assert. Collapsing one signature to a
+        # single line made the finding vanish and restoring it brought it back.
+        #
+        # Worse than its severity because the message is specific and credible, so
+        # the obvious response is to go and "fix" tests that are correct — and it is
+        # armed by `done`, so it lands on the person doing a status audit, who is
+        # least able to tell tool noise from corpus rot.
+        #
+        # THE PARSER FIRST, not a better heuristic. `ast` knows where a body starts
+        # whatever the signature does, and no counting of brackets survives a default
+        # value like `sep=")"`. The scan below stays as the fallback for a file that
+        # does not parse — a test file mid-edit, or Python this interpreter is older
+        # than — because "I could not parse it" must not become "it cannot fail".
+        try:
+            tree = ast.parse(text)
+        except (SyntaxError, ValueError):
+            tree = None
+        if tree is not None:
+            for node in ast.walk(tree):
+                if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                        and node.name == name and node.body):
+                    start = node.body[0].lineno - 1
+                    end = max(getattr(stmt, "end_lineno", stmt.lineno) for stmt in node.body)
+                    return ''.join(text.splitlines(keepends=True)[start:end])
+            return None
         src_lines = text.splitlines(keepends=True)
         pat = re.compile(r'^(\s*)(?:async\s+)?def\s+' + re.escape(name) + r'\s*\(')
         for i, line in enumerate(src_lines):
@@ -3404,7 +3437,15 @@ def test_body(text, name, python=False):
                 continue
             indent = len(m2.group(1))
             out = [line]
-            for nxt in src_lines[i + 1:]:
+            # Consume the signature before scanning by indentation, or the closing
+            # `):` at the def's own indent ends the body before it begins.
+            depth = line.count('(') - line.count(')')
+            j = i + 1
+            while depth > 0 and j < len(src_lines):
+                out.append(src_lines[j])
+                depth += src_lines[j].count('(') - src_lines[j].count(')')
+                j += 1
+            for nxt in src_lines[j:]:
                 if nxt.strip() and (len(nxt) - len(nxt.lstrip())) <= indent:
                     break
                 out.append(nxt)

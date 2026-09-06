@@ -5688,6 +5688,16 @@
       "only": "partial",
       "from": "            f\"⚠ A STATUS IN THIS FILE ROUTES NOTHING: if the task is waiting on an event OUTSIDE \"",
       "to": "            f\"\""
+    },
+    {
+      "label": "lint: a test body is read with the parser, so a multi-line def signature does not hide its assertions",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "focused false-green regressions remain closed",
+      "from": "                    start = node.body[0].lineno - 1",
+      "to": "                    start = node.lineno - 1"
     }
   ]
 }

@@ -6,9 +6,9 @@
 // digest-bound, mutation-backed log entry rather than a model's say-so. That claim
 // has been exercised on essentially one corpus — this project's own — and a
 // mechanism demonstrated once is a claim about a set of one. The pieces to answer
-// it elsewhere already ship (`trajectory-metrics.mjs`, `claims-rate.mjs`,
-// `adr-verify --sweep`); what was missing was one command that puts a corpus's
-// numbers in front of its owner in a shape they can hand back.
+// it elsewhere already ship (`trajectory-metrics.mjs`, `adr-verify --sweep`); what
+// was missing was one command that puts a corpus's numbers in front of its owner in
+// a shape they can hand back.
 //
 // ⚠ READ-ONLY, AND IT NEVER RUNS YOUR FENCES. Re-checking a recorded claim means
 // executing that task's own acceptance command, which in this repository has meant
@@ -16,6 +16,14 @@
 // that to somebody else's checkout is not a reporting tool. So the expensive half
 // is NOT run here and is NOT guessed at: it is reported as UNRUN, in those words,
 // with the command that would take it (CLAUDE.md §3, ADR-005).
+//
+// ⚠ EVERY PATH THAT LEAVES THIS FILE IS SANITISED, and §6 is a hard requirement
+// here rather than an incidental one: this output is DESIGNED to be posted in
+// public. A first version rewrote only the corpus root and shipped absolute paths
+// anyway — through `unreadableDirs`, and through `outcomeOnlyFiles` in `--json`. A
+// reviewer reproduced a rendered `../../home/alice/...`, which names a person.
+// Nothing path-shaped is printed now except relative to the corpus, and anything
+// escaping it becomes a placeholder rather than a path.
 //
 //   node corpus-report.mjs [<corpus-dir>] [--json]
 
@@ -27,6 +35,28 @@ import { measure, taskFiles } from './trajectory-metrics.mjs'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
+export const OUTSIDE = '<outside the corpus>'
+
+/**
+ * A path safe to publish: relative to `base`, forward slashes, or a placeholder.
+ *
+ * ⚠ THE PLACEHOLDER IS THE POINT. A path escaping `base` cannot be shown relatively
+ * without walking up through directories that name a person, and a different drive
+ * letter or UNC share cannot be relativised at all — `path.win32.relative` hands
+ * back the original absolute path. Those cases lose the PATH rather than the
+ * anonymity. `flavour` is the platform seam (CLAUDE.md §7), so the Windows arm is
+ * reachable from any host.
+ */
+export function publicPath(target, base, flavour = path) {
+  if (typeof target !== 'string' || !target) return OUTSIDE
+  let rel
+  try { rel = flavour.relative(base, target) } catch { return OUTSIDE }
+  if (!rel) return '.'
+  if (flavour.isAbsolute(rel)) return OUTSIDE
+  if (rel.split(/[\\/]/)[0] === '..') return OUTSIDE
+  return rel.split(/[\\/]/).join('/')
+}
+
 /** The shipped version, or null when the manifest cannot be read. */
 export function pluginVersion(read = readFileSync) {
   try {
@@ -34,33 +64,49 @@ export function pluginVersion(read = readFileSync) {
   } catch { return null }
 }
 
-/** Records are the `ADR-*.md` files beside the task directories. */
+/**
+ * How many `ADR-*.md` FILES the corpus root holds, or null when it cannot be read.
+ *
+ * `withFileTypes`, because a DIRECTORY named `ADR-something.md` is not a record and
+ * a name-only match counted one.
+ */
 export function recordCount(root, readdir = readdirSync) {
   try {
-    return readdir(root).filter(name => /^ADR-.*\.md$/.test(name)).length
+    return readdir(root, { withFileTypes: true })
+      .filter(entry => entry.isFile() && /^ADR-.*\.md$/.test(entry.name)).length
   } catch { return null }
 }
 
 /**
- * A corpus's numbers, with the parts nobody measured left as null.
+ * A corpus's numbers, with everything nobody measured left NULL rather than zero.
  *
- * ⚠ NULL IS NOT ZERO ANYWHERE HERE. A corpus directory that cannot be read has a
- * null record count, not a count of nothing, and the renderer says so — the same
- * distinction the gates make between a finding and a failure to look.
+ * ⚠ AN UNREADABLE ROOT HAS NO TOTALS AT ALL. The first version walked an unlistable
+ * directory, found no files, and published a complete set of confident zeros — zero
+ * entries, zero red, zero killed — none of which anyone measured. `taskFiles` puts
+ * the root itself into the unreadable sink when it cannot list it, which is exactly
+ * the signal needed to say UNRUN instead (ADR-005).
  */
 export function collect(root, { read = readFileSync, readdir = readdirSync } = {}) {
   const unreadableDirs = []
   const files = taskFiles(root, unreadableDirs, readdir)
+  const rootUnreadable = unreadableDirs.includes(root)
+  const totals = rootUnreadable ? null : measure(files, read)
   return {
-    root,
     version: pluginVersion(read),
     records: recordCount(root, readdir),
-    unreadableDirs,
-    totals: measure(files, read),
+    rootUnreadable,
+    // Sanitised at the boundary, so no caller can publish one by accident.
+    unreadableDirs: unreadableDirs.filter(dir => dir !== root).map(dir => publicPath(dir, root)),
+    totals: totals && { ...totals, outcomeOnlyFiles: totals.outcomeOnlyFiles.map(f => publicPath(f, root)) },
   }
 }
 
 const pct = (part, whole) => (whole > 0 ? `${Math.round((part / whole) * 100)}%` : 'n/a')
+
+/** A corpus path as an argument someone can paste into a shell. */
+export function asArgument(shown) {
+  return /^[A-Za-z0-9._/-]+$/.test(shown) ? shown : `'${shown.replace(/'/g, "'\\''")}'`
+}
 
 /** The paste-ready block. */
 export function render(report) {
@@ -68,24 +114,40 @@ export function render(report) {
   const lines = [
     `quality-harness corpus report${report.version ? ` · plugin ${report.version}` : ''}`,
     `corpus: ${report.root} · ${report.records === null ? 'records unreadable' : `${report.records} record(s)`}`
-      + ` · ${t.tasks} task file(s)`,
+      + ` · ${t === null ? 'task files UNRUN' : `${t.tasks} task file(s)`}`,
     '',
     'DOES THIS CORPUS PROVE ITS CHECKS CAN FAIL?',
-    `  evidenced tasks        ${t.evidenced} of ${t.tasks}  (a task claiming nothing is outside the ratio)`,
-    `  ... shown able to fail ${t.showsFailing} (${pct(t.showsFailing, t.evidenced)})`
-      + '  — a red acceptance entry, a killed mutant, or both',
-    `  ... outcome only       ${t.outcomeOnly}  — passed, and nothing shows it could have done otherwise`,
-    // ⚠ NO `?? 0` ON THESE. Writing `t.killed ?? 0` turns a RENAMED field into a
-    // confident zero, and this file did exactly that on its first run: it printed
-    // `killed 0 · survived 0` over a corpus holding 151 killed mutants, because the
-    // keys were guessed rather than read. A missing field must read as missing.
-    `  entries ${t.entries} · red ${t.redEntries} · killed ${t.killed}`
-      + ` · survived ${t.survived} · inconclusive ${t.inconclusive}`,
   ]
-  if (t.unreadable) lines.push(`  ⚠ ${t.unreadable} task file(s) could not be read — in neither half of the ratio.`)
+  if (t === null) {
+    lines.push('  UNRUN — the corpus directory could not be listed, so nothing was counted.',
+      '  This is not a corpus with no tasks; it is one nobody could look inside (ADR-005).')
+  } else {
+    lines.push(
+      `  evidenced tasks        ${t.evidenced} of ${t.tasks}  (a task claiming nothing is outside the ratio)`,
+      `  ... shown able to fail ${t.showsFailing} (${pct(t.showsFailing, t.evidenced)})`
+        + '  — a red acceptance entry, a killed mutant, or both',
+      // ⚠ NOT "passed". An entry-shaped row whose exit code could not be read is
+      // counted in the entry total and in NEITHER half, so a task holding only
+      // those lands here having passed nothing. The tool this composes warns about
+      // it; the first version of this renderer dropped that warning and published
+      // `outcome only 1 — passed` over a row nobody could judge.
+      `  ... outcome only       ${t.outcomeOnly}  — nothing shows the check could have failed here`,
+      // ⚠ NO `?? 0` ON THESE. A `??` turns a renamed or absent field into a
+      // confident number, and this file printed `killed 0` over 151 killed mutants
+      // on its first run for exactly that reason.
+      `  entries ${t.entries} · red ${t.redEntries} · killed ${t.killed}`
+        + ` · survived ${t.survived} · inconclusive ${t.inconclusive}`,
+    )
+    if (t.unjudgedEntries) {
+      lines.push(`  ⚠ ${t.unjudgedEntries} entr(ies) are entry-shaped and carry no exit code this could`,
+        '    read. They are in NEITHER red nor green, so a task holding only those reads',
+        '    as outcome-only without anything having passed.')
+    }
+    if (t.unreadable) lines.push(`  ⚠ ${t.unreadable} task file(s) could not be read — in neither half of the ratio.`)
+  }
   if (report.unreadableDirs.length) {
     lines.push(`  ⚠ ${report.unreadableDirs.length} directory(ies) could not be listed: `
-      + `${report.unreadableDirs.slice(0, 3).join(', ')}`)
+      + `${report.unreadableDirs.slice(0, 3).join(', ')} — PARTIAL, not clean.`)
   }
   lines.push(
     '',
@@ -94,7 +156,7 @@ export function render(report) {
     '  acceptance command, and this tool will not do that to your checkout. To take',
     '  that measurement yourself:',
     '',
-    `      adr-verify --sweep ${report.root}`,
+    `      adr-verify --sweep ${asArgument(report.root)}`,
     '',
     '  It reports four disjoint buckets — held, false, superseded, unrunnable — and',
     '  a zero in the false half means something only if the run happened.',
@@ -116,10 +178,10 @@ export function run(argv, { read = readFileSync, readdir = readdirSync, log = co
     return 0
   }
   const given = argv.find(arg => !arg.startsWith('--')) ?? 'docs/adr'
-  // RELATIVE IN THE OUTPUT. This block is meant to be pasted somewhere public, and
-  // an absolute path carries a home directory with it (CLAUDE.md §6).
-  const shown = path.isAbsolute(given) ? (path.relative(cwd, given) || '.') : given
-  const report = { ...collect(given, { read, readdir }), root: shown }
+  // The root is published relative to the WORKING DIRECTORY; one escaping it becomes
+  // a placeholder, because walking up out of a checkout spells a home directory and
+  // a username (CLAUDE.md §6).
+  const report = { ...collect(given, { read, readdir }), root: publicPath(path.resolve(cwd, given), cwd) }
   log(argv.includes('--json') ? JSON.stringify(report, null, 2) : render(report))
   return 0
 }

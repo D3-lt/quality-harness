@@ -5466,6 +5466,15 @@
       ],
       "from": "  for (const part of [mutation.file, mutation.from, mutation.to, mutation.only ?? '']) {",
       "to": "  for (const part of [mutation.file, mutation.from, mutation.to]) {"
+    },
+    {
+      "label": "propose: a proposed entry carries `only`, so the narrowing is in the schema a reader copies",
+      "file": "plugin/scripts/mutate-propose.mjs",
+      "tests": [
+        "tests/mutate-propose.test.mjs"
+      ],
+      "from": "    only: '',",
+      "to": ""
     }
   ]
 }

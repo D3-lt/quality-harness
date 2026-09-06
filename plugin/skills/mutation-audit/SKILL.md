@@ -191,6 +191,32 @@ line.** Narrow means fewest processes started and least state created. It is not
 test tier — a unit test with a database fixture is expensive, an end-to-end test
 with none is cheap. Choose by what a test builds, never by what it is called.
 
+**How to say it.** The narrowing is a test-name filter your runner already has, and
+the entry carries it beside `tests` — `only` in this catalogue's schema:
+
+| runner | flag |
+|---|---|
+| `node --test` | `--test-name-pattern <regex>` |
+| pytest | `-k <expr>` |
+| `go test` | `-run <regex>` |
+| `cargo test` | a positional `<substring>` — nextest takes one too, or `-E <filterset>` |
+
+Take the value from the runner's own report of WHAT KILLED the mutant, never from a
+guess: a campaign prints the failing test's name, so one full campaign hands you every
+value. ⚠ It does not WRITE them — a killer's name is not yet a filter. Half of these
+runners take a regex and half take a substring, so a name carrying `(`, `.` or `[`
+matches something else, or nothing, until you escape it. Translate it yourself, put it
+in the entry, and prove the narrowed run still kills the mutant before you trust it.
+
+⚠ **A filter that matches NOTHING is the trap, and it fails differently per runner.**
+`node --test` exits **0** and reports the FILE as one passing test, so a mutant under
+it reads GREEN — "the tests did not notice", said of tests that never ran. pytest
+exits **5** (no tests collected), so a runner checking only `!= 0` calls it a kill.
+Opposite symptoms, one rule: a filter that selected nothing is an UNRUN baseline and
+its mutant is UNPROVEN, never a verdict either way (ADR-005). Check what your runner
+reports RAN, not just what it exited with — and use the same filter for the mutant and
+its baseline, or the baseline licenses a different measurement than the one taken.
+
 Five rules, in the order they save the most:
 
 1. **A mutant never owns setup.** A database, container or server is built once for

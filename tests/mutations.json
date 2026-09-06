@@ -5698,6 +5698,16 @@
       "only": "focused false-green regressions remain closed",
       "from": "                    start = node.body[0].lineno - 1",
       "to": "                    start = node.lineno - 1"
+    },
+    {
+      "label": "verify: every refusal wears the tool name, so a scripted caller can tell one from a survivor",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "every refusal wears the tool name",
+      "from": "    print(msg if msg.startswith(\"[adr-verify]\") else f\"[adr-verify] {msg}\")",
+      "to": "    print(msg)"
     }
   ]
 }

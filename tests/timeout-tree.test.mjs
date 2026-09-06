@@ -910,3 +910,56 @@ print(repr(drive(False, Job([1, 2]), processes)), len(snapshots) - before)
     assert.match(silent, /^'' 0$/, `${gate}: with the flag unset nothing is written and no snapshot is taken — ${silent}`)
   }
 })
+
+// ADR-005, and the reason kill_tree carries a NEVER RAISES contract: the
+// survivor trace runs while a TimeoutExpired is in flight, so anything
+// escaping it REPLACES that exception and the caller reports a gate that did
+// not start rather than one that timed out. The inner handlers catch
+// Exception; two things get past them, and both are driven here. Found by the
+// Codex review of 292fed8, which is also why the ordinary-OSError test above
+// could not catch it: its failures are all Exceptions.
+test('a survivor trace that fails outside Exception does not replace the timeout', () => {
+  const probe = `import importlib.machinery, importlib.util, io, os, subprocess, sys
+sys.dont_write_bytecode = True
+loader = importlib.machinery.SourceFileLoader("gate_probe", sys.argv[1])
+spec = importlib.util.spec_from_loader(loader.name, loader)
+module = importlib.util.module_from_spec(spec)
+loader.exec_module(module)
+class Boom(BaseException):
+    pass
+class Nasty(Exception):
+    def __str__(self): raise RuntimeError("this exception cannot be printed")
+class Proc:
+    pid = 4242; stdout = stderr = stdin = None
+    def communicate(self, timeout=None): raise subprocess.TimeoutExpired("x", timeout)
+class Job:
+    def __init__(self, blow): self.blow = blow
+    def terminate(self): return True
+    def members(self): raise self.blow
+def raises(what):
+    def go(): raise what
+    return go
+os.environ["QUALITY_HARNESS_TRACE_TIMEOUT"] = "1"
+real = sys.stderr
+def drive(label, job, procs):
+    buf = io.StringIO(); sys.stderr = buf
+    try:
+        out, err, killed = module.drain_after_kill(Proc(), "nt", grace=0.01, job=job, processes=procs)
+        sys.stderr = real
+        print(label, "returned", out is None, err is None, killed, flush=True)
+    except BaseException as escaped:
+        sys.stderr = real
+        print(label, "ESCAPED", type(escaped).__name__, flush=True)
+drive("base_processes", Job(OSError(5, "x")), raises(Boom()))
+drive("base_members", Job(Boom()), lambda: [])
+drive("unprintable", Job(OSError(5, "x")), raises(Nasty()))
+`
+  for (const gate of ['spec-verify', 'qh-mcp', 'adr-verify']) {
+    const run = runPython(['-c', probe, join(bin, gate)], { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status, 0, `${gate}\n${run.stdout}${run.stderr}`)
+    for (const label of ['base_processes', 'base_members', 'unprintable']) {
+      assert.match(run.stdout, new RegExp(`^${label} returned True True True$`, 'm'),
+        `${gate}: ${label} must be swallowed by the drain, not raised through it — got ${run.stdout}`)
+    }
+  }
+})

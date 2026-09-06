@@ -8797,3 +8797,74 @@ condition and the two documentation claims' replacements.
 **What this costs.** A release now needs a deliberate dispatch and a wait; forgetting it produces a
 refusal rather than a silent under-evidenced tag, which is the trade this project always takes. An
 ordinary push to `main` drops from about 23 minutes to a few.
+
+## 143. A gate's verdict never says which binary reached it, so a version skew reads as an accusation about your code
+
+**Reported from outside, by a session running these gates on the agentsmemory corpus (GitHub issue
+D3-lt/quality-harness#11, 2026-09-05).** It reported two defects. Both were real, both were already
+fixed here, and neither was the finding. The finding is that it took a cross-session conversation to
+establish which build had answered.
+
+**What they measured.** Four verdicts over ONE unchanged foreign tree:
+
+| build they ran | verdict |
+|---|---|
+| `~/.claude/bin/adr-lint` (forwarder, resolves to newest INSTALLED) | exit 0, `[PASS]` |
+| a quality-harness working checkout, mid-BACKLOG-139 | exit 1, three FALSE "no executable definition" on real `func Test` declarations |
+| installed plugin 2.19.0 | exit 1, 21 Verification Log grammar findings |
+
+They read the disjoint failure sets as two divergent lineages, "each fixed one half and broke the
+other". It was one lineage: 2.19.0 predates `MS_FIELD` (`plugin/bin/adr-lint`, landed `dab3afe`,
+first released v2.47.0), and the checkout was inside the roughly six hours between issue #7's fix and
+§139's. Both halves are in 2.79.0 together, and 2.79.0 answers `[PASS]` on both of their records.
+
+**The mechanism, and it is not the regexes.** A gate's verdict names the RECORD it judged and never
+the BINARY that judged it. It is one line — `plugin/bin/adr-lint:4451-4454` computes `PASS`/`FAIL`
+and prints `[{status}] {adr} + {tasks_dir}` — while `report_version()` sits at `:4247`, reachable
+only through `--version` (ADR-031).
+So a stale gate's output is indistinguishable from a current gate's, and the only reading available
+to the person holding it is "the linter is wrong about my tree". That reading is unreachable from the
+next sighting. "Build X at version Y disagrees with build Z" is one lookup.
+
+⚠ **This class has now been reported three times and was a build problem every time**, including once
+into this project's own memory inbox on 2026-09-05 (ADR-045 T3, "the func exists at
+`description_test.go:97`"). Three reporters, three descriptions of a corpus defect, zero mentions of
+a version — because nothing in front of them mentioned one either.
+
+**And the arrow reverses, which makes the ambiguity two-sided.** `DURATION_REQUIRED_FROM =
+"2026-09-02"` means a current build treats a post-that-date row WITHOUT `ms:` as a finding, while a
+pre-v2.47.0 build treats the same row WITH `ms:` as a finding. One corpus of mixed-age evidence rows
+can be told it is wrong in either direction depending on which binary ran, with nothing in either
+message naming the binary. [the reversal is the reporter's observation, sharpened from mine.]
+
+**The class, enumerated with a command, not from memory.**
+
+```bash
+for g in plugin/bin/*; do python3 "$g" --version; done   # 2026-09-05
+grep -ln 'resolve().*__file__' plugin/bin/*              # no match outside the --version path
+```
+
+Eleven gates — `adr-debt`, `adr-judge`, `adr-lint`, `adr-next`, `adr-retire-check`, `adr-verify`,
+`arch-lint`, `postmortem-verify`, `qh-mcp`, `qh-root`, `spec-verify` — every one of them answers
+`--version` with its name, its version and its plugin root. **Not one prints any of it in a verdict.**
+So this is eleven members, not one, and `--version` is precisely the flag nobody runs at the moment a
+gate is accusing their code. `qh-mcp` is the sharpest case: over MCP there is no shell to run a flag
+in at all.
+
+**What is not yet decided**, and is the reason this is a backlog entry rather than a task file:
+
+- Whether the identification belongs on EVERY verdict or only on a non-empty finding list. A `[PASS]`
+  line that grew a version is noise for the ninety-nine runs where nothing is wrong; a `[PASS]` from
+  a stale binary is exactly the false reassurance the forwarder gave the reporter.
+- Whether it names the version alone or the resolved path too. The path is what distinguishes a
+  working checkout from a plugin cache from a forwarder, which is the distinction that cost this
+  incident two days — but `CLAUDE.md` §6 forbids an absolute home path reaching a commit, and a
+  fixture asserting one would carry it into the repository. The path must be assembled and asserted
+  structurally, never written into a literal.
+- Whether `adr-verify` writes it into the Verification Log row. Tempting, and probably wrong: the row
+  is evidence about a RUN, the grammar is already versioned by `DURATION_REQUIRED_FROM`, and widening
+  a tool-written line is how a log stops being comparable across ages.
+
+**Not scheduled.** Filed with the reporter's two corpora as the evidence, credited to them; they
+isolated `ms:` as the cause on PR #294 after having it as vague version skew, then reproduced the
+inverse direction on #295.

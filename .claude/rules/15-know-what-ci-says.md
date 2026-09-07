@@ -34,14 +34,22 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
 - **The release line anchors on the FORGE's newest release, not on `git describe`** (BACKLOG §157).
   `git describe` reads local refs and `gh release create` tags the remote, so the machine that cuts
   the releases is the one whose anchor goes stale — it claimed four shipped versions were unreleased
-  work, on every prompt. The forge is asked only when the local anchor says something is pending, so
-  a repository with nothing to release pays nothing; when `gh` cannot answer the anchor stays local
-  and the line SAYS it is local, because that is a different observation.
+  work, on every prompt. ⚠ **The forge is asked UNCONDITIONALLY**, and the first version did not:
+  it asked only when the local anchor already said something was pending, which hides a local tag
+  NEWER than the release and a clone with no tag at all. Saving a subprocess by deciding in advance
+  that the answer will not change is the same mistake as not looking.
+- **`releaseAnchor` returns a KIND, never null**, because "no release cut", "there is one and it is
+  a draft", "HEAD does not descend from it" and "I could not ask" are four answers and only the
+  first may be silent. A refusal carries the tag NAME so the local fallback cannot re-anchor on the
+  tag that was just refused — a prerelease at HEAD did exactly that.
 - It **reads**. It blocks nothing, judges nothing about the work, and exits 0 whatever it finds
   (`CLAUDE.md` §3).
 - **Could-not-look is said in those words.** An absent `gh`, no network, and a genuinely green
   branch must not look alike — that is ADR-005 applied to this reader, and it is why the "no `gh`"
-  arm prints `NOT a green branch; an unknown one` rather than staying quiet.
+  arm prints `NOT a green branch; an unknown one` rather than staying quiet. The release line says
+  it too: a diff that never ran and one that ran and found nothing were both rendered as SILENCE
+  until 2026-09-07, so a spent collection budget read as "nothing to release". `budgeted` marks a
+  command it PREVENTED, which is what makes the two distinguishable at all.
 - **It reports state, never permission.** `scripts/release-evidence.mjs <sha>` is still the only
   thing that answers "may this sha be released", and this reader deliberately does not restate its
   verdict (§13.4).

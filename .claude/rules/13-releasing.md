@@ -68,4 +68,13 @@ evidence hole is `release-evidence.mjs`: it reads the run's `event`, and a sha w
 push is `cached` — exit 2, "could not look at a full campaign", never `SUCCESS`. A run that does not
 say what raised it is `unreadable` for the same reason. Both are mutants.
 
+⚠ **AND THE ORDER MATTERS BY ONE SECOND.** The push and the dispatch raise runs at the same sha, and
+`release-evidence` judges the NEWEST — so which one it reads is decided by whether the push webhook
+or the `gh workflow run` API call registers first. Measured over four releases on 2026-09-07: the
+push won by one second on two of them and the release was refused `CACHED` both times, costing a full
+ten-minute campaign each (BACKLOG §159). **Wait until the push's own run exists before dispatching**
+(`gh run list --commit <sha> --limit 1` until it answers). That makes the dispatch unambiguously
+newer and needs no change to the tool — §154 already breaks an exact TIE toward `workflow_dispatch`,
+and this is not a tie, it is a loss.
+
 `gh release create vX.Y.Z --latest` — `--latest` is not the default and has been forgotten.

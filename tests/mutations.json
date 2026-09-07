@@ -5122,22 +5122,31 @@
       "to": "  if (!name) return null"
     },
     {
-      "label": "branch-state: a release commit this clone lacks is not an anchor",
+      "label": "branch-state: a release that is not an ancestor of HEAD is not an anchor",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (!run(['git', 'cat-file', '-e', `${sha}^{commit}`]).ok) return null",
-      "to": "  run(['git', 'cat-file', '-e', `${sha}^{commit}`])"
+      "from": "  if (!run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD']).ok) return null",
+      "to": "  run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'])"
     },
     {
-      "label": "branch-state: the forge is asked only when the local anchor says work is pending",
+      "label": "branch-state: a draft or prerelease is not what shipped",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (anchor && shipped && shipped.ok && shipped.out) {",
-      "to": "  if (anchor && shipped && shipped.ok) {"
+      "from": "  if (json?.isDraft || json?.isPrerelease) return null",
+      "to": "  if (false) return null"
+    },
+    {
+      "label": "branch-state: the forge anchor wins over the local tag, not the other way round",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const anchor = release ?? local",
+      "to": "  const anchor = local ?? release"
     },
     {
       "label": "branch-state: a locally-anchored release line says its anchor is local",
@@ -5311,13 +5320,13 @@
       "to": "  const tied = candidates"
     },
     {
-      "label": "release-evidence: an unreadable createdAt is not silently ordered",
+      "label": "release-evidence: an ordering nothing can establish is refused, not guessed",
       "file": "scripts/release-evidence.mjs",
       "tests": [
         "tests/release-evidence.test.mjs"
       ],
-      "from": "  if (candidates.some(r => at(r) === null)) return candidates[0]",
-      "to": "  if (false) return candidates[0]"
+      "from": "  if (candidates.some(r => at(r) === null)) return null",
+      "to": "  if (candidates.some(r => at(r) === null)) return candidates[0]"
     },
     {
       "label": "fence: the survivor walk finds the grandchild, not only the child (§128)",

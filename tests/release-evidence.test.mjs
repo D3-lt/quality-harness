@@ -194,23 +194,39 @@ test('a newer push still wins over an older dispatch', () => {
 })
 
 test('the newest dispatch is chosen with no tie to break', () => {
+  // The OLDER run is first, deliberately. With the dispatch already at index 0
+  // this test passed for a `selectRun` that only ever returned `runs[0]` — it
+  // named a behaviour it did not exercise, which is the vacuity coverage cannot
+  // see (CLAUDE.md §4). Named by a different-lineage review, 2026-09-07.
   const runs = [
-    { databaseId: 3, event: 'workflow_dispatch', createdAt: '2026-09-06T19:12:00Z' },
     { databaseId: 2, event: 'push', createdAt: '2026-09-06T19:11:25Z' },
+    { databaseId: 3, event: 'workflow_dispatch', createdAt: '2026-09-06T19:12:00Z' },
   ]
   assert.equal(selectRun(runs)?.databaseId, 3)
 })
 
-test('a timestamp nothing can read is not silently ordered', () => {
-  // ADR-005 applied to the ordering itself. With no comparable times the
-  // pre-§154 behaviour — gh's own first — is kept, rather than a ranking
-  // invented over values that do not compare. Here that means the PUSH, so the
-  // fallback is visibly the conservative one and not a way to smuggle a pass.
-  const runs = [
+test('an ordering nothing can establish is refused, not guessed', () => {
+  // ADR-005 applied to the ordering itself. This used to fall back to gh's own
+  // first entry, on the reasoning that it was the pre-§154 behaviour — and a
+  // different-lineage review named the flattering shape that hides: gh's first
+  // could be an OLDER successful dispatch while a newer push exists, and the
+  // caller would read SUCCESS where the honest answer is CACHED. Refusing costs
+  // the caller exit 2, which is the answer it should get.
+  assert.equal(selectRun([
     { databaseId: 7, event: 'push', createdAt: 'not a time' },
     { databaseId: 8, event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' },
-  ]
-  assert.equal(selectRun(runs)?.databaseId, 7)
+  ]), null)
+  assert.equal(selectRun([
+    { databaseId: 9, event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' },
+    { databaseId: 10, event: 'push' },
+  ]), null, 'an absent createdAt is as unorderable as an unparseable one')
+
+  // Shown able to answer the other way in the same test: when every timestamp
+  // parses, this still returns a run. Refusing everything would satisfy the two
+  // assertions above and break the tool.
+  assert.equal(selectRun([
+    { databaseId: 11, event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' },
+  ])?.databaseId, 11)
 })
 
 test('nothing to choose from is null, and a run with no id is not a choice', () => {

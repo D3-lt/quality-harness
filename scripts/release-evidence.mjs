@@ -120,7 +120,15 @@ export function evaluateRun(run) {
  * must never be resurrected, because the push is the newer question and its
  * campaign may have reused cached verdicts. That is the hole §142 closed.
  *
- * Pure and exported so the tie is reachable from a test with no network.
+ * ⚠ EVERY CANDIDATE MUST BE ORDERABLE, or this refuses. An earlier version fell
+ * back to gh's own order when a `createdAt` would not parse, on the reasoning
+ * that it was the behaviour before the tie-break existed. That is a flattering
+ * answer waiting to happen: gh's first entry could be an OLDER successful
+ * dispatch while a newer push exists, and the caller would read SUCCESS where the
+ * honest answer is CACHED. Ordering that cannot be established is "could not
+ * look" (ADR-005), and the caller already has an exit code for that.
+ *
+ * Pure and exported so every arm is reachable from a test with no network.
  */
 export function selectRun(runs) {
   if (!Array.isArray(runs)) return null
@@ -130,10 +138,9 @@ export function selectRun(runs) {
     const t = Date.parse(String(r.createdAt ?? ''))
     return Number.isNaN(t) ? null : t
   }
-  // A run whose timestamp cannot be read is not silently ordered. Keeping gh's
-  // own order is what this did before the tie-break existed; inventing a ranking
-  // over values that do not compare would be a verdict taken without looking.
-  if (candidates.some(r => at(r) === null)) return candidates[0]
+  // Ordering nothing could establish is not ordering. Refusing here costs the
+  // caller exit 2, which is the answer it should get.
+  if (candidates.some(r => at(r) === null)) return null
   const newest = Math.max(...candidates.map(at))
   const tied = candidates.filter(r => at(r) === newest)
   return tied.find(r => r.event === 'workflow_dispatch') ?? tied[0]
@@ -161,8 +168,15 @@ function fetchRun(sha) {
     // More than one run per sha is the norm, and `--limit 1` would hand the tie
     // above straight back to gh's ordering. `event` and `createdAt` are asked
     // for because `selectRun` decides on both.
+    //
+    // ⚠ AND IT IS FILTERED TO THE CAMPAIGN WORKFLOW. `--commit` alone returns
+    // every workflow that ran at this sha, and `selectRun` prefers ANY
+    // `workflow_dispatch` on a tie — so an unrelated dispatched workflow could win
+    // the tie against the selftest push and clear a sha whose campaign was cached.
+    // `--limit 1` had the same exposure and nobody had named it. The release
+    // question is about ONE workflow (CLAUDE.md §13.3), so it is asked about one.
     list = execFileSync('gh', [
-      'run', 'list', '--commit', full, '--limit', '20',
+      'run', 'list', '--commit', full, '--workflow', 'selftest.yml', '--limit', '20',
       '--json', 'databaseId,event,createdAt',
     ], { encoding: 'utf8', timeout: 60_000 })
   } catch {

@@ -5320,6 +5320,15 @@
       "to": "    'run', 'list', '--commit', fullSha, '--limit', '20',"
     },
     {
+      "label": "release-evidence: a short sha is expanded before gh is asked",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    full = exec('git', ['rev-parse', sha], { encoding: 'utf8', timeout: 30_000 }).trim()",
+      "to": "    exec('git', ['rev-parse', sha], { encoding: 'utf8', timeout: 30_000 })"
+    },
+    {
       "label": "fence: the survivor walk finds the grandchild, not only the child (§128)",
       "file": "plugin/lib/fence.py",
       "tests": [

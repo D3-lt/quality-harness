@@ -218,11 +218,23 @@ export function collect(run = shell) {
  * that no adopter can install.
  */
 /**
- * What `gh` says when the answer is "this repository has no release", as opposed
- * to "I could not tell you". The distinction is the whole of `absent` vs
- * `unknown`: one may be silent and the other may not.
+ * The `gh` diagnostics that positively mean "there is no release to compare
+ * against here", as opposed to "I could not tell you". The distinction is the
+ * whole of `absent` vs `unknown`: one may be silent and the other may not, so
+ * membership is by EXACT diagnostic and never by HTTP status.
+ *
+ * ⚠ `HTTP 404` WAS IN HERE AND IS NOT EVIDENCE OF ANYTHING. A missing repository,
+ * a wrong remote and a private repository the token cannot see all return 404,
+ * and each of those was being read as "no release cut" — silence over a state
+ * nobody had established. `gh` says `release not found` when the repository is
+ * readable and holds none, which is the actual observation.
+ *
+ * `none of the git remotes` is the not-applicable case and belongs here rather
+ * than in `unknown`: a repository that is not on GitHub has no forge release to
+ * be uncertain about, and telling its owner so on every prompt is BACKLOG §152
+ * exactly.
  */
-const NO_RELEASE = /release not found|no releases found|HTTP 404/i
+const NO_RELEASE = /release not found|no releases found|none of the git remotes/i
 
 export function releaseAnchor(run) {
   const answer = run(['gh', 'release', 'view', '--json',
@@ -311,21 +323,29 @@ export function render(state, { brief = false } = {}) {
     alarm = true
   }
 
-  const release = state.shippedSinceTag
+  // ⚠ A COUNT AND A BLOCKED FORGE ARE BOTH TRUE AT ONCE, and this used to choose.
+  // The reasoning was that a non-empty count is not silence and the local hedge
+  // already says where the number came from — which a fourth review round
+  // overturned, correctly: the local tag can be NEWER than the published release,
+  // so the count UNDERSTATES the unreleased work while omitting the reason it
+  // might. Understating is the flattering direction, and the hedge says the anchor
+  // is local, not that the forge was unreadable. Both clauses now.
+  const counted = state.shippedSinceTag
     ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}`
       + `${state.tagKind === 'release' ? ''
         : ', the newest tag THIS CLONE knows — a release tagged on the forge would not be here'}`
       + ' — §13: a green shipped change is released, not parked.'
-    // A question that could not be put is not an answer of nothing. Silence here
-    // reads as "nothing to release", which is the one thing this must never say
-    // without having looked (ADR-005).
-    : state.releaseBlocked
-      // Self-labelling, because the BRIEF form has no `release` column and a bare
-      // "COULD NOT LOOK" one dot after the CI verdict reads as a CI failure. That
-      // line fires on every prompt; it has to be right on its own.
-      ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `
-        + 'That is not "nothing to release".'
-      : null
+    : null
+  // A question that could not be put is not an answer of nothing. Silence here
+  // reads as "nothing to release", which is the one thing this must never say
+  // without having looked (ADR-005). Self-labelling, because the BRIEF form has no
+  // `release` column and a bare "COULD NOT LOOK" one dot after the CI verdict
+  // reads as a CI failure — and that line fires on every prompt.
+  const unknown = state.releaseBlocked
+    ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `
+      + 'That is not "nothing to release".'
+    : null
+  const release = [counted, unknown].filter(Boolean).join(' · ') || null
 
   if (brief) {
     return [`${head} · ${alarm ? '⚠ CI ' : 'CI '}${ci}${release ? ` · ${release}` : ''}`,

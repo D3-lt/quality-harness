@@ -5172,8 +5172,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "      ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `\n        + 'That is not \"nothing to release\".'\n      : null",
-      "to": "      ? null\n      : null"
+      "from": "  const unknown = state.releaseBlocked\n    ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `\n      + 'That is not \"nothing to release\".'\n    : null",
+      "to": "  const unknown = null"
     },
     {
       "label": "branch-state: only a forge that SAYS there is no release may be silent",
@@ -5181,8 +5181,26 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    return NO_RELEASE.test(answer.note ?? '')",
-      "to": "    return true"
+      "from": "const NO_RELEASE = /release not found|no releases found|none of the git remotes/i",
+      "to": "const NO_RELEASE = /release not found|no releases found|none of the git remotes|HTTP 404/i"
+    },
+    {
+      "label": "branch-state: a repository not on GitHub is quiet rather than uncertain",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "const NO_RELEASE = /release not found|no releases found|none of the git remotes/i",
+      "to": "const NO_RELEASE = /release not found|no releases found/i"
+    },
+    {
+      "label": "branch-state: a count does not suppress the forge failure beside it",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const release = [counted, unknown].filter(Boolean).join(' · ') || null",
+      "to": "  const release = counted ?? unknown"
     },
     {
       "label": "branch-state: a blocked forge stays blocked when a local tag answers",

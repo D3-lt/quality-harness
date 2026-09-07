@@ -70,6 +70,8 @@ Trajectory-level detection, and any change to `hedged`, `limited` or `unavailabl
 
 ## Verification Log
 
+- 2026-09-07 · aceb7c3 · exit 0 · `set -o pipefail …` · acceptance-sha256:1d4d4876207fe5ada955d4076f4451897d52c2007a4a52fe6005d785b88d8931 · ms:156
+
 ## Invariants
 
 - No classification accuses a message of claiming completion.

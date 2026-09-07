@@ -9862,3 +9862,79 @@ removed from a Stop guard, plus a stale `.mutate-inflight.json` and `.mutate-loc
 `tests/package.test.mjs::no mutation tool left a gate neutered in this tree` caught it on the next
 run; `git checkout` restored it because the file was tracked and otherwise clean. The guard worked,
 and the rule it enforces was broken by the session that wrote the guard's own backlog entries.
+
+## 157. CLOSED 2026-09-07 — the release line anchored on a LOCAL tag, so the machine that cuts the releases is the one it lies to
+
+Found by a briefing-only `/am` on a clean tree at `46a2656`, which is to say: found by reading the
+nag instead of filtering it. The hook printed, on every prompt:
+
+```
+release  plugin/ changed in 8 file(s) since v2.81.0 — §13: a green shipped change is released, not parked.
+```
+
+**The count was TRUE and the conclusion was FALSE.** Those eight files did change since v2.81.0 —
+and every one of them shipped, across v2.82.0, v2.83.0, v2.84.0 and v2.85.0. `git ls-remote --tags
+origin` put `refs/tags/v2.85.0` at `46a265611ecf407b1fab10faa2c364c1e0e3b188`, which was HEAD
+exactly, and `git diff --name-only 14fc5a6..HEAD -- plugin/` was empty. §13's own "plugin/ unchanged
+means nothing to release" was the right answer, and the reader said the opposite for four releases.
+
+Cause, one line, `plugin/scripts/branch-state.mjs`:
+
+```js
+const tag = run(['git', 'describe', '--tags', '--abbrev=0'])
+```
+
+`git describe` reads LOCAL refs. `gh release create` — what §13 step 7 tells you to run — creates
+the tag on the FORGE. A clone that never fetched stops at the last tag it happened to have. So the
+anchor is the newest local tag while the sentence is phrased about the newest RELEASE, and the two
+diverge silently on exactly the machine that does the releasing.
+
+**Enumerated with a command, not from memory** (`CLAUDE.md` §5): `git grep -n "describe --tags"
+-- scripts plugin/scripts` returns ONE member. No sibling to leave behind.
+
+**Two things this is a member of.** `CLAUDE.md` §8 — a check whose answer depends on what is on your
+disk — and BACKLOG §152, *advice that fires every run trains filtering*. §152's evidence was
+`adr-lint`'s fence advice, which was true-but-unactionable. This is worse: a false conclusion, every
+prompt, in the product whose subject is false claims about work. §152 stays open on its own terms;
+this is its second instance and the sharper one.
+
+**AND THE LINE HAD NO TEST.** `tests/branch-state.test.mjs` covered green, red, still-running,
+could-not-look, the cache, the budget and the seam — and never once rendered a state with
+`shippedSinceTag > 0`. That is how it shipped, and it is the whole lesson: the arm nobody asserted
+is the arm that was wrong.
+
+**THE FIX.** `releaseAnchor` asks the forge for its newest release and diffs from that commit. It is
+asked ONLY when the local anchor already claims something is pending — the one case where the advice
+fires — so a repository with nothing to release spawns no third subprocess inside the 8s hook
+budget. That restriction is asserted by a test that spies on the process table, not assumed.
+
+Null is a real answer and the COMMON one for adopters: no `gh`, not a GitHub remote, no releases cut
+at all. Then the anchor stays local and the line says so — *"the newest tag THIS CLONE knows — a
+release tagged on the forge would not be here"* — because that and "the newest release" are
+different observations and ADR-005 forbids printing them alike.
+
+⚠ **The arm that would have failed silently and flatteringly:** `targetCommitish` is a branch NAME
+for a release cut from a branch. Diffing against it anchors on the branch tip, which is HEAD, so it
+would report nothing unreleased FOR EVER. Only a 40-hex value is accepted and the commit must be one
+this clone holds.
+
+```
+node scripts/mutate.mjs --case 'branch-state: a targetCommitish'
+  RED  a targetCommitish that is not a sha is not an anchor
+node scripts/mutate.mjs --case 'branch-state: a release commit this clone lacks'
+  RED  a release commit this clone lacks is not an anchor
+node scripts/mutate.mjs --case 'branch-state: the forge is asked only'
+  RED  the forge is asked only when the local anchor says work is pending
+node scripts/mutate.mjs --case 'branch-state: a locally-anchored release line'
+  RED  a locally-anchored release line says its anchor is local
+bash scripts/selftest.sh   exit 0, 789 tests
+```
+
+**NOT fixed, and deliberately:** `git fetch --tags` was the obvious move and it is the wrong one —
+it silences the symptom on one machine and makes the defect unreproducible for everybody else. The
+state was left alone until the mechanism was fixed.
+
+**Left open by this:** the forge lookup asks for the newest release of the repository the `gh`
+remote resolves to, whatever branch it was cut from. A repository that maintains release branches
+would anchor a feature branch on a release from another line and undercount. Nothing here detects
+that; it needs a repository shaped that way to be worth solving.

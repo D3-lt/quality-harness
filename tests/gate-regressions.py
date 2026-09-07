@@ -701,6 +701,7 @@ def main():
     test_a_digestless_row_must_already_be_committed(lint)
     test_the_expected_digest_is_not_printed(lint)
     test_a_permanent_advisory_names_its_entry(lint)
+    test_advice_survival_uses_the_real_store_and_gits_own_path(lint)
     test_advice_survival_counts_only_what_came_back_unchanged(lint)
 
     acceptance = "printf first\nprintf second"
@@ -3117,6 +3118,7 @@ def test_advice_survival_counts_only_what_came_back_unchanged(lint):
         return json.loads(store[0])
     def write(data):
         store[0] = json.dumps(data)
+        return True  # a write that stored is what licenses returning a count
 
     fold = lambda messages: dict(lint.record_advice_survival(
         None, "ADR-001.md", messages, read=read, write=write))
@@ -3144,13 +3146,75 @@ def test_advice_survival_counts_only_what_came_back_unchanged(lint):
         None, "ADR-002.md", ["missing section ## Risks"], read=read, write=write))
     assert other == {"missing section ## Risks": 1}, other
 
-    # NOWHERE TO RECORD IS NOT A FIRST SIGHTING (ADR-005). The caller must be able
-    # to tell those apart, so the no-store answer is None rather than a count of 1.
+    # ⚠ EVERY WAY OF NOT KNOWING ANSWERS None, and none of them answers 1.
+    # A count of 1 is a claim — "this finding has been seen once" — and the whole
+    # measurement is worthless if the four ways of failing to look are allowed to
+    # make it (ADR-005).
+    ok_write = lambda _: True
+    # Nowhere to record.
     assert lint.record_advice_survival(None, "ADR-001.md", ["anything"]) is None
-    # A corrupt note is refreshed, never trusted and never fatal.
-    assert dict(lint.record_advice_survival(
-        None, "ADR-001.md", ["anything"], read=lambda: "not a dict", write=lambda _: None)
-    ) == {"anything": 1}
+    # A note that exists and cannot be read.
+    assert lint.record_advice_survival(
+        None, "ADR-001.md", ["x"], read=lambda: None, write=ok_write) is None
+    # A note whose OUTER shape is right and whose `runs` is not a number. This
+    # raised TypeError after the verdict had printed, turning a PASS into a
+    # traceback and exit 1 — a measurement changing what the gate it measures says.
+    assert lint.record_advice_survival(
+        None, "ADR-001.md", ["x"], write=ok_write,
+        read=lambda: {"records": {"ADR-001.md": {"abc": {"runs": "not a number", "message": "x"}}}},
+    ) is None
+    assert lint.record_advice_survival(
+        None, "ADR-001.md", ["x"], read=lambda: "not a dict", write=ok_write) is None
+    # ⚠ AND A COUNT NOBODY STORED IS NOT A COUNT. A read-only `.git` reported
+    # "1 run" for ever — the flattering answer, and indistinguishable from a real
+    # first sighting.
+    assert lint.record_advice_survival(
+        None, "ADR-001.md", ["x"], read=lambda: {}, write=lambda _: False) is None
+
+
+# The seam above proves the fold. THIS drives the real file, because the seam
+# cannot: a note that could not be written, a `.git` that is a FILE rather than a
+# directory (every worktree and every submodule), and the atomic replace that
+# stops a truncated write resetting every count in the corpus.
+def test_advice_survival_uses_the_real_store_and_gits_own_path(lint):
+    with tempfile.TemporaryDirectory() as tmp:
+        root = pathlib.Path(tmp)
+        subprocess.run(["git", "init", "-q", str(root)], check=True,
+                       capture_output=True, text=True)
+        path = lint.advice_survival_path(root)
+        assert path is not None, "a fresh checkout must have somewhere to record"
+        assert not path.exists(), "and nothing recorded in it yet"
+
+        first = dict(lint.record_advice_survival(path, "ADR-001.md", ["a finding"]))
+        assert first == {"a finding": 1}, first
+        assert path.exists(), "the note is a FILE, or nothing survives the process"
+        second = dict(lint.record_advice_survival(path, "ADR-001.md", ["a finding"]))
+        assert second == {"a finding": 2}, second
+
+        # A real unwritable note answers UNKNOWN rather than a fresh-looking 1.
+        blocked = root / "nope" / "deeper" / lint.ADVICE_SURVIVAL_NAME
+        assert lint.record_advice_survival(blocked, "ADR-001.md", ["a finding"]) is None
+
+        # ⚠ A WORKTREE'S `.git` IS A FILE. Assembling `<root>/.git/…` answered
+        # "nowhere to record" for two layouts git supports, so the measurement
+        # would have been permanently UNKNOWN there while every other check ran.
+        tree = root / "wt"
+        subprocess.run(["git", "-C", str(root), "commit", "-q", "--allow-empty", "-m", "base"],
+                       check=True, capture_output=True, text=True,
+                       env={**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@e",
+                            "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@e"})
+        made = subprocess.run(["git", "-C", str(root), "worktree", "add", "-q", str(tree), "-b", "wt"],
+                              capture_output=True, text=True)
+        if made.returncode == 0:
+            assert (tree / ".git").is_file(), "the fixture must actually be the file layout"
+            wt_path = lint.advice_survival_path(tree)
+            assert wt_path is not None, "a worktree has git metadata and must be recordable"
+            assert dict(lint.record_advice_survival(wt_path, "ADR-001.md", ["a finding"])) == {
+                "a finding": 1}, "and it keeps its own history"
+        else:
+            print(f"  skip: git worktree unavailable here ({made.stderr.strip()[:60]})")
+
+
 
 
 def test_a_permanent_advisory_names_its_entry(lint):

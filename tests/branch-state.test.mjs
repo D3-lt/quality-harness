@@ -522,3 +522,65 @@ test('a rejected release is not used as an anchor even when the diff is NOT empt
   assert.match(out, /COULD NOT LOOK at the release state/)
   assert.match(out, /prerelease/)
 })
+
+// Round four. Two HIGH and a MEDIUM, all probed through injected runners, and one
+// of them overturns a call made explicitly in the round-three fold-in.
+const brief = table => render(collect(runner(table)), { brief: true })
+const REPO = [
+  ['git rev-parse --abbrev-ref', ok('main')],
+  ['git rev-parse --short', ok('46a2656')],
+  ['git status --short', ok('')],
+  ['git rev-list', ok('0\t0')],
+  ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+]
+
+test('a bare HTTP 404 is not evidence that there are no releases', () => {
+  // `HTTP 404` was in the quiet list. A missing repository, a wrong remote and a
+  // private repository the token cannot see all return 404, and each was read as
+  // "no release cut" — silence over a state nobody had established. `gh` says
+  // `release not found` when the repository is readable and holds none, which is
+  // the observation actually being claimed.
+  const out = brief([...REPO,
+    ['gh release view', no('HTTP 404: Not Found (https://api.github.com/repos/x/y/releases/latest)')],
+    ['git describe', ok('v2.85.0')],
+    ['git diff --name-only v2.85.0..HEAD', ok('')],
+  ])
+  assert.match(out, /COULD NOT LOOK at the release state/, `a 404 was trusted as absence:\n${out}`)
+})
+
+test('a repository that is not on GitHub is quiet, not uncertain', () => {
+  // The §152 half, and the reason `none of the git remotes` is quiet rather than
+  // blocked: a repository not on GitHub has no forge release to be uncertain
+  // about, and a could-not-look line on every prompt for its whole lifetime is
+  // exactly the advice-that-trains-filtering this project has measured twice.
+  const out = brief([...REPO,
+    ['gh release view', no('none of the git remotes configured for this repository point to a known GitHub host')],
+    ['git describe', ok('v1.0.0')],
+    ['git diff --name-only v1.0.0..HEAD', ok('')],
+  ])
+  assert.doesNotMatch(out, /COULD NOT LOOK at the release state/, `a non-GitHub repository was shouted at:\n${out}`)
+
+  // Shown able to answer the other way in the same test (CLAUDE.md §4): the same
+  // repository with a real forge failure IS loud.
+  assert.match(brief([...REPO,
+    ['gh release view', no('HTTP 401: Bad credentials')],
+    ['git describe', ok('v1.0.0')],
+    ['git diff --name-only v1.0.0..HEAD', ok('')],
+  ]), /COULD NOT LOOK at the release state/)
+})
+
+test('a count does not suppress the forge failure that may have understated it', () => {
+  // Explicitly decided the other way in the round-three fold-in — "a count that
+  // did come back is not silence, and the hedge already says where the number
+  // came from" — and overturned on the evidence: the local tag can be NEWER than
+  // the published release, so the count UNDERSTATES the unreleased work while
+  // omitting the reason it might. The hedge says the anchor is local; it does not
+  // say the forge was unreadable.
+  const out = brief([...REPO,
+    ['gh release view', no('HTTP 401: Bad credentials')],
+    ['git describe', ok('v2.85.0')],
+    ['git diff --name-only v2.85.0..HEAD', ok('plugin/bin/adr-verify\nplugin/bin/adr-next')],
+  ])
+  assert.match(out, /changed in 2 file\(s\) since v2\.85\.0/, `the count must still be reported:\n${out}`)
+  assert.match(out, /COULD NOT LOOK at the release state/, `and so must the reason it may be low:\n${out}`)
+})

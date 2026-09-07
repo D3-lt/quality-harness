@@ -625,6 +625,42 @@ test('a task whose sign-off says stop is not offered as ready', () => {
   assert.equal(next([tasksDir, '--all'], root).status, 3, 'nothing ready must exit 3')
 })
 
+// BACKLOG §155 — the same sign-off, honoured or ignored depending on a fact about
+// the Acceptance that says nothing about the person's decision.
+//
+// `stopped_by` was `human_stop(text) if human else None`, so the ONE route that
+// already worked reached human-observed tasks only: 1 of 163 task files in this
+// corpus, and 1 of 163 in the corpus that reported it. `adr-lint` never refused
+// the row on a fenced task, so the write was always allowed and only the read was
+// gated — the worse half to gate, because the author sees their stop recorded in
+// the log and the router goes on offering the task.
+//
+// The reporter's concrete cost: "the prose in the task is the only thing standing
+// between the next session and four eval runs nobody should pay for."
+test('a sign-off that says stop is honoured whatever the Acceptance is', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-stop-'))
+  temps.push(dir)
+  const tasksDir = join(dir, 'tasks')
+  mkdirSync(tasksDir)
+  // Built inline rather than through `task()`, because that helper writes a
+  // sign-off only for a human-observed Acceptance — the very coupling under test.
+  const stop = '- 2026-09-07 · human-observed · decision BLOCKED — do not run this yet'
+  writeFileSync(join(tasksDir, 'T1-t.md'),
+    '# Task T1: a runnable fence a human said not to run\n\n'
+    + '**Depends-on:** none\n**Consumes:** none\n**Produces:** none\n\n'
+    + '## Acceptance\n\n```bash\nprintf T1\n```\n\n## Verification Log\n' + stop + '\n')
+  writeFileSync(join(tasksDir, 'T2-t.md'), task({ id: 'T2' }))
+
+  const out = next([tasksDir, '--all'], root).stdout
+  assert.match(out, /^stopped\s+T1/m, `a fenced task with a STOP sign-off was offered:\n${out}`)
+  assert.match(out, /sign-off/i, `name what stopped it:\n${out}`)
+
+  // The other direction, in the same test: an ordinary fenced task with no
+  // sign-off is still READY, or this is indistinguishable from a router that
+  // stopped offering anything (CLAUDE.md §4).
+  assert.match(out, /^READY\s+T2/m, `an ordinary fenced task must still be offered:\n${out}`)
+})
+
 // The other direction: an ordinary not-done task with no dependencies is still
 // READY, or the change above is indistinguishable from never offering anything.
 test('a task with no sign-off and no open dependency is still ready', () => {

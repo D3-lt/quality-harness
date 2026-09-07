@@ -281,7 +281,19 @@ def load(tasks_dir):
             # corpus; reproduced hermetically 2026-09-04. `is_done`'s comment
             # claimed "`human_verdict` below carries the reason" and NO SUCH NAME
             # EXISTED — the comment described a mechanism nobody wrote.
-            "stopped_by": human_stop(text) if human else None,
+            # ⚠ AND IT IS READ WHATEVER THE FENCE IS. It used to be `if human else
+            # None`, so the one route that already worked was available to the
+            # human-observed tasks only — 1 of 163 in this corpus, and 1 of 163 in
+            # the corpus that reported it (BACKLOG §155). Measured 2026-09-07 on a
+            # two-task fixture: the SAME sign-off line, in the same section, routed
+            # `stopped` beside a human-observed Acceptance and READY beside a
+            # runnable one. Nothing justified the gate — a person writing STOP has
+            # made a statement about THIS TASK, and whether its Acceptance happens
+            # to be runnable is not a fact about their decision. `adr-lint` never
+            # refused the row on a fenced task, so the write was always allowed and
+            # only the read was gated: the worst half to gate, because the author
+            # sees their stop recorded and the router ignores it.
+            "stopped_by": human_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
             # The 2026-09-02 report above was closed by handling a sign-off that
             # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this

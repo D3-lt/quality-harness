@@ -5960,8 +5960,8 @@
       "tests": [
         "tests/workflow-parse.test.mjs"
       ],
-      "from": "const META_HEADER = /^(?:\\s*(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\b)/",
-      "to": "const META_HEADER = /^export (?=const )/gm"
+      "from": "const META_HEADER = /^\\s*(?:(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\b)/",
+      "to": "const META_HEADER = /^(?:(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\b)/"
     },
     {
       "label": "workflow-parse: a spawn that did not finish is could-not-look, never a verdict",
@@ -5983,13 +5983,23 @@
       "to": "  if (false) console.log('QH-PARSE-COMPLETE')"
     },
     {
-      "label": "workflow-parse: the CLI runs when invoked through an unresolved path, or it silently does nothing",
+      "label": "workflow-parse: the CLI runs when its own path comes through a symlink, or it silently does nothing",
       "file": "plugin/scripts/workflow-parse.mjs",
       "tests": [
+        "tests/workflow-parse.test.mjs",
         "tests/post-edit-check.test.mjs"
       ],
       "from": "    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(argv[1])",
       "to": "    return import.meta.url === pathToFileURL(argv[1]).href"
+    },
+    {
+      "label": "workflow-parse: a temp directory it cannot make is could-not-look, on every platform",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "    return `${name}: COULD NOT CHECK — no usable temporary directory (${err.message})`",
+      "to": "    return `${name}: parses as neither a module nor a Workflow script`"
     }
   ]
 }

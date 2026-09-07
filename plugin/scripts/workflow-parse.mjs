@@ -25,7 +25,11 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 // and that is the only export the format has. Leading comments and blank lines are
 // tolerated because they are ordinary in the shipped files; anything else before the
 // header is not a Workflow script.
-const META_HEADER = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*export (?=const meta\b)/
+// ⚠ LEADING WHITESPACE IS OUTSIDE THE COMMENT GROUP. With `\s*` only inside it, a
+// blank first line or a UTF-8 BOM made the header unfindable and a correct workflow
+// was REFUSED — a gate that fails correct files, which is the same defect as one that
+// passes broken ones wearing the other sign.
+const META_HEADER = /^\s*(?:(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*export (?=const meta\b)/
 
 /**
  * Report why `source` is not a parseable Workflow script, or null when it is.
@@ -68,6 +72,10 @@ export function checkWorkflowFiles (files, check = checkWorkflowSource) {
   }).filter(Boolean)
 }
 
+// The default temp-directory factory, injectable so a test can make it fail on every
+// platform — `TMPDIR` is not what node reads on Windows (CLAUDE.md §7).
+const defaultTempDir = () => mkdtempSync(join(tmpdir(), 'qh-parse-'))
+
 /**
  * Report why `source` parses as neither an ES module nor a Workflow script, or null
  * when one of them accepts it. `name` only labels the message.
@@ -79,16 +87,22 @@ export function checkWorkflowFiles (files, check = checkWorkflowSource) {
  * the obvious call is vacuous on exactly the files most likely to be modules, and a
  * silent advisory would mean nothing (BACKLOG §161, CLAUDE.md §4).
  */
-export function checkJsSource (source, name = '<source>', spawn = spawnSync) {
+export function checkJsSource (source, name = '<source>', { spawn = spawnSync, makeTempDir = defaultTempDir } = {}) {
   const workflow = checkWorkflowSource(source, name)
   if (workflow === null) return null
   // ⚠ OUTSIDE THE `try`, MAKING THE TEMP DIRECTORY IS ITSELF A THING THAT CAN FAIL.
-  // An unusable TMPDIR threw past every handler here, so the hook printed a raw stack
-  // and its `|| true` turned that into advice nobody could act on. A resource this
-  // check needs and cannot get is could-not-look, not a syntax error (ADR-005).
+  // An unusable temp directory threw past every handler here, so the hook printed a
+  // raw stack and its `|| true` turned that into advice nobody could act on. A
+  // resource this check needs and cannot get is could-not-look, not a syntax error
+  // (ADR-005).
+  //
+  // ⚠ AND IT IS A SEAM, NOT AN ENVIRONMENT VARIABLE. A test that broke this by setting
+  // `TMPDIR` proved nothing on Windows, where node reads `TEMP`/`TMP` instead — CI
+  // went red with the check cheerfully succeeding. The platform is a parameter
+  // (CLAUDE.md §7).
   let dir
   try {
-    dir = mkdtempSync(join(tmpdir(), 'qh-parse-'))
+    dir = makeTempDir()
   } catch (err) {
     return `${name}: COULD NOT CHECK — no usable temporary directory (${err.message})`
   }

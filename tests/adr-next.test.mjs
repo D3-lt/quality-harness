@@ -892,3 +892,68 @@ test('a status this tool could not read is unknown, never decided', () => {
   assert.match(out.stderr, /ADR-060-no-record-file's owning record could not be read/,
     `and the human is told too:\n${out.stderr}`)
 })
+
+// BACKLOG §166, reported from an outside corpus 2026-09-07. A task file whose own
+// `**Status:**` said `Withdrawn 2026-08-22. Not deferred, not blocked: this task will
+// not be built` was printed READY — the DEFAULT NEXT ACTION for a session told never
+// to stop. The record-level withdrawal was already handled loudly and correctly; the
+// task-level one fell through, because this file's `**Status:**` header was read by
+// nothing at all.
+const withStatus = (id, status) =>
+  `# Task ${id}: probe\n\n**Status:** ${status}\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n## Verification Log\n`
+
+const routed = bodies => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-status-'))
+  temps.push(dir)
+  const tasksDir = join(dir, 'tasks')
+  mkdirSync(tasksDir)
+  for (const [id, body] of Object.entries(bodies)) writeFileSync(join(tasksDir, `${id}-t.md`), body)
+  const result = next(['--json', tasksDir], root)
+  assert.equal(result.status !== null, true, `adr-next did not run: ${result.stderr}`)
+  const parsed = JSON.parse(result.stdout)
+  const where = id => ['ready', 'done', 'blocked', 'stopped']
+    .find(bucket => (parsed[bucket] ?? []).some(t => t.id === id)) ?? 'nowhere'
+  return { where, parsed, result }
+}
+
+test('a task withdrawn in its own Status is not offered as the next thing to build', () => {
+  const { where, parsed } = routed({
+    T1: withStatus('T1', 'pending'),
+    T2: withStatus('T2', 'Withdrawn 2026-08-22. Not deferred, not blocked: this task will not be built'),
+  })
+  // The must-not-fail direction first: an ordinary task is still offered, or this
+  // check is a router that refuses everything.
+  assert.equal(where('T1'), 'ready', JSON.stringify(parsed))
+  assert.equal(where('T2'), 'stopped', `a withdrawn task must not be READY: ${JSON.stringify(parsed)}`)
+  const t2 = parsed.stopped.find(t => t.id === 'T2')
+  assert.match(t2.stopped_by, /\*\*Status:\*\* says `withdrawn`/,
+    `the reason must name where it came from: ${t2.stopped_by}`)
+  // ⚠ AND IT MUST NOT CLAIM A SIGN-OFF NOBODY WROTE. Both stop routes print through
+  // one site, which used to say "a human sign-off says stop" for this case too — an
+  // observation the gate did not make (CLAUDE.md §3).
+  assert.doesNotMatch(t2.stopped_by, /human sign-off/, t2.stopped_by)
+})
+
+test('an unrecognised Status is not actionable, because unknown is not evidence of wanted', () => {
+  // The wrong default direction for a work router: `todo` already makes adr-lint say
+  // it does not act on that status, while adr-next offered the same task as READY.
+  // The two behaviours disagreed with each other.
+  const { where, parsed } = routed({
+    T1: withStatus('T1', 'pending'),
+    T2: withStatus('T2', 'marinating'),
+  })
+  assert.equal(where('T1'), 'ready', JSON.stringify(parsed))
+  assert.equal(where('T2'), 'stopped', `an unknown status must not read as ready: ${JSON.stringify(parsed)}`)
+  assert.match(parsed.stopped.find(t => t.id === 'T2').stopped_by,
+    /does not recognise/, JSON.stringify(parsed))
+})
+
+test('the statuses a task normally carries still route as before', () => {
+  // The regression this fix could most easily cause: every task in this corpus
+  // carries `Status: pending`, and a status vocabulary that missed one would stop
+  // the whole corpus dead.
+  for (const status of ['pending', 'todo', 'ready', 'in progress', 'blocked', '`pending`']) {
+    const { where, parsed } = routed({ T1: withStatus('T1', status) })
+    assert.equal(where('T1'), 'ready', `status ${status} must stay buildable: ${JSON.stringify(parsed)}`)
+  }
+})

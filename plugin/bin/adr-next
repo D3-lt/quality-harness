@@ -19,11 +19,18 @@ task it depends on is DONE.
   --all   list every task with its state (done / ready / blocked-by / stopped)
   --json  machine-readable, for a hook or a skill rather than a person
 
-A task is STOPPED when its human sign-off states a stop. That is neither done nor
+A task is STOPPED when its human sign-off states a stop, when its own `**Status:**`
+names a terminal state (`withdrawn`, `superseded`, `abandoned`, `cancelled`), or when
+that Status is a word this reader does not recognise. That is neither done nor
 ready nor waiting on an upstream — a person looked at this task and said do not
-proceed — so it is its own state, reported with the sign-off text. Calling it
-`ready` offered work the record forbids starting; calling it `blocked` would send
-the reader hunting for an upstream that does not exist.
+proceed — so it is its own state, reported with the reason and where it came from.
+Calling it `ready` offered work the record forbids starting; calling it `blocked`
+would send the reader hunting for an upstream that does not exist.
+
+⚠ AN UNRECOGNISED STATUS IS NOT ACTIONABLE. Guessing the permissive answer is the
+wrong default for a router that tells a session what to build next: a task whose own
+file says it will never be built was offered as the DEFAULT NEXT ACTION, because the
+word was unknown and unknown meant ready (BACKLOG §166).
 
 Exit: 0 = a ready task was printed (or --all rendered)
       3 = nothing ready: everything is done, or the rest is blocked or stopped
@@ -144,6 +151,54 @@ def header_val(text, name):
     return m.group(1).strip() if m else None
 
 
+# A task file's own `**Status:**`, which until 2026-09-07 was read by NOTHING here.
+# Reported from an outside corpus: a task titled `… — WITHDRAWN`, whose Status line
+# said "this task will not be built" and whose README row said `withdrawn`, was printed
+# READY — the default next action for a session told never to stop. The record-level
+# withdrawal was already handled loudly and correctly; the task-level one fell through.
+#
+# ⚠ AN UNRECOGNISED STATUS IS NOT ACTIONABLE. It is the router's job to say it does
+# not know, not to guess the permissive answer: an unknown word here used to mean
+# READY, which is the wrong default direction for a gate that tells a session what to
+# build next (ADR-005, BACKLOG §166).
+TERMINAL_STATUSES = ("withdrawn", "superseded", "abandoned", "cancelled", "canceled")
+BUILDABLE_STATUSES = ("pending", "todo", "ready", "in progress", "in-progress",
+                      "blocked", "done", "complete", "completed")
+
+
+def task_status(text):
+    """The task file's own `**Status:**` word, lowercased, or None when it has none."""
+    m = re.search(r"^\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", text, re.M)
+    if not m:
+        return None
+    return m.group(1).strip().strip("`*").lower()
+
+
+def status_stop(text):
+    """Why this task's own Status says not to build it, or None when it does not.
+
+    Returns a reason for a terminal status and for an unrecognised one; None only
+    when the status is absent or names something this router knows is buildable.
+    """
+    status = task_status(text)
+    if status is None:
+        return None
+    # ⚠ THE WHOLE STATUS AND ITS FIRST WORD, because both spellings are real: a
+    # status is written either as one word (`pending`) or as a word followed by a
+    # date and a sentence (`Withdrawn 2026-08-22. Not deferred…`). Matching only the
+    # first word stopped `in progress` dead — a MULTI-WORD BUILDABLE status routed as
+    # unrecognised, which is this fix causing the failure it was written to prevent.
+    words = status.split()
+    first = words[0].strip(".,;:").strip("`*") if words else ""
+    if status in TERMINAL_STATUSES or first in TERMINAL_STATUSES:
+        return f"its own **Status:** says `{first}` — {status}"
+    if status in BUILDABLE_STATUSES or first in BUILDABLE_STATUSES:
+        return None
+    return (f"its own **Status:** reads `{status}`, which this router does not "
+            f"recognise — it is not offered as ready, because an unknown status is "
+            f"not evidence that the work is wanted")
+
+
 def sections(text):
     out, current = {}, None
     for line in text.split("\n"):
@@ -250,7 +305,12 @@ def human_stop(text):
     log = "\n".join(sections(text).get("Verification Log", []))
     for line in log.split("\n"):
         if (m := VLOG_HUMAN_RE.match(line.strip())) and human_outcome(m.group("note")) == "stop":
-            return m.group("note")
+            # ⚠ THE REASON CARRIES ITS OWN PROVENANCE. Both stop routes print through
+            # one site, and that site used to say "a human sign-off says stop" — true
+            # of this Verification Log note and FALSE of a `**Status:**` header nobody
+            # signed. A gate does not report an observation it did not make
+            # (CLAUDE.md §3), including about where its own reason came from.
+            return f"a human sign-off says stop: {m.group('note')}"
     return None
 
 def load(tasks_dir):
@@ -293,7 +353,7 @@ def load(tasks_dir):
             # refused the row on a fenced task, so the write was always allowed and
             # only the read was gated: the worst half to gate, because the author
             # sees their stop recorded and the router ignores it.
-            "stopped_by": human_stop(text),
+            "stopped_by": human_stop(text) or status_stop(text),
             # ADR-014 T2, and the SECOND route to "a human said do not start yet".
             # The 2026-09-02 report above was closed by handling a sign-off that
             # says STOP; `Blocked-on` — a task waiting on an event OUTSIDE this
@@ -729,7 +789,7 @@ def report_corpus(records, unreadable, flags):
                   f"(waiting on {', '.join(inf['blocked_by'])})")
         for inf in answer["stopped"]:
             print(f"{name}  stopped  {inf['id']}  {inf['goal']}  "
-                  f"(a human sign-off says stop: {inf['stopped_by']})")
+                  f"({inf['stopped_by']})")
 
     total = sum(len(a["ready"]) for a in answers.values())
     unread = f", {len(unreadable)} unreadable" if unreadable else ""
@@ -879,7 +939,7 @@ def main():
             print(f"blocked  {inf['id']}  {inf['goal']}  (waiting on {', '.join(inf['blocked_by'])})")
         for inf in stopped:
             print(f"stopped  {inf['id']}  {inf['goal']}  "
-                  f"(a human sign-off says stop: {inf['stopped_by']})")
+                  f"({inf['stopped_by']})")
         return 0 if ready else 3
 
     if not ready:
@@ -899,7 +959,7 @@ def main():
         else:
             print("Nothing is ready: every remaining task is blocked.", file=sys.stderr)
         for inf in stopped:
-            print(f"  {inf['id']} was stopped by a sign-off: {inf['stopped_by']}", file=sys.stderr)
+            print(f"  {inf['id']} was stopped: {inf['stopped_by']}", file=sys.stderr)
         for inf in blocked:
             print(f"  {inf['id']} waits on {', '.join(inf['blocked_by'])}", file=sys.stderr)
         return 3

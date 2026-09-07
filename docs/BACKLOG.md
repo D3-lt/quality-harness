@@ -11006,3 +11006,58 @@ repository assert a contract it does not own and cannot see change. §162's rule
 yet: the three shipped workflows all carry literal metadata with both fields, and no
 outside report names this. Filed so the gap is written down rather than rediscovered as
 a surprise.
+
+## 166. CLOSED 2026-09-07 — `adr-next` offered a WITHDRAWN task as the next thing to build
+
+**Reported from an outside corpus** (agentsmemory, `main @ c0e6c95d`, plugin 2.88.0):
+
+```
+$ adr-next docs/adr/ADR-018-… --all
+done     T1  …
+done     T3  …
+READY    T2  Task ADR-018-T2: A recall records which session ran it — WITHDRAWN
+```
+
+Three signals in that corpus said not to build it: the task's own heading ends
+`— WITHDRAWN`; its `**Status:**` reads *"Withdrawn 2026-08-22. Not deferred, not
+blocked: this task will not be built"*; and the README row says `withdrawn`. The
+reporter's own instructions make the next READY task the **default next action**, so
+the router sent a session at work the team had deliberately abandoned. They caught it
+only by reading the file first.
+
+⚠ **The asymmetry was the tell, and it is theirs:** a RECORD-level withdrawal is
+handled loudly and correctly — *"the record owning these tasks is **Withdrawn**, not
+Accepted … what follows is a reading of its PLAN, not of work anyone has decided to
+do"*. A TASK-level one fell through to READY in silence.
+
+**Confirmed here by reading the source, not by trusting the report.** `human_stop`
+reads the Verification Log for a sign-off and nothing else; `load` never looked at a
+task file's `**Status:**` header at all. That header was read by NO tool in this
+plugin.
+
+**Fix:** `status_stop` reads it. A terminal status (`withdrawn`, `superseded`,
+`abandoned`, `cancelled`) routes to `stopped` with the reason and its provenance. So
+does an unrecognised one — which is the second half and the more general one:
+
+⚠ **AN UNKNOWN STATUS WAS ACTIONABLE, AND THAT IS THE WRONG DEFAULT DIRECTION.** The
+reporter put it exactly right: `adr-lint` already says of `todo` that *"this reader
+does not act on"* it, while `adr-next` offered the same task as READY. Two tools
+disagreeing about the same unknown word, one of them permissively. Guessing the
+permissive answer is what a work router must never do (ADR-005).
+
+**Two things this fix nearly broke, both caught by its own tests:**
+
+- The printed reason went through ONE site that said *"a human sign-off says stop"* —
+  true of a Verification Log note and false of a `**Status:**` header nobody signed. A
+  gate does not report an observation it did not make, including about where its own
+  reason came from (§3). The reason carries its provenance now.
+- Matching only the status's FIRST word stopped `in progress` dead — a multi-word
+  buildable status routed as unrecognised, which is this fix causing the exact failure
+  it was written to prevent. Whole status and first word are both checked, and the
+  ordinary vocabulary is pinned by a test that loops over it.
+
+**Not done, and named here:** the reporter also observed `adr-lint` linting the same
+withdrawn task as live and advising on its acceptance fence — *"a fence for a task that
+will never be built is churn"*. That is the same blind spot in a different gate, and
+its status vocabulary is a different one (the README row's, not the file header's), so
+it is a separate change.

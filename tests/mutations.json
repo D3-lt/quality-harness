@@ -5894,8 +5894,8 @@
         "tests/adr-next.test.mjs"
       ],
       "only": "a sign-off that says stop is honoured whatever the Acceptance is",
-      "from": "            \"stopped_by\": human_stop(text),",
-      "to": "            \"stopped_by\": human_stop(text) if human else None,"
+      "from": "            \"stopped_by\": human_stop(text) or status_stop(text),",
+      "to": "            \"stopped_by\": (human_stop(text) if human else None) or status_stop(text),"
     },
     {
       "label": "lint: the status advisory says WHEN Blocked-on is legal, so it does not walk a reader into a refusal",
@@ -6084,6 +6084,26 @@
       ],
       "from": "  return rest.startsWith('COULD NOT CHECK — ') ? 'COULD NOT CHECK'",
       "to": "  return rest.startsWith('COULD NOT CHECK') ? 'COULD NOT CHECK'"
+    },
+    {
+      "label": "adr-next: a task withdrawn in its own Status is not offered as the next work",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "withdrawn in its own Status",
+      "from": "            \"stopped_by\": human_stop(text) or status_stop(text),",
+      "to": "            \"stopped_by\": human_stop(text),"
+    },
+    {
+      "label": "adr-next: an unrecognised Status is not actionable, so unknown does not mean ready",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "unrecognised Status is not actionable",
+      "from": "    if status in BUILDABLE_STATUSES or first in BUILDABLE_STATUSES:",
+      "to": "    if True:"
     }
   ]
 }

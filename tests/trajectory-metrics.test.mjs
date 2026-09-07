@@ -154,3 +154,33 @@ test('a directory that could not be read is reported as PARTIAL, not as absence'
   // A corpus that WAS fully read must not claim it was partial.
   assert.doesNotMatch(render(measure(taskFiles(dir)), dir), /PARTIAL/)
 })
+
+test('a mutation verdict is never parsed and then discarded, whichever verdict it is', () => {
+  // BACKLOG §150. The guard used to name `killed` alone, so a task whose ONLY
+  // evidence was a survivor left the ratio and took the survivor with it —
+  // `unevidenced: 1, survived: 0` over a survivor read out of the file. The
+  // asymmetry ran the flattering way: good news kept a task in, bad news dropped
+  // it, and corpus-report.mjs publishes these counts to other people.
+  const dir = corpus({
+    'T1-survived-no-log': task({ mlog: [survived] }),
+    'T2-inconclusive-no-log': task({ mlog: ['- 2026-09-04 · abc1234 · mutant inconclusive · exit 0 · `x.py` · why · acceptance-sha256:aa'] }),
+    'T3-killed-no-log': task({ mlog: [killed] }),
+  })
+  const totals = measure(taskFiles(dir))
+  assert.equal(totals.unevidenced, 0, 'a mutation verdict is a claim; none of these has claimed nothing')
+  assert.equal(totals.evidenced, 3)
+  assert.equal(totals.survived, 1, 'the survivor is REPORTED, not silently dropped')
+  assert.equal(totals.inconclusive, 1)
+  assert.equal(totals.killed, 1)
+  // The survivor and the inconclusive show nothing about whether the fence can
+  // fail, so they are outcome-only. Only the killed mutant proves a trajectory.
+  assert.equal(totals.showsFailing, 1)
+  assert.equal(totals.outcomeOnly, 2)
+
+  // Shown able to answer the other way in the same test (CLAUDE.md §4): a task
+  // with no log and no mutant really is outside the ratio, and this fix must not
+  // have turned `unevidenced` into a bucket nothing can reach.
+  const nothing = measure(taskFiles(corpus({ 'T1-empty': task() })))
+  assert.equal(nothing.unevidenced, 1)
+  assert.equal(nothing.evidenced, 0)
+})

@@ -4771,6 +4771,15 @@
       "to": "    if (task.red > 0) totals.showsFailing += 1"
     },
     {
+      "label": "trajectory: a survived or inconclusive mutant is not parsed and then discarded",
+      "file": "plugin/scripts/trajectory-metrics.mjs",
+      "tests": [
+        "tests/trajectory-metrics.test.mjs"
+      ],
+      "from": "    if (!task.entries && !task.killed && !task.survived && !task.inconclusive) {",
+      "to": "    if (!task.entries && !task.killed) {"
+    },
+    {
       "label": "trajectory: a section running to end of file is still read",
       "file": "plugin/scripts/trajectory-metrics.mjs",
       "tests": [

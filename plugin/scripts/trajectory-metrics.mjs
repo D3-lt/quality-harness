@@ -114,7 +114,8 @@ export function readTask(file, read = readFileSync) {
  * Corpus totals, in four disjoint buckets over the tasks that carry evidence.
  *
  * `unevidenced` is not a finding: a task with no log has not claimed anything,
- * so there is no trajectory to judge and it is outside the ratio entirely.
+ * so there is no trajectory to judge and it is outside the ratio entirely. A
+ * MUTATION VERDICT IS A CLAIM and keeps a task in — all three of them, see below.
  */
 export function measure(files, read = readFileSync) {
   const tasks = files.map(file => readTask(file, read))
@@ -135,7 +136,27 @@ export function measure(files, read = readFileSync) {
   }
   for (const task of tasks) {
     if (task.unreadable) { totals.unreadable += 1; continue }
-    if (!task.entries && !task.killed) { totals.unevidenced += 1; continue }
+    // A task is outside the ratio only when it has claimed NOTHING. That a
+    // mutation verdict is a claim was never in doubt here — `killed` has always
+    // been in this guard — but the guard named ONE of the three verdicts, so a
+    // task whose only evidence was a SURVIVED or INCONCLUSIVE mutant fell out and
+    // took its verdict with it: parsed out of the file on the line above, then
+    // discarded (BACKLOG §150).
+    //
+    // ⚠ THE ASYMMETRY RAN IN THE FLATTERING DIRECTION, which is why it is a
+    // defect and not a preference. Good news — a killed mutant — kept a task in
+    // and got counted. Bad news — a survivor — dropped the task, and
+    // `corpus-report.mjs` then published `survived 0` over a survivor it had
+    // read, in a report whose whole purpose is to be handed to someone else.
+    //
+    // This changes no figure this project has published: the one unevidenced
+    // task in this corpus on 2026-09-07 carries no mutation verdict at all, so
+    // `evidenced`, the rate and every bucket are unmoved. What changes is that
+    // the discard can no longer happen.
+    if (!task.entries && !task.killed && !task.survived && !task.inconclusive) {
+      totals.unevidenced += 1
+      continue
+    }
     totals.evidenced += 1
     totals.entries += task.entries
     totals.unjudgedEntries += task.unjudged

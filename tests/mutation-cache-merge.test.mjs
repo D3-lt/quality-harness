@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync } from 'node:fs'
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -197,17 +197,24 @@ test('the CLI refuses a call it cannot understand rather than guessing an output
   assert.match(said.join('\n'), /usage: mutation-cache-merge/)
 })
 
-test('the runner records what it MEASURED, and records nothing when it reused', () => {
-  // The merge is only as good as the claim it merges, and `measured` is written
-  // inside main() where no unit test reaches it. So drive the real campaign over
-  // the cheapest entry in the catalogue and read the file it leaves.
+test('the runner records what it MEASURED, and records nothing when it reused', t => {
+  // Exercise the real runner on a disposable copy: mutating this checkout
+  // refuses legitimate uncommitted edits and races other tests reading the hook.
   const CHEAPEST = 'the post-edit check acts only on the edit tools'
-  const runner = join(repoRoot, 'scripts', 'mutate.mjs')
-  const dir = mkdtempSync(join(os.tmpdir(), 'qh-cache-'))
+  const dir = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-cache-')))
+  t.after(() => rmSync(dir, { recursive: true, force: true, maxRetries: 5 }))
+  for (const file of ['scripts/mutate.mjs', 'tests/mutations.json',
+    'tests/post-edit-check.test.mjs', 'plugin/scripts/post-edit-check.sh',
+    'plugin/scripts/workflow-parse.mjs']) {
+    const target = join(dir, file)
+    mkdirSync(dirname(target), { recursive: true })
+    cpSync(join(repoRoot, file), target)
+  }
+  const runner = join(dir, 'scripts', 'mutate.mjs')
   const cache = join(dir, 'cache.json')
   const call = () => spawnSync(process.execPath,
     [runner, '--case', CHEAPEST, '--cache', cache, '--shard', '1/1'],
-    { cwd: repoRoot, env: { ...process.env, QUALITY_HARNESS_MUTATE_LOCK: join(dir, 'lock') },
+    { cwd: dir, env: { ...process.env, CLAUDE_PLUGIN_ROOT: join(dir, 'plugin'), QUALITY_HARNESS_MUTATE_LOCK: join(dir, 'lock') },
       encoding: 'utf8', timeout: 120_000 })
 
   const first = call()

@@ -9520,7 +9520,7 @@ platform-dependent (Windows is slower), and the other two are a concurrency race
 neither of which `selftest.sh` measures. §15's rule earned again: a local green is not a branch
 being green, and they are different checks.
 
-## 150. OPEN — a mutation verdict is parsed and then discarded when its task has no verification row
+## 150. CLOSED 2026-09-07 — a mutation verdict was parsed and then discarded when its task had no verification row
 
 Raised by the Codex review of `6896ed6` (2026-09-06) as a MEDIUM against
 `plugin/scripts/trajectory-metrics.mjs`, and left rather than folded into that change because it is
@@ -9546,6 +9546,53 @@ mutation row alone should make a task evidenced. The first keeps ADR-010's bucke
 a second counter; the second changes what "evidenced" has meant across every number this project has
 published. Do not pick one by reading — the ratio is quoted in `README.md` and in the research note,
 so whichever is chosen has to say what the old figures meant.
+
+**CLOSED 2026-09-07 — NEITHER of the two options above, because reading the guard dissolved the
+question.** The decision was framed as "does a mutation row alone make a task evidenced", and the
+line already answered it:
+
+```js
+if (!task.entries && !task.killed) { totals.unevidenced += 1; continue }
+```
+
+`!task.killed` is that answer. A killed-mutant-only task has ALWAYS been evidenced here. The guard
+simply named ONE of the three verdicts, so the defect is not a missing policy — it is an asymmetry,
+and the asymmetry ran in the flattering direction: **good news kept a task in and got counted; bad
+news dropped the task and took its verdict with it.** That is not a bucket preference, it is the
+defect class this project exists to demonstrate the absence of.
+
+So the guard is symmetric: `survived` and `inconclusive` keep a task in exactly as `killed` always
+has. A survivor-only task lands in `outcomeOnly`, which is right — a survivor shows the fence did
+NOT catch it, so nothing there proves the check can fail.
+
+**What the old figures meant: the same thing.** That was this section's condition for choosing, and
+it is discharged by measurement rather than by argument — the one unevidenced task in this corpus on
+2026-09-07 (`ADR-035/tasks/T4`) carries no mutation verdict at all, so nothing moved:
+
+```
+node plugin/scripts/trajectory-metrics.mjs docs/adr   # before AND after
+  72 / 73 evidenced task(s) show their check COULD have failed here (99%)
+  8 red of 178 acceptance entries · 152 killed · 10 survived · 2 inconclusive
+```
+
+`README.md` and the research note quote that ratio and neither needs a word changed.
+
+```
+node scripts/mutate.mjs --case 'trajectory: a survived or inconclusive'
+  RED  a survived or inconclusive mutant is not parsed and then discarded
+       <- killed by: a mutation verdict is never parsed and then discarded, whichever verdict it is
+bash scripts/selftest.sh   exit 0, 790 tests
+```
+
+⚠ **Why the existing test missed it, restated as the lesson:** the fixture at
+`tests/trajectory-metrics.test.mjs` gave its survivor a green verification row, so the task was
+evidenced by the ROW and the count landed. The survivor was never the thing being tested. The new
+test gives three tasks a mutation log and no verification log at all, and shows `unevidenced`
+still reachable in the same test so the bucket cannot have been emptied instead of fixed.
+
+**Not closed by this:** `corpus-report.mjs` republishes these counts, and nothing checks that what
+it prints matches what `measure` returned. That gap is smaller than the one just closed, but it is
+the same shape one layer out.
 
 ## 151. MEASURED 2026-09-06 — the mechanism has now run on three corpora, not one, and two of them are not mine
 

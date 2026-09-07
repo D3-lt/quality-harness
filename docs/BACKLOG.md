@@ -10058,6 +10058,45 @@ removed from a Stop guard, plus a stale `.mutate-inflight.json` and `.mutate-loc
 run; `git checkout` restored it because the file was tracked and otherwise clean. The guard worked,
 and the rule it enforces was broken by the session that wrote the guard's own backlog entries.
 
+### ⚠ 2026-09-07, later — it OOMed again at 16, and then the SAME sha passed
+
+The mitigation's pre-registered criterion above says: *"If a shard OOMs again at 16, more shards is
+the wrong answer and the accumulation must be measured directly."* It did OOM again — and the next
+thing measured says the criterion cannot be applied as written, because the premise it assumed is
+false.
+
+```
+34113733783  mutations 13/16  exit 143  killed at 8m31s, 29c4dc1
+34114899388  mutations 13/16  SUCCESS   same sha, same shard, no change of any kind
+```
+
+**Nothing was pushed between them.** The tree, the catalogue and the shard assignment were byte
+identical; only the runner differed. So at 16 shards the OOM is **LOAD-DEPENDENT, NOT
+DETERMINISTIC** — which the two deaths at 12 shards, both on shard 1, did not distinguish, and which
+nobody would have learned without re-dispatching an unchanged sha.
+
+That changes the diagnosis, in both directions:
+
+- **The mitigation is doing something.** At 12 it died twice out of two; at 16 it died once out of
+  four dispatched campaigns today (`34107450870`, `34109119220`, `34110706970`, `34113733783`,
+  `34114899388` — one death, and one unrelated `timeout-tree` failure). The shard is no longer over
+  the limit; it is near it.
+- **The criterion still bites, and should.** "Near the limit" is not a resting place for a check
+  that gates every release: it means a release can be blocked by a coin flip, and a session that
+  does not know this will read a `143` as a finding. Measuring what accumulates is still the work.
+  What is now ruled out is doing it by *re-sharding until it stops happening* — that would only move
+  the coin flip's odds, and would look like a fix.
+
+⚠ **And the failure mode is `143`, which is the OTHER half of this.** Exit 143 is SIGTERM: the shard
+printed 46-plus RED verdicts and was then stopped. **Nothing was found; the shard ran out of room.**
+`release-evidence.mjs` correctly refuses that sha, because a campaign that did not finish is
+could-not-look — but the CI job's own name says only `failure`, so the first reading available to a
+session is "a mutant survived". That is ADR-005 one level up, in the CI summary rather than in any
+gate this repository owns. Named here rather than fixed; it is a different piece of work.
+
+**This section stays MITIGATED.** No new mitigation was applied, no shard count changed, and the
+release that hit it (v2.88.0) went out on the re-dispatch, on `release-evidence.mjs` SUCCESS.
+
 ## 157. CLOSED 2026-09-07 — the release line anchored on a LOCAL tag, so the machine that cuts the releases is the one it lies to
 
 Found by a briefing-only `/am` on a clean tree at `46a2656`, which is to say: found by reading the

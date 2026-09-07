@@ -17,23 +17,35 @@ import { mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from '
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import { argv, execPath, exit } from 'node:process'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 
 const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
+
+// The Workflow tool's contract: the script BEGINS with `export const meta = {...}`,
+// and that is the only export the format has. Leading comments and blank lines are
+// tolerated because they are ordinary in the shipped files; anything else before the
+// header is not a Workflow script.
+const META_HEADER = /^(?:\s*(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*export (?=const meta\b)/
 
 /**
  * Report why `source` is not a parseable Workflow script, or null when it is.
  * `name` only labels the message; nothing is read from disk here.
  */
 export function checkWorkflowSource (source, name = '<source>') {
-  // Only a leading `export ` on its own line is removed, and only before a
-  // declaration keyword — an `export default` or a bare `export {…}` survives as a
-  // syntax error rather than being quietly accepted, because the format does not
-  // permit them and silently tolerating one is how a check stops being a check.
-  const body = source.replace(/^export (?=(?:const|let|var|function|class|async) )/gm, '')
+  // ⚠ EXACTLY ONE EXPORT IS REMOVED, AND ONLY THE REQUIRED HEADER. A global,
+  // multiline strip accepted files this grammar does not have — a missing header, a
+  // header that is not first, a second `export const`, an export nested in a block —
+  // and rewrote text inside template literals on the way past. Found by a
+  // different-lineage review of 2cde29f, 2026-09-07.
+  if (!META_HEADER.test(source)) {
+    return `${name}: no \`export const meta\` header, so this is not a Workflow script`
+  }
+  const body = source.replace(META_HEADER, match => match.slice(0, -'export '.length))
   try {
     new AsyncFunction(body)
   } catch (err) {
+    // A LATER export is left in place on purpose: the format has one, so a second
+    // one reaches the parser and is refused there rather than being stripped silent.
     return `${name}: ${err.message}`
   }
   return null
@@ -67,17 +79,34 @@ export function checkWorkflowFiles (files, check = checkWorkflowSource) {
  * the obvious call is vacuous on exactly the files most likely to be modules, and a
  * silent advisory would mean nothing (BACKLOG §161, CLAUDE.md §4).
  */
-export function checkJsSource (source, name = '<source>') {
+export function checkJsSource (source, name = '<source>', spawn = spawnSync) {
   const workflow = checkWorkflowSource(source, name)
   if (workflow === null) return null
-  const dir = mkdtempSync(join(tmpdir(), 'qh-parse-'))
+  // ⚠ OUTSIDE THE `try`, MAKING THE TEMP DIRECTORY IS ITSELF A THING THAT CAN FAIL.
+  // An unusable TMPDIR threw past every handler here, so the hook printed a raw stack
+  // and its `|| true` turned that into advice nobody could act on. A resource this
+  // check needs and cannot get is could-not-look, not a syntax error (ADR-005).
+  let dir
+  try {
+    dir = mkdtempSync(join(tmpdir(), 'qh-parse-'))
+  } catch (err) {
+    return `${name}: COULD NOT CHECK — no usable temporary directory (${err.message})`
+  }
   try {
     const copy = join(dir, 'candidate.mjs')
     writeFileSync(copy, source)
-    const checked = spawnSync(execPath, ['--check', copy], { encoding: 'utf8', timeout: 60_000 })
-    if (checked.status === 0) return null
-    // Could-not-spawn is not a syntax error and must not be reported as one (§3).
+    const checked = spawn(execPath, ['--check', copy], { encoding: 'utf8', timeout: 60_000 })
+    // ⚠ READ THE FAILURE FIELDS BEFORE THE STATUS, NOT AFTER. `spawnSync` can return
+    // status 0 ALONGSIDE an ETIMEDOUT error, and a killed child returns a null status
+    // with no error at all — so `status === 0` tested first hands back a clean answer
+    // for a check that never finished, and the null case falls through to a verdict
+    // nothing measured. Found by a different-lineage review of 2cde29f, 2026-09-07.
     if (checked.error) return `${name}: COULD NOT CHECK — ${checked.error.message}`
+    if (checked.signal) return `${name}: COULD NOT CHECK — the parse was killed by ${checked.signal}`
+    if (typeof checked.status !== 'number') {
+      return `${name}: COULD NOT CHECK — the parse returned no exit status`
+    }
+    if (checked.status === 0) return null
     // The copy's path is an implementation detail of this check and naming it in the
     // advice sends the reader to a file that has already been deleted.
     // BOTH SPELLINGS OF THE COPY'S PATH, because node reports the resolved one and
@@ -86,12 +115,31 @@ export function checkJsSource (source, name = '<source>') {
     const said = [realpathSync(copy), copy].reduce((text, path) => text.split(path).join(name),
       `${checked.stderr ?? ''}`).trim().split('\n').slice(0, 4).join('\n')
     return `${name}: parses as neither a module nor a Workflow script\n${said}`
+  } catch (err) {
+    return `${name}: COULD NOT CHECK — ${err.message}`
   } finally {
-    rmSync(dir, { recursive: true, force: true })
+    // Cleanup must not be able to replace the answer: `force` swallows a missing
+    // directory, and a throw here would discard a verdict already decided above.
+    try { rmSync(dir, { recursive: true, force: true }) } catch { /* the tmpdir outlives us */ }
   }
 }
 
-if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
+// ⚠ COMPARE RESOLVED PATHS, NOT THE URL AND argv[1] AS GIVEN. `/var` is a symlink to
+// `/private/var` on macOS and `/tmp` to `/private/tmp` (CLAUDE.md §7), so a script
+// invoked through the unresolved spelling has an `import.meta.url` that does not
+// match — and this block then silently does nothing while exiting 0, which is the
+// most flattering failure a checker can have. Caught by a test that ran the hook from
+// a temporary directory, 2026-09-07.
+const invokedDirectly = () => {
+  if (!argv[1]) return false
+  try {
+    return realpathSync(fileURLToPath(import.meta.url)) === realpathSync(argv[1])
+  } catch {
+    return import.meta.url === pathToFileURL(argv[1]).href
+  }
+}
+
+if (invokedDirectly()) {
   const args = argv.slice(2)
   if (args.includes('--help') || args.includes('-h')) {
     console.log('usage: workflow-parse.mjs [--js] <file>...\n\n' +
@@ -101,7 +149,9 @@ if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
       '      check on a .js file that may be either. The module half goes through a\n' +
       '      .mjs copy, because `node --check` on a .js file containing an `export`\n' +
       '      exits 0 whatever syntax error follows (measured on v24.11.1).\n\n' +
-      'Exits 0 when every file passes, 1 naming each that does not, 2 on usage.')
+      'Exits 0 when every file passes, 1 naming each that does not, 2 on usage, and 4\n' +
+      'when it could not complete — a caller that treats 4 as a finding is reporting an\n' +
+      'observation nothing made.')
     exit(0)
   }
   const either = args.includes('--js')
@@ -110,7 +160,25 @@ if (argv[1] && import.meta.url === pathToFileURL(argv[1]).href) {
     console.error('workflow-parse.mjs: name at least one file')
     exit(2)
   }
-  const failures = checkWorkflowFiles(files, either ? checkJsSource : checkWorkflowSource)
+  // ⚠ EXIT 4, NOT 1, FOR A CHECK THAT DID NOT COMPLETE. A caller can only tell a
+  // finding from a crash by the code, and node's own startup failures already own 1
+  // — so an uncaught throw here would arrive at the post-edit hook as "the checker
+  // looked and found this stack trace" (ADR-005, and CLAUDE.md §3).
+  let failures
+  try {
+    failures = checkWorkflowFiles(files, either ? checkJsSource : checkWorkflowSource)
+  } catch (err) {
+    console.error(`workflow-parse.mjs: UNRUN — the check did not complete: ${err.message}`)
+    exit(4)
+  }
   for (const failure of failures) console.error(failure)
+  // ⚠ A MARKER ON STDOUT, BECAUSE AN EXIT CODE CANNOT CARRY THIS. If this file is
+  // itself unparseable or its interpreter dies, node exits 1 — the code that means
+  // "the checker looked and found something" — and its stack trace is then printed to
+  // the user as if it described THEIR file. A caller that requires this line has
+  // positive evidence the check ran; its absence is could-not-look (ADR-005).
+  console.log('QH-PARSE-COMPLETE')
+  const unchecked = failures.filter(failure => /COULD NOT (CHECK|READ)/.test(failure))
+  if (unchecked.length === failures.length && failures.length > 0) exit(4)
   exit(failures.length ? 1 : 0)
 }

@@ -10803,3 +10803,51 @@ unclosed PAREN, not an unclosed brace. `node --check` wraps a file it reads as
 CommonJS, and the wrapper's own closing brace completes it — `node --check` exits 0 on
 `if (1) { return { ok: true }`. Any test elsewhere that proves a syntax check bites by
 deleting a closing brace is proving less than it says.
+
+## 162. OPEN — `adr-lint` reported 2.2× slower on an outside corpus, and NOT REPRODUCIBLE here
+
+**Reported from outside, 2026-09-07**, by a session working a 25-record corpus:
+`adr-lint` on one 4-task record took **11.2 s on 2.85.0 and 24.9 s on 2.88.0**, same
+record, same machine. Consequences it observed on the same session: a corpus sweep
+exceeded a 120 s tool timeout twice; `facts-gate-dispatch.sh` timed out on six commits
+at budgets from 1.6 s to 24.7 s, each time reporting *"the gates have no verdict on
+this edit"*; the 45 s hook boundary was exhausted before later artifacts were gated.
+
+⚠ **The consequence is the part that matters, and it is this repository's own defect
+class.** A gate that does not run, reported as nothing-is-blocked, is ADR-005 with the
+timing as its cause rather than a missing branch.
+
+**What was measured HERE, and it does not reproduce:**
+
+```
+$ for d in docs/adr/ADR-037-… docs/adr/ADR-020-…; do
+    s=$(date +%s%N); python3 plugin/bin/adr-lint "$d" >/dev/null 2>&1; e=$(date +%s%N)
+    echo "$(basename $d) $(( (e-s)/1000000 ))ms tasks=$(ls $d/tasks/*.md | wc -l)"
+  done
+ADR-037-advice-earns-its-place-by-being-acted-on 150ms tasks=3
+ADR-020-a-run-leaves-a-trace-outside-the-file     42ms tasks=3
+```
+
+cProfile over one of those runs: 0.037 s total, of which 0.016 s is `builtins.compile`
+— the interpreter reading adr-lint's own 4,551 lines. There is no hot loop to find in
+this corpus, because nothing here is slow.
+
+**So this is INCONCLUSIVE, not fixed and not dismissed.** Two readings fit the same
+evidence and this repository cannot separate them:
+
+1. Something in 2.88.0 scales with a property this corpus does not have — a large
+   `tests/` tree the code-scanner reads, many `Enforced-by`/`Covers` pointers each
+   resolving through the filesystem, or a per-pointer subprocess.
+2. The 11.2 s figure was never adr-lint's own time — a cold interpreter, a slow
+   filesystem, or an antivirus scanner on a Windows host would move both numbers
+   together without a regression existing.
+
+**What would settle it, and it has to come from the corpus that saw it:**
+`python3 -X importtime -m cProfile -s cumulative $(command -v adr-lint) <record>`, or
+simply the top 15 cumulative rows. Ask for that before changing any code — a fix
+guessed at from a ratio measured elsewhere is exactly the kind of unverified change
+this corpus refuses to record as done (§5).
+
+**Do not silently raise the budgets in response.** `QUALITY_HARNESS_SHELL_TIMEOUT_MS`
+is the reporter's own stated workaround and they said so; a budget raised to hide an
+unexplained 2.2× is a gate tuned until it stops reporting.

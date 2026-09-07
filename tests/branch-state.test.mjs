@@ -31,11 +31,6 @@ const GIT_CLEAN = [
   ['git rev-list', ok('0\t0')],
   ['git describe', ok('v2.64.0')],
   ['git diff --name-only', ok('')],
-  // A repository with no release cut. `gh` says so in those words, which is the
-  // ONLY forge failure allowed to be silent — every other one is could-not-look
-  // and now says so, so a fixture that omitted this line would model an
-  // unreachable forge rather than a quiet one.
-  ['gh release view', no('release not found')],
 ]
 
 test('a green run and a red run do not read alike', () => {
@@ -271,7 +266,14 @@ const RELEASE_PENDING = [
 
 test('the release line NAMES its anchor as local and points at the check', () => {
   const out = render(collect(runner(RELEASE_PENDING)), { brief: true })
-  assert.match(out, /changed in 2 file\(s\) since v2\.81\.0, the newest tag THIS CLONE holds/)
+  // ⚠ THE WORDING IS THE PRODUCT HERE, so it is asserted precisely. A first
+  // replacement said "the newest tag THIS CLONE holds" and that a forge release
+  // "is not here" — both claims this reader cannot make. `git describe --tags
+  // --abbrev=0` establishes the newest tag REACHABLE FROM HEAD and nothing about
+  // the forge at all. Named by a sixth review round, on the sentence written to
+  // fix an overclaim.
+  assert.match(out, /changed in 2 file\(s\) since v2\.81\.0, the newest tag reachable from HEAD in this clone/)
+  assert.match(out, /a forge release MAY NOT be tagged here/)
   assert.match(out, /gh release view/, 'the reader cannot answer this; it must say who can')
   // The sentence that was FALSE for four releases must not come back. A count
   // from a local tag is not evidence that anything is unreleased.
@@ -315,4 +317,15 @@ test('a clone with no tags at all is silent, not uncertain', () => {
     ['git describe', no('fatal: No names found, cannot describe anything.')]])), { brief: true })
   assert.doesNotMatch(out, /COULD NOT LOOK at the release state/, `an untagged repository was shouted at:\n${out}`)
   assert.doesNotMatch(out, /changed in/)
+})
+
+test('a `git describe` that FAILED is not a repository with no tags', () => {
+  // Only the budget arm was checked, so a permission error, a corrupt ref and a
+  // transient failure were all silence — the same honesty defect as the diff path,
+  // in the line above it. `No names found` is git POSITIVELY saying there is
+  // nothing to describe; anything else is a question this could not put.
+  const out = render(collect(runner([...RELEASE_PENDING.slice(0, 5),
+    ['git describe', no('fatal: not a git repository: .git/refs')]])), { brief: true })
+  assert.match(out, /COULD NOT LOOK at the release state/, `a failed describe read as untagged:\n${out}`)
+  assert.match(out, /the newest tag could not be read/)
 })

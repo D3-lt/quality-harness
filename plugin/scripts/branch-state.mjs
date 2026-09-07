@@ -75,7 +75,8 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
     // repository would fall through to could-not-look and be told so on every
     // prompt for ever. Pinning the language is the fix; a longer regex would only
     // be a bigger guess. It affects nothing else here: every value read is a ref
-    // name, a path or a sha.
+    // name, a path, a sha, a `rev-list --count` number or JSON — none of them
+    // localised.
     const env = { ...process.env, LC_ALL: 'C' }
     return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }
   } catch (error) {

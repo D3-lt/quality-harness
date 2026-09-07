@@ -10277,3 +10277,33 @@ was the wrong shape — which the first four could not, because each was asked w
 correct and none was asked whether it should exist. **A review answers the question you put to it.**
 The step-back question cost one round and saved the feature's whole maintenance surface; it should
 have been asked at round two, when the second consecutive finding landed in the same classifier.
+
+### ⚠ The revert is confirmed by the release that shipped it
+
+Cutting v2.86.0 produced the fact the whole arc was arguing about, without anyone looking for it:
+
+```
+gh release view <tag> --json targetCommitish
+  v2.86.0 → main
+  v2.85.0 → 46a265611ecf407b1fab10faa2c364c1e0e3b188
+  v2.84.0 → 16f06fc378cce8721cf2c7d40446907a94a1af11
+  v2.83.0 → 6402b1b36d69f7b03b6e5c962b3372f72627bf81
+  v2.82.0 → 021fea1ddfef9883e7852467c798a2ff63c79e68
+```
+
+**Five releases cut the same way by the same command, and one of them records a BRANCH NAME.** The
+removed `releaseAnchor` refused anything that was not 40 hex — correctly, because diffing against a
+branch name anchors on its tip and reports nothing unreleased for ever. So the forge lookup would
+have **refused this repository's own newest release**, and it would have done so nondeterministically:
+green on four releases, could-not-look on the fifth, with nothing in the tool or the reader able to
+say why.
+
+That is the failure surface argument made concrete. The classification was not hard because the code
+was careless; it was hard because **the field being classified is not stable**, and no amount of
+review rounds finds an instability that only appears on the sixth sample. The always-on reader
+never had to know this. `release-evidence.mjs` does not either — it asks about RUNS, not releases.
+
+⚠ **This is also a live check on `.claude/rules/13-releasing.md`.** §13.7 says `gh release create
+vX.Y.Z --latest`, and nothing there passes `--target`. Whatever makes `targetCommitish` land as a sha
+or as `main` is not in the documented procedure, so no reader may depend on it. Not chased further:
+the code that cared about it is gone.

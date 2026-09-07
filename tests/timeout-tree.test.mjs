@@ -164,7 +164,15 @@ test('adr-verify: a fence timeout kills the tree the fence started, not only bas
   const started = Date.now()
   const run = runPython([join(bin, 'adr-verify'), path, '--cwd', dir], {
     cwd: dir, encoding: 'utf8', timeout: 60_000,
-    env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '1' },
+    // ⚠ 3, NOT 1. At one second the ubuntu job of dispatched run 34107450870
+    // reported "the grandchild never wrote a beat, so the fixture proved
+    // nothing" — the fence was killed before bash had even started the
+    // background subshell, so there was nothing alive to prove the tree kill on.
+    // The fixture failing loudly rather than passing vacuously is the assertion
+    // working; what it needed was room. Three seconds is ~15 of the grandchild's
+    // 100 beats, so the "it ran to completion on its own" guard below still bites,
+    // and the fence's own foreground `sleep 60` still times out long before it.
+    env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '3' },
   })
   const elapsed = Date.now() - started
   assert.match(run.stdout + run.stderr, /UNRUN/, `the fence must be reported as not finished\n${run.stdout}${run.stderr}`)
@@ -175,7 +183,8 @@ test('adr-verify --sweep: a fence that times out takes its tree with it', async 
   const dir = scratch()
   task(dir, 'T1', HEARTBEAT_FENCE)
   const started = Date.now()
-  const run = runPython([join(bin, 'adr-verify'), '--sweep', join(dir, 'tasks'), '--timeout', '1'], {
+  // 3, not 1 — see the ordinary fence run above.
+  const run = runPython([join(bin, 'adr-verify'), '--sweep', join(dir, 'tasks'), '--timeout', '3'], {
     cwd: dir, encoding: 'utf8', timeout: 60_000,
   })
   const elapsed = Date.now() - started
@@ -245,7 +254,8 @@ test('adr-verify: a fence whose leader exits still has its tree killed', posixTr
   const started = Date.now()
   const run = runPython([join(bin, 'adr-verify'), path, '--cwd', dir], {
     cwd: dir, encoding: 'utf8', timeout: 60_000,
-    env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '1' },
+    // 3, not 1 — see the ordinary fence run above.
+    env: { ...process.env, QUALITY_HARNESS_FENCE_TIMEOUT: '3' },
   })
   const elapsed = Date.now() - started
   assert.match(run.stdout + run.stderr, /UNRUN/, `the fence must be reported as not finished\n${run.stdout}${run.stderr}`)

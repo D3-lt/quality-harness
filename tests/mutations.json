@@ -5181,7 +5181,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  const unreadable = !remotes.ok && remotes.status !== 1",
+      "from": "  const unreadable = !remotes.ok",
       "to": "  const unreadable = false"
     },
     {

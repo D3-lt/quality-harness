@@ -44,6 +44,7 @@ import ast
 import hashlib
 import ipaddress
 import json
+import os
 import re
 import shlex
 import subprocess
@@ -4225,28 +4226,72 @@ def advice_identity(record_key, message):
 def advice_survival_path(start):
     """Where the survival note lives, or None when there is nowhere to put it.
 
-    Inside `.git/`: never tracked, never shipped, and the same place
-    `branch-state.mjs` keeps its cache. No git directory means no store, and the
-    caller must say UNKNOWN rather than report a first sighting (ADR-005) — a
+    Inside git's own metadata directory: never tracked, never shipped, and the
+    same place `branch-state.mjs` keeps its cache. Nowhere to put it means the
+    caller says UNKNOWN rather than reporting a first sighting (ADR-005) — a
     corpus linted outside a checkout has not proved every finding is new.
+
+    ⚠ ASK GIT, DO NOT ASSEMBLE `<root>/.git`. In a WORKTREE and in a SUBMODULE
+    `.git` is a FILE pointing elsewhere, so an `is_dir()` test answers "nowhere to
+    record" for two layouts git supports and would have made the measurement
+    permanently UNKNOWN there while every other check ran normally.
+    `rev-parse --git-path` resolves all three layouts and is git's own answer.
     """
-    root = git_root(start)
-    if root is None:
+    try:
+        r = subprocess.run(["git", "-C", str(start), "rev-parse", "--git-path", ADVICE_SURVIVAL_NAME],
+                           capture_output=True, text=True, timeout=10,
+                           encoding="utf-8", errors="replace")
+    except Exception:
         return None
-    git_dir = root / ".git"
-    return (git_dir / ADVICE_SURVIVAL_NAME) if git_dir.is_dir() else None
+    if r.returncode != 0 or not r.stdout.strip():
+        return None
+    # `--git-path` answers relative to the directory git was pointed at.
+    return Path(start) / r.stdout.strip()
+
+
+def _valid_survival_note(data):
+    """Whether a stored note is shaped the way this code wrote it.
+
+    ⚠ THE WHOLE DOCUMENT IS CHECKED, NOT ITS TOP LEVEL. A note whose outer shape
+    was right and whose `runs` was a string raised `TypeError` — AFTER the ordinary
+    verdict had printed, so a PASS became a traceback and exit 1. A measurement is
+    not allowed to change what the gate it measures reports (CLAUDE.md §3).
+    """
+    if not isinstance(data, dict):
+        return False
+    records = data.get("records", {})
+    if not isinstance(records, dict):
+        return False
+    for entries in records.values():
+        if not isinstance(entries, dict):
+            return False
+        for entry in entries.values():
+            if not isinstance(entry, dict):
+                return False
+            if not isinstance(entry.get("runs"), int) or isinstance(entry.get("runs"), bool):
+                return False
+            if entry["runs"] < 1 or not isinstance(entry.get("message"), str):
+                return False
+    return True
 
 
 def record_advice_survival(path, record_key, messages, read=None, write=None):
     """Fold this run into the note; answer how many runs each finding has survived.
 
-    Returns [(message, runs), …] in the order given, or None when there was
-    nowhere to record. `read`/`write` are the seam a test drives, so every arm is
-    reachable without a repository (CLAUDE.md §7, §9).
+    Returns [(message, runs), …] in the order given, or None for UNKNOWN — there
+    was nowhere to record, the note could not be read, or the fold could not be
+    stored. `read`/`write` are the seam a test drives, so every arm is reachable
+    without a repository (CLAUDE.md §7, §9): `read` answers None for a note that
+    exists and could not be understood, and `write` answers whether it stored.
 
-    ⚠ A FINDING NOT SEEN THIS RUN IS DROPPED. That is what "acted on" looks like
-    from here, and keeping it would grow the note without bound while making a
-    resolved finding look like a surviving one.
+    ⚠ A COUNT NOBODY STORED IS NOT A COUNT. The first version returned the fold
+    whatever the write did, so a read-only `.git` reported "1 run" for ever — the
+    flattering answer, and indistinguishable from a genuine first sighting.
+
+    ⚠ A FINDING NOT SEEN THIS RUN IS DROPPED, and a record with nothing left is
+    dropped with it. That is what "acted on" looks like from here, and keeping
+    either would grow the note without bound while making a resolved finding look
+    like a surviving one.
     """
     if path is None and read is None:
         return None
@@ -4254,40 +4299,53 @@ def record_advice_survival(path, record_key, messages, read=None, write=None):
     def _read():
         try:
             return json.loads(path.read_text(encoding="utf-8"))
+        except FileNotFoundError:
+            return {}  # no note yet is a real answer: nothing has been seen before
         except Exception:
-            # An unreadable note is refreshed, never trusted and never fatal.
-            return {}
+            return None  # a note that exists and cannot be read is UNKNOWN
 
     def _write(data):
+        # Atomic: a truncated write leaves a document nothing can parse, and the
+        # next run would silently reset every count it holds.
+        temp = path.with_name(path.name + f".{os.getpid()}.tmp")
         try:
-            path.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+            temp.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+            temp.replace(path)
+            return True
         except Exception:
-            pass  # a note that cannot be written is not a failure
+            try:
+                temp.unlink()
+            except Exception:
+                pass
+            return False
 
     read = read or _read
     write = write or _write
     data = read()
-    if not isinstance(data, dict):
-        data = {}
+    if data is None or not _valid_survival_note(data):
+        return None
     records = data.get("records")
     if not isinstance(records, dict):
         records = {}
-    previous = records.get(record_key)
-    if not isinstance(previous, dict):
-        previous = {}
+    previous = records.get(record_key) or {}
 
     seen = {}
     out = []
     for message in messages:
         ident = advice_identity(record_key, message)
         before = previous.get(ident)
-        runs = (before.get("runs", 0) if isinstance(before, dict) else 0) + 1
+        runs = (before["runs"] if isinstance(before, dict) else 0) + 1
         seen[ident] = {"runs": runs, "message": message}
         out.append((message, runs))
-    records[record_key] = seen
+    if seen:
+        records[record_key] = seen
+    else:
+        records.pop(record_key, None)
     data["records"] = records
-    write(data)
+    if not write(data):
+        return None
     return out
+
 
 class Findings(list):
     """Findings that block, and a second channel for the ones that should not.
@@ -4442,9 +4500,17 @@ def main():
         report_version()
         sys.exit(0)
     reject_unknown_flags(known=("--advice-survival",))
-    if len(sys.argv) < 2:
+    # ⚠ A FLAG MAY COME FIRST, because that is the form everyone types.
+    # `adr-lint --advice-survival ADR.md` reported `ADR not found:
+    # --advice-survival`, since argv[1] was taken as the record whatever it was.
+    # Positionals are what is left after the flags; the flags are read from the
+    # original argv before it is narrowed.
+    want_survival = "--advice-survival" in sys.argv[1:]
+    positional = [a for a in sys.argv[1:] if not a.startswith("--")]
+    if not positional:
         print(__doc__)
         sys.exit(1)
+    sys.argv = [sys.argv[0], *positional]
     adr = Path(sys.argv[1])
     if not adr.exists():
         print(f"ADR not found: {adr}")
@@ -4643,11 +4709,23 @@ def main():
     # ADR-037 T1. RECORDED ON EVERY RUN — that is the only thing that makes the
     # count mean anything — and REPORTED only when asked, because the default
     # output must not change before the number exists to justify changing it.
-    survival = record_advice_survival(advice_survival_path(adr.parent), adr.name, list(errors.advice))
-    if "--advice-survival" in sys.argv[1:]:
+    # ⚠ THE KEY IS THE RECORD'S PATH IN THE REPOSITORY, NOT ITS BASENAME. Two
+    # corpora under one root can each hold an `ADR-001.md`, and a basename key
+    # would have them share a history — one record's findings advancing the
+    # other's counts, which is the flattering direction. Posix separators so a
+    # note written on Windows and read anywhere else agrees with itself
+    # (CLAUDE.md §7).
+    root = git_root(adr.parent)
+    try:
+        record_key = adr.resolve().relative_to(root.resolve()).as_posix() if root else adr.name
+    except Exception:
+        record_key = adr.name
+    survival = record_advice_survival(advice_survival_path(adr.parent), record_key, list(errors.advice))
+    if want_survival:
         if survival is None:
-            print("  survival: UNKNOWN — no .git directory to record in, so nothing here has "
-                  "been seen before or not. That is not \"every finding is new\" (ADR-005).")
+            print("  survival: UNKNOWN — the note could not be read, written, or found "
+                  "(no git metadata directory here). Nothing has been shown to be seen before "
+                  "or not, which is NOT \"every finding is new\" (ADR-005).")
         else:
             for message, runs in sorted(survival, key=lambda pair: -pair[1]):
                 print(f"  survival: {runs} run(s) unchanged · {message}")

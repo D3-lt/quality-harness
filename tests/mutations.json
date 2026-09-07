@@ -5118,7 +5118,7 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}, the newest tag `\n      + 'THIS CLONE holds — a release tagged on the forge is not here, so check '\n      + '`gh release view` before treating this as unreleased (§13).'",
+      "from": "    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}, the newest tag `\n      + 'reachable from HEAD in this clone — a forge release MAY NOT be tagged here, so check '\n      + '`gh release view` before treating this as unreleased (§13).'",
       "to": "    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}`\n      + ' — §13: a green shipped change is released, not parked.'"
     },
     {
@@ -5129,6 +5129,15 @@
       ],
       "from": "  const unknown = state.releaseBlocked\n    ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `\n      + 'That is not \"nothing to release\".'\n    : null",
       "to": "  const unknown = null"
+    },
+    {
+      "label": "branch-state: a failed git describe is not a repository with no tags",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    : !anchor && !(tag.ok || NO_TAGS.test(tag.note ?? ''))",
+      "to": "    : !anchor && tag.budget"
     },
     {
       "label": "branch-state: a command the budget refused is marked, not folded into a plain failure",

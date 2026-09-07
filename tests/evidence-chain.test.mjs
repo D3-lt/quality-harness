@@ -2189,22 +2189,34 @@ test('a partial task with a passing fence still owes a killed mutant', () => {
 
 // ADR-014 T2, end to end through the real binary, so the catalogue has a suite
 // scripts/mutate.mjs can start.
-test('Blocked-on is refused on a task that can run its own acceptance', () => {
+test('Blocked-on is accepted on a task that can run its own acceptance', () => {
+  // BACKLOG §155. This asserted the opposite until 2026-09-07, on the theory that
+  // "a task that can run its own acceptance is not waiting, it is unfinished".
+  // That theory does not fit a CONDITIONAL MEASUREMENT: the fence runs fine,
+  // running it NOW is worthless. The corpus that reported it had one that would
+  // produce four evaluation tables nobody should pay for until an upstream
+  // decision lands — and `pending` cannot say that, it means unfinished.
+  //
+  // 162 of 163 task files there carry a runnable fence, so the rule fenced the
+  // field off from nearly every task that could need it, and `Blocked-on` was
+  // used in ZERO of them.
   const copy = corpus()
   const withHeader = readTask(copy).replace('**Depends-on:**',
     '**Blocked-on:** commit 3f97d0ba is an ancestor of master'
     + ' (git merge-base --is-ancestor 3f97d0ba master)\n**Depends-on:**')
   writeTask(copy, withHeader)
+  expectExit(lint(copy), 0, 'a conditional measurement may declare what it waits for')
 
-  const got = lint(copy)
-  assert.notEqual(got.status, 0, 'the fixture has a runnable fence, so the header must be refused')
-  const said = `${got.stdout ?? ''}${got.stderr ?? ''}`
-  assert.match(said, /Blocked-on/, `and the finding must name the header: ${said.slice(0, 300)}`)
-  assert.match(said, /human-observed/, 'and say what would make it legitimate')
-
-  // The must-fail direction: without the header the same corpus is clean, so the
-  // refusal is caused by what this task added and not by the fixture.
-  expectExit(lint(corpus()), 0, 'a task without Blocked-on must be untouched')
+  // DIRTY, in the same test: the header's OTHER rule still bites, so this loosened
+  // one field and not the meaning. A sibling task is `Depends-on`, and admitting it
+  // into `Blocked-on` would make the two drift into spellings of each other.
+  const sibling = corpus()
+  writeTask(sibling, readTask(sibling).replace('**Depends-on:**',
+    '**Blocked-on:** T1 lands\n**Depends-on:**'))
+  const got = lint(sibling)
+  assert.notEqual(got.status, 0, 'a sibling task must still be refused')
+  assert.match(`${got.stdout ?? ''}${got.stderr ?? ''}`, /Depends-on/,
+    'and the finding must say which header is the right one')
 })
 
 test('--human-mutant refuses a diff a reader could not tell had been applied', () => {

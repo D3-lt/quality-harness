@@ -747,6 +747,10 @@ def report_version():
 
 
 def main(argv=()):
+    # ⚠ `--help` IS NOT AN UNKNOWN FLAG (BACKLOG §160).
+    if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
     if "--version" in sys.argv[1:]:
         report_version()
         sys.exit(0)

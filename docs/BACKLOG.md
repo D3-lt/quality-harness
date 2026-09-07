@@ -10198,3 +10198,37 @@ reviewer is what failed to start.
 Three rounds, three sets of real HIGH findings, and each round could only find its own because the
 previous fix created the exposure. The count of rounds is not the point; that none of them was empty
 is.
+
+### Round four: a call the previous fold-in made explicitly, overturned on evidence
+
+Two HIGH and a MEDIUM, folded in as `7b85e27`.
+
+**`HTTP 404` was in the quiet list and is not evidence of anything.** A missing repository, a wrong
+remote and a private repository the token cannot see all return 404, and each was being read as "no
+release cut" — silence over a state nobody had established. `gh` says `release not found` when the
+repository is readable and holds none, which is the observation actually being claimed. Membership
+in the quiet set is by EXACT DIAGNOSTIC now, never by HTTP status.
+
+**And narrowing `absent` had made a non-GitHub repository shout on every prompt** — a could-not-look
+line for the whole life of any repository not hosted there. `none of the git remotes …` is
+NOT-APPLICABLE, not unknown: there is no forge release to be uncertain about. §152 is exactly this,
+and the honest classification and the quiet one turned out to be the same one.
+
+⚠ **THE THIRD FINDING OVERTURNED A CALL THE PREVIOUS FOLD-IN MADE EXPLICITLY.** Round three's commit
+argues, in its own message, that a non-empty count is not silence and the local hedge already says
+where the number came from — so a blocked forge beside a real count could be suppressed. That is
+wrong for a reason the argument did not consider: **the local tag can be NEWER than the published
+release**, so the count UNDERSTATES the unreleased work while omitting the reason it might.
+Understating is the flattering direction. The hedge says the anchor is LOCAL; it does not say the
+forge was UNREADABLE. Both clauses render now.
+
+⚠ **The catalogue gate failed the suite during this change** — `every catalogue entry still matches
+the source it mutates, exactly once` — because a render rewrite left a mutant pointing at text that
+no longer existed. The gate doing its job on the same commit that adds two more entries to it.
+
+**A pattern worth naming, because four rounds is not a badge.** Every round found a real defect, and
+every one of them was in the CLASSIFICATION of `gh`'s failure modes — never in the anchoring, the
+ancestry, or the diff. The feature's surface is "how many ways can a subprocess fail, and which of
+them may be silent", and that surface is bigger than the defect it was built to fix. Round five was
+asked to judge the design rather than hunt a fifth defect, on the grounds that the answer is worth
+more than another narrow finding.

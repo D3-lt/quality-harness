@@ -562,19 +562,19 @@ test('adr-verify requires a clean fence before it mutates', () => {
       journalEmpty: true,
     },
     mutantBuild: {
-      status: 1,
+      status: 4,
       inconclusive: true,
       targetRestored: true,
       journalEmpty: true,
     },
     mutantEnvironment: {
-      status: 1,
+      status: 4,
       inconclusive: true,
       targetRestored: true,
       journalEmpty: true,
     },
     mutantCrash: {
-      status: 1,
+      status: 4,
       inconclusive: true,
       killed: false,
       targetRestored: true,
@@ -2382,17 +2382,18 @@ test('recording the run does not change the verdict the mutant earned', () => {
   assert.equal(entriesIn(readTask(copy)).length, 1, 'the clean run is recorded anyway')
 })
 
-// ⚠ THE VERDICT IS THE ROW, NOT THE EXIT CODE — and the tool's own `--help` says
-// so since BACKLOG §152. `survived` and `inconclusive` BOTH leave 1, so a caller
-// reading only the code cannot tell "the suite noticed nothing", which is a
-// finding about the test, from "nothing could be told", which is could-not-look
-// (ADR-005). Asserted in both directions in one test, because a claim about what
-// two answers SHARE is worth nothing beside what separates them (CLAUDE.md §4).
+// ⚠ `survived` AND `inconclusive` SHARED EXIT 1 UNTIL 2026-09-07, so a caller reading
+// only the code could not tell "the suite noticed nothing", which is a finding about
+// the test, from "nothing could be told", which is could-not-look (ADR-005, BACKLOG
+// §152 and §164). They no longer do: 1 and 4. Asserted in both directions in one
+// test, because a claim about what separates two answers is worth nothing beside a
+// case where they must still agree — both are nonzero, so a caller that only tests
+// for success is unaffected (CLAUDE.md §4).
 //
 // Its own fixture, in JavaScript on purpose: adr-verify parse-checks a mutated
 // Python file and refuses a broken one outright, so a node fence is the cheapest
 // place an `inconclusive` is actually reachable through the CLI.
-test('a survivor and an inconclusive share an exit code, and are told apart by the row', () => {
+test('a survivor and an inconclusive carry different exit codes, and both are nonzero', () => {
   const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-verdict-'))
   temps.push(temp)
   mkdirSync(join(temp, 'tasks'), { recursive: true })
@@ -2420,9 +2421,17 @@ test('a survivor and an inconclusive share an exit code, and are told apart by t
 
   assert.equal(verdictOf(survived.stdout), 'survived', survived.stdout)
   assert.equal(verdictOf(broken.stdout), 'inconclusive', broken.stdout)
-  // The claim the `--help` text makes, asserted rather than described.
-  expectExit(survived, 1, 'a survivor must not be credited as a kill')
-  expectExit(broken, 1, 'and an inconclusive leaves the SAME code, which is the point')
+  // The claim the tool's own contract makes, asserted rather than described.
+  expectExit(survived, 1, 'a survivor is a finding about the test, and exits 1')
+  expectExit(broken, 4, 'an inconclusive is could-not-look, and exits 4 — the whole point')
+  // Neither is zero, which is what keeps the change safe for a caller that only
+  // asks whether the run succeeded.
+  assert.notEqual(survived.status, 0)
+  assert.notEqual(broken.status, 0)
+  // And the sentence the tool prints names the code it is actually about to use,
+  // or a reader is told one number while the shell sees another (CLAUDE.md §33).
+  assert.match(survived.stdout, /adr-verify exits 1;/, survived.stdout)
+  assert.match(broken.stdout, /adr-verify exits 4;/, broken.stdout)
 })
 
 test('the verification entry outlives the restore', () => {

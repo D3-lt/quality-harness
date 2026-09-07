@@ -192,3 +192,41 @@ test('a dying checker cannot pass itself off as complete by printing the marker'
     `a real finding must not be reported as unchecked: ${honest.stdout}${honest.stderr}`)
   assert.match(`${honest.stdout}${honest.stderr}`, /parses as neither/)
 })
+
+test('the hook picks the parse goal from the extension, and diagnostics cannot forge the marker', () => {
+  // Two findings from a third different-lineage review, in one test because they
+  // are the same shape: something that is not the checker's verdict being read as
+  // one. (1) every JS extension got the either-dialect mode, so a broken `.mjs`
+  // drew no advisory. (2) stdout and stderr were merged before the completion
+  // marker was looked for, so node echoing a corrupt parser's source could put the
+  // exact line `QH-PARSE-COMPLETE` into the output and turn a crash into a finding.
+  const dir = scratch()
+  const workflowShaped = 'export const meta = { name: "w" }\nreturn 1\n'
+
+  const asMjs = join(dir, 'subject.mjs')
+  writeFileSync(asMjs, workflowShaped)
+  const mjs = run('Edit', asMjs)
+  assert.equal(mjs.status, 0, 'advisory')
+  assert.match(`${mjs.stdout}${mjs.stderr}`, /does not parse as an ES module/,
+    `a top-level return in a .mjs is broken and must be said: ${mjs.stdout}${mjs.stderr}`)
+
+  // The same bytes as .js are legitimately a Workflow script and must stay silent,
+  // or the assertion above is just a checker that refuses everything.
+  const asJs = join(dir, 'subject.js')
+  writeFileSync(asJs, workflowShaped)
+  const js = run('Edit', asJs)
+  assert.equal(`${js.stdout}${js.stderr}`.trim(), '',
+    `the same bytes as .js are a Workflow script: ${js.stdout}${js.stderr}`)
+
+  // A checker whose DIAGNOSTIC contains the marker line: it goes to stderr, which
+  // is not the protocol channel, so the run is still reported as not having run.
+  const forge = join(dir, 'forge')
+  mkdirSync(forge, { recursive: true })
+  writeFileSync(join(forge, 'post-edit-check.sh'), readFileSync(hook, 'utf8'))
+  writeFileSync(join(forge, 'workflow-parse.mjs'),
+    'console.error("QH-PARSE-COMPLETE")\nprocess.exit(1)\n')
+  const forged = spawnSync('bash', [join(forge, 'post-edit-check.sh'), 'Edit', asJs],
+    { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
+  assert.match(`${forged.stdout}${forged.stderr}`, /UNRUN/,
+    `the marker on stderr is a diagnostic, not the protocol: ${forged.stdout}${forged.stderr}`)
+})

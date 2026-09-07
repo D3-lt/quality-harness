@@ -9651,6 +9651,35 @@ non-matching `--mutant --from` is then indistinguishable from a genuine survivor
 as "no verdict line". Could-not-look wearing the shape of a verdict (ADR-005), in a tool that
 enforces that rule on everyone else.
 
+**2026-09-07 — A SECOND INSTANCE, and it names a THIRD shape neither option above considered.**
+BACKLOG §157: the `branch-state` release line printed *"plugin/ changed in 8 file(s) since v2.81.0 —
+§13: a green shipped change is released, not parked"* on every prompt, for four releases, while
+there was nothing to release. The owner filtered it. A session then read it and had to spend a turn
+proving it false before any work could start.
+
+The two shapes this section proposed — emit once per record, emit only when the count CHANGES — are
+both **rate limits on a message assumed to be true**. §157's message was FALSE, and the fix was
+neither: it made the advice correct, after which it fires only when there is something to do. That
+is the same end state both options were reaching for, arrived at without the objection this section
+already raised against them ("advice that vanishes on the second run is advice a reader never sees
+if they only ever read the second run").
+
+So the triage question comes first, and it is cheap:
+
+- **Is the advice TRUE every time it fires?** If not, that is the defect. Rate-limiting a false
+  message hides it better and leaves it false — strictly worse than the annoyance.
+- **Only if it is always true** is this section's original question live: `adr-lint`'s
+  fence-segments-vs-`Rests-on` advice IS true on all six of those task files, and unactionable, and
+  that is the case the two shapes above are for.
+
+⚠ **And the cost is now measured twice, in the same direction.** §152's original cost was a false
+claim ABOUT a gate's output ("adr-lint PASS, no advice outstanding"). §157's was a false claim BY a
+gate, believed for four releases because nobody re-read a line they had learned to skip. Filtering
+is not the failure; it is the correct response to a channel that has stopped carrying signal. The
+failure is upstream of the reader every time.
+
+**Still open**, unchanged: the `adr-lint` case, and the two `adr-verify` siblings named below.
+
 ## 153. DECIDED (b) 2026-09-06 — a THIRD route to "the router offers work the record forbids starting"
 
 Found 2026-09-06 by asking the reporter of `f8a0698` whether that fix covered their case. It did

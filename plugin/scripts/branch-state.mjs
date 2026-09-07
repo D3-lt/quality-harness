@@ -69,11 +69,31 @@ export function budgeted(totalMs, run = shell, now = Date.now) {
 /** Run a command and report what happened, never throwing. */
 export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
   try {
-    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, timeout, encoding: 'utf8' }).trim() }
+    // ⚠ `LC_ALL=C` IS LOAD-BEARING, not tidiness. Git localises its diagnostics,
+    // and this reader distinguishes "positively no tags" from "could not read the
+    // tags" by matching git's own words — so under any other locale an untagged
+    // repository would fall through to could-not-look and be told so on every
+    // prompt for ever. Pinning the language is the fix; a longer regex would only
+    // be a bigger guess. It affects nothing else here: every value read is a ref
+    // name, a path or a sha.
+    const env = { ...process.env, LC_ALL: 'C' }
+    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }
   } catch (error) {
     return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
   }
 }
+
+/**
+ * What `git describe` says when the repository positively has no tag to describe,
+ * as opposed to a failure it could not complete. Only the first may be silent.
+ *
+ * ⚠ MATCHING GIT'S PROSE ONLY WORKS BECAUSE `shell` PINS `LC_ALL=C`. Git localises
+ * its diagnostics, so without that pin an untagged repository under any other
+ * locale falls through to "could not read the newest tag" and is told so on every
+ * prompt for ever — BACKLOG §152 with a language barrier in front of it. The pin
+ * is the fix; a longer regex would only be a bigger guess.
+ */
+const NO_TAGS = /No names found|cannot describe anything/i
 
 /**
  * Everything the renderer needs, gathered through `run`.
@@ -81,12 +101,6 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
  * Each half is independent: git can answer while `gh` is missing, and the render
  * must be able to say so for one without claiming anything about the other.
  */
-/**
- * What `git describe` says when the repository positively has no tag to describe,
- * as opposed to a failure it could not complete. Only the first may be silent.
- */
-const NO_TAGS = /No names found|cannot describe anything/i
-
 export function collect(run = shell) {
   const branch = run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
   if (!branch.ok) return { looked: false, note: branch.note }
@@ -133,18 +147,17 @@ export function collect(run = shell) {
   // release. It worked — and five different-lineage review rounds each found a
   // real defect in it, every one in the CLASSIFICATION of how `gh` can fail: a
   // spent budget, an auth error, a 404 that means four different things, a draft,
-  // So this reader states what it can OBSERVE and names what it cannot. What it
-  // observes is narrow and it is said narrowly: `git describe --tags --abbrev=0`
-  // gives the newest tag REACHABLE FROM HEAD in this clone — not the newest tag
-  // the clone holds, and certainly not the newest release. Exact release evidence
-  // belongs in `scripts/release-evidence.mjs`, which the release
+  // a release off a divergent branch, a repository not on GitHub at all, and the
+  // same repository without `gh` installed. The feature's real surface was "how
+  // many ways can a subprocess fail, and which of them may be silent", and that
   // surface is bigger than the defect it was built to fix.
   //
-  // So this reader states what it can OBSERVE and names what it cannot: the
-  // anchor is the newest tag THIS CLONE holds, said in those words, and the
-  // advice points at the check rather than asserting its answer. Exact release
-  // evidence belongs in `scripts/release-evidence.mjs`, which the release
-  // procedure already runs and which may take as long as it likes (§13.5).
+  // So this reader states what it can OBSERVE and names what it cannot, narrowly:
+  // `git describe --tags --abbrev=0` gives the newest tag REACHABLE FROM HEAD in
+  // this clone — not the newest tag the clone holds, and nothing at all about the
+  // forge. Exact release evidence belongs in `scripts/release-evidence.mjs`, which
+  // the release procedure already runs and which may take as long as it likes
+  // (§13.5).
   const tag = run(['git', 'describe', '--tags', '--abbrev=0'])
   const anchor = tag.ok && tag.out ? tag.out : null
   const shipped = anchor ? run(['git', 'diff', '--name-only', `${anchor}..HEAD`, '--', 'plugin/']) : null

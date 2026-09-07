@@ -6030,13 +6030,13 @@
     },
     {
       "label": "exit contract: a gate that stops declaring a code it produces is caught",
-      "file": "plugin/bin/adr-lint",
+      "file": "plugin/bin/postmortem-verify",
       "tests": [
         "tests/gates.test.mjs"
       ],
       "only": "declared in its own docstring",
-      "from": "Exit: 0 pass · 1 failures found · 2 usage — an unknown flag or no record named.",
-      "to": "Exit: 0 pass · 1 failures found."
+      "from": "Exit: 0 all valid · 1 violations (a malformed doc silently poisons the fine-tuning corpus)",
+      "to": "Exit: 0 all valid."
     },
     {
       "label": "exit contract: a gate that drops its Exit block entirely is caught",

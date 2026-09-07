@@ -214,6 +214,15 @@ test('the collection budget is spent once, and says so when it runs out', () => 
   const spent = run(['gh', 'run', 'view', '1'])
   assert.equal(spent.ok, false, 'past the deadline nothing else is spawned')
   assert.match(spent.note, /budget of 15000ms spent/)
+  // ⚠ AND IT IS MARKED, not merely failed. The release line distinguishes "the
+  // question could not be put" from "there is nothing to release", and a spent
+  // budget is the first — but only if the refusal carries something structural to
+  // branch on. Asserted HERE, on `budgeted` itself: the render test that covers
+  // the COULD NOT LOOK line injects its own runner, so it exercises the flag and
+  // not the code that sets it. That gap showed up as a GREEN mutant.
+  assert.equal(spent.budget, true, 'a prevented command must be distinguishable from one that answered no')
+  const answered = budgeted(15_000, () => ({ ok: false, out: '', note: 'gh: not found' }), () => 0)(['gh'])
+  assert.equal(answered.budget, undefined, 'a command that RAN and failed is not a budget refusal')
 })
 
 // The honesty defect the reader exists to prevent, found in the reader: a failed

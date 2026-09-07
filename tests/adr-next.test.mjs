@@ -957,3 +957,34 @@ test('the statuses a task normally carries still route as before', () => {
     assert.equal(where('T1'), 'ready', `status ${status} must stay buildable: ${JSON.stringify(parsed)}`)
   }
 })
+
+test('tool-written evidence outranks the task file\'s own Status word', () => {
+  // ⚠ THE ORDER IN `classify` IS LOAD-BEARING and was not before §166. An outside
+  // corpus predicted that reading the file's Status would surface stale `partial`
+  // markers as phantom READY work — a task whose every deliverable shipped being
+  // offered as the next thing to build. It does not: `done` is decided from the
+  // Verification Log BEFORE any status is consulted, so a status that disagrees with
+  // passing evidence loses to the evidence. A `partial` with NO evidence is still
+  // ready, which is the correct answer for genuinely unfinished work.
+  const fence = 'true'
+  const digest = createHash('sha256').update(fence, 'utf8').digest('hex')
+  const body = (status, log) =>
+    `# Task T1: probe\n\n**Status:** ${status}\n\n## Acceptance\n\n\`\`\`bash\n${fence}\n\`\`\`\n\n## Verification Log\n${log}`
+  const evidence = `\n- 2026-09-01 · abc1234 · exit 0 · \`${fence}\` · acceptance-sha256:${digest}\n`
+
+  const routeOf = text => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-evidence-'))
+    temps.push(dir)
+    mkdirSync(join(dir, 'tasks'))
+    writeFileSync(join(dir, 'tasks', 'T1-t.md'), text)
+    const parsed = JSON.parse(next(['--json', join(dir, 'tasks')], root).stdout)
+    return ['ready', 'done', 'blocked', 'stopped'].find(b => (parsed[b] ?? []).some(t => t.id === 'T1')) ?? 'nowhere'
+  }
+
+  assert.equal(routeOf(body('partial', evidence)), 'done',
+    'a passing fence outranks a stale marker, so the fix does not manufacture phantom work')
+  assert.equal(routeOf(body('partial', '')), 'ready', 'and unevidenced partial work is still work')
+  // The terminal case is the one where the WORD wins, because nobody is going to
+  // build it whatever its log says.
+  assert.equal(routeOf(body('withdrawn', '')), 'stopped')
+})

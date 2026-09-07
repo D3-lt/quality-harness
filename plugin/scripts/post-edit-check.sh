@@ -41,6 +41,15 @@ debounce() {
 file_dir=$(dirname "$file_path")
 case "$file_path" in
   *.js|*.mjs|*.cjs)
+    # ⚠ THE EXTENSION SELECTS THE PARSE GOAL, and giving every one of them the
+    # either-dialect mode was a false clean: a `.mjs` carrying a top-level `return`
+    # is broken — node's module goal is the only one it has — and the Workflow
+    # fallback accepted it silently. Only `.js` is ambiguous between an ES module
+    # and a Workflow script, so only `.js` gets `--js`.
+    case "$file_path" in
+      *.js) parse_mode=--js ;;
+      *)    parse_mode=--module ;;
+    esac
     command -v node >/dev/null 2>&1 || exit 0
     # ⚠ NOT `node --check` — TWICE WRONG on a .js file. It reports a SyntaxError on a
     # CORRECT Workflow script (`Illegal return statement`, node 26), and on node 24 it
@@ -60,33 +69,41 @@ case "$file_path" in
       echo "UNRUN — $parser is missing, so this file is unchecked rather than clean"
       exit 0
     fi
+    # ⚠ SEPARATE CHANNELS: the marker is read from STDOUT ALONE. Merged with stderr,
+    # a parser that died could have the exact line `QH-PARSE-COMPLETE` echoed back
+    # inside node's own syntax diagnostic of the corrupt source, which set `ran=yes`
+    # and presented a crash as a finding about the user's file. Diagnostics cannot
+    # reach the protocol channel now.
     parse_status=0
-    parse_out=$(node "$parser" --js "$file_path" 2>&1) || parse_status=$?
-    # ⚠ AN EXACT LINE, AND NO EXTERNAL FILTER. A `case` glob accepted the token
-    # ANYWHERE in the output, so a checker that died while echoing a source line
-    # containing it was reported as a finding; and `grep -v … || true` could not tell
-    # its own exit 1 (nothing matched) from exit 2 (grep itself failed), which turned a
-    # real finding plus a failed filter into silence. This loop is pure shell: it
-    # matches the whole line, and it cannot fail separately from the shell running it.
+    parse_err=$(mktemp 2>/dev/null) || {
+      echo "UNRUN — no temporary file for the checker's diagnostics, so this file is unchecked"
+      exit 0
+    }
+    parse_out=$(node "$parser" "$parse_mode" "$file_path" 2>"$parse_err") || parse_status=$?
+    parse_diag=$(cat "$parse_err" 2>/dev/null || true)
+    rm -f "$parse_err"
+    # ⚠ AN EXACT LINE, ON STDOUT ALONE. A `case` glob accepted the token ANYWHERE in
+    # the output, and merging stderr let node echo it back inside its own diagnostic
+    # of a corrupt parser — both made a crash read as a finding about the user's file.
+    # The loop is pure shell: `grep -v … || true` could not tell its own exit 1
+    # (nothing matched) from exit 2 (grep itself failed), which turned a real finding
+    # plus a failed filter into silence.
     ran=no
-    parse_said=""
     while IFS= read -r line || [ -n "$line" ]; do
       case "$line" in
         QH-PARSE-COMPLETE|QH-PARSE-COMPLETE$'\r') ran=yes ;;
-        *) parse_said="${parse_said}${line}
-" ;;
       esac
     done <<PARSE_OUT
 $parse_out
 PARSE_OUT
     if [ "$ran" = no ]; then
       echo "UNRUN — the syntax check did not complete (exit $parse_status); this file is unchecked, not clean"
-      printf '%s' "$parse_said" | tail -10
+      printf '%s\n' "$parse_diag" | tail -10
     elif [ "$parse_status" = 1 ]; then
-      printf '%s' "$parse_said" | tail -30
+      printf '%s\n' "$parse_diag" | tail -30
     elif [ "$parse_status" != 0 ]; then
       echo "UNRUN — the syntax check could not look (exit $parse_status); this file is unchecked, not clean"
-      printf '%s' "$parse_said" | tail -10
+      printf '%s\n' "$parse_diag" | tail -10
     fi
     ;;
   *.sh|*.bash)

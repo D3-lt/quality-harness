@@ -4063,8 +4063,18 @@
       "tests": [
         "tests/tutorial.test.mjs"
       ],
-      "from": "    sys.exit(0 if verdict == \"killed\" else 1)",
+      "from": "    sys.exit(tool_code)",
       "to": "    sys.exit(0)"
+    },
+    {
+      "label": "verdict codes: an inconclusive does not borrow the survivor's code",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "only": "different exit codes",
+      "from": "    tool_code = 0 if verdict == \"killed\" else 4 if verdict == \"inconclusive\" else 1",
+      "to": "    tool_code = 0 if verdict == \"killed\" else 1"
     },
     {
       "label": "tutorial: a fence that passes with the mechanism broken is still called a survivor",
@@ -6047,6 +6057,33 @@
       "only": "declared in its own docstring",
       "from": "Exit: 0 the contract holds · 1 it does not.",
       "to": "The contract either holds or it does not."
+    },
+    {
+      "label": "post-edit-check: the extension picks the parse goal, so a .mjs is not judged as a workflow",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "      *.js) parse_mode=--js ;;",
+      "to": "      *.js|*.mjs) parse_mode=--js ;;"
+    },
+    {
+      "label": "post-edit-check: the completion marker is read from stdout, never from a diagnostic",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "    parse_out=$(node \"$parser\" \"$parse_mode\" \"$file_path\" 2>\"$parse_err\") || parse_status=$?",
+      "to": "    parse_out=$(node \"$parser\" \"$parse_mode\" \"$file_path\" 2>&1) || parse_status=$?"
+    },
+    {
+      "label": "workflow-parse: the verdict token is matched whole, delimiter included",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  return rest.startsWith('COULD NOT CHECK — ') ? 'COULD NOT CHECK'",
+      "to": "  return rest.startsWith('COULD NOT CHECK') ? 'COULD NOT CHECK'"
     }
   ]
 }

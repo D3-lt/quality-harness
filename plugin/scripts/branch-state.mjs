@@ -101,17 +101,53 @@ const NO_TAGS = /No names found|cannot describe anything/i
  *
  * Each half is independent: git can answer while `gh` is missing, and the render
  * must be able to say so for one without claiming anything about the other.
+ *
+ * `checkpoint` is called ONCE with the git half, before `gh` is attempted. A
+ * caller that caches can persist that, so a run killed during the network half
+ * still leaves something behind — see `cached`.
  */
-export function collect(run = shell) {
+export function collect(run = shell, checkpoint = () => {}) {
   const branch = run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
   if (!branch.ok) return { looked: false, note: branch.note }
   const head = run(['git', 'rev-parse', '--short', 'HEAD'])
   const dirty = run(['git', 'status', '--short'])
   const counts = run(['git', 'rev-list', '--left-right', '--count', `origin/${branch.out}...HEAD`])
   const [behind, ahead] = counts.ok ? counts.out.split(/\s+/).map(Number) : [null, null]
+  const git = {
+    looked: true,
+    branch: branch.out,
+    head: head.ok ? head.out : '(unknown)',
+    dirty: dirty.ok ? dirty.out.split('\n').filter(Boolean).length : null,
+    ahead, behind,
+  }
+  checkpoint({
+    ...git,
+    ci: { looked: false, note: 'this answer was stored before the CI half was gathered' },
+    tag: null, shippedSinceTag: null,
+    releaseBlocked: 'this answer was stored before the release half was read',
+  })
 
-  const runs = run(['gh', 'run', 'list', '--branch', branch.out, '--limit', '1',
-    '--json', 'headSha,status,conclusion,databaseId'])
+  // ⚠ ASKING `gh` ABOUT A REPOSITORY IT CANNOT ANSWER FOR IS NOT FREE, AND IT IS
+  // PAID ON EVERY CACHE MISS. Reported on a self-hosted GitLab remote (issue #12,
+  // Windows 11 / Git Bash): 4,214ms just to fail, and in a live session it did not
+  // fail fast — it spent the whole collection budget and the HOST then killed the
+  // hook at 20s, discarding the git half along with it, on three prompts in a row.
+  //
+  // The discriminator is local, needs no network, and costs about 150ms next to
+  // the six `git` calls already spawned above. `gh` is not asked when nothing
+  // names a GitHub host, and the render says WHY rather than pretending the
+  // question was put (ADR-005).
+  //
+  // ⚠ It matches `github` anywhere in a remote URL, which covers github.com and
+  // the usual Enterprise hostnames. A GitHub Enterprise host named something else
+  // entirely loses its CI line and is TOLD it lost it — a bounded, visible cost
+  // against a hook that was being killed outright on every prompt.
+  const remotes = run(['git', 'config', '--get-regexp', '^remote\\..*\\.url$'])
+  const onGitHub = remotes.ok && /github/i.test(remotes.out)
+  const runs = onGitHub
+    ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', '1',
+      '--json', 'headSha,status,conclusion,databaseId'])
+    : { ok: false, out: '', note: 'no remote names a GitHub host, so `gh` was not asked' }
   let ci = { looked: false, note: runs.ok ? 'no run recorded for this branch' : runs.note }
   if (runs.ok) {
     let rows = []
@@ -179,16 +215,13 @@ export function collect(run = shell) {
       ? `the newest tag could not be read (${tag.note ?? 'no reason given'})`
       : null
   return {
-    looked: true,
-    branch: branch.out,
-    head: head.ok ? head.out : '(unknown)',
-    dirty: dirty.ok ? dirty.out.split('\n').filter(Boolean).length : null,
-    ahead, behind, ci,
+    ...git,
+    ci,
     tag: anchor,
     shippedSinceTag: shipped && shipped.ok ? shipped.out.split('\n').filter(Boolean).length : null,
     releaseBlocked: blocked,
-  }
 }
+  }
 
 
 /**
@@ -298,7 +331,17 @@ export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = co
     // answer that came from cache was indistinguishable from one just taken.
     return { state: previous.state, ageSeconds: Math.max(1, Math.round((at - previous.at) / 1000)), fromCache: true }
   }
-  const state = gather()
+  // ⚠ THE GIT HALF IS CACHED BEFORE THE NETWORK HALF IS ATTEMPTED. `write` used to
+  // run only after `gather` returned, so a run the HOST killed left NO cache entry
+  // and the next prompt re-paid in full — measured as three consecutive 20s
+  // timeouts, none cheaper than the last (issue #12). A completed slow run caches
+  // its own COULD NOT LOOK for the whole window; a killed one cached nothing,
+  // which is exactly the case that needed the backoff.
+  //
+  // The checkpoint is a strictly worse answer than the final one and says so in
+  // its own notes, so a session that reads it is not misled — it is a floor, not a
+  // result.
+  const state = gather(partial => write({ at, state: partial }))
   write({ at, state })
   return { state, ageSeconds: 0, fromCache: false }
 }
@@ -320,7 +363,7 @@ function main(argv = process.argv.slice(2)) {
   const { state, fromCache, ageSeconds } = cached(Number(argv[at + 1]) || 120, {
     read: () => { if (!store) return null; try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null } },
     write: payload => { if (!store) return; try { writeFileSync(store, JSON.stringify(payload)) } catch { /* a cache that cannot be written is not a failure */ } },
-    gather: () => collect(budgeted(BUDGET_MS)),
+    gather: checkpoint => collect(budgeted(BUDGET_MS), checkpoint),
   })
   process.stdout.write(`${render(state, { brief })}${fromCache ? ` (read ${ageSeconds}s ago)` : ''}\n`)
   return 0

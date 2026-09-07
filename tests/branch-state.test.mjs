@@ -29,6 +29,9 @@ const GIT_CLEAN = [
   ['git rev-parse --short', ok('0a18d04')],
   ['git status --short', ok('')],
   ['git rev-list', ok('0\t0')],
+  // `gh` is asked only where a remote names a GitHub host (issue #12), so a
+  // fixture that omits this models a GitLab checkout rather than a GitHub one.
+  ['git config --get-regexp', ok('remote.origin.url git@github.com:D3-lt/quality-harness.git')],
   ['git describe', ok('v2.64.0')],
   ['git diff --name-only', ok('')],
 ]
@@ -271,6 +274,7 @@ const RELEASE_PENDING = [
   ['git rev-parse --short', ok('46a2656')],
   ['git status --short', ok('')],
   ['git rev-list', ok('0\t0')],
+  ['git config --get-regexp', ok('remote.origin.url git@github.com:D3-lt/quality-harness.git')],
   ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
   ['git describe', ok('v2.81.0')],
   ['git diff --name-only v2.81.0..HEAD', ok('plugin/.claude-plugin/plugin.json\nplugin/bin/adr-lint')],
@@ -340,4 +344,65 @@ test('a `git describe` that FAILED is not a repository with no tags', () => {
     ['git describe', no('fatal: not a git repository: .git/refs')]])), { brief: true })
   assert.match(out, /COULD NOT LOOK at the release state/, `a failed describe read as untagged:\n${out}`)
   assert.match(out, /the newest tag could not be read/)
+})
+
+// GitHub issue #12, reported 2026-09-07 from a self-hosted GitLab remote on
+// Windows 11 / Git Bash, quality-harness 2.85.0: the UserPromptSubmit hook was
+// KILLED BY ITS HOST at 20s on three consecutive prompts. Two independent causes,
+// and each is enough on its own.
+test('`gh` is not asked where no remote names a GitHub host', () => {
+  // Measured by the reporter in their checkout: 4,214ms merely to fail with
+  // "none of the git remotes configured for this repository point to a known
+  // GitHub host" — and in a live session it did not fail fast, it consumed the
+  // whole collection budget. The discriminator is local and needs no network.
+  const asked = []
+  const spy = table => argv => { asked.push(argv.join(' ')); return runner(table)(argv) }
+  const gitlab = [...GIT_CLEAN.filter(([p]) => !p.startsWith('git config')),
+    ['git config --get-regexp', ok('remote.origin.url git@git.eleving.com:webxx/ocr-ms.git')]]
+
+  const out = render(collect(spy(gitlab)), { brief: true })
+  assert.equal(asked.some(a => a.startsWith('gh ')), false,
+    `gh was asked about a repository it cannot answer for:\n${asked.join('\n')}`)
+  // And it SAYS the question was not put, rather than implying it was asked and
+  // came back empty (ADR-005).
+  assert.match(out, /no remote names a GitHub host, so `gh` was not asked/)
+  assert.match(out, /NOT a green branch; an unknown one/, 'still not a clean bill')
+
+  // The other direction in the same test: a GitHub remote IS asked (CLAUDE.md §4).
+  const askedGh = []
+  const spy2 = table => argv => { askedGh.push(argv.join(' ')); return runner(table)(argv) }
+  render(collect(spy2([...GIT_CLEAN,
+    ['gh run list', ok(JSON.stringify([{ headSha: '0a18d04ff', status: 'completed', conclusion: 'success', databaseId: 1 }]))]])))
+  assert.equal(askedGh.some(a => a.startsWith('gh run list')), true)
+})
+
+test('the git half is cached BEFORE the network half is attempted', () => {
+  // `write` ran only after `gather` returned, so a run the HOST killed left no
+  // cache entry at all and the next prompt re-paid in full — three consecutive
+  // 20s timeouts, none cheaper than the last. A completed slow run caches its own
+  // COULD NOT LOOK; a killed one cached nothing, which is the case that needed
+  // the backoff most.
+  const writes = []
+  const state = cached(120, {
+    read: () => null,
+    write: payload => writes.push(payload.state),
+    now: () => 1000,
+    // Stands in for a run killed during the network half: it checkpoints, then
+    // never returns.
+    gather: checkpoint => {
+      checkpoint({ looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,
+        ci: { looked: false, note: 'this answer was stored before the CI half was gathered' },
+        tag: null, shippedSinceTag: null, releaseBlocked: 'stored before the release half was read' })
+      return { looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,
+        ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] },
+        tag: 'v1.0.0', shippedSinceTag: 0, releaseBlocked: null }
+    },
+  })
+  assert.equal(writes.length, 2, 'the checkpoint and the final answer are both persisted')
+  assert.equal(writes[0].branch, 'main', 'the git half survives a kill during the network half')
+  assert.equal(writes[0].ci.looked, false, 'and the checkpoint does not pretend it has a CI answer')
+  assert.equal(usableCache({ at: 1000, state: writes[0] }, 2000), true,
+    'a checkpoint must be readable as a cache, or it buys no backoff at all')
+  assert.equal(state.state.ci.looked, true, 'the caller still gets the FULL answer, not the checkpoint')
+  assert.equal(writes[1].ci.looked, true, 'and the full answer replaces the checkpoint')
 })

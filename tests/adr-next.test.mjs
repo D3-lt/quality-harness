@@ -984,7 +984,21 @@ test('tool-written evidence outranks the task file\'s own Status word', () => {
   assert.equal(routeOf(body('partial', evidence)), 'done',
     'a passing fence outranks a stale marker, so the fix does not manufacture phantom work')
   assert.equal(routeOf(body('partial', '')), 'ready', 'and unevidenced partial work is still work')
-  // The terminal case is the one where the WORD wins, because nobody is going to
-  // build it whatever its log says.
-  assert.equal(routeOf(body('withdrawn', '')), 'stopped')
+  assert.equal(routeOf(body('withdrawn', '')), 'stopped',
+    'a withdrawn task with no evidence is stopped, not offered')
+
+  // ⚠ AND THE FOURTH ARM, WHICH I CLAIMED WRONGLY BEFORE MEASURING IT. "withdrawn
+  // wins whatever its log says" is FALSE: evidence is read first, so a task that was
+  // BUILT and then withdrawn routes `done`. Pinned as the behaviour that exists,
+  // because an untested claim about it is how the ordering above stops being true
+  // without anyone noticing.
+  //
+  // Whether `done` is the right ANSWER here is open and deliberately not decided by
+  // this test: `done` says the corpus built it, which is what the log shows, while
+  // the record says nobody was meant to. Neither reading is offered as work, which is
+  // the safety property. Named in BACKLOG §167 rather than guessed at — the corpus
+  // that reported §166 has no instance of it, so nothing but this test exercises the
+  // case at all.
+  assert.equal(routeOf(body('withdrawn', evidence)), 'done',
+    'evidence is read before the status word, for a terminal status too')
 })

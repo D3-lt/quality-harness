@@ -5176,6 +5176,24 @@
       "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }"
     },
     {
+      "label": "adr-lint: a changed finding is a new finding, and its survival resets",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return hashlib.sha256(f\"{record_key}\\n{message}\".encode(\"utf-8\")).hexdigest()[:16]",
+      "to": "    return hashlib.sha256(f\"{record_key}\".encode(\"utf-8\")).hexdigest()[:16]"
+    },
+    {
+      "label": "adr-lint: nowhere to record advice survival is UNKNOWN, not a first sighting",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if path is None and read is None:\n        return None",
+      "to": "    if path is None and read is None:\n        return [(message, 1) for message in messages]"
+    },
+    {
       "label": "adr-verify: a refusal wears the tool's name, or a scripted caller never sees it",
       "file": "plugin/bin/adr-verify",
       "tests": [

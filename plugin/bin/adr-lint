@@ -4193,6 +4193,102 @@ def reject_unknown_flags(known=()):
         sys.exit(1)
 
 
+# ── ADR-037 T1: is an advisory ever ACTED ON? ────────────────────────────────
+#
+# An advisory that fires unchanged on every run has an EFFECTIVE false-positive
+# rate approaching 100% however true each line is. That is Google's term for a
+# finding nobody acts on, and their measured threshold for developer trust
+# collapsing is ~10% (docs/research/2026-08-28-verification-is-the-bottleneck.md).
+# BACKLOG §152 is this project's own instance, and its cost was not annoyance: a
+# reader filtered the noise with `grep -v`, then told a reviewer "adr-lint PASS,
+# no advice outstanding", which was FALSE.
+#
+# ⚠ THIS MEASURES AND CHANGES NOTHING ABOUT WHAT IS EMITTED. ADR-037's rule is
+# "acted on or removed, never emitted less often", so a T1 that starts
+# suppressing is T2 arriving early and helping itself to the conclusion.
+ADVICE_SURVIVAL_NAME = "qh-advice-survival.json"
+
+
+def advice_identity(record_key, message):
+    """A stable id for one advisory finding on one record.
+
+    ⚠ THE WHOLE MESSAGE IS THE IDENTITY, COUNTS INCLUDED. `chains 4 segments`
+    becoming `chains 5 segments` is a DIFFERENT finding about a fence somebody
+    changed, and resetting its survival to 1 is the honest answer — the question
+    ADR-037 asks is how long a finding survives UNCHANGED. Hashing a normalised
+    prefix instead would silently merge findings a reader would act on separately,
+    and inflate every count in the direction that argues for deletion.
+    """
+    return hashlib.sha256(f"{record_key}\n{message}".encode("utf-8")).hexdigest()[:16]
+
+
+def advice_survival_path(start):
+    """Where the survival note lives, or None when there is nowhere to put it.
+
+    Inside `.git/`: never tracked, never shipped, and the same place
+    `branch-state.mjs` keeps its cache. No git directory means no store, and the
+    caller must say UNKNOWN rather than report a first sighting (ADR-005) — a
+    corpus linted outside a checkout has not proved every finding is new.
+    """
+    root = git_root(start)
+    if root is None:
+        return None
+    git_dir = root / ".git"
+    return (git_dir / ADVICE_SURVIVAL_NAME) if git_dir.is_dir() else None
+
+
+def record_advice_survival(path, record_key, messages, read=None, write=None):
+    """Fold this run into the note; answer how many runs each finding has survived.
+
+    Returns [(message, runs), …] in the order given, or None when there was
+    nowhere to record. `read`/`write` are the seam a test drives, so every arm is
+    reachable without a repository (CLAUDE.md §7, §9).
+
+    ⚠ A FINDING NOT SEEN THIS RUN IS DROPPED. That is what "acted on" looks like
+    from here, and keeping it would grow the note without bound while making a
+    resolved finding look like a surviving one.
+    """
+    if path is None and read is None:
+        return None
+
+    def _read():
+        try:
+            return json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            # An unreadable note is refreshed, never trusted and never fatal.
+            return {}
+
+    def _write(data):
+        try:
+            path.write_text(json.dumps(data, sort_keys=True), encoding="utf-8")
+        except Exception:
+            pass  # a note that cannot be written is not a failure
+
+    read = read or _read
+    write = write or _write
+    data = read()
+    if not isinstance(data, dict):
+        data = {}
+    records = data.get("records")
+    if not isinstance(records, dict):
+        records = {}
+    previous = records.get(record_key)
+    if not isinstance(previous, dict):
+        previous = {}
+
+    seen = {}
+    out = []
+    for message in messages:
+        ident = advice_identity(record_key, message)
+        before = previous.get(ident)
+        runs = (before.get("runs", 0) if isinstance(before, dict) else 0) + 1
+        seen[ident] = {"runs": runs, "message": message}
+        out.append((message, runs))
+    records[record_key] = seen
+    data["records"] = records
+    write(data)
+    return out
+
 class Findings(list):
     """Findings that block, and a second channel for the ones that should not.
 
@@ -4345,7 +4441,7 @@ def main():
     if "--version" in sys.argv[1:]:
         report_version()
         sys.exit(0)
-    reject_unknown_flags()
+    reject_unknown_flags(known=("--advice-survival",))
     if len(sys.argv) < 2:
         print(__doc__)
         sys.exit(1)
@@ -4544,6 +4640,17 @@ def main():
     # that is finished are different things, and the reader deserves both.
     for a in errors.advice:
         print(f"  advice: {a}")
+    # ADR-037 T1. RECORDED ON EVERY RUN — that is the only thing that makes the
+    # count mean anything — and REPORTED only when asked, because the default
+    # output must not change before the number exists to justify changing it.
+    survival = record_advice_survival(advice_survival_path(adr.parent), adr.name, list(errors.advice))
+    if "--advice-survival" in sys.argv[1:]:
+        if survival is None:
+            print("  survival: UNKNOWN — no .git directory to record in, so nothing here has "
+                  "been seen before or not. That is not \"every finding is new\" (ADR-005).")
+        else:
+            for message, runs in sorted(survival, key=lambda pair: -pair[1]):
+                print(f"  survival: {runs} run(s) unchanged · {message}")
     sys.exit(1 if errors else 0)
 
 

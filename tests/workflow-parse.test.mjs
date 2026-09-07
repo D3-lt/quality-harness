@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { checkJsSource, checkWorkflowFiles, checkWorkflowSource } from '../plugin/scripts/workflow-parse.mjs'
+import { checkJsSource, checkModuleSource, checkWorkflowFiles, checkWorkflowSource } from '../plugin/scripts/workflow-parse.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -324,4 +324,30 @@ test('a file NAMED like a could-not-look is still counted as a finding', () => {
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('a .mjs is judged by the module goal alone — the Workflow fallback is for .js', () => {
+  // ⚠ A FALSE CLEAN, named by a third different-lineage review. Every JavaScript
+  // extension was given the either-dialect mode, so a `.mjs` carrying a top-level
+  // `return` — broken, because node's module goal is the only goal a `.mjs` has —
+  // was accepted by the Workflow half and drew no advisory at all.
+  const workflowShaped = `${HEADER}return 1\n`
+  assert.equal(checkJsSource(workflowShaped, 'a.js'), null, 'a .js may be either')
+  assert.match(checkModuleSource(workflowShaped, 'a.mjs'), /a\.mjs: does not parse as an ES module/)
+  // And the module goal still accepts an ordinary module, or the refusal above is
+  // just a checker that says no to everything.
+  assert.equal(checkModuleSource('import { join } from "node:path"\nexport const a = join("x","y")\n'), null)
+})
+
+test('the verdict token is matched whole, so a finding cannot begin its way into could-not-look', () => {
+  // `startsWith('COULD NOT CHECK')` classified `COULD NOT CHECKMATE is a finding`
+  // as unchecked. Reachable through the exported `check` seam, which any caller
+  // supplies. The delimiter is part of the token now.
+  const spoof = (source, file) => `${file}: COULD NOT CHECKMATE is a syntax finding`
+  const [outcome] = checkWorkflowFiles([join(repoRoot, 'plugin', 'workflows', 'consensus.js')], spoof)
+  assert.equal(outcome.unchecked, false, `a finding must stay a finding: ${outcome.message}`)
+  // The must-fail direction: the real token, with its delimiter, still classifies.
+  const real = (source, file) => `${file}: COULD NOT CHECK — the disk went away`
+  const [unchecked] = checkWorkflowFiles([join(repoRoot, 'plugin', 'workflows', 'consensus.js')], real)
+  assert.equal(unchecked.unchecked, true)
 })

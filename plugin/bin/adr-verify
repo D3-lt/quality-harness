@@ -77,16 +77,16 @@ Declaring a path grants this live run authority to overwrite its bytes or delete
 it during cleanup, including over a concurrent edit; declare only disposable
 generated outputs whose command-entry state is the state to restore.
 
-Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
---mutant; 0 for --restore) · 1 also reaches a caller from a --mutant that did
-not kill and from a fence that failed · 2 = usage, authoring, or transaction
-problem.
+Exit: the Acceptance command's exit code (0 for --human; 0 for --restore) · for
+--mutant the code is the VERDICT, not the fence: 0 `killed` · 1 `survived`, a
+finding about the test · 4 `inconclusive`, could-not-look — the fence failed for
+a machine reason and nothing was learned · 2 = usage, authoring, or transaction
+problem. 1 also reaches a caller from a fence that failed.
 
-⚠ A NONZERO --mutant EXIT DOES NOT SAY WHICH NON-KILL IT WAS. `survived` and
-`inconclusive` both leave 1, so a caller that reads only the code cannot tell "the
-suite noticed nothing" — a finding about the test — from "nothing could be told",
-which is could-not-look. THE VERDICT IS THE ROW, not the code: read the
-`· mutant <killed|survived|inconclusive> ·` line this run writes. And read the
+⚠ `survived` AND `inconclusive` SHARED 1 UNTIL 2026-09-07, so a caller reading only
+the code could not tell "the suite noticed nothing" from "nothing could be told"
+(BACKLOG §152, §164). They no longer do. The row is still the fuller answer — read
+the `· mutant <killed|survived|inconclusive> ·` line this run writes — and read the
 code directly, never through a pipe, which returns the pipe's status instead.
 
 `--version` prints this gate's name, the version read from the manifest beside
@@ -1524,6 +1524,15 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         block += f"\n  ```\n  {detail}\n  ```"
     append_entry(task, task.read_text(errors="replace", encoding="utf-8"), block, section="Mutation Log")
     print(block)
+    # ⚠ THREE OUTCOMES, THREE CODES. `killed` is 0, `survived` is 1 — a finding
+    # about the test — and `inconclusive` is 4, which is could-not-look: the fence
+    # failed for a machine reason and NOTHING was learned about whether the tests
+    # notice the mutation. They shared 1 until 2026-09-07, so a caller reading only
+    # the code could not tell "the suite noticed nothing" from "nothing could be
+    # told" (BACKLOG §152, §164). 4 follows `spec-verify`, which already ranked
+    # could-not-look below a real failure for the same reason; it is still nonzero,
+    # so a caller that only tests for success is unaffected.
+    tool_code = 0 if verdict == "killed" else 4 if verdict == "inconclusive" else 1
     if verdict != "killed":
         # The tool's own exit code, said in the sentence that says the run
         # failed. A survivor's recorded row legitimately contains `exit 0` — that
@@ -1535,8 +1544,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
         # grammar of the row is right and is not reordered for this; the remedy
         # is that the verdict line names its own status.
         print(f"[adr-verify] NOT evidence: {detail}. Only `killed` counts "
-              f"(adr-verify exits 1; the `exit 0` in the row above is the FENCE's code, "
-              f"which is what a survivor means).")
+              f"(adr-verify exits {tool_code}; the `exit 0` in the row above is the FENCE's "
+              f"code, which is what a survivor means).")
     # The mutant has been judged and its source restored. Now the clean run that
     # made this verdict possible is recorded — the same observation the plain
     # path writes, from a run this process really took, on the tree in front of
@@ -1544,7 +1553,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     # the file, and appending from a stale copy would drop it.
     record_run(task, task.read_text(encoding="utf-8"), cmd, today, clean,
                clean_elapsed_ms, entry_sha, steps)
-    sys.exit(0 if verdict == "killed" else 1)
+    sys.exit(tool_code)
 
 
 

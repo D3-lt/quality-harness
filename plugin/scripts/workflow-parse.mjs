@@ -84,8 +84,11 @@ export function checkWorkflowFiles (files, check = checkWorkflowSource) {
 /** The message's leading verdict word, read after the file name this tool prefixes. */
 function kindOf (message, file) {
   const rest = message.startsWith(`${file}: `) ? message.slice(file.length + 2) : message
-  return rest.startsWith('COULD NOT CHECK') ? 'COULD NOT CHECK'
-    : rest.startsWith('COULD NOT READ') ? 'COULD NOT READ' : 'finding'
+  // The COMPLETE token and its delimiter. Unbounded prefixes classified a finding
+  // that merely began `COULD NOT CHECKMATE …` as could-not-look — reachable through
+  // the exported `check` seam, which any caller may supply.
+  return rest.startsWith('COULD NOT CHECK — ') ? 'COULD NOT CHECK'
+    : rest.startsWith('COULD NOT READ — ') ? 'COULD NOT READ' : 'finding'
 }
 
 // The default temp-directory factory, injectable so a test can make it fail on every
@@ -103,9 +106,18 @@ const defaultTempDir = () => mkdtempSync(join(tmpdir(), 'qh-parse-'))
  * the obvious call is vacuous on exactly the files most likely to be modules, and a
  * silent advisory would mean nothing (BACKLOG §161, CLAUDE.md §4).
  */
-export function checkJsSource (source, name = '<source>', { spawn = spawnSync, makeTempDir = defaultTempDir } = {}) {
-  const workflow = checkWorkflowSource(source, name)
-  if (workflow === null) return null
+export function checkJsSource (source, name = '<source>', options = {}) {
+  // A `.js` file is ambiguous: either dialect is a legitimate answer for it.
+  if (checkWorkflowSource(source, name) === null) return null
+  return checkModuleSource(source, name, { ...options, verdict: 'parses as neither a module nor a Workflow script' })
+}
+
+/**
+ * Report why `source` is not a parseable ES module, or null when it is. This is the
+ * whole answer for a `.mjs` file, where the module goal is the only goal there is —
+ * a top-level `return` in one is broken, and the Workflow fallback used to accept it.
+ */
+export function checkModuleSource (source, name = '<source>', { spawn = spawnSync, makeTempDir = defaultTempDir, verdict = 'does not parse as an ES module' } = {}) {
   // ⚠ OUTSIDE THE `try`, MAKING THE TEMP DIRECTORY IS ITSELF A THING THAT CAN FAIL.
   // An unusable temp directory threw past every handler here, so the hook printed a
   // raw stack and its `|| true` turned that into advice nobody could act on. A
@@ -144,7 +156,7 @@ export function checkJsSource (source, name = '<source>', { spawn = spawnSync, m
     // only the path we built leaves a `/private/private/…` splice in the advice.
     const said = [realpathSync(copy), copy].reduce((text, path) => text.split(path).join(name),
       `${checked.stderr ?? ''}`).trim().split('\n').slice(0, 4).join('\n')
-    return `${name}: parses as neither a module nor a Workflow script\n${said}`
+    return `${name}: ${verdict}\n${said}`
   } catch (err) {
     return `${name}: COULD NOT CHECK — ${err.message}`
   } finally {
@@ -184,8 +196,14 @@ if (invokedDirectly()) {
       'observation nothing made.')
     exit(0)
   }
-  const either = args.includes('--js')
-  const files = args.filter(arg => arg !== '--js')
+  // ⚠ THREE MODES, BECAUSE THE EXTENSION SELECTS THE PARSE GOAL. `--js` accepts an
+  // ES module OR a Workflow script, which is right for a `.js` file and WRONG for a
+  // `.mjs` one: node's module goal is the only goal a `.mjs` has, so the Workflow
+  // fallback would silently accept a top-level `return` that the runtime refuses.
+  const mode = args.includes('--module') ? checkModuleSource
+    : args.includes('--js') ? checkJsSource
+      : checkWorkflowSource
+  const files = args.filter(arg => arg !== '--js' && arg !== '--module')
   if (files.length === 0) {
     console.error('workflow-parse.mjs: name at least one file')
     exit(2)
@@ -196,7 +214,7 @@ if (invokedDirectly()) {
   // looked and found this stack trace" (ADR-005, and CLAUDE.md §3).
   let outcomes
   try {
-    outcomes = checkWorkflowFiles(files, either ? checkJsSource : checkWorkflowSource)
+    outcomes = checkWorkflowFiles(files, mode)
   } catch (err) {
     console.error(`workflow-parse.mjs: UNRUN — the check did not complete: ${err.message}`)
     exit(4)

@@ -6,7 +6,7 @@
 **Spec:** None — the requirement is the field report in `docs/BACKLOG.md` §152 and the outside result cited under Context
 **Cross-references:** ADR-005, ADR-035, `docs/BACKLOG.md`, `docs/research/2026-08-28-verification-is-the-bottleneck.md`
 **Governs:** `plugin/bin/adr-lint`
-**Enforced-by:** None — Proposed. The measurement is the first task; the rule it justifies is the second.
+**Enforced-by:** `tests/gate-regressions.py::test_advice_survival_counts_only_what_came_back_unchanged` and `::test_advice_survival_uses_the_real_store_and_gits_own_path` — T1's measurement. T2's rule is not written and must not be until the number is read.
 **Served-path change:** An advisory that fires on every task on every run either becomes actionable or stops being emitted. The reader is no longer trained to filter the gate's output.
 
 ## Context

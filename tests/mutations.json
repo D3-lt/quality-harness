@@ -5113,58 +5113,13 @@
       "to": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = false"
     },
     {
-      "label": "branch-state: a targetCommitish that is not a sha is not an anchor",
+      "label": "branch-state: the release line names its anchor as local, and does not conclude",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (!/^[0-9a-f]{40}$/.test(sha) || !name) {",
-      "to": "  if (!name) {"
-    },
-    {
-      "label": "branch-state: a release that is not an ancestor of HEAD is not an anchor",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "  const ancestor = run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'])\n  if (!ancestor.ok) {",
-      "to": "  const ancestor = run(['git', 'cat-file', '-e', `${sha}^{commit}`])\n  if (!ancestor.ok) {"
-    },
-    {
-      "label": "branch-state: a draft or prerelease is not what shipped",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "  if (json?.isDraft || json?.isPrerelease) {",
-      "to": "  if (false) {"
-    },
-    {
-      "label": "branch-state: the forge anchor wins over the local tag, not the other way round",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "  const anchor = forge.kind === 'release' ? forge : local",
-      "to": "  const anchor = local ?? (forge.kind === 'release' ? forge : null)"
-    },
-    {
-      "label": "branch-state: a locally-anchored release line says its anchor is local",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "      + `${state.tagKind === 'release' ? ''\n        : ', the newest tag THIS CLONE knows — a release tagged on the forge would not be here'}`",
-      "to": "      + ''"
-    },
-    {
-      "label": "branch-state: a rejected release does not walk back in as the local tag",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "  const rejected = forge.kind !== 'release' && forge.name ? forge.name : null",
-      "to": "  const rejected = null"
+      "from": "    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}, the newest tag `\n      + 'THIS CLONE holds — a release tagged on the forge is not here, so check '\n      + '`gh release view` before treating this as unreleased (§13).'",
+      "to": "    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}`\n      + ' — §13: a green shipped change is released, not parked.'"
     },
     {
       "label": "branch-state: a release question that could not be put is not an answer of nothing",
@@ -5174,42 +5129,6 @@
       ],
       "from": "  const unknown = state.releaseBlocked\n    ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `\n      + 'That is not \"nothing to release\".'\n    : null",
       "to": "  const unknown = null"
-    },
-    {
-      "label": "branch-state: only a forge that SAYS there is no release may be silent",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "const NO_RELEASE = /release not found|no releases found|none of the git remotes/i",
-      "to": "const NO_RELEASE = /release not found|no releases found|none of the git remotes|HTTP 404/i"
-    },
-    {
-      "label": "branch-state: a repository not on GitHub is quiet rather than uncertain",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "const NO_RELEASE = /release not found|no releases found|none of the git remotes/i",
-      "to": "const NO_RELEASE = /release not found|no releases found/i"
-    },
-    {
-      "label": "branch-state: a count does not suppress the forge failure beside it",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "  const release = [counted, unknown].filter(Boolean).join(' · ') || null",
-      "to": "  const release = counted ?? unknown"
-    },
-    {
-      "label": "branch-state: a blocked forge stays blocked when a local tag answers",
-      "file": "plugin/scripts/branch-state.mjs",
-      "tests": [
-        "tests/branch-state.test.mjs"
-      ],
-      "from": "    : forge.blocked\n      ? forge.note\n      : (!anchor && tag.budget ? tag.note : null)",
-      "to": "    : (!anchor && forge.blocked ? forge.note : (!anchor && tag.budget ? tag.note : null))"
     },
     {
       "label": "branch-state: a command the budget refused is marked, not folded into a plain failure",

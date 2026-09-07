@@ -3665,6 +3665,22 @@ def test_covers_binds_a_killed_mutant_to_a_declared_mechanism(bin_dir, lint, ver
     # a free-text field on exactly the tasks that declared nothing.
     nodecl, _, _ = mutate(None, "the exit code")
     assert nodecl.returncode == 2, (nodecl.returncode, nodecl.stdout, nodecl.stderr)
+    # ⚠ AND THE REFUSAL WEARS THE TOOL'S NAME. Reported 2026-09-06 from a Go
+    # corpus (BACKLOG §152): this exact refusal printed BARE while thirty-seven
+    # other lines in the file carried the prefix, so a scripted caller's
+    # `grep -E 'mutant (killed|survived)'` swallowed it and the run looked as
+    # though it had produced nothing. The prefix was added; nothing asserted it
+    # at the boundary the report came through until now.
+    # BOTH `--covers` refusal arms, because the reported one is the undeclared
+    # NAME and the arm above is the missing HEADER, and they are different lines.
+    undeclared, _, _ = mutate(DECLARED, "a mechanism nobody declared")
+    assert undeclared.returncode == 2, (undeclared.returncode, undeclared.stdout)
+    for result in (nodecl, undeclared):
+        said = result.stdout + result.stderr
+        refusal = [ln for ln in said.splitlines() if "--covers" in ln]
+        assert refusal, said
+        assert all(ln.startswith("[adr-verify]") for ln in refusal), (
+            f"a refusal a scripted caller cannot see is a refusal that did not happen: {refusal}")
 
     # EVERY ROW ALREADY RECORDED IN THIS CORPUS STILL PARSES. A grammar change
     # that orphans recorded evidence is the one thing this suffix may never do,

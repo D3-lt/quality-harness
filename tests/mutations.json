@@ -5176,6 +5176,24 @@
       "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }"
     },
     {
+      "label": "adr-verify: a refusal wears the tool's name, or a scripted caller never sees it",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    print(msg if msg.startswith(\"[adr-verify]\") else f\"[adr-verify] {msg}\")",
+      "to": "    print(msg)"
+    },
+    {
+      "label": "adr-verify: a mutant that did not build is inconclusive, never a survivor",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "            verdict, detail = \"inconclusive\", \"the fence failed on a build/parse error, not an assertion\"",
+      "to": "            verdict, detail = \"survived\", \"the fence failed on a build/parse error, not an assertion\""
+    },
+    {
       "label": "branch-state: a remotes lookup that could not be made is not a repository without a GitHub remote",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [

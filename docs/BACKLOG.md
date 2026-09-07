@@ -9832,7 +9832,7 @@ second. If GitHub ever reports sub-second timestamps, a dispatch issued a few hu
 after a push stops tying and starts losing — and the gate would go back to answering CACHED with no
 tie in sight. Nothing here detects that; it would surface as the old symptom returning.
 
-## 155. OPEN — "waiting on an outside event, with a runnable fence" has no representation, and §153's advice walked a reader into the refusal
+## 155. PARTLY CLOSED 2026-09-07 — "waiting on an outside event, with a runnable fence" has no representation, and §153's advice walked a reader into the refusal
 
 Found 2026-09-06 within hours of §153 shipping, by the same peer TRYING TO FOLLOW IT. They added
 `**Blocked-on:** ADR-014 reconsidering FUSION=linear as the default` to the exact task that started
@@ -9891,6 +9891,55 @@ REFUSAL, which is a separate `errors.append` and still reads as it did. A reader
 re-adding `Blocked-on:` to a fenced task will see the same refusal as before and could reasonably
 conclude nothing shipped. The refusal already names `pending` or `partial`; what it does not say is
 that nothing routes that case at all, which is the sentence the advisory now carries.
+
+### PARTLY CLOSED 2026-09-07 — one of the two routes was gated for no stated reason
+
+Not the representation question. That stays open exactly as written above. What this closes is
+narrower and was not in the section: **`adr-next` read a human STOP sign-off only when the
+Acceptance was human-observed.**
+
+```python
+"stopped_by": human_stop(text) if human else None,     # plugin/bin/adr-next
+```
+
+Measured on a two-task fixture, 2026-09-07: the SAME sign-off line, in the same `## Verification
+Log` section, routed `stopped` beside a human-observed Acceptance and **READY** beside a runnable
+one. So of the two ways to say "a person looked and said do not start this", `Blocked-on:` is
+REFUSED by `adr-lint` on 162 of 163 task files, and the sign-off was IGNORED by `adr-next` on the
+same 162. Both routes, unavailable, on almost every file — which is why the reporter fell back to
+`**Status:** blocked`, a header no tool reads at all.
+
+Nothing justified the gate, and the router's own comment three hundred lines down argues against it:
+*"a person looked and said do not proceed"* is a statement about THIS TASK, and whether its
+Acceptance happens to be runnable is not a fact about their decision.
+
+⚠ **The write was always allowed and only the read was gated — the worse half.** `adr-lint` never
+refused a `- <date> · human-observed · …` row on a fenced task, verified against a fixture. So an
+author could record their stop, see it accepted, and watch the router go on offering the task. A
+refusal is visible; an ignored record is not.
+
+`"stopped_by": human_stop(text)` now, unconditionally. `node plugin/bin/adr-next docs/adr --all` is
+byte-identical before and after — no task in this corpus changes bucket.
+
+```
+node scripts/mutate.mjs --case 'adr-next: a STOP sign-off'
+  RED  a STOP sign-off is read whatever the Acceptance is
+       <- killed by: a sign-off that says stop is honoured whatever the Acceptance is
+bash scripts/selftest.sh   exit 0, 791 tests
+```
+
+**What is still open, unchanged:** whether `Blocked-on:` should be legal beside a runnable fence and
+understood as "do not run this yet" rather than "this cannot run". That is a change to what an
+Acceptance MEANS when it is present but must not be executed, and it still wants a record. This only
+removes an arbitrary gate on the route that already existed — and it makes the honest-negative
+answer cheaper to accept, because "a runnable-fence task waiting on an outside event is `pending`
+with the reason in prose" now has a companion that DOES route: a sign-off saying stop.
+
+⚠ **And a third silent route is confirmed, not fixed.** A task file's own `**Status:** blocked`
+header is read by nothing — `adr-lint` and `adr-next` both match `**Status:**` only in the RECORD.
+The reporter wrote it in the obvious place and it carried nothing. Naming it here rather than fixing
+it: a header that duplicates a README cell is a second source of truth, and §10 says the task files
+win — so making it authoritative is a decision, not a patch.
 
 ## 156. MITIGATED 2026-09-07 — the campaign's heaviest shard is OOM-killed, and §148's complete timings made it heavier
 

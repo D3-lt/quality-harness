@@ -10586,3 +10586,39 @@ release-time push produces are close enough in time that neither ordering can be
 Released as **v2.87.0** at `35c75d8`, `--latest`, on `release-evidence.mjs` SUCCESS — 23 jobs,
 dispatched run `34110706970`. Issue #12 closed with the fix, the two review rounds, and the
 Enterprise-hostname cost stated rather than hidden.
+
+## 159. CLOSED 2026-09-07 — §13's own release order loses a race it creates, three times in one session
+
+`CLAUDE.md` §13 says push (2), then dispatch the full campaign (3). Both raise a run at the same
+sha, and `release-evidence.mjs` picks the NEWEST by `createdAt` — so which one it judges depends on
+whether the push webhook or the `gh workflow run` API call registers first. Measured across one
+afternoon's four releases:
+
+| sha | push `createdAt` | dispatch `createdAt` | newest | verdict |
+|---|---|---|---|---|
+| `e1fc9c0` | 09:41:29 | 09:41:34 | dispatch | usable |
+| `29c4dc1` | 10:00:27 | 10:00:26 | **push** | `CACHED`, refused |
+| `35c75d8` | — | — | dispatch | usable |
+| `3c0e9cc` | 12:27:49 | 12:27:48 | **push** | `CACHED`, refused |
+
+**One second, either way, three times out of four decided by the network.** The refusal is the tool
+working exactly as §154 built it — a push run's mutation campaign may reuse cached verdicts, and a
+release may not rest on one. But the procedure that produced the refusal is this repository's own,
+and it costs a full campaign every time it loses: dispatch, wait ten minutes, get told to dispatch
+again, wait ten more.
+
+**The fix is ordering, not tie-breaking.** §154 already resolves an exact tie toward
+`workflow_dispatch`; this is not a tie, it is a one-second loss. Waiting until the push run EXISTS
+before dispatching makes the dispatch unambiguously newer, needs no change to
+`release-evidence.mjs`, and adds no judgement to a tool whose whole value is that it makes none.
+
+```bash
+git push
+gh run list --commit "$(git rev-parse HEAD)" --limit 1 --json databaseId   # until it answers
+gh workflow run selftest.yml --ref main
+```
+
+⚠ **AND THE COST WAS PAID BEFORE IT WAS SEEN.** The first refusal was read as a one-off and worked
+around by re-dispatching; only the third made the pattern visible. A procedure that fails
+occasionally and recovers cheaply is one nobody writes down — which is `docs/BACKLOG.md` §152's
+shape applied to a runbook rather than to a gate's output.

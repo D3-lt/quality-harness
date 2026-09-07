@@ -10307,3 +10307,129 @@ never had to know this. `release-evidence.mjs` does not either — it asks about
 vX.Y.Z --latest`, and nothing there passes `--target`. Whatever makes `targetCommitish` land as a sha
 or as `main` is not in the documented procedure, so no reader may depend on it. Not chased further:
 the code that cared about it is gone.
+
+## 158. CLOSED 2026-09-07 — the always-on reader was KILLED BY ITS HOST on a non-GitHub remote, so §15's whole mechanism was silently absent
+
+Reported from outside this machine — GitHub issue #12, against 2.85.0, from a Windows 11 / Git Bash
+checkout whose only remote is a self-hosted GitLab. The `UserPromptSubmit` hook was killed by its
+host on three consecutive prompts:
+
+```
+UserPromptSubmit hook timed out after 20s — output discarded.
+```
+
+⚠ **A KILLED HOOK RENDERS NOTHING.** Not a degraded line, not a `COULD NOT LOOK` — the host discards
+the output entirely. So the reader built because *a session that does not ask is told nothing*
+(§15's incident) was itself telling that adopter nothing, on every prompt, while reporting no fault
+anywhere. Attribution was the reporter's and is definitive rather than inferred: it is the only
+`UserPromptSubmit` hook in any installed plugin or in user/project/managed settings declaring
+`"timeout": 20`.
+
+### Two independent causes, each enough alone, both MEASURED by the reporter
+
+**1. `gh` was asked about a repository `gh` cannot answer for, on every cache miss.** `collect()`
+ran `gh run list --branch <b> --limit 1 --json …` unconditionally. Where no remote points at a known
+GitHub host the CI half is *structurally* unavailable — and finding that out is not free:
+
+- standalone in that checkout: **4,214 ms**, exit 1, `failed to determine base repo: none of the git
+  remotes configured for this repository point to a known GitHub host`;
+- in a live session it did not fail fast, it BLOCKED — the hook's own output carried `spawnSync gh
+  ETIMEDOUT` on one turn and `budget of 8000ms spent before 'gh run list --branch master …'` on
+  another.
+
+So every non-GitHub adopter paid between 4s and the entire 8s collection budget, per cache miss, for
+an answer that cannot exist.
+
+**2. A host kill discarded the git half AND wrote no cache, so there was no backoff.** The two
+halves are deliberately independent, so the render can say COULD NOT LOOK about CI while still
+reporting branch, head and dirt. That holds when `BUDGET_MS` expires. It does not hold when the HOST
+kills the process: the whole output goes, including the git half already gathered — the half a
+session actually reads. And `cached()` called `write()` only after `gather()` returned, so a killed
+run left **no cache entry at all** and the next prompt re-paid in full. That is exactly the observed
+shape: three timeouts in a row, none cheaper than the last. **A completed slow run cached its own
+COULD NOT LOOK for 120s; a killed one cached nothing, which is the case that most needed it.**
+
+**3. The report ruled out the easy fix itself.** Re-measured warm with a forced cache miss in the
+same checkout: **1,390 ms** end to end, exit 0. 20s is ample and the hang was the whole cause —
+so nothing here argued for a larger timeout, and the reporter said so before anyone could suggest it.
+
+### The fix — 5e0243c, then 1f98983 after review
+
+The discriminator for (1) is LOCAL, needs no network, and costs about 150ms beside the six `git`
+calls `collect` already spawned: `git config --get-regexp '^remote\..*\.url$'`. Nothing matching
+`/github/i` means `gh` is not asked, and the reason is carried into the render rather than an empty
+answer being implied (ADR-005, `CLAUDE.md` §3).
+
+⚠ **This buys latency with a bounded, VISIBLE loss.** A GitHub Enterprise host whose hostname does
+not contain `github` loses its CI line — and is TOLD it lost it, on the same could-not-look path.
+Taken deliberately against a hook that was being killed outright.
+
+For (2), `collect` now takes a `checkpoint` callback and calls it ONCE with the git half **before**
+`gh` is attempted; `cached` persists it. The checkpoint is a strictly worse answer than the final
+one and says so in its own notes — `'this answer was stored before the CI half was gathered'` — so a
+session reading it is not misled. A floor, not a result.
+
+### ⚠ Round nine: the fix for ADR-005 broke ADR-005 one line lower
+
+A different-lineage review of 5e0243c returned two MEDIUM findings, both confirmed against source.
+
+**`git config --get-regexp` exits 1 when NOTHING MATCHED**, which is a real answer about the
+repository: it has no remotes. Every *other* failure — the budget spent, git absent, an unreadable
+config — is a question that could not be PUT, and `remotes.ok` alone cannot tell those apart. All of
+them rendered as *"no remote names a GitHub host, so `gh` was not asked"*, a verdict. The reviewer's
+probe showed an unreadable lookup reading identically to positive absence. `shell` now carries the
+exit status a command reported, and the two keep different words; `gh` is skipped either way, so the
+latency fix is unaffected.
+
+**And the checkpoint test was vacuous about the thing it was named for.** It drove a hand-written
+`gather` that checkpointed and returned, so it exercised the forwarding in `cached` and nothing at
+all about `collect`'s ordering — *moving the checkpoint after `gh` would have escaped it*, which is
+the single thing the checkpoint exists to prevent. It is now asserted through `collect` itself on
+the real `run` seam, and the second prompt is PERFORMED rather than described: a first run killed
+during the network half, then an actual `cached()` read that must not gather again and renders an
+explicitly unknown CI beside a surviving git half. That is `CLAUDE.md` §4 — assert the mechanism,
+not a downstream effect something else also covers.
+
+Four mutants added across the two commits; `branch-state` now carries eleven.
+`node scripts/mutate.mjs --case branch-state` — **11/11 noticed**.
+`bash scripts/selftest.sh` — exit 0, 795 tests.
+
+### §5 — the class, enumerated with a command rather than from memory
+
+The class: **an external tool spawned on an always-on hook path whose failure is not fast.**
+
+⚠ **And the obvious command is the wrong one, which is itself the finding.** Grepping for
+`spawnSync('…'` finds `git` five times and `node` once and MISSES `gh` ENTIRELY — because
+`branch-state.mjs` passes one argv array through a `run` seam, so no command name is ever a spawn's
+first argument there. A class audit that cannot find the member it was written about is not an
+audit. The enumeration that works looks for the argv:
+
+```
+$ grep -ohE "\['(gh|git|node|npm|npx|curl|python3?|py|taskkill|codex)'" \
+    plugin/scripts/lifecycle.mjs plugin/scripts/branch-state.mjs plugin/scripts/run-shell-hook.mjs \
+  | sort | uniq -c
+   2 ['gh'
+   8 ['git'
+   1 ['py'
+   1 ['python'
+   1 ['python3'
+
+$ grep -ohE "(spawnSync|execFileSync|spawn)\('[a-z0-9.]+'" <the same three files> | sort | uniq -c
+   5 spawnSync('git'
+```
+
+**`gh` is the only network-bound member**, and both its call sites are in `branch-state.mjs`, both
+now behind the local gate. Everything else is `git` or `node` — local, and no slower to fail than
+the filesystem. `py -3` / `python` / `python3` are `resolvePython`'s Windows probe: local, and
+reached from a GATE rather than from the `UserPromptSubmit` reader, which is `branch-state.mjs`
+alone. `taskkill` appears only through `spawnSyncImpl`, on Windows teardown. **No sibling left.**
+
+### ⚠ The third independent arrival at the same conclusion, and the first from outside
+
+§157's review rounds four and five flagged the non-GitHub case while arguing to cut the forge lookup
+from this reader, on exactly this ground: *a check that runs on every prompt may not depend on a
+subprocess whose failure modes it has to enumerate.* Both rounds treated it as noise — a cosmetic
+line on a repository nobody in this project runs. Issue #12 says it was not noise: on Windows, with
+a non-GitHub remote, the same dependency killed the entire reader on every prompt. **The removal was
+right for a stronger reason than the one that motivated it, and the evidence for that reason had to
+come from a machine and a repository this project has never seen.**

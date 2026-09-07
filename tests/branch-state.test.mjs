@@ -31,7 +31,7 @@ const GIT_CLEAN = [
   ['git rev-list', ok('0\t0')],
   // `gh` is asked only where a remote names a GitHub host (issue #12), so a
   // fixture that omits this models a GitLab checkout rather than a GitHub one.
-  ['git config --get-regexp', ok('remote.origin.url git@github.com:D3-lt/quality-harness.git')],
+  ['git remote -v', ok('origin\tgit@github.com:D3-lt/quality-harness.git (fetch)')],
   ['git describe', ok('v2.64.0')],
   ['git diff --name-only', ok('')],
 ]
@@ -274,7 +274,7 @@ const RELEASE_PENDING = [
   ['git rev-parse --short', ok('46a2656')],
   ['git status --short', ok('')],
   ['git rev-list', ok('0\t0')],
-  ['git config --get-regexp', ok('remote.origin.url git@github.com:D3-lt/quality-harness.git')],
+  ['git remote -v', ok('origin\tgit@github.com:D3-lt/quality-harness.git (fetch)')],
   ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
   ['git describe', ok('v2.81.0')],
   ['git diff --name-only v2.81.0..HEAD', ok('plugin/.claude-plugin/plugin.json\nplugin/bin/adr-lint')],
@@ -357,8 +357,8 @@ test('`gh` is not asked where no remote names a GitHub host', () => {
   // whole collection budget. The discriminator is local and needs no network.
   const asked = []
   const spy = table => argv => { asked.push(argv.join(' ')); return runner(table)(argv) }
-  const gitlab = [...GIT_CLEAN.filter(([p]) => !p.startsWith('git config')),
-    ['git config --get-regexp', ok('remote.origin.url git@git.eleving.com:webxx/ocr-ms.git')]]
+  const gitlab = [...GIT_CLEAN.filter(([p]) => !p.startsWith('git remote')),
+    ['git remote -v', ok('origin\tgit@gitlab.example.invalid:team/service.git (fetch)')]]
 
   const out = render(collect(spy(gitlab)), { brief: true })
   assert.equal(asked.some(a => a.startsWith('gh ')), false,
@@ -376,19 +376,23 @@ test('`gh` is not asked where no remote names a GitHub host', () => {
   assert.equal(askedGh.some(a => a.startsWith('gh run list')), true)
 
   // ⚠ AND A LOOKUP THAT COULD NOT BE MADE IS NOT A REPOSITORY WITHOUT A GITHUB
-  // REMOTE. `git config --get-regexp` exits 1 when nothing matched, which is a
-  // real answer; a spent budget or an absent git is not. Rendering both as "no
-  // remote names a GitHub host" would be ADR-005 broken by the fix for issue #12.
-  const blind = render(collect(runner([...GIT_CLEAN.filter(([p]) => !p.startsWith('git config')),
-    ['git config --get-regexp', no('spawnSync git ETIMEDOUT')]])), { brief: true })
+  // REMOTE. `git remote -v` exits 0 with EMPTY OUTPUT where there are no remotes,
+  // which is a real answer; a spent budget or an absent git is not, and rendering
+  // both as "no remote names a GitHub host" would be ADR-005 broken by the fix for
+  // issue #12 itself.
+  const blind = render(collect(runner([...GIT_CLEAN.filter(([p]) => !p.startsWith('git remote')),
+    ['git remote -v', no('spawnSync git ETIMEDOUT')]])), { brief: true })
   assert.match(blind, /the remotes could not be read \(spawnSync git ETIMEDOUT\)/)
   assert.doesNotMatch(blind, /no remote names a GitHub host/,
     'could-not-look must not borrow the vocabulary of an answer')
 
-  // The other direction, in the same test: exit 1 IS the answer "nothing matched",
-  // and it keeps its own words rather than being demoted to could-not-look.
-  const none = render(collect(runner([...GIT_CLEAN.filter(([p]) => !p.startsWith('git config')),
-    ['git config --get-regexp', { ok: false, out: '', status: 1, note: '' }]])), { brief: true })
+  // The other direction, in the same test: a repository with NO remotes answers
+  // ok with nothing in it, and keeps its own words rather than being demoted to
+  // could-not-look. ⚠ The distinction is carried by `ok` alone on purpose — an
+  // earlier form read `git config --get-regexp`, whose exit 1 means "no match",
+  // and libuv gives a forcibly killed Windows process that same status 1.
+  const none = render(collect(runner([...GIT_CLEAN.filter(([p]) => !p.startsWith('git remote')),
+    ['git remote -v', ok('')]])), { brief: true })
   assert.match(none, /no remote names a GitHub host/)
   assert.doesNotMatch(none, /could not be read/)
 })
@@ -441,16 +445,27 @@ test('collect checkpoints the git half BEFORE it spawns gh, and the next prompt 
   assert.notEqual(network, -1, 'and this fixture must actually reach the network call')
   assert.ok(mark < network, `the checkpoint must precede the network call:\n${log.join('\n')}`)
 
-  // And now the second prompt, for real: a first run killed during the network
-  // half, then an actual `cached()` read that must not gather again.
+  // And now the second prompt, for real. ⚠ THE KILL HAPPENS *INSIDE* `gh run
+  // list`, not after `collect` has returned: a first version of this threw once
+  // collect had finished, which an unusable early checkpoint followed by a real
+  // one after `gh` would have satisfied while still leaving no reusable cache.
+  // The runner throws where the host actually kills, so what is on disk at that
+  // moment is what the next prompt gets.
   let store = null
+  const killer = argv => {
+    if (argv[0] === 'gh') throw new Error('the host killed the hook')
+    return runner(table)(argv)
+  }
   assert.throws(() => cached(120, {
     read: () => null,
     write: payload => { store = payload },
     now: () => 1000,
-    gather: checkpoint => { collect(spy, checkpoint); throw new Error('the host killed the hook') },
+    gather: checkpoint => collect(killer, checkpoint),
   }), /the host killed the hook/)
   assert.ok(store, 'a killed run must leave a cache entry behind, or it buys no backoff at all')
+  assert.equal(usableCache(store, 2000), true,
+    'and what it left must survive inspection, or the next prompt refreshes and re-pays')
+  assert.equal(store.state.ci.looked, false, 'a checkpoint never claims a CI answer it does not have')
 
   let gathered = 0
   const second = cached(120, {

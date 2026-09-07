@@ -80,13 +80,7 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
     const env = { ...process.env, LC_ALL: 'C' }
     return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }
   } catch (error) {
-    // ⚠ THE EXIT STATUS IS PART OF THE ANSWER, not decoration. `git config
-    // --get-regexp` exits 1 when NOTHING MATCHED, which is a real answer about
-    // the repository; every other nonzero exit, and every process that was killed
-    // or never started, is a question that could not be PUT. A caller cannot tell
-    // those two apart from `ok: false` alone, and ADR-005 is exactly about not
-    // letting them look alike. `null` where the process never reported one.
-    return { ok: false, out: '', status: error.status ?? null, note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
+    return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
   }
 }
 
@@ -140,7 +134,7 @@ export function collect(run = shell, checkpoint = () => {}) {
   // hook at 20s, discarding the git half along with it, on three prompts in a row.
   //
   // The discriminator is local, needs no network, and costs about 150ms next to
-  // the six `git` calls already spawned above. `gh` is not asked when nothing
+  // the six `git` calls already spawned above. `gh` is not asked where nothing
   // names a GitHub host, and the render says WHY rather than pretending the
   // question was put (ADR-005).
   //
@@ -148,14 +142,17 @@ export function collect(run = shell, checkpoint = () => {}) {
   // the usual Enterprise hostnames. A GitHub Enterprise host named something else
   // entirely loses its CI line and is TOLD it lost it — a bounded, visible cost
   // against a hook that was being killed outright on every prompt.
-  const remotes = run(['git', 'config', '--get-regexp', '^remote\\..*\\.url$'])
-  // ⚠ AND THE SKIP MUST NOT SPEAK FOR A LOOKUP THAT NEVER HAPPENED. `git config
-  // --get-regexp` exits 1 when nothing matched — a repository with no remotes,
-  // which is a real answer. A spent budget, an absent git or an unreadable config
-  // is not, and folding both into "no remote names a GitHub host" would be ADR-005
-  // broken by the fix for issue #12 itself. `gh` is skipped either way; only the
-  // reason differs, and the reason is the whole of what this reader is for.
-  const unreadable = !remotes.ok && remotes.status !== 1
+  // ⚠ `git remote -v`, NOT `git config --get-regexp`, AND THE DIFFERENCE IS THE
+  // WHOLE OF ADR-005 HERE. `--get-regexp` exits 1 when nothing matched, so the
+  // caller must read an exit code to tell "this repository has no remotes" from
+  // "the question could not be put" — and a review found that reading unsound on
+  // the one platform this was reported from: libuv gives a forcibly killed
+  // Windows process exit status 1, which is indistinguishable from git's own
+  // no-match. `git remote -v` exits 0 with EMPTY OUTPUT for a repository with no
+  // remotes, so the distinction is carried by `ok` alone, where no platform can
+  // blur it.
+  const remotes = run(['git', 'remote', '-v'])
+  const unreadable = !remotes.ok
   const onGitHub = remotes.ok && /github/i.test(remotes.out)
   const runs = onGitHub
     ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', '1',

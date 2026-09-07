@@ -2808,15 +2808,27 @@ def main():
     blocking, _ = blocked_on_findings(event, human_acc)
     assert blocking == [], f"Blocked-on on a human-observed task must be accepted: {blocking}"
 
-    # The same header on a task with a RUNNABLE fence is refused. A task that can
-    # run its own acceptance is not waiting on the outside world; it is unfinished,
-    # which is `pending` or `partial`. The distinction is structural — a bash fence
-    # or the explicit human-observed sentence — never a reading of the fence's text,
-    # which is the heuristic docs/BACKLOG.md §67 refused.
+    # ⚠ AND THE SAME HEADER ON A RUNNABLE FENCE IS NOW ACCEPTED. BACKLOG §155.
+    # This was refused, on the theory that "a task that can run its own acceptance
+    # is not waiting, it is unfinished". That theory does not fit a CONDITIONAL
+    # MEASUREMENT: the fence runs fine, running it NOW is worthless. A corpus
+    # reported one that would produce four evaluation tables nobody should pay for
+    # until an upstream decision lands, and `pending` cannot say that — it means
+    # unfinished, not "do not run this yet".
+    #
+    # Measured on that corpus: 162 of 163 task files carry a runnable fence, so the
+    # rule fenced the field off from nearly every task that could need it, and
+    # `Blocked-on` was used in ZERO of them.
     blocking, _ = blocked_on_findings(event)
-    assert blocking, "Blocked-on on a task with a runnable bash fence must be refused"
-    assert "human-observed" in blocking[0], \
-        f"and the refusal must say what would make it legitimate: {blocking[0]}"
+    assert blocking == [], \
+        f"a conditional measurement may declare what it waits for: {blocking}"
+
+    # CLEAN/DIRTY in the same place: the OTHER Blocked-on rules still bite, so this
+    # loosened one field and not the header's meaning. A sibling task is still
+    # `Depends-on`, not `Blocked-on` — admitting it would make the two drift.
+    sibling, _ = blocked_on_findings("**Blocked-on:** T4-registry lands\n")
+    assert sibling, "Blocked-on naming a task in this corpus must still be refused"
+    assert "Depends-on" in sibling[0], f"and must say which header is right: {sibling[0]}"
 
     # `a task without Blocked-on is unaffected`. The header is OPTIONAL: every task
     # file valid before this change stays valid, or the corpus turns red overnight.

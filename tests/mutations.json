@@ -3176,15 +3176,6 @@
       "to": "        if False:\n            ids.add(tid)"
     },
     {
-      "label": "ADR-014: Blocked-on is refused where the acceptance can actually run",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/evidence-chain.test.mjs"
-      ],
-      "from": "        if ACCEPTANCE_FENCE.search(acc_text):\n            errors.append(\n                f\"{path.name}: Blocked-on says this task waits on something outside the \"",
-      "to": "        if False:\n            errors.append(\n                f\"{path.name}: Blocked-on says this task waits on something outside the \""
-    },
-    {
       "label": "ADR-014: waiting is counted and shown separately from debt",
       "file": "plugin/bin/adr-debt",
       "tests": [
@@ -3208,8 +3199,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        elif (sibling := next((d for d in re.findall(r\"\\bT\\d+\\b\", blocked_on)\n                               if any(id_matches(d, stem) for stem in all_stems)), None)):",
-      "to": "        elif False:"
+      "from": "        if (sibling := next((d for d in re.findall(r\"\\bT\\d+\\b\", blocked_on)\n                               if any(id_matches(d, stem) for stem in all_stems)), None)):",
+      "to": "        if False:"
     },
     {
       "label": "ADR-013: a hand-reported diff must be reversible",

@@ -1465,18 +1465,20 @@ def check_task(path, all_stems, errors):
     # stays valid, or the corpus turns red overnight for a header nobody wrote yet.
     blocked_on = header_val(text, "Blocked-on")
     if blocked_on:
-        # A task that can run its own acceptance is not waiting on the outside
-        # world — it is unfinished, which is `pending` or `partial`. The test is
-        # STRUCTURAL (a bash fence, or the explicit human-observed sentence) and
-        # never a reading of the fence's text: guessing which clause is blocked is
-        # the heuristic docs/BACKLOG.md §67 refused.
-        acc_text = "\n".join(secs.get("Acceptance", []))
-        if ACCEPTANCE_FENCE.search(acc_text):
-            errors.append(
-                f"{path.name}: Blocked-on says this task waits on something outside the "
-                f"repository, but its Acceptance is a runnable ```bash fence — a task that can "
-                f"run its own acceptance is not waiting, it is unfinished, which is `pending` "
-                f"or `partial`. Blocked-on belongs on a task whose Acceptance is human-observed.")
+        # ⚠ A RUNNABLE FENCE IS NO LONGER A REFUSAL. BACKLOG §155. This rejected
+        # `Blocked-on` on any task whose Acceptance was a bash fence, on the theory
+        # that "a task that can run its own acceptance is not waiting, it is
+        # unfinished". That theory does not fit a CONDITIONAL MEASUREMENT: the
+        # fence runs fine, running it now is simply worthless — a corpus reported
+        # one that would produce four evaluation tables nobody should pay for
+        # until an upstream decision lands. `pending` cannot say that; it means
+        # unfinished, not "do not run this yet".
+        #
+        # Measured 2026-09-06 on the corpus that hit it: 162 of 163 task files
+        # carry a runnable fence, so this rule fenced the field off from almost
+        # every task that could need it, and `Blocked-on` was used in ZERO files.
+        # `adr-next` has routed `Blocked-on` as stopped since 2.83.0, so allowing
+        # it here is the whole of the fix.
         # A Blocked-on that names no checkable event is ADVICE, not a refusal.
         # The event is meant to be one a later reader can confirm HAS HAPPENED;
         # written as a mood it becomes a second Stop Condition, which is prose
@@ -1503,7 +1505,7 @@ def check_task(path, all_stems, errors):
         #
         # Admitting the first into Blocked-on makes it a second spelling of
         # Depends-on, and the two would drift.
-        elif (sibling := next((d for d in re.findall(r"\bT\d+\b", blocked_on)
+        if (sibling := next((d for d in re.findall(r"\bT\d+\b", blocked_on)
                                if any(id_matches(d, stem) for stem in all_stems)), None)):
             errors.append(
                 f"{path.name}: Blocked-on names `{sibling}`, which is a task in this corpus — "

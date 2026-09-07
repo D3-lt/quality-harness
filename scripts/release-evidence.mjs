@@ -181,17 +181,25 @@ export function runListArgv(fullSha) {
  * `--commit 57a1e76` returned `[]` while `--commit <full>` returned the run. So
  * the sha is expanded here rather than trusted, and a caller passing a short sha
  * gets an answer instead of a silent nothing.
+ *
+ * ⚠ `exec` IS A SEAM, AND THE SHA EXPANSION IS WHY. The `--commit` argument must
+ * be the FULL 40 characters or `gh` returns `[]` — not an error, an empty list
+ * that reads exactly like "this commit has no runs". That expansion had no test:
+ * `runListArgv` was handed an already-full sha, so deleting the `rev-parse` would
+ * have left the suite green while short shas silently returned nothing. Named by
+ * a different-lineage review, which is also where the outermost-callable-boundary
+ * rule points (CLAUDE.md §4).
  */
-function fetchRun(sha) {
+export function fetchRun(sha, exec = execFileSync) {
   let full = sha
   try {
-    full = execFileSync('git', ['rev-parse', sha], { encoding: 'utf8', timeout: 30_000 }).trim()
+    full = exec('git', ['rev-parse', sha], { encoding: 'utf8', timeout: 30_000 }).trim()
   } catch {
     return null // Not a sha this checkout knows — "could not look".
   }
   let list
   try {
-    list = execFileSync('gh', runListArgv(full), { encoding: 'utf8', timeout: 60_000 })
+    list = exec('gh', runListArgv(full), { encoding: 'utf8', timeout: 60_000 })
   } catch {
     return null // gh absent, unauthenticated, or offline — "could not look".
   }
@@ -203,7 +211,7 @@ function fetchRun(sha) {
   }
   if (!id) return null
   try {
-    return JSON.parse(execFileSync('gh', [
+    return JSON.parse(exec('gh', [
       'run', 'view', String(id), '--json', 'status,conclusion,headSha,jobs,event',
     ], { encoding: 'utf8', timeout: 60_000 }))
   } catch {

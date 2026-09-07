@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { budgeted, cached, collect, gitDir, releaseAnchor, render, shell, usableCache } from '../plugin/scripts/branch-state.mjs'
+import { budgeted, cached, collect, gitDir, render, shell, usableCache } from '../plugin/scripts/branch-state.mjs'
 
 const ok = out => ({ ok: true, out })
 const no = note => ({ ok: false, out: '', note })
@@ -249,17 +249,17 @@ test('a cleanliness read that failed is not reported as clean', () => {
   assert.doesNotMatch(blind, /, clean(?![a-z])/, 'an unread working tree is not a clean one')
 })
 
-// BACKLOG §157 — the release line, which until now had no test at all, which is
-// how it came to print a false conclusion on every prompt for four releases.
+// BACKLOG §157 — the release line, which had no test at all until 2026-09-07,
+// which is how it came to print a false conclusion on every prompt for four
+// releases: "plugin/ changed in 8 file(s) since v2.81.0 — a green shipped change
+// is released, not parked", while HEAD WAS the newest release. `git describe`
+// reads LOCAL refs and `gh release create` tags the remote, so the machine that
+// cuts the releases is the one whose anchor goes stale.
 //
-// The real shape, 2026-09-07: HEAD is v2.85.0 on the forge, the newest LOCAL tag
-// is v2.81.0 because `gh release create` tags the remote and this clone never
-// fetched, and the line read "plugin/ changed in 8 file(s) since v2.81.0 — §13: a
-// green shipped change is released, not parked." The count was true. The advice
-// was false. Everything below is driven through the `run` seam — no network, no
-// remote, no `gh` (CLAUDE.md §7).
-const RELEASED_SHA = '46a265611ecf407b1fab10faa2c364c1e0e3b188'
-const STALE_LOCAL_TAG = [
+// ⚠ The first fix asked the forge. It worked, and five review rounds each found a
+// real defect in classifying how `gh` can fail. The shipped answer states what
+// this reader can OBSERVE and names what it cannot — see the collector's comment.
+const RELEASE_PENDING = [
   ['git rev-parse --abbrev-ref', ok('main')],
   ['git rev-parse --short', ok('46a2656')],
   ['git status --short', ok('')],
@@ -269,318 +269,50 @@ const STALE_LOCAL_TAG = [
   ['git diff --name-only v2.81.0..HEAD', ok('plugin/.claude-plugin/plugin.json\nplugin/bin/adr-lint')],
 ]
 
-const FORGE = ok(JSON.stringify({
-  tagName: 'v2.85.0', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: false,
-}))
+test('the release line NAMES its anchor as local and points at the check', () => {
+  const out = render(collect(runner(RELEASE_PENDING)), { brief: true })
+  assert.match(out, /changed in 2 file\(s\) since v2\.81\.0, the newest tag THIS CLONE holds/)
+  assert.match(out, /gh release view/, 'the reader cannot answer this; it must say who can')
+  // The sentence that was FALSE for four releases must not come back. A count
+  // from a local tag is not evidence that anything is unreleased.
+  assert.doesNotMatch(out, /a green shipped change is released, not parked/,
+    `the reader asserted a conclusion it cannot observe:\n${out}`)
 
-test('the forge anchor decides, and it is shown answering BOTH ways', () => {
-  // One test, both directions, because an anchor that can only ever say "nothing
-  // to release" is not an anchor, it is the alarm switched off — and a
-  // different-lineage review pointed out that keeping the counterexample in a
-  // separate test is exactly what CLAUDE.md §4 forbids.
-  const forge = shipped => render(collect(runner([...STALE_LOCAL_TAG,
-    ['gh release view', FORGE],
-    ['git merge-base --is-ancestor', ok('')],
-    [`git diff --name-only ${RELEASED_SHA}..HEAD`, ok(shipped)],
-  ])))
-
-  const clean = forge('')
-  assert.doesNotMatch(clean, /not parked/, 'HEAD is the release; there is nothing to release')
-  assert.doesNotMatch(clean, /v2\.81\.0/, 'the stale local tag must not be quoted as the anchor')
-
-  const dirty = forge('plugin/bin/adr-verify')
-  assert.match(dirty, /changed in 1 file\(s\) since v2\.85\.0 — §13/)
-  assert.doesNotMatch(dirty, /THIS CLONE/, 'the anchor came from the forge, so it is not hedged')
-})
-
-test('a local tag NEWER than the release does not hide the work between them', () => {
-  // The shape the first version of this missed, named by a different-lineage
-  // review 2026-09-07: the forge used to be asked only when the LOCAL diff was
-  // non-empty. Tag HEAD locally and that diff is empty, so nothing was asked and
-  // nothing was said — while everything between the release and that tag was
-  // genuinely unreleased. Saving a subprocess by deciding in advance that the
-  // answer will not change is the same mistake as not looking.
-  const out = render(collect(runner([
-    ['git rev-parse --abbrev-ref', ok('main')],
-    ['git rev-parse --short', ok('46a2656')],
-    ['git status --short', ok('')],
-    ['git rev-list', ok('0\t0')],
-    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
-    ['git describe', ok('v2.86.0')],
-    ['git diff --name-only v2.86.0..HEAD', ok('')],
-    ['gh release view', FORGE],
-    ['git merge-base --is-ancestor', ok('')],
-    [`git diff --name-only ${RELEASED_SHA}..HEAD`, ok('plugin/bin/adr-verify\nplugin/bin/adr-next')],
-  ])))
-  assert.match(out, /changed in 2 file\(s\) since v2\.85\.0 — §13/)
-})
-
-test('a clone with no local tag at all still gets the forge answer', () => {
-  const out = render(collect(runner([
-    ['git rev-parse --abbrev-ref', ok('main')],
-    ['git rev-parse --short', ok('46a2656')],
-    ['git status --short', ok('')],
-    ['git rev-list', ok('0\t0')],
-    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
-    ['git describe', no('fatal: No names found')],
-    ['gh release view', FORGE],
-    ['git merge-base --is-ancestor', ok('')],
-    [`git diff --name-only ${RELEASED_SHA}..HEAD`, ok('plugin/bin/adr-verify')],
-  ])))
-  assert.match(out, /changed in 1 file\(s\) since v2\.85\.0 — §13/)
-})
-
-test('without `gh` the anchor is local, and the line SAYS the anchor is local', () => {
-  // ADR-005 on the anchor itself: "the newest tag this clone knows" and "the
-  // newest release" are different observations and must not print alike. Most
-  // adopters live here — no gh, no GitHub, or no releases cut at all.
-  const out = render(collect(runner(STALE_LOCAL_TAG)))
-  assert.match(out, /changed in 2 file\(s\) since v2\.81\.0, the newest tag THIS CLONE knows/)
-  assert.match(out, /a release tagged on the forge would not be here/)
-})
-
-test('a targetCommitish that is a branch name is refused, not diffed against', () => {
-  // THE ARM THAT WOULD FAIL SILENTLY AND FLATTER. `targetCommitish` is a branch
-  // name for a release cut from a branch; `git diff main..HEAD` is empty on main,
-  // so accepting it would report "nothing unreleased" for ever. Only 40 hex.
-  const answer = releaseAnchor(runner([
-    ['gh release view', ok(JSON.stringify({ tagName: 'v2.85.0', targetCommitish: 'main' }))],
-    ['git merge-base --is-ancestor', ok('')],
-  ]))
-  assert.notEqual(answer.kind, 'release')
-  assert.equal(answer.blocked, true, 'a release that exists and cannot be used is worth saying')
-})
-
-test('a release that is not an ancestor of HEAD is refused, and EXISTING is not enough', () => {
-  // The counterexample has to be precise, and the first version of it was not:
-  // the fake process table answers "not ok" to anything unlisted, so restoring
-  // the old `cat-file -e` check ALSO returned null and the test still passed. It
-  // named ancestry and proved only that some git call failed — the vacuity §4 is
-  // about, caught by a different-lineage review reading the fixture rather than
-  // the assertion. `cat-file -e` SUCCEEDS here; only ancestry fails.
-  const answer = releaseAnchor(runner([
-    ['gh release view', FORGE],
-    ['git cat-file -e', ok('')],
-    ['git merge-base --is-ancestor', no('')],
-  ]))
-  assert.equal(answer.kind, 'unrelated')
-  assert.equal(answer.blocked, true)
-  assert.match(answer.note, /does not descend|could not tell/)
-})
-
-test('a draft or prerelease is not what shipped, so it is not the anchor', () => {
-  const view = extra => runner([
-    ['gh release view', ok(JSON.stringify({
-      tagName: 'v2.86.0-rc1', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: false, ...extra,
-    }))],
-    ['git merge-base --is-ancestor', ok('')],
-  ])
-  for (const flag of ['isDraft', 'isPrerelease']) {
-    const answer = releaseAnchor(view({ [flag]: true }))
-    assert.equal(answer.kind, 'rejected', flag)
-    assert.equal(answer.name, 'v2.86.0-rc1', `${flag}: the rejected tag is NAMED, so the caller can keep it out of its fallback`)
-  }
-  // Shown accepting the published one in the same test, or refusing everything
-  // would satisfy both assertions above (CLAUDE.md §4).
-  assert.equal(releaseAnchor(view({})).kind, 'release')
-})
-
-test('the three ways of not answering are three answers, not one null', () => {
-  // ADR-005. "No release cut" must stay QUIET — most adopters live there — while
-  // "I could not ask" and "the answer did not parse" must not.
-  const absent = releaseAnchor(runner([['gh release view', no('release not found')]]))
-  assert.equal(absent.kind, 'absent')
-  assert.equal(absent.blocked, false, 'a repository with no releases must not shout every prompt')
-
-  const spent = releaseAnchor(() => ({ ok: false, out: '', budget: true, note: 'budget of 8000ms spent' }))
-  assert.equal(spent.kind, 'unknown')
-  assert.equal(spent.blocked, true, 'a question never put is not an answer of nothing')
-
-  const garbage = releaseAnchor(runner([['gh release view', ok('not json')]]))
-  assert.equal(garbage.kind, 'unknown')
-  assert.equal(garbage.blocked, true)
-
-  const nameless = releaseAnchor(runner([
-    ['gh release view', ok(`{"targetCommitish":"${RELEASED_SHA}"}`)],
-    ['git merge-base --is-ancestor', ok('')],
-  ]))
-  assert.equal(nameless.kind, 'unknown', 'a release with no tagName names nothing')
+  // Shown able to answer the other way in the same test (CLAUDE.md §4): nothing
+  // changed under plugin/ means the line does not appear at all.
+  const quiet = render(collect(runner([...RELEASE_PENDING.slice(0, 6),
+    ['git diff --name-only v2.81.0..HEAD', ok('')]])), { brief: true })
+  assert.doesNotMatch(quiet, /changed in/, `an unchanged plugin has nothing to say:\n${quiet}`)
 })
 
 test('a spent budget says COULD NOT LOOK, it does not say nothing to release', () => {
-  // The shape a different-lineage review PROBED rather than argued: an 8-second
-  // `gh release view` exhausts the collection budget, every later git call is
-  // refused, `shippedSinceTag` is null — and the render printed a clean, green,
-  // silent report on a branch with unreleased work. Null for "the diff never ran"
-  // and 0 for "it ran and found nothing" rendered identically.
-  let spent = false
+  // `shippedSinceTag` is null for a diff that never ran and 0 for one that ran and
+  // found nothing, and the render printed nothing for both — so a collection
+  // budget spent on the CI calls produced a clean, green, entirely silent report
+  // on a branch with unreleased work. Probed by a different-lineage review with a
+  // slow `gh` rather than argued about, and it is the one finding from the forge
+  // version that outlived it.
   const out = render(collect(argv => {
-    if (argv[0] === 'gh' && argv[1] === 'release') { spent = true; return { ok: false, out: '', budget: true, note: 'budget of 8000ms spent before `gh release view`' } }
-    if (spent && argv[0] === 'git' && (argv[1] === 'describe' || argv[1] === 'diff')) {
+    if (argv[0] === 'git' && (argv[1] === 'describe' || argv[1] === 'diff')) {
       return { ok: false, out: '', budget: true, note: 'budget of 8000ms spent' }
     }
-    return runner(STALE_LOCAL_TAG)(argv)
-  }))
-  assert.match(out, /COULD NOT LOOK/, `a spent budget must not read as a clean release state:\n${out}`)
+    return runner(RELEASE_PENDING)(argv)
+  }), { brief: true })
+  assert.match(out, /COULD NOT LOOK at the release state/, `a spent budget read as clean:\n${out}`)
   assert.match(out, /not "nothing to release"/)
+
+  // And a diff that FAILED for a reason that is not the budget says so too.
+  const failed = render(collect(runner([...RELEASE_PENDING.slice(0, 6),
+    ['git diff --name-only v2.81.0..HEAD', no('fatal: bad revision')]])), { brief: true })
+  assert.match(failed, /COULD NOT LOOK at the release state/)
 })
 
-test('a prerelease at HEAD does not walk back in as the local tag', () => {
-  // The refusal defeated by the line after it: `releaseAnchor` rejects the
-  // prerelease, `git describe` hands back THE SAME TAG, the diff from it is empty
-  // and the reader falls silent — having refused the anchor and then used it.
-  const out = render(collect(runner([
-    ['git rev-parse --abbrev-ref', ok('main')],
-    ['git rev-parse --short', ok('46a2656')],
-    ['git status --short', ok('')],
-    ['git rev-list', ok('0\t0')],
-    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
-    ['gh release view', ok(JSON.stringify({
-      tagName: 'v2.86.0-rc1', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: true,
-    }))],
-    ['git describe', ok('v2.86.0-rc1')],
-    ['git diff --name-only v2.86.0-rc1..HEAD', ok('')],
-  ])))
-  assert.match(out, /COULD NOT LOOK/, `the rejected tag was reused as the anchor:\n${out}`)
-  assert.match(out, /prerelease/)
-})
-
-// Round three of the review, and both findings are the same sentence: a fix that
-// closed one path moved the same honesty hole one step sideways. Both are
-// asserted through `{ brief: true }`, because that is the form that fires on
-// every prompt and the full form's `release` column does not exist there.
-test('a forge failure that is NOT "no release" is loud, in the brief form', () => {
-  // PROBED, not argued: an injected `HTTP 401: Bad credentials` produced
-  // `{kind:"absent", blocked:false}`, a local tag at HEAD diffed to zero, and the
-  // brief line read green and silent. The structured-result fix had closed the
-  // budget path and left every other forge failure quiet.
-  const withForge = answer => render(collect(runner([
-    ['git rev-parse --abbrev-ref', ok('main')],
-    ['git rev-parse --short', ok('46a2656')],
-    ['git status --short', ok('')],
-    ['git rev-list', ok('0\t0')],
-    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
-    ['gh release view', answer],
-    ['git describe', ok('v2.85.0')],
-    ['git diff --name-only v2.85.0..HEAD', ok('')],
-  ])), { brief: true })
-
-  assert.match(withForge(no('HTTP 401: Bad credentials')), /COULD NOT LOOK at the release state/,
-    'an authentication failure is not "there is no release"')
-  assert.match(withForge(no('dial tcp: lookup api.github.com: no such host')), /COULD NOT LOOK/,
-    'nor is a network failure')
-
-  // The other direction, in the same test: a forge that SAYS there is no release
-  // stays quiet, because most adopters live there and §152 is about advice that
-  // fires every run.
-  assert.doesNotMatch(withForge(no('release not found')), /COULD NOT LOOK/,
-    'a repository with no release cut must not be shouted at every prompt')
-})
-
-test('a rejected release stays blocked even when a local tag ALIASES it', () => {
-  // The name-comparison guard keeps the IDENTICAL tag out of the fallback and
-  // does nothing about an alias: a prerelease at HEAD plus a local `candidate`
-  // tag on the same commit anchored locally, diffed to zero, and fell silent. So
-  // the blocked STATE has to survive the fallback, not just the tag name.
-  const out = render(collect(runner([
-    ['git rev-parse --abbrev-ref', ok('main')],
-    ['git rev-parse --short', ok('46a2656')],
-    ['git status --short', ok('')],
-    ['git rev-list', ok('0\t0')],
-    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
-    ['gh release view', ok(JSON.stringify({
-      tagName: 'v2.86.0-rc1', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: true,
-    }))],
-    ['git describe', ok('candidate')],
-    ['git diff --name-only candidate..HEAD', ok('')],
-  ])), { brief: true })
-  assert.match(out, /COULD NOT LOOK at the release state/, `an alias swallowed the refusal:\n${out}`)
-  assert.match(out, /prerelease/)
-})
-
-test('a rejected release is not used as an anchor even when the diff is NOT empty', () => {
-  // The `rejected` name filter came back GREEN under mutation once the blocked
-  // state survived the fallback — with an empty diff both paths reach COULD NOT
-  // LOOK, so removing the filter changed nothing any test could see. This is
-  // where it still matters: measuring "since the prerelease" UNDERSTATES the
-  // unreleased work, which is the flattering direction, and it would print a
-  // confident count while doing it.
-  const out = render(collect(runner([
-    ['git rev-parse --abbrev-ref', ok('main')],
-    ['git rev-parse --short', ok('46a2656')],
-    ['git status --short', ok('')],
-    ['git rev-list', ok('0\t0')],
-    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
-    ['gh release view', ok(JSON.stringify({
-      tagName: 'v2.86.0-rc1', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: true,
-    }))],
-    ['git describe', ok('v2.86.0-rc1')],
-    ['git diff --name-only v2.86.0-rc1..HEAD', ok('plugin/bin/adr-verify')],
-  ])), { brief: true })
-  assert.doesNotMatch(out, /since v2\.86\.0-rc1/,
-    `the refused tag was used as the anchor after all:\n${out}`)
-  assert.match(out, /COULD NOT LOOK at the release state/)
-  assert.match(out, /prerelease/)
-})
-
-// Round four. Two HIGH and a MEDIUM, all probed through injected runners, and one
-// of them overturns a call made explicitly in the round-three fold-in.
-const brief = table => render(collect(runner(table)), { brief: true })
-const REPO = [
-  ['git rev-parse --abbrev-ref', ok('main')],
-  ['git rev-parse --short', ok('46a2656')],
-  ['git status --short', ok('')],
-  ['git rev-list', ok('0\t0')],
-  ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
-]
-
-test('a bare HTTP 404 is not evidence that there are no releases', () => {
-  // `HTTP 404` was in the quiet list. A missing repository, a wrong remote and a
-  // private repository the token cannot see all return 404, and each was read as
-  // "no release cut" — silence over a state nobody had established. `gh` says
-  // `release not found` when the repository is readable and holds none, which is
-  // the observation actually being claimed.
-  const out = brief([...REPO,
-    ['gh release view', no('HTTP 404: Not Found (https://api.github.com/repos/x/y/releases/latest)')],
-    ['git describe', ok('v2.85.0')],
-    ['git diff --name-only v2.85.0..HEAD', ok('')],
-  ])
-  assert.match(out, /COULD NOT LOOK at the release state/, `a 404 was trusted as absence:\n${out}`)
-})
-
-test('a repository that is not on GitHub is quiet, not uncertain', () => {
-  // The §152 half, and the reason `none of the git remotes` is quiet rather than
-  // blocked: a repository not on GitHub has no forge release to be uncertain
-  // about, and a could-not-look line on every prompt for its whole lifetime is
-  // exactly the advice-that-trains-filtering this project has measured twice.
-  const out = brief([...REPO,
-    ['gh release view', no('none of the git remotes configured for this repository point to a known GitHub host')],
-    ['git describe', ok('v1.0.0')],
-    ['git diff --name-only v1.0.0..HEAD', ok('')],
-  ])
-  assert.doesNotMatch(out, /COULD NOT LOOK at the release state/, `a non-GitHub repository was shouted at:\n${out}`)
-
-  // Shown able to answer the other way in the same test (CLAUDE.md §4): the same
-  // repository with a real forge failure IS loud.
-  assert.match(brief([...REPO,
-    ['gh release view', no('HTTP 401: Bad credentials')],
-    ['git describe', ok('v1.0.0')],
-    ['git diff --name-only v1.0.0..HEAD', ok('')],
-  ]), /COULD NOT LOOK at the release state/)
-})
-
-test('a count does not suppress the forge failure that may have understated it', () => {
-  // Explicitly decided the other way in the round-three fold-in — "a count that
-  // did come back is not silence, and the hedge already says where the number
-  // came from" — and overturned on the evidence: the local tag can be NEWER than
-  // the published release, so the count UNDERSTATES the unreleased work while
-  // omitting the reason it might. The hedge says the anchor is local; it does not
-  // say the forge was unreadable.
-  const out = brief([...REPO,
-    ['gh release view', no('HTTP 401: Bad credentials')],
-    ['git describe', ok('v2.85.0')],
-    ['git diff --name-only v2.85.0..HEAD', ok('plugin/bin/adr-verify\nplugin/bin/adr-next')],
-  ])
-  assert.match(out, /changed in 2 file\(s\) since v2\.85\.0/, `the count must still be reported:\n${out}`)
-  assert.match(out, /COULD NOT LOOK at the release state/, `and so must the reason it may be low:\n${out}`)
+test('a clone with no tags at all is silent, not uncertain', () => {
+  // There is genuinely nothing to compare against, and §152 is about advice that
+  // fires every run: a repository that has never tagged must not be told so on
+  // every prompt for its whole life.
+  const out = render(collect(runner([...RELEASE_PENDING.slice(0, 5),
+    ['git describe', no('fatal: No names found, cannot describe anything.')]])), { brief: true })
+  assert.doesNotMatch(out, /COULD NOT LOOK at the release state/, `an untagged repository was shouted at:\n${out}`)
+  assert.doesNotMatch(out, /changed in/)
 })

@@ -68,9 +68,14 @@ rather than forcing.
 Trajectory-level detection, and any change to `hedged`, `limited` or `unavailable`. The ledger,
 `claims-rate.mjs`'s buckets and `trajectory-metrics.mjs` are untouched.
 
+## Mutation Log
+
+- 2026-09-07 · 40d2c24* · mutant killed · exit 1 · `plugin/scripts/claim-status.mjs` · the exported label must agree with the classifier, or every reporter misdescribes a structural zero · acceptance-sha256:1d4d4876207fe5ada955d4076f4451897d52c2007a4a52fe6005d785b88d8931
+
 ## Verification Log
 
 - 2026-09-07 · aceb7c3 · exit 0 · `set -o pipefail …` · acceptance-sha256:1d4d4876207fe5ada955d4076f4451897d52c2007a4a52fe6005d785b88d8931 · ms:156
+- 2026-09-07 · 40d2c24* · exit 0 · `set -o pipefail …` · acceptance-sha256:1d4d4876207fe5ada955d4076f4451897d52c2007a4a52fe6005d785b88d8931 · ms:118
 
 ## Invariants
 

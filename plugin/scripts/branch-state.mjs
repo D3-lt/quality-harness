@@ -209,7 +209,7 @@ export function releaseAnchor(run) {
     'tagName,targetCommitish,isDraft,isPrerelease'])
   if (!answer.ok) {
     return answer.budget
-      ? { kind: 'unknown', blocked: true, note: `the forge was not asked — ${answer.note}` }
+      ? { kind: 'unknown', blocked: true, note: `the forge was not asked (${answer.note})` }
       : { kind: 'absent', blocked: false, note: answer.note ?? 'no release to read' }
   }
   let json
@@ -282,7 +282,11 @@ export function render(state, { brief = false } = {}) {
     // reads as "nothing to release", which is the one thing this must never say
     // without having looked (ADR-005).
     : state.releaseBlocked
-      ? `COULD NOT LOOK — ${state.releaseBlocked}. That is not "nothing to release".`
+      // Self-labelling, because the BRIEF form has no `release` column and a bare
+      // "COULD NOT LOOK" one dot after the CI verdict reads as a CI failure. That
+      // line fires on every prompt; it has to be right on its own.
+      ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `
+        + 'That is not "nothing to release".'
       : null
 
   if (brief) {

@@ -5140,6 +5140,15 @@
       "to": "    : !anchor && tag.budget"
     },
     {
+      "label": "branch-state: the shell seam pins the language git answers in",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }",
+      "to": "    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, timeout, encoding: 'utf8' }).trim() }"
+    },
+    {
       "label": "branch-state: a command the budget refused is marked, not folded into a plain failure",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [

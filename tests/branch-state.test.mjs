@@ -143,6 +143,18 @@ test('the cache serves a fresh answer, ages a stale one, and survives a broken f
 // The seam itself. `shell` is what every other arm is spared from touching, so
 // nothing else exercises it — and a helper whose whole contract is "never
 // throws" is exactly the kind that is discovered to throw in production.
+test('shell pins the language, because the reader matches git\'s own words', () => {
+  // `NO_TAGS` tells "positively no tags" from "could not read the tags" by
+  // matching git's diagnostic, and git LOCALISES it — so without this pin an
+  // untagged repository under any other locale falls through to could-not-look
+  // and is told so on every prompt for ever (BACKLOG §152 behind a language
+  // barrier). Named by a seventh review round. Asserted on `shell` itself, at the
+  // seam that sets it, rather than on a caller that would pass either way.
+  const read = shell([process.execPath, '-e', 'process.stdout.write(process.env.LC_ALL ?? "unset")'])
+  assert.equal(read.ok, true, read.note)
+  assert.equal(read.out, 'C', 'git must speak the language the regexes are written in')
+})
+
 test('shell answers for a command that ran and one that could not', () => {
   const ran = shell([process.execPath, '-e', 'process.stdout.write("hello")'])
   assert.equal(ran.ok, true)

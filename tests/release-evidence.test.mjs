@@ -6,7 +6,7 @@
 // plus the vacuous one that would let anything through.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyArgument, evaluateRun, selectRun } from '../scripts/release-evidence.mjs'
+import { classifyArgument, evaluateRun, runListArgv, selectRun } from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
 const NINE = [
@@ -233,4 +233,22 @@ test('nothing to choose from is null, and a run with no id is not a choice', () 
   assert.equal(selectRun([]), null)
   assert.equal(selectRun(null), null)
   assert.equal(selectRun([{ event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' }]), null)
+})
+
+test('the run list is scoped to the campaign workflow, not to the sha alone', () => {
+  // `--commit` alone returns EVERY workflow that ran at this sha, and selectRun
+  // prefers ANY workflow_dispatch on a tie — so an unrelated dispatched workflow
+  // could beat the selftest push and clear a sha whose campaign was cached.
+  // `--limit 1` had the identical exposure before §154; the tie-break made it
+  // reachable. Asserted at a callable boundary because `fetchRun` shells out on
+  // the next line and a filter with no test can be deleted unnoticed — which a
+  // different-lineage review checked by deleting it, 2026-09-07.
+  const argv = runListArgv('a'.repeat(40))
+  assert.equal(argv[argv.indexOf('--workflow') + 1], 'selftest.yml',
+    `the release question is about one workflow (§13.3): ${argv.join(' ')}`)
+  assert.equal(argv[argv.indexOf('--commit') + 1], 'a'.repeat(40),
+    'the FULL sha, because an abbreviated one returns [] rather than an error')
+  assert.ok(argv.includes('--json') && argv[argv.indexOf('--json') + 1].includes('createdAt'),
+    'selectRun decides on createdAt and event, so both must be asked for')
+  assert.ok(argv[argv.indexOf('--json') + 1].includes('event'))
 })

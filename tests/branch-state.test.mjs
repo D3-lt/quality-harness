@@ -329,20 +329,29 @@ test('a targetCommitish that is a branch name is refused, not diffed against', (
   // THE ARM THAT WOULD FAIL SILENTLY AND FLATTER. `targetCommitish` is a branch
   // name for a release cut from a branch; `git diff main..HEAD` is empty on main,
   // so accepting it would report "nothing unreleased" for ever. Only 40 hex.
-  assert.equal(releaseAnchor(runner([
+  const answer = releaseAnchor(runner([
     ['gh release view', ok(JSON.stringify({ tagName: 'v2.85.0', targetCommitish: 'main' }))],
     ['git merge-base --is-ancestor', ok('')],
-  ])), null)
+  ]))
+  assert.notEqual(answer.kind, 'release')
+  assert.equal(answer.blocked, true, 'a release that exists and cannot be used is worth saying')
 })
 
-test('a release that is not an ancestor of HEAD is refused, not anchored on', () => {
-  // EXISTING IS NOT ANCESTRY, and the old guard (`cat-file -e`) only proved the
-  // first. A fetched release branch satisfies it, and a diff from a commit HEAD
-  // does not descend from answers a question nobody asked.
-  assert.equal(releaseAnchor(runner([
+test('a release that is not an ancestor of HEAD is refused, and EXISTING is not enough', () => {
+  // The counterexample has to be precise, and the first version of it was not:
+  // the fake process table answers "not ok" to anything unlisted, so restoring
+  // the old `cat-file -e` check ALSO returned null and the test still passed. It
+  // named ancestry and proved only that some git call failed — the vacuity §4 is
+  // about, caught by a different-lineage review reading the fixture rather than
+  // the assertion. `cat-file -e` SUCCEEDS here; only ancestry fails.
+  const answer = releaseAnchor(runner([
     ['gh release view', FORGE],
+    ['git cat-file -e', ok('')],
     ['git merge-base --is-ancestor', no('')],
-  ])), null)
+  ]))
+  assert.equal(answer.kind, 'unrelated')
+  assert.equal(answer.blocked, true)
+  assert.match(answer.note, /does not descend|could not tell/)
 })
 
 test('a draft or prerelease is not what shipped, so it is not the anchor', () => {
@@ -352,18 +361,72 @@ test('a draft or prerelease is not what shipped, so it is not the anchor', () =>
     }))],
     ['git merge-base --is-ancestor', ok('')],
   ])
-  assert.equal(releaseAnchor(view({ isDraft: true })), null)
-  assert.equal(releaseAnchor(view({ isPrerelease: true })), null)
+  for (const flag of ['isDraft', 'isPrerelease']) {
+    const answer = releaseAnchor(view({ [flag]: true }))
+    assert.equal(answer.kind, 'rejected', flag)
+    assert.equal(answer.name, 'v2.86.0-rc1', `${flag}: the rejected tag is NAMED, so the caller can keep it out of its fallback`)
+  }
   // Shown accepting the published one in the same test, or refusing everything
   // would satisfy both assertions above (CLAUDE.md §4).
-  assert.equal(releaseAnchor(view({}))?.name, 'v2.86.0-rc1')
+  assert.equal(releaseAnchor(view({})).kind, 'release')
 })
 
-test('an answer that is not an answer leaves the anchor local', () => {
-  assert.equal(releaseAnchor(runner([['gh release view', no('gh: command not found')]])), null)
-  assert.equal(releaseAnchor(runner([['gh release view', ok('not json')]])), null)
-  assert.equal(releaseAnchor(runner([
+test('the three ways of not answering are three answers, not one null', () => {
+  // ADR-005. "No release cut" must stay QUIET — most adopters live there — while
+  // "I could not ask" and "the answer did not parse" must not.
+  const absent = releaseAnchor(runner([['gh release view', no('release not found')]]))
+  assert.equal(absent.kind, 'absent')
+  assert.equal(absent.blocked, false, 'a repository with no releases must not shout every prompt')
+
+  const spent = releaseAnchor(() => ({ ok: false, out: '', budget: true, note: 'budget of 8000ms spent' }))
+  assert.equal(spent.kind, 'unknown')
+  assert.equal(spent.blocked, true, 'a question never put is not an answer of nothing')
+
+  const garbage = releaseAnchor(runner([['gh release view', ok('not json')]]))
+  assert.equal(garbage.kind, 'unknown')
+  assert.equal(garbage.blocked, true)
+
+  const nameless = releaseAnchor(runner([
     ['gh release view', ok(`{"targetCommitish":"${RELEASED_SHA}"}`)],
     ['git merge-base --is-ancestor', ok('')],
-  ])), null, 'a release with no tagName names nothing')
+  ]))
+  assert.equal(nameless.kind, 'unknown', 'a release with no tagName names nothing')
+})
+
+test('a spent budget says COULD NOT LOOK, it does not say nothing to release', () => {
+  // The shape a different-lineage review PROBED rather than argued: an 8-second
+  // `gh release view` exhausts the collection budget, every later git call is
+  // refused, `shippedSinceTag` is null — and the render printed a clean, green,
+  // silent report on a branch with unreleased work. Null for "the diff never ran"
+  // and 0 for "it ran and found nothing" rendered identically.
+  let spent = false
+  const out = render(collect(argv => {
+    if (argv[0] === 'gh' && argv[1] === 'release') { spent = true; return { ok: false, out: '', budget: true, note: 'budget of 8000ms spent before `gh release view`' } }
+    if (spent && argv[0] === 'git' && (argv[1] === 'describe' || argv[1] === 'diff')) {
+      return { ok: false, out: '', budget: true, note: 'budget of 8000ms spent' }
+    }
+    return runner(STALE_LOCAL_TAG)(argv)
+  }))
+  assert.match(out, /COULD NOT LOOK/, `a spent budget must not read as a clean release state:\n${out}`)
+  assert.match(out, /not "nothing to release"/)
+})
+
+test('a prerelease at HEAD does not walk back in as the local tag', () => {
+  // The refusal defeated by the line after it: `releaseAnchor` rejects the
+  // prerelease, `git describe` hands back THE SAME TAG, the diff from it is empty
+  // and the reader falls silent — having refused the anchor and then used it.
+  const out = render(collect(runner([
+    ['git rev-parse --abbrev-ref', ok('main')],
+    ['git rev-parse --short', ok('46a2656')],
+    ['git status --short', ok('')],
+    ['git rev-list', ok('0\t0')],
+    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+    ['gh release view', ok(JSON.stringify({
+      tagName: 'v2.86.0-rc1', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: true,
+    }))],
+    ['git describe', ok('v2.86.0-rc1')],
+    ['git diff --name-only v2.86.0-rc1..HEAD', ok('')],
+  ])))
+  assert.match(out, /COULD NOT LOOK/, `the rejected tag was reused as the anchor:\n${out}`)
+  assert.match(out, /prerelease/)
 })

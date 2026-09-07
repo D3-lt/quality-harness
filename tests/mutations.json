@@ -5118,8 +5118,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (!/^[0-9a-f]{40}$/.test(sha) || !name) return null",
-      "to": "  if (!name) return null"
+      "from": "  if (!/^[0-9a-f]{40}$/.test(sha) || !name) {",
+      "to": "  if (!name) {"
     },
     {
       "label": "branch-state: a release that is not an ancestor of HEAD is not an anchor",
@@ -5127,8 +5127,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (!run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD']).ok) return null",
-      "to": "  run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'])"
+      "from": "  const ancestor = run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'])\n  if (!ancestor.ok) {",
+      "to": "  const ancestor = run(['git', 'cat-file', '-e', `${sha}^{commit}`])\n  if (!ancestor.ok) {"
     },
     {
       "label": "branch-state: a draft or prerelease is not what shipped",
@@ -5136,8 +5136,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  if (json?.isDraft || json?.isPrerelease) return null",
-      "to": "  if (false) return null"
+      "from": "  if (json?.isDraft || json?.isPrerelease) {",
+      "to": "  if (false) {"
     },
     {
       "label": "branch-state: the forge anchor wins over the local tag, not the other way round",
@@ -5145,8 +5145,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "  const anchor = release ?? local",
-      "to": "  const anchor = local ?? release"
+      "from": "  const anchor = forge.kind === 'release' ? forge : local",
+      "to": "  const anchor = local ?? (forge.kind === 'release' ? forge : null)"
     },
     {
       "label": "branch-state: a locally-anchored release line says its anchor is local",
@@ -5156,6 +5156,33 @@
       ],
       "from": "      + `${state.tagKind === 'release' ? ''\n        : ', the newest tag THIS CLONE knows — a release tagged on the forge would not be here'}`",
       "to": "      + ''"
+    },
+    {
+      "label": "branch-state: a rejected release does not walk back in as the local tag",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const rejected = forge.kind !== 'release' && forge.name ? forge.name : null",
+      "to": "  const rejected = null"
+    },
+    {
+      "label": "branch-state: a release question that could not be put is not an answer of nothing",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "    : state.releaseBlocked\n      ? `COULD NOT LOOK — ${state.releaseBlocked}. That is not \"nothing to release\".`\n      : null",
+      "to": "    : null"
+    },
+    {
+      "label": "branch-state: a command the budget refused is marked, not folded into a plain failure",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      return { ok: false, out: '', budget: true, note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }",
+      "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }"
     },
     {
       "label": "statusline: a stale CI cache is said to be stale, not read as current",
@@ -5327,6 +5354,15 @@
       ],
       "from": "  if (candidates.some(r => at(r) === null)) return null",
       "to": "  if (candidates.some(r => at(r) === null)) return candidates[0]"
+    },
+    {
+      "label": "release-evidence: the run list is scoped to the campaign workflow",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "    'run', 'list', '--commit', fullSha, '--workflow', 'selftest.yml', '--limit', '20',",
+      "to": "    'run', 'list', '--commit', fullSha, '--limit', '20',"
     },
     {
       "label": "fence: the survivor walk finds the grandchild, not only the child (§128)",

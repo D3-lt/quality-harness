@@ -157,3 +157,38 @@ test('a checker that could not run is UNRUN, never a finding about the file', ()
   assert.doesNotMatch(`${working.stdout}${working.stderr}`, /QH-PARSE-COMPLETE/,
     'the completion marker is a protocol detail and must not reach the user')
 })
+
+test('a dying checker cannot pass itself off as complete by printing the marker', () => {
+  // ⚠ THE HOOK USED TO ACCEPT THE TOKEN ANYWHERE IN THE OUTPUT. A checker that died
+  // while echoing a source line containing it was then reported as a finding about the
+  // user's file. Named by a different-lineage review of 085fb7d; the match is a whole
+  // line now, done in shell rather than through `grep -v … || true`, which could not
+  // tell its own "nothing matched" from "the filter itself failed".
+  const dir = scratch()
+  const subject = join(dir, 'subject.js')
+  writeFileSync(subject, 'export const meta = { name: "w" }\nreturn 1\n')
+
+  const withParser = (into, parser) => {
+    mkdirSync(into, { recursive: true })
+    const there = join(into, 'post-edit-check.sh')
+    writeFileSync(there, readFileSync(hook, 'utf8'))
+    writeFileSync(join(into, 'workflow-parse.mjs'), parser)
+    return spawnSync('bash', [there, 'Edit', subject],
+      { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
+  }
+
+  const spoof = withParser(join(dir, 'spoof'),
+    'console.log("QH-PARSE-COMPLETE and then some")\nprocess.exit(1)\n')
+  assert.equal(spoof.status, 0, 'advisory either way')
+  assert.match(`${spoof.stdout}${spoof.stderr}`, /UNRUN/,
+    `the token inside a longer line is not the marker: ${spoof.stdout}${spoof.stderr}`)
+
+  // The must-fail direction: the same shape with the marker on its OWN line is a
+  // finding, so the assertion above is about the line and not about the exit code.
+  const honest = withParser(join(dir, 'honest'),
+    'console.error("subject.js: parses as neither a module nor a Workflow script")\n' +
+    'console.log("QH-PARSE-COMPLETE")\nprocess.exitCode = 1\n')
+  assert.doesNotMatch(`${honest.stdout}${honest.stderr}`, /UNRUN/,
+    `a real finding must not be reported as unchecked: ${honest.stdout}${honest.stderr}`)
+  assert.match(`${honest.stdout}${honest.stderr}`, /parses as neither/)
+})

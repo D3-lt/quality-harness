@@ -147,6 +147,32 @@ export function selectRun(runs) {
 }
 
 /**
+ * The `gh run list` arguments for a sha — exported so the filter has a test.
+ *
+ * ⚠ THE WORKFLOW FILTER IS THE WHOLE POINT AND IT WAS UNTESTED. `--commit` alone
+ * returns every workflow that ran at this sha, and `selectRun` prefers ANY
+ * `workflow_dispatch` on a tie — so an unrelated dispatched workflow could beat
+ * the selftest push and clear a sha whose campaign was cached. `--limit 1` had
+ * the identical exposure before §154 and nobody had named it.
+ *
+ * It lives here rather than inline because a fix reported from outside gets its
+ * regression at a callable boundary (CLAUDE.md §4), and `fetchRun` shells out on
+ * the line that uses this — there is no seam inside it. Named by a
+ * different-lineage review that observed the filter could be deleted with the
+ * focused suite unchanged.
+ *
+ * `--limit 20` because more than one run per sha is the norm and `--limit 1`
+ * would hand the tie straight back to gh's ordering; `event` and `createdAt`
+ * because `selectRun` decides on both.
+ */
+export function runListArgv(fullSha) {
+  return [
+    'run', 'list', '--commit', fullSha, '--workflow', 'selftest.yml', '--limit', '20',
+    '--json', 'databaseId,event,createdAt',
+  ]
+}
+
+/**
  * The newest run for `sha`, or null when nothing can be read.
  *
  * ⚠ `gh run list --commit` needs the FULL 40-character sha. Given an
@@ -165,20 +191,7 @@ function fetchRun(sha) {
   }
   let list
   try {
-    // More than one run per sha is the norm, and `--limit 1` would hand the tie
-    // above straight back to gh's ordering. `event` and `createdAt` are asked
-    // for because `selectRun` decides on both.
-    //
-    // ⚠ AND IT IS FILTERED TO THE CAMPAIGN WORKFLOW. `--commit` alone returns
-    // every workflow that ran at this sha, and `selectRun` prefers ANY
-    // `workflow_dispatch` on a tie — so an unrelated dispatched workflow could win
-    // the tie against the selftest push and clear a sha whose campaign was cached.
-    // `--limit 1` had the same exposure and nobody had named it. The release
-    // question is about ONE workflow (CLAUDE.md §13.3), so it is asked about one.
-    list = execFileSync('gh', [
-      'run', 'list', '--commit', full, '--workflow', 'selftest.yml', '--limit', '20',
-      '--json', 'databaseId,event,createdAt',
-    ], { encoding: 'utf8', timeout: 60_000 })
+    list = execFileSync('gh', runListArgv(full), { encoding: 'utf8', timeout: 60_000 })
   } catch {
     return null // gh absent, unauthenticated, or offline — "could not look".
   }

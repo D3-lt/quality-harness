@@ -175,7 +175,7 @@ jobs:
           retention-days: 1
 
   mutations:
-    name: mutations ${{ matrix.shard }}/12
+    name: mutations ${{ matrix.shard }}/16
     runs-on: ubuntu-latest
     needs: mutation-cache-seed
     # Sharded, and timed out on purpose. The campaign went from 145 entries to
@@ -217,7 +217,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12]
+        shard: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16]
     # 145 catalogue entries that had never run anywhere but a laptop, in the
     # project whose own thesis is that a suite nobody runs is a claim. It is the
     # highest-value check here — it is the only one that measures whether the
@@ -280,9 +280,9 @@ jobs:
           QUALITY_HARNESS_FULL_CAMPAIGN: ${{ github.event_name == 'workflow_dispatch' }}
         run: |
           if [ "$QUALITY_HARNESS_FULL_CAMPAIGN" = "true" ]; then
-            node scripts/mutate.mjs --shard ${{ matrix.shard }}/12 --no-cache
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/16 --no-cache
           else
-            node scripts/mutate.mjs --shard ${{ matrix.shard }}/12
+            node scripts/mutate.mjs --shard ${{ matrix.shard }}/16
           fi
       - name: Keep this shard's verdicts for the merge
         # ALWAYS, so a shard that went RED still reports what it measured — the
@@ -329,12 +329,12 @@ jobs:
           path: shards
       - name: Merge the shards, or refuse and say so
         if: github.event_name != 'workflow_dispatch'
-        # --expect 12 is what turns a missing shard into a refusal. Union is not
-        # available here: each shard writes `prior ∪ own`, so eleven of them carry
+        # --expect 16 is what turns a missing shard into a refusal. Union is not
+        # available here: each shard writes `prior ∪ own`, so fifteen of them carry
         # a stale RED for a key the twelfth just deleted. See the script's header.
         run: |
           set +e
-          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 12 \
+          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 16 \
             shards/mutation-cache-shard-*/.mutation-cache.json
           echo "merged=$?" >> "$GITHUB_OUTPUT"
         id: merge

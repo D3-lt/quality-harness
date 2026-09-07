@@ -9775,3 +9775,50 @@ REFUSAL, which is a separate `errors.append` and still reads as it did. A reader
 re-adding `Blocked-on:` to a fenced task will see the same refusal as before and could reasonably
 conclude nothing shipped. The refusal already names `pending` or `partial`; what it does not say is
 that nothing routes that case at all, which is the sentence the advisory now carries.
+
+## 156. MITIGATED 2026-09-07 — the campaign's heaviest shard is OOM-killed, and §148's complete timings made it heavier
+
+Two dispatched runs at `14fc5a6`, both 18 of 19 jobs green, both dying on the SAME shard:
+
+```
+34084310165  mutations 1/12  exit 143  "The runner has received a shutdown signal"
+34087948045  mutations 1/12  exit 137  "node scripts/mutate.mjs --shard 1/12 --no-cache" Killed
+```
+
+**137 is SIGKILL and `Killed` is the kernel's word**, so the second is unambiguous: the process was
+killed for memory, not stopped for time. It died at ~11 minutes against a 25-minute cap while other
+shards finished in 12–14, and it had printed **46 of its 50 verdicts** — four short. Every verdict in
+both logs is RED. Nothing was found; the shard ran out of room.
+
+⚠ **§148 MADE IT WORSE, AND THAT IS THE PART WORTH KEEPING.** `shardByCost` packs by measured
+duration, and the cache §148 added gave it COMPLETE coverage:
+
+| run | shard 1 | timings available |
+|---|---|---|
+| v2.84.0 (green) | 54 of 630 | 539 |
+| this one (killed twice) | 50 of 629 | **629** |
+
+Better timing coverage packs the slowest entries together more tightly. Cost is TIME, so the
+tightest-packed shard is also where the memory-heaviest work concentrates — a dimension nothing
+balances. §148 bought a cost-balanced split and paid for it in peak memory on one shard, which
+nobody predicted and which no local run would show.
+
+**MITIGATED, NOT DIAGNOSED: 12 shards → 16.** The same lever §147 used for wall-clock, applied to a
+different resource. It reduces entries per shard and therefore peak accumulation. It does NOT
+explain what accumulates: 46 mutants each spawn `node --test` and the runner's own retention is
+bounded (`classify` returns a verdict plus a memoised baseline reference), so the growth is
+unattributed. If a shard OOMs again at 16, more shards is the wrong answer and the accumulation must
+be measured directly.
+
+**A local reproduction was attempted and DID NOT reproduce**, which is why the diagnosis stops here.
+Even with CI's own seed cache downloaded from the run's artifact, `--shard 1/12` selected 53 entries
+against CI's 50 (514 matching timings against 629). The shard a local run measures is not the shard
+that died, and a number taken from the wrong set would have been worse than no number.
+
+⚠ **AND THE ATTEMPT LEFT A SHIPPED GATE NEUTERED.** The local campaign was stopped mid-run, which is
+precisely what `CLAUDE.md` §2 forbids — never run a mutation tool and edit the tree at the same
+time, and never stop one. It left `plugin/scripts/lifecycle.mjs` with `docsOnly(state.mutationPaths) &&`
+removed from a Stop guard, plus a stale `.mutate-inflight.json` and `.mutate-lock`.
+`tests/package.test.mjs::no mutation tool left a gate neutered in this tree` caught it on the next
+run; `git checkout` restored it because the file was tracked and otherwise clean. The guard worked,
+and the rule it enforces was broken by the session that wrote the guard's own backlog entries.

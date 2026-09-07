@@ -10109,3 +10109,49 @@ dirty cases were separate tests where §4 wants the counterexample in the same o
 certifies nothing, and the re-run at `high` — the rubric's own tier for a bounded local change —
 returned in under two minutes with all five findings. The effort level was over-routed and the cost
 was a wasted half hour, not a better review.
+
+### Round two: the fixes moved two of the holes, and the review PROBED instead of arguing
+
+`REQUEST CHANGES` again, two HIGH, folded in as `4f9f2b4`. What makes this round worth recording is
+the method: it ran a slow `gh` through the seam and read the render, rather than reasoning about
+what the code would do.
+
+**COULD-NOT-LOOK WAS SILENCE, and making the lookup unconditional is what made it reachable.**
+`shippedSinceTag` was `null` for a diff that never ran and `0` for one that ran and found nothing,
+and `render` printed nothing for both. So an 8-second `gh release view` spends the collection budget,
+every later git call is refused, and the reader prints a clean, green, entirely silent report on a
+branch with unreleased work. **The round-one fix created the exposure and the round-one review
+could not have seen it**, because the lookup was still conditional when it read the code.
+
+`budgeted` now marks a prevented command `budget: true` — a command that RAN and failed is a
+different thing from one that was never spawned, and one `ok: false` for both is how the two became
+the same silence. `collect` carries `releaseBlocked`; `render` prints
+`COULD NOT LOOK — … That is not "nothing to release"`.
+
+**THE REFUSAL WAS DEFEATED BY THE LINE AFTER IT.** Every forge refusal collapsed to `null`, and
+`git describe` then handed back the very tag that had just been refused. A prerelease sitting at HEAD
+is the case: reject it as the anchor, fall back, anchor on it anyway, empty diff, silence. `null` was
+carrying four different answers and the caller could act on none of them.
+
+`releaseAnchor` returns `{kind, name?, ref?, note, blocked}` — `release`, `absent`, `rejected`,
+`unrelated`, `unknown`. `name` is carried ON A REFUSAL so the caller can keep that tag out of its own
+fallback. `blocked` separates what must be said from what must stay quiet: **`absent` is deliberately
+not blocked**, because most adopters have no releases cut and §152 is exactly about advice that fires
+every run.
+
+**And the LOW finding was two tests proving less than they named** — both written the same day, both
+by me. The ancestry fixture let every unlisted command fail, so restoring `cat-file -e` also returned
+null and it still passed: it named ancestry and proved that *some* git call failed. `cat-file -e`
+succeeds in that fixture now and only ancestry fails, and the mutant SWAPS the two guards rather than
+deleting one. `--workflow selftest.yml` had no test at all and could be deleted with the focused suite
+unchanged; `runListArgv` is the callable boundary now (§4).
+
+⚠ **The fold-in then produced a GREEN mutant, which is the same lesson one turn later.** The render
+test injects its own runner returning `budget: true`, so it exercises the FLAG and never the code
+that sets it — deleting the marking from `budgeted` changed nothing it could see. Fixed by asserting
+on `budgeted` itself, both directions (`d16f85b`). **A test that supplies the mechanism it is
+checking is testing its own fixture**, and that is the third time in this section that a green result
+came from measuring the wrong thing.
+
+Ten branch-state mutants and six release-evidence mutants, all RED. Three review rounds, three sets
+of real findings; the count of rounds is not the point, that none of them was empty is.

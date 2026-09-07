@@ -9629,7 +9629,7 @@ entry-shaped and unjudged. "4 of 52" is a number nobody can act on, and the mrw 
 such rows found none — so either the row-shape rule is broader than a hand-written pattern, or the
 four are shaped unexpectedly. Naming them is what settles it.
 
-## 152. OPEN — advice that fires every run trains filtering, and the filtering produced a false statement
+## 152. CLOSED 2026-09-07 — advice that fires every run trains filtering, and the filtering produced a false statement
 
 Reported 2026-09-06 by the mrw session, and it is the evidence §85 never had. `adr-lint`'s
 fence-segments-vs-`Rests-on` advice fires on every task, every run, unchanged — six identical lines
@@ -9678,7 +9678,47 @@ gate, believed for four releases because nobody re-read a line they had learned 
 is not the failure; it is the correct response to a channel that has stopped carrying signal. The
 failure is upstream of the reader every time.
 
-**Still open**: the `adr-lint` case. The two `adr-verify` siblings are settled below, and neither
+**Still open**: nothing. The two `adr-verify` siblings are settled below, and neither was what this
+section said it was. The `adr-lint` case is settled too — by ADR-037, and NOT the way this section
+proposed.
+
+### 2026-09-07 — closed by ADR-037, and the advisory this section named was not the one to fix
+
+This section proposed two shapes, *emit once per record* and *emit only when the count changes*, and
+then added a triage question that ranked them behind "is it true every time?". ADR-037 rejected both
+as **rationing** and required a measurement first. That measurement (ADR-037 T1) then answered a
+question this section had not asked:
+
+```
+78 live advisory findings across 22 of 37 records
+34 — 44%, on 17 records — ONE advisory: the proof-map legacy notice
+ 7 — the fence-segments advisory THIS SECTION IS ABOUT
+ 2 — an uncovered declared mechanism
+35 — one-offs
+```
+
+⚠ **THE ADVISORY THIS SECTION NAMED IS 9% OF THE NOISE.** It was reported from a six-task record
+where fence-segments was what that reader happened to see; across a corpus it is not the problem, and
+the dominant one was never mentioned by anybody. **A field report is a sample of one reader's corpus,
+and the ranking it implies is not the ranking** — which is the argument for measuring before
+rationing, made by the measurement rather than by anyone's taste.
+
+ADR-037 T2 then acted on the proof-map notice. Its wording ended *"when authoring a NEW task"*: it
+named file X and instructed the reader about future file Y, so it was unactionable **by reading**,
+which needs no survival count to establish. Deletion was checked and rejected on evidence —
+`adr-lint` over a record with the header and one without differ in that line and nothing else, so
+dropping it makes an unrun check silent. It now says `UNRUN`, names what is therefore unproven, and
+gives the edit for the file it reports on.
+
+⚠ **AND THE COUNT DID NOT MOVE, WHICH IS THE POINT.** Re-measured after the change: **34 of 79, on
+the same 17 records.** ADR-037's rule is *acted on or removed, never emitted less often*; a fix that
+reduced the line count would have been the rationing this record refuses. What changed is whether a
+reader can do anything about the line, and whether doing it makes the line go away — both now
+asserted, with a mutant that restores the old wording.
+
+**Left open deliberately:** the fence-segments advisory (7 of 78) is a separate decision the number
+does not yet call for, and `docs/BACKLOG.md` §85's original taste complaint about it stands
+unanswered. It is named in ADR-037 T2's Out of Scope rather than carried here.
 was what this section said it was.
 
 ### 2026-09-07 — the two `adr-verify` siblings, investigated before being fixed

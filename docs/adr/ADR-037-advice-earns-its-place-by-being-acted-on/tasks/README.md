@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | An advisory's survival across runs is measured, and nowhere to look is not zero | done | — | `node --test --test-name-pattern 'focused false-green regressions remain closed' tests/gates.test.mjs` |
-| T2 | The proof-map advisory names an edit to the file it is about, or it is deleted | pending | — | `node --test --test-name-pattern 'focused false-green regressions remain closed' tests/gates.test.mjs` |
+| T2 | The proof-map advisory names an edit to the file it is about, or it is deleted | done | — | `node --test --test-name-pattern 'focused false-green regressions remain closed' tests/gates.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

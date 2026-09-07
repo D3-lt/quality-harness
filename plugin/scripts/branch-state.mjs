@@ -117,19 +117,26 @@ export function collect(run = shell) {
   // file(s) since v2.81.0 — a green shipped change is released, not parked" on every
   // prompt. The COUNT was true and the CONCLUSION was false (BACKLOG §157).
   //
-  // The forge is asked only when the local anchor claims something is unreleased —
-  // the one case where the advice fires — so the extra process is paid for by the
-  // answer it can change, and a repository with nothing pending never spawns it.
+  // ⚠ THE FORGE IS ASKED UNCONDITIONALLY, AND THAT IS THE SECOND VERSION OF THIS.
+  // The first asked only when the LOCAL anchor already claimed something pending,
+  // to save a subprocess — and a different-lineage review named two shapes that
+  // hides, both under-reporting in the flattering direction. A local tag NEWER
+  // than the forge release and pointing at HEAD makes the local diff empty, so
+  // nothing was asked and nothing was said, while everything between the release
+  // and that tag was genuinely unreleased. A clone with NO local tag never asked
+  // either. Saving a process by deciding in advance that the answer will not
+  // change is the same mistake as not looking.
+  //
+  // The forge wins whenever it answers. The local tag is the fallback, and the
+  // render says so, because "the newest tag this clone knows" and "the newest
+  // release" are different observations (ADR-005).
+  const release = releaseAnchor(run)
   const tag = run(['git', 'describe', '--tags', '--abbrev=0'])
-  let anchor = tag.ok && tag.out ? { ref: tag.out, name: tag.out, kind: 'local' } : null
-  let shipped = anchor ? run(['git', 'diff', '--name-only', `${anchor.ref}..HEAD`, '--', 'plugin/']) : null
-  if (anchor && shipped && shipped.ok && shipped.out) {
-    const release = releaseAnchor(run)
-    if (release) {
-      anchor = release
-      shipped = run(['git', 'diff', '--name-only', `${release.ref}..HEAD`, '--', 'plugin/'])
-    }
-  }
+  const local = tag.ok && tag.out ? { ref: tag.out, name: tag.out, kind: 'local' } : null
+  // The order IS the fix. Written as two named values rather than folded into one
+  // expression so a mutant can swap them and a test can notice.
+  const anchor = release ?? local
+  const shipped = anchor ? run(['git', 'diff', '--name-only', `${anchor.ref}..HEAD`, '--', 'plugin/']) : null
   return {
     looked: true,
     branch: branch.out,
@@ -154,18 +161,30 @@ export function collect(run = shell) {
  * against, and for one created from a branch it is the branch NAME. Handing that
  * to `git diff` would anchor on the branch tip — which is HEAD — and report
  * nothing unreleased for ever, silently, in the flattering direction. Only a
- * 40-hex value is taken, and the commit must be one this clone actually holds:
- * the tag may well be absent locally, but the commit it names is an ancestor.
+ * 40-hex value is taken.
+ *
+ * ⚠ AND EXISTING IS NOT ANCESTRY. `git cat-file -e` proved only that this clone
+ * holds the commit, which a fetched release branch also satisfies — and a diff
+ * from a commit HEAD does not descend from answers a question nobody asked. The
+ * guard is `merge-base --is-ancestor`, same one process, and a release off a
+ * divergent line falls back to the local tag rather than anchoring on it.
+ *
+ * ⚠ A DRAFT OR PRERELEASE IS NOT WHAT SHIPPED. `gh release view` with no tag
+ * resolves the repository's latest, and rather than rely on what that excludes
+ * the two flags are read and either one refuses the anchor — an unpublished tag
+ * would count work as released that no adopter can install.
  */
 export function releaseAnchor(run) {
-  const answer = run(['gh', 'release', 'view', '--json', 'tagName,targetCommitish'])
+  const answer = run(['gh', 'release', 'view', '--json',
+    'tagName,targetCommitish,isDraft,isPrerelease'])
   if (!answer.ok) return null
   let json
   try { json = JSON.parse(answer.out) } catch { return null }
+  if (json?.isDraft || json?.isPrerelease) return null
   const sha = String(json?.targetCommitish ?? '')
   const name = String(json?.tagName ?? '')
   if (!/^[0-9a-f]{40}$/.test(sha) || !name) return null
-  if (!run(['git', 'cat-file', '-e', `${sha}^{commit}`]).ok) return null
+  if (!run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD']).ok) return null
   return { ref: sha, name, kind: 'release' }
 }
 

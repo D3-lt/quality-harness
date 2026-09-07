@@ -116,7 +116,7 @@ test('--json carries the same buckets as the text', () => {
 // completion claims were false successes (0.0%)" — a clean rate from a detector
 // that cannot fire. Both arms are asserted here because a label that is always
 // printed carries no information either.
-test('a withdrawn arm is named in the rate, and a live one is not', () => {
+test('a retired arm is named in the rate with what replaces it, and a live one is not', () => {
   const counts = {
     rows: 4, false: 0, held: 4, excluded: 0, unreadable: 0, by: {},
     unreadableLines: [], denominator: 4, rate: 0,
@@ -124,12 +124,21 @@ test('a withdrawn arm is named in the rate, and a live one is not', () => {
   const withdrawn = render(counts, 'ledger.jsonl', { armWithdrawn: true })
   assert.match(withdrawn, /0 \/ 4 completion claims were false successes/,
     'the arithmetic is unchanged — historical rows still count')
-  assert.match(withdrawn, /WITHDRAWN/,
+  assert.match(withdrawn, /RETIRED/,
     'a zero the arm cannot move must say so, or it reads as a measurement')
+  // ADR-036. A disclaimer alone leaves the reader concluding the project cannot
+  // measure false success at all. It can — by evidence rather than by wording —
+  // and the line that says so is the point of the retirement.
+  assert.match(withdrawn, /evidence partition/,
+    'and must name the measure that replaces it')
+  assert.match(withdrawn, /`unverified` or `no-check`/,
+    'naming the buckets, so the reader can go and look')
 
   const live = render(counts, 'ledger.jsonl', { armWithdrawn: false })
-  assert.doesNotMatch(live, /WITHDRAWN/,
+  assert.doesNotMatch(live, /RETIRED/,
     'a label printed unconditionally tells a reader nothing')
+  assert.doesNotMatch(live, /evidence partition/,
+    'and neither does its replacement, while the arm is doing the work')
 })
 
 // The tie the Codex review of 0a18d04 asked for, and it is the one thing that

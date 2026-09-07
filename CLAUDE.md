@@ -157,9 +157,11 @@ CI not finished means not green.
 
 1. `bash scripts/selftest.sh` green after the last edit; Codex review done (§12).
 2. Bump `version` in `plugin/.claude-plugin/plugin.json`; push.
-3. **Ask for the full campaign at the sha you are about to tag**: `gh workflow run selftest.yml --ref
-   main`. A push measures only what its cache could not reuse; only a dispatched run measures the
-   whole catalogue, and `release-evidence` refuses a sha whose newest run was a push.
+3. **Wait for the push's own run to EXIST, then ask for the full campaign at the sha you are about
+   to tag**: `gh run list --commit <sha> --limit 1` until it answers, then `gh workflow run
+   selftest.yml --ref main`. A push measures only what its cache could not reuse; only a dispatched
+   run measures the whole catalogue, and `release-evidence` refuses a sha whose newest run was a
+   push. Dispatching immediately loses that ordering by a second, three times in four (§159).
 4. Wait for **every** CI job — ask for the list, never carry a count.
 5. `node scripts/release-evidence.mjs <sha>` and act only on its **SUCCESS**. Never read a watch's
    exit code. Its own header defines its exit codes; when a summary elsewhere disagrees, the header

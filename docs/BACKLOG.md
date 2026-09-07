@@ -11137,6 +11137,22 @@ routing for that task changes twice.
   task file's own Status word`, because that ordering was incidental before §166 and is
   load-bearing after it.
 
+⚠ **AND WRITING THAT TEST CAUGHT ME OVERSTATING IT.** I told the reporter the ordering
+meant *"`withdrawn` → stopped whatever its log says"*. Measured: **false.** Evidence is
+read first for a terminal status too, so a task that was BUILT and then withdrawn routes
+`done`. The test covered the empty-log case only, which is the one that happens; the
+claim covered a case nothing exercised.
+
+**Left open on purpose, and named rather than guessed:** whether `done` is the right
+answer for a withdrawn-but-evidenced task. `done` says the corpus built it, which is
+what the log shows; the record says nobody was meant to. Neither reading offers it as
+work, which is the safety property, so nothing is at risk while the question stands.
+⚠ **The reporting corpus has NO instance of it** — their withdrawn task's log is
+deliberately empty (*"an empty log on a withdrawn task is correct, where on a completed
+one it is the fabrication hole this pipeline exists to close"*), so the sequence only
+arises if someone withdraws a task that was already evidenced. Real, but unperformed.
+The arm is pinned as it behaves, so a reorder cannot change it silently.
+
 **Last sibling, closed here:** `adr-lint`'s README-row advisory told the author of a
 `superseded` or `withdrawn` row to *"Use `done`, `pending` or `blocked`"* — advice that
 would DELETE what the corpus is saying, now that those words route from the task file.

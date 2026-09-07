@@ -19,8 +19,8 @@ whatever `bin/` holds, and a helper that needed new shim machinery would be a
 second mechanism to keep working on Windows.
 
 Exit: 0 with the path on stdout, 1 with an explanation on stderr when no
-installed copy can be found. Never a partial answer — a wrong root is worse
-than none, because it resolves.
+installed copy can be found, 2 on usage — an unknown flag. Never a partial
+answer — a wrong root is worse than none, because it resolves.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a

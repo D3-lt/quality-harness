@@ -78,7 +78,9 @@ it during cleanup, including over a concurrent edit; declare only disposable
 generated outputs whose command-entry state is the state to restore.
 
 Exit: the Acceptance command's exit code (0 for --human; 0 only on `killed` for
---mutant; 0 for --restore) · 2 = usage, authoring, or transaction problem.
+--mutant; 0 for --restore) · 1 also reaches a caller from a --mutant that did
+not kill and from a fence that failed · 2 = usage, authoring, or transaction
+problem.
 
 ⚠ A NONZERO --mutant EXIT DOES NOT SAY WHICH NON-KILL IT WAS. `survived` and
 `inconclusive` both leave 1, so a caller that reads only the code cannot tell "the

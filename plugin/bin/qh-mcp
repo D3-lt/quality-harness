@@ -29,6 +29,9 @@ IT, and that root. Ask the gate whose output you are questioning rather than a
 resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
 which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
+
+Exit: 0 the stream ended · 2 = usage, a broken invocation. A protocol error is a
+JSON-RPC error object on stdout, never an exit code — the client is still there.
 """
 
 import json

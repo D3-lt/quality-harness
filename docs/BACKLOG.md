@@ -10911,3 +10911,56 @@ unfalsifiable claim gets a decimal point.
 ⚠ **Do not publish the count as a saving if someone computes it.** A ratio measured
 against no control is the shape of claim §11's research file exists to keep this
 project away from.
+
+## 164. CLOSED 2026-09-07 — six gates produced an exit code their own docstring never named
+
+**Found by:** classifying three rounds of different-lineage review plus two outside
+reports. Six of thirteen defects in §161 were one class, and it is not confined to
+that file: **a gate has three outcomes — clean, a finding, could-not-look — and the
+channel to its caller has two.** The exit code is the only part of that channel a
+script can read.
+
+Two instances were already reported from outside before today:
+
+- *"`adr-next` exits 3 when every task is done. Reasonable, but a plain `for` loop
+  over records reads it as failure."* (field report, 2026-09-07)
+- §152: `adr-verify --mutant` leaves 1 for both `survived` and `inconclusive`, so a
+  caller reading only the code cannot tell a finding about the test from
+  could-not-look.
+
+**Audit of the class (§5).** An AST sweep of `plugin/bin/` for literal exit codes,
+against each gate's own `Exit:` block:
+
+```
+adr-judge:         exits 0, 2  — no `Exit:` block at all
+adr-retire-check:  exits 0, 1  — no `Exit:` block at all
+qh-mcp:            exits 0, 2  — no `Exit:` block at all
+adr-lint:          exits 2, declared 0, 1
+qh-root:           exits 2, declared 0, 1
+adr-verify:        exits 1, declared 0, 2
+adr-debt · adr-next · arch-lint · postmortem-verify · spec-verify: correct
+```
+
+`spec-verify` is the one that already had it right, and is worth copying: a dedicated
+**4** for could-not-look, ranked below a real failure on purpose — *"4 is reached only
+when nothing observed failed — as far as I could check, and I could not check
+everything"* (`spec-verify:858`). The outside audit that reported its exit 4 as
+undocumented had read only the first line of a two-line block; the block is complete.
+
+**Fix:** all six now declare their codes, and
+`tests/gates.test.mjs::every exit code a gate can literally produce is declared in its
+own docstring` parses each gate with `ast` and fails on any literal code the docstring
+does not name. Two catalogue entries prove it bites: one drops a code from a block, one
+deletes a block.
+
+⚠ **The check is ONE-DIRECTIONAL AND SAYS SO.** `sys.exit(2)` is findable in an AST;
+`sys.exit(worst)` is not. So `source ⊆ declared` is what it can prove, and a declared
+code with no literal is NOT reported as unreachable — a mirror of a parser that claims
+more than it can see adds silence, not safety. `spec-verify`'s 3 and 4 are exactly that
+case and are correct.
+
+**Sibling left as a new task:** declaring a code is not the same as HAVING one for
+could-not-look. `adr-verify --mutant` still leaves 1 for both `survived` and
+`inconclusive` (§152), and the docstring now says so rather than fixing it. Giving that
+state its own code is a behaviour change for every caller of `--mutant`, so it belongs
+in a record and not in this sweep.

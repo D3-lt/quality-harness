@@ -11,6 +11,7 @@
 // So every test here reads the file adr-verify wrote. None reconstructs it.
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
+import { createHash } from 'node:crypto'
 import { once } from 'node:events'
 import { setTimeout } from 'node:timers/promises'
 import {
@@ -2379,6 +2380,49 @@ test('recording the run does not change the verdict the mutant earned', () => {
   expectExit(survived, 1, `a survivor must not be credited as a kill:\n${survived.stdout}`)
   // And the run was still recorded — the point of the record, not just its safety.
   assert.equal(entriesIn(readTask(copy)).length, 1, 'the clean run is recorded anyway')
+})
+
+// ⚠ THE VERDICT IS THE ROW, NOT THE EXIT CODE — and the tool's own `--help` says
+// so since BACKLOG §152. `survived` and `inconclusive` BOTH leave 1, so a caller
+// reading only the code cannot tell "the suite noticed nothing", which is a
+// finding about the test, from "nothing could be told", which is could-not-look
+// (ADR-005). Asserted in both directions in one test, because a claim about what
+// two answers SHARE is worth nothing beside what separates them (CLAUDE.md §4).
+//
+// Its own fixture, in JavaScript on purpose: adr-verify parse-checks a mutated
+// Python file and refuses a broken one outright, so a node fence is the cheapest
+// place an `inconclusive` is actually reachable through the CLI.
+test('a survivor and an inconclusive share an exit code, and are told apart by the row', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-verdict-'))
+  temps.push(temp)
+  mkdirSync(join(temp, 'tasks'), { recursive: true })
+  writeFileSync(join(temp, 'src.js'), 'export const guard = n => n > 0\n')
+  // The probe asserts NOTHING about what `guard` returns, so a mutation of the
+  // comparison cannot go red — which is what makes the first case a survivor.
+  writeFileSync(join(temp, 'probe.mjs'),
+    "import { guard } from './src.js'\nif (typeof guard !== 'function') process.exit(1)\n")
+  const fence = 'node probe.mjs'
+  const digest = createHash('sha256').update(fence, 'utf8').digest('hex')
+  writeFileSync(join(temp, 'tasks', 'T1.md'), [
+    '# Task T1', '', '## Acceptance', '', '```bash', fence, '```', '',
+    '## Verification Log',
+    `- 2026-08-28 · abc1234 · exit 0 · \`${fence}\` · acceptance-sha256:${digest}`,
+    '', '## Mutation Log', '',
+  ].join('\n'))
+
+  const mutantRun = (to, why) => run('adr-verify',
+    ['tasks/T1.md', '--cwd', '.', '--mutant', 'src.js', '--from', 'n > 0', '--to', to, '--why', why],
+    temp)
+  const verdictOf = out => (out.match(/· mutant (killed|survived|inconclusive) ·/) ?? [])[1] ?? null
+
+  const survived = mutantRun('n >= 0', 'nothing asserts on what guard returns')
+  const broken = mutantRun('n >>> 0 ===', 'the mutant does not parse for node')
+
+  assert.equal(verdictOf(survived.stdout), 'survived', survived.stdout)
+  assert.equal(verdictOf(broken.stdout), 'inconclusive', broken.stdout)
+  // The claim the `--help` text makes, asserted rather than described.
+  expectExit(survived, 1, 'a survivor must not be credited as a kill')
+  expectExit(broken, 1, 'and an inconclusive leaves the SAME code, which is the point')
 })
 
 test('the verification entry outlives the restore', () => {

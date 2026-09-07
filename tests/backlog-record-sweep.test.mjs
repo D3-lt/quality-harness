@@ -84,6 +84,18 @@ test('a record it cannot resolve is COULD NOT LOOK, never a finding about the se
   assert.match(absent.why, /match ADR-999-/)
   assert.equal(absent.state, 'unknown')
 
+  // ⚠ AND A RECORD WITH NO TASKS AT ALL. Its Status may say Accepted while nothing
+  // was ever planned under it, and "Accepted with zero tasks done" is not a shipped
+  // record — it is a record there is nothing to judge. The mutant that deleted this
+  // guard SURVIVED until this case existed, because every other fixture here has a
+  // task (CLAUDE.md §4).
+  const empty = recordState('002', {
+    root,
+    run: () => ({ ok: true, out: '{"done":[],"ready":[],"blocked":[],"stopped":[]}' }),
+  })
+  assert.equal(empty.state, 'unknown', `a record with no tasks is not shipped: ${JSON.stringify(empty)}`)
+  assert.match(empty.why, /no tasks to judge/)
+
   const wontRun = recordState('002', { root, run: () => ({ ok: false, why: 'python3 not found' }) })
   assert.equal(wontRun.state, 'unknown')
 

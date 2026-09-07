@@ -32,9 +32,24 @@ case "$(dirname "$f")" in
   */templates|*/templates/) exit 0 ;;
 esac
 
+# ⚠ A DOCUMENT *ABOUT* POSTMORTEMS IS NOT A POSTMORTEM, and the section headings alone
+# cannot tell them apart — the skill that TEACHES this format lists every heading it
+# requires, so `plugin/skills/postmortem/SKILL.md` matched and was linted as a malformed
+# postmortem on every edit to it. Advice that is always wrong on a whole class of file
+# is advice a reader learns to skim (ADR-037), and this one fired inside the plugin that
+# ships it. Reported by the dispatcher itself, 2026-09-07.
+#
+# The discriminator is the FRONTMATTER, which is what `postmortem-verify` actually reads
+# and what a document about the format has no reason to carry: a real postmortem
+# declares `date`, `category` or `severity`; a guide, a template or a skill declares
+# `name`/`description` or nothing. A path under `docs/postmortems/` still routes here
+# whatever its frontmatter, because there the author has said what the file is.
 is_postmortem() {
   grep -q '^## Symptom' "$1" && grep -q '^## Root Cause' "$1" \
-    && grep -q '^## Investigation' "$1" && grep -q '^## Lesson' "$1"
+    && grep -q '^## Investigation' "$1" && grep -q '^## Lesson' "$1" \
+    && awk 'NR==1 && $0!="---" {exit 1} NR>1 && $0=="---" {exit 1}
+            /^(date|category|severity):[ \t]/ {found=1; exit 0}
+            END {exit found?0:1}' "$1"
 }
 
 is_archive_catalog() {

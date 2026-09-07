@@ -1875,3 +1875,43 @@ test('a terminal README status is not sent to the wrong vocabulary', () => {
   assert.match(instructing, /did not run the `done`-row verification path/, instructing)
   assert.doesNotMatch(instructing, /evidence checks did NOT run for it either way/, instructing)
 })
+
+test('a document ABOUT postmortems is not routed to postmortem-verify', () => {
+  // BACKLOG §170. `is_postmortem` matched on four section headings, and the skill that
+  // TEACHES this format lists every heading it requires — so the plugin's own
+  // plugin/skills/postmortem/SKILL.md was linted as a malformed postmortem on every
+  // edit to it, and so would any adopter's guide or template. Advice always wrong on a
+  // whole class of file is advice a reader learns to skim (ADR-037). Caught by the
+  // dispatcher firing on this repository during an unrelated commit, 2026-09-07.
+  const sections = '## Symptom\n\ns\n\n## Root Cause\n\nr\n\n## Investigation\n\ni\n\n## Lesson\n\nl\n'
+  const asks = body => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'qh-postmortem-route-'))
+    temps.push(dir)
+    const file = join(dir, 'doc.md')
+    writeFileSync(file, body)
+    // The function is read OUT of the file rather than sourced: the dispatcher runs to
+    // completion when sourced, so sourcing it would execute the whole hook. Same
+    // reason the vocabulary guard parses a tuple instead of importing the gate.
+    const fn = readFileSync(join(root, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
+      .match(/^is_postmortem\(\)\s*\{[\s\S]*?^\}/m)
+    assert.ok(fn, 'is_postmortem must be findable, or this check cannot look')
+    const ran = spawnSync('bash', ['-c', `${fn[0]}\nis_postmortem "${file}" && echo ROUTED || echo skipped`],
+      { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(ran.status, 0, ran.stderr)
+    return ran.stdout.trim()
+  }
+
+  // The must-not-fail direction first: a real postmortem still routes, or the three
+  // refusals below are a discriminator that refuses everything.
+  assert.equal(asks(`---\ndate: 2026-09-07\ncategory: logic-error\nseverity: low\n---\n\n${sections}`),
+    'ROUTED', 'a real postmortem must still reach its gate')
+
+  assert.equal(asks(`---\nname: postmortem\ndescription: teaches the format\n---\n\n${sections}`),
+    'skipped', 'a SKILL that documents the format is not an instance of it')
+  assert.equal(asks(sections), 'skipped', 'no frontmatter at all is not a postmortem outside docs/postmortems/')
+
+  // And the shipped file that produced this finding.
+  const shipped = readFileSync(join(root, 'skills', 'postmortem', 'SKILL.md'), 'utf8')
+  assert.match(shipped, /^## Symptom$/m, 'the skill still documents the headings, or this proves nothing')
+  assert.equal(asks(shipped), 'skipped', 'the plugin must not lint its own skill as a postmortem')
+})

@@ -10881,3 +10881,33 @@ this corpus refuses to record as done (§5).
 **Do not silently raise the budgets in response.** `QUALITY_HARNESS_SHELL_TIMEOUT_MS`
 is the reporter's own stated workaround and they said so; a budget raised to hide an
 unexplained 2.2× is a gate tuned until it stops reporting.
+
+## 163. OPEN — nothing here measures what the harness costs or saves, and REWORK is the candidate that does not need token accounting
+
+**Raised from outside, 2026-09-07**, by a session writing public copy that wanted to
+assert a token saving. It could not source the claim; neither can this repository.
+
+**What is not measured, stated plainly so nobody quotes an absence as a result:**
+there is no before/after on token cost, no turn count, no cache-hit figure, on any
+date. Nothing in this corpus measures its own cost, and the structural argument for a
+saving — a gate binary does deterministic work in a subprocess, so the model reads a
+verdict rather than doing the reasoning — is a mechanism, not a measurement. Half the
+plugin is skills, which are markdown loaded INTO context, so even the structural
+argument only covers `plugin/bin/`.
+
+**The candidate instrument, credited to that session: count REWORK, not tokens.** A
+gate that refuses bad work should show up as fewer repeated attempts at the same task,
+and that is countable without any token accounting. This corpus already holds the
+artefact: every `## Verification Log` entry is tool-written, timestamped, and carries
+an exit code, so *attempts before the first exit-0 entry for a task* is a number that
+exists today and that nobody has ever summed.
+
+**Why it is still OPEN and not a task:** the number is meaningless without a control —
+the same tasks attempted without the gates — and this repository cannot produce one
+from its own history, because every task in it was done under the gates. A count with
+no control would be a figure with nothing to compare it to, which is how an
+unfalsifiable claim gets a decimal point.
+
+⚠ **Do not publish the count as a saving if someone computes it.** A ratio measured
+against no control is the shape of claim §11's research file exists to keep this
+project away from.

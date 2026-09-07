@@ -37,7 +37,75 @@ __all__ = [
     "trace_timeout",
     "drain_after_kill",
     "run_bounded",
+    "resolve_bash",
 ]
+
+
+# ⚠ ONE DEFINITION, SHARED. This lived in `adr-verify` alone, so `spec-verify` had no
+# way to reach a POSIX shell and ran a fact's `Cmd` override through `shell=True` —
+# which is `cmd.exe` on Windows, where `BP_ROOT="$PWD" bash -c '…'` is read as an
+# executable NAME and fails with "The system cannot find the path specified". Reported
+# from an outside corpus 2026-09-07 and ranked second of six there, because the remedy
+# the gate itself names did not work on the platform it was being run on (BACKLOG §171).
+# Copying it would have been the `Consumes`/`Depends-on` mistake; this is the lib both
+# gates already load.
+import ntpath
+import re
+
+
+def resolve_bash(platform=sys.platform, env=None, exists=None):
+    """Absolute Git Bash on Windows; plain `bash` everywhere else. None if absent.
+
+    Windows ships `C:\\Windows\\System32\\bash.exe`, a launcher that drops into the
+    default WSL distro, and the Store adds another stub under WindowsApps. A bare
+    `subprocess.run(["bash", ...])` picks the System32 one, so an Acceptance fence
+    calling `docker` ran inside a distro where Docker Desktop integration may be
+    off and failed for a reason that has nothing to do with the code under test.
+    Measured 2026-08-25 on Windows 11: three bash.exe on PATH, and the interactive
+    shell resolved a different one than Python did.
+
+    Same precedence as resolveBashExecutable in scripts/run-shell-hook.mjs — the
+    Node hook layer already avoided this stub and the Python gates never got the
+    port, so one machine answered "where is bash" two different ways. Parameters
+    are injectable for the same reason that resolver's are: the logic has to be
+    testable off Windows.
+    """
+    if platform != "win32":
+        return "bash"
+    env = os.environ if env is None else env
+    exists = os.path.isfile if exists is None else exists
+
+    configured = env.get("CLAUDE_CODE_GIT_BASH_PATH")
+    if configured:
+        return configured
+
+    for raw in (env.get("PATH") or env.get("Path") or "").split(";"):
+        directory = raw.strip().strip('"')
+        # Skip both stubs. System32's bash.exe is the WSL launcher; WindowsApps
+        # holds a 0-byte Store app-execution alias. os.path.isfile() is True for
+        # the alias, so trusting it returned the alias and never reached the
+        # ProgramFiles fallback below — measured 2026-08-30 on Windows 11, where
+        # the registry PATH carried no bash-bearing directory but WindowsApps.
+        # The docstring named both from the start; only one was ever filtered.
+        if not directory or re.search(r"[\\/](?:system32|windowsapps)[\\/]?$", directory, re.I):
+            continue
+        candidate = ntpath.join(directory, "bash.exe")
+        if exists(candidate):
+            return candidate
+
+    drive = env.get("SystemDrive") or "C:"
+    roots = [
+        ntpath.join(env["LOCALAPPDATA"], "Programs", "Git") if env.get("LOCALAPPDATA") else None,
+        ntpath.join(env.get("ProgramFiles") or drive + "\\Program Files", "Git"),
+        ntpath.join(env.get("ProgramFiles(x86)") or drive + "\\Program Files (x86)", "Git"),
+    ]
+    for root in roots:
+        if not root:
+            continue
+        candidate = ntpath.join(root, "bin", "bash.exe")
+        if exists(candidate):
+            return candidate
+    return None
 
 
 def last_error(ctypes):

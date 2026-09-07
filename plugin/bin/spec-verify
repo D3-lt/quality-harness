@@ -546,9 +546,28 @@ def test_runs(test, root, stack, override_cmd):
     print RED.
     """
     if override_cmd:
+        # ⚠ A POSIX SHELL, NOT `shell=True`. On Windows `shell=True` is cmd.exe, which
+        # reads `BP_ROOT="$PWD" bash -c '…'` as an executable NAME and fails with "The
+        # system cannot find the path specified". The remedy this gate itself
+        # recommends — give the binding a `Cmd` cell — therefore could not work on the
+        # platform it was being run on, and its exit 4 read as the author's fault.
+        # Reported from an outside corpus and ranked second of six there (BACKLOG §171).
+        shell = resolve_bash()
         try:
-            r = run_bounded(override_cmd, shell=True, cwd=root, capture_output=True,
-                            text=True, timeout=1800, encoding="utf-8", errors="replace")
+            if shell and shell != "bash":
+                r = run_bounded([shell, "-lc", override_cmd], cwd=root, capture_output=True,
+                                text=True, timeout=1800, encoding="utf-8", errors="replace")
+            elif shell:
+                r = run_bounded(override_cmd, shell=True, cwd=root, capture_output=True,
+                                text=True, timeout=1800, encoding="utf-8", errors="replace")
+            else:
+                # ⚠ NOT `unrun` WITH A SHRUG. This is could-not-look and it names the
+                # cause and the fix, because a `Cmd` cell written in POSIX syntax on a
+                # box with no POSIX shell will fail for a reason that has nothing to do
+                # with the code under test (ADR-005).
+                return "unrun", ("no POSIX shell was found, so the Cmd override was not run. "
+                                 "Install Git for Windows or set CLAUDE_CODE_GIT_BASH_PATH; "
+                                 "cmd.exe cannot run `VAR=value cmd` or a quoted `bash -c`")
         except (FileNotFoundError, subprocess.TimeoutExpired, OSError) as e:
             return "unrun", f"the Cmd override could not be run: {e}"
         return ("pass" if r.returncode == 0 else "fail"), (r.stdout + r.stderr)[-300:]

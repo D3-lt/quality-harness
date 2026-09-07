@@ -11061,3 +11061,61 @@ withdrawn task as live and advising on its acceptance fence — *"a fence for a 
 will never be built is churn"*. That is the same blind spot in a different gate, and
 its status vocabulary is a different one (the README row's, not the file header's), so
 it is a separate change.
+
+## 167. CLOSED 2026-09-07 — §166's named sibling: `adr-lint` advised on a task that will never be built, and `partial` was missing from the vocabulary
+
+Two follow-ups to §166, both from the same outside corpus, both closed here.
+
+**1. Advice about a withdrawn task is churn.** `adr-lint` linted the withdrawn task as
+live and advised on its sections and its acceptance fence. A reviewer in that corpus
+called it out unprompted — *"a fence for a task that will never be built is churn"*.
+Reproduced here: fifteen advisory lines on a task whose own header says it will not be
+built.
+
+The withholding is at the ONE place advice leaves the gate, not at the dozens where it
+is raised, and it is **said rather than silent**:
+
+```
+advice withheld: T2.md declares **Status:** `withdrawn 2026-08-22. …`, so 15 authoring
+advisory line(s) about it were NOT shown — a task that will never be built does not
+need its sections or its fence improved. Blocking checks still ran.
+```
+
+⚠ **ADVICE ONLY.** A withdrawn task must still be well formed, so blocking errors are
+untouched. And only a RECOGNISED terminal word withholds anything: the permissive
+reading of an unknown status is the defect §166 was about, and repeating it here to
+save a line of output would be the same mistake with the sign reversed.
+
+**2. `partial` was missing, and it is a real word.** The reporter swept 58 records and
+166 task fences and handed back the complete set of `**Status:**` values in use, with
+the one my list did not carry:
+
+```
+done                                          2
+Withdrawn 2026-08-22                          1   → covered
+blocked 2026-09-06 — skipped on the owner's…  1   → covered, first word
+partial                                       1   → NOT in the vocabulary
+```
+
+`partial` means built-but-incomplete — work someone may pick up — so it is buildable.
+It landed on `stopped` with *"does not recognise"*, which is the SAFE direction and the
+wrong answer. ⚠ **adr-lint's own advisory text already named it** — *"leave it
+`pending` or `partial` and say why in the task"* — so this repository was recommending a
+word its own router refused. Added.
+
+**Two copies of one vocabulary, checked against each other.** `adr-lint` and `adr-next`
+now read the same header for different purposes and neither can import the other.
+`tests/gate-rules.test.mjs::adr-lint and adr-next agree on which task statuses are
+terminal` parses both tuples out of the two sources and compares them, because two
+copies of one rule is how `Consumes` came to be missing what `Depends-on` had (§41).
+
+**What the fix nearly shipped, caught by the suite immediately:** `withdrawn_tasks` was
+bound inside the tasks-directory branch while the advice boundary runs on every record,
+so a record with no tasks raised `UnboundLocalError` from the reporting path — a gate
+crashing on the ordinary case, introduced by a change about tidying its output.
+
+**Left for the reporter, on their side:** they observed that the same task reported
+`done` before this change, taken from a README row that also says `partial`, while the
+file header says `partial`. So the pre-fix verdict came from neither. Not this
+repository's to explain, and named here only because §10 makes the file win, so the
+routing for that task changes twice.

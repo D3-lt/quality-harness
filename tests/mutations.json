@@ -6104,6 +6104,26 @@
       "only": "unrecognised Status is not actionable",
       "from": "    if status in BUILDABLE_STATUSES or first in BUILDABLE_STATUSES:",
       "to": "    if True:"
+    },
+    {
+      "label": "adr-lint: advice about a withdrawn task is withheld, and the withholding is said",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "withholds advice about a withdrawn task",
+      "from": "            owner = next((name for name in withdrawn_tasks if a.startswith(f\"{name}: \")), None)",
+      "to": "            owner = None"
+    },
+    {
+      "label": "adr-lint: only a RECOGNISED terminal status withholds anything",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "withholds advice about a withdrawn task",
+      "from": "    return value if (value in TERMINAL_TASK_STATUSES or first in TERMINAL_TASK_STATUSES) else None",
+      "to": "    return value"
     }
   ]
 }

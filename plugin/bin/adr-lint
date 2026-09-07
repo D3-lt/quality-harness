@@ -1866,6 +1866,29 @@ def check_contract_table(adr_path, stems, errors):
                                   f"file matches it")
 
 
+# The terminal states a task file may declare in its OWN `**Status:**` header — the
+# same vocabulary `adr-next` routes to `stopped`, and the two are asserted equal by
+# tests/gate-rules.test.mjs so they cannot drift apart the way `Consumes` drifted
+# from `Depends-on` (BACKLOG §41, §166).
+TERMINAL_TASK_STATUSES = ("withdrawn", "superseded", "abandoned", "cancelled", "canceled")
+
+
+def terminal_task_status(text):
+    """The terminal state this task declares about ITSELF, or None.
+
+    ⚠ ONLY A RECOGNISED TERMINAL WORD COUNTS. An unrecognised status must not
+    silence anything: the permissive reading of an unknown word is what let a
+    withdrawn task be offered as ready in the first place (§166).
+    """
+    m = re.search(r"^\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", text, re.M)
+    if not m:
+        return None
+    value = m.group(1).strip().strip("`*").lower()
+    words = value.split()
+    first = words[0].strip(".,;:").strip("`*") if words else ""
+    return value if (value in TERMINAL_TASK_STATUSES or first in TERMINAL_TASK_STATUSES) else None
+
+
 def done_task_ids(readme_text):
     """Task ids a README marks `done`, whatever column the status sits in.
 
@@ -4631,6 +4654,10 @@ def main():
                 tasks_dir = cand
                 break
 
+    # Declared OUTSIDE the tasks-dir branch: the advice boundary below runs whether or
+    # not a record has tasks, and a name bound only on one arm is an UnboundLocalError
+    # on the other. Caught by the suite the moment it was introduced.
+    withdrawn_tasks = {}
     all_covers = set()
     if tasks_dir is None:
         # An ADR with no tasks directory gets ADR-level checks only, so anything
@@ -4652,6 +4679,18 @@ def main():
                 f"directory — nothing here can carry tool-written evidence, so adr-verify has "
                 f"nowhere to write and adr-lint cannot check the claim. Move them to task files.")
     if tasks_dir:
+        # BACKLOG §166, second half. A task whose OWN `**Status:**` names a terminal
+        # state will never be built, so authoring advice about its sections and its
+        # fence is churn — an outside reviewer called it that unprompted: "a fence for
+        # a task that will never be built". Advice that is always wrong on a whole
+        # class of file is advice a reader learns to skim, which is the cost ADR-037
+        # is about.
+        #
+        # ⚠ ADVICE ONLY, AND SAID OUT LOUD. Blocking errors still apply — a withdrawn
+        # task must still be well formed, and silently checking less would be the
+        # could-not-look this corpus refuses (ADR-005). The withheld count is printed
+        # with the reason, so "nothing to say" and "not looked at" stay different.
+        withdrawn_tasks.clear()
         task_files = sorted(p for p in tasks_dir.glob("*.md") if p.name != "README.md")
         stems = [p.stem for p in task_files]
         if not task_files:
@@ -4659,6 +4698,9 @@ def main():
         check_reachability_consistency(task_files, errors)
         infos = {}
         for p in task_files:
+            terminal = terminal_task_status(p.read_text(errors="replace", encoding="utf-8"))
+            if terminal:
+                withdrawn_tasks[p.name] = terminal
             covers, info = check_task(p, stems, errors)
             all_covers |= covers
             m = re.match(r"(T\d+)(?!\d)", p.stem, re.I)
@@ -4712,6 +4754,26 @@ def main():
             errors.append(f"spec coverage: no task Covers these @spec/@implemented IDs: "
                           f"{', '.join(sorted(uncovered))} — uncovered facts block Accepted")
 
+    # BACKLOG §166. Authoring advice about a task the corpus has WITHDRAWN is churn —
+    # an outside reviewer called it that unprompted, "a fence for a task that will
+    # never be built". It is withheld here, at the one place advice leaves this gate,
+    # rather than at the dozens of places it is raised.
+    #
+    # ⚠ WITHHELD IS SAID, NOT SILENT, AND ONLY ADVICE IS WITHHELD. The count and the
+    # status go out on their own line, so "this task drew no advice" and "advice about
+    # this task was not shown" stay different answers (ADR-005). Blocking errors are
+    # untouched: a withdrawn task must still be well formed, and quietly checking it
+    # less is the failure this whole corpus is written against.
+    withheld = {}
+    if withdrawn_tasks:
+        kept = []
+        for a in errors.advice:
+            owner = next((name for name in withdrawn_tasks if a.startswith(f"{name}: ")), None)
+            if owner is None:
+                kept.append(a)
+            else:
+                withheld.setdefault(owner, []).append(a)
+        errors.advice[:] = kept
     status = "PASS" if not errors else "FAIL"
     if errors.demotion:
         print(f"[strictFrom] {errors.demotion}")
@@ -4727,6 +4789,11 @@ def main():
     # that is finished are different things, and the reader deserves both.
     for a in errors.advice:
         print(f"  advice: {a}")
+    for name in sorted(withheld):
+        print(f"  advice withheld: {name} declares **Status:** `{withdrawn_tasks[name]}`, so "
+              f"{len(withheld[name])} authoring advisory line(s) about it were NOT shown — a task "
+              f"that will never be built does not need its sections or its fence improved. "
+              f"Blocking checks still ran.")
     # ADR-037 T1. RECORDED ON EVERY RUN — that is the only thing that makes the
     # count mean anything — and REPORTED only when asked, because the default
     # output must not change before the number exists to justify changing it.

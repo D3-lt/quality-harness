@@ -80,7 +80,13 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
     const env = { ...process.env, LC_ALL: 'C' }
     return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }
   } catch (error) {
-    return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
+    // ⚠ THE EXIT STATUS IS PART OF THE ANSWER, not decoration. `git config
+    // --get-regexp` exits 1 when NOTHING MATCHED, which is a real answer about
+    // the repository; every other nonzero exit, and every process that was killed
+    // or never started, is a question that could not be PUT. A caller cannot tell
+    // those two apart from `ok: false` alone, and ADR-005 is exactly about not
+    // letting them look alike. `null` where the process never reported one.
+    return { ok: false, out: '', status: error.status ?? null, note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
   }
 }
 
@@ -143,11 +149,24 @@ export function collect(run = shell, checkpoint = () => {}) {
   // entirely loses its CI line and is TOLD it lost it — a bounded, visible cost
   // against a hook that was being killed outright on every prompt.
   const remotes = run(['git', 'config', '--get-regexp', '^remote\\..*\\.url$'])
+  // ⚠ AND THE SKIP MUST NOT SPEAK FOR A LOOKUP THAT NEVER HAPPENED. `git config
+  // --get-regexp` exits 1 when nothing matched — a repository with no remotes,
+  // which is a real answer. A spent budget, an absent git or an unreadable config
+  // is not, and folding both into "no remote names a GitHub host" would be ADR-005
+  // broken by the fix for issue #12 itself. `gh` is skipped either way; only the
+  // reason differs, and the reason is the whole of what this reader is for.
+  const unreadable = !remotes.ok && remotes.status !== 1
   const onGitHub = remotes.ok && /github/i.test(remotes.out)
   const runs = onGitHub
     ? run(['gh', 'run', 'list', '--branch', branch.out, '--limit', '1',
       '--json', 'headSha,status,conclusion,databaseId'])
-    : { ok: false, out: '', note: 'no remote names a GitHub host, so `gh` was not asked' }
+    : {
+      ok: false,
+      out: '',
+      note: unreadable
+        ? `the remotes could not be read (${remotes.note ?? 'no reason given'}), so \`gh\` was not asked`
+        : 'no remote names a GitHub host, so `gh` was not asked',
+    }
   let ci = { looked: false, note: runs.ok ? 'no run recorded for this branch' : runs.note }
   if (runs.ok) {
     let rows = []

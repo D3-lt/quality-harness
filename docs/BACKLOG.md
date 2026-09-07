@@ -9681,7 +9681,7 @@ field a user can write in the obvious place with no reader is a wart, and the ho
 have `adr-lint` say so when it sees one, or to stop the template implying it exists.
 first.
 
-## 154. OPEN — dispatching immediately after a push ties on `createdAt`, and `release-evidence` then reads the push run
+## 154. CLOSED 2026-09-07 — dispatching immediately after a push ties on `createdAt`, and `release-evidence` then read the push run
 
 Hit 2026-09-06 cutting v2.83.0, and it cost a full CI cycle. `git push` then
 `gh workflow run selftest.yml` in the same command produced two runs at sha `6fa18bd` with the
@@ -9715,6 +9715,46 @@ belongs" this project keeps finding.
 
 ⚠ A tie is not rare here: a push and a hand-dispatch issued from one shell land in the same second
 routinely. This will recur on every release cut the fast way.
+
+**CLOSED 2026-09-07 by the first of the three shapes above — the event, not the clock.**
+`scripts/release-evidence.mjs` grew `selectRun`, exported and pure: it takes the newest instant and,
+among the runs SHARING it, prefers a `workflow_dispatch`. `fetchRun` now asks
+`gh run list --limit 20 --json databaseId,event,createdAt` instead of `--limit 1`, because
+`--limit 1` is what handed the tie back to gh's ordering in the first place.
+
+**Only among the tied ones**, and that half needed its own test: preferring a dispatch
+unconditionally would resurrect a campaign taken BEFORE a later push, which is exactly the quiet
+evidence hole §142 closed. `a newer push still wins over an older dispatch` is that test, and it is
+the arm the second mutant below breaks.
+
+An unreadable `createdAt` keeps gh's own order rather than ranking values that do not compare — the
+ADR-005 reading applied to the ordering itself — and the fixture is arranged so the fallback lands
+on the PUSH, so the arm cannot be a way to smuggle a pass.
+
+The CACHED refusal is untouched. What changed is which run the question is about.
+
+```
+node scripts/mutate.mjs --case 'release-evidence: a createdAt tie'
+  RED  a createdAt tie is broken by the event, not by list order
+       <- killed by: a dispatch and a push at the same instant resolve to the dispatch
+node scripts/mutate.mjs --case 'release-evidence: only runs tied'
+  RED  only runs tied at the newest instant may prefer a dispatch
+       <- killed by: a newer push still wins over an older dispatch
+node scripts/mutate.mjs --case 'release-evidence: an unreadable createdAt'
+  RED  an unreadable createdAt is not silently ordered
+       <- killed by: a timestamp nothing can read is not silently ordered
+bash scripts/selftest.sh   exit 0, 783 tests
+```
+
+⚠ **The documentation-shaped answer was NOT taken, deliberately.** §13 still says push, then
+dispatch, and says nothing about waiting — because the mechanism now handles the tie and an
+instruction telling a reader to sleep between two commands is the "instruction where a mechanism
+belongs" this section already named as the weakest option.
+
+**Not closed by this:** the tie is broken only when the two runs carry the same `createdAt` to the
+second. If GitHub ever reports sub-second timestamps, a dispatch issued a few hundred milliseconds
+after a push stops tying and starts losing — and the gate would go back to answering CACHED with no
+tie in sight. Nothing here detects that; it would surface as the old symptom returning.
 
 ## 155. OPEN — "waiting on an outside event, with a runnable fence" has no representation, and §153's advice walked a reader into the refusal
 

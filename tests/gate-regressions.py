@@ -6,6 +6,7 @@ import importlib.util
 import contextlib
 import io
 import io
+import json
 import os
 import pathlib
 import re
@@ -700,6 +701,7 @@ def main():
     test_a_digestless_row_must_already_be_committed(lint)
     test_the_expected_digest_is_not_printed(lint)
     test_a_permanent_advisory_names_its_entry(lint)
+    test_advice_survival_counts_only_what_came_back_unchanged(lint)
 
     acceptance = "printf first\nprintf second"
     digest = verify.acceptance_digest(verify.normalize_acceptance(acceptance))
@@ -3100,6 +3102,57 @@ def test_the_expected_digest_is_not_printed(lint):
 # duplicate-diagnostics defect and had to go and count the dispositions to find it
 # was correct. An advisory that looks like a bug is one an author stops reading —
 # that second-order cost is the reason this is worth fixing rather than tolerating.
+# ADR-037 T1. The measurement that decides whether an advisory earns its place:
+# a finding that comes back UNCHANGED run after run is one nobody acted on, which
+# is Google's "effective false positive" however true each line is. Every arm is
+# driven through the read/write seam, so this needs no repository and no `.git`
+# (CLAUDE.md §7, §9) — and every direction is asserted here, because a counter
+# that can only go up is a check that cannot fail (§4).
+def test_advice_survival_counts_only_what_came_back_unchanged(lint):
+    # The note is held as TEXT, exactly as the real store is: a fake that hands
+    # back the same live dict it was given would let the code under test mutate
+    # its own input, which the file on disk can never do.
+    store = ["{}"]
+    def read():
+        return json.loads(store[0])
+    def write(data):
+        store[0] = json.dumps(data)
+
+    fold = lambda messages: dict(lint.record_advice_survival(
+        None, "ADR-001.md", messages, read=read, write=write))
+
+    first = fold(["fence chains 4 segments", "missing section ## Risks"])
+    assert first == {"fence chains 4 segments": 1, "missing section ## Risks": 1}, first
+    second = fold(["fence chains 4 segments", "missing section ## Risks"])
+    assert second == {"fence chains 4 segments": 2, "missing section ## Risks": 2}, second
+
+    # ⚠ A CHANGED COUNT IS A DIFFERENT FINDING, and its survival RESETS. The
+    # question is how long something survives UNCHANGED, so folding `4 segments`
+    # and `5 segments` into one identity would inflate every number in the
+    # direction that argues for deleting the advisory.
+    third = fold(["fence chains 5 segments", "missing section ## Risks"])
+    assert third == {"fence chains 5 segments": 1, "missing section ## Risks": 3}, third
+
+    # AND A FINDING SOMEBODY ACTED ON IS GONE, not carried at its old count.
+    fourth = fold(["missing section ## Risks"])
+    assert fourth == {"missing section ## Risks": 4}, fourth
+    revived = fold(["fence chains 5 segments"])
+    assert revived == {"fence chains 5 segments": 1}, revived
+
+    # Two records do not share a finding's history even when the text matches.
+    other = dict(lint.record_advice_survival(
+        None, "ADR-002.md", ["missing section ## Risks"], read=read, write=write))
+    assert other == {"missing section ## Risks": 1}, other
+
+    # NOWHERE TO RECORD IS NOT A FIRST SIGHTING (ADR-005). The caller must be able
+    # to tell those apart, so the no-store answer is None rather than a count of 1.
+    assert lint.record_advice_survival(None, "ADR-001.md", ["anything"]) is None
+    # A corrupt note is refreshed, never trusted and never fatal.
+    assert dict(lint.record_advice_survival(
+        None, "ADR-001.md", ["anything"], read=lambda: "not a dict", write=lambda _: None)
+    ) == {"anything": 1}
+
+
 def test_a_permanent_advisory_names_its_entry(lint):
     """Two different dispositions produce two different advisory lines."""
     entries = [

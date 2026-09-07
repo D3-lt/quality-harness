@@ -6027,6 +6027,26 @@
       ],
       "from": "        QH-PARSE-COMPLETE|QH-PARSE-COMPLETE$'\\r') ran=yes ;;",
       "to": "        *QH-PARSE-COMPLETE*) ran=yes ;;"
+    },
+    {
+      "label": "exit contract: a gate that stops declaring a code it produces is caught",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "declared in its own docstring",
+      "from": "Exit: 0 pass · 1 failures found · 2 usage — an unknown flag or no record named.",
+      "to": "Exit: 0 pass · 1 failures found."
+    },
+    {
+      "label": "exit contract: a gate that drops its Exit block entirely is caught",
+      "file": "plugin/bin/adr-retire-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "only": "declared in its own docstring",
+      "from": "Exit: 0 the contract holds · 1 it does not.",
+      "to": "The contract either holds or it does not."
     }
   ]
 }

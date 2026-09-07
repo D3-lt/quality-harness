@@ -32,7 +32,8 @@ Checks:
            whose displayed command matches (human-observed tasks: a human-observed entry)
   Covers : union of task Covers ⊇ spec's @spec/@implemented fact + scenario IDs
 
-Exit: 0 pass · 1 failures found
+Exit: 0 pass · 1 failures found · 2 usage — an unknown flag or no record named.
+      2 is NOT a finding about the record: nothing was checked.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a

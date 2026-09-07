@@ -10014,3 +10014,49 @@ state was left alone until the mechanism was fixed.
 remote resolves to, whatever branch it was cut from. A repository that maintains release branches
 would anchor a feature branch on a release from another line and undercount. Nothing here detects
 that; it needs a repository shaped that way to be worth solving.
+
+### The different-lineage review found four more, and two of them were mine
+
+`gpt-5.6-sol` at `high`, read-only, on `1888954` and `9453c01`: **REQUEST CHANGES**, five findings,
+four HIGH. All accepted after reconciling each against source, folded in as `c42f213`. Recorded here
+because the shapes are more interesting than the patches, and because two of them were introduced by
+the very commits that were fixing this section.
+
+**"Ask only when the answer could change" is the same mistake as not looking.** The first version
+called the forge only when the LOCAL diff was already non-empty, to save a subprocess inside the 8s
+hook budget — and I wrote a test asserting that restriction, which is how confident I was. It hides
+two shapes: a local tag NEWER than the release and pointing at HEAD makes the local diff empty, so
+nothing is asked and everything between the release and that tag goes unreported; and a clone with
+no local tag at all never asks either. The optimisation was a prediction about the answer, made
+without the answer.
+
+**Existence is not ancestry.** `git cat-file -e` proved this clone HOLDS the release commit, which a
+fetched release branch also satisfies. `merge-base --is-ancestor` is the same one process and is
+what a diff from that commit actually needs.
+
+**A filter that was already missing does not become correct by being inherited.** `gh run list
+--commit` returns every workflow at that sha, and `selectRun` prefers ANY `workflow_dispatch` on a
+tie — so an unrelated dispatched workflow could beat the selftest push and clear a sha whose
+campaign was cached. `--limit 1` had the identical exposure and nobody had named it; §154's fix made
+it reachable and therefore visible. Now `--workflow selftest.yml`.
+
+**The fallback I argued for was the flattering branch.** An unparseable `createdAt` fell back to
+gh's own first entry, and I justified it in a comment as "the behaviour before the tie-break
+existed". That entry can be an OLDER successful dispatch while a newer push exists — SUCCESS where
+the honest answer is CACHED. Ordering nothing can establish is `null` now, which the caller already
+renders as exit 2. ⚠ **A comment citing precedent is not a reason**, and this is the second time in
+this section that a true sentence carried a false conclusion.
+
+**And one from the residual-risks section rather than the findings:** `gh release view` with no tag
+resolves the repository's latest, and rather than rely on what that excludes, `isDraft` and
+`isPrerelease` are read and either one refuses the anchor. A draft would have counted work as
+released that no adopter can install.
+
+The LOW finding was two vacuous tests, both mine: `the newest dispatch is chosen` put the dispatch at
+index 0, so it passed for a `selectRun` that only ever returned `runs[0]`; and the forge clean and
+dirty cases were separate tests where §4 wants the counterexample in the same one. Both rewritten.
+
+⚠ **Round one was killed at 25 minutes by `gtimeout` at `xhigh` and produced nothing.** Per §12 that
+certifies nothing, and the re-run at `high` — the rubric's own tier for a bounded local change —
+returned in under two minutes with all five findings. The effort level was over-routed and the cost
+was a wasted half hour, not a better review.

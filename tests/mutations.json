@@ -5176,6 +5176,15 @@
       "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }"
     },
     {
+      "label": "adr-lint: the proof-map advisory says UNRUN and names an edit to THIS file",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    \"{task}: UNRUN — the proof-map cross-check did not run here: no **Proof map:** \"",
+      "to": "    \"{task}: Proof map: v1 was not checked because this legacy task has no **Proof map:** \""
+    },
+    {
       "label": "adr-lint: a survival count nobody stored is not a count",
       "file": "plugin/bin/adr-lint",
       "tests": [

@@ -70,10 +70,22 @@ for _s in (_sys.stdout, _sys.stderr):
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
 TASK_HEADERS = ["Depends-on", "Covers", "Produces", "Consumes"]
+# ⚠ THIS ADVISORY IS 34 OF THE 78 LIVE FINDINGS IN ITS OWN CORPUS — 44%, on 17 of
+# 37 records — and its first wording ended "when authoring a NEW task". It named
+# file X and instructed the reader about future file Y, so it was unactionable BY
+# READING, whatever anyone's habits are (ADR-037 T2, BACKLOG §152).
+#
+# ⚠ DELETING IT WAS THE OTHER OPTION AND IS WRONG HERE, measured rather than
+# assumed: `adr-lint` on a task WITH a proof map and one without differ in this
+# line and in nothing else. Drop it and a check that did not run goes silent,
+# which is ADR-005 broken by the fix for noise. So it says UNRUN in those words,
+# names what is therefore unproven, and gives the edit for THIS file.
 PROOF_MAP_LEGACY_ADVICE = (
-    "{task}: Proof map: v1 was not checked because this legacy task has no "
-    "**Proof map:** header — add **Proof map:** v1, stable [S<n>] step IDs and "
-    "Tests-table Steps references when authoring a new task")
+    "{task}: UNRUN — the proof-map cross-check did not run here: no **Proof map:** "
+    "header. Nothing has checked that every Ordered Step names its proof, or that "
+    "the Tests table's Steps column reaches them. To run it, add `**Proof map:** v1` "
+    "beside the other headers, give each step an `[S<n>]` id, and name those ids in "
+    "the Tests table's Steps column")
 # The sha field of a tool-written entry, in ONE place. It was five literal copies
 # here and a sixth in adr-verify, every one accepting 7 to 40 hex characters — and
 # adr-verify WRITES whatever `git rev-parse --short HEAD` returns, unvalidated.

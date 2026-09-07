@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The `asserted` arm is retired, and the rate says what it rests on | pending | — | `node --test --test-name-pattern 'asserted arm is retired\|completionClaim reads negation\|honest final message' tests/lifecycle.test.mjs` |
+| T1 | The `asserted` arm is retired, and the rate says what it rests on | done | — | `node --test --test-name-pattern 'asserted arm is retired\|completionClaim reads negation\|honest final message' tests/lifecycle.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

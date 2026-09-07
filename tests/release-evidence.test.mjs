@@ -6,7 +6,7 @@
 // plus the vacuous one that would let anything through.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyArgument, evaluateRun } from '../scripts/release-evidence.mjs'
+import { classifyArgument, evaluateRun, selectRun } from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
 const NINE = [
@@ -162,4 +162,59 @@ test('an option is not a sha, and a bare dash-argument never reaches git rev-par
   // passes by rejecting everything.
   assert.deepEqual(classifyArgument('87e8a30'), { kind: 'sha', value: '87e8a30' })
   assert.deepEqual(classifyArgument(undefined), { kind: 'sha', value: undefined })
+})
+
+// BACKLOG §154 — WHICH run the question is about, before any of the above asks
+// whether it was green. Two runs, one sha, the same `createdAt`: the ordinary
+// result of the release sequence CLAUDE.md §13 documents, because `git push` and
+// `gh workflow run` issued from one shell land in the same second. The ids and
+// the timestamp below are the real ones, from the v2.83.0 cut on 2026-09-06.
+test('a dispatch and a push at the same instant resolve to the dispatch', () => {
+  // The push is FIRST on purpose: that is the shape that actually reached the
+  // gate. It answered CACHED while the full campaign sat beside it, and it cost
+  // a whole CI cycle. gh's order within a tie is not something a release may
+  // rest on, so the event — the field the verdict already depends on — decides.
+  const runs = [
+    { databaseId: 34054097463, event: 'push', createdAt: '2026-09-06T19:11:25Z' },
+    { databaseId: 34054097512, event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' },
+  ]
+  assert.equal(selectRun(runs)?.databaseId, 34054097512)
+})
+
+test('a newer push still wins over an older dispatch', () => {
+  // The other half, and the half that keeps the CACHED refusal alive: preferring
+  // a dispatch UNCONDITIONALLY resurrects a campaign taken before the push, which
+  // is the quiet evidence hole §142 closed. A tie-break that cannot be shown
+  // NOT firing is a tie-break that has stopped being one.
+  const runs = [
+    { databaseId: 2, event: 'push', createdAt: '2026-09-06T19:12:00Z' },
+    { databaseId: 1, event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' },
+  ]
+  assert.equal(selectRun(runs)?.databaseId, 2)
+})
+
+test('the newest dispatch is chosen with no tie to break', () => {
+  const runs = [
+    { databaseId: 3, event: 'workflow_dispatch', createdAt: '2026-09-06T19:12:00Z' },
+    { databaseId: 2, event: 'push', createdAt: '2026-09-06T19:11:25Z' },
+  ]
+  assert.equal(selectRun(runs)?.databaseId, 3)
+})
+
+test('a timestamp nothing can read is not silently ordered', () => {
+  // ADR-005 applied to the ordering itself. With no comparable times the
+  // pre-§154 behaviour — gh's own first — is kept, rather than a ranking
+  // invented over values that do not compare. Here that means the PUSH, so the
+  // fallback is visibly the conservative one and not a way to smuggle a pass.
+  const runs = [
+    { databaseId: 7, event: 'push', createdAt: 'not a time' },
+    { databaseId: 8, event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' },
+  ]
+  assert.equal(selectRun(runs)?.databaseId, 7)
+})
+
+test('nothing to choose from is null, and a run with no id is not a choice', () => {
+  assert.equal(selectRun([]), null)
+  assert.equal(selectRun(null), null)
+  assert.equal(selectRun([{ event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' }]), null)
 })

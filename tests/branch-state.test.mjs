@@ -497,3 +497,28 @@ test('a rejected release stays blocked even when a local tag ALIASES it', () => 
   assert.match(out, /COULD NOT LOOK at the release state/, `an alias swallowed the refusal:\n${out}`)
   assert.match(out, /prerelease/)
 })
+
+test('a rejected release is not used as an anchor even when the diff is NOT empty', () => {
+  // The `rejected` name filter came back GREEN under mutation once the blocked
+  // state survived the fallback — with an empty diff both paths reach COULD NOT
+  // LOOK, so removing the filter changed nothing any test could see. This is
+  // where it still matters: measuring "since the prerelease" UNDERSTATES the
+  // unreleased work, which is the flattering direction, and it would print a
+  // confident count while doing it.
+  const out = render(collect(runner([
+    ['git rev-parse --abbrev-ref', ok('main')],
+    ['git rev-parse --short', ok('46a2656')],
+    ['git status --short', ok('')],
+    ['git rev-list', ok('0\t0')],
+    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+    ['gh release view', ok(JSON.stringify({
+      tagName: 'v2.86.0-rc1', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: true,
+    }))],
+    ['git describe', ok('v2.86.0-rc1')],
+    ['git diff --name-only v2.86.0-rc1..HEAD', ok('plugin/bin/adr-verify')],
+  ])), { brief: true })
+  assert.doesNotMatch(out, /since v2\.86\.0-rc1/,
+    `the refused tag was used as the anchor after all:\n${out}`)
+  assert.match(out, /COULD NOT LOOK at the release state/)
+  assert.match(out, /prerelease/)
+})

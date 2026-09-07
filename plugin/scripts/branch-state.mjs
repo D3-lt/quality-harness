@@ -114,182 +114,53 @@ export function collect(run = shell) {
     }
   }
 
-  // WHICH TAG THE RELEASE QUESTION IS ANCHORED TO, and it is not simply the newest
-  // one `git describe` can see. `git describe` reads LOCAL refs; a release cut with
-  // `gh release create` puts its tag on the FORGE. So the very machine that does the
-  // releasing is the one whose anchor goes stale, and this line then reports as
-  // unreleased work that shipped several versions ago. Observed here 2026-09-07:
-  // HEAD was tagged v2.85.0 on the remote and this said "plugin/ changed in 8
-  // file(s) since v2.81.0 — a green shipped change is released, not parked" on every
-  // prompt. The COUNT was true and the CONCLUSION was false (BACKLOG §157).
+  // WHAT THE RELEASE QUESTION IS ANCHORED TO, AND WHAT THAT ANCHOR CANNOT KNOW.
+  // `git describe` reads LOCAL refs; `gh release create` — what CLAUDE.md §13.7
+  // tells you to run — puts the tag on the FORGE. So the machine that cuts the
+  // releases is the one whose anchor goes stale, and on 2026-09-07 this printed
+  // "plugin/ changed in 8 file(s) since v2.81.0 — a green shipped change is
+  // released, not parked" on every prompt while HEAD WAS the newest release. The
+  // count was true and the conclusion was false (BACKLOG §157).
   //
-  // ⚠ THE FORGE IS ASKED UNCONDITIONALLY, AND THAT IS THE SECOND VERSION OF THIS.
-  // The first asked only when the LOCAL anchor already claimed something pending,
-  // to save a subprocess — and a different-lineage review named two shapes that
-  // hides, both under-reporting in the flattering direction. A local tag NEWER
-  // than the forge release and pointing at HEAD makes the local diff empty, so
-  // nothing was asked and nothing was said, while everything between the release
-  // and that tag was genuinely unreleased. A clone with NO local tag never asked
-  // either. Saving a process by deciding in advance that the answer will not
-  // change is the same mistake as not looking.
+  // ⚠ THE FIX IS THE WORDING, NOT A FORGE LOOKUP, AND THAT IS THE SECOND ANSWER
+  // TO THIS. The first asked `gh release view` and anchored on the published
+  // release. It worked — and five different-lineage review rounds each found a
+  // real defect in it, every one in the CLASSIFICATION of how `gh` can fail: a
+  // spent budget, an auth error, a 404 that means four different things, a draft,
+  // a release off a divergent branch, a repository not on GitHub at all, and the
+  // same repository without `gh` installed. The feature's real surface was "how
+  // many ways can a subprocess fail, and which of them may be silent", and that
+  // surface is bigger than the defect it was built to fix.
   //
-  // The forge wins whenever it answers. The local tag is the fallback, and the
-  // render says so, because "the newest tag this clone knows" and "the newest
-  // release" are different observations (ADR-005).
-  const forge = releaseAnchor(run)
+  // So this reader states what it can OBSERVE and names what it cannot: the
+  // anchor is the newest tag THIS CLONE holds, said in those words, and the
+  // advice points at the check rather than asserting its answer. Exact release
+  // evidence belongs in `scripts/release-evidence.mjs`, which the release
+  // procedure already runs and which may take as long as it likes (§13.5).
   const tag = run(['git', 'describe', '--tags', '--abbrev=0'])
-  // ⚠ A TAG THE FORGE REJECTED MUST NOT WALK BACK IN AS THE FALLBACK. A
-  // prerelease sitting at HEAD is the case: refuse it as the release anchor, fall
-  // back to `git describe`, and `git describe` hands back THE SAME TAG — empty
-  // diff, silence, and the refusal defeated by the line after it.
-  const rejected = forge.kind !== 'release' && forge.name ? forge.name : null
-  const local = tag.ok && tag.out && tag.out !== rejected
-    ? { ref: tag.out, name: tag.out, kind: 'local' }
-    : null
-  // The order IS the fix. Written as two named values rather than folded into one
-  // expression so a mutant can swap them and a test can notice.
-  const anchor = forge.kind === 'release' ? forge : local
-  const shipped = anchor ? run(['git', 'diff', '--name-only', `${anchor.ref}..HEAD`, '--', 'plugin/']) : null
+  const anchor = tag.ok && tag.out ? tag.out : null
+  const shipped = anchor ? run(['git', 'diff', '--name-only', `${anchor}..HEAD`, '--', 'plugin/']) : null
   // ⚠ COULD-NOT-LOOK IS NOT "NOTHING TO RELEASE", AND THIS RENDERED THEM ALIKE.
-  // `shippedSinceTag` was null for a diff that never ran and 0 for one that ran
-  // and found nothing, and the render printed nothing for both. An 8s budget spent
-  // on the CI calls therefore produced a clean, green, entirely silent report on a
-  // branch with unreleased work. Named by a different-lineage review that probed
-  // the seam with a slow `gh` rather than reasoning about it.
-  // ⚠ A BLOCKED FORGE STAYS BLOCKED EVEN WHEN A LOCAL TAG ANSWERS. The previous
-  // version only reported `forge.blocked` when there was NO anchor at all, so a
-  // rejected release plus any local tag under a DIFFERENT name — a `candidate`
-  // alias on the same commit — anchored locally, diffed to zero, and fell silent.
-  // The name-comparison guard above stops the identical tag walking back in and
-  // does nothing about an alias, which is why the state has to survive the
-  // fallback rather than the tag being filtered out of it.
-  //
-  // A count that DID come back is not silenced by this: the hedge on a local
-  // anchor already tells the reader where the number came from, and the advice
-  // fires. Silence is the only failure mode this is about.
+  // `shippedSinceTag` is null for a diff that never ran and 0 for one that ran and
+  // found nothing, and the render printed nothing for both — so a collection
+  // budget spent on the CI calls produced a clean, green, entirely silent report
+  // on a branch with unreleased work. `budgeted` marks a command it PREVENTED,
+  // which is what makes the two distinguishable at all.
   const blocked = anchor && !(shipped && shipped.ok)
-    ? `the diff from ${anchor.name} could not be read`
-    : forge.blocked
-      ? forge.note
-      : (!anchor && tag.budget ? tag.note : null)
+    ? `the diff from ${anchor} could not be read`
+    : (!anchor && tag.budget ? tag.note : null)
   return {
     looked: true,
     branch: branch.out,
     head: head.ok ? head.out : '(unknown)',
     dirty: dirty.ok ? dirty.out.split('\n').filter(Boolean).length : null,
     ahead, behind, ci,
-    tag: anchor ? anchor.name : null,
-    tagKind: anchor ? anchor.kind : null,
+    tag: anchor,
     shippedSinceTag: shipped && shipped.ok ? shipped.out.split('\n').filter(Boolean).length : null,
     releaseBlocked: blocked,
   }
 }
 
-/**
- * What the forge says its newest release is — as a STRUCTURED answer, never null.
- *
- * ⚠ EVERY REFUSAL USED TO COLLAPSE TO `null`, and the caller then could not tell
- * "there are no releases" from "there is one and I will not use it" from "I could
- * not ask". Two of those are could-not-look and one is not, and ADR-005 is the
- * whole of this file. `kind` says which:
- *
- *   release   — usable: `ref` is a commit HEAD descends from, `name` its tag
- *   absent    — no `gh`, not a GitHub remote, or no release cut. Not blocked:
- *               most adopters live here and it must stay quiet.
- *   rejected  — a release exists and is a draft or a prerelease
- *   unrelated — a release exists and HEAD does not descend from it
- *   unknown   — the question could not be put at all (budget, unparseable answer)
- *
- * `blocked` is true for everything the reader should SAY it could not settle, and
- * `name` is carried on a refusal so the caller can keep the rejected tag out of
- * its own fallback.
- *
- * ⚠ `targetCommitish` IS NOT ALWAYS A SHA. It is whatever the release was cut
- * against, and for one created from a branch it is the branch NAME. Handing that
- * to `git diff` would anchor on the branch tip — which is HEAD — and report
- * nothing unreleased for ever, silently, in the flattering direction.
- *
- * ⚠ AND EXISTING IS NOT ANCESTRY. `cat-file -e` proved only that this clone holds
- * the commit, which a fetched release branch also satisfies. `merge-base
- * --is-ancestor` is the same one process and is what the diff needs. It cannot
- * tell "not an ancestor" from "git could not answer", so the note says both.
- *
- * ⚠ A DRAFT OR PRERELEASE IS NOT WHAT SHIPPED — it would count work as released
- * that no adopter can install.
- */
-/**
- * The `gh` diagnostics that positively mean "there is no release to compare
- * against here", as opposed to "I could not tell you". The distinction is the
- * whole of `absent` vs `unknown`: one may be silent and the other may not, so
- * membership is by EXACT diagnostic and never by HTTP status.
- *
- * ⚠ `HTTP 404` WAS IN HERE AND IS NOT EVIDENCE OF ANYTHING. A missing repository,
- * a wrong remote and a private repository the token cannot see all return 404,
- * and each of those was being read as "no release cut" — silence over a state
- * nobody had established. `gh` says `release not found` when the repository is
- * readable and holds none, which is the actual observation.
- *
- * `none of the git remotes` is the not-applicable case and belongs here rather
- * than in `unknown`: a repository that is not on GitHub has no forge release to
- * be uncertain about, and telling its owner so on every prompt is BACKLOG §152
- * exactly.
- */
-const NO_RELEASE = /release not found|no releases found|none of the git remotes/i
-
-export function releaseAnchor(run) {
-  const answer = run(['gh', 'release', 'view', '--json',
-    'tagName,targetCommitish,isDraft,isPrerelease'])
-  if (!answer.ok) {
-    if (answer.budget) {
-      return { kind: 'unknown', blocked: true, note: `the forge was not asked (${answer.note})` }
-    }
-    // ⚠ ONLY A POSITIVELY IDENTIFIED "THERE IS NO RELEASE" MAY BE QUIET. Every
-    // other failure — 401, a network drop, a permission error, a timeout, `gh`
-    // missing — used to land in `absent` and say nothing, and a local tag sitting
-    // at HEAD then diffed to zero and the reader looked release-clean. A
-    // different-lineage review injected `HTTP 401: Bad credentials` and read the
-    // brief line: green, silent, wrong. The structured-result fix had closed the
-    // budget path and moved the same hole into every other forge failure.
-    //
-    // This costs an adopter with no `gh` a second could-not-look line — and they
-    // already get the CI one for the same reason, so it is consistent rather than
-    // new noise. A repository that simply has no release cut stays quiet, which
-    // is the case §152 is about.
-    return NO_RELEASE.test(answer.note ?? '')
-      ? { kind: 'absent', blocked: false, note: 'the forge holds no release to compare against' }
-      : {
-        kind: 'unknown', blocked: true,
-        note: `the forge could not be read (${answer.note ?? 'no reason given'})`,
-      }
-  }
-  let json
-  try { json = JSON.parse(answer.out) } catch {
-    return { kind: 'unknown', blocked: true, note: 'the forge answer did not parse as JSON' }
-  }
-  const name = String(json?.tagName ?? '')
-  if (json?.isDraft || json?.isPrerelease) {
-    return {
-      kind: 'rejected', name, blocked: true,
-      note: `the newest release ${name || '(unnamed)'} is a ${json.isDraft ? 'draft' : 'prerelease'}, `
-        + 'so it is not what an adopter can install',
-    }
-  }
-  const sha = String(json?.targetCommitish ?? '')
-  if (!/^[0-9a-f]{40}$/.test(sha) || !name) {
-    return {
-      kind: 'unknown', name, blocked: true,
-      note: 'the forge named no tag, or a target that is not a commit sha',
-    }
-  }
-  const ancestor = run(['git', 'merge-base', '--is-ancestor', sha, 'HEAD'])
-  if (!ancestor.ok) {
-    return {
-      kind: 'unrelated', name, blocked: true,
-      note: `HEAD does not descend from ${name}, or git could not tell`,
-    }
-  }
-  return { kind: 'release', ref: sha, name, blocked: false }
-}
 
 /**
  * The state as lines. PURE, and the whole reason the collector takes a seam:
@@ -322,19 +193,17 @@ export function render(state, { brief = false } = {}) {
       + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`
     alarm = true
   }
-
-  // ⚠ A COUNT AND A BLOCKED FORGE ARE BOTH TRUE AT ONCE, and this used to choose.
-  // The reasoning was that a non-empty count is not silence and the local hedge
-  // already says where the number came from — which a fourth review round
-  // overturned, correctly: the local tag can be NEWER than the published release,
-  // so the count UNDERSTATES the unreleased work while omitting the reason it
-  // might. Understating is the flattering direction, and the hedge says the anchor
-  // is local, not that the forge was unreadable. Both clauses now.
+  // ⚠ THE ANCHOR IS NAMED AS WHAT IT IS, AND THE ADVICE POINTS RATHER THAN
+  // CONCLUDES. `git describe` reads local refs, so this count is "since the newest
+  // tag this clone holds" and nothing more — it printed "a green shipped change is
+  // released, not parked" over four already-published releases before it said so
+  // (BACKLOG §157). A reader who wants the published answer has one command and it
+  // is named; a reader who wants the release VERDICT has `release-evidence.mjs`,
+  // which §13.5 already makes the only thing that answers "may this be released".
   const counted = state.shippedSinceTag
-    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}`
-      + `${state.tagKind === 'release' ? ''
-        : ', the newest tag THIS CLONE knows — a release tagged on the forge would not be here'}`
-      + ' — §13: a green shipped change is released, not parked.'
+    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}, the newest tag `
+      + 'THIS CLONE holds — a release tagged on the forge is not here, so check '
+      + '`gh release view` before treating this as unreleased (§13).'
     : null
   // A question that could not be put is not an answer of nothing. Silence here
   // reads as "nothing to release", which is the one thing this must never say
@@ -345,7 +214,10 @@ export function render(state, { brief = false } = {}) {
     ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `
       + 'That is not "nothing to release".'
     : null
-  const release = [counted, unknown].filter(Boolean).join(' · ') || null
+  // Mutually exclusive by construction: `releaseBlocked` is set only when the diff
+  // did not come back, and a count exists only when it did. Written as `??` rather
+  // than a join for that reason — a join would be a branch nothing can reach.
+  const release = counted ?? unknown
 
   if (brief) {
     return [`${head} · ${alarm ? '⚠ CI ' : 'CI '}${ci}${release ? ` · ${release}` : ''}`,

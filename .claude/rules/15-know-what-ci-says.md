@@ -29,10 +29,14 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   session has the least reason to act on. agentsmemory is visible because it hooks
   `UserPromptSubmit` too; this now does the same. The per-message form is ONE LINE WHILE GREEN
   (`--brief`; an alarm adds a second line rather than dropping the failing job names) and reads a
-  reads a `.git/`-local cache (`--cached 120`) so it does not spawn `gh` on every prompt — a stale
+  a `.git/`-local cache (`--cached 120`) so it does not spawn `gh` on every prompt — a stale
   answer says how old it is, and an unreadable cache is refreshed rather than trusted.
-- It **reads**. It blocks nothing, judges nothing about the work, and exits 0 whatever it finds
-  (`CLAUDE.md` §3).
+- **The release line anchors on the FORGE's newest release, not on `git describe`** (BACKLOG §157).
+  `git describe` reads local refs and `gh release create` tags the remote, so the machine that cuts
+  the releases is the one whose anchor goes stale — it claimed four shipped versions were unreleased
+  work, on every prompt. The forge is asked only when the local anchor says something is pending, so
+  a repository with nothing to release pays nothing; when `gh` cannot answer the anchor stays local
+  and the line SAYS it is local, because that is a different observation.
 - It **reads**. It blocks nothing, judges nothing about the work, and exits 0 whatever it finds
   (`CLAUDE.md` §3).
 - **Could-not-look is said in those words.** An absent `gh`, no network, and a genuinely green

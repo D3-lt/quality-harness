@@ -440,6 +440,14 @@ def reject_unknown_flags(known=()):
     have made session orientation silently empty at exit 0 — the same fail-open,
     by a different route, as the `#!` spawn that BACKLOG item 17 fixed.
     """
+    # ⚠ `--help` IS NOT AN UNKNOWN FLAG. TEN OF THIS PLUGIN'S ELEVEN GATES answered
+    # `unknown option: --help` at exit 2 — reported 2026-09-07 from an outside
+    # corpus where the options were discoverable only by grepping the source. A
+    # gate that refuses to explain itself is one people run wrong, and this is the
+    # first thing anyone types.
+    if "--help" in sys.argv[1:] or "-h" in sys.argv[1:]:
+        print(__doc__)
+        sys.exit(0)
     unknown = [a for a in sys.argv[1:] if a.startswith("--") and a not in known]
     if unknown:
         print(f"unknown option: {unknown[0]}", file=sys.stderr)

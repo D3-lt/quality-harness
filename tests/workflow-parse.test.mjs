@@ -45,10 +45,11 @@ test('a static import is refused, because a workflow script is self-contained', 
 })
 
 test('an unreadable file says COULD NOT READ, never that it does not parse', () => {
-  const [failure, ...rest] = checkWorkflowFiles([join(tmpdir(), 'no-such-workflow-' + Date.now() + '.js')])
+  const [outcome, ...rest] = checkWorkflowFiles([join(tmpdir(), 'no-such-workflow-' + Date.now() + '.js')])
   assert.deepEqual(rest, [])
-  assert.match(failure, /COULD NOT READ/)
-  assert.doesNotMatch(failure, /parse/i)
+  assert.match(outcome.message, /COULD NOT READ/)
+  assert.doesNotMatch(outcome.message, /parse/i)
+  assert.equal(outcome.unchecked, true, 'the flag is what a caller partitions on, not the words')
 })
 
 test('every shipped workflow parses, and there is more than nothing to check', () => {
@@ -261,6 +262,61 @@ test('the CLI runs when its own path is reached through a symlink', t => {
     assert.match(viaLink.stdout, /QH-PARSE-COMPLETE/,
       'reached through a symlink the CLI must still run; a silent exit 0 is the ' +
       'most flattering failure a checker can have')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the required header is an assignment to `meta`, not anything `\\b` will end', () => {
+  // `\b` is ASCII-word-based, so `export const meta$` and `export const metaπ` both
+  // satisfied it while exporting a binding that is not `meta`. Named by a
+  // different-lineage review of 085fb7d.
+  assert.match(checkWorkflowSource('export const meta$ = 1\nreturn 1\n', 'a.js'),
+    /no `export const meta` header/)
+  assert.match(checkWorkflowSource('export const metaπ = 1\nreturn 1\n', 'b.js'),
+    /no `export const meta` header/)
+  assert.equal(checkWorkflowSource('export const meta={ name: "w" }\nreturn 1\n'), null,
+    'the assignment may be written without spaces')
+})
+
+test('an unchecked file dominates a batch, so a partial run cannot read as a complete one', () => {
+  // A readable-but-broken file beside an unreadable one used to exit 1 — the code
+  // that says "the checker looked at everything and here is what it found". A
+  // status-only caller then took a partial run for a complete one.
+  const dir = mkdtempSync(join(tmpdir(), 'wf-batch-'))
+  try {
+    const good = join(dir, 'good.js')
+    const bad = join(dir, 'bad.js')
+    const absent = join(dir, 'absent.js')
+    writeFileSync(good, `${HEADER}return 1\n`)
+    writeFileSync(bad, `${HEADER}const x = (\n`)
+    const run = files => spawnSync(process.execPath, [checker, '--js', ...files],
+      { encoding: 'utf8', timeout: 60_000 })
+
+    assert.equal(run([good]).status, 0)
+    assert.equal(run([bad]).status, 1, 'a finding alone is exit 1')
+    assert.equal(run([good, absent]).status, 4, 'an unreadable file alone is exit 4')
+
+    const mixed = run([bad, absent])
+    assert.equal(mixed.status, 4, 'unchecked dominates a finding')
+    // …and every message still reaches the reader, or the domination hid one.
+    assert.match(mixed.stderr, /parses as neither a module nor a Workflow script/)
+    assert.match(mixed.stderr, /COULD NOT READ/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a file NAMED like a could-not-look is still counted as a finding', () => {
+  // The partition used to scan the whole message for `COULD NOT CHECK`, and every
+  // message carries the file's own name — so the name could spoof the verdict.
+  const dir = mkdtempSync(join(tmpdir(), 'wf-spoof-'))
+  try {
+    const spoof = join(dir, 'COULD NOT CHECK.js')
+    writeFileSync(spoof, `${HEADER}const x = (\n`)
+    const got = spawnSync(process.execPath, [checker, '--js', spoof],
+      { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(got.status, 1, `a real finding must stay exit 1: ${got.stderr}`)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

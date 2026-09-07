@@ -29,7 +29,11 @@ const AsyncFunction = Object.getPrototypeOf(async function () {}).constructor
 // blank first line or a UTF-8 BOM made the header unfindable and a correct workflow
 // was REFUSED — a gate that fails correct files, which is the same defect as one that
 // passes broken ones wearing the other sign.
-const META_HEADER = /^\s*(?:(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*export (?=const meta\b)/
+// ⚠ `\b` AFTER `meta` WAS NOT A BOUNDARY FOR AN IDENTIFIER. It is ASCII-word-based,
+// so `export const meta$` and `export const metaπ` both satisfied it while exporting
+// a binding that is not `meta`. The format writes `export const meta = {...}`, so the
+// assignment is required and no boundary class has to be got right.
+const META_HEADER = /^\s*(?:(?:\/\/[^\n]*|\/\*[\s\S]*?\*\/)\s*)*export (?=const meta\s*=)/
 
 /**
  * Report why `source` is not a parseable Workflow script, or null when it is.
@@ -66,10 +70,22 @@ export function checkWorkflowFiles (files, check = checkWorkflowSource) {
       source = readFileSync(file, 'utf8')
     } catch (err) {
       // Unreadable is not "does not parse" and must not borrow that word (§3).
-      return `${file}: COULD NOT READ — ${err.message}`
+      return { file, unchecked: true, message: `${file}: COULD NOT READ — ${err.message}` }
     }
-    return check(source, file)
+    const message = check(source, file)
+    if (message === null) return null
+    // ⚠ THE FLAG IS SET WHERE THE FACT IS KNOWN, NOT BY READING THE MESSAGE BACK. A
+    // caller that partitioned on `/COULD NOT CHECK/` in the text could be spoofed by a
+    // FILENAME containing those words, since the file's own name is in every message.
+    return { file, unchecked: kindOf(message, file) !== 'finding', message }
   }).filter(Boolean)
+}
+
+/** The message's leading verdict word, read after the file name this tool prefixes. */
+function kindOf (message, file) {
+  const rest = message.startsWith(`${file}: `) ? message.slice(file.length + 2) : message
+  return rest.startsWith('COULD NOT CHECK') ? 'COULD NOT CHECK'
+    : rest.startsWith('COULD NOT READ') ? 'COULD NOT READ' : 'finding'
 }
 
 // The default temp-directory factory, injectable so a test can make it fail on every
@@ -178,21 +194,28 @@ if (invokedDirectly()) {
   // finding from a crash by the code, and node's own startup failures already own 1
   // — so an uncaught throw here would arrive at the post-edit hook as "the checker
   // looked and found this stack trace" (ADR-005, and CLAUDE.md §3).
-  let failures
+  let outcomes
   try {
-    failures = checkWorkflowFiles(files, either ? checkJsSource : checkWorkflowSource)
+    outcomes = checkWorkflowFiles(files, either ? checkJsSource : checkWorkflowSource)
   } catch (err) {
     console.error(`workflow-parse.mjs: UNRUN — the check did not complete: ${err.message}`)
     exit(4)
   }
-  for (const failure of failures) console.error(failure)
+  for (const outcome of outcomes) console.error(outcome.message)
   // ⚠ A MARKER ON STDOUT, BECAUSE AN EXIT CODE CANNOT CARRY THIS. If this file is
   // itself unparseable or its interpreter dies, node exits 1 — the code that means
   // "the checker looked and found something" — and its stack trace is then printed to
   // the user as if it described THEIR file. A caller that requires this line has
   // positive evidence the check ran; its absence is could-not-look (ADR-005).
+  //
+  // ⚠ AND `process.exitCode`, NEVER `exit()` AFTER WRITING. `exit()` can discard a
+  // pipe's pending stdout, so the very line that says the check completed is the line
+  // most likely to be lost — node's own documentation warns about this.
   console.log('QH-PARSE-COMPLETE')
-  const unchecked = failures.filter(failure => /COULD NOT (CHECK|READ)/.test(failure))
-  if (unchecked.length === failures.length && failures.length > 0) exit(4)
-  exit(failures.length ? 1 : 0)
+  // ⚠ ANY UNCHECKED FILE DOMINATES. "I did not look at all of them" must not be
+  // masked by "and here is what I found in the rest": a status-only caller reading 1
+  // would take a partial run for a complete one. The messages are all still printed.
+  process.exitCode = outcomes.some(outcome => outcome.unchecked) ? 4
+    : outcomes.length ? 1
+      : 0
 }

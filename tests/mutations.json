@@ -5149,6 +5149,24 @@
       "to": "    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, timeout, encoding: 'utf8' }).trim() }"
     },
     {
+      "label": "branch-state: gh is not asked where no remote names a GitHub host",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const onGitHub = remotes.ok && /github/i.test(remotes.out)",
+      "to": "  const onGitHub = true"
+    },
+    {
+      "label": "branch-state: the git half is cached before the network half is attempted",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const state = gather(partial => write({ at, state: partial }))",
+      "to": "  const state = gather(() => {})"
+    },
+    {
       "label": "branch-state: a command the budget refused is marked, not folded into a plain failure",
       "file": "plugin/scripts/branch-state.mjs",
       "tests": [

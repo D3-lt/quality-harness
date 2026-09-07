@@ -6124,6 +6124,16 @@
       "only": "withholds advice about a withdrawn task",
       "from": "    return value if (value in TERMINAL_TASK_STATUSES or first in TERMINAL_TASK_STATUSES) else None",
       "to": "    return value"
+    },
+    {
+      "label": "adr-lint: a terminal README status is not sent to the done/pending/blocked vocabulary",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "terminal README status is not sent to the wrong vocabulary",
+      "from": "        if word in TERMINAL_TASK_STATUSES:",
+      "to": "        if False:"
     }
   ]
 }

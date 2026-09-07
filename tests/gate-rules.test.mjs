@@ -1797,3 +1797,35 @@ test('adr-lint withholds advice about a withdrawn task, and says that it did', (
     withdrawn.stdout)
   assert.match(withdrawn.stdout, /Blocking checks still ran/, withdrawn.stdout)
 })
+
+test('a terminal README status is not sent to the wrong vocabulary', () => {
+  // BACKLOG §167. `withdrawn` and `superseded` are words this plugin now ROUTES on,
+  // from the task file. Telling an author to replace them with `done`, `pending` or
+  // `blocked` is advice that would delete the thing the corpus is saying — and an
+  // outside corpus carries three `superseded` README rows today.
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-readme-status-'))
+  temps.push(dir)
+  mkdirSync(join(dir, 'tasks'), { recursive: true })
+  writeFileSync(join(dir, 'ADR-900-probe.md'),
+    '# ADR-900: probe\n\n**Status:** Accepted\n**Date:** 2026-09-07\n\n## Context\n\nS.\n\n'
+    + '## Decision\n\nDo it.\n\n## Consequences\n\nA cost.\n')
+  writeFileSync(join(dir, 'tasks', 'T2.md'),
+    '# Task ADR-900-T2: probe\n\n**Status:** pending\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n')
+  const withRow = word => {
+    writeFileSync(join(dir, 'tasks', 'README.md'),
+      `| Order | Task | Status |\n|---|---|---|\n| 1 | T2 | ${word} |\n`)
+    return run('adr-lint', [join(dir, 'ADR-900-probe.md')], dir).stdout
+  }
+
+  const terminal = withRow('superseded')
+  assert.match(terminal, /status `superseded`, which says the task will not be built/, terminal)
+  assert.match(terminal, /put `\*\*Status:\*\* superseded` in the TASK FILE/, terminal)
+  assert.doesNotMatch(terminal, /Use `done`, `pending` or `blocked`/,
+    `a recognised terminal word must not be sent to the wrong vocabulary: ${terminal}`)
+
+  // The must-fail direction: a genuinely unknown word still gets the old advice, or
+  // this branch has swallowed the case it was carved out of.
+  const unknown = withRow('marinating')
+  assert.match(unknown, /status `marinating`, which this reader does not act on/, unknown)
+  assert.match(unknown, /Use `done`, `pending` or `blocked`/, unknown)
+})

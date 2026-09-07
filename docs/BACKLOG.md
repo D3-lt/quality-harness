@@ -11119,3 +11119,26 @@ crashing on the ordinary case, introduced by a change about tidying its output.
 file header says `partial`. So the pre-fix verdict came from neither. Not this
 repository's to explain, and named here only because §10 makes the file win, so the
 routing for that task changes twice.
+
+**Two later corrections from the reporter, both worth keeping:**
+
+- Their "the `done` came from neither source" was their own error, not a defect here.
+  `adr-next` was reading the THIRD source — the Verification Log, five exit-0 entries
+  with a matching digest — exactly as documented. So the disagreement was never two
+  indexes against a third; it was **evidence against the author's judgement**: a green
+  fence with `partial` written beside it, a marker set at the file's birth and never
+  updated.
+- They then predicted this change would surface stale `partial` markers as phantom
+  READY work. ⚠ **IT DOES NOT, AND THE ORDER IN `classify` IS WHY.** `done` is decided
+  from the Verification Log BEFORE any status is consulted, so a status that disagrees
+  with passing evidence loses to the evidence; only a `partial` with NO evidence is
+  offered, which is the right answer for genuinely unfinished work. Verified on a
+  fixture and pinned by `tests/adr-next.test.mjs::tool-written evidence outranks the
+  task file's own Status word`, because that ordering was incidental before §166 and is
+  load-bearing after it.
+
+**Last sibling, closed here:** `adr-lint`'s README-row advisory told the author of a
+`superseded` or `withdrawn` row to *"Use `done`, `pending` or `blocked`"* — advice that
+would DELETE what the corpus is saying, now that those words route from the task file.
+A recognised terminal word gets its own sentence pointing at the file header instead;
+a genuinely unknown word still gets the old advice, and both directions are asserted.

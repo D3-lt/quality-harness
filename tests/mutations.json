@@ -5176,6 +5176,15 @@
       "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }"
     },
     {
+      "label": "adr-lint: --help is answered, not rejected as an unknown flag",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if \"--help\" in sys.argv[1:] or \"-h\" in sys.argv[1:]:\n        print(__doc__)\n        sys.exit(0)\n    unknown = [a for a in sys.argv[1:] if a.startswith(\"--\") and a not in known]",
+      "to": "    unknown = [a for a in sys.argv[1:] if a.startswith(\"--\") and a not in known]"
+    },
+    {
       "label": "adr-lint: the proof-map advisory says UNRUN and names an edit to THIS file",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -5907,6 +5916,43 @@
       "only": "every refusal wears the tool name",
       "from": "    print(msg if msg.startswith(\"[adr-verify]\") else f\"[adr-verify] {msg}\")",
       "to": "    print(msg)"
+    },
+    {
+      "label": "workflow-parse: a syntax error is reported, so the checker can come back dirty",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "    return `${name}: ${err.message}`",
+      "to": "    return null"
+    },
+    {
+      "label": "workflow-parse: only a declaration export is stripped, so the dialect stays the documented one",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  const body = source.replace(/^export (?=(?:const|let|var|function|class|async) )/gm, '')",
+      "to": "  const body = source.replace(/^export /gm, '')"
+    },
+    {
+      "label": "workflow-parse: --js refuses a file neither dialect parses, which node's own --check does not",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "    if (checked.status === 0) return null",
+      "to": "    return null"
+    },
+    {
+      "label": "workflow-parse: the advice names the file edited, never the copy the check made",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs",
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "    const said = [realpathSync(copy), copy].reduce((text, path) => text.split(path).join(name),",
+      "to": "    const said = [].reduce((text, path) => text.split(path).join(name),"
     }
   ]
 }

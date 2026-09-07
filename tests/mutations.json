@@ -6134,6 +6134,33 @@
       "only": "terminal README status is not sent to the wrong vocabulary",
       "from": "        if word in TERMINAL_TASK_STATUSES:",
       "to": "        if False:"
+    },
+    {
+      "label": "backlog-record-sweep: a bare citation is not a claim, or the sweep drowns in noise",
+      "file": "scripts/backlog-record-sweep.mjs",
+      "tests": [
+        "tests/backlog-record-sweep.test.mjs"
+      ],
+      "from": "  for (const m of section.heading.matchAll(/\\bADR-(\\d{3})\\b/g)) ids.add(m[1])",
+      "to": "  for (const m of `${section.heading}\\n${section.body}`.matchAll(/\\bADR-(\\d{3})\\b/g)) ids.add(m[1])"
+    },
+    {
+      "label": "backlog-record-sweep: one live record keeps a section live",
+      "file": "scripts/backlog-record-sweep.mjs",
+      "tests": [
+        "tests/backlog-record-sweep.test.mjs"
+      ],
+      "from": "    if (states.every(s => s.state === 'shipped')) {",
+      "to": "    if (states.some(s => s.state === 'shipped')) {"
+    },
+    {
+      "label": "backlog-record-sweep: an unresolvable record is could-not-look, never a shipped one",
+      "file": "scripts/backlog-record-sweep.mjs",
+      "tests": [
+        "tests/backlog-record-sweep.test.mjs"
+      ],
+      "from": "  if (done === 0 && open.length === 0) return { id, state: 'unknown', why: 'no tasks to judge', status }",
+      "to": "  if (false) return { id, state: 'unknown', why: 'no tasks to judge', status }"
     }
   ]
 }

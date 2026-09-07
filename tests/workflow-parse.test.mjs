@@ -309,13 +309,17 @@ test('an unchecked file dominates a batch, so a partial run cannot read as a com
 
 test('a file NAMED like a could-not-look is still counted as a finding', () => {
   // The partition used to scan the whole message for `COULD NOT CHECK`, and every
-  // message carries the file's own name — so the name could spoof the verdict.
+  // message opens with the file AS THE CALLER NAMED IT — so the name could spoof the
+  // verdict. ⚠ IT HAS TO BE A RELATIVE PATH, and that is the whole point of the test:
+  // named absolutely the message opens with the directory and the spoof cannot fire,
+  // so an absolute fixture left the mutant GREEN while asserting the right thing about
+  // the wrong input (CLAUDE.md §4).
   const dir = mkdtempSync(join(tmpdir(), 'wf-spoof-'))
   try {
-    const spoof = join(dir, 'COULD NOT CHECK.js')
-    writeFileSync(spoof, `${HEADER}const x = (\n`)
-    const got = spawnSync(process.execPath, [checker, '--js', spoof],
-      { encoding: 'utf8', timeout: 60_000 })
+    writeFileSync(join(dir, 'COULD NOT CHECK.js'), `${HEADER}const x = (\n`)
+    const got = spawnSync(process.execPath, [checker, '--js', 'COULD NOT CHECK.js'],
+      { encoding: 'utf8', timeout: 60_000, cwd: dir })
+    assert.match(got.stderr, /parses as neither/, `the fixture must produce a finding: ${got.stderr}`)
     assert.equal(got.status, 1, `a real finding must stay exit 1: ${got.stderr}`)
   } finally {
     rmSync(dir, { recursive: true, force: true })

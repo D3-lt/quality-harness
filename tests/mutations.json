@@ -3374,8 +3374,8 @@
       "to": "    if (!probe.error) {"
     },
     {
-      "label": "windows: adr-verify refuses the WindowsApps bash alias",
-      "file": "plugin/bin/adr-verify",
+      "label": "windows: the shared resolver refuses the WindowsApps bash alias",
+      "file": "plugin/lib/fence.py",
       "tests": [
         "tests/gates.test.mjs"
       ],

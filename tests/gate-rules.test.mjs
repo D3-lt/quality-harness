@@ -1915,3 +1915,46 @@ test('a document ABOUT postmortems is not routed to postmortem-verify', () => {
   assert.match(shipped, /^## Symptom$/m, 'the skill still documents the headings, or this proves nothing')
   assert.equal(asks(shipped), 'skipped', 'the plugin must not lint its own skill as a postmortem')
 })
+
+test('a spec Cmd override runs through a POSIX shell, and says so when there is none', () => {
+  // BACKLOG §171, reported from an outside corpus and ranked second of six there. The
+  // override ran under `shell=True`, which is cmd.exe on Windows, so
+  // `BP_ROOT="$PWD" bash -c '…'` was read as an executable NAME and failed with "The
+  // system cannot find the path specified". The remedy this gate itself recommends
+  // could not work on the platform it was being run on, and its exit 4 read as the
+  // author's fault.
+  const probe = `
+import json, pathlib, runpy, sys, tempfile
+ns = runpy.run_path(sys.argv[1])
+src = pathlib.Path(sys.argv[1]).read_text(encoding='utf-8').split('def main(')[0]
+out = {}
+with tempfile.TemporaryDirectory() as d:
+    root = pathlib.Path(d)
+    out['posix'] = ns['test_runs']('x', root, None, 'BP_ROOT="$PWD" sh -c \\'exit 0\\'')[0]
+    out['failing'] = ns['test_runs']('x', root, None, 'exit 3')[0]
+    # The platform is a parameter (CLAUDE.md §7): a host with no POSIX shell is
+    # reachable here without being on one.
+    g = dict(ns)
+    exec(compile(src, 'sv', 'exec'), g)
+    g['resolve_bash'] = lambda *a, **k: None
+    verdict, why = g['test_runs']('x', root, None, 'true')
+    out['noShell'] = [verdict, why]
+print(json.dumps(out))
+`
+  const ran = spawnSync('python3', ['-c', probe, join(root, 'bin', 'spec-verify')],
+    { encoding: 'utf8', timeout: 120_000 })
+  assert.equal(ran.status, 0, `the probe did not run, which is not a clean sweep: ${ran.stderr}`)
+  const got = JSON.parse(ran.stdout)
+
+  assert.equal(got.posix, 'pass', 'POSIX syntax in a Cmd cell must actually run')
+  // The must-fail direction: the runner still reports a real failure, or `pass` above
+  // is a runner that says yes to everything.
+  assert.equal(got.failing, 'fail')
+  // ⚠ AND NO SHELL IS COULD-NOT-LOOK THAT NAMES ITS CAUSE. A `Cmd` written in POSIX
+  // syntax on a box with no POSIX shell fails for a reason that has nothing to do with
+  // the code under test, and reporting that as `fail` is the defect this gate's own
+  // docstring is about (ADR-005).
+  assert.equal(got.noShell[0], 'unrun', `no shell is not a failing test: ${got.noShell}`)
+  assert.match(got.noShell[1], /no POSIX shell was found/)
+  assert.match(got.noShell[1], /CLAUDE_CODE_GIT_BASH_PATH/, 'it must name the fix, not only the fault')
+})

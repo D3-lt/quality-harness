@@ -31,17 +31,20 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   (`--brief`; an alarm adds a second line rather than dropping the failing job names) and reads a
   a `.git/`-local cache (`--cached 120`) so it does not spawn `gh` on every prompt — a stale
   answer says how old it is, and an unreadable cache is refreshed rather than trusted.
-- **The release line anchors on the FORGE's newest release, not on `git describe`** (BACKLOG §157).
-  `git describe` reads local refs and `gh release create` tags the remote, so the machine that cuts
-  the releases is the one whose anchor goes stale — it claimed four shipped versions were unreleased
-  work, on every prompt. ⚠ **The forge is asked UNCONDITIONALLY**, and the first version did not:
-  it asked only when the local anchor already said something was pending, which hides a local tag
-  NEWER than the release and a clone with no tag at all. Saving a subprocess by deciding in advance
-  that the answer will not change is the same mistake as not looking.
-- **`releaseAnchor` returns a KIND, never null**, because "no release cut", "there is one and it is
-  a draft", "HEAD does not descend from it" and "I could not ask" are four answers and only the
-  first may be silent. A refusal carries the tag NAME so the local fallback cannot re-anchor on the
-  tag that was just refused — a prerelease at HEAD did exactly that.
+- **The release line NAMES its anchor and points at the check; it does not conclude** (BACKLOG §157).
+  `git describe` reads LOCAL refs and `gh release create` tags the remote, so the machine that cuts
+  the releases is the one whose anchor goes stale — it printed "a green shipped change is released,
+  not parked" over four already-published releases, on every prompt. The count was true and the
+  conclusion was false. It now says *"since v2.81.0, the newest tag THIS CLONE holds — … check `gh
+  release view` before treating this as unreleased"*.
+- ⚠ **A forge lookup was built for this and REMOVED.** It asked `gh release view` and anchored on the
+  published release; it worked, and five different-lineage review rounds each found a real defect in
+  it — every one in classifying how `gh` can fail (a spent budget, an auth error, a 404 meaning four
+  different things, a draft, a release off a divergent branch, a repository not on GitHub, the same
+  repository without `gh`). The defect never required the reader to know the published release, only
+  to stop claiming it did. **Exact release evidence belongs to `scripts/release-evidence.mjs`**,
+  which §13.5 already makes the only answer to "may this be released" and which may take as long as
+  it likes. A reader that fires on every prompt may not.
 - It **reads**. It blocks nothing, judges nothing about the work, and exits 0 whatever it finds
   (`CLAUDE.md` §3).
 - **Could-not-look is said in those words.** An absent `gh`, no network, and a genuinely green

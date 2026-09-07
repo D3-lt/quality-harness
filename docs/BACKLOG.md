@@ -10232,3 +10232,48 @@ ancestry, or the diff. The feature's surface is "how many ways can a subprocess 
 them may be silent", and that surface is bigger than the defect it was built to fix. Round five was
 asked to judge the design rather than hunt a fifth defect, on the grounds that the answer is worth
 more than another narrow finding.
+
+### Round five: the design judgement, and what shipped
+
+`REQUEST CHANGES` a fifth time — a MEDIUM saying the round-four fix had moved again (a non-GitHub
+repository WITHOUT `gh` gets ENOENT, which is `unknown`, which is a could-not-look line on every
+prompt), and a MEDIUM on a test weakness. But round five was asked a different question, and its
+answer is what shipped:
+
+> I would ship the simpler local-tag wording and remove the forge lookup from this always-on reader.
+> Four review rounds have demonstrated that correctly classifying every `gh` failure is the dominant
+> feature, not incidental plumbing … The original defect only required the reader to stop calling a
+> local tag a published release.
+
+**Taken.** `releaseAnchor`, `NO_RELEASE` and the structured-answer machinery are gone: **116 lines of
+production code and 268 of test**, for a subprocess inside an 8s hook budget that five reviews could
+not get right. What ships is the fix that was available on the first day and was rejected as the
+lesser one:
+
+```
+plugin/ changed in 2 file(s) since v2.81.0, the newest tag THIS CLONE holds — a release
+tagged on the forge is not here, so check `gh release view` before treating this as
+unreleased (§13).
+```
+
+⚠ **THE RULE THIS PAYS FOR: a reader that fires on every prompt may not depend on a subprocess whose
+failure modes it must enumerate.** `release-evidence.mjs` answers the same question exactly and is
+allowed to be slow, allowed to need `gh`, and allowed to refuse — because it runs once, when someone
+asks (§13.5). The always-on reader gets the cheap honest observation and NAMES what it cannot see.
+
+**What survived the revert, because each was right independently of the forge:**
+
+- `budgeted` marks a command it PREVENTED, so a spent budget is distinguishable from one that ran and
+  failed. Without that field the two are one `ok: false` and become the same silence.
+- The release line says COULD NOT LOOK rather than falling silent when the diff did not come back —
+  `null` for "never ran" and `0` for "ran and found nothing" rendered identically, which is this
+  reader's own defect class.
+- An untagged repository stays silent, because there is genuinely nothing to compare.
+- `fetchRun` takes `exec` as a seam, so the full-sha expansion is asserted at the boundary that
+  shells out. `gh run list --commit <abbreviated>` returns `[]`, which reads exactly like "no runs".
+
+**And the honest accounting.** Five rounds found real defects and the fifth found that the feature
+was the wrong shape — which the first four could not, because each was asked whether the code was
+correct and none was asked whether it should exist. **A review answers the question you put to it.**
+The step-back question cost one round and saved the feature's whole maintenance surface; it should
+have been asked at round two, when the second consecutive finding landed in the same classifier.

@@ -101,9 +101,11 @@ done
 node --check "$ROOT/scripts/lifecycle.mjs"
 node --check "$ROOT/scripts/run-shell-hook.mjs"
 node --check "$ROOT/scripts/verify.mjs"
-node --check "$ROOT/workflows/consensus.js"
-node --check "$ROOT/workflows/quality-cycle.js"
-node --check "$ROOT/workflows/review-ring.js"
+# §2: NOT `node --check` — a Workflow script is neither ESM nor CJS and node's two
+# parse goals disagree about it between releases. workflow-parse.mjs reads it the way
+# the runtime does, and ships beside the post-edit hook that needs the same answer.
+node "$ROOT/scripts/workflow-parse.mjs" "$ROOT"/workflows/*.js
+node --check "$ROOT/scripts/workflow-parse.mjs"
 
 # §130: a child still attached to this shell at the end is a leak, and a leak is
 # not a pass. Direct children only — a grandchild that reparented is out of

@@ -42,7 +42,12 @@ file_dir=$(dirname "$file_path")
 case "$file_path" in
   *.js|*.mjs|*.cjs)
     command -v node >/dev/null 2>&1 || exit 0
-    node --check "$file_path" 2>&1 | tail -30 || true
+    # ⚠ NOT `node --check` — TWICE WRONG on a .js file. It reports a SyntaxError on a
+    # CORRECT Workflow script (`Illegal return statement`, node 26), and on node 24 it
+    # exits 0 on ANY .js file containing an `export`, whatever error follows — so the
+    # silence was not evidence either (BACKLOG §161). workflow-parse.mjs accepts a file
+    # that parses as an ES module OR as a Workflow script, and refuses the rest.
+    node "$(dirname "$0")/workflow-parse.mjs" --js "$file_path" 2>&1 | tail -30 || true
     ;;
   *.sh|*.bash)
     bash -n "$file_path" 2>&1 | tail -30 || true

@@ -15,6 +15,7 @@ import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 import { runPython } from '../scripts/python-interpreter.mjs'
+import { checkWorkflowSource } from '../plugin/scripts/workflow-parse.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
@@ -222,10 +223,9 @@ test('every shipped surface is reachable from the installed plugin', () => {
   const workflows = readdirSync(join(root, 'workflows')).filter(name => name.endsWith('.js'))
   assert.ok(workflows.length >= 3, `${version}: expected the shipped workflows, read ${workflows.length}`)
   for (const workflow of workflows) {
-    const parsed = spawnSync(process.execPath, ['--check', join(root, 'workflows', workflow)],
-      { encoding: 'utf8', timeout: 60_000 })
-    assert.equal(parsed.status, 0,
-      `${version}: workflow ${workflow} does not parse as installed: ${parsed.stderr}`)
+    const file = join(root, 'workflows', workflow)
+    const failure = checkWorkflowSource(readFileSync(file, 'utf8'), `${version}/${workflow}`)
+    assert.equal(failure, null, `${version}: workflow ${workflow} does not parse as installed: ${failure}`)
   }
 
   // Agent definitions, through the same checker the fixtures above drive. An

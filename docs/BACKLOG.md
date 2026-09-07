@@ -10662,3 +10662,144 @@ gh workflow run selftest.yml --ref main
 around by re-dispatching; only the third made the pattern visible. A procedure that fails
 occasionally and recovers cheaply is one nobody writes down — which is `docs/BACKLOG.md` §152's
 shape applied to a runbook rather than to a gate's output.
+
+## 160. CLOSED 2026-09-07 — ten of eleven gates answered `unknown option: --help`
+
+Reported the same day by **two outside corpora independently**, neither of which had read this
+repository's source:
+
+> *"Options are discoverable only by grepping the source."* — a 17-record corpus, auditing 2.88.0
+>
+> *"`adr-verify --help` prints `unknown option: --help`. Bare invocation prints the usage, so the
+> information is there. Small, but it is the first thing anyone types."* — a session that had just
+> shipped an ADR task through the full drill
+
+Reproduced here on 2.90.0, over every executable in `plugin/bin/`:
+
+```
+adr-debt           exit=2 unknown option: --help
+adr-judge          exit=2 unknown option: --help
+adr-lint           exit=2 unknown option: --help
+adr-next           exit=2 unknown option: --help
+adr-retire-check   exit=2 unknown option: --help
+adr-verify         exit=2 [adr-verify] unknown option: --help
+arch-lint          exit=2 unknown option: --help
+postmortem-verify  exit=2 unknown option: --help
+qh-mcp             exit=2 qh-mcp: unknown option: --help
+qh-root            exit=2 qh-root: unknown option: --help
+spec-verify        exit=0 usage: spec-verify [-h] …
+```
+
+**Ten of eleven.** The one that worked is the only gate using `argparse`, which gives `-h` for free —
+so this was never a decision, it is what happens when every gate hand-rolls `reject_unknown_flags`
+and nobody types the flag that the function is designed to reject.
+
+⚠ **AND TWO OF THEM PRINTED THEIR USAGE ANYWAY, AT EXIT 2, AFTER AN ERROR LINE.** `adr-judge` and
+`qh-root` emit `unknown option: --help` and then the usage block. So the information was there, wearing
+a refusal — which is this repository's own ADR-005 inverted: a successful answer dressed as a failure.
+
+Every gate now prints its module docstring and exits 0 for `--help` and `-h`.
+
+⚠ **THE FIX IS SIX COPIES, AND THE TEST IS WHAT MAKES THAT SAFE.** `reject_unknown_flags` is duplicated
+into six gates and four others parse their own argv; sharing it would mean the 25-line `plugin/lib/`
+loader in each, which is more duplication than it removes. Instead `tests/gates.test.mjs` walks the
+BIN DIRECTORY — not a list — and requires every executable in it to answer both flags with exit 0 and
+a real usage block, and to not say "unknown option" while doing it. A new gate that forgets this fails
+here rather than shipping mute.
+
+**Named, not fixed** (from the same reports): `adr-debt` truncates follow-ups at 70 characters with no
+`--full` flag; `adr-next` reports `READY` for tasks whose Affected Files already exist in HEAD; and
+`Enforced-by: None — <reason>` requires an em dash, which conflicts with the house convention against
+them in written output.
+
+## 161. CLOSED 2026-09-07 — the shipped workflows' parse check COULD NOT FAIL on the node CI pins, and a node upgrade is the only reason anyone found out
+
+**Found by:** `bash scripts/selftest.sh` going red mid-session on bytes nobody had touched.
+
+`scripts/selftest.sh` and `tests/installed.test.mjs` both validated the three shipped
+workflows with `node --check`. On 2026-09-07 the same three files, unchanged, gave:
+
+```
+$ ~/.nvm/versions/node/v24.11.1/bin/node --check plugin/workflows/consensus.js ; echo $?
+0
+$ /opt/homebrew/bin/node --check plugin/workflows/consensus.js
+SyntaxError: Illegal return statement
+Node.js v26.8.1
+```
+
+All three failed under v26.8.1; `selftest.sh` runs under `bash -l`, which put the
+newer node first, while the interactive shell had the older one. CI pins node 24
+(`.github/workflows/selftest.yml`), so CI was green throughout and this was invisible
+there.
+
+**The check was wrong, not the files.** A Workflow script is neither an ES module nor
+a CommonJS one. The Workflow tool's contract requires the file to BEGIN with `export
+const meta = {...}` — ESM — and documents a top-level `return` as how a workflow
+yields its result — a function body. No node parse goal accepts both, so `node
+--check` was answering about a dialect it does not implement. Deleting the top-level
+returns to satisfy the proxy would have changed shipped behaviour to make a wrong
+check pass.
+
+⚠ **AND ON NODE 24 IT WAS VACUOUS — the check could not have gone red at all.** Chasing
+the red turned up the worse half. `node --check` on a `.js` file whose contents include
+an `export` exits 0 no matter what follows it:
+
+```
+$ printf 'const broken = (\n'                    > c1.js  # no export
+$ printf 'export const a = 1\nconst broken = (\n' > c2.js  # same error, after an export
+$ printf 'export const a = 1\nconst broken = (\n' > c3.mjs # same bytes, .mjs
+$ for f in c1.js c2.js c3.mjs; do node --check $f >/dev/null 2>&1; echo "$f=$?"; done
+c1.js=1
+c2.js=0     # ← an unbalanced paren, accepted
+c3.mjs=1
+```
+
+Measured on v24.11.1, which is what `.github/workflows/selftest.yml` pins. So for as
+long as CI has run this check on `plugin/workflows/*.js`, it has been incapable of
+reporting a syntax error in any of them — CLAUDE.md §4's "every check that can return
+clean must be shown returning dirty", failed by the gate this repository ships. The
+node 26 red was not the defect; it was the first thing that ever made the check speak.
+
+**Fix:** `plugin/scripts/workflow-parse.mjs` reads the file the way the runtime wraps
+it — strip the one export the format allows, compile the rest as an async function
+body — and returns a message naming the file. `scripts/selftest.sh` and
+`tests/installed.test.mjs` use it. Only `export <declaration>` is stripped, so `export
+default` and `export {…}` stay refused rather than quietly widening the dialect, and
+`tests/workflow-parse.test.mjs` shows it returning dirty in every arm it can.
+
+**Audit of the class (§5):** every `node --check` in the repository.
+
+```
+$ grep -rn "node --check\|'--check'" scripts/ tests/ plugin/ | grep -v workflow-parse
+scripts/selftest.sh:101:node --check "$ROOT/scripts/lifecycle.mjs"
+scripts/selftest.sh:102:node --check "$ROOT/scripts/run-shell-hook.mjs"
+scripts/selftest.sh:103:node --check "$ROOT/scripts/verify.mjs"
+tests/lifecycle.test.mjs:439:    '--', process.execPath, '--check', path.join(pluginDir, 'scripts/lifecycle.mjs'),
+tests/package.test.mjs:684:    const child = spawn(process.execPath, ['--check', file], …)
+plugin/scripts/post-edit-check.sh:45:    node --check "$file_path" 2>&1 | tail -30 || true
+```
+
+- The three `scripts/*.mjs` and `tests/lifecycle.test.mjs` name `.mjs` files, where the
+  vacuity above does not apply and `--check` asks the right question. They stay.
+- `tests/package.test.mjs:684` already knew, in a comment dated 2026-09-03: it compares
+  each mutant against its ORIGINAL precisely because a workflow "does not parse
+  standalone even unmutated". That is the right call for a mutation sweep and needs no
+  change — but the lesson never reached `selftest.sh`, which is how this survived.
+- ⛔ `plugin/scripts/post-edit-check.sh:45` was SHIPPED and is the one that mattered: a
+  `PostToolUse` hook that runs after every Edit/Write, printing `SyntaxError: Illegal
+  return statement` over a CORRECT workflow for any adopter on node 26. An advisory
+  that is always wrong on a whole file type is one a reader learns to skip (ADR-037).
+  It now tries the module goal, then the Workflow dialect, and speaks only when
+  NEITHER parses — saying so in those words, so a reader is not told there is one
+  parse goal when two were tried.
+
+**Sibling left as a new task:** nothing in this repository executes a workflow, so
+`workflow-parse.mjs` proves the file parses in the dialect and NOT that the Workflow
+tool accepts it. That gap is the same shape as the one `node --check` had, only much
+smaller, and closing it needs a runner this repository does not have.
+
+**Second sibling:** the fixture for "a broken file is still reported" had to be an
+unclosed PAREN, not an unclosed brace. `node --check` wraps a file it reads as
+CommonJS, and the wrapper's own closing brace completes it — `node --check` exits 0 on
+`if (1) { return { ok: true }`. Any test elsewhere that proves a syntax check bites by
+deleting a closing brace is proving less than it says.

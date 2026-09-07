@@ -5104,6 +5104,42 @@
       "to": "      + `${state.ci.failed.length ? ` — ${state.ci.failed.join(', ')}` : ''}`\n    alarm = false"
     },
     {
+      "label": "branch-state: a targetCommitish that is not a sha is not an anchor",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (!/^[0-9a-f]{40}$/.test(sha) || !name) return null",
+      "to": "  if (!name) return null"
+    },
+    {
+      "label": "branch-state: a release commit this clone lacks is not an anchor",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (!run(['git', 'cat-file', '-e', `${sha}^{commit}`]).ok) return null",
+      "to": "  run(['git', 'cat-file', '-e', `${sha}^{commit}`])"
+    },
+    {
+      "label": "branch-state: the forge is asked only when the local anchor says work is pending",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  if (anchor && shipped && shipped.ok && shipped.out) {",
+      "to": "  if (anchor && shipped && shipped.ok) {"
+    },
+    {
+      "label": "branch-state: a locally-anchored release line says its anchor is local",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "      + `${state.tagKind === 'release' ? ''\n        : ', the newest tag THIS CLONE knows — a release tagged on the forge would not be here'}`",
+      "to": "      + ''"
+    },
+    {
       "label": "statusline: a stale CI cache is said to be stale, not read as current",
       "file": "plugin/scripts/statusline.mjs",
       "tests": [

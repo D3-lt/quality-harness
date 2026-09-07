@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { budgeted, cached, collect, gitDir, render, shell, usableCache } from '../plugin/scripts/branch-state.mjs'
+import { budgeted, cached, collect, gitDir, releaseAnchor, render, shell, usableCache } from '../plugin/scripts/branch-state.mjs'
 
 const ok = out => ({ ok: true, out })
 const no = note => ({ ok: false, out: '', note })
@@ -233,4 +233,89 @@ test('a cleanliness read that failed is not reported as clean', () => {
   // `/, clean/` also matches inside ", cleanliness" — the assertion passed for
   // the wrong reason until it did not.
   assert.doesNotMatch(blind, /, clean(?![a-z])/, 'an unread working tree is not a clean one')
+})
+
+// BACKLOG §157 — the release line, which until now had no test at all, which is
+// how it came to print a false conclusion on every prompt for four releases.
+//
+// The real shape, 2026-09-07: HEAD is v2.85.0 on the forge, the newest LOCAL tag
+// is v2.81.0 because `gh release create` tags the remote and this clone never
+// fetched, and the line read "plugin/ changed in 8 file(s) since v2.81.0 — §13: a
+// green shipped change is released, not parked." The count was true. The advice
+// was false. Everything below is driven through the `run` seam — no network, no
+// remote, no `gh` (CLAUDE.md §7).
+const RELEASED_SHA = '46a265611ecf407b1fab10faa2c364c1e0e3b188'
+const STALE_LOCAL_TAG = [
+  ['git rev-parse --abbrev-ref', ok('main')],
+  ['git rev-parse --short', ok('46a2656')],
+  ['git status --short', ok('')],
+  ['git rev-list', ok('0\t0')],
+  ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+  ['git describe', ok('v2.81.0')],
+  ['git diff --name-only v2.81.0..HEAD', ok('plugin/.claude-plugin/plugin.json\nplugin/bin/adr-lint')],
+]
+
+test('a release tagged on the forge is not unreleased work, however stale the local tags', () => {
+  const out = render(collect(runner([...STALE_LOCAL_TAG,
+    ['gh release view', ok(JSON.stringify({ tagName: 'v2.85.0', targetCommitish: RELEASED_SHA }))],
+    ['git cat-file -e', ok('')],
+    [`git diff --name-only ${RELEASED_SHA}..HEAD`, ok('')],
+  ])))
+  assert.doesNotMatch(out, /not parked/, 'HEAD is the release; there is nothing to release')
+  assert.doesNotMatch(out, /v2\.81\.0/, 'the stale local tag must not be quoted as the anchor')
+})
+
+test('the same clone with real unreleased work still says so, against the forge tag', () => {
+  // The other half. An anchor that can only ever answer "nothing to release" is
+  // not an anchor, it is the alarm switched off (CLAUDE.md §4).
+  const out = render(collect(runner([...STALE_LOCAL_TAG,
+    ['gh release view', ok(JSON.stringify({ tagName: 'v2.85.0', targetCommitish: RELEASED_SHA }))],
+    ['git cat-file -e', ok('')],
+    [`git diff --name-only ${RELEASED_SHA}..HEAD`, ok('plugin/bin/adr-verify')],
+  ])))
+  assert.match(out, /changed in 1 file\(s\) since v2\.85\.0 — §13/)
+  assert.doesNotMatch(out, /THIS CLONE/, 'the anchor came from the forge, so it is not hedged')
+})
+
+test('without `gh` the anchor is local, and the line SAYS the anchor is local', () => {
+  // ADR-005 on the anchor itself: "the newest tag this clone knows" and "the
+  // newest release" are different observations and must not print alike. Most
+  // adopters live here — no gh, no GitHub, or no releases cut at all.
+  const out = render(collect(runner(STALE_LOCAL_TAG)))
+  assert.match(out, /changed in 2 file\(s\) since v2\.81\.0, the newest tag THIS CLONE knows/)
+  assert.match(out, /a release tagged on the forge would not be here/)
+})
+
+test('a targetCommitish that is a branch name is refused, not diffed against', () => {
+  // THE ARM THAT WOULD FAIL SILENTLY AND FLATTER. `targetCommitish` is a branch
+  // name for a release cut from a branch; `git diff main..HEAD` is empty on main,
+  // so accepting it would report "nothing unreleased" for ever. Only 40 hex.
+  assert.equal(releaseAnchor(runner([
+    ['gh release view', ok(JSON.stringify({ tagName: 'v2.85.0', targetCommitish: 'main' }))],
+    ['git cat-file -e', ok('')],
+  ])), null)
+})
+
+test('a release commit this clone does not hold is refused, not anchored on', () => {
+  assert.equal(releaseAnchor(runner([
+    ['gh release view', ok(JSON.stringify({ tagName: 'v2.85.0', targetCommitish: RELEASED_SHA }))],
+    ['git cat-file -e', no('unknown object')],
+  ])), null)
+  // And the shapes that are simply not an answer.
+  assert.equal(releaseAnchor(runner([['gh release view', no('gh: command not found')]])), null)
+  assert.equal(releaseAnchor(runner([['gh release view', ok('not json')]])), null)
+  assert.equal(releaseAnchor(runner([['gh release view', ok('{"targetCommitish":"' + RELEASED_SHA + '"}')],
+    ['git cat-file -e', ok('')]])), null)
+})
+
+test('a clone with nothing pending never spawns the release lookup', () => {
+  // The budget claim, asserted rather than assumed: `gh release view` is a third
+  // subprocess inside an 8s hook budget, so it must only run when the local anchor
+  // says the advice would fire.
+  const asked = []
+  const spy = table => argv => { asked.push(argv.join(' ')); return runner(table)(argv) }
+  render(collect(spy([...GIT_CLEAN,
+    ['gh run list', ok(JSON.stringify([{ headSha: '0a18d04ff', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+  ])))
+  assert.equal(asked.some(a => a.startsWith('gh release view')), false)
 })

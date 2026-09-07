@@ -108,17 +108,65 @@ export function collect(run = shell) {
     }
   }
 
+  // WHICH TAG THE RELEASE QUESTION IS ANCHORED TO, and it is not simply the newest
+  // one `git describe` can see. `git describe` reads LOCAL refs; a release cut with
+  // `gh release create` puts its tag on the FORGE. So the very machine that does the
+  // releasing is the one whose anchor goes stale, and this line then reports as
+  // unreleased work that shipped several versions ago. Observed here 2026-09-07:
+  // HEAD was tagged v2.85.0 on the remote and this said "plugin/ changed in 8
+  // file(s) since v2.81.0 — a green shipped change is released, not parked" on every
+  // prompt. The COUNT was true and the CONCLUSION was false (BACKLOG §157).
+  //
+  // The forge is asked only when the local anchor claims something is unreleased —
+  // the one case where the advice fires — so the extra process is paid for by the
+  // answer it can change, and a repository with nothing pending never spawns it.
   const tag = run(['git', 'describe', '--tags', '--abbrev=0'])
-  const shipped = tag.ok ? run(['git', 'diff', '--name-only', `${tag.out}..HEAD`, '--', 'plugin/']) : null
+  let anchor = tag.ok && tag.out ? { ref: tag.out, name: tag.out, kind: 'local' } : null
+  let shipped = anchor ? run(['git', 'diff', '--name-only', `${anchor.ref}..HEAD`, '--', 'plugin/']) : null
+  if (anchor && shipped && shipped.ok && shipped.out) {
+    const release = releaseAnchor(run)
+    if (release) {
+      anchor = release
+      shipped = run(['git', 'diff', '--name-only', `${release.ref}..HEAD`, '--', 'plugin/'])
+    }
+  }
   return {
     looked: true,
     branch: branch.out,
     head: head.ok ? head.out : '(unknown)',
     dirty: dirty.ok ? dirty.out.split('\n').filter(Boolean).length : null,
     ahead, behind, ci,
-    tag: tag.ok ? tag.out : null,
+    tag: anchor ? anchor.name : null,
+    tagKind: anchor ? anchor.kind : null,
     shippedSinceTag: shipped && shipped.ok ? shipped.out.split('\n').filter(Boolean).length : null,
   }
+}
+
+/**
+ * The forge's newest release, as a commit THIS checkout can diff from — or null.
+ *
+ * Null is a real answer and the common one: no `gh`, not a GitHub remote, no
+ * releases cut at all. The caller keeps its local tag and the render says the
+ * anchor is local, which is ADR-005 — "the newest tag this clone knows" and "the
+ * newest release" must not be printed in the same words.
+ *
+ * ⚠ `targetCommitish` IS NOT ALWAYS A SHA. It is whatever the release was cut
+ * against, and for one created from a branch it is the branch NAME. Handing that
+ * to `git diff` would anchor on the branch tip — which is HEAD — and report
+ * nothing unreleased for ever, silently, in the flattering direction. Only a
+ * 40-hex value is taken, and the commit must be one this clone actually holds:
+ * the tag may well be absent locally, but the commit it names is an ancestor.
+ */
+export function releaseAnchor(run) {
+  const answer = run(['gh', 'release', 'view', '--json', 'tagName,targetCommitish'])
+  if (!answer.ok) return null
+  let json
+  try { json = JSON.parse(answer.out) } catch { return null }
+  const sha = String(json?.targetCommitish ?? '')
+  const name = String(json?.tagName ?? '')
+  if (!/^[0-9a-f]{40}$/.test(sha) || !name) return null
+  if (!run(['git', 'cat-file', '-e', `${sha}^{commit}`]).ok) return null
+  return { ref: sha, name, kind: 'release' }
 }
 
 /**
@@ -154,8 +202,10 @@ export function render(state, { brief = false } = {}) {
   }
 
   const release = state.shippedSinceTag
-    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag} — `
-      + '§13: a green shipped change is released, not parked.'
+    ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}`
+      + `${state.tagKind === 'release' ? ''
+        : ', the newest tag THIS CLONE knows — a release tagged on the forge would not be here'}`
+      + ' — §13: a green shipped change is released, not parked.'
     : null
 
   if (brief) {

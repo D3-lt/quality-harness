@@ -10433,3 +10433,47 @@ line on a repository nobody in this project runs. Issue #12 says it was not nois
 a non-GitHub remote, the same dependency killed the entire reader on every prompt. **The removal was
 right for a stronger reason than the one that motivated it, and the evidence for that reason had to
 come from a machine and a repository this project has never seen.**
+
+### ⚠ Round ten: the discriminator was reading an exit code Windows can forge
+
+`git config --get-regexp` exits 1 for "no match", so round nine's fix had to read an exit code to
+tell *no remotes* from *could not look*. A different-lineage review found that reading unsound **on
+the one platform this was reported from**: libuv gives a forcibly killed Windows process exit status
+1 as well, so on Windows a killed lookup and git's own no-match are the same number, and the honest
+arm could still render as a verdict.
+
+`git remote -v` exits 0 with EMPTY OUTPUT where there are no remotes. The distinction is carried by
+`ok` alone, where no platform can blur it — and the `status` field round nine added to `shell` is
+gone with the reason for it, which also answers the same review's second finding (nothing regressed
+that field at the seam).
+
+**The general form, filed to craft:** a `run`/`shell` seam that reports only `{ ok }` cannot
+distinguish an exit code that means *no match* from a process that could not run — true of `grep`,
+`git config --get-regexp`, `diff`. The cheap fix is to carry the status; **the better fix is to pick
+a command whose success/failure already answers the question**, because a status can be forged by a
+platform and `ok` cannot.
+
+Third finding, LOW and correct: the second-prompt test killed the run AFTER `collect` returned, so
+an unusable early checkpoint followed by a real one after `gh` would have satisfied it. The runner
+now throws INSIDE `gh run list`, where the host actually kills, and the test asserts that what is on
+disk at that moment is usable and claims no CI answer.
+
+### The CI flake this release hit, which is not §158's but is on its path
+
+Dispatched run `34107450870` failed one job: `the grandchild never wrote a beat, so the fixture
+proved nothing` (`tests/timeout-tree.test.mjs`). At a 1s fence timeout the fence was killed before
+bash had started the background subshell, so nothing was alive to prove the tree kill on. **The
+fixture failing loudly rather than passing vacuously is the assertion working** — BACKLOG §127b
+replaced a clock with exactly this check for exactly this reason. What it needed was room: three
+seconds is ~15 of the grandchild's 100 beats, so the "it ran to completion on its own" guard still
+bites and the fence's own `sleep 60` still times out long before it.
+
+⚠ **And `release-evidence` refused once on the way, correctly** — §154's shape reversed. Dispatching
+immediately after a push gave the PUSH run the later `createdAt`, so the newest run for the sha was
+a cached campaign and the tool said `CACHED`, not SUCCESS. Re-dispatching with no push in between
+fixed it. The lesson is the one §154 already recorded from the other direction: **the two runs a
+release-time push produces are close enough in time that neither ordering can be assumed.**
+
+Released as **v2.87.0** at `35c75d8`, `--latest`, on `release-evidence.mjs` SUCCESS — 23 jobs,
+dispatched run `34110706970`. Issue #12 closed with the fix, the two review rounds, and the
+Enterprise-hostname cost stated rather than hidden.

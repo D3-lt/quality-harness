@@ -53,6 +53,19 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   it too: a diff that never ran and one that ran and found nothing were both rendered as SILENCE
   until 2026-09-07, so a spent collection budget read as "nothing to release". `budgeted` marks a
   command it PREVENTED, which is what makes the two distinguishable at all.
+- ⚠ **`gh` IS NOT ASKED WHERE `gh` CANNOT ANSWER, and that gate had to be built twice.** Reported
+  from outside (GitHub issue #12, BACKLOG §158): on a checkout whose only remote is a self-hosted
+  GitLab, `gh run list` took 4,214ms merely to fail, and in a live session it spent the whole
+  collection budget — so the HOST killed the hook at 20s and discarded the whole render, including
+  the git half. A reader built to end a silence produced one, on every prompt. The discriminator is
+  local: `git config --get-regexp '^remote\..*\.url$'`. **And the skip must not speak for a lookup
+  that never happened** — that command exits 1 when nothing matched, which is a real answer, while a
+  spent budget or an absent git is not. The first fix folded both into "no remote names a GitHub
+  host"; `shell` now carries the exit status so the two keep different words.
+- **A killed run leaves a cache entry.** `cached` used to write only after `gather` returned, so a
+  host kill cached nothing and the next prompt re-paid in full — three consecutive 20s timeouts,
+  none cheaper than the last. `collect` checkpoints the git half BEFORE `gh` is attempted, and that
+  checkpoint says in its own notes what it does not yet know. A floor, never a clean bill.
 - **It reports state, never permission.** `scripts/release-evidence.mjs <sha>` is still the only
   thing that answers "may this sha be released", and this reader deliberately does not restate its
   verdict (§13.4).

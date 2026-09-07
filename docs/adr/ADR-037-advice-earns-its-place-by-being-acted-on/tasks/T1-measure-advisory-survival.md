@@ -68,7 +68,14 @@ all T2 or later.
 
 ## Mutation Log
 
+- 2026-09-07 · 82a7d3d* · mutant killed · exit 1 · `plugin/bin/adr-lint` · a count nobody stored must not be returned, or a read-only .git reports 1 run for ever · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · covers:record_advice_survival
+- 2026-09-07 · 9512ffb · mutant killed · exit 1 · `plugin/bin/adr-lint` · the whole message is the identity, or every finding on a record folds into one and survival is meaningless · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · covers:advice_identity
+
 ## Verification Log
+
+- 2026-09-07 · 82a7d3d · exit 0 · `set -o pipefail …` · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · ms:6218
+- 2026-09-07 · 82a7d3d* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · ms:6229
+- 2026-09-07 · 9512ffb · exit 0 · `set -o pipefail …` · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · ms:6462
 
 ## Invariants
 

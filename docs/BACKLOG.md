@@ -3784,7 +3784,19 @@ error handler and never consults that ini. An uninformative null read as disconf
 form is this project's own rule pointed at a diagnostic instead of at a suite — **before reading a
 null as evidence, ask whether the instrument could have produced a non-null.**
 
-## 60. PROPOSED AS ADR-014 — a task that is honestly blocked has no state, and a rejection pointed at the wrong end of the row
+## 60. CLOSED 2026-09-07 (shipped as ADR-014) — a task that is honestly blocked has no state, and a rejection pointed at the wrong end of the row
+
+**Closed by `scripts/backlog-record-sweep.mjs` finding it, 2026-09-07.** The body below records
+the record as *Status Proposed*; it has been Accepted and fully executed since. The receipt:
+
+```
+$ python3 plugin/bin/adr-next docs/adr/ADR-014-… --all | awk '{print $1}' | sort | uniq -c
+   3 done
+$ grep -m1 '^\*\*Status:\*\*' docs/adr/ADR-014-….md
+**Status:** Accepted
+```
+
+The section below is kept as written (§10).
 
 **2026-08-30: the design half is now `docs/adr/ADR-014-a-task-that-is-honestly-unfinished.md`, Status
 Proposed** — `partial` as a status whose obligations follow its evidence, plus the `Blocked-on:`
@@ -4493,7 +4505,20 @@ cutover. That is "the check has nothing to run against here", not "we ran it and
 adoption number is the more interesting one, and T11 is post-cutover, needs a log, and per §73 was
 not even being asked.
 
-## 74. PROPOSED AS ADR-013 — a mutation a human performed has nowhere to be recorded
+## 74. CLOSED 2026-09-07 (shipped as ADR-013) — a mutation a human performed has nowhere to be recorded
+
+**Closed by `scripts/backlog-record-sweep.mjs` finding it, 2026-09-07.** The body below still
+says *"Status Proposed"* and *"nothing is executed until a human accepts it"* — both were true
+when written and neither is now. The receipt:
+
+```
+$ python3 plugin/bin/adr-next docs/adr/ADR-013-… --all | awk '{print $1}' | sort | uniq -c
+   3 done
+$ grep -m1 '^\*\*Status:\*\*' docs/adr/ADR-013-….md
+**Status:** Accepted
+```
+
+The section below is kept as written (§10).
 
 **2026-08-30: this is now `docs/adr/ADR-013-a-mutation-a-human-performed.md`, Status Proposed.** The
 entry below is what was known when it was filed and is kept as written; the record carries the
@@ -7131,7 +7156,18 @@ unmeasured claim, and building either on it would be the speculative complexity 
 
 ---
 
-## 111. the shipped gate re-runs a fence the caller just ran, and a merge removes it — ADR-025
+## 111. CLOSED 2026-09-07 (shipped as ADR-025) — the shipped gate re-runs a fence the caller just ran, and a merge removes it
+
+**Closed by `scripts/backlog-record-sweep.mjs` finding it, 2026-09-07.** The receipt:
+
+```
+$ python3 plugin/bin/adr-next docs/adr/ADR-025-… --all | awk '{print $1}' | sort | uniq -c
+   2 done
+$ grep -m1 '^\*\*Status:\*\*' docs/adr/ADR-025-….md
+**Status:** Accepted
+```
+
+The section below is what was known when it was filed and is kept as written (§10).
 
 **MEASURED 2026-09-02 across this corpus's own 51 task files**, which is the only reason this is
 filed rather than assumed:

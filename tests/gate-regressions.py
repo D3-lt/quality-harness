@@ -645,9 +645,26 @@ def test_proof_map_contract(bin_dir, lint):
 
     legacy = findings(valid_steps, valid_rows, header="")
     assert not legacy, legacy
-    proof_advice = [item for item in legacy.advice
-                    if "Proof map: v1" in item and "not checked" in item]
+    proof_advice = [item for item in legacy.advice if "proof-map cross-check did not run" in item]
     assert len(proof_advice) == 1, legacy.advice
+    said = proof_advice[0]
+    # ⚠ ADR-037 T2. This one advisory was 34 of the 78 live findings in this
+    # corpus, and its first wording ended "when authoring a NEW task" — it named
+    # file X and instructed the reader about future file Y, which is unactionable
+    # BY READING whatever anyone's habits are. Asserted here in both halves,
+    # because "made it actionable" is exactly the kind of claim that rots into an
+    # untested comment.
+    assert "UNRUN" in said, said
+    assert "when authoring a new task" not in said.lower(), (
+        f"advice must name an edit to THIS file, not instruct about a future one: {said}")
+    assert "T1-proof-map-probe.md" in said, f"and it must name the file it is about: {said}"
+    for edit in ("**Proof map:** v1", "[S<n>]", "Steps column"):
+        assert edit in said, f"the concrete edit must be named ({edit!r}): {said}"
+    # AND IT MUST NOT SURVIVE THE EDIT IT ASKS FOR — advice that fires whatever you
+    # do is what this whole record is about.
+    acted = findings(valid_steps, valid_rows)
+    assert not [item for item in acted.advice if "proof-map cross-check did not run" in item], (
+        f"doing what the advice says must silence it: {acted.advice}")
     shown_later = findings(
         [*valid_steps, "```text", "**Proof map:** v1", "```"],
         valid_rows, header="")

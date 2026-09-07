@@ -1847,3 +1847,87 @@ print(json.dumps(out))
     'a caller reads the exit code, and these gates produce one they never documented:\n' +
     undeclared.join('\n'))
 })
+
+// BACKLOG §169. Reported from an outside corpus: the fence timeout was
+// environment-only, so a task whose Acceptance is a full container suite needed
+// `QUALITY_HARNESS_FENCE_TIMEOUT` exported by whatever launched the gate, and
+// forgetting cost UNPROVEN after thirty minutes — the right failure, at the price of
+// a thirty-minute discovery every time.
+//
+// ⚠ IN A `.mjs` TEST BECAUSE THE MUTATION CAMPAIGN SPAWNS `node --test` AND NOTHING
+// ELSE. Written first in tests/gate-regressions.py, where it passed and where its
+// three catalogue entries were UNPROVEN — the campaign's own check said so
+// (`every catalogue entry names tests the campaign can actually spawn`). A test the
+// campaign cannot run cannot back a mutant, so the mutant proves nothing.
+test('fenceTimeout is read from the project config, and one it cannot use is said', () => {
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-fence-timeout-'))
+  try {
+    // ⚠ ITS OWN GIT REPOSITORY. `config_fence_timeout` resolves the project root with
+    // `git rev-parse`, so a temp directory that is not one would walk up into THIS
+    // checkout and read its config (CLAUDE.md §9).
+    const git = spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(git.status, 0, `the fixture needs its own repository: ${git.stderr}`)
+
+    const probe = `
+import json, os, pathlib, sys
+gate = pathlib.Path(sys.argv[1])
+head = gate.read_text(encoding='utf-8').split('def main()')[0]
+g = {'__name__': 'probe', '__file__': str(gate)}
+exec(compile(head, str(gate), 'exec'), g)
+root, config = pathlib.Path(sys.argv[2]), pathlib.Path(sys.argv[2]) / '.quality-harness.json'
+out = {'default': g['FENCE_TIMEOUT_DEFAULT'], 'arms': [], 'saidTwice': None}
+for text, env in json.loads(sys.argv[3]):
+    config.unlink(missing_ok=True)
+    if text is not None: config.write_text(text, encoding='utf-8')
+    g['_fence_config_said'].clear()
+    out['arms'].append([g['fence_timeout'](env=env, start=root), len(g['_fence_config_said'])])
+config.write_text('not json', encoding='utf-8')
+g['_fence_config_said'].clear()
+g['fence_timeout'](env={}, start=root)
+first = len(g['_fence_config_said'])
+g['fence_timeout'](env={}, start=root)
+out['saidTwice'] = [first, len(g['_fence_config_said'])]
+print(json.dumps(out))
+`
+    const arms = [
+      ['{"fenceTimeout": 3600}', {}],
+      ['{"fenceTimeout": "900"}', {}],
+      [null, {}],
+      ['{}', {}],
+      ['{"strictFrom": 12}', {}],
+      ['{"fenceTimeout": 3600}', { QUALITY_HARNESS_FENCE_TIMEOUT: '7' }],
+      ['{"fenceTimeout": 3600}', { QUALITY_HARNESS_FENCE_TIMEOUT: 'soon' }],
+      ['{"fenceTimeout": "soon"}', {}],
+      ['{"fenceTimeout": 0}', {}],
+      ['{"fenceTimeout": -5}', {}],
+      ['not json', {}],
+    ]
+    const ran = spawnSync('python3',
+      ['-c', probe, join(bin, 'adr-verify'), dir, JSON.stringify(arms)],
+      { encoding: 'utf8', timeout: 120_000 })
+    assert.equal(ran.status, 0, `the probe did not run, which is not a clean sweep: ${ran.stderr}`)
+    const { default: fallback, arms: got, saidTwice } = JSON.parse(ran.stdout)
+
+    // The reported gap, closed — and every way of NOT declaring one, or the two
+    // assertions above are a check that cannot come back clean.
+    assert.deepEqual(got.slice(0, 5),
+      [[3600, 0], [900, 0], [fallback, 0], [fallback, 0], [fallback, 0]],
+      `declared / string / no config / no key / another key: ${JSON.stringify(got)}`)
+    // ⚠ PRECEDENCE: the environment is a per-run override and the suite's own seam,
+    // so it beats the project's standing answer — a config that could beat it would
+    // make the suite's timing depend on the checkout it happens to run in. An
+    // UNUSABLE variable falls through TO THE CONFIG, not past it to the default.
+    assert.deepEqual(got.slice(5, 7), [[7, 0], [3600, 0]], JSON.stringify(got))
+    // ⚠ AND A CONFIG IT CANNOT USE IS SAID. A malformed value that quietly restored
+    // the default would be the hang this bound exists to prevent, wearing a clean run.
+    for (const [seconds, said] of got.slice(7)) {
+      assert.equal(seconds, fallback)
+      assert.equal(said, 1, 'an unusable config must be reported, not silently defaulted')
+    }
+    // Said ONCE per process: fence_timeout() is called from inside the very message
+    // strings that report a timeout, so an unguarded note would repeat at each mention.
+    assert.deepEqual(saidTwice, [1, 1], `the note must not repeat: ${JSON.stringify(saidTwice)}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

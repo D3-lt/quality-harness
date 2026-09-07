@@ -2050,12 +2050,36 @@ def check_task_status_vocabulary(infos, readme_text, errors):
         # corpus is saying. Reported from an outside corpus carrying three
         # `superseded` README rows (BACKLOG §167).
         if word in TERMINAL_TASK_STATUSES:
+            # ⚠ READ THE TASK FILE BEFORE TELLING ANYONE TO WRITE TO IT. The README is
+            # a DERIVED index and the task file wins (CLAUDE.md §10), so advice that
+            # says "put this word in the task file" without looking at what the file
+            # already says can tell an author to overwrite the authoritative copy from
+            # the derived one. Named by a different-lineage review of c29aae7.
+            declared = None
+            path = (infos.get(found) or {}).get("path")
+            if path is not None:
+                try:
+                    declared = terminal_task_status(path.read_text(errors="replace", encoding="utf-8"))
+                except OSError:
+                    declared = None
+            if declared is not None and declared.split()[0].strip(".,;:") == word:
+                # The index and the file agree. There is nothing to say, and saying it
+                # anyway is the churn §167 removed from the other side of this gate.
+                continue
+            if declared is not None:
+                errors.advise(
+                    f"README.md: {found} has status {seen}, and its TASK FILE says "
+                    f"`{declared}`. They disagree, and the FILE wins — `adr-next` and "
+                    f"`adr-lint` both route from it, and this index routes nothing. "
+                    f"Change the row, not the file.")
+                continue
             errors.advise(
                 f"README.md: {found} has status {seen}, which says the task will not be built. "
                 f"This index routes nothing — put `**Status:** {word}` in the TASK FILE and "
                 f"`adr-next` will stop offering it, and `adr-lint` will stop advising on its "
-                f"sections and its fence. The evidence checks did NOT run for it either way: "
-                f"that is 'not looked at', not 'nothing found'.")
+                f"sections and its fence. ⚠ THIS ROW did not run the `done`-row verification "
+                f"path; checks driven by the task's own Verification Log still ran if it has "
+                f"one, so this is not a statement that nothing was checked.")
             continue
         errors.advise(
             f"README.md: {found} has status {seen}, which this reader does not act on — so the "

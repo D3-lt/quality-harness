@@ -113,18 +113,9 @@ PARSE_OUT
     command -v jq >/dev/null 2>&1 || exit 0
     jq empty "$file_path" 2>&1 | tail -30 || true
     ;;
-  *.rs)
-    project=$(find_up 'Cargo.toml' "$file_dir") || exit 0
-    find_up '.claude/hooks/post_edit.py' "$file_dir" >/dev/null 2>&1 && exit 0
-    debounce "rs:$project" || exit 0
-    command -v cargo >/dev/null 2>&1 || exit 0
-    (cd "$project" && cargo check --workspace --message-format=short 2>&1 | tail -40) || true
-    ;;
-  *.ts|*.tsx)
-    project=$(find_up 'tsconfig.json' "$file_dir") || exit 0
-    debounce "ts:$project" || exit 0
-    command -v npx >/dev/null 2>&1 || exit 0
-    (cd "$project" && npx --no-install tsc --noEmit 2>&1 | tail -40) || true
+  # Project-wide TypeScript, Rust and Go checks belong in explicit acceptance
+  # commands. A per-edit debounce neither bounds their cost nor prevents overlap.
+  *.ts|*.tsx|*.rs|*.go)
     ;;
   *.py)
     project=$(find_up 'pyproject.toml setup.py setup.cfg requirements.txt Pipfile .venv' "$file_dir" || true)
@@ -142,11 +133,5 @@ PARSE_OUT
     debounce "php:$file_path" || exit 0
     command -v php >/dev/null 2>&1 || exit 0
     php -l "$file_path" 2>&1 | tail -30 || true
-    ;;
-  *.go)
-    project=$(find_up 'go.mod' "$file_dir") || exit 0
-    debounce "go:$project" || exit 0
-    command -v go >/dev/null 2>&1 || exit 0
-    (cd "$project" && go build ./... 2>&1 | tail -40) || true
     ;;
 esac

@@ -1745,3 +1745,27 @@ test('a gate whose manifest is unreadable says so, and states no version (BACKLO
     rmSync(temp, { recursive: true, force: true })
   }
 })
+
+// ⚠ `--help` IS THE FIRST THING ANYONE TYPES, and TEN OF ELEVEN GATES ANSWERED
+// `unknown option: --help` AT EXIT 2. Reported 2026-09-07 by two outside corpora
+// independently, one of which said its options were "discoverable only by
+// grepping the source" (BACKLOG §160).
+//
+// This runs over the DIRECTORY rather than a list, so the answer cannot go stale:
+// `reject_unknown_flags` is copied into six gates and the four others parse their
+// own argv, and a new gate that forgets this fails here rather than shipping mute.
+test('every gate answers --help, because a gate that will not explain itself is run wrong', () => {
+  const failures = []
+  for (const name of [...GATE_NAMES].sort()) {
+    for (const flag of ['--help', '-h']) {
+      const result = run(name, [flag], repoRoot)
+      const said = `${result.stdout ?? ''}${result.stderr ?? ''}`
+      if (result.status !== 0) failures.push(`${name} ${flag}: exit ${result.status} — ${said.split('\n')[0]}`)
+      else if (said.trim().length < 100) failures.push(`${name} ${flag}: exit 0 but said ${said.trim().length} chars`)
+      // Exit 0 and a usage block: an ERROR that happens to print usage is what
+      // adr-judge and qh-root already did, and it is not the same thing.
+      else if (/unknown option/i.test(said)) failures.push(`${name} ${flag}: printed usage but called it unknown`)
+    }
+  }
+  assert.deepEqual(failures, [], `a gate must explain itself:\n${failures.join('\n')}`)
+})

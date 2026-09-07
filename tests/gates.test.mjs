@@ -1029,7 +1029,7 @@ test('adr-lint cross-checks every ordered step against an explicit proof', (t) =
 
   const clean = lint(validTask, 'valid v1 proof map')
   expectExit(clean, 0, 'valid v1 proof map')
-  assert.doesNotMatch(clean.stdout, /proof map.*not checked/i, clean.stdout)
+  assert.doesNotMatch(clean.stdout, /proof-map cross-check did not run/i, clean.stdout)
 
   // Identity is stable when order changes: moving a step must not retarget the
   // Tests row, so the IDs deliberately do not match their list ordinals.
@@ -1195,14 +1195,14 @@ test('adr-lint cross-checks every ordered step against an explicit proof', (t) =
   const commentedLegacy = lint(commentedHeader, 'a commented header is absent')
   expectExit(commentedLegacy, 0, 'a commented header is absent')
   assert.equal(
-    commentedLegacy.stdout.match(/advice: .*Proof map: v1.*not checked/gi)?.length ?? 0,
+    commentedLegacy.stdout.match(/advice: .*proof-map cross-check did not run/gi)?.length ?? 0,
     1,
     commentedLegacy.stdout,
   )
 
   const legacy = lint(legacyTask, 'legacy task remains non-blocking')
   expectExit(legacy, 0, 'legacy task remains non-blocking')
-  const legacyAdvice = legacy.stdout.match(/advice: .*Proof map: v1.*not checked/gi) ?? []
+  const legacyAdvice = legacy.stdout.match(/advice: .*proof-map cross-check did not run/gi) ?? []
   assert.equal(legacyAdvice.length, 1, legacy.stdout)
 
   const legacyExample = legacyTask.replace(
@@ -1212,7 +1212,7 @@ test('adr-lint cross-checks every ordered step against an explicit proof', (t) =
   const shown = lint(legacyExample, 'a later proof-map example is still legacy')
   expectExit(shown, 0, 'a later proof-map example is still legacy')
   assert.equal(
-    shown.stdout.match(/advice: .*Proof map: v1.*not checked/gi)?.length ?? 0,
+    shown.stdout.match(/advice: .*proof-map cross-check did not run/gi)?.length ?? 0,
     1,
     shown.stdout,
   )

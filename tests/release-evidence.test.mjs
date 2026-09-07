@@ -6,7 +6,7 @@
 // plus the vacuous one that would let anything through.
 import { test } from 'node:test'
 import assert from 'node:assert/strict'
-import { classifyArgument, evaluateRun, runListArgv, selectRun } from '../scripts/release-evidence.mjs'
+import { classifyArgument, evaluateRun, fetchRun, runListArgv, selectRun } from '../scripts/release-evidence.mjs'
 
 const job = (name, conclusion, status = 'completed') => ({ name, status, conclusion })
 const NINE = [
@@ -251,4 +251,32 @@ test('the run list is scoped to the campaign workflow, not to the sha alone', ()
   assert.ok(argv.includes('--json') && argv[argv.indexOf('--json') + 1].includes('createdAt'),
     'selectRun decides on createdAt and event, so both must be asked for')
   assert.ok(argv[argv.indexOf('--json') + 1].includes('event'))
+})
+
+test('a short sha is EXPANDED before gh is asked, at the boundary that shells out', () => {
+  // `gh run list --commit <abbreviated>` returns `[]` — not an error, an empty
+  // list that reads exactly like "this commit has no runs" (measured 2026-09-02,
+  // gh 2.98.0). The expansion had a comment saying so and no test: `runListArgv`
+  // was handed an already-full sha, so deleting the `rev-parse` left the suite
+  // green while short shas silently returned nothing. Asserted here at the
+  // outermost callable boundary, because that is where the defect would arrive
+  // (CLAUDE.md §4).
+  const full = 'a'.repeat(40)
+  const asked = []
+  const exec = (bin, argv) => {
+    asked.push([bin, ...argv].join(' '))
+    if (bin === 'git') return `${full}\n`
+    if (argv[1] === 'list') return JSON.stringify([{ databaseId: 7, event: 'workflow_dispatch', createdAt: '2026-09-06T19:11:25Z' }])
+    return JSON.stringify({ status: 'completed', conclusion: 'success', headSha: full, event: 'workflow_dispatch', jobs: [] })
+  }
+
+  fetchRun('a1b2c3d', exec)
+  assert.ok(asked.some(a => a.startsWith('git rev-parse a1b2c3d')), `the short sha must be expanded:\n${asked.join('\n')}`)
+  const list = asked.find(a => a.includes('run list'))
+  assert.ok(list.includes(`--commit ${full}`), `gh must be asked with the FULL sha:\n${list}`)
+  assert.ok(!list.includes('--commit a1b2c3d'), 'never the abbreviated one')
+
+  // Shown able to answer the other way in the same test: a sha this checkout does
+  // not know is "could not look", not an empty run list (CLAUDE.md §4).
+  assert.equal(fetchRun('nope', () => { throw new Error('unknown revision') }), null)
 })

@@ -10964,3 +10964,45 @@ could-not-look. `adr-verify --mutant` still leaves 1 for both `survived` and
 `inconclusive` (§152), and the docstring now says so rather than fixing it. Giving that
 state its own code is a behaviour change for every caller of `--mutant`, so it belongs
 in a record and not in this sweep.
+
+## 165. OPEN — `workflow-parse` proves a file PARSES, not that the Workflow runtime will load it
+
+**Named by the third different-lineage review of 3e872cc**, 2026-09-07, and deferred
+rather than fixed because it widens the question rather than correcting an answer.
+
+`checkWorkflowSource` compiles the source as an async function body, so it proves the
+bytes are syntactically a Workflow script. The runtime asks for more. Its own contract
+requires `export const meta = {...}` to be a **pure literal** — no variables, calls or
+interpolation — with a non-empty `name` and `description`. Both of these return `null`
+today and both are files the runtime refuses before launch:
+
+```js
+export const meta = {}                                    // no name, no description
+export const meta = { name: `run-${Date.now()}`, … }      // not a literal
+```
+
+So the checker still gives a flattering answer on a file that will not run — smaller
+than the one §161 replaced, and the same shape.
+
+**Why it is not done here.** "Does this parse" and "will the runtime accept this" are
+different questions, and the second has a moving answer: the metadata rules belong to
+the installed Claude Code, not to this plugin, and pinning them in a gate makes this
+repository assert a contract it does not own and cannot see change. §162's rule applies
+— a check whose authority comes from elsewhere needs the elsewhere named.
+
+**What would close it, in order of what it costs:**
+
+1. Parse the `meta` object with a real JS parser and require `name` and `description`
+   to be non-empty string literals. Cheap, catches the common case, and asserts only
+   what the Workflow tool's own documented contract says in words.
+2. Report a Workflow-goal pass as `UNPROVEN` rather than clean, so the checker never
+   claims more than it measured. Correct and useless — a check that is never clean is a
+   check nobody runs (ADR-037).
+3. Run the file through the real Workflow runtime. There is no runner in this
+   repository and adding one would ship a dependency on the host, which is what the
+   `workflows/` format exists to avoid.
+
+⚠ **(1) is the only one worth doing, and only when something asks for it.** Nothing has
+yet: the three shipped workflows all carry literal metadata with both fields, and no
+outside report names this. Filed so the gap is written down rather than rediscovered as
+a surprise.

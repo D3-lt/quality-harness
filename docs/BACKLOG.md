@@ -10155,3 +10155,46 @@ came from measuring the wrong thing.
 
 Ten branch-state mutants and six release-evidence mutants, all RED. Three review rounds, three sets
 of real findings; the count of rounds is not the point, that none of them was empty is.
+
+### Round three: the hole moved sideways a third time, and the review PROBED again
+
+Two HIGH, folded in as `4b3a3c7`. The reviewer imported the module, injected runners, and read the
+brief line — it did not reason about what the code would do. Both findings are the same sentence
+in different places: **round two's fix closed one path and moved the same honesty hole one step
+sideways.**
+
+**Every forge failure that was not "no release" was quiet.** `HTTP 401: Bad credentials`, a network
+drop, a permission error, a timeout, `gh` missing — all landed in `absent` with `blocked: false`. A
+local tag at HEAD then diffed to zero and the reader printed a green, silent, release-clean line.
+Only a POSITIVELY identified no-release is silent now; everything else is `unknown` and says so.
+That costs an adopter without `gh` a second could-not-look line, and they already get the CI one for
+the same reason — consistent rather than new noise, which is the §152 test applied honestly.
+
+**A rejected release was swallowed by an ALIAS.** `blocked` was only reported when there was no
+anchor at all, so a prerelease at HEAD plus any local tag under a DIFFERENT name — `candidate` on
+the same commit — anchored locally, diffed to zero, and fell silent. The name-comparison guard stops
+the identical tag walking back in and does nothing about an alias, so **the blocked STATE has to
+survive the fallback**, not the tag be filtered out of it.
+
+⚠ **AND THAT FIX MADE THE NAME FILTER LOOK DEAD — the second GREEN mutant of the session.** With an
+empty diff both paths now reach COULD NOT LOOK, so deleting the filter changed nothing any test
+could see. It is still load-bearing where the diff is NOT empty: anchoring on the prerelease measures
+"since the prerelease", which UNDERSTATES the unreleased work and prints a confident count while
+doing it. Covered now (`fb2464f`).
+
+**Both GREENs this session had the same shape and the same answer.** A surviving mutant is a finding
+about the test; assert the mechanism where it is load-bearing, never pick an easier mutant (§4).
+The first was a render test supplying the flag it was checking; the second was a guard whose distinct
+effect only shows in a case no fixture had.
+
+⚠ **A process finding worth more than any single defect here.** Round one was killed at 25 minutes by
+`gtimeout` at `xhigh` and produced nothing; round three hung for 12 minutes on
+`Reading additional input from stdin...` and produced nothing. `.claude/rules/12-reviews.md` already
+says to redirect stdin from `/dev/null` and I omitted it twice — about 37 minutes for an instruction
+that has been written down since the rule was created. **This is §152's shape once more: an
+instruction where a mechanism belongs**, and the reviewer cannot report the defect because the
+reviewer is what failed to start.
+
+Three rounds, three sets of real HIGH findings, and each round could only find its own because the
+previous fix created the exposure. The count of rounds is not the point; that none of them was empty
+is.

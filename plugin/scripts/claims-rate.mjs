@@ -118,10 +118,16 @@ export function render(counts, source, { armWithdrawn = ASSERTION_ARM_WITHDRAWN 
   // worse than no gate. Historical `asserted` rows still count, so the number
   // is not meaningless; it is just not a measurement of TODAY.
   if (armWithdrawn) {
-    lines.push('⚠ claim detection is WITHDRAWN (BACKLOG §124): no new row can enter the false '
-      + 'half, so a 0 there means the arm is off, NOT that no false success occurred. Any '
-      + 'false count above comes from asserted rows already in this ledger; this version cannot '
-      + 'add one.')
+    lines.push('⚠ claim detection is RETIRED (ADR-036, from BACKLOG §124): no new row can enter '
+      + 'the false half, so a 0 there means the arm is off, NOT that no false success occurred. '
+      + 'Any false count above comes from asserted rows already in this ledger; this version '
+      + 'cannot add one.')
+    // ADR-036: say what DOES answer the question, or a reader left with only a
+    // disclaimer concludes the project cannot measure false success at all. It
+    // can — by evidence rather than by wording, which is the stronger claim.
+    lines.push('  The measure that replaces it is the evidence partition below: a completion '
+      + 'event recorded `unverified` or `no-check` is work that claimed to be done with nothing '
+      + 'behind it. That is the claim checked against what ran, not read off the prose.')
   }
   if (counts.excluded) {
     lines.push(`${counts.excluded} row(s) excluded — in neither half of the rate:`, ...excluded)

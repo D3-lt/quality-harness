@@ -5248,6 +5248,33 @@
       "to": "  if (false) {"
     },
     {
+      "label": "release-evidence: a createdAt tie is broken by the event, not by list order",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  return tied.find(r => r.event === 'workflow_dispatch') ?? tied[0]",
+      "to": "  return tied[0]"
+    },
+    {
+      "label": "release-evidence: only runs tied at the newest instant may prefer a dispatch",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  const tied = candidates.filter(r => at(r) === newest)",
+      "to": "  const tied = candidates"
+    },
+    {
+      "label": "release-evidence: an unreadable createdAt is not silently ordered",
+      "file": "scripts/release-evidence.mjs",
+      "tests": [
+        "tests/release-evidence.test.mjs"
+      ],
+      "from": "  if (candidates.some(r => at(r) === null)) return candidates[0]",
+      "to": "  if (false) return candidates[0]"
+    },
+    {
       "label": "fence: the survivor walk finds the grandchild, not only the child (§128)",
       "file": "plugin/lib/fence.py",
       "tests": [

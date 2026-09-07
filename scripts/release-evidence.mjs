@@ -103,6 +103,43 @@ export function evaluateRun(run) {
 }
 
 /**
+ * Choose which of a sha's runs the release question is about.
+ *
+ * ⚠ NEWEST IS NOT ENOUGH, AND THE TIE IS THE ORDINARY CASE (BACKLOG §154). The
+ * release sequence CLAUDE.md §13 documents is push, then
+ * `gh workflow run selftest.yml`, and issuing both from one shell lands two runs
+ * at the same sha with a byte-identical `createdAt` — measured 2026-09-06 cutting
+ * v2.83.0, both at `2026-09-06T19:11:25Z`. Ordering on time alone then resolves
+ * the tie arbitrarily; it resolved to the push run, the gate answered `CACHED`,
+ * and the full campaign it was being asked about had already passed. A whole CI
+ * cycle, spent on an ambiguity the documented procedure walks into.
+ *
+ * So the tie is broken on the EVENT, which is the field the verdict already
+ * depends on: among the runs sharing the newest instant, a `workflow_dispatch`
+ * wins. ONLY among them — a dispatch that is genuinely older than a later push
+ * must never be resurrected, because the push is the newer question and its
+ * campaign may have reused cached verdicts. That is the hole §142 closed.
+ *
+ * Pure and exported so the tie is reachable from a test with no network.
+ */
+export function selectRun(runs) {
+  if (!Array.isArray(runs)) return null
+  const candidates = runs.filter(r => r && typeof r === 'object' && r.databaseId)
+  if (candidates.length === 0) return null
+  const at = r => {
+    const t = Date.parse(String(r.createdAt ?? ''))
+    return Number.isNaN(t) ? null : t
+  }
+  // A run whose timestamp cannot be read is not silently ordered. Keeping gh's
+  // own order is what this did before the tie-break existed; inventing a ranking
+  // over values that do not compare would be a verdict taken without looking.
+  if (candidates.some(r => at(r) === null)) return candidates[0]
+  const newest = Math.max(...candidates.map(at))
+  const tied = candidates.filter(r => at(r) === newest)
+  return tied.find(r => r.event === 'workflow_dispatch') ?? tied[0]
+}
+
+/**
  * The newest run for `sha`, or null when nothing can be read.
  *
  * ⚠ `gh run list --commit` needs the FULL 40-character sha. Given an
@@ -121,15 +158,19 @@ function fetchRun(sha) {
   }
   let list
   try {
+    // More than one run per sha is the norm, and `--limit 1` would hand the tie
+    // above straight back to gh's ordering. `event` and `createdAt` are asked
+    // for because `selectRun` decides on both.
     list = execFileSync('gh', [
-      'run', 'list', '--commit', full, '--limit', '1', '--json', 'databaseId',
+      'run', 'list', '--commit', full, '--limit', '20',
+      '--json', 'databaseId,event,createdAt',
     ], { encoding: 'utf8', timeout: 60_000 })
   } catch {
     return null // gh absent, unauthenticated, or offline — "could not look".
   }
   let id
   try {
-    id = JSON.parse(list)?.[0]?.databaseId
+    id = selectRun(JSON.parse(list))?.databaseId
   } catch {
     return null
   }

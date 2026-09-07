@@ -19,6 +19,24 @@ base=$(basename "$f")
 base_lc=$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')
 gate="" out="" rc=0
 
+# runArtifactGates supplies a private, disposable ledger for one sequential pass.
+# Keep ownership resolution here and key the full argv, not an ADR basename.
+# The caller retains the first finding; a repeated command need not report it again.
+run_adr_lint() {
+  local ledger="" key status
+  [ "$boundary" = "PostToolUse" ] || ledger=${QUALITY_HARNESS_ADR_LEDGER-}
+  printf -v key '%q ' "$BIN/adr-lint" "$@"
+  if [ -n "$ledger" ] && grep -Fqx -- "$key" "$ledger" 2>/dev/null; then
+    return 0
+  fi
+  "$BIN/adr-lint" "$@"; status=$?
+  # A timed-out or interrupted command has not completed a check.
+  if [ -n "$ledger" ] && [ "$status" -lt 128 ]; then
+    { printf '%s\n' "$key" >> "$ledger"; } 2>/dev/null || :
+  fi
+  return "$status"
+}
+
 # A template ships placeholders on purpose, so gating one as a project artifact
 # fails by design — and that failure blocked the edit, then every later commit in
 # the session, in every repository, because the path stayed in mutationPaths.
@@ -158,7 +176,7 @@ elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
   out=$("$BIN/postmortem-verify" "$f" 2>&1); rc=$?
 elif [[ "$base" == ADR-*.md ]] || is_adr "$f"; then
   gate="adr-lint"
-  out=$("$BIN/adr-lint" "$f" 2>&1); rc=$?
+  out=$(run_adr_lint "$f" 2>&1); rc=$?
 elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' "$f"; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.
@@ -191,7 +209,7 @@ elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' "$f
     exit 0
   fi
   gate="adr-lint"
-  out=$("$BIN/adr-lint" "${candidates[0]}" "$tdir" 2>&1); rc=$?
+  out=$(run_adr_lint "${candidates[0]}" "$tdir" 2>&1); rc=$?
 elif [[ "$f" == */docs/specs/*.md ]] \
   || { grep -q '^## Facts' "$f" 2>/dev/null && grep -q '^## Grill Log' "$f" 2>/dev/null; }; then
   # facts-first spec (structure-only draft gate while authoring; --spec stays a deliberate step)

@@ -81,6 +81,16 @@ Two of them carry the evidence chain and are worth knowing by name:
 Nothing in those logs is written by a model. If a row says `exit 0`, a process
 exited 0.
 
+Automatic edit hooks keep source checks local to the edited file. Project-wide
+TypeScript, Rust and Go checks run when you explicitly invoke them or include them
+in a task's acceptance command. Commit and completion verification still report
+when the project's declared check has not run after the final edit.
+
+At an artifact-verification boundary, tasks that resolve to the same ADR command
+share that check within the pass. Findings are retained, and the next boundary
+checks again. The harness's own selftests run in its development repository and CI;
+they are not part of installed-user edit hooks.
+
 **Every gate answers `--version`**, with the version of the tree IT was loaded
 from — not the newest copy on the machine:
 

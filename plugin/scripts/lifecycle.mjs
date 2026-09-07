@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, lstatSync, mkdirSync, readdirSync, readlinkSync, realpathSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -1686,37 +1686,52 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
     if (underTempRoot(filePath) && !underTempRoot(cwd)) continue
     targets.push(filePath)
   }
-  for (const filePath of [...new Set(targets)]) {
-    const remaining = deadline - Date.now()
-    if (remaining < 1_000) {
-      failures.push(`The boundary's ${Math.round(windowMs / 1000)}s window was exhausted before ${filePath} was gated. `
-        + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.')
-      break
+  const uniqueTargets = [...new Set(targets)]
+  // The dispatcher owns ADR resolution. Share only completed, identical ADR
+  // commands within this pass; the next boundary always starts with no ledger.
+  let ledgerDirectory
+  if (uniqueTargets.length > 1) {
+    try { ledgerDirectory = mkdtempSync(path.join(os.tmpdir(), 'quality-harness-gates-')) } catch {}
+  }
+  const ledger = ledgerDirectory ? path.join(ledgerDirectory, 'adr').split(path.sep).join('/') : ''
+  try {
+    for (const filePath of uniqueTargets) {
+      const remaining = deadline - Date.now()
+      if (remaining < 1_000) {
+        failures.push(`The boundary's ${Math.round(windowMs / 1000)}s window was exhausted before ${filePath} was gated. `
+          + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.')
+        break
+      }
+      const timeoutMs = Math.min(artifactGateTimeoutMs(), remaining)
+      const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
+        input: JSON.stringify({ tool_input: { file_path: filePath } }),
+        encoding: 'utf8',
+        env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(Math.max(timeoutMs, 100)), QUALITY_HARNESS_ADR_LEDGER: ledger },
+        timeout: timeoutMs + ARTIFACT_GATE_KILL_MARGIN_MS,
+      })
+      // The exit code no longer carries the verdict: the gates advise, so a finding
+      // arrives as OUTPUT with a clean exit. Reading status alone would drop every
+      // one of them silently, which is worse than blocking ever was — advisory has
+      // to mean reported, not swallowed.
+      const said = (run.stderr || '').trim()
+      if (run.status !== 0 || said) {
+        const detail = (said || run.error?.message || `artifact gate exited ${run.status}`).trim()
+        // A gate that ran out of time reported nothing about the artifact — name
+        // the budget, because the gate's own words would send the reader to the
+        // record instead of to the clock.
+        failures.push(budgetExhausted(detail, run.error)
+          ? `${detail}\nThe gate did not finish, so it says nothing about ${filePath}. `
+            + `This is a budget, not a finding: raise QUALITY_HARNESS_SHELL_TIMEOUT_MS `
+            + `(currently ${timeoutMs}ms, max 110000) for a corpus this size — the boundary `
+            + `still caps the whole pass at ${Math.round(windowMs / 1000)}s so the hook `
+            + `cannot outlive its own deadline.`
+          : detail)
+      }
     }
-    const timeoutMs = Math.min(artifactGateTimeoutMs(), remaining)
-    const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
-      input: JSON.stringify({ tool_input: { file_path: filePath } }),
-      encoding: 'utf8',
-      env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(Math.max(timeoutMs, 100)) },
-      timeout: timeoutMs + ARTIFACT_GATE_KILL_MARGIN_MS,
-    })
-    // The exit code no longer carries the verdict: the gates advise, so a finding
-    // arrives as OUTPUT with a clean exit. Reading status alone would drop every
-    // one of them silently, which is worse than blocking ever was — advisory has
-    // to mean reported, not swallowed.
-    const said = (run.stderr || '').trim()
-    if (run.status !== 0 || said) {
-      const detail = (said || run.error?.message || `artifact gate exited ${run.status}`).trim()
-      // A gate that ran out of time reported nothing about the artifact — name
-      // the budget, because the gate's own words would send the reader to the
-      // record instead of to the clock.
-      failures.push(budgetExhausted(detail, run.error)
-        ? `${detail}\nThe gate did not finish, so it says nothing about ${filePath}. `
-          + `This is a budget, not a finding: raise QUALITY_HARNESS_SHELL_TIMEOUT_MS `
-          + `(currently ${timeoutMs}ms, max 110000) for a corpus this size — the boundary `
-          + `still caps the whole pass at ${Math.round(windowMs / 1000)}s so the hook `
-          + `cannot outlive its own deadline.`
-        : detail)
+  } finally {
+    if (ledgerDirectory) {
+      try { rmSync(ledgerDirectory, { recursive: true, force: true, maxRetries: 3 }) }
+      catch (error) { console.error(`Could not remove the temporary artifact-gate ledger: ${error?.code ?? error}`) }
     }
   }
   return failures.length ? `Artifact validation failed:\n${failures.join('\n')}` : null
@@ -3137,12 +3152,23 @@ export function sweepStaleMarkers(tmp = os.tmpdir(), now = Date.now()) {
   return report
 }
 
-function firstMentionThisSession(sessionId, key) {
-  if (typeof sessionId !== 'string' || !sessionId) return true
+function sessionMentionPath(sessionId, key) {
+  if (typeof sessionId !== 'string' || !sessionId) return null
   const generation = sessionGeneration(sessionId)
   const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`).digest('hex').slice(0, 32)
+  return path.join(saidMarkerDirectory(), stamp)
+}
+
+function alreadyMentionedThisSession(sessionId, key) {
+  const marker = sessionMentionPath(sessionId, key)
+  if (!marker) return false
+  try { return Date.now() - statSync(marker).mtimeMs <= SAID_MARKER_MAX_AGE_MS } catch { return false }
+}
+
+function firstMentionThisSession(sessionId, key) {
+  const marker = sessionMentionPath(sessionId, key)
+  if (!marker) return true
   sweepStaleMarkers()
-  const marker = path.join(saidMarkerDirectory(), stamp)
   // Exclusive create: two parallel tool calls carrying the same finding both
   // saw no marker and both said it in full (Codex review, 2026-09-05). EEXIST
   // is the second caller's answer; any other failure means the marker cannot
@@ -3400,10 +3426,13 @@ function decisionContextFor(input) {
   const cwd = typeof input.cwd === 'string' && path.isAbsolute(input.cwd) ? input.cwd : process.cwd()
   const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
   if (typeof target !== 'string' || !target) return ''
+  const resolved = path.resolve(cwd, target)
+  // Only skip work for context already emitted. A miss or failed discovery must
+  // remain eligible when a governing record is added later in the same session.
+  if (alreadyMentionedThisSession(input.session_id, resolved)) return ''
   const directory = nearestExistingDirectory(path.resolve(cwd))
   const root = directory ? gitRepositoryRoot(directory) ?? directory : null
   if (!root) return ''
-  const resolved = path.resolve(cwd, target)
   let context
   try { context = decisionContext([resolved], root) } catch { return '' }
   if (!context) return ''

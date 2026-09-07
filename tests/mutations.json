@@ -5176,6 +5176,24 @@
       "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }"
     },
     {
+      "label": "adr-lint: a survival count nobody stored is not a count",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if not write(data):\n        return None\n    return out",
+      "to": "    write(data)\n    return out"
+    },
+    {
+      "label": "adr-lint: a survival note whose runs is not a number is UNKNOWN, not a crash",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if not isinstance(entry.get(\"runs\"), int) or isinstance(entry.get(\"runs\"), bool):\n                return False",
+      "to": "            if False:\n                return False"
+    },
+    {
       "label": "adr-lint: a changed finding is a new finding, and its survival resets",
       "file": "plugin/bin/adr-lint",
       "tests": [

@@ -93,7 +93,12 @@ useful" affordance. This task changes one message.
 
 ## Mutation Log
 
+- 2026-09-07 · 82a99ff* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the advisory must name an edit to the file it reports on, not instruct about a future task · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · covers:PROOF_MAP_LEGACY_ADVICE
+
 ## Verification Log
+
+- 2026-09-07 · 82a99ff · exit 0 · `set -o pipefail …` · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · ms:5932
+- 2026-09-07 · 82a99ff* · exit 0 · `set -o pipefail …` · acceptance-sha256:e8653ac81f8ab5f2ead53d33c25953136cbe1165b42e613482b4374d8535c835 · ms:5983
 
 ## Invariants
 

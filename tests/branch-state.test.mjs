@@ -31,6 +31,11 @@ const GIT_CLEAN = [
   ['git rev-list', ok('0\t0')],
   ['git describe', ok('v2.64.0')],
   ['git diff --name-only', ok('')],
+  // A repository with no release cut. `gh` says so in those words, which is the
+  // ONLY forge failure allowed to be silent — every other one is could-not-look
+  // and now says so, so a fixture that omitted this line would model an
+  // unreachable forge rather than a quiet one.
+  ['gh release view', no('release not found')],
 ]
 
 test('a green run and a red run do not read alike', () => {
@@ -437,5 +442,58 @@ test('a prerelease at HEAD does not walk back in as the local tag', () => {
     ['git diff --name-only v2.86.0-rc1..HEAD', ok('')],
   ])))
   assert.match(out, /COULD NOT LOOK/, `the rejected tag was reused as the anchor:\n${out}`)
+  assert.match(out, /prerelease/)
+})
+
+// Round three of the review, and both findings are the same sentence: a fix that
+// closed one path moved the same honesty hole one step sideways. Both are
+// asserted through `{ brief: true }`, because that is the form that fires on
+// every prompt and the full form's `release` column does not exist there.
+test('a forge failure that is NOT "no release" is loud, in the brief form', () => {
+  // PROBED, not argued: an injected `HTTP 401: Bad credentials` produced
+  // `{kind:"absent", blocked:false}`, a local tag at HEAD diffed to zero, and the
+  // brief line read green and silent. The structured-result fix had closed the
+  // budget path and left every other forge failure quiet.
+  const withForge = answer => render(collect(runner([
+    ['git rev-parse --abbrev-ref', ok('main')],
+    ['git rev-parse --short', ok('46a2656')],
+    ['git status --short', ok('')],
+    ['git rev-list', ok('0\t0')],
+    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+    ['gh release view', answer],
+    ['git describe', ok('v2.85.0')],
+    ['git diff --name-only v2.85.0..HEAD', ok('')],
+  ])), { brief: true })
+
+  assert.match(withForge(no('HTTP 401: Bad credentials')), /COULD NOT LOOK at the release state/,
+    'an authentication failure is not "there is no release"')
+  assert.match(withForge(no('dial tcp: lookup api.github.com: no such host')), /COULD NOT LOOK/,
+    'nor is a network failure')
+
+  // The other direction, in the same test: a forge that SAYS there is no release
+  // stays quiet, because most adopters live there and §152 is about advice that
+  // fires every run.
+  assert.doesNotMatch(withForge(no('release not found')), /COULD NOT LOOK/,
+    'a repository with no release cut must not be shouted at every prompt')
+})
+
+test('a rejected release stays blocked even when a local tag ALIASES it', () => {
+  // The name-comparison guard keeps the IDENTICAL tag out of the fallback and
+  // does nothing about an alias: a prerelease at HEAD plus a local `candidate`
+  // tag on the same commit anchored locally, diffed to zero, and fell silent. So
+  // the blocked STATE has to survive the fallback, not just the tag name.
+  const out = render(collect(runner([
+    ['git rev-parse --abbrev-ref', ok('main')],
+    ['git rev-parse --short', ok('46a2656')],
+    ['git status --short', ok('')],
+    ['git rev-list', ok('0\t0')],
+    ['gh run list', ok(JSON.stringify([{ headSha: '46a2656', status: 'completed', conclusion: 'success', databaseId: 1 }]))],
+    ['gh release view', ok(JSON.stringify({
+      tagName: 'v2.86.0-rc1', targetCommitish: RELEASED_SHA, isDraft: false, isPrerelease: true,
+    }))],
+    ['git describe', ok('candidate')],
+    ['git diff --name-only candidate..HEAD', ok('')],
+  ])), { brief: true })
+  assert.match(out, /COULD NOT LOOK at the release state/, `an alias swallowed the refusal:\n${out}`)
   assert.match(out, /prerelease/)
 })

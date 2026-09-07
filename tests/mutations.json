@@ -5176,6 +5176,24 @@
       "to": "      return { ok: false, out: '', note: `budget of ${totalMs}ms spent before \\`${argv.join(' ')}\\`` }"
     },
     {
+      "label": "branch-state: a remotes lookup that could not be made is not a repository without a GitHub remote",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  const unreadable = !remotes.ok && remotes.status !== 1",
+      "to": "  const unreadable = false"
+    },
+    {
+      "label": "branch-state: collect checkpoints the git half from inside collect, not only through cached",
+      "file": "plugin/scripts/branch-state.mjs",
+      "tests": [
+        "tests/branch-state.test.mjs"
+      ],
+      "from": "  checkpoint({\n    ...git,\n    ci: { looked: false, note: 'this answer was stored before the CI half was gathered' },\n    tag: null, shippedSinceTag: null,\n    releaseBlocked: 'this answer was stored before the release half was read',\n  })",
+      "to": "  void checkpoint"
+    },
+    {
       "label": "statusline: a stale CI cache is said to be stale, not read as current",
       "file": "plugin/scripts/statusline.mjs",
       "tests": [

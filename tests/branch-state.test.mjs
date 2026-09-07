@@ -374,6 +374,23 @@ test('`gh` is not asked where no remote names a GitHub host', () => {
   render(collect(spy2([...GIT_CLEAN,
     ['gh run list', ok(JSON.stringify([{ headSha: '0a18d04ff', status: 'completed', conclusion: 'success', databaseId: 1 }]))]])))
   assert.equal(askedGh.some(a => a.startsWith('gh run list')), true)
+
+  // ⚠ AND A LOOKUP THAT COULD NOT BE MADE IS NOT A REPOSITORY WITHOUT A GITHUB
+  // REMOTE. `git config --get-regexp` exits 1 when nothing matched, which is a
+  // real answer; a spent budget or an absent git is not. Rendering both as "no
+  // remote names a GitHub host" would be ADR-005 broken by the fix for issue #12.
+  const blind = render(collect(runner([...GIT_CLEAN.filter(([p]) => !p.startsWith('git config')),
+    ['git config --get-regexp', no('spawnSync git ETIMEDOUT')]])), { brief: true })
+  assert.match(blind, /the remotes could not be read \(spawnSync git ETIMEDOUT\)/)
+  assert.doesNotMatch(blind, /no remote names a GitHub host/,
+    'could-not-look must not borrow the vocabulary of an answer')
+
+  // The other direction, in the same test: exit 1 IS the answer "nothing matched",
+  // and it keeps its own words rather than being demoted to could-not-look.
+  const none = render(collect(runner([...GIT_CLEAN.filter(([p]) => !p.startsWith('git config')),
+    ['git config --get-regexp', { ok: false, out: '', status: 1, note: '' }]])), { brief: true })
+  assert.match(none, /no remote names a GitHub host/)
+  assert.doesNotMatch(none, /could not be read/)
 })
 
 test('the git half is cached BEFORE the network half is attempted', () => {
@@ -405,4 +422,49 @@ test('the git half is cached BEFORE the network half is attempted', () => {
     'a checkpoint must be readable as a cache, or it buys no backoff at all')
   assert.equal(state.state.ci.looked, true, 'the caller still gets the FULL answer, not the checkpoint')
   assert.equal(writes[1].ci.looked, true, 'and the full answer replaces the checkpoint')
+})
+
+test('collect checkpoints the git half BEFORE it spawns gh, and the next prompt reads it', () => {
+  // Asserted where the mechanism lives. A checkpoint taken AFTER the network call
+  // buys nothing, because the network call is the one that gets killed — and the
+  // previous test for this drove a hand-written `gather`, which exercised the
+  // forwarding in `cached` and nothing at all about `collect`'s ordering.
+  const log = []
+  const table = [...GIT_CLEAN,
+    ['gh run list', ok(JSON.stringify([{ headSha: '0a18d04ff', status: 'completed', conclusion: 'success', databaseId: 1 }]))]]
+  const spy = argv => { log.push(argv.join(' ')); return runner(table)(argv) }
+
+  collect(spy, () => log.push('CHECKPOINT'))
+  const mark = log.indexOf('CHECKPOINT')
+  const network = log.findIndex(c => c.startsWith('gh run list'))
+  assert.notEqual(mark, -1, 'collect must checkpoint at all')
+  assert.notEqual(network, -1, 'and this fixture must actually reach the network call')
+  assert.ok(mark < network, `the checkpoint must precede the network call:\n${log.join('\n')}`)
+
+  // And now the second prompt, for real: a first run killed during the network
+  // half, then an actual `cached()` read that must not gather again.
+  let store = null
+  assert.throws(() => cached(120, {
+    read: () => null,
+    write: payload => { store = payload },
+    now: () => 1000,
+    gather: checkpoint => { collect(spy, checkpoint); throw new Error('the host killed the hook') },
+  }), /the host killed the hook/)
+  assert.ok(store, 'a killed run must leave a cache entry behind, or it buys no backoff at all')
+
+  let gathered = 0
+  const second = cached(120, {
+    read: () => store,
+    write: () => {},
+    now: () => 21_000,
+    gather: () => { gathered += 1; return {} },
+  })
+  assert.equal(gathered, 0, 'the second prompt must not re-pay for the run that was killed')
+  assert.equal(second.fromCache, true)
+
+  // A floor, never a clean bill: what it serves says what it does not know.
+  const out = render(second.state, { brief: true })
+  assert.match(out, /COULD NOT LOOK/)
+  assert.match(out, /stored before the CI half was gathered/)
+  assert.match(out, /main @ 0a18d04/, 'while the git half — the half a session reads — survives')
 })

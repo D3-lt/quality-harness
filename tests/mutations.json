@@ -6191,6 +6191,16 @@
       "from": "        if seconds > 0:\n            return seconds\n    declared = config_fence_timeout(",
       "to": "        if False:\n            return seconds\n    declared = config_fence_timeout(",
       "only": "fenceTimeout is read from the project config"
+    },
+    {
+      "label": "dispatch: a document ABOUT postmortems is not routed to postmortem-verify",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gate-rules.test.mjs"
+      ],
+      "only": "ABOUT postmortems",
+      "from": "    && awk 'NR==1 && $0!=\"---\" {exit 1} NR>1 && $0==\"---\" {exit 1}",
+      "to": "    && awk 'BEGIN {exit 0} NR==1 && $0!=\"---\" {exit 1} NR>1 && $0==\"---\" {exit 1}"
     }
   ]
 }

@@ -62,23 +62,31 @@ case "$file_path" in
     fi
     parse_status=0
     parse_out=$(node "$parser" --js "$file_path" 2>&1) || parse_status=$?
-    # ⚠ THE MARKER, NOT THE EXIT CODE, IS WHAT SAYS THE CHECK RAN. An interpreter that
-    # dies inside the parser also exits 1, so requiring the parser's own completion
-    # line is the only way a stack trace does not get printed as a finding about the
-    # user's file. Absence of the marker is could-not-look (ADR-005).
-    case "$parse_out" in
-      *QH-PARSE-COMPLETE*) ran=yes ;;
-      *) ran=no ;;
-    esac
-    parse_out=$(printf '%s\n' "$parse_out" | grep -v '^QH-PARSE-COMPLETE$' || true)
+    # ⚠ AN EXACT LINE, AND NO EXTERNAL FILTER. A `case` glob accepted the token
+    # ANYWHERE in the output, so a checker that died while echoing a source line
+    # containing it was reported as a finding; and `grep -v … || true` could not tell
+    # its own exit 1 (nothing matched) from exit 2 (grep itself failed), which turned a
+    # real finding plus a failed filter into silence. This loop is pure shell: it
+    # matches the whole line, and it cannot fail separately from the shell running it.
+    ran=no
+    parse_said=""
+    while IFS= read -r line || [ -n "$line" ]; do
+      case "$line" in
+        QH-PARSE-COMPLETE|QH-PARSE-COMPLETE$'\r') ran=yes ;;
+        *) parse_said="${parse_said}${line}
+" ;;
+      esac
+    done <<PARSE_OUT
+$parse_out
+PARSE_OUT
     if [ "$ran" = no ]; then
       echo "UNRUN — the syntax check did not complete (exit $parse_status); this file is unchecked, not clean"
-      printf '%s\n' "$parse_out" | tail -10
+      printf '%s' "$parse_said" | tail -10
     elif [ "$parse_status" = 1 ]; then
-      printf '%s\n' "$parse_out" | tail -30
+      printf '%s' "$parse_said" | tail -30
     elif [ "$parse_status" != 0 ]; then
       echo "UNRUN — the syntax check could not look (exit $parse_status); this file is unchecked, not clean"
-      printf '%s\n' "$parse_out" | tail -10
+      printf '%s' "$parse_said" | tail -10
     fi
     ;;
   *.sh|*.bash)

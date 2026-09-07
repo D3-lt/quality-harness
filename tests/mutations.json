@@ -5960,7 +5960,7 @@
       "tests": [
         "tests/workflow-parse.test.mjs"
       ],
-      "from": "const META_HEADER = /^\\s*(?:(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\b)/",
+      "from": "const META_HEADER = /^\\s*(?:(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\s*=)/",
       "to": "const META_HEADER = /^(?:(?:\\/\\/[^\\n]*|\\/\\*[\\s\\S]*?\\*\\/)\\s*)*export (?=const meta\\b)/"
     },
     {
@@ -6000,6 +6000,33 @@
       ],
       "from": "    return `${name}: COULD NOT CHECK — no usable temporary directory (${err.message})`",
       "to": "    return `${name}: parses as neither a module nor a Workflow script`"
+    },
+    {
+      "label": "workflow-parse: an unchecked file dominates a batch, so a partial run is not reported complete",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  process.exitCode = outcomes.some(outcome => outcome.unchecked) ? 4",
+      "to": "  process.exitCode = false ? 4"
+    },
+    {
+      "label": "workflow-parse: the unchecked flag is read past the file name, so a filename cannot spoof it",
+      "file": "plugin/scripts/workflow-parse.mjs",
+      "tests": [
+        "tests/workflow-parse.test.mjs"
+      ],
+      "from": "  const rest = message.startsWith(`${file}: `) ? message.slice(file.length + 2) : message",
+      "to": "  const rest = message"
+    },
+    {
+      "label": "post-edit-check: the completion marker must be a WHOLE line, not a substring",
+      "file": "plugin/scripts/post-edit-check.sh",
+      "tests": [
+        "tests/post-edit-check.test.mjs"
+      ],
+      "from": "        QH-PARSE-COMPLETE|QH-PARSE-COMPLETE$'\\r') ran=yes ;;",
+      "to": "        *QH-PARSE-COMPLETE*) ran=yes ;;"
     }
   ]
 }

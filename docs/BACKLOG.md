@@ -10798,6 +10798,36 @@ plugin/scripts/post-edit-check.sh:45:    node --check "$file_path" 2>&1 | tail -
 tool accepts it. That gap is the same shape as the one `node --check` had, only much
 smaller, and closing it needs a runner this repository does not have.
 
+**A different-lineage review of 2cde29f (§12) found four more ways to get a FLATTERING
+answer out of the fix itself, and all four are now regressions:**
+
+1. **The header strip was global and the header was never required.** `/^export
+   (?=…)/gm` stripped every column-zero declaration export, so a file with NO `export
+   const meta`, one whose header is not first, one carrying a second export, and one
+   with an export nested in a block all came back clean — none of them is a Workflow
+   script. One anchored, non-global strip, and the header is now required.
+2. **`spawnSync` can return `status: 0` TOGETHER WITH an `ETIMEDOUT` error**, and a
+   killed child returns a null status with no error at all. Reading `status === 0`
+   first returned clean for a check that never finished; the null case fell through to
+   `parses as neither`, a verdict nothing measured. The failure fields are read first,
+   and the test injects all three shapes through a `spawn` seam.
+3. **An unusable `TMPDIR` threw past every handler**, so the hook printed a raw stack
+   and its `|| true` turned that into advice nobody could act on. It is `COULD NOT
+   CHECK` now, and the CLI exits **4** for could-not-look rather than 1.
+4. ⛔ **And the test written for (3) found a fourth, which no reviewer saw:** the
+   CLI's own main-module guard compared `import.meta.url` to `pathToFileURL(argv[1])`.
+   `/var` is a symlink to `/private/var` on macOS (§7), so a copy invoked through the
+   unresolved spelling matched nothing, ran nothing, printed nothing — and exited 0.
+   The most flattering failure a checker can have, in the checker written to stop
+   exactly that. Both sides are resolved now.
+
+⚠ **An exit code alone cannot say a checker ran.** Node exits 1 for its own startup
+failures, which is the same code this tool uses for a finding — so a corrupt or absent
+`workflow-parse.mjs` printed a `MODULE_NOT_FOUND` stack trace under the heading "here
+is what is wrong with your file". The CLI now prints `QH-PARSE-COMPLETE` on stdout as
+positive evidence it reached the end, and `post-edit-check.sh` reports `UNRUN` when
+that line is missing whatever the exit code says.
+
 **Second sibling:** the fixture for "a broken file is still reported" had to be an
 unclosed PAREN, not an unclosed brace. `node --check` wraps a file it reads as
 CommonJS, and the wrapper's own closing brace completes it — `node --check` exits 0 on

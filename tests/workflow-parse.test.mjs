@@ -135,3 +135,83 @@ test('`node --check` on the .js file disagrees with this checker, on whichever n
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// Everything below closes a finding from the different-lineage review of 2cde29f
+// (2026-09-07). Each one was a way to get a FLATTERING answer out of this checker.
+
+test('the required `export const meta` header is required, and only it is stripped', () => {
+  // The first cut stripped every column-zero declaration export, globally, and never
+  // asked for the header at all — so a file that is not a Workflow script at all, or
+  // one carrying exports the format does not have, came back clean.
+  assert.equal(checkWorkflowSource(`${HEADER}return 1\n`), null)
+  assert.equal(checkWorkflowSource(`// a leading comment is ordinary\n${HEADER}return 1\n`), null)
+
+  assert.match(checkWorkflowSource('return 1\n', 'a.js'), /no `export const meta` header/)
+  assert.match(checkWorkflowSource(`const a = 1\n${HEADER}return 1\n`, 'b.js'), /no `export const meta` header/)
+  // A second export is left in place, so the parser refuses it rather than this
+  // regex quietly deleting it.
+  assert.ok(checkWorkflowSource(`${HEADER}export const b = 1\n`, 'c.js'))
+  assert.ok(checkWorkflowSource(`${HEADER}if (1) { export const b = 1 }\n`, 'd.js'))
+})
+
+test('a spawn that did not finish is COULD NOT CHECK, never a verdict about the file', () => {
+  // ⚠ spawnSync CAN RETURN status 0 TOGETHER WITH AN ETIMEDOUT ERROR, and a killed
+  // child returns a null status with no error at all. Reading `status === 0` first
+  // returned clean for a check that never ran; the null case fell through to
+  // "parses as neither", which is a verdict nothing measured (ADR-005).
+  const broken = `${HEADER}const x = (\n`
+  const shapes = [
+    ['status 0 with a timeout error', { status: 0, error: new Error('ETIMEDOUT'), stderr: '' }],
+    ['a killed child', { status: null, signal: 'SIGKILL', stderr: '' }],
+    ['no status at all', { status: undefined, stderr: '' }]
+  ]
+  for (const [label, result] of shapes) {
+    const said = checkJsSource(broken, 'x.js', () => result)
+    assert.match(said ?? '', /COULD NOT CHECK/, `${label}: ${said}`)
+    assert.doesNotMatch(said ?? '', /parses as neither/, `${label} must not read as a verdict`)
+  }
+  // …and the same seam still lets a real answer through, or the assertions above
+  // would pass on a function that always says COULD NOT CHECK.
+  assert.equal(checkJsSource(broken, 'x.js', () => ({ status: 0, stderr: '' })), null)
+  assert.match(checkJsSource(broken, 'x.js', () => ({ status: 1, stderr: 'boom' })), /parses as neither/)
+})
+
+test('an unusable temporary directory is COULD NOT CHECK, and does not escape as a stack', () => {
+  const previous = process.env.TMPDIR
+  process.env.TMPDIR = join(repoRoot, 'no-such-dir-for-qh-parse')
+  try {
+    const said = checkJsSource(`${HEADER}const x = (\n`, 'y.js')
+    assert.match(said, /y\.js: COULD NOT CHECK — no usable temporary directory/)
+  } finally {
+    if (previous === undefined) delete process.env.TMPDIR
+    else process.env.TMPDIR = previous
+  }
+})
+
+test('the CLI separates a finding from a could-not-look, and says it ran', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'wf-exit-'))
+  try {
+    const good = join(dir, 'good.js')
+    const bad = join(dir, 'bad.js')
+    writeFileSync(good, `${HEADER}return 1\n`)
+    writeFileSync(bad, `${HEADER}const x = (\n`)
+    const run = args => spawnSync(process.execPath, [checker, ...args],
+      { encoding: 'utf8', timeout: 60_000, env: { ...process.env } })
+
+    const clean = run(['--js', good])
+    assert.equal(clean.status, 0)
+    assert.match(clean.stdout, /QH-PARSE-COMPLETE/,
+      'the marker is how a caller knows the check ran rather than the interpreter dying')
+
+    assert.equal(run(['--js', bad]).status, 1, 'a finding is exit 1')
+    assert.equal(run(['--js', join(dir, 'absent.js')]).status, 4,
+      'an unreadable file is could-not-look, exit 4 — not a finding about its syntax')
+    assert.equal(run([]).status, 2, 'usage is exit 2')
+
+    const noTmp = spawnSync(process.execPath, [checker, '--js', bad],
+      { encoding: 'utf8', timeout: 60_000, env: { ...process.env, TMPDIR: join(dir, 'gone') } })
+    assert.equal(noTmp.status, 4, `an unusable TMPDIR is exit 4: ${noTmp.stderr}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

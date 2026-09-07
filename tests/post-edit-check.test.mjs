@@ -9,7 +9,7 @@
 // the contract a hook has with the harness.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -115,4 +115,45 @@ test('a Workflow script is not reported as broken, and a broken one still is', (
     'the advice must name the file the user edited, not the copy the check made')
   assert.doesNotMatch(`${loud.stdout}${loud.stderr}`, /candidate\.mjs/,
     'the copy is an implementation detail and is deleted before the reader could open it')
+})
+
+test('a checker that could not run is UNRUN, never a finding about the file', () => {
+  // ⚠ NODE EXITS 1 FOR ITS OWN STARTUP FAILURES — the same code the parser uses for a
+  // finding — so a broken install printed a MODULE_NOT_FOUND stack under the heading
+  // "here is what is wrong with your file". Found by a different-lineage review of
+  // 2cde29f, 2026-09-07. The hook requires the parser's own completion marker.
+  const dir = scratch()
+  const subject = join(dir, 'subject.js')
+  writeFileSync(subject, 'export const meta = { name: "w" }\nconst broken = (\n')
+
+  const copyOf = (into, parser) => {
+    mkdirSync(into, { recursive: true })
+    const there = join(into, 'post-edit-check.sh')
+    writeFileSync(there, readFileSync(hook, 'utf8'))
+    if (parser !== null) writeFileSync(join(into, 'workflow-parse.mjs'), parser)
+    return there
+  }
+
+  const absent = spawnSync('bash', [copyOf(join(dir, 'absent'), null), 'Edit', subject],
+    { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
+  assert.equal(absent.status, 0, 'advisory: a missing checker must not fail the edit')
+  assert.match(`${absent.stdout}${absent.stderr}`, /UNRUN/)
+  assert.doesNotMatch(`${absent.stdout}${absent.stderr}`, /parses as neither/)
+
+  const corrupt = spawnSync('bash', [copyOf(join(dir, 'corrupt'), 'const x = (\n'), 'Edit', subject],
+    { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
+  assert.equal(corrupt.status, 0, 'advisory: a broken checker must not fail the edit either')
+  assert.match(`${corrupt.stdout}${corrupt.stderr}`, /UNRUN — the syntax check did not complete/,
+    `a checker that died must not read as a finding: ${corrupt.stdout}${corrupt.stderr}`)
+
+  // The must-fail direction for this test itself: with a WORKING checker beside it,
+  // the same copied hook and the same file produce a finding rather than an UNRUN.
+  const working = spawnSync('bash', [copyOf(join(dir, 'working'), readFileSync(
+    resolve(testDir, '..', 'plugin', 'scripts', 'workflow-parse.mjs'), 'utf8')), 'Edit', subject],
+    { encoding: 'utf8', env: { ...process.env, TMPDIR: scratch() }, timeout: 60_000 })
+  assert.match(`${working.stdout}${working.stderr}`, /parses as neither a module nor a Workflow script/,
+    `the copied hook must still work when its checker is there: ${working.stdout}${working.stderr}`)
+  assert.doesNotMatch(`${working.stdout}${working.stderr}`, /UNRUN/)
+  assert.doesNotMatch(`${working.stdout}${working.stderr}`, /QH-PARSE-COMPLETE/,
+    'the completion marker is a protocol detail and must not reach the user')
 })

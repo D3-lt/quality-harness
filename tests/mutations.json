@@ -6161,6 +6161,36 @@
       ],
       "from": "  if (done === 0 && open.length === 0) return { id, state: 'unknown', why: 'no tasks to judge', status }",
       "to": "  if (false) return { id, state: 'unknown', why: 'no tasks to judge', status }"
+    },
+    {
+      "label": "fenceTimeout: the project config is read at all",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    declared = config_fence_timeout(Path(start) if start else Path.cwd())",
+      "to": "    declared = None",
+      "only": "fenceTimeout is read from the project config"
+    },
+    {
+      "label": "fenceTimeout: a config it cannot use is SAID, never silently defaulted",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    _say_once(f\"{CONFIG_NAME}: fenceTimeout={declared!r} is not a positive number of seconds; \"",
+      "to": "    (lambda *a: None)(f\"{CONFIG_NAME}: fenceTimeout={declared!r} is not a positive number of seconds; \"",
+      "only": "fenceTimeout is read from the project config"
+    },
+    {
+      "label": "fenceTimeout: the environment still beats the project config",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if seconds > 0:\n            return seconds\n    declared = config_fence_timeout(",
+      "to": "        if False:\n            return seconds\n    declared = config_fence_timeout(",
+      "only": "fenceTimeout is read from the project config"
     }
   ]
 }

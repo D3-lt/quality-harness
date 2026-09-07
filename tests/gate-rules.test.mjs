@@ -1751,11 +1751,31 @@ test('adr-lint and adr-next agree on which task statuses are terminal', () => {
   // vocabulary is how `Consumes` came to be missing the rule `Depends-on` had
   // (§41). Neither gate can import the other, so the copies are checked against
   // each other here rather than left to drift in silence.
+  // ⚠ PARSED WITH `ast`, NOT WITH A REGEX. The first cut matched `"([^"]+)"` inside a
+  // `(...)` span, so a single-quoted member, a computed one, or a member on a line
+  // the span missed compared EQUAL while the runtime tuples differed — a drift guard
+  // that cannot see drift. It also rejected harmless reformatting. Named by a
+  // different-lineage review of c29aae7; `ast` evaluates what Python will.
   const setOf = (file, name) => {
-    const source = readFileSync(join(root, 'bin', file), 'utf8')
-    const m = new RegExp(`^${name} = \\(([^)]*)\\)`, 'm').exec(source)
-    assert.ok(m, `${file}: no ${name} tuple to read — the check cannot look`)
-    return [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]).sort()
+    const probe = `
+import ast, json, sys
+tree = ast.parse(open(sys.argv[1], encoding='utf-8').read())
+for node in ast.walk(tree):
+    if isinstance(node, ast.Assign) and any(
+            isinstance(t, ast.Name) and t.id == sys.argv[2] for t in node.targets):
+        try:
+            value = ast.literal_eval(node.value)
+        except ValueError:
+            print(json.dumps({'error': 'not a literal tuple'})); sys.exit(0)
+        print(json.dumps({'members': sorted(value)})); sys.exit(0)
+print(json.dumps({'error': 'no such assignment'}))
+`
+    const ran = spawnSync('python3', ['-c', probe, join(root, 'bin', file), name],
+      { encoding: 'utf8', timeout: 120_000 })
+    assert.equal(ran.status, 0, `${file}: the probe did not run, which is not agreement: ${ran.stderr}`)
+    const { members, error } = JSON.parse(ran.stdout)
+    assert.ok(!error, `${file}: ${name} — ${error}. A vocabulary this cannot read is not one it may call equal`)
+    return members
   }
   const lint = setOf('adr-lint', 'TERMINAL_TASK_STATUSES')
   const next = setOf('adr-next', 'TERMINAL_STATUSES')
@@ -1826,6 +1846,32 @@ test('a terminal README status is not sent to the wrong vocabulary', () => {
   // The must-fail direction: a genuinely unknown word still gets the old advice, or
   // this branch has swallowed the case it was carved out of.
   const unknown = withRow('marinating')
-  assert.match(unknown, /status `marinating`, which this reader does not act on/, unknown)
   assert.match(unknown, /Use `done`, `pending` or `blocked`/, unknown)
+  assert.match(unknown, /status `marinating`, which this reader does not act on/, unknown)
+
+  // ⚠ AND IT READS THE TASK FILE BEFORE TELLING ANYONE TO WRITE TO IT. The README is
+  // a derived index and the task file wins (§10), so advice that names the file
+  // without looking at it can tell an author to overwrite the authoritative copy from
+  // the derived one. Both arms named by a different-lineage review of c29aae7.
+  const taskSaying = status => writeFileSync(join(dir, 'tasks', 'T2.md'),
+    `# Task ADR-900-T2: probe\n\n**Status:** ${status}\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n## Verification Log\n`)
+
+  taskSaying('withdrawn')
+  const agreeing = withRow('withdrawn')
+  assert.doesNotMatch(agreeing, /README\.md: T2 has status/,
+    `the index and the file agree, so there is nothing to advise: ${agreeing}`)
+
+  taskSaying('superseded')
+  const disagreeing = withRow('withdrawn')
+  assert.match(disagreeing, /its TASK FILE says `superseded`/, disagreeing)
+  assert.match(disagreeing, /Change the row, not the file/,
+    `the derived index must never be made authoritative: ${disagreeing}`)
+  assert.doesNotMatch(disagreeing, /put `\*\*Status:\*\* withdrawn` in the TASK FILE/, disagreeing)
+
+  // And the claim about what ran is narrowed to what is TRUE: an evidenced task's
+  // Verification Log still drives checks whatever this row says (CLAUDE.md §33).
+  taskSaying('pending')
+  const instructing = withRow('withdrawn')
+  assert.match(instructing, /did not run the `done`-row verification path/, instructing)
+  assert.doesNotMatch(instructing, /evidence checks did NOT run for it either way/, instructing)
 })

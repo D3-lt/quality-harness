@@ -11239,3 +11239,49 @@ a finding at all (ADR-005).
 **Not done, named here:** the three sections themselves are untouched. §10 says records
 and the backlog are history and are never rewritten to match today's code, so closing
 them is a judgement about each one, not a sweep's output applied in bulk.
+
+## 169. CLOSED 2026-09-07 — the fence timeout was environment-only, so forgetting it cost thirty minutes to discover
+
+**Reported from an outside corpus, 2026-09-07**, ranked third of six by the reporter:
+
+> `.quality-harness.json` takes `strictFrom` and `check` but **not** the fence timeout;
+> `fence_timeout()` reads the environment. Any task whose Acceptance is the full Docker
+> suite therefore needs `QUALITY_HARNESS_FENCE_TIMEOUT=3600` exported by whatever
+> launches it. Forget it and you get `UNPROVEN` after 30 minutes — the right failure, at
+> the cost of a 30-minute discovery.
+
+`{"fenceTimeout": 3600}` is read now. **Precedence is environment, then config, then
+default,** and the order is a decision rather than an accident: the variable is a
+per-RUN override and the suite's own test seam, while the file is the project's standing
+answer. A config that could beat the seam would make the suite's timing depend on the
+checkout it happens to run in.
+
+⚠ **A CONFIG IT CANNOT USE IS SAID, NOT SILENTLY DEFAULTED.** A typo that quietly
+restored the default would be the hang this bound exists to catch, wearing a clean run
+(ADR-005). `strict_from_number` returns its note to a caller that prints it; this is
+called from inside the very f-strings that report a timeout, so it says its own — once
+per process, or the note would repeat at every mention.
+
+**Two process findings, both worth more than the feature:**
+
+⛔ **The test was written in `tests/gate-regressions.py`, where it PASSED and its three
+catalogue entries were UNPROVEN.** The campaign spawns `node --test` and nothing else,
+so a `.py` test cannot back a mutant — the mutant runs, the baseline fails, and the
+result proves nothing. This repository's own check said so in those words
+(`every catalogue entry names tests the campaign can actually spawn`), which is the only
+reason it was caught. Moved to `tests/gates.test.mjs` as a python probe.
+
+**A different-lineage review of `c29aae7` then found three more, all in §167's own fix:**
+
+1. ⛔ *"The evidence checks did NOT run for it either way"* was **false**.
+   `evidenced_task_ids()` reads a task's exit-0 Verification Log whatever its README row
+   says, so evidence-driven checks still run. The message claimed more than it knew, in
+   a gate whose subject is exactly that (§33). Narrowed to the true fact.
+2. ⛔ The branch told the author to put the README's word in the TASK FILE **without
+   reading the file first**. If the file already says it, the advice is churn; if it says
+   a DIFFERENT terminal word, the derived index was instructing an overwrite of the
+   authoritative copy (§10). It now stays silent when they agree, and names the
+   disagreement — *"Change the row, not the file"* — when they do not.
+3. The two-gate vocabulary drift guard matched `"([^"]+)"` inside a `(…)` span, so a
+   single-quoted or computed member compared EQUAL while the runtime tuples differed —
+   a drift guard that cannot see drift. It parses with `ast` now.

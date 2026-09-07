@@ -34,6 +34,17 @@ Verification Log entry whatever its number, because that is the claim the corpus
 The verdict line says `[strictFrom] …` whenever it is in effect, so a demoted PASS is never
 mistaken for a clean one.
 
+**A fence that legitimately takes longer than half an hour.** The same file takes
+`{"fenceTimeout": 3600}`, in seconds. Without it the bound was environment-only, so a task whose
+Acceptance is a full container suite needed `QUALITY_HARNESS_FENCE_TIMEOUT` exported by whatever
+launched the gate — and forgetting cost `UNPROVEN` after thirty minutes, which is the right failure
+at the price of a thirty-minute discovery. Reported from an outside corpus, 2026-09-07.
+
+The environment variable still wins where both are set: it is a per-RUN override and the suite's own
+seam, while the file is your project's standing answer. ⚠ A value that is not a positive number of
+seconds is REFUSED and said on stderr rather than honoured — a typo must never silently disable the
+bound, because that restores the hang it exists to catch.
+
 **Naming your project's check.** The same file takes `{"check": "<command>"}`, and it answers before
 every rung that would otherwise infer one from a manifest. Declare it when the inferred command is
 wrong or cannot discriminate — a suite that needs a container, a runner whose bare invocation is red

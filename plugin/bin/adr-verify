@@ -1800,7 +1800,59 @@ _UNSET = object()
 FENCE_TIMEOUT_DEFAULT = 1800
 
 
-def fence_timeout(env=None):
+# Said at most once per process, because `fence_timeout()` is called inside the
+# message strings that report a timeout and would otherwise repeat itself.
+_fence_config_said = set()
+
+
+def _say_once(note):
+    if note in _fence_config_said:
+        return
+    _fence_config_said.add(note)
+    sys.stderr.write(f"[adr-verify] {note}\n")
+
+
+def config_fence_timeout(start, read=None):
+    """The fence timeout this PROJECT declares, or None when it declares none.
+
+    Reported from an outside corpus, 2026-09-07: the timeout was environment-only,
+    so a task whose Acceptance is the full Docker suite needed
+    `QUALITY_HARNESS_FENCE_TIMEOUT` exported by whatever launched it — and forgetting
+    meant UNPROVEN after thirty minutes. The right failure, at the cost of a
+    thirty-minute discovery, every time.
+
+    ⚠ A CONFIG THIS CANNOT READ IS SAID, NEVER SILENTLY DEFAULTED. A malformed value
+    that quietly restored the default would be the hang this bound exists to prevent,
+    wearing a clean run (ADR-005). `strict_from_number` returns its note to a caller
+    that prints it; this is called from inside f-strings, so it says its own.
+    """
+    root = git_says(["rev-parse", "--show-toplevel"], start)
+    if root is None:
+        return None
+    config = Path(root) / CONFIG_NAME
+    if not config.exists():
+        return None
+    try:
+        text = (read or (lambda p: p.read_text(encoding="utf-8", errors="replace")))(config)
+        declared = json.loads(text).get("fenceTimeout")
+    except Exception as exc:
+        _say_once(f"{CONFIG_NAME} could not be read ({exc.__class__.__name__}); "
+                  f"the fence timeout stays {FENCE_TIMEOUT_DEFAULT}s")
+        return None
+    if declared is None:
+        return None
+    try:
+        seconds = int(str(declared).strip())
+    except ValueError:
+        seconds = 0
+    if seconds > 0:
+        return seconds
+    _say_once(f"{CONFIG_NAME}: fenceTimeout={declared!r} is not a positive number of seconds; "
+              f"the fence timeout stays {FENCE_TIMEOUT_DEFAULT}s")
+    return None
+
+
+def fence_timeout(env=None, start=None):
     """Seconds before a recording fence is called hung, as a PARAMETER.
 
     A branch reachable only after thirty minutes is a branch with no test, and
@@ -1809,18 +1861,28 @@ def fence_timeout(env=None):
     `QUALITY_HARNESS_FENCE_TIMEOUT` is that seam: the suite sets it to a couple of
     seconds and asserts the UNRUN path end to end.
 
+    ⚠ PRECEDENCE IS ENVIRONMENT, THEN CONFIG, THEN DEFAULT, and that order is the
+    decision rather than an accident: the variable is a per-RUN override and the
+    test seam, while `fenceTimeout` in `.quality-harness.json` is the project's
+    standing answer. A config that could beat the seam would make the suite's own
+    timing depend on the checkout it happens to run in.
+
     A value that is not a positive integer is IGNORED rather than honoured — a
     typo must not silently disable the timeout, which would restore the hang this
-    exists to bound.
+    exists to bound. The environment arm is silent about that because it is set by
+    a person at a shell who will see the fence run long; the config arm says so,
+    because a file is written once and read by everyone afterwards.
     """
     raw = (env if env is not None else os.environ).get("QUALITY_HARNESS_FENCE_TIMEOUT")
-    if raw is None:
-        return FENCE_TIMEOUT_DEFAULT
-    try:
-        seconds = int(str(raw).strip())
-    except ValueError:
-        return FENCE_TIMEOUT_DEFAULT
-    return seconds if seconds > 0 else FENCE_TIMEOUT_DEFAULT
+    if raw is not None:
+        try:
+            seconds = int(str(raw).strip())
+        except ValueError:
+            seconds = 0
+        if seconds > 0:
+            return seconds
+    declared = config_fence_timeout(Path(start) if start else Path.cwd())
+    return declared if declared else FENCE_TIMEOUT_DEFAULT
 
 SWEEP_TIMEOUT_DEFAULT = 900
 

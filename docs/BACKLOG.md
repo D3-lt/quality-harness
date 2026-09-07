@@ -11329,3 +11329,43 @@ frontmatter is no longer routed. That is a deliberate trade — `postmortem-veri
 requires those fields anyway, so such a file was going to be told to add them — but it
 is a case this dispatcher now skips silently rather than reporting, and silence is the
 thing this corpus is otherwise careful about.
+
+## 171. CLOSED 2026-09-07 — the remedy `spec-verify` recommends could not run on the platform it was recommended on
+
+**Reported from an outside corpus, 2026-09-07, ranked SECOND of six:**
+
+> Every fact bound to a `tests/blueprint/*.sh` shell function reports `UNRUN`, exit 4.
+> The finding names the remedy — a `Cmd` cell — and the remedy fails on Windows:
+> `BP_ROOT="$PWD" bash -c '…'` → *"The system cannot find the path specified"*. The
+> command is launched **without a POSIX shell**, so the `VAR=value cmd` prefix form
+> becomes the executable name. Only a machine-local absolute path to `bash.exe` runs,
+> and a committed spec must not carry one.
+
+⚠ **THE GATE TOLD ITS AUTHOR TO DO SOMETHING IT COULD NOT THEN DO, AND BLAMED THEM FOR
+THE RESULT.** `subprocess(..., shell=True)` is `cmd.exe` on Windows. The exit 4 that
+followed read as the author's fault.
+
+**The resolver already existed — in the wrong file.** `resolve_bash` was defined in
+`adr-verify` alone: absolute Git Bash on Windows, skipping the System32 WSL launcher and
+the 0-byte WindowsApps Store alias, with `CLAUDE_CODE_GIT_BASH_PATH` first. `spec-verify`
+had no way to reach it, so it did the only thing it could. Moved to `plugin/lib/fence.py`
+— the lib BOTH gates already load — rather than copied, because two copies of one
+resolver is how `Consumes` came to be missing what `Depends-on` had (§41).
+
+**Three arms, all asserted, and the must-fail one first:**
+
+```
+BP_ROOT="$PWD" sh -c 'exit 0'   -> pass    ← the shape the report said failed
+exit 3                          -> fail    ← or `pass` above is a runner that says yes to everything
+no POSIX shell resolvable       -> unrun, naming CLAUDE_CODE_GIT_BASH_PATH
+```
+
+The third is the ADR-005 arm and it names the FIX, not only the fault: a `Cmd` written
+in POSIX syntax on a box with no POSIX shell fails for a reason that has nothing to do
+with the code under test, so reporting it as `fail` is exactly what this function's own
+docstring already refused to do for a missing runner.
+
+**Found while doing it:** the mutation entry `windows: adr-verify refuses the
+WindowsApps bash alias` went STALE the moment the resolver moved, and the catalogue's
+own check said so. It names `plugin/lib/fence.py` now — the same claim, about the file
+that makes it.

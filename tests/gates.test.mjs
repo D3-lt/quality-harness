@@ -1769,3 +1769,81 @@ test('every gate answers --help, because a gate that will not explain itself is 
   }
   assert.deepEqual(failures, [], `a gate must explain itself:\n${failures.join('\n')}`)
 })
+
+// BACKLOG §164. Three review rounds and two outside reports converged on one class:
+// a gate has THREE outcomes — clean, a finding, and could-not-look — and the channel
+// to its caller has two. The code is the only part of that channel a script can read,
+// and nothing in this repository checked that a gate's own docstring said which codes
+// it produces. `adr-next` exits 3 when everything is done, and an outside `for` loop
+// over records read it as failure.
+//
+// ⚠ THIS CHECKS ONE DIRECTION ONLY, AND SAYS SO. A literal `sys.exit(2)` is findable;
+// `sys.exit(worst)` is not, so a declared code with no literal cannot be judged
+// unreachable and is NOT reported. Source ⊆ declared is what the AST can prove — a
+// mirror of a parser that claims more than it can see only adds silence.
+test('every exit code a gate can literally produce is declared in its own docstring', () => {
+  const probe = `
+import ast, json, pathlib, re, sys
+
+def literal_codes(tree):
+    codes = set()
+    for n in ast.walk(tree):
+        if isinstance(n, ast.Call):
+            f = n.func
+            named_exit = (isinstance(f, ast.Name) and f.id == 'exit') or \\
+                         (isinstance(f, ast.Attribute) and f.attr == 'exit')
+            if named_exit and n.args and isinstance(n.args[0], ast.Constant):
+                v = n.args[0].value
+                if isinstance(v, bool): codes.add(int(v))
+                elif isinstance(v, int): codes.add(v)
+        if isinstance(n, ast.Return) and isinstance(n.value, ast.Constant):
+            v = n.value.value
+            if isinstance(v, bool): codes.add(int(v))
+            elif isinstance(v, int): codes.add(v)
+    return codes
+
+def declared_codes(doc):
+    # The block opens with 'Exit:' or 'Exit codes:' and runs to the first blank
+    # line, so a continuation line carrying another code counts.
+    lines = doc.splitlines()
+    for i, line in enumerate(lines):
+        if re.match(r'\\s*Exit( codes)?:', line):
+            block = []
+            for rest in lines[i:]:
+                if not rest.strip(): break
+                block.append(rest)
+            return set(int(m) for m in re.findall(r'(?<![\\w-])(\\d)(?![\\w-])', ' '.join(block)))
+    return None
+
+out = {}
+for p in sorted(pathlib.Path(sys.argv[1]).iterdir()):
+    if p.suffix == '.cmd' or p.is_dir() or '.' in p.name: continue
+    tree = ast.parse(p.read_text(encoding='utf-8'))
+    doc = ast.get_docstring(tree) or ''
+    d = declared_codes(doc)
+    out[p.name] = {'source': sorted(literal_codes(tree)), 'declared': None if d is None else sorted(d)}
+print(json.dumps(out))
+`
+  const probed = spawnSync('python3', ['-c', probe, bin], { encoding: 'utf8', timeout: 120_000 })
+  assert.equal(probed.status, 0, `the probe did not run, which is not a clean sweep: ${probed.stderr}`)
+  const gates = JSON.parse(probed.stdout)
+  assert.ok(Object.keys(gates).length >= 10,
+    `there must be gates to judge, read ${Object.keys(gates).length}`)
+
+  const undeclared = []
+  for (const [name, { source, declared }] of Object.entries(gates)) {
+    if (declared === null) {
+      undeclared.push(`${name}: no \`Exit:\` block in its docstring, so its codes are ` +
+        `${source.join(', ')} and nothing says so`)
+      continue
+    }
+    const missing = source.filter(code => !declared.includes(code))
+    if (missing.length) {
+      undeclared.push(`${name}: exits ${missing.join(', ')} but its \`Exit:\` block ` +
+        `names only ${declared.sort().join(', ')}`)
+    }
+  }
+  assert.deepEqual(undeclared, [],
+    'a caller reads the exit code, and these gates produce one they never documented:\n' +
+    undeclared.join('\n'))
+})

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -10,7 +10,8 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const pluginRoot = path.join(repoRoot, 'plugin')
 
 function scratch(t) {
-  const root = mkdtempSync(path.join(os.tmpdir(), 'qh-hook-work-'))
+  // Git expands Windows short temp paths; keep the fixture on the same real path.
+  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'qh-hook-work-')))
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
   return root
 }
@@ -136,10 +137,11 @@ test('already-shown edit context skips discovery without hiding a later first ma
       project, { CLAUDE_PLUGIN_ROOT: pluginRoot, TMPDIR: temp, TEMP: temp, TMP: temp, GIT_TRACE: trace },
       JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Edit', cwd: project,
         session_id: session, tool_input: { file_path: file } }))
-    return { text: got.stdout, git: readFileSync(trace, 'utf8') }
+    return { text: got.stdout, git: readFileSync(trace, 'utf8'), stderr: got.stderr }
   }
   const initial = context(first)
-  assert.match(initial.text, /Retain the contract/)
+  assert.match(initial.text, /Retain the contract/, JSON.stringify({ project, ...initial }))
+
   assert.match(initial.git, /built-in: git/, 'the control must actually discover the repository')
   const repeated = context(first)
   assert.equal(repeated.text, '')

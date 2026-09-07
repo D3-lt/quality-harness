@@ -3892,7 +3892,7 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "    name: mutations ${{ matrix.shard }}/12",
+      "from": "    name: mutations ${{ matrix.shard }}/16",
       "to": "    name: mutations ${{ matrix.shard }}/8"
     },
     {

@@ -9678,7 +9678,77 @@ gate, believed for four releases because nobody re-read a line they had learned 
 is not the failure; it is the correct response to a channel that has stopped carrying signal. The
 failure is upstream of the reader every time.
 
-**Still open**, unchanged: the `adr-lint` case, and the two `adr-verify` siblings named below.
+**Still open**: the `adr-lint` case. The two `adr-verify` siblings are settled below, and neither
+was what this section said it was.
+
+### 2026-09-07 — the two `adr-verify` siblings, investigated before being fixed
+
+⚠ **SIBLING 1 WAS ALREADY FIXED, AND HAD NO REGRESSION.** `fail()` prefixes `[adr-verify]`
+(`plugin/bin/adr-verify:617`), and its own docstring documents the change. What nothing asserted was
+the prefix **at the boundary the report came through** — the `--covers` refusal itself.
+`tests/gate-regressions.py` checked only `returncode == 2`, so the fix was one edit away from being
+silently reverted. Both refusal arms now assert it, with a mutant that strips the prefix:
+
+```
+$ node scripts/mutate.mjs --case "wears the tool's name"
+RED  adr-verify: a refusal wears the tool's name, or a scripted caller never sees it  <- killed by:
+       focused false-green regressions remain closed
+1/1 mutations were noticed.
+```
+
+⚠ **SIBLING 2'S DIAGNOSIS IS FALSE AS WRITTEN, and this section carried it for a day.** A survivor
+and a non-matching `--mutant --from` do NOT read identically. Run through the CLI on a scratch
+fixture:
+
+```
+$ adr-verify tasks/T1.md --cwd . --mutant src.js --from 'n > 0' --to 'n >= 0' --why probe
+exit=1
+[adr-verify] MUTANT APPLIED to src.js: …
+- 2026-09-07 · no-git · mutant survived · exit 0 · `src.js` · probe · acceptance-sha256:b60893e0…
+[adr-verify] NOT evidence: the fence passed with the mechanism broken…
+
+$ adr-verify tasks/T1.md --cwd . --mutant src.js --from 'n > 99' --to 'n >= 99' --why probe
+exit=2
+[adr-verify] MUTANT DID NOT APPLY: --from text is not present in src.js. Nothing was run…
+```
+
+Different exit codes, and only one of them emits a verdict row. **What collapsed them for the
+reporter was their grep**: `grep -E 'mutant (killed|SURVIVED)'` — uppercase `SURVIVED`, which this
+tool never emits (the row says `survived`) — read **through a pipe**, which returns the pipe's
+status instead of the gate's. Both are already named rules here, §13.5 and the `mrw` contract; what
+was missing is that a caller who gets them wrong sees a clean-looking nothing.
+
+### ⚠ But the probe found a real one next door, and it is this section's own shape
+
+**`survived` and `inconclusive` BOTH leave exit 1.** So a caller reading only the code cannot tell
+*"the suite noticed nothing"* — a finding about the test — from *"nothing could be told"*, which is
+could-not-look. ADR-005, in the tool that enforces it on everyone else.
+
+The triage question this section added on 2026-09-07 answers it: **is the advice true every time it
+fires?** Nothing shipped claims a nonzero exit means `survived` — `adr-execute`'s skill points the
+reader at the three verdicts, not at the code — so this is not a false message needing a rate limit.
+It is a TRUE-BUT-INCOMPLETE contract: `--help` said *"0 only on `killed`"* and stopped, which reads
+as though the rest were one answer. The fix is the prose, and it names the row as the verdict.
+
+**Backed rather than described**, because a contract sentence nothing runs is the failure mode this
+project is about. A test drives both cases through the CLI and asserts they share exit 1 and differ
+in the row, with a mutant that renames the inconclusive verdict:
+
+```
+$ node scripts/mutate.mjs --case "did not build is inconclusive"
+RED  adr-verify: a mutant that did not build is inconclusive, never a survivor  <- killed by:
+       a survivor and an inconclusive share an exit code, and are told apart by the row
+1/1 mutations were noticed.
+```
+
+Its fixture is JavaScript on purpose: `adr-verify` parse-checks a mutated **Python** file and
+refuses a broken one outright (exit 2, *"the mutant does not parse"*), so a node fence is the
+cheapest place an `inconclusive` is reachable through the CLI at all. Measured, not assumed — a
+Python import-time crash (`THRESHOLD = 1/0`) comes back `killed`, correctly.
+
+**Siblings left, named not fixed** (§5): `plugin/bin/adr-verify:595` is an unreachable duplicate
+`return` after the `TimeoutExpired` arm — harmless, and outside this scope. And the `adr-lint`
+fence-segments advice above is untouched; it remains the live half of §152.
 
 ## 153. DECIDED (b) 2026-09-06 — a THIRD route to "the router offers work the record forbids starting"
 

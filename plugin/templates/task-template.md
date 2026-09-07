@@ -8,8 +8,9 @@ it has is the best form — `commit <sha> is an ancestor of master (git merge-ba
 reach, a person who has to look — say who, with `checked by: <who>`; the gate reads that marker
 and stops asking. Not a mood, and not
 a second Stop Condition: that section says when to abandon, this one says what to wait for. A task
-with a runnable ```bash fence cannot use this header — a task that can run its own acceptance is
-not waiting, it is unfinished, which is `pending` or `partial`.>
+with a runnable ```bash fence MAY use this header (BACKLOG §155): a conditional measurement runs
+fine, and running it before its event is simply worthless. What it may NOT name is a sibling task
+in this corpus — that is `Depends-on`.>
 
 <An unqualified id names a SIBLING task in this ADR: `T2`. A QUALIFIED id names a task in another
 record and is written `ADR-003-T4` or `ADR-003/T4` — `adr-lint` resolves it against the corpus, and

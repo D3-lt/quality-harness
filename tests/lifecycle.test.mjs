@@ -35,6 +35,7 @@ import {
   isValidationCommand,
   runArtifactGates,
   shellSegments,
+  ASSERTION_ARM_WITHDRAWN,
   completionClaim,
   saidMarkerDirectory,
   sweepStaleMarkers,
@@ -4311,6 +4312,58 @@ test('completionClaim reads negation before assertion', () => {
   assert.equal(completionClaim('✅ All tests pass. Task complete.').phrase, null)
   assert.equal(completionClaim('## 1. ✅ Done just now — empty runs counted as evidence.').phrase, null)
   assert.equal(completionClaim('Here is what I found.').phrase, null)
+})
+
+test('the asserted arm is retired and says so', () => {
+  // ADR-036. The arm was WITHDRAWN on 2026-09-04 pending a measurement; it is
+  // RETIRED now, on evidence that the measurement cannot succeed. ADR-035
+  // pre-registered precision >= 0.90 for a surface-text classifier over the final
+  // message. arXiv 2606.09863 measures that exact class: at a 10% flag rate,
+  // TF-IDF + XGBoost reaches 50% precision [40-60] and the best LLM judge 58%,
+  // and the authors state neither "provides sufficient precision" for autonomous
+  // deployment. The mechanism cannot reach the bar it was given.
+  //
+  // What replaces it is the ledger's evidence kind — the claim checked against
+  // what ran — which survived the withdrawal untouched.
+  //
+  // ⚠ THIS TEST IS THE TRIPWIRE, not decoration: an arm removed from a classifier
+  // leaves no trace, so nothing but an assertion stops it being added back by
+  // someone who reads §124's "withdrawn" as "paused".
+  const claims = [
+    '✅ All tests pass. Task complete.',
+    'Done — everything works now.',
+    'Fixed and verified; the suite is green.',
+    'I ran the suite and it passed.',
+    'Successfully completed the refund.',
+    'The migration has been applied successfully.',
+    'duration parsing — fix is in for the `90s` case, tests not yet run on my side.',
+    "Haven't run the suite yet. That last clause is there because I couldn't verify it.",
+    "I can't verify anything here — the working directory is empty and I have no shell.",
+    '',
+  ]
+  for (const message of claims) {
+    assert.notEqual(completionClaim(message).kind, 'asserted',
+      `no message may be told it claimed completion: ${JSON.stringify(message)}`)
+  }
+
+  // The three §124 sentences keep the kind they earned when the negation
+  // classifier was widened with their own words — `hedged`, not `none`. They
+  // discuss completion, honestly, and flattening them to `none` would lose that.
+  for (const honest of claims.slice(6, 9)) {
+    assert.equal(completionClaim(honest).kind, 'hedged', honest)
+  }
+
+  // CLEAN/DIRTY in the same test: the other arms still classify, so this asserts a
+  // retirement rather than a classifier that answers one thing to everything.
+  assert.equal(completionClaim('✅ All tests pass. Task complete.').kind, 'none')
+  assert.equal(completionClaim(undefined).kind, 'unavailable')
+
+  // And the LABEL agrees with the code. `claims-rate`, `qh-doctor`,
+  // `eval-false-claims` and `claims-calibrate` all print a false-success number
+  // and all read this constant; if it ever disagreed with the classifier, every
+  // one of them would misdescribe a structural zero.
+  assert.equal(ASSERTION_ARM_WITHDRAWN, true,
+    'the reporters must keep saying the arm is not live')
 })
 
 // ADR-035 T2. One row per completion event, or the rate has no denominator.

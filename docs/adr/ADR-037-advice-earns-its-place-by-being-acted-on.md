@@ -1,6 +1,6 @@
 # ADR-037: Advice earns its place by being acted on, and an advisory nobody acts on is removed rather than rationed
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-07
 **Owner:** zy
 **Spec:** None — the requirement is the field report in `docs/BACKLOG.md` §152 and the outside result cited under Context

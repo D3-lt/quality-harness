@@ -1,6 +1,6 @@
 # ADR-036: The `asserted` arm is retired, and the false-success rate is joined to evidence rather than read off the prose
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-07
 **Owner:** zy
 **Spec:** None — the requirement is the measured finding in `docs/research/2026-08-28-verification-is-the-bottleneck.md` §2 and §11, and the outside result cited under Context

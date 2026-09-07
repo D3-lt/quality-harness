@@ -5172,8 +5172,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    : state.releaseBlocked\n      ? `COULD NOT LOOK — ${state.releaseBlocked}. That is not \"nothing to release\".`\n      : null",
-      "to": "    : null"
+      "from": "      ? `COULD NOT LOOK at the release state — ${state.releaseBlocked}. `\n        + 'That is not \"nothing to release\".'\n      : null",
+      "to": "      ? null\n      : null"
     },
     {
       "label": "branch-state: a command the budget refused is marked, not folded into a plain failure",

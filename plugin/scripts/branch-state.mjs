@@ -81,6 +81,12 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
  * Each half is independent: git can answer while `gh` is missing, and the render
  * must be able to say so for one without claiming anything about the other.
  */
+/**
+ * What `git describe` says when the repository positively has no tag to describe,
+ * as opposed to a failure it could not complete. Only the first may be silent.
+ */
+const NO_TAGS = /No names found|cannot describe anything/i
+
 export function collect(run = shell) {
   const branch = run(['git', 'rev-parse', '--abbrev-ref', 'HEAD'])
   if (!branch.ok) return { looked: false, note: branch.note }
@@ -127,9 +133,11 @@ export function collect(run = shell) {
   // release. It worked — and five different-lineage review rounds each found a
   // real defect in it, every one in the CLASSIFICATION of how `gh` can fail: a
   // spent budget, an auth error, a 404 that means four different things, a draft,
-  // a release off a divergent branch, a repository not on GitHub at all, and the
-  // same repository without `gh` installed. The feature's real surface was "how
-  // many ways can a subprocess fail, and which of them may be silent", and that
+  // So this reader states what it can OBSERVE and names what it cannot. What it
+  // observes is narrow and it is said narrowly: `git describe --tags --abbrev=0`
+  // gives the newest tag REACHABLE FROM HEAD in this clone — not the newest tag
+  // the clone holds, and certainly not the newest release. Exact release evidence
+  // belongs in `scripts/release-evidence.mjs`, which the release
   // surface is bigger than the defect it was built to fix.
   //
   // So this reader states what it can OBSERVE and names what it cannot: the
@@ -148,7 +156,14 @@ export function collect(run = shell) {
   // which is what makes the two distinguishable at all.
   const blocked = anchor && !(shipped && shipped.ok)
     ? `the diff from ${anchor} could not be read`
-    : (!anchor && tag.budget ? tag.note : null)
+    // ⚠ AND A `git describe` THAT FAILED IS NOT A REPOSITORY WITH NO TAGS. A
+    // permission error, a corrupt ref and a transient failure were all silence,
+    // because only the budget arm was checked. `No names found` is git POSITIVELY
+    // saying there is nothing to describe, and that one may be quiet — every other
+    // failure is a question this could not put.
+    : !anchor && !(tag.ok || NO_TAGS.test(tag.note ?? ''))
+      ? `the newest tag could not be read (${tag.note ?? 'no reason given'})`
+      : null
   return {
     looked: true,
     branch: branch.out,
@@ -194,15 +209,17 @@ export function render(state, { brief = false } = {}) {
     alarm = true
   }
   // ⚠ THE ANCHOR IS NAMED AS WHAT IT IS, AND THE ADVICE POINTS RATHER THAN
-  // CONCLUDES. `git describe` reads local refs, so this count is "since the newest
-  // tag this clone holds" and nothing more — it printed "a green shipped change is
-  // released, not parked" over four already-published releases before it said so
-  // (BACKLOG §157). A reader who wants the published answer has one command and it
+  // CONCLUDES. `git describe --tags --abbrev=0` gives the newest tag REACHABLE
+  // FROM HEAD in this clone — not the newest tag the clone holds, and nothing at
+  // all about the forge. It printed "a green shipped change is released, not
+  // parked" over four already-published releases before it said so (BACKLOG §157),
+  // and a first replacement still claimed a forge tag "is not here", which nothing
+  // here observes. A reader who wants the published answer has one command and it
   // is named; a reader who wants the release VERDICT has `release-evidence.mjs`,
   // which §13.5 already makes the only thing that answers "may this be released".
   const counted = state.shippedSinceTag
     ? `plugin/ changed in ${state.shippedSinceTag} file(s) since ${state.tag}, the newest tag `
-      + 'THIS CLONE holds — a release tagged on the forge is not here, so check '
+      + 'reachable from HEAD in this clone — a forge release MAY NOT be tagged here, so check '
       + '`gh release view` before treating this as unreleased (§13).'
     : null
   // A question that could not be put is not an answer of nothing. Silence here

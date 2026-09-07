@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -10,8 +10,7 @@ const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'
 const pluginRoot = path.join(repoRoot, 'plugin')
 
 function scratch(t) {
-  // Git expands Windows short temp paths; keep the fixture on the same real path.
-  const root = realpathSync(mkdtempSync(path.join(os.tmpdir(), 'qh-hook-work-')))
+  const root = mkdtempSync(path.join(os.tmpdir(), 'qh-hook-work-'))
   t.after(() => rmSync(root, { recursive: true, force: true, maxRetries: 5, retryDelay: 100 }))
   return root
 }
@@ -117,12 +116,14 @@ test('artifact passes check equivalent ADR inputs once and check fresh changes o
 
 test('already-shown edit context skips discovery without hiding a later first match', t => {
   const root = scratch(t)
-  const project = path.join(root, 'project')
+  const directory = path.join(root, 'project')
+  run(['git', 'init', '-q', directory], root)
+  // Use Git's root spelling; a Windows temp alias is not part of this workload test.
+  const project = path.resolve(run(['git', 'rev-parse', '--show-toplevel'], directory).stdout.trim())
   const docs = path.join(project, 'docs', 'adr')
   const temp = path.join(root, 'tmp')
   mkdirSync(docs, { recursive: true })
   mkdirSync(temp)
-  run(['git', 'init', '-q', project], root)
   const first = path.join(project, 'first.js')
   const later = path.join(project, 'later.js')
   writeFileSync(first, 'export const a = 1\n')

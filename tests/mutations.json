@@ -5743,6 +5743,16 @@
       "to": "        if False:"
     },
     {
+      "label": "adr-next: a STOP sign-off is read whatever the Acceptance is",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "only": "a sign-off that says stop is honoured whatever the Acceptance is",
+      "from": "            \"stopped_by\": human_stop(text),",
+      "to": "            \"stopped_by\": human_stop(text) if human else None,"
+    },
+    {
       "label": "lint: the status advisory says WHEN Blocked-on is legal, so it does not walk a reader into a refusal",
       "file": "plugin/bin/adr-lint",
       "tests": [

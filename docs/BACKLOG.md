@@ -11285,3 +11285,47 @@ reason it was caught. Moved to `tests/gates.test.mjs` as a python probe.
 3. The two-gate vocabulary drift guard matched `"([^"]+)"` inside a `(…)` span, so a
    single-quoted or computed member compared EQUAL while the runtime tuples differed —
    a drift guard that cannot see drift. It parses with `ast` now.
+
+## 170. CLOSED 2026-09-07 — the plugin linted its own postmortem SKILL as a malformed postmortem
+
+**Found by the dispatcher firing on this repository**, during a commit that touched a
+different skill file entirely:
+
+```
+[FAIL] plugin/skills/postmortem/SKILL.md · postmortem-verify 2.88.0
+  ## Fix must contain ### Before and ### After fenced code blocks
+  advice: frontmatter: date missing or not YYYY-MM-DD
+  advice: missing section ## Symptom          ← the skill DOCUMENTS this section
+  … eleven lines in total
+```
+
+⚠ **A DOCUMENT *ABOUT* POSTMORTEMS IS NOT A POSTMORTEM, and section headings alone
+cannot tell them apart.** `is_postmortem` matched on four headings; the skill that
+TEACHES the format necessarily lists every heading it requires, so the plugin's own
+skill matched — and so would any adopter's guide, template, or checklist. Advice always
+wrong on a whole class of file is advice a reader learns to skim (ADR-037), and this one
+fired inside the plugin that ships the rule.
+
+**The discriminator is the FRONTMATTER**, which is what `postmortem-verify` actually
+reads and what a document about the format has no reason to carry: a real postmortem
+declares `date`, `category` or `severity`; a guide declares `name`/`description` or
+nothing. A path under `docs/postmortems/` still routes whatever its frontmatter says,
+because there the author has already said what the file is.
+
+Measured on four inputs, all four arms asserted:
+
+```
+frontmatter date/category/severity + the four headings   -> ROUTED
+frontmatter name/description       + the four headings   -> skipped
+no frontmatter                     + the four headings   -> skipped
+plugin/skills/postmortem/SKILL.md (the file that found it) -> skipped
+```
+
+**The must-not-fail direction is the first line**, because a discriminator that refuses
+everything would satisfy the other three and route no postmortem ever again.
+
+**Named, not done:** a real postmortem living OUTSIDE `docs/postmortems/` with no
+frontmatter is no longer routed. That is a deliberate trade — `postmortem-verify`
+requires those fields anyway, so such a file was going to be told to add them — but it
+is a case this dispatcher now skips silently rather than reporting, and silence is the
+thing this corpus is otherwise careful about.

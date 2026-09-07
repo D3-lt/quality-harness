@@ -156,9 +156,22 @@ export function collect(run = shell) {
   // on the CI calls therefore produced a clean, green, entirely silent report on a
   // branch with unreleased work. Named by a different-lineage review that probed
   // the seam with a slow `gh` rather than reasoning about it.
-  const blocked = anchor
-    ? (shipped && shipped.ok ? null : `the diff from ${anchor.name} could not be read`)
-    : (forge.blocked ? forge.note : (tag.budget ? tag.note : null))
+  // ⚠ A BLOCKED FORGE STAYS BLOCKED EVEN WHEN A LOCAL TAG ANSWERS. The previous
+  // version only reported `forge.blocked` when there was NO anchor at all, so a
+  // rejected release plus any local tag under a DIFFERENT name — a `candidate`
+  // alias on the same commit — anchored locally, diffed to zero, and fell silent.
+  // The name-comparison guard above stops the identical tag walking back in and
+  // does nothing about an alias, which is why the state has to survive the
+  // fallback rather than the tag being filtered out of it.
+  //
+  // A count that DID come back is not silenced by this: the hedge on a local
+  // anchor already tells the reader where the number came from, and the advice
+  // fires. Silence is the only failure mode this is about.
+  const blocked = anchor && !(shipped && shipped.ok)
+    ? `the diff from ${anchor.name} could not be read`
+    : forge.blocked
+      ? forge.note
+      : (!anchor && tag.budget ? tag.note : null)
   return {
     looked: true,
     branch: branch.out,
@@ -204,13 +217,38 @@ export function collect(run = shell) {
  * ⚠ A DRAFT OR PRERELEASE IS NOT WHAT SHIPPED — it would count work as released
  * that no adopter can install.
  */
+/**
+ * What `gh` says when the answer is "this repository has no release", as opposed
+ * to "I could not tell you". The distinction is the whole of `absent` vs
+ * `unknown`: one may be silent and the other may not.
+ */
+const NO_RELEASE = /release not found|no releases found|HTTP 404/i
+
 export function releaseAnchor(run) {
   const answer = run(['gh', 'release', 'view', '--json',
     'tagName,targetCommitish,isDraft,isPrerelease'])
   if (!answer.ok) {
-    return answer.budget
-      ? { kind: 'unknown', blocked: true, note: `the forge was not asked (${answer.note})` }
-      : { kind: 'absent', blocked: false, note: answer.note ?? 'no release to read' }
+    if (answer.budget) {
+      return { kind: 'unknown', blocked: true, note: `the forge was not asked (${answer.note})` }
+    }
+    // ⚠ ONLY A POSITIVELY IDENTIFIED "THERE IS NO RELEASE" MAY BE QUIET. Every
+    // other failure — 401, a network drop, a permission error, a timeout, `gh`
+    // missing — used to land in `absent` and say nothing, and a local tag sitting
+    // at HEAD then diffed to zero and the reader looked release-clean. A
+    // different-lineage review injected `HTTP 401: Bad credentials` and read the
+    // brief line: green, silent, wrong. The structured-result fix had closed the
+    // budget path and moved the same hole into every other forge failure.
+    //
+    // This costs an adopter with no `gh` a second could-not-look line — and they
+    // already get the CI one for the same reason, so it is consistent rather than
+    // new noise. A repository that simply has no release cut stays quiet, which
+    // is the case §152 is about.
+    return NO_RELEASE.test(answer.note ?? '')
+      ? { kind: 'absent', blocked: false, note: 'the forge holds no release to compare against' }
+      : {
+        kind: 'unknown', blocked: true,
+        note: `the forge could not be read (${answer.note ?? 'no reason given'})`,
+      }
   }
   let json
   try { json = JSON.parse(answer.out) } catch {

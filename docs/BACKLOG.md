@@ -11158,3 +11158,48 @@ The arm is pinned as it behaves, so a reorder cannot change it silently.
 would DELETE what the corpus is saying, now that those words route from the task file.
 A recognised terminal word gets its own sentence pointing at the file header instead;
 a genuinely unknown word still gets the old advice, and both directions are asserted.
+
+## 168. CLOSED 2026-09-07 — "open backlog items" was a count nothing re-checked, and three of them had shipped
+
+**Found by** being asked what was left in the backlog and refusing to answer from the
+headings. §103 is a prose record asserting a live defect the code has already fixed;
+§93 is a commit claiming a section it never edited. This is the third side of the same
+class: a section whose work SHIPPED, under a heading that still says PROPOSED.
+
+```
+$ grep -c '^## [0-9]' docs/BACKLOG.md                                    175
+$ grep '^## [0-9]' docs/BACKLOG.md | grep -viEc 'CLOSED|WITHDRAWN|…'      36
+```
+
+Thirty-six is not the number of open items and nothing said so. `scripts/backlog-record-sweep.mjs`
+asks `adr-next` about every record a not-closed section CLAIMS, and found three:
+
+```
+RECORD SHIPPED  §60   PROPOSED AS ADR-014 …    ADR-014: Accepted, 3 done, 0 not done
+RECORD SHIPPED  §74   PROPOSED AS ADR-013 …    ADR-013: Accepted, 3 done, 0 not done
+RECORD SHIPPED  §111  … — ADR-025              ADR-025: Accepted, 2 done, 0 not done
+```
+
+⚠ **IT ASKS `adr-next`; IT DOES NOT PARSE TASK FILES.** A record's state has one owner
+and it is the gate that routes work. A second reader of the same task files would be a
+second copy of the readiness rule, which is how `Consumes` came to be missing what
+`Depends-on` had (§41).
+
+**The first cut reported 20 of 39 and that was the defect, not the finding.** It took
+every `ADR-NNN` anywhere in a section, so it flagged sections that merely CITE a
+record — *"§43 Two outside papers, read 2026-08-28"* is not made stale by ADR-009
+finishing. A sweep whose findings are mostly noise is one a reader learns to skim,
+which is the whole cost ADR-037 is about. It now reads the HEADING, plus body phrases
+that say in so many words where the work went (`PROPOSED AS`, `DEFERRED TO`,
+`TRACKED AS`, `BECAME`, `MOVED TO`, `LIVES IN`, `SUPERSEDED BY`). Three findings, and
+they are the three a human found by hand.
+
+**It reports and never blocks**, and `RECORD SHIPPED` is stated as a place to look
+rather than a verdict — a section may legitimately outlive its record, and a record
+being finished says nothing about the prose around it. An ADR it cannot resolve, a
+record with no tasks, and a gate that would not run are `COULD NOT LOOK`, which is not
+a finding at all (ADR-005).
+
+**Not done, named here:** the three sections themselves are untouched. §10 says records
+and the backlog are history and are never rewritten to match today's code, so closing
+them is a judgement about each one, not a sweep's output applied in bulk.

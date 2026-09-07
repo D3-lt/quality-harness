@@ -1744,3 +1744,56 @@ test('adr-retire-check --adopt reports what it finds on a tree adopting the life
     assert.doesNotMatch(okOut, p, `a clean adopting tree must be quiet: ${okOut}`)
   }
 })
+
+test('adr-lint and adr-next agree on which task statuses are terminal', () => {
+  // BACKLOG §166. Two gates now read the same header for the same purpose — one to
+  // route the task, one to withhold advice about it — and two copies of one
+  // vocabulary is how `Consumes` came to be missing the rule `Depends-on` had
+  // (§41). Neither gate can import the other, so the copies are checked against
+  // each other here rather than left to drift in silence.
+  const setOf = (file, name) => {
+    const source = readFileSync(join(root, 'bin', file), 'utf8')
+    const m = new RegExp(`^${name} = \\(([^)]*)\\)`, 'm').exec(source)
+    assert.ok(m, `${file}: no ${name} tuple to read — the check cannot look`)
+    return [...m[1].matchAll(/"([^"]+)"/g)].map(x => x[1]).sort()
+  }
+  const lint = setOf('adr-lint', 'TERMINAL_TASK_STATUSES')
+  const next = setOf('adr-next', 'TERMINAL_STATUSES')
+  assert.ok(lint.length >= 4, `the vocabulary must have members to compare: ${lint}`)
+  assert.deepEqual(lint, next,
+    'a status one gate calls terminal and the other does not is a task routed as ready ' +
+    'while its advice is withheld, or the reverse')
+})
+
+test('adr-lint withholds advice about a withdrawn task, and says that it did', () => {
+  // Reported from an outside corpus alongside §166's adr-next half: adr-lint advised
+  // on the sections and the acceptance fence of a task whose own Status says it will
+  // never be built. A reviewer there called it "a fence for a task that will never be
+  // built is churn" — advice that is always wrong on a class of file is advice a
+  // reader learns to skim (ADR-037).
+  const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-withdrawn-'))
+  temps.push(dir)
+  mkdirSync(join(dir, 'tasks'), { recursive: true })
+  writeFileSync(join(dir, 'ADR-900-probe.md'),
+    '# ADR-900: probe\n\n**Status:** Accepted\n**Date:** 2026-09-07\n\n## Context\n\nS.\n\n'
+    + '## Decision\n\nDo it.\n\n## Consequences\n\nA cost.\n')
+  const task = status =>
+    `# Task ADR-900-T2: probe\n\n**Status:** ${status}\n\n## Acceptance\n\n\`\`\`bash\ntrue\n\`\`\`\n\n## Verification Log\n`
+  const lint = () => run('adr-lint', [join(dir, 'ADR-900-probe.md')], dir)
+
+  // The must-fail direction first: a live task DOES draw the authoring advice, or
+  // the withholding below is indistinguishable from a gate that says nothing.
+  writeFileSync(join(dir, 'tasks', 'T2.md'), task('pending'))
+  const live = lint()
+  assert.match(live.stdout, /T2\.md: missing section/, live.stdout)
+  assert.doesNotMatch(live.stdout, /advice withheld/, live.stdout)
+
+  writeFileSync(join(dir, 'tasks', 'T2.md'), task('Withdrawn 2026-08-22. It will not be built'))
+  const withdrawn = lint()
+  assert.doesNotMatch(withdrawn.stdout, /advice: T2\.md:/,
+    `advice about a withdrawn task is churn: ${withdrawn.stdout}`)
+  // ⚠ AND IT SAYS SO. Withheld and "nothing to say" must not look alike (ADR-005).
+  assert.match(withdrawn.stdout, /advice withheld: T2\.md declares \*\*Status:\*\* `withdrawn/,
+    withdrawn.stdout)
+  assert.match(withdrawn.stdout, /Blocking checks still ran/, withdrawn.stdout)
+})

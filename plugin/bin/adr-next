@@ -162,7 +162,12 @@ def header_val(text, name):
 # READY, which is the wrong default direction for a gate that tells a session what to
 # build next (ADR-005, BACKLOG §166).
 TERMINAL_STATUSES = ("withdrawn", "superseded", "abandoned", "cancelled", "canceled")
-BUILDABLE_STATUSES = ("pending", "todo", "ready", "in progress", "in-progress",
+# ⚠ `partial` IS IN THIS LIST BECAUSE AN OUTSIDE CORPUS USE IT AND SAID SO. It means
+# built-but-incomplete, not abandoned — work someone may pick up — so it is buildable.
+# It was missing from the first cut and landed on `stopped` with "does not recognise",
+# which is the SAFE direction and the wrong answer. adr-lint's own advice already
+# names it: "leave it `pending` or `partial` and say why in the task".
+BUILDABLE_STATUSES = ("pending", "partial", "todo", "ready", "in progress", "in-progress",
                       "blocked", "done", "complete", "completed")
 
 

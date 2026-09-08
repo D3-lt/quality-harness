@@ -6542,7 +6542,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    checks += [s for s in segments if EMPTY_RUN_FAILS_RE.match(s) and s not in checks]\n",
+      "from": "    checks += [s for s in segments\n               if EMPTY_RUN_FAILS_RE.match(s) and not EMPTY_RUN_OPT_OUT_RE.search(s)\n               and s not in checks]\n",
       "to": "    pass\n"
     },
     {
@@ -6562,6 +6562,33 @@
       ],
       "from": "                     if re.match(r\"implementation\\b\", heading.strip(), re.I)\n",
       "to": "                     if heading.strip() == \"Implementation\"\n"
+    },
+    {
+      "label": "lint: the runner table is keyed on the filter case, not an empty directory",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(?:\\S*/)?(?:pytest\\b|bun\\s+test\\b)\")\n",
+      "to": "    r\"(?:\\S*/)?(?:pytest\\b)\")\n"
+    },
+    {
+      "label": "lint: a wrapper command is never classified as asserting nothing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(?:\\S*/)?(?:go\\s+test\\b|node\\s+--test\\b|cargo\\s+test\\b)\")\n",
+      "to": "    r\"(?:\\S*/)?(?:go\\s+test\\b|node\\s+--test\\b|cargo\\s+test\\b|(?:npm|yarn)\\s+test\\b|make\\b|docker\\b)\")\n"
+    },
+    {
+      "label": "lint: an opt-out flag disarms a runner's own vacuity fencing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "EMPTY_RUN_OPT_OUT_RE = re.compile(r\"--pass-?with-?no-?tests\\b|--allow-?empty\\b\", re.I)\n",
+      "to": "EMPTY_RUN_OPT_OUT_RE = re.compile(r\"zzzNeverMatchesAnyFlag\")\n"
     }
   ]
 }

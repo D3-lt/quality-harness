@@ -12116,3 +12116,34 @@ executable check whether or not non-literals are skipped, because skipping leave
 command name. The distinguishing case has a READ-ONLY literal head and the danger in a computed
 argument: `find` with a computed `-exec`, where skipping the non-literal leaves a bare
 `find . ./mutate` that `FIND_WRITES` cannot see. Asserted now.
+
+## 189. CLOSED 2026-09-08 — v2.96.0 released from 17078b0, and what the four review rounds cost
+
+`node scripts/release-evidence.mjs 17078b0` → **SUCCESS, 23 of 23 jobs**, including Windows, macOS,
+the coverage floor and all 16 mutation shards. `gh release create v2.96.0 --latest` published against
+that exact sha. Not a draft, not a prerelease; `releases/latest` answers `v2.96.0`.
+
+**Four CI campaigns were spent, and three were spent correctly.** The release was held and re-cut
+three times rather than shipped with a known defect: twice for fail-opens found by attacking the code
+after the gate was already green (§183, §187), and once for a genuine red — the `windows` job (§188).
+Only the last of those was found by CI; the other two would have shipped.
+
+**What each round found, in order, none of them redundant:**
+
+| round | method | found |
+|---|---|---|
+| §179 | self-attack: write fences that DO assert, check for refusal | 6 false blocks |
+| §180 | different-lineage review at 08ace6a | 4 more, incl. 1 the self-attack had just introduced |
+| §183 | probing the new exemptions directly | 2 fail-opens in the evidence gate |
+| §187 | second review, after both | 3 more, one of them §16 broken by §16's author |
+| §188 | the Windows CI job | 1 fail-open no macOS probe could see |
+
+**And the mutation campaign caught four tests of mine that asserted nothing** — a guard arm that never
+reached the guard, a heading case verified ad-hoc and never committed, an array entry written *outside*
+the array it belonged in (valid JavaScript that evaluates and discards), and a case that read MUTATING
+for a reason unrelated to the guard under test.
+
+⚠ **The residual is not zero and should not be reported as such.** §182 ships open by choice — it
+under-blocks, which is the safe half — with two smaller members recorded beside it. Each round above
+was real and none was sufficient; the honest claim is that the residual is smaller than it was, not
+that it is gone.

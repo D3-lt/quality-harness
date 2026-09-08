@@ -261,7 +261,9 @@ test('artifact batches use one runner and keep findings on both sides of a timed
     const finding = runArtifactGates(files, root, 20_000)
     process.stdout.write(JSON.stringify(process.env.QH_TEST_BULK === '1' || process.env.QH_TEST_FLOOD === '1'
       ? { length: finding?.length, last: /CHECKED .*last\.ts/.test(finding),
-        unchecked: /may be unchecked/.test(finding), limited: /output limit/.test(finding), runners }
+        unchecked: /may be unchecked/.test(finding), limited: /output limit/.test(finding), runners,
+        stopped: /batch stopped after unconfirmed process cleanup/.test(finding),
+        remaining: finding?.split('Unchecked artifacts:\n')[1] ?? '' }
       : { finding, runners }))
   }
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
@@ -274,7 +276,20 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   assert.match(result.finding, /CHECKED .*first\.ts/)
   assert.match(result.finding, /timed out after 2000ms/)
   assert.match(result.finding, /slow\.ts/)
-  assert.match(result.finding, /CHECKED .*last\.ts/, 'a timed-out file must not swallow later findings')
+  // CI 34199724037 observed unconfirmed Git Bash cleanup on Windows, a known
+  // taskkill limitation (timeout-tree.test.mjs). In that case continuing would
+  // be wrong. The simulated close-event test below proves continuation on every
+  // host; this real-shell test asserts whichever cleanup outcome was observed.
+  if (process.platform === 'win32' && /cleanup could not be confirmed/.test(result.finding)) {
+    assert.doesNotMatch(result.finding, /CHECKED .*last\.ts/)
+    assert.match(result.finding, /batch stopped after unconfirmed process cleanup/)
+    const remaining = result.finding.split('Unchecked artifacts:\n')[1]
+    assert.equal(remaining?.replaceAll('\\', '/'), files.slice(1).join('\n').replaceAll('\\', '/'))
+  } else {
+    assert.match(result.finding, /CHECKED .*last\.ts/, 'confirmed cleanup must preserve later findings')
+    assert.ok(result.finding.indexOf('budget, not a finding') < result.finding.lastIndexOf('CHECKED'),
+      'timeout guidance must precede the later real finding it does not describe')
+  }
   assert.match(result.finding, /budget, not a finding/)
   assert.equal(result.runners, 1, 'one boundary needs one Node runner')
   const bulk = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
@@ -287,11 +302,15 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   const flood = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
     CLAUDE_PLUGIN_ROOT: path.dirname(scripts), QH_TEST_FLOOD: '1',
   }).stdout)
-  assert.equal(flood.last, true, 'one oversized file must not prevent checking later artifacts')
+  if (process.platform === 'win32' && flood.stopped) {
+    assert.equal(flood.last, false, 'unconfirmed cleanup must stop before the last artifact')
+    assert.equal(flood.remaining.trim().replaceAll('\\', '/'), files.join('\n').replaceAll('\\', '/'))
+  } else {
+    assert.equal(flood.last, true, 'a noisy file with confirmed cleanup must preserve later findings')
+    assert.equal(flood.stopped, false)
+  }
   assert.equal(flood.limited, true, 'an output limit leaves the noisy artifact explicitly unchecked')
   assert.equal(flood.unchecked, false, 'only the noisy shell is stopped, not the batch runner')
-  assert.ok(result.finding.indexOf('budget, not a finding') < result.finding.lastIndexOf('CHECKED'),
-    'timeout guidance must precede the later real finding it does not describe')
 })
 
 test('historical archive discovery uses one scoped Git query and preserves nearest literal paths', t => {
@@ -388,15 +407,25 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
     const { PassThrough } = await import('node:stream')
     const { syncBuiltinESMExports } = await import('node:module')
     let calls = 0
-    // Fault injection: a child with no observable PID or close event. It creates
-    // no OS process, so the cleanup-failure test cannot itself leak one.
-    cp.default.spawn = () => {
+    let closeObserved = false
+    // Fault injection creates no OS process. The first arm never closes; the
+    // second observes a close after the timeout, then normal later findings.
+    cp.default.spawn = (command, args) => {
       calls++
       const child = new EventEmitter()
       child.stdout = new PassThrough()
       child.stderr = new PassThrough()
       child.stdin = new PassThrough()
       child.unref = () => {}
+      if (closeObserved) {
+        const slow = args[1].endsWith('current.md')
+        const finish = () => {
+          if (!slow) child.stderr.write('CHECKED ' + args[1] + '\n')
+          child.emit('close', 0)
+        }
+        if (slow) setTimeout(finish, 250)
+        else queueMicrotask(finish)
+      }
       return child
     }
     syncBuiltinESMExports()
@@ -412,12 +441,19 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
     const status = await runArtifactBatch(JSON.stringify({
       paths, deadline: Date.now() + 10_000, windowMs: 10_000, timeoutMs: 100,
     }))
-    process.stdout.write(JSON.stringify({ direct, batch: { status, calls, stderr } }))
+    const batch = { status, calls, stderr }
+    closeObserved = true
+    calls = 0
+    stderr = ''
+    const confirmedStatus = await runArtifactBatch(JSON.stringify({
+      paths, deadline: Date.now() + 10_000, windowMs: 10_000, timeoutMs: 100,
+    }))
+    process.stdout.write(JSON.stringify({ direct, batch, confirmed: { status: confirmedStatus, calls, stderr } }))
   }
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
     pathToFileURL(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs')).href, root,
   ]) + ')'
-  const { direct, batch } = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root).stdout)
+  const { direct, batch, confirmed } = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root).stdout)
   assert.equal(direct.calls, 1, 'the control must exercise the injected child')
   assert.equal(direct.status, 0, 'direct edit hooks stay advisory')
   assert.equal(batch.status, 0, 'the batch reports unchecked work without blocking')
@@ -427,4 +463,11 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
   assert.match(batch.stderr, /current\.md/)
   assert.match(batch.stderr, /remaining\.md/)
   assert.match(batch.stderr, /Unchecked artifacts/)
+  assert.equal(confirmed.status, 0)
+  assert.equal(confirmed.calls, 2, 'an observed close permits the next artifact on every platform')
+  assert.match(confirmed.stderr, /timed out after 100ms/)
+  assert.match(confirmed.stderr, /CHECKED .*remaining\.md/)
+  assert.doesNotMatch(confirmed.stderr, /cleanup could not be confirmed|Unchecked artifacts/)
+  assert.match(confirmed.stderr, /budget, not a finding/)
+  assert.ok(confirmed.stderr.indexOf('budget, not a finding') < confirmed.stderr.indexOf('CHECKED'))
 })

@@ -6625,6 +6625,60 @@
       ],
       "from": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)(?![-\\w])\")\n",
       "to": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)\\b\")\n"
+    },
+    {
+      "label": "lifecycle: the read-only child allowlist does not admit an extracting archiver",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|awk|sed|jq|column|nl|tee)$/\n",
+      "to": "const READ_ONLY_CHILD = /^(?:grep|tar|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|awk|sed|jq|column|nl|tee)$/\n"
+    },
+    {
+      "label": "lifecycle: an output-handle keyword keeps a subprocess call",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (/\\b(?:shell\\s*=\\s*True|stdout\\s*=|stderr\\s*=|stdin\\s*=|input\\s*=)/.test(rest)) return whole\n",
+      "to": "      if (/\\b(?:shell\\s*=\\s*True)/.test(rest)) return whole\n"
+    },
+    {
+      "label": "lifecycle: find that executes or deletes is not read-only",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (executable === 'find' && FIND_WRITES.test(' ' + words.slice(1).join(' '))) return whole\n",
+      "to": "      if (false) return whole\n"
+    },
+    {
+      "label": "lifecycle: an interpreter is not a direct file writer",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir)$/\n",
+      "to": "const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir|python3?|node)$/\n"
+    },
+    {
+      "label": "lint: an OR tail that always fails makes its head load-bearing",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if len(alternatives) > 1 and ALWAYS_FAILS_RE.match(alternatives[-1]):\n",
+      "to": "    if False:\n"
+    },
+    {
+      "label": "lint: a pipe masks a runner's status unless pipefail is set",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        return stages if pipefail else stages[-1:]\n",
+      "to": "        return stages\n"
     }
   ]
 }

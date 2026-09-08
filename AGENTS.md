@@ -24,6 +24,10 @@ The rules whose cost of missing is not a wasted hour are repeated here:
   `adr-verify`, never by hand. A GREEN mutation is a finding about the test.
 - **A gate never reports an observation it did not make.** Could-not-look is its own word, never a
   verdict.
+- **A classifier is an empirical claim.** A predicate over shell commands, runner names or paths is
+  not code you can reason correct: execute each name before writing it down, on the case the gate is
+  actually about, and reproduce shell semantics against a shell. "Not recognised as X" is never
+  "known to be not-X" — that is the direction that fails open.
 - **No counts in the instruction files.** Run something if you want to know how many.
 - **Read and edit through `mrw`, not `sed`/`head`/`awk`/heredocs.** It refuses a write to lines it
   has not served you and reports a verdict for every hunk; a refusal is the tool working.

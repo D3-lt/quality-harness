@@ -2373,6 +2373,15 @@ test('the writes a different-lineage review got past these classifiers', async (
     ['stdout=open writes a file the argv never names',
                                            'subprocess.run(["grep", "x", "in"], stdout=open("out.txt", "w"))'],
   ]) {
+    // ⚠ THE CASE THAT DISTINGUISHES "EVERY ELEMENT MUST BE A LITERAL" FROM THE
+    // EXECUTABLE CHECK, and without it that guard's mutant came back GREEN on CI.
+    // `cmd = "rm"` is caught by the executable test whether or not non-literals
+    // are skipped, because skipping leaves `-rf` as the command. Here the literal
+    // head is a READ-ONLY name and the danger is in a computed argument, so only
+    // refusing the whole call keeps it: skipping `flag` would leave a bare
+    // `find . ./mutate`, which FIND_WRITES cannot see.
+    ['a computed argument hiding -exec',
+     'flag = "-exec"\nsubprocess.run(["find", ".", flag, "./mutate", "{}", ";"])'],
     assert.equal(isPotentialMutationCommand(heredoc(body)), true, label)
   }
   // ...and the genuinely read-only call the exemption exists for is still exempt,
@@ -2428,13 +2437,19 @@ test('two doors into the evidence gate that this release opened and closed', asy
   // 2. `~` IS EXPANDED BY THE SHELL AND WAS NOT EXPANDED HERE. `$HOME` was
   //    already held, because `$` marks a token this cannot follow; `~` carries no
   //    such mark, so a write bash makes INSIDE the repository was exempted.
+  // ⚠ `/tmp` DOES NOT EXIST ON WINDOWS, and a `cd` that fails leaves the shell
+  // where it was — which is the behaviour this parser deliberately copies. Three
+  // assertions here used /tmp and two of them passed on Windows for the WRONG
+  // reason (the cd failed, so nothing was outside anything). A real temporary
+  // directory makes the intent hold on every platform (BACKLOG §188).
+  const outside = await mkdtemp(path.join(testTmp, 'quality-tilde-'))
   const under = path.relative(os.homedir(), repoRoot)
-  if (!under.startsWith('..')) {
-    assert.equal(writesOutsideProject(`cd /tmp && touch ~/${under}/plugin/bin/adr-lint`, repoRoot), false)
+  if (!under.startsWith('..') && !path.isAbsolute(under)) {
+    assert.equal(writesOutsideProject(`cd "${outside}" && touch ~/${under}/plugin/bin/adr-lint`, repoRoot), false)
   }
-  assert.equal(writesOutsideProject('cd /tmp && touch "$HOME/x/plugin/bin/adr-lint"', repoRoot), false)
+  assert.equal(writesOutsideProject(`cd "${outside}" && touch "$HOME/x/plugin/bin/adr-lint"`, repoRoot), false)
   // ...and a tilde path that really is outside the project is still exempt.
-  assert.equal(writesOutsideProject('cd /tmp && touch ~/scratch-qh-note.md', repoRoot), true)
+  assert.equal(writesOutsideProject(`cd "${outside}" && touch ~/scratch-qh-note.md`, repoRoot), true)
 })
 
 test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {

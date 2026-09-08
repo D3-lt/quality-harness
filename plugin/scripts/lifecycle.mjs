@@ -1239,8 +1239,21 @@ function canonical(candidate) {
 // first: a symlink pointing back into the project used to read as outside it
 // (Codex review, 2026-09-08 — BACKLOG §180).
 function underDirectory(candidate, root) {
-  const relative = path.relative(canonical(root), canonical(candidate))
-  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+  // ⚠ CANONICALISING ONLY THE SIDE THAT EXISTS IS WORSE THAN NOT CANONICALISING.
+  // `realpathSync` resolves a path that exists and throws for one that does not,
+  // so a not-yet-created target stayed lexical while the root came back resolved
+  // — and on Windows, where the resolved form can differ in case or drive
+  // mapping, the two stopped sharing a prefix. An in-repository write then read
+  // as OUTSIDE the project and was exempted from the evidence gate entirely: the
+  // `windows` job caught it as `other: 0` where 1 was expected (BACKLOG §188).
+  //
+  // Both comparisons are made and EITHER counts as inside. That is the safe
+  // direction on purpose: saying "inside" keeps the mutation marker and demands
+  // evidence, while a wrong "outside" silently drops the requirement.
+  const lexical = path.relative(root, candidate)
+  const resolved = path.relative(canonical(root), canonical(candidate))
+  const inside = value => value === '' || (!value.startsWith('..') && !path.isAbsolute(value))
+  return inside(lexical) || inside(resolved)
 }
 
 // Whether every segment that does work runs OUTSIDE the project, with nothing

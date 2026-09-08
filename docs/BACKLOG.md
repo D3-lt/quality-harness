@@ -11369,3 +11369,140 @@ docstring already refused to do for a missing runner.
 WindowsApps bash alias` went STALE the moment the resolver moved, and the catalogue's
 own check said so. It names `plugin/lib/fence.py` now — the same claim, about the file
 that makes it.
+
+## 172. CLOSED 2026-09-08 — `adr-next` printed READY over exit-0 evidence it had already read
+
+**Reported 2026-09-08 from an outside corpus (59 records, 114 task files, plugin 2.94.0):** 3 of its
+15 READY tasks were marked done in `tasks/README.md` and carried exit-0 Verification Log rows. That
+repository's own protocol makes the next READY task the default next action, so a session was one
+step from designing work already built; it avoided that only because a palace memory happened to
+warn it.
+
+**Narrower than reported, and the correction is the finding.** The reporter's own quoted row is the
+truncated `docker run …` display form. `is_done` refuses it deliberately: a first-line-only row
+cannot prove a multi-line fence (§58's allowance, copied condition for condition from `adr-lint`),
+and `adr-lint --help` says the same. The two tools AGREE; the "3 marked done" is a typed claim in
+a derived index, not evidence. What was wrong is the RENDER — this reader had made that observation
+and printed a bare `READY`, which reads as "never attempted" (ADR-005).
+
+`adr-next` now says which of two states produced the word: *carries exit-0 evidence that predates
+acceptance digests and cannot prove this fence* or *…recorded against a different Acceptance — the
+fence changed after that run*, on the `--all` lines and the `Next:` block. `is_done` is untouched;
+nothing is granted. The must-fail arms: an empty log renders bare, and a row the allowance ACCEPTS
+still renders `done`.
+
+## 173. CLOSED 2026-09-08 — `--mutant` costs two full fence runs and `--help` did not say so
+
+**Reported 2026-09-08 from an 18-record corpus:** a 26-minute acceptance cost ~52 under `--mutant`,
+even though the mutation tripped the first command of an `&&` chain in seconds. Confirmed at the
+source: the journal is armed `"phase": "baseline"` and the clean fence runs before the mutant —
+that is what makes `killed` mean anything. The help said "runs the Acceptance fence", singular. It
+now says twice, why, and that the cost is two full runs whatever the mutation trips. The reporter's
+`--assume-baseline <digest>` is not taken: an exit-0 entry at the same sha proves the fence passed
+once, not that the tree the mutant is applied to is the tree it passed on.
+
+## 174. CLOSED 2026-09-08 — nine findings from two outside corpora, one seam: what the pipeline knows never reached the person editing
+
+Two adopters drove `adr-lint` / `adr-verify` / `adr-next` 2.94.0 on their own corpora the same day
+(one 59 records, one 18) and filed nine findings — two of them things the first reporter BROKE and
+reverted after acting on the tool's own advisory in good faith. §172 and §173 above are two of the
+nine. The owner's instruction was to address every one; none went to the backlog as open.
+
+⚠ **The premise "we broke it while optimising for speed and deduplication" was checked and does not
+hold for eight of nine.** The dedup commits (86390c7, ebce539, 0cf7daa) touched `lifecycle.mjs`,
+`run-shell-hook.mjs` and `branch-state.mjs`, never the three gates; the classifier behind the ninth
+(`isPotentialMutationCommand`) has not changed since 2.0.2. These are design gaps as old as the
+features, found by the first corpora large enough to hit them.
+
+**A1 — `adr-lint` detected an inert `! grep` guard and exited 0.** 37 of 114 fences there; all 37
+rescued by an un-negated `grep -q -- "--- PASS"` beside them, which was the authors' habit and
+nothing the gate guaranteed. The reporter proposed the split and it is taken: a negated guard that is
+the fence's ONLY vacuity check (`vacuity_checks` empty) is now a FAILURE, decidable from the text;
+one beside a positive assertion stays advice. Zero of that corpus and zero of this one cross the
+line. What the reporter could not see and said so — whether OTHER corpora author the rescuing
+assertion — is what the failure arm now measures for them, one record at a time.
+
+**A2 — editing a fence silently invalidated evidence; the warning arrived after the edit.** Applying
+the advisory to all 37 took that corpus from 1 failing record to 12. The advisory now carries the
+cost on any task with an exit-0 row: *editing the fence changes its digest, and `done` is refused
+until `adr-verify` re-runs it against the new text.* One sentence, on the message that prompts the
+edit. The reporter's own cost check took a different branch (a legacy row) and told them editing was
+safe — worth remembering when one sample is the evidence.
+
+**A3 — the recommended fix breaks `sh -c '…'` fences when the guard is the last line inside the
+wrapper.** Caught by that corpus's `sh -n` gate, never by this one. `adr-lint` now runs `bash -n`
+over every fence through the shared `resolve_bash` (§171 — a bare `bash` on Windows is the WSL
+launcher), reports a parse error as a failure (a fence that cannot RUN can never fail), and says
+`UNRUN` in those words when no shell resolves. The advisory names the wrapper case when one is
+present.
+
+**A5 — no migration path for pre-digest evidence, and the only route degraded the record.** "Re-run
+`adr-verify`" appended a FAILED run to a done task whose fence dialled `localhost:11434` from inside
+a container. The log stays append-only (CLAUDE.md §4). `adr-verify` now says BEFORE the run, on any
+task already carrying exit-0 rows, what a failure will read as and that a fence needing an
+environment it does not set up should be fixed first; `adr-lint`'s refusal says the same. Asserted
+in the order it prints: the notice precedes `WROTE this entry`.
+
+**B1 — a record with no `tasks/` dir has no gate on its `Status:` line.** Four records shipped with
+52 tests and sat `Proposed` six weeks; three sessions read `[PASS] (no tasks dir — ADR-level checks
+only)` as approval. The label now says *its Status is not checked against evidence here*, and a
+`Proposed`/`Draft` record whose `## Implementation` paths ALL resolve against `git ls-files` (never
+the disk, §8) gets an advisory that says what it observed and that it cannot tell a finished
+decision from a plan naming old files. Git unreachable → *that check did NOT run*.
+
+**B3 — `--covers` unreachable without a `**Rests-on:**` header no template emits.** ⚠ THAT CLAIM IS
+FALSE AS OF 2.51.0: `plugin/templates/task-template.md:41` has emitted the header since ADR-022 T1
+(`b5c6809`); the reporter's ~90 task files predate it. The adoption gap is real, so `adr-lint` now
+advises it on a task that has a Mutation Log and no exit-0 row yet — the moment the header buys
+something — and NOT on done tasks: on this corpus that would have fired on forty verified tasks at
+once, which §59 already measured the cost of.
+
+**B4 — the pre-commit gate counted read-only Bash as a change.** ⚠ NOT REPRODUCED from the fragments
+given: `gh run list --limit 1 --json …` classifies as non-mutating at HEAD and `cp src/… /tmp/…bak`
+is temp-only exempt; both are now pinned by test. The verbatim commands were asked for. The half
+that DID reproduce is the damage: a `<Bash mutation: …>` marker is appended beside every resolved
+path, and `docsOnly` reads the marker as a non-document — so `sed -i` over fourteen Markdown files
+demanded the full test run. The marker is now withheld when the command names Markdown files and no
+other path that exists in the tree; a real non-Markdown target keeps it.
+
+**B5 — three false-positive classes in the tests-exist sweep.** (1) *regex the name cell, not the
+row* — `check_tests_exist` already reads cell 0 only. (2) *a backticked name may be a file* —
+`test_x` beside `tests/test_x.py` was reported as a definition missing from itself; a row naming its
+own file is now accepted when the file holds at least one test, and still reported when it holds
+none (the identity regression, whose fixture was renamed off the coincidence). (3) *do not rank
+strings to suggest a successor* — already doctrine here (§61); the message now asks the reporter's
+discriminating question instead: whether a sibling IN THAT SAME FILE fences the same behaviour.
+
+The two reporters' credit is recorded too: `--mutant` caught a green fence with an empty Mutation
+Log, and the duration floor called a 289ms exit 1 for what it was.
+
+## 175. CLOSED 2026-09-08 — §174's B4, with the verbatim inputs: a read-only heredoc was a mutation, and a relative path ignored the command's own `cd`
+
+The reporter sent the three verbatim Bash inputs behind the "read-only Bash counted as a change"
+finding, and withdrew one: the `cp … /tmp/….bak` call also mutated the source and restored it in
+the same command, so the marker showed a fragment and the fragment was reported. The other two are
+real and neither is §174's marker.
+
+**(A) A `python3 - <<'PY'` heredoc that grepped the tree and printed JSON was a mutation.** Three
+tokens tripped it, none of them a write: a bare `import re,pathlib,subprocess,json` (the token
+`subprocess` matched an IMPORT), `subprocess.run(["grep", …])` (every subprocess was a write,
+whatever it ran), and `re.search(r"def (test_\w+)")` (the call scanner read `def (` INSIDE a string
+literal as a call to `def`, and an unknown call is a write by default). Now: the token is a USE
+(`subprocess.`); a `subprocess.*([literal argv])` with no `shell=True` is asked the question this
+module already answers for a shell line — `isPotentialMutationCommand` over the argv — and stripped
+when the answer is no; calls are read from code with string literals blanked; and the safe-call set
+gained the pure string, regex, container and path-read names. The must-fail arms: `["rm","-rf",…]`,
+a computed argv, `shell=True` and `write_text` each stay a mutation.
+
+**(C) `cd "…/memory"` then `cat >> project_adr_corpus_state.md` was reported as
+`<repo>/project_adr_corpus_state.md` — a file that has never existed.** Every relative token was
+resolved against the session's cwd, whatever the command had `cd`-ed to. `segmentDirectories` now
+follows a command's own `cd`/`pushd` segment by segment (a `cd` to a directory that does not exist
+FAILS and the shell stays put — which is also what keeps the fixtures' `cd /repo` inside the
+project they stand for; `cd -`, `popd` and a variable make the directory UNKNOWN, and an unknown
+directory resolves nothing rather than guessing). A resolved path outside the project is not
+recorded, and a command whose every working segment runs outside the project with nothing reaching
+back in by an absolute path or a variable is not a project mutation at all — the same exemption
+the temp root already had. The reporter's second consequence — "a resolved path that `test -e`
+cannot find is evidence the resolution was wrong" — is answered by the first: the resolution no
+longer produces it.

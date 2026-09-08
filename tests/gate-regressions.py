@@ -738,6 +738,9 @@ def main():
     test_a_declared_mechanism_with_no_bound_mutant_is_reported(bin_dir, lint)
     test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint, repo_root)
     test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint, verify)
+    test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(lint)
+    test_a_fence_that_cannot_parse_is_reported_and_no_shell_is_said(lint)
+    test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint)
     test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
@@ -1020,7 +1023,7 @@ def main():
         ruby.write_text('helper.it "fake case" do\nend\n')
         assert spec_gate.test_definition_exists(ruby, "fake case", None)[0] is False
 
-        fake = Path(tmp) / "test_fake.py"
+        fake = Path(tmp) / "identity_fake.py"
         fake.write_text(
             "def test_real():\n"
             "    # test_fake\n"
@@ -1030,7 +1033,7 @@ def main():
         infos = {
             "T1": {
                 "human": False,
-                "tests": [("test_fake", "test_fake.py")],
+                "tests": [("test_fake", "identity_fake.py")],
                 "path": Path("T1.md"),
                 "vlog": [current],
             }
@@ -4149,6 +4152,128 @@ def test_a_negated_guard_that_cannot_fail_its_fence_is_reported(lint, verify):
     assert found == [], found
 
     print("PASS — a negated guard that cannot fail its fence is reported, and a working one is not")
+
+def _probe_task(fence, log="", tests="| t | f | v | — |"):
+    return ("# Task T1: probe\n\n"
+            "**Depends-on:** none\n**Covers:** none\n**Produces:** none\n"
+            "**Consumes:** none\n\n"
+            "## Goal\n\ng\n\n"
+            "## Affected Files\n\n| File | Change | Why |\n|---|---|---|\n"
+            "| `x.py` | edit | w |\n\n"
+            "## Ordered Steps\n\n1. Write the failing test first.\n2. Then the rest.\n\n"
+            f"## Acceptance\n\n```bash\n{fence}\n```\n\n"
+            "## Tests\n\n| Test name | File | Verifies | Covers |\n|---|---|---|---|\n"
+            f"{tests}\n\n"
+            "## Invariants\n\n- i\n\n## Risks\n\n- r\n\n"
+            "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
+            f"## Verification Log\n\n{log}")
+
+
+def _lint_task(lint, body):
+    with tempfile.TemporaryDirectory() as tmp:
+        probe = Path(tmp) / "T1-probe.md"
+        probe.write_text(body, encoding="utf-8")
+        errs = lint.Findings()
+        lint.check_task(probe, set(), errs)
+        return list(errs), list(errs.advice)
+
+
+def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(lint):
+    """BACKLOG §174 — the split an outside corpus asked for, and the cost the advisory now carries."""
+    # The predicate first. A positive grep counts; an inert negated guard does not;
+    # a negated guard that is the LAST command counts, its status being the script's.
+    assert lint.vacuity_checks("set -e\ngo test ./... | tee out\ngrep -q -- '--- PASS' out") \
+        == ["grep -q -- '--- PASS' out"]
+    assert lint.vacuity_checks("set -e\n! grep -q FAIL out\ngo test ./...") == []
+    assert lint.vacuity_checks("set -e\ngo test ./...\n! grep -q FAIL out") == ["! grep -q FAIL out"]
+    assert lint.vacuity_checks("set -e\nif grep -q FAIL out; then exit 1; fi") == ["if grep -q FAIL out"]
+
+    inert = "set -e\n! grep -q FAIL out\ngo test ./..."
+    rescued = "set -e\n! grep -q FAIL out\ngo test ./... | tee out\ngrep -q -- '--- PASS' out"
+    about = lambda items: [i for i in items if "cannot fail this Acceptance" in i]
+
+    # ALONE: the guard is the fence's only vacuity check, so a filter matching
+    # nothing passes the fence. That is a failure, decidable from the text.
+    errors, advice = _lint_task(lint, _probe_task(inert))
+    assert len(about(errors)) == 1 and about(advice) == [], (errors, advice)
+    assert "nothing else in it checks" in about(errors)[0]
+
+    # BESIDE A POSITIVE ASSERTION: advice, as before. The reporting corpus had 37
+    # of these and every one was rescued by exactly this shape.
+    errors, advice = _lint_task(lint, _probe_task(rescued))
+    assert about(errors) == [] and len(about(advice)) == 1, (errors, advice)
+    assert "exit-0 evidence" not in about(advice)[0], "no evidence, no cost to name"
+
+    # THE COST, on a task that carries evidence: the sentence that would have
+    # stopped an author editing 37 verified fences at once.
+    row = "- 2026-08-20 · 691a106f* · exit 0 · `set -e`\n"
+    errors, advice = _lint_task(lint, _probe_task(rescued, log=row))
+    assert "carries exit-0 evidence: editing the fence changes its digest" in about(advice)[0]
+
+    # THE WRAPPER: the one shape the mechanical fix breaks is named when present,
+    # and not otherwise.
+    wrapped = ("set -e\nsh -c 'go test ./... | tee out\n! grep -q FAIL out\ntrue'\n"
+               "grep -q -- '--- PASS' out")
+    errors, advice = _lint_task(lint, _probe_task(wrapped))
+    assert "closing quote must stay AFTER `fi`" in about(advice)[0], advice
+    _, advice = _lint_task(lint, _probe_task(rescued))
+    assert "closing quote" not in about(advice)[0]
+
+    # And the control that keeps the failure arm honest: a fence with no negated
+    # guard at all produces neither.
+    errors, advice = _lint_task(lint, _probe_task("set -o pipefail\ngo test ./..."))
+    assert about(errors) == [] and about(advice) == []
+
+    print("PASS — an inert guard is advice beside a positive check and a failure alone, with its cost")
+
+
+def test_a_fence_that_cannot_parse_is_reported_and_no_shell_is_said(lint):
+    """BACKLOG §174 — a fence that cannot run is worse than one that cannot fail."""
+    ok, _ = lint.fence_parses("set -o pipefail\ngo test ./...")
+    assert ok == "ok"
+    verdict, detail = lint.fence_parses('echo "unterminated')
+    assert verdict == "error" and detail, (verdict, detail)
+    # The third arm, injected: no shell is UNRUN, in those words, never a pass.
+    verdict, detail = lint.fence_parses(
+        "true", bash=str(Path(tempfile.gettempdir()) / "no-such-shell-qh"))
+    assert verdict == "unrun" and "could not be run" in detail, (verdict, detail)
+
+    # Through check_task, the way a record reaches it.
+    errors, advice = _lint_task(lint, _probe_task('set -o pipefail\nif grep -q x out; then exit 1'))
+    parse = [e for e in errors if "does not parse" in e]
+    assert len(parse) == 1 and "adr-verify would record" in parse[0], errors
+    errors, advice = _lint_task(lint, _probe_task("set -o pipefail\nif grep -q x out; then exit 1; fi"))
+    assert not [e for e in errors if "does not parse" in e], errors
+
+    print("PASS — a fence that cannot parse is reported, and a missing shell is said")
+
+
+def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
+    """BACKLOG §174 — `test_x` beside `tests/test_x.py` names the file, and the file exists."""
+    with tempfile.TemporaryDirectory() as tmp:
+        root = Path(tmp)
+        (root / "tests").mkdir()
+        (root / "tests" / "test_gate.py").write_text("def test_alpha():\n    assert 1\n", encoding="utf-8")
+        probe = root / "T1-probe.md"
+        row = "- 2026-08-20 · no-git · exit 0 · `true` · acceptance-sha256:" + "0" * 64 + "\n"
+
+        def findings(name):
+            probe.write_text(_probe_task("true", log=row, tests=f"| `{name}` | `tests/test_gate.py` | v | — |"),
+                             encoding="utf-8")
+            errs = lint.Findings()
+            _, info = lint.check_task(probe, set(), errs)
+            out = lint.Findings()
+            lint.check_tests_exist({"T1": info}, "| 1 | T1 | done |", out, root)
+            return [e for e in out if "Tests table names" in e]
+
+        assert findings("test_gate") == [], "the row names the file itself"
+        assert findings("test_alpha") == [], "a definition that exists"
+        # The must-fail arm: a name that is neither the file nor in it is still reported,
+        # and the report now asks the discriminating question rather than suggesting a name.
+        missing = findings("test_omega")
+        assert len(missing) == 1 and "sibling IN THAT SAME FILE" in missing[0], missing
+
+    print("PASS — a Tests row naming its own file is not a missing test")
 
 
 def test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint):

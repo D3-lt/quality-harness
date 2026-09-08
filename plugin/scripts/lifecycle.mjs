@@ -896,7 +896,9 @@ const VISIBLE_CODE_MUTATION_TOKENS = new RegExp([
   'write_text', 'write_bytes', 'writeFile', 'appendFile', 'createWriteStream',
   'unlink', 'remove', 'rmtree', 'rmdir', 'rmSync', 'mkdir', 'makedirs',
   'copyfile', 'copytree', 'rename', 'replace', 'chmod', 'chown', 'shutil',
-  'subprocess', 'os\\.system', 'popen', '\\bexec\\b', '\\beval\\b',
+  // A USE of subprocess, not its import: a read-only argv is stripped above,
+  // and `import re,pathlib,subprocess,json` on its own writes nothing.
+  'subprocess\\.', 'os\\.system', 'popen', '\\bexec\\b', '\\beval\\b',
   '__import__', 'importlib', 'runpy', 'child_process', 'urlopen', 'requests',
   '\\bfetch\\b', 'axios', '\\bsocket\\b', '\\bdump\\s*\\(', 'to_csv',
   '\\bdel\\s+', '\\bunlink\\s+', '\\bFile\\.write\\b',
@@ -917,6 +919,17 @@ const SAFE_VISIBLE_CALLS = new Set([
   'inspect.getsource', 'inspect.isclass', 'inspect.isfunction',
   'inspect.signature', 'isinstance', 'issubclass', 'getmembers', 'getsource',
   'isclass', 'isfunction', 'signature', 'vars',
+  // Pure string, regex, container and path-READ calls. Reported 2026-09-08 from
+  // an outside corpus (BACKLOG §175): a heredoc that grepped the tree and printed
+  // a JSON summary was a MUTATION on the strength of `re.findall(` and
+  // `s.strip(`, because the default here is that an unrecognised call writes.
+  'findall', 'search', 'match', 'fullmatch', 'compile', 'sub', 'split', 'strip',
+  'lstrip', 'rstrip', 'join', 'lower', 'upper', 'startswith', 'endswith', 'format',
+  'get', 'items', 'keys', 'values', 'append', 'extend', 'add', 'group', 'groups',
+  'count', 'index', 'splitlines', 'encode', 'decode', 'glob', 'rglob', 'iterdir',
+  'exists', 'is_file', 'is_dir', 'relative_to', 'resolve', 'stat', 'as_posix',
+  'read', 'readline', 'readlines', 'loads', 'setdefault', 'pop', 'sort', 'reversed',
+  'abs', 'round', 'hex', 'chr', 'ord', 'frozenset', 'filter', 'iter', 'next',
 ])
 
 export function heredocBodies(command) {
@@ -939,9 +952,31 @@ export function heredocBodies(command) {
   return bodies.join('\n')
 }
 
-function visibleCodeLooksMutating(code) {
+// `subprocess.run(["grep", "-rn", "x", "tests/"])` runs grep, and grep writes
+// nothing. The argv is a LITERAL here, so the question "does this child mutate"
+// is the question this module already answers for a shell line — ask it rather
+// than treating every subprocess as a write. Only a literal list with no
+// `shell=True` qualifies; anything computed stays a mutation, as before.
+function withoutReadOnlySubprocessCalls(code) {
+  return code.replace(
+    /\bsubprocess\.(?:run|check_output|check_call|call|Popen)\s*\(\s*\[((?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\]])*)\]([^)]*)\)/g,
+    (whole, argv, rest) => {
+      if (/\bshell\s*=\s*True\b/.test(rest)) return whole
+      const words = [...argv.matchAll(/(?:[rbu]{0,2})(["'])((?:(?!\1).)*)\1/g)].map(m => m[2])
+      if (words.length === 0 || /[$`]/.test(words.join(' '))) return whole
+      // A publish (`git push`) writes nothing here and changes the world anyway.
+      const line = words.join(' ')
+      return isPotentialMutationCommand(line) || isGitPublishCommand(line) ? whole : '""'
+    })
+}
+
+function visibleCodeLooksMutating(rawCode) {
+  const code = withoutReadOnlySubprocessCalls(rawCode)
   if (VISIBLE_CODE_MUTATION_TOKENS.test(code)) return true
-  const calls = [...code.matchAll(/\b([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*\(/g)]
+  // Calls are read from CODE, not from string literals: `re.search(r"def (test_\\w+)")`
+  // carries `def (` inside its pattern, and that is not a call to `def`.
+  const withoutStrings = code.replace(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/g, '""')
+  const calls = [...withoutStrings.matchAll(/\b([A-Za-z_$][\w$]*(?:\.[A-Za-z_$][\w$]*)*)\s*\(/g)]
   return calls.some(([, call]) => !SAFE_VISIBLE_CALLS.has(call)
     && !SAFE_VISIBLE_CALLS.has(call.split('.').at(-1)))
 }
@@ -1066,6 +1101,91 @@ function expandExistingGlob(candidate, cwd) {
   }
   return candidates.filter(candidatePath => existsSync(candidatePath))
 }
+// Whether every path-like token in a command that exists in the tree is a
+// Markdown file. A token that resolves to nothing (`s/a/b/`, a flag, a sed
+// script) is not evidence of a non-Markdown write; one that resolves to a real
+// non-Markdown file or directory is, and keeps the mutation marker.
+export function namesOnlyMarkdownFiles(command, cwd = process.cwd()) {
+  if (typeof command !== 'string') return false
+  const executable = withoutHeredocBodies(command)
+  let markdown = false
+  for (const match of executable.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
+    const candidate = match[1] ?? match[2] ?? match[3]
+    if (candidate.startsWith('-') || SHELL_ASSIGNMENT.test(candidate) || /^.{2,}:/.test(candidate)) continue
+    if (/\.md$/i.test(candidate)) {
+      markdown = true
+      continue
+    }
+    if (!/[/.]/.test(candidate) || candidate === '.' || candidate === '..') continue
+    if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false
+  }
+  return markdown
+}
+
+
+// The directory each top-level segment of a command runs in, following its own
+// `cd`/`pushd`. Reported 2026-09-08 from an outside corpus (BACKLOG §175): a
+// command that `cd`-ed into the session's memory directory under the user's
+// Claude config, outside the repository, and appended to a
+// Markdown file there was reported as a change to `<repo>/<that file>` — a path
+// that has never existed — because every relative token was resolved against
+// the session's cwd. `dir` is null once a `cd` cannot be followed (`cd -`, a
+// variable, `popd`), and a null directory resolves nothing rather than guessing.
+export function segmentDirectories(command, cwd) {
+  const trail = []
+  let here = cwd
+  for (const segment of shellSegments(withoutHeredocBodies(String(command ?? '')))) {
+    const navigation = segment.trim().match(/^(cd|pushd|popd)(?:\s+(?:"([^"]*)"|'([^']*)'|([^\s;&|<>]+)))?\s*$/)
+    if (navigation) {
+      const [, verb, dq, sq, bare] = navigation
+      const target = dq ?? sq ?? bare
+      if (verb === 'popd' || target === '-' || (target !== undefined && /[$`]/.test(target))) {
+        here = null
+      } else if (target === undefined || target === '~') {
+        here = os.homedir()
+      } else if (here !== null) {
+        // A `cd` to a directory that does not exist FAILS, and the shell stays
+        // where it was — which is also what keeps a fixture's `cd /repo` inside
+        // the project it stands for.
+        const next = path.resolve(here, target.replace(/^~\//, `${os.homedir()}/`))
+        if (existsSync(next)) here = next
+      }
+      trail.push({ segment, dir: here, navigation: true })
+      continue
+    }
+    trail.push({ segment, dir: here, navigation: false })
+  }
+  return trail
+}
+
+function underDirectory(candidate, root) {
+  const relative = path.relative(root, candidate)
+  return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
+}
+
+// Whether every segment that does work runs OUTSIDE the project, with nothing
+// reaching back in by an absolute path or a variable this cannot follow. A
+// write made there is not a change to this project, the same way a write under
+// the temp root is not (`mutatesOnlyTempPaths`). Conservative on purpose: one
+// segment whose directory is unknown, or one token that could name the
+// project, keeps the command a mutation.
+export function writesOutsideProject(command, cwd) {
+  if (typeof command !== 'string' || typeof cwd !== 'string') return false
+  const project = nearestExistingDirectory(path.resolve(cwd))
+  if (!project) return false
+  let work = 0
+  for (const { segment, dir, navigation } of segmentDirectories(command, cwd)) {
+    if (navigation) continue
+    if (dir === null || underDirectory(dir, project)) return false
+    for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
+      const token = match[1] ?? match[2] ?? match[3]
+      if (/[$`]/.test(token)) return false
+      if (path.isAbsolute(token) && underDirectory(token, project)) return false
+    }
+    work += 1
+  }
+  return work > 0
+}
 
 export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
   if (typeof command !== 'string') return []
@@ -1092,23 +1212,31 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
       if (/\.md$/i.test(value)) paths.push(...expandExistingGlob(value, cwd))
     }
   }
-  for (const match of executable.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
-    let candidate = match[1] ?? match[2] ?? match[3]
-    // A `key=value` token that is not an assignment is an argument, and an
-    // argument is not a path this gate can check.
-    if (SHELL_ASSIGNMENT.test(candidate)) continue
-    if (!/\.md(?:$|[),\]])/i.test(candidate)) continue
-    // `origin/main:docs/adr/BACKLOG.md` is a git revision, not a file: `git show
-    // <rev>:<path>` reads out of history and writes nothing, but the token was
-    // resolved against the working directory and a path that has never existed
-    // was reported as changed. A colon past the first two characters cannot be a
-    // Windows drive letter, so it is not a path this gate can check.
-    if (/^.{2,}:/.test(candidate)) continue
-    candidate = candidate.replace(/[),\]]+$/g, '')
-    if (candidate.includes('=') && candidate.startsWith('-')) {
-      candidate = candidate.slice(candidate.lastIndexOf('=') + 1)
+  for (const { segment, dir } of segmentDirectories(executable, cwd)) {
+    // A segment whose directory cannot be followed resolves nothing: a guessed
+    // path is what produced the never-existed file above.
+    if (dir === null) continue
+    for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
+      let candidate = match[1] ?? match[2] ?? match[3]
+      // A `key=value` token that is not an assignment is an argument, and an
+      // argument is not a path this gate can check.
+      if (SHELL_ASSIGNMENT.test(candidate)) continue
+      if (!/\.md(?:$|[),\]])/i.test(candidate)) continue
+      // `origin/main:docs/adr/BACKLOG.md` is a git revision, not a file: `git show
+      // <rev>:<path>` reads out of history and writes nothing, but the token was
+      // resolved against the working directory and a path that has never existed
+      // was reported as changed. A colon past the first two characters cannot be a
+      // Windows drive letter, so it is not a path this gate can check.
+      if (/^.{2,}:/.test(candidate)) continue
+      candidate = candidate.replace(/[),\]]+$/g, '')
+      if (candidate.includes('=') && candidate.startsWith('-')) {
+        candidate = candidate.slice(candidate.lastIndexOf('=') + 1)
+      }
+      // Resolved against the directory the segment runs in, and kept only when
+      // that lands inside the project: a file written elsewhere is not a change
+      // to this tree, and reporting it under the tree's root was the defect.
+      paths.push(...expandExistingGlob(candidate, dir).filter(resolved => underDirectory(resolved, cwd)))
     }
-    paths.push(...expandExistingGlob(candidate, cwd))
   }
   return [...new Set(paths)]
 }
@@ -1554,15 +1682,25 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
         // neither.
         lastTreeRefresh = Math.max(lastTreeRefresh, use.position)
       } else if (navigation !== 'inert' && isPotentialMutationCommand(use.input.command)
-          && !mutatesOnlyTempPaths(use.input.command, cwd)) {
+          && !mutatesOnlyTempPaths(use.input.command, cwd)
+          && !writesOutsideProject(use.input.command, cwd)) {
         lastMutation = Math.max(lastMutation, use.position)
-        record(use.position, ...bashMarkdownMutationPaths(use.input.command, cwd))
+        const markdown = bashMarkdownMutationPaths(use.input.command, cwd)
+        record(use.position, ...markdown)
         const deletions = bashDeletionMutationPaths(use.input.command, cwd)
         if (deletions.includes(UNRESOLVED_DELETION_MUTATION)) {
           lastUnresolvedDeletion = Math.max(lastUnresolvedDeletion, use.position)
         }
         record(use.position, ...deletions)
-        record(use.position, `<Bash mutation: ${describeCommand(use.input.command)}>`)
+        // The marker stands in for a write that could NOT be resolved to a path.
+        // When the command names Markdown files and nothing else that exists, it
+        // adds nothing a reader needs and costs something real: `docsOnly` reads
+        // it as a non-document path, so `sed -i` over fourteen Markdown files
+        // demanded the full test run a Markdown-only change is exempt from.
+        // Reported 2026-09-08 from an outside corpus (BACKLOG §174).
+        if (markdown.length === 0 || !namesOnlyMarkdownFiles(use.input.command, cwd)) {
+          record(use.position, `<Bash mutation: ${describeCommand(use.input.command)}>`)
+        }
       }
       if (isGitPublishCommand(use.input.command)) {
         lastPublish = Math.max(lastPublish, use.position)

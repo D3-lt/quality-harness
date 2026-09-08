@@ -57,6 +57,13 @@ build, or parse reason rather than a failing assertion. A mutant-only no-tests
 result is instead killed when the paired clean fence already scored tests; an
 unusable clean fence is `UNPROVEN`, runs no mutant, and writes no verdict.
 
+⚠ --mutant RUNS THE FENCE TWICE: the clean baseline first, then the mutant. That
+is what makes `killed` mean anything — a mutant fence that fails is evidence only
+against a clean one that passed — but it means the wall-clock cost is two full
+Acceptance runs, not one, even when the mutation trips the first command of an
+`&&` chain in seconds. Reported 2026-09-08 from a corpus whose 26-minute
+acceptance therefore cost about 52 (docs/BACKLOG.md §173).
+
 What this does NOT prove: that the mutant was WELL CHOSEN. Uniqueness makes a
 trivial irrelevant line an available escape hatch, and only --why guards that,
 which is prose. The gate closes "the mutant proved nothing mechanically".
@@ -2598,6 +2605,23 @@ def main():
         run_mutant(task, text, cmd, cwd, today, mutant, frm, to, why, also_restore,
                    covers=covers, steps=steps)
 
+    # Reported 2026-09-08 (BACKLOG §174): "re-run adr-verify" is the migration this
+    # gate's own refusal names for pre-digest evidence, and on a done task whose
+    # fence needed an environment it did not set up for itself, the migration
+    # appended a FAILED run to a task that was finished — with no exit, because
+    # fixing the fence changes the digest and lands back at the refusal. The run
+    # is still appended, whatever it exits: an append-only log is the contract
+    # (CLAUDE.md §4). What was missing is being told BEFORE the run what a failure
+    # here will read as, while there is still time to fix the fence first.
+    prior = sum(1 for ln in text.splitlines()
+                if re.match(r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · ", ln.strip()))
+    if prior:
+        print(f"[adr-verify] {task.name} already carries {prior} exit-0 "
+              f"{'entry' if prior == 1 else 'entries'}. This run is appended whatever it exits: "
+              f"a failure here reads as the task regressing, not as a migration that did not "
+              f"take. If the fence needs an environment it does not set up for itself (a URL, "
+              f"a path, a service), fix the fence FIRST — that changes the digest once, and the "
+              f"next run records against the fence as it will stand.")
     # MONOTONIC, not wall-clock. `time.time()` goes backwards over an NTP step or a
     # DST change, and a negative duration handed to the floor is a finding about
     # the clock reported as a finding about the work.

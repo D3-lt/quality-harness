@@ -952,21 +952,43 @@ export function heredocBodies(command) {
   return bodies.join('\n')
 }
 
-// `subprocess.run(["grep", "-rn", "x", "tests/"])` runs grep, and grep writes
-// nothing. The argv is a LITERAL here, so the question "does this child mutate"
-// is the question this module already answers for a shell line — ask it rather
-// than treating every subprocess as a write. Only a literal list with no
-// `shell=True` qualifies; anything computed stays a mutation, as before.
+// Commands positively KNOWN to read and not write. ⚠ AN ALLOWLIST, NOT THE
+// ABSENCE OF A DENYLIST. The first version stripped any subprocess whose argv
+// `isPotentialMutationCommand` did not recognise as mutating, which treats "I do
+// not know this command" as "it is safe" — the could-not-look-is-not-a-verdict
+// rule (ADR-005) inverted, inside the gate that enforces it. Codex found four
+// that slipped through: `tar -xf` extracts, `find -exec` runs anything, a
+// computed argv element hides the executable, and `stdout=open(...)` writes a
+// file the argv never names (BACKLOG §180).
+const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|awk|sed|jq|column|nl|tee)$/
+// `find` is read-only only while it neither executes nor deletes.
+const FIND_WRITES = /(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fls|fprint|fprintf|fputs)(?:\s|$)/
+
 function withoutReadOnlySubprocessCalls(code) {
   return code.replace(
     /\bsubprocess\.(?:run|check_output|check_call|call|Popen)\s*\(\s*\[((?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\]])*)\]([^)]*)\)/g,
     (whole, argv, rest) => {
-      if (/\bshell\s*=\s*True\b/.test(rest)) return whole
-      const words = [...argv.matchAll(/(?:[rbu]{0,2})(["'])((?:(?!\1).)*)\1/g)].map(m => m[2])
-      if (words.length === 0 || /[$`]/.test(words.join(' '))) return whole
-      // A publish (`git push`) writes nothing here and changes the world anyway.
-      const line = words.join(' ')
-      return isPotentialMutationCommand(line) || isGitPublishCommand(line) ? whole : '""'
+      // Any keyword that can open a file handle, or a shell, keeps the call.
+      if (/\b(?:shell\s*=\s*True|stdout\s*=|stderr\s*=|stdin\s*=|input\s*=)/.test(rest)) return whole
+      // EVERY element must be a string literal. A bare name is a value this
+      // cannot see — `cmd = "rm"; subprocess.run([cmd, "-rf", "build"])` used to
+      // yield ["-rf", "build"], which names no command at all and read as safe.
+      const elements = argv.split(',').map(e => e.trim()).filter(Boolean)
+      if (elements.length === 0) return whole
+      const words = []
+      for (const element of elements) {
+        const literal = element.match(/^(?:[rbuRBU]{0,2})(["'])((?:(?!\1).)*)\1$/)
+        if (!literal) return whole
+        words.push(literal[2])
+      }
+      if (/[$`]/.test(words.join(' '))) return whole
+      const executable = (words[0] ?? '').split('/').pop()
+      if (!READ_ONLY_CHILD.test(executable)) return whole
+      if (executable === 'find' && FIND_WRITES.test(' ' + words.slice(1).join(' '))) return whole
+      // A redirect written into the argv itself is not a redirect to the OS, but
+      // this gate does not model that; keep the call rather than reason about it.
+      if (words.some(word => /^>>?|^\d?>/.test(word))) return whole
+      return '""'
     })
 }
 
@@ -1101,23 +1123,41 @@ function expandExistingGlob(candidate, cwd) {
   }
   return candidates.filter(candidatePath => existsSync(candidatePath))
 }
-// Whether every path-like token in a command that exists in the tree is a
-// Markdown file. A token that resolves to nothing (`s/a/b/`, a flag, a sed
-// script) is not evidence of a non-Markdown write; one that resolves to a real
-// non-Markdown file or directory is, and keeps the mutation marker.
+// A command whose write targets this gate can actually READ: a direct file
+// utility, not an interpreter. ⚠ THE MARKER MAY ONLY BE WITHHELD FOR THESE.
+// Withholding it for anything else launders a code write through the docs-only
+// escape: `python3 -c "open(\"plugin/bin/adr-lint\",\"w\").write(\"x\")"
+// docs/BACKLOG.md` names one Markdown file and writes a gate, and the Stop
+// notice was suppressed for it (Codex review, 2026-09-08 — BACKLOG §180).
+const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir)$/
+
+// Whether every path this command writes resolves to Markdown. Conservative by
+// construction: an interpreter, a heredoc, a wrapper or an unrecognised command
+// answers false, because then the write targets are not knowable from the text.
 export function namesOnlyMarkdownFiles(command, cwd = process.cwd()) {
   if (typeof command !== 'string') return false
+  if (heredocBodies(command).trim().length > 0) return false
   const executable = withoutHeredocBodies(command)
   let markdown = false
-  for (const match of executable.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
-    const candidate = match[1] ?? match[2] ?? match[3]
-    if (candidate.startsWith('-') || SHELL_ASSIGNMENT.test(candidate) || /^.{2,}:/.test(candidate)) continue
-    if (/\.md$/i.test(candidate)) {
-      markdown = true
-      continue
+  for (const region of shellCommandRegions(executable)) {
+    for (const segment of shellSegments(region)) {
+      const trimmed = segment.trim()
+      if (trimmed === '' || /^(?:cd|pushd|popd)\b/.test(trimmed)) continue
+      const invocation = commandInvocation(trimmed)
+      if (!invocation) return false
+      const name = executableName(invocation.words[invocation.index]).split('/').pop()
+      if (!DIRECT_FILE_WRITER.test(name)) return false
+      for (const match of trimmed.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
+        const candidate = match[1] ?? match[2] ?? match[3]
+        if (candidate.startsWith('-') || SHELL_ASSIGNMENT.test(candidate) || /^.{2,}:/.test(candidate)) continue
+        if (/\.md$/i.test(candidate)) {
+          markdown = true
+          continue
+        }
+        if (!/[/.]/.test(candidate) || candidate === '.' || candidate === '..') continue
+        if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false
+      }
     }
-    if (!/[/.]/.test(candidate) || candidate === '.' || candidate === '..') continue
-    if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false
   }
   return markdown
 }
@@ -1148,7 +1188,11 @@ export function segmentDirectories(command, cwd) {
         // where it was — which is also what keeps a fixture's `cd /repo` inside
         // the project it stands for.
         const next = path.resolve(here, target.replace(/^~\//, `${os.homedir()}/`))
-        if (existsSync(next)) here = next
+        // ⚠ A DIRECTORY, not merely something that exists. `cd /etc/passwd` fails
+        // in bash ("Not a directory") and the shell stays where it was; this
+        // followed it into the file's path and then judged every later write
+        // against that (Codex review, 2026-09-08 — BACKLOG §180).
+        if (isDirectory(next)) here = next
       }
       trail.push({ segment, dir: here, navigation: true })
       continue
@@ -1158,8 +1202,30 @@ export function segmentDirectories(command, cwd) {
   return trail
 }
 
+// Canonical form of a directory, so a symlink cannot make an inside path look
+function isDirectory(candidate) {
+  try {
+    return statSync(candidate).isDirectory()
+  } catch {
+    return false
+  }
+}
+
+// outside. Falls back to the lexical path when it cannot be resolved.
+function canonical(candidate) {
+  try {
+    return realpathSync(candidate)
+  } catch {
+    return candidate
+  }
+}
+
+// ⚠ LEXICAL CONTAINMENT IS NOT ENOUGH ON ITS OWN. `path.relative` is sound only
+// for canonical absolute paths under the right root, so both sides are resolved
+// first: a symlink pointing back into the project used to read as outside it
+// (Codex review, 2026-09-08 — BACKLOG §180).
 function underDirectory(candidate, root) {
-  const relative = path.relative(root, candidate)
+  const relative = path.relative(canonical(root), canonical(candidate))
   return relative === '' || (!relative.startsWith('..') && !path.isAbsolute(relative))
 }
 
@@ -1171,8 +1237,13 @@ function underDirectory(candidate, root) {
 // project, keeps the command a mutation.
 export function writesOutsideProject(command, cwd) {
   if (typeof command !== 'string' || typeof cwd !== 'string') return false
-  const project = nearestExistingDirectory(path.resolve(cwd))
-  if (!project) return false
+  // ⚠ THE PROJECT IS ITS GIT ROOT, NOT THE CWD. With the session standing in a
+  // subdirectory, `cd ../docs && touch BACKLOG.md` wrote to the repository and
+  // this read it as outside, because the boundary was wherever the session
+  // happened to be (Codex review, 2026-09-08 — BACKLOG §180).
+  const here = nearestExistingDirectory(path.resolve(cwd))
+  if (!here) return false
+  const project = gitRepositoryRoot(here) ?? here
   let work = 0
   for (const { segment, dir, navigation } of segmentDirectories(command, cwd)) {
     if (navigation) continue
@@ -1180,7 +1251,12 @@ export function writesOutsideProject(command, cwd) {
     for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
       const token = match[1] ?? match[2] ?? match[3]
       if (/[$`]/.test(token)) return false
-      if (path.isAbsolute(token) && underDirectory(token, project)) return false
+      // Relative tokens are resolved against the directory the segment RUNS IN,
+      // so `../..`-style traversal back into the project is caught. Anything
+      // path-shaped counts; a bare word cannot be judged and is left alone.
+      const resolved = path.isAbsolute(token) ? token
+        : (/[/.]/.test(token) && token !== '.' && token !== '..' ? path.resolve(dir, token) : null)
+      if (resolved !== null && underDirectory(resolved, project)) return false
     }
     work += 1
   }

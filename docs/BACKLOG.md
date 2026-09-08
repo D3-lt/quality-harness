@@ -12086,6 +12086,19 @@ comparison says. The containment arithmetic still runs, but only for the harder 
 written for — where a `cd` actually landed. Two rounds on one defect, and the lesson is the shape of
 the first attempt: I fixed the path comparison twice before noticing the case never needed one.
 
+⚠ **AND THE GUARD CARRIES NO MUTANT, DELIBERATELY.** One was written and came back GREEN: with
+`if (false) return false` the code falls through to the containment arithmetic, which on macOS
+answers correctly anyway — so the guard is redundant on this platform and only bites where two
+spellings of one directory fail to compare equal. Making it observable would need a fixture whose
+lexical AND canonical forms both disagree, which is the Windows short/long-name case and cannot be
+built here. `CLAUDE.md` §7 asks for a `skip:` with the reason named; `tests/mutations.json` has no
+skip mechanism (its `only` key narrows test NAMES, not platforms), so the entry was removed rather
+than left scoring GREEN for a reason that is not a finding.
+
+**So the assertions beside it are honest but not falsifiable here**: they state something macOS
+cannot disprove, and the `windows` CI job is the only witness that can. That is worth writing down
+rather than leaving a reader to assume the local suite covers it.
+
 ⚠ **Nothing local could have found this.** `CLAUDE.md` §7 says the platform is a parameter and you
 cannot run Windows here; this is that rule collecting. The exemption was added, reviewed twice,
 attacked directly, and shipped past all of it — because every probe ran where `realpathSync` agrees

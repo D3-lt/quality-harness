@@ -11873,3 +11873,48 @@ the rest fall to `unaccounted`, which is UNPROVEN rather than a verdict.
 since a fence that CAN fail is one that must NOT be blocked. A harness that reports everything as
 broken is as useless as one that reports nothing, and the tell was that the control cases failed too.
 Both controls are in the probe now.
+
+## 183. CLOSED 2026-09-08 — two doors into the evidence gate that this release opened, found before it was tagged
+
+Found while v2.96.0's CI was in flight, by probing `namesOnlyMarkdownFiles` and `writesOutsideProject`
+DIRECTLY rather than through a transcript. Both are fail-opens — a real code write escaping the Stop
+evidence requirement — and both are **regressions introduced by this range**, because before it
+neither exemption existed. That is why the release was held and re-cut rather than shipped with them
+filed.
+
+**1. A bare word can be a directory.** `namesOnlyMarkdownFiles` skipped any token without a `/` or a
+`.` on the grounds that it could not be a path. A bare directory name is one:
+
+```
+cp docs/BACKLOG.md plugin      -> docs-only, marker withheld   ⚠ writes into a code directory
+cp docs/BACKLOG.md plugin/     -> held                          (the slash is what saved it)
+mv docs/BACKLOG.md plugin      -> docs-only, marker withheld   ⚠
+```
+
+The trailing-slash form being correct is what made the whole function look right. Tokens are now
+checked for existence whatever their shape, with the command word itself excluded so `cp` is not
+mistaken for a path.
+
+**2. `~` is expanded by the shell and was not expanded here.** `$HOME` was already held — a `$` marks
+a token this gate cannot follow, so the command keeps its marker — but `~` carries no such mark:
+
+```
+cd /tmp && touch ~/<repo>/plugin/bin/adr-lint   -> EXEMPT from the evidence gate
+                                                   while bash writes inside the repository
+```
+
+Expanded before the containment test now, with the genuinely-outside tilde case asserted so the fix
+is not "never exempt".
+
+⚠ **THE PATTERN ACROSS §180 AND §183 IS ONE PATTERN.** Every exemption added in this range — skip the
+marker for documents, skip the gate for work outside the project, skip a read-only child process —
+was correct for the case that motivated it and wrong for a neighbouring case nobody had written down.
+An exemption is a hole with a justification attached, and the justification is not what needs
+testing: the *edge of the hole* is. Each of the five was found by asking "what is the smallest change
+to this input that keeps the exemption firing while making the write real?"
+
+**Method note, and it cost a wrong conclusion first.** The probe that found these initially compared
+`gate blocks == shell can fail` and reported ten MISMATCHES that were every one correct — the polarity
+was inverted, since a fence that CAN fail is one that must NOT be blocked. The tell was that the
+CONTROL cases failed too. A harness with no control is a harness whose output cannot be read in
+either direction (see also §182).

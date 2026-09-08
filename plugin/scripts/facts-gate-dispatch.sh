@@ -166,7 +166,12 @@ is_architecture() {
 
 archive_readme=$(archive_catalog_for "$f")
 if [ -z "$archive_readme" ]; then
-  archive_readme=$(git_archive_catalog_for "$f")
+  # Batch argument 3 is a completed read of these same historical candidates.
+  # A missing argument keeps the standalone lookup; empty means no catalog found.
+  if [ "${3+x}" = x ]; then archive_readme=$3
+  else archive_readme=$(git_archive_catalog_for "$f")
+  fi
+
 fi
 if [ -z "$archive_readme" ]; then
   case "$f" in

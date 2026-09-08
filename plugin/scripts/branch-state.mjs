@@ -23,6 +23,8 @@ import { readFileSync, writeFileSync } from 'node:fs'
 import { join } from 'node:path'
 import process from 'node:process'
 import { pathToFileURL } from 'node:url'
+import { findGitDir } from './git-directory.mjs'
+import { startPerformanceTrace } from './performance-trace.mjs'
 /**
  * Where `.git` is, so the cache lands somewhere never tracked and never shipped.
  *
@@ -365,23 +367,43 @@ export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = co
 function main(argv = process.argv.slice(2)) {
   const brief = argv.includes('--brief')
   const at = argv.indexOf('--cached')
-  // ONE budget for the whole collection, on every path. The first SessionStart
-  // ran this uncached with two 15s gh calls in series, and a cold start hung the
-  // session for as long as gh took — the reporter noticed on macOS. A slow gh is
-  // COULD NOT LOOK, which is honest; a hang before the first prompt is not.
+  const finish = startPerformanceTrace('branch-state', JSON.stringify(argv))
+  // Cache discovery shares the collection's deadline too. It previously had a
+  // separate 15s Git timeout before the reader even began its 8s budget.
+  const run = budgeted(BUDGET_MS)
   if (at < 0) {
-    process.stdout.write(`${render(collect(budgeted(BUDGET_MS)), { brief })}\n`)
+    const state = collect(run)
+    process.stdout.write(`${render(state, { brief })}\n`)
+    finish(state.looked ? 'refreshed' : 'unavailable', { status: 0 })
     return 0
   }
-  const home = gitDir()
-  // No `.git`, no cache. Never a fallback directory — see `gitDir`.
+  const maxAgeSeconds = Number(argv[at + 1]) || 120
+  const read = store => {
+    if (!store) return null
+    try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null }
+  }
+  // Ordinary cache hits need no Git process. Explicit Git discovery overrides
+  // must still be interpreted by Git, and only Git chooses a cache WRITE path.
+  const overridden = ['GIT_DIR', 'GIT_WORK_TREE', 'GIT_COMMON_DIR',
+    'GIT_CEILING_DIRECTORIES', 'GIT_DISCOVERY_ACROSS_FILESYSTEM'].some(key => process.env[key] !== undefined)
+  const hint = overridden ? null : findGitDir(process.cwd())
+  const previous = read(hint && join(hint, 'qh-branch-state.json'))
+  const now = Date.now()
+  if (usableCache(previous, now) && (now - previous.at) / 1000 < maxAgeSeconds) {
+    const age = Math.max(1, Math.round((now - previous.at) / 1000))
+    process.stdout.write(`${render(previous.state, { brief })} (read ${age}s ago)\n`)
+    finish('cache-hit', { status: 0 })
+    return 0
+  }
+  const home = gitDir(run)
   const store = home ? join(home, 'qh-branch-state.json') : null
-  const { state, fromCache, ageSeconds } = cached(Number(argv[at + 1]) || 120, {
-    read: () => { if (!store) return null; try { return JSON.parse(readFileSync(store, 'utf8')) } catch { return null } },
+  const { state, fromCache, ageSeconds } = cached(maxAgeSeconds, {
+    read: () => read(store),
     write: payload => { if (!store) return; try { writeFileSync(store, JSON.stringify(payload)) } catch { /* a cache that cannot be written is not a failure */ } },
-    gather: checkpoint => collect(budgeted(BUDGET_MS), checkpoint),
+    gather: checkpoint => collect(run, checkpoint),
   })
   process.stdout.write(`${render(state, { brief })}${fromCache ? ` (read ${ageSeconds}s ago)` : ''}\n`)
+  finish(fromCache ? 'cache-hit' : state.looked ? 'refreshed' : 'unavailable', { status: 0 })
   return 0
 }
 

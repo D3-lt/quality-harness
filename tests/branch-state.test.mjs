@@ -8,6 +8,11 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
+import { spawnSync } from 'node:child_process'
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
+import { fileURLToPath } from 'node:url'
 import { budgeted, cached, collect, gitDir, render, shell, usableCache } from '../plugin/scripts/branch-state.mjs'
 
 const ok = out => ({ ok: true, out })
@@ -482,4 +487,72 @@ test('collect checkpoints the git half BEFORE it spawns gh, and the next prompt 
   assert.match(out, /COULD NOT LOOK/)
   assert.match(out, /stored before the CI half was gathered/)
   assert.match(out, /main @ 0a18d04/, 'while the git half — the half a session reads — survives')
+})
+
+test('the cached branch CLI reads a fresh answer without starting Git', t => {
+  const project = mkdtempSync(path.join(os.tmpdir(), 'qh-branch-cache-'))
+  t.after(() => rmSync(project, { recursive: true, force: true }))
+  const init = spawnSync('git', ['init', '-q', project], { encoding: 'utf8', timeout: 10_000 })
+  assert.equal(init.status, 0, init.stderr)
+  const cache = path.join(project, '.git', 'qh-branch-state.json')
+  const state = { looked: true, branch: 'main', head: 'abc1234', dirty: 0, ahead: 0, behind: 0,
+    ci: { looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] },
+    tag: null, shippedSinceTag: null, releaseBlocked: null }
+  const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
+  const traceDirectory = mkdtempSync(path.join(os.tmpdir(), 'qh-branch-trace-'))
+  t.after(() => rmSync(traceDirectory, { recursive: true, force: true }))
+  const trace = path.join(traceDirectory, 'trace.jsonl')
+  const read = (extra = {}, cwd = project) => spawnSync(process.execPath, [script, '--brief', '--cached', '120'], {
+    cwd, env: { ...process.env, PATH: '', QUALITY_HARNESS_TRACE_FILE: trace,
+      QUALITY_HARNESS_TRACE_UNTIL: String(Date.now() + 60_000), ...extra }, encoding: 'utf8', timeout: 10_000,
+  })
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, state }))
+  const warm = read()
+  assert.equal(warm.status, 0, warm.stderr)
+  assert.match(warm.stdout, /main @ abc1234/)
+  assert.match(warm.stdout, /every job concluded success/)
+  assert.match(warm.stdout, /read \d+s ago/)
+  assert.equal(warm.stderr, '', 'a warm reader must not even try an unavailable Git')
+  assert.equal(JSON.parse(readFileSync(trace, 'utf8').trim().split('\n').at(-1)).outcome, 'cache-hit')
+  const override = read({ GIT_DIR: path.join(project, 'missing-git') })
+  assert.match(override.stdout, /COULD NOT LOOK/, 'Git environment overrides must bypass the filesystem hint')
+  const unsafeTrace = path.join(project, 'must-not-be-created.jsonl')
+  assert.match(read({ QUALITY_HARNESS_TRACE_FILE: unsafeTrace }).stdout, /every job concluded success/)
+  assert.throws(() => readFileSync(unsafeTrace), { code: 'ENOENT' }, 'tracing must not dirty the checkout')
+  const broken = path.join(project, 'broken-nested-repository')
+  mkdirSync(broken)
+  for (const metadata of ['invalid git pointer\n', 'invalid prefix\ngitdir: ' + path.join(project, '.git') + '\n']) {
+    writeFileSync(path.join(broken, '.git'), metadata)
+    assert.match(read({}, broken).stdout, /COULD NOT LOOK/, 'malformed nested metadata must not borrow parent green')
+  }
+  const invalidTarget = path.join(project, 'invalid-metadata-target')
+  mkdirSync(invalidTarget)
+  writeFileSync(path.join(invalidTarget, 'HEAD'), 'ref: refs/heads/main\n')
+  mkdirSync(path.join(invalidTarget, 'objects'))
+  writeFileSync(path.join(invalidTarget, 'qh-branch-state.json'), JSON.stringify({ at: Date.now(), state }))
+  writeFileSync(path.join(broken, '.git'), 'gitdir: ' + invalidTarget + '\n')
+  assert.match(read({}, broken).stdout, /COULD NOT LOOK/, 'an invalid gitfile target cannot lend its cache')
+  mkdirSync(path.join(invalidTarget, 'refs'))
+  writeFileSync(path.join(invalidTarget, 'HEAD'), 'invalid HEAD\n')
+  assert.match(read({}, broken).stdout, /COULD NOT LOOK/, 'invalid HEAD syntax cannot lend its cache')
+  const git = args => {
+    const result = spawnSync('git', ['-C', project, ...args], { encoding: 'utf8', timeout: 10_000 })
+    assert.equal(result.status, 0, result.stderr)
+    return result.stdout.trim()
+  }
+  git(['-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'])
+  const worktree = path.join(project, 'linked worktree')
+  git(['worktree', 'add', '-q', '-b', 'linked-test', worktree])
+  const worktreeGit = spawnSync('git', ['-C', worktree, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 10_000 })
+  assert.equal(worktreeGit.status, 0, worktreeGit.stderr)
+  writeFileSync(path.join(worktreeGit.stdout.trim(), 'qh-branch-state.json'), JSON.stringify({
+    at: Date.now() - 1000, state: { ...state, branch: 'linked-test' },
+  }))
+  assert.match(read({}, worktree).stdout, /linked-test @ abc1234/, 'a worktree reads its own cache without Git')
+
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 121_000, state }))
+  const stale = read()
+  assert.equal(stale.status, 0, stale.stderr)
+  assert.match(stale.stdout, /COULD NOT LOOK/)
+  assert.doesNotMatch(stale.stdout, /every job concluded success/, 'stale green cannot hide a failed refresh')
 })

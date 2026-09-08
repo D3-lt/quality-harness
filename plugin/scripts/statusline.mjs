@@ -20,13 +20,15 @@
 //   node "$(qh-root)/scripts/statusline.mjs" <<< "$input"
 // Exit is always 0 and stderr is never written: an error string in a status
 // line is permanent noise on the one surface a user cannot dismiss.
-import { readFileSync, realpathSync, statSync, writeFileSync } from 'node:fs'
+import { readFileSync, statSync, writeFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 import { analyzeTranscript, projectCheckCommand } from './lifecycle.mjs'
 import { usableCache } from './branch-state.mjs'
+import { findGitDir } from './git-directory.mjs'
+export { findGitDir } from './git-directory.mjs'
 
 export const SIZE_CAP = 50 * 1024 * 1024
 
@@ -72,29 +74,6 @@ export function reading(input, { analyze = analyzeTranscript, now = Date.now() }
 // walking up, without spawning git; a worktree's `.git` file names its dir.
 export const CI_STALE_MS = 15 * 60_000
 
-export function findGitDir(start) {
-  // realpath first: a cwd that is a symlink into a repository walks the wrong
-  // parents otherwise, and a relative `gitdir:` resolves against the wrong
-  // directory (Codex review, 2026-09-05).
-  let here = path.resolve(start)
-  try { here = realpathSync(here) } catch {}
-  for (;;) {
-    // A bare repository is its own git dir: HEAD and objects/ at the root.
-    try {
-      if (statSync(path.join(here, 'HEAD')).isFile() && statSync(path.join(here, 'objects')).isDirectory()) return here
-    } catch {}
-    const candidate = path.join(here, '.git')
-    try {
-      const stat = statSync(candidate)
-      if (stat.isDirectory()) return candidate
-      const pointer = /^gitdir:\s*(.+)$/m.exec(readFileSync(candidate, 'utf8'))
-      if (pointer) return path.resolve(here, pointer[1].trim())
-    } catch {}
-    const parent = path.dirname(here)
-    if (parent === here) return null
-    here = parent
-  }
-}
 
 export function ciReading(cwd, now = Date.now()) {
   const gitDir = findGitDir(cwd ?? process.cwd())

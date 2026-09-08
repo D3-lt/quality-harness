@@ -1,9 +1,10 @@
 #!/usr/bin/env node
 
 import { spawn, spawnSync } from 'node:child_process'
-import { existsSync } from 'node:fs'
+import { existsSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
+import { startPerformanceTrace } from './performance-trace.mjs'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const HOOK_SCRIPTS = new Set(['facts-gate-dispatch.sh', 'post-edit-check.sh'])
@@ -286,18 +287,27 @@ export async function runShellHook(scriptName, raw, options = {}) {
     process.stderr.write('quality-harness: Git Bash was not found, so the artifact gates did not '
       + 'run. Set CLAUDE_CODE_GIT_BASH_PATH to Git for Windows bin/bash.exe. Your edit is '
       + 'untouched — this is the harness reporting its own absence.\n')
+    startPerformanceTrace('shell/' + scriptName, raw ?? '', process.env,
+      [hookFilePathFromPayload(raw ?? '')])('unavailable', { error: true })
     return 0
   }
   if (raw === undefined) raw = await readStdin()
-  const run = await runWithTimeout(executable, [scriptPath, ...hookArguments(
-    scriptName,
-    raw,
-    process.platform,
-  )], {
+  const finish = startPerformanceTrace('shell/' + scriptName, raw, process.env, [hookFilePathFromPayload(raw)])
+
+  const args = hookArguments(scriptName, raw, process.platform)
+  // Only a completed batch history read supplies this argument. Undefined keeps
+  // the dispatcher's ordinary lookup; an empty string is an observed absence.
+  if (scriptName === 'facts-gate-dispatch.sh' && options.archiveCatalog !== undefined) {
+    args.push(process.platform === 'win32' ? windowsPathForBash(options.archiveCatalog) : options.archiveCatalog)
+  }
+  const run = await runWithTimeout(executable, [scriptPath, ...args], {
     input: normalizeHookPayload(raw),
     timeoutMs,
     maxOutputBytes,
   })
+  finish(run.cleanupConfirmed === false ? 'cleanup-unconfirmed'
+    : run.outputLimitExceeded ? 'output-limit' : run.timedOut ? 'timeout'
+    : run.error || run.status !== 0 || shellRuntimeCrashed(run.stderr) ? 'failed' : 'completed', run)
   // A deferral notice printed on exit-0 stdout reaches nobody at PostToolUse —
   // Claude Code surfaces exit-0 stdout in transcript view only. Wrapping it as
   // additionalContext is what actually puts the finding in front of the model
@@ -365,6 +375,100 @@ export async function runShellHook(scriptName, raw, options = {}) {
   return 0
 }
 
+/**
+ * archiveHistory reads only the historical README candidates needed by this pass.
+ * Missing map entries mean unknown: the dispatcher performs its ordinary lookup.
+ */
+export function archiveHistory(paths, deadline, run = spawnSync) {
+  const answers = new Map()
+  if (paths.length < 2) return answers
+  const roots = new Map()
+  const groups = new Map()
+  const git = (cwd, args, input) => {
+    const remaining = deadline - Date.now()
+    if (remaining < 1000) return null
+    const result = run('git', ['-C', cwd, '--literal-pathspecs', ...args], {
+      input, timeout: Math.min(remaining, 3000), maxBuffer: 4 * 1024 * 1024,
+    })
+    return !result.error && result.status === 0 ? result.stdout : null
+  }
+  for (const file of paths) {
+    try {
+      let directory = path.dirname(file)
+      const suffix = [path.basename(file)]
+      while (!statSyncDirectory(directory)) {
+        const parent = path.dirname(directory)
+        if (parent === directory) break
+        suffix.unshift(path.basename(directory))
+        directory = parent
+      }
+      directory = realpathSync(directory)
+      if (!roots.has(directory)) {
+        const found = git(directory, ['rev-parse', '--show-toplevel'])
+        roots.set(directory, found ? realpathSync(found.toString('utf8').trim()) : null)
+      }
+      const root = roots.get(directory)
+      if (!root) continue
+      const relative = path.relative(root, path.join(directory, ...suffix))
+      if (!relative || path.isAbsolute(relative) || relative.split(path.sep)[0] === '..') continue
+      const candidates = [relative.split(path.sep).join('/') + '/README.md']
+      let parent = path.posix.dirname(relative.split(path.sep).join('/'))
+      while (parent !== '.' && parent !== '/') {
+        candidates.push(parent + '/README.md')
+        parent = path.posix.dirname(parent)
+      }
+      if (!groups.has(root)) groups.set(root, [])
+      groups.get(root).push({ file, candidates })
+    } catch { /* An unreadable path keeps the existing per-file discovery. */ }
+  }
+  for (const [root, files] of groups) {
+    const candidates = [...new Set(files.flatMap(file => file.candidates))]
+    // Keep the optimization within Windows argv limits; large sets keep the
+    // original scoped lookup rather than widening to a repository-wide scan.
+    if (candidates.join(' ').length > 16_000) continue
+    const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD', '--', ...candidates])
+    if (tree === null || (tree.length && tree.at(-1) !== 0)) continue
+    const blobs = new Map()
+    let valid = true
+    for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
+      const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
+      if (!entry) { valid = false; break }
+      if (entry[2] === 'blob' && /^100/.test(entry[1])) blobs.set(entry[4], entry[3])
+    }
+    if (!valid) continue
+    const ids = [...new Set(blobs.values())]
+    const catalogs = new Set()
+    if (ids.length) {
+      // ls-tree and cat-file both exit zero for a completed empty answer. Unlike
+      // grep's exit 1, that cannot be mistaken for a forcibly killed Windows Git.
+      const data = git(root, ['cat-file', '--batch'], ids.join('\n') + '\n')
+      if (data === null) continue
+      let offset = 0
+      for (const id of ids) {
+        const newline = data.indexOf(10, offset)
+        if (newline < 0) { valid = false; break }
+        const header = /^([a-f0-9]+) blob (\d+)$/.exec(data.subarray(offset, newline).toString('utf8'))
+        const size = Number(header?.[2])
+        if (header?.[1] !== id || !Number.isSafeInteger(size) || size < 0
+            || newline + 1 + size >= data.length || data[newline + 1 + size] !== 10) { valid = false; break }
+        const lines = data.subarray(newline + 1, newline + 1 + size).toString('utf8').split('\n')
+        if (lines.includes('**Lifecycle:** Frozen historical ADR records')) catalogs.add(id)
+        offset = newline + size + 2
+      }
+      if (!valid || offset !== data.length) continue
+    }
+    for (const { file, candidates: nearestFirst } of files) {
+      const catalog = nearestFirst.find(candidate => catalogs.has(blobs.get(candidate)))
+      answers.set(file, catalog ? path.join(root, catalog) : '')
+    }
+  }
+  return answers
+}
+
+function statSyncDirectory(directory) {
+  try { return statSync(directory).isDirectory() } catch { return false }
+}
+
 // runArtifactBatch keeps one Node runner per boundary while each shell keeps its
 // own timeout and process-tree cleanup. The deadline includes caller startup work.
 export async function runArtifactBatch(raw) {
@@ -377,6 +481,8 @@ export async function runArtifactBatch(raw) {
     process.stderr.write('quality-harness: invalid artifact batch; the gates did not run.\n')
     return 2
   }
+  const finish = startPerformanceTrace('artifact-batch', raw, process.env, batch.paths)
+  const history = archiveHistory(batch.paths, batch.deadline)
   for (const [index, filePath] of batch.paths.entries()) {
     const remaining = batch.deadline - Date.now()
     if (remaining < 1_000) {
@@ -384,19 +490,24 @@ export async function runArtifactBatch(raw) {
         + 's window was exhausted before ' + filePath + ' was gated. '
         + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.\n'
         + 'All remaining artifacts were not checked:\n' + batch.paths.slice(index).join('\n') + '\n')
+      finish('budget-exhausted', { status: 0 })
       break
     }
     const status = await runShellHook('facts-gate-dispatch.sh',
       JSON.stringify({ tool_input: { file_path: filePath } }), {
         timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
         windowMs: batch.windowMs,
+        archiveCatalog: history.get(filePath),
       })
     if (status !== 0) {
       process.stderr.write('The batch stopped after unconfirmed process cleanup. Unchecked artifacts:\n'
         + batch.paths.slice(index).join('\n') + '\n')
+      finish('cleanup-unconfirmed', { status, cleanupConfirmed: false })
       break
     }
   }
+  // All paths were attempted; individual shell records carry execution failures.
+  finish('processed', { status: 0 })
   return 0
 }
 

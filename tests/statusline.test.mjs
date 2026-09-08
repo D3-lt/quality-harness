@@ -131,6 +131,9 @@ test('the CI piece reads the hook\'s cache: green, red with a count, running, st
   try {
     const gitDir = join(dir, '.git')
     mkdirSync(gitDir)
+    writeFileSync(join(gitDir, 'HEAD'), 'ref: refs/heads/main\n')
+    mkdirSync(join(gitDir, 'objects'))
+    mkdirSync(join(gitDir, 'refs'))
     const sub = join(dir, 'src', 'deep')
     mkdirSync(sub, { recursive: true })
     const now = Date.now()
@@ -173,6 +176,8 @@ test('the CI piece reads the hook\'s cache: green, red with a count, running, st
     const bare = mkdtempSync(join(tmpdir(), 'qh-statusline-bare-'))
     writeFileSync(join(bare, 'HEAD'), 'ref: refs/heads/main\n')
     mkdirSync(join(bare, 'objects'))
+    assert.equal(findGitDir(bare), null, 'HEAD and objects alone are not Git metadata')
+    mkdirSync(join(bare, 'refs'))
     assert.equal(findGitDir(bare), realpathSync(bare))
     rmSync(bare, { recursive: true, force: true })
     // No .git anywhere above: nothing.

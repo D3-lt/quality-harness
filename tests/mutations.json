@@ -6542,8 +6542,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    checks += [s for s in segments\n               if EMPTY_RUN_FAILS_RE.match(s) and not EMPTY_RUN_OPT_OUT_RE.search(s)\n               and s not in checks]\n",
-      "to": "    pass\n"
+      "from": "            if EMPTY_RUN_FAILS_RE.match(stage) and not EMPTY_RUN_OPT_OUT_RE.search(stage):\n                return True\n",
+      "to": "            pass\n"
     },
     {
       "label": "lint: a fence is not declared vacuous over a command the gate cannot classify",
@@ -6569,8 +6569,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    r\"(?:\\S*/)?(?:pytest\\b|bun\\s+test\\b)\")\n",
-      "to": "    r\"(?:\\S*/)?(?:pytest\\b)\")\n"
+      "from": "    r\"(?:\\S*/)?(?:pytest|bun\\s+test)(?![-\\w])\")\n",
+      "to": "    r\"(?:\\S*/)?(?:pytest)(?![-\\w])\")\n"
     },
     {
       "label": "lint: a wrapper command is never classified as asserting nothing",
@@ -6578,8 +6578,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    r\"(?:\\S*/)?(?:go\\s+test\\b|node\\s+--test\\b|cargo\\s+test\\b)\")\n",
-      "to": "    r\"(?:\\S*/)?(?:go\\s+test\\b|node\\s+--test\\b|cargo\\s+test\\b|(?:npm|yarn)\\s+test\\b|make\\b|docker\\b)\")\n"
+      "from": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)(?![-\\w])\")\n",
+      "to": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test|(?:npm|yarn)\\s+test|make|docker)(?![-\\w])\")\n"
     },
     {
       "label": "lint: an opt-out flag disarms a runner's own vacuity fencing",
@@ -6589,6 +6589,42 @@
       ],
       "from": "EMPTY_RUN_OPT_OUT_RE = re.compile(r\"--pass-?with-?no-?tests\\b|--allow-?empty\\b\", re.I)\n",
       "to": "EMPTY_RUN_OPT_OUT_RE = re.compile(r\"zzzNeverMatchesAnyFlag\")\n"
+    },
+    {
+      "label": "lint: a pipeline stage other than the first can be the vacuity check",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        for stage in pipeline_stages(segment):\n",
+      "to": "        for stage in [segment]:\n"
+    },
+    {
+      "label": "lint: every stage of a pipeline must be accounted for",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "               for stage in pipeline_stages(segment)):\n",
+      "to": "               for stage in [segment]):\n"
+    },
+    {
+      "label": "lint: the pipeline splitter does not cut inside quotes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if char in \"'\\\"\":\n",
+      "to": "        if char in \"\\x00\":\n"
+    },
+    {
+      "label": "lint: a runner name is matched whole, so a hyphenated lookalike is not it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)(?![-\\w])\")\n",
+      "to": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)\\b\")\n"
     }
   ]
 }

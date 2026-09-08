@@ -11506,3 +11506,57 @@ back in by an absolute path or a variable is not a project mutation at all — t
 the temp root already had. The reporter's second consequence — "a resolved path that `test -e`
 cannot find is evidence the resolution was wrong" — is answered by the first: the resolution no
 longer produces it.
+
+## 176. OPEN — a file written through an MCP tool is INVISIBLE to the evidence gate, and this session is the reproduction
+
+Found 2026-09-08 while closing §172-175, by noticing that another project's Stop hook reported this
+session as having edited ONE file when it had rewritten nine.
+
+⚠ **THIS IS FAIL-OPEN, WHICH IS THE DIRECTION THIS PROJECT EXISTS TO PREVENT.** Every other entry
+in this file is about a gate that spoke when it should not have. This is a gate that says nothing
+at all: a session that does its editing through an MCP write tool produces a transcript in which
+`analyzeTranscript` finds no mutation, so `Stop` demands no evidence and a commit carrying real
+authorship passes the completion gate having verified nothing.
+
+Reproduced against HEAD:
+
+```
+node --input-type=module -e '
+import { analyzeTranscript } from "./plugin/scripts/lifecycle.mjs"
+const t = [
+  {type:"assistant",message:{content:[{type:"tool_use",id:"m1",name:"mcp__mrw__mrw_write",
+    input:{plan:"@@ src/app.py 1 replace\nx = 2"}}]}},
+  {type:"user",message:{content:[{type:"tool_result",tool_use_id:"m1",content:"ok"}]}},
+].map(o=>JSON.stringify(o)).join("\n")
+const s = analyzeTranscript(t)
+console.log("mutationPaths:", s.mutationPaths, "lastMutation:", s.lastMutation)'
+→ mutationPaths: [] lastMutation: -1
+```
+
+**The class, enumerated with a command rather than from memory** (`CLAUDE.md` §5):
+
+```
+grep -n "MUTATION_TOOLS = " plugin/scripts/lifecycle.mjs
+→ const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+grep -rn "mcp__" plugin/scripts/*.mjs plugin/hooks/*.json
+→ one hit, in eval-fixture.mjs, unrelated to the evidence gate
+```
+
+So the membership test is a closed list of four built-in tool names. `Bash` is handled separately
+and covers a shell `mrw`/`sed`/heredoc write — which is why THIS session was caught: its edits went
+through the `mrw` CLI under `Bash`, and the pre-commit advisory listed them. The hole is the
+**MCP** surface: `mcp__mrw__mrw_write` and every filesystem-writing MCP server a user has
+configured. `CLAUDE.md` §14 and the global instruction file both tell a session to prefer `mrw` for
+multi-file work, and the MCP form of that same tool is the one the gate cannot see — so the
+project's own recommended workflow is the one route out of its own gate.
+
+**Not fixed here, deliberately.** It was found after `selftest.sh` went green on §172-175 and while
+a different-lineage review of those commits was in flight; folding a new fail-open into that diff
+would have made both harder to judge. It is a bigger question than a name added to a set, because
+an MCP tool's written path lives in a server-specific input shape (`mrw_write` takes a PLAN, not a
+`file_path`), so this needs a decision about what the gate can honestly claim to read from an
+arbitrary MCP call — and an unreadable one must be `UNKNOWN`, never silence (ADR-005).
+
+**What a fix must not do:** treat an unrecognised `mcp__*` write as clean. The safe direction here
+is the expensive one — an MCP tool this gate cannot parse is an unverified change it must SAY it
+cannot account for.

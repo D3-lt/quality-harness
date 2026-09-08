@@ -2787,17 +2787,59 @@ POSITIVE_CHECK_RE = re.compile(r"^\s*(?:if\s+|while\s+|until\s+)?(?:grep|test|\[
 # `! grep -- "--- PASS"` because its runner says nothing, and a pytest corpus never
 # writes one because exit 5 already says it. Adding a runner here is a claim about
 # its exit code and must be measured the same way (BACKLOG §177).
+# ⚠ THE QUESTION IS "DOES THE FILTER SELECTING NOTHING FAIL?", NOT "DOES AN EMPTY
+# DIRECTORY FAIL?" — AND THE FIRST WRITING OF THESE TABLES MEASURED THE SECOND.
+# The hole this gate exists to catch is a fence whose tests were never written, so
+# its `-k`/`-t`/`-run` filter matches nothing while real tests sit beside it. That
+# is a DIFFERENT case from an empty directory, and the two disagree: reported
+# 2026-09-08 by a session that measured both, vitest 5.0.0 and jest 30.5.0 exit 1
+# with no test files and 0 when a `-t` filter selects nothing. A table built on the
+# empty-directory number would have classified them backwards.
+#
+# Measured on THIS machine, each with a passing baseline in the same directory so a
+# 0 is "ran and selected nothing" rather than "never started" (BACKLOG §177):
+#
+#   runner                              baseline   filter selects nothing
+#   pytest -k                              0              5   <- fences it
+#   bun test -t                            0              1   <- fences it
+#   go test -run                           0              0
+#   node --test --test-name-pattern        0              0
+#   cargo test <filter>                    0              0
+#
+# Measured by other sessions, on their versions, WITH the ran-vs-could-not-start
+# discriminator quoted — and deliberately in NEITHER table below:
+#   vitest 5.0.0 -t / jest 30.5.0 -t       0              0
+#   PHPUnit 8.5.40 --filter                -              0   ("No tests executed!")
+# They agree with the PASSES half, so adding them could only ever ENABLE a block —
+# which is exactly why they stay out. Each number is one version on one machine, and
+# a fence carries no version, so classifying by bare command name would be asserting
+# across versions from a single point. Unaccounted costs a weaker finding; wrong
+# costs a false block on correct work.
+#
+# ⚠ `python3 -m unittest` WAS IN THE FAILING TABLE ON THE STRENGTH OF THE WRONG CASE
+# (discover over an empty directory, exit 5) and is now out: it has no `-k`, its
+# selection is a module path, and a bad one is an import error rather than an empty
+# selection. Different mechanism, unmeasured, so unknown.
 EMPTY_RUN_FAILS_RE = re.compile(
     r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"           # leading VAR=value assignments
-    r"(?:\S*/)?(?:pytest\b|python3?\s+-m\s+(?:pytest|unittest)\b)")
-# What this gate can affirmatively account for in a fence: setup that asserts
-# nothing, a check, or a runner. Anything else is a command it does not know, and
-# a fence containing one cannot be declared vacuous — see `unaccounted_segments`.
-KNOWN_INERT_RE = re.compile(
+    r"(?:\S*/)?(?:pytest\b|bun\s+test\b)")
+# ⚠ NO WRAPPER HERE, and this line was wrong for one commit: `npm test` was in this
+# table because it was measured at exit 0 — over a package.json whose script was
+# `node --test`. Its exit code is whatever the script runs, so over jest the same
+# command exits non-zero on an empty suite. A wrapper measurement measures the
+# wrapped thing, once, on one machine.
+EMPTY_RUN_PASSES_RE = re.compile(
     r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"
-    r"(?:\S*/)?(?:tee|cat|echo|printf|true|false|exit|sleep|touch|cp|mv|ln|sort|uniq|head|tail|"
-    r"wc|sed|awk|tr|cut|xargs|find|ls|pwd|date|env|which|command|source|\.|umask|shift|read|"
-    r"go|node|npm|npx|pnpm|yarn|bun|cargo|make|just|docker|podman|bash|sh|zsh|python3?|ruby|perl|php)\b")
+    r"(?:\S*/)?(?:go\s+test\b|node\s+--test\b|cargo\s+test\b)")
+# ⚠ AN OPT-OUT FLAG FLIPS ANY RUNNER, so a segment carrying one is classified by
+# nothing above it. Reported with the vitest/jest numbers: both ship
+# `--passWithNoTests`, which turns their non-zero empty-directory case into 0, and a
+# repo's own script can set it where this gate cannot see.
+EMPTY_RUN_OPT_OUT_RE = re.compile(r"--pass-?with-?no-?tests\b|--allow-?empty\b", re.I)
+ASSERTS_NOTHING_RE = re.compile(
+    r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"
+    r"(?:\S*/)?(?:tee|cat|echo|printf|true|false|exit|sleep|touch|cp|mv|ln|mkdir|rmdir|rm|"
+    r"sort|uniq|head|tail|wc|tr|cut|ls|pwd|date|env|which|umask|shift|read)\b")
 
 
 def unaccounted_segments(fence):
@@ -2823,9 +2865,10 @@ def unaccounted_segments(fence):
     """
     out = []
     for segment in [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]:
-        if (FENCE_SETUP_RE.match(segment) or KNOWN_INERT_RE.match(segment)
-                or EMPTY_RUN_FAILS_RE.match(segment) or POSITIVE_CHECK_RE.match(segment)
-                or NEGATED_GREP_RE.match(segment)):
+        if (FENCE_SETUP_RE.match(segment) or ASSERTS_NOTHING_RE.match(segment)
+                or (not EMPTY_RUN_OPT_OUT_RE.search(segment)
+                    and (EMPTY_RUN_FAILS_RE.match(segment) or EMPTY_RUN_PASSES_RE.match(segment)))
+                or POSITIVE_CHECK_RE.match(segment) or NEGATED_GREP_RE.match(segment)):
             continue
         out.append(segment)
     return out
@@ -2849,7 +2892,9 @@ def vacuity_checks(fence):
     checks = [s for s in segments if POSITIVE_CHECK_RE.match(s) and not NEGATED_GREP_RE.match(s)]
     # A runner that exits non-zero on an empty selection IS the vacuity check —
     # measured, not assumed; see EMPTY_RUN_FAILS_RE.
-    checks += [s for s in segments if EMPTY_RUN_FAILS_RE.match(s) and s not in checks]
+    checks += [s for s in segments
+               if EMPTY_RUN_FAILS_RE.match(s) and not EMPTY_RUN_OPT_OUT_RE.search(s)
+               and s not in checks]
     if segments and NEGATED_GREP_RE.match(segments[-1]):
         checks.append(segments[-1])
     return checks

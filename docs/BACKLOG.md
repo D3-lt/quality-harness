@@ -11621,3 +11621,63 @@ hit the digest check, the missing-Mutation-Log check and the no-killed-mutant ch
 "my corpus stayed green" is not evidence the check is live. It is live here, and the evidence is the
 mutation catalogue rather than the corpus: `lint: an inert guard that is the only vacuity check
 fails the record` is RED, which is the arm a green corpus cannot supply.
+
+## 178. CLOSED 2026-09-08 — §177's runner table measured the wrong case, and three sessions with three toolchains found it
+
+§177 promoted "a runner that fails on an empty run is itself the vacuity check" and shipped a table
+of runner names. The owner asked the obvious next question — *what about the other predicates, and
+combinations, since for a model it is cheaper to fake it than to measure it* — and the answer turned
+out to be that the table was faked in the one way that is hardest to notice: **every number in it was
+real, and every number was of the wrong case.**
+
+⚠ **THE HOLE IS "THE FILTER SELECTS NOTHING", NOT "THE DIRECTORY IS EMPTY".** A fence goes vacuous
+when the tests it names were never written, so its `-k`/`-t`/`-run` filter matches nothing while real
+tests sit beside it. The first table measured runners in an EMPTY DIRECTORY, which is a different
+question, and the two disagree. Reported by a session with a JS toolchain, both cases measured with a
+passing baseline in the same directory so a 0 could not be a runner that failed to start:
+
+```
+vitest 5.0.0   no test files -> 1     -t selects nothing -> 0
+jest 30.5.0    no test files -> 1     -t selects nothing -> 0
+```
+
+An empty-directory table classifies both backwards. Re-measured here on the case that matters:
+
+```
+pytest -k                          baseline 0    selects nothing -> 5   fences it
+bun test -t                        baseline 0    selects nothing -> 1   fences it
+go test -run                       baseline 0    selects nothing -> 0
+node --test --test-name-pattern    baseline 0    selects nothing -> 0
+cargo test <filter>                baseline 0    selects nothing -> 0
+```
+
+`bun` survived the re-measurement but for a different reason than it was admitted on, and
+`python3 -m unittest` did not: it was in the failing table on the strength of `discover` over an
+empty directory, has no `-k` at all, and its selection is a module path whose bad value is an import
+error rather than an empty selection. Different mechanism, unmeasured, now unknown.
+
+**Three more defects the same pressure exposed, each self-inflicted in the same way:**
+
+- ⚠ **`bun` was in the INERT half because it had been typed, not run.** `bun test` on an empty
+  selection exits 1, so `bun test && ! grep … && echo done` was a BLOCK on a correct fence. Live for
+  one commit.
+- ⚠ **`npm test` was in the passing half, measured at 0 — over a `package.json` whose script was
+  `node --test`.** A wrapper's exit code is whatever it wraps; over jest the same command exits
+  non-zero. A wrapper measurement measures the wrapped thing, once, on one machine. `npm`, `yarn`,
+  `pnpm`, `make`, `just` and `docker` are now unclassifiable by construction.
+- ⚠ **An opt-out flag flips any runner.** Both JS runners ship `--passWithNoTests`, and a repo's own
+  script can set it where this gate cannot see. A segment carrying one is now classified by nothing.
+
+**What a peer's measurement does NOT license.** PHPUnit 8.5.40 was measured at exit 0 with
+`--filter zzzNeverMatchesAnything`, confirmed as a real run by its own `No tests executed!` line, and
+`php artisan test` was correctly reported INCONCLUSIVE — it demanded a TTY, produced no test output
+and returned 0, which is the ambiguous shape that must not be scored. None of vitest, jest or PHPUnit
+entered the tables. They agree with the passing half, so admitting them could only ever ENABLE a
+block — which is the reason they stay out. Each is one version on one machine, and **a fence carries
+no version**, so classifying by bare command name would assert across versions from a single point.
+Unaccounted costs a weaker finding; wrong costs a false block on correct work.
+
+**The rule this leaves behind, and it is the whole point:** a name in either table is a measurement
+of the filter case, taken with a passing baseline beside it, and a name nobody measured must be in
+neither. An unmeasured runner reaches `unaccounted_segments` and makes the finding UNPROVEN, so
+adding a name buys nothing until somebody runs it — which is what removes the incentive to fake one.

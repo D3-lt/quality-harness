@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { existsSync, linkSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -71,7 +71,7 @@ test('trace destinations cannot modify a checkout, a gated file or its aliases',
   const original = '{"artifact":"unchanged"}\n'
   writeFileSync(gated, original)
   const run = file => startPerformanceTrace('synthetic', '', { ...env, QUALITY_HARNESS_TRACE_FILE: file },
-    [gated])('completed', { status: 0 })
+    [realpathSync.native(gated)])('completed', { status: 0 })
   run(gated)
   assert.equal(readFileSync(gated, 'utf8'), original)
   const hardlink = path.join(root, 'alias.jsonl')
@@ -97,4 +97,10 @@ test('trace destinations cannot modify a checkout, a gated file or its aliases',
   assert.equal(result.status, 0, result.stderr)
   assert.match(result.stderr, /All remaining artifacts were not checked/)
   assert.equal(readFileSync(gated, 'utf8'), original, 'the real batch passes its gated paths to the recorder')
+  const inputAlias = path.join(root, 'input-alias')
+  symlinkSync(root, inputAlias, process.platform === 'win32' ? 'junction' : 'dir')
+  const deleted = path.join(root, 'deleted.jsonl')
+  startPerformanceTrace('synthetic', '', { ...env, QUALITY_HARNESS_TRACE_FILE: deleted },
+    [path.join(inputAlias, 'deleted.jsonl')])('completed', { status: 0 })
+  assert.equal(existsSync(deleted), false, 'a trace must not recreate a deleted artifact through an alias')
 })

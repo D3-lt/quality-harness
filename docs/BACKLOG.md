@@ -11681,3 +11681,51 @@ Unaccounted costs a weaker finding; wrong costs a false block on correct work.
 of the filter case, taken with a passing baseline beside it, and a name nobody measured must be in
 neither. An unmeasured runner reaches `unaccounted_segments` and makes the finding UNPROVEN, so
 adding a name buys nothing until somebody runs it — which is what removes the incentive to fake one.
+
+## 179. CLOSED 2026-09-08 — I attacked my own blocking arm and it refused four correct fences; one of the two causes is a trap this repository had already paid for
+
+Asked to review this work forcefully rather than wait for an external reviewer. The target chosen
+was the only thing in §174-178 that can refuse work: the blocking arm. Method was to write fences
+that DO assert something and check whether the gate blocks them — not to read the code and reason
+about it, because reasoning about a predicate is how the predicate got written.
+
+**Five false blocks, two causes.**
+
+⚠ **A SEGMENT IS NOT ITS FIRST COMMAND.** Every table matches at the start of a segment, and a
+segment is a whole pipeline. So a fence whose assertion is a later stage read as inert:
+
+```
+wc -l out | grep -q "^12$"          → classified by `wc`   → "asserts nothing"
+cat out | grep -q -- "--- PASS"     → classified by `cat`  → "asserts nothing"
+sort out | uniq | grep -q PASS      → classified by `sort` → "asserts nothing"
+tail -1 out | grep -q ok            → classified by `tail` → "asserts nothing"
+```
+
+Each of those four fences has a real vacuity check and each was BLOCKED. Segments are now split into
+pipeline stages: a segment IS a check when ANY stage is one, and is accounted for only when EVERY
+stage is — with `set -o pipefail` any stage can fail, and without it the last stage's status is the
+segment's, so neither end alone is the right reading.
+
+⚠ **The splitter is quote-aware, and that is load-bearing rather than tidy.** The vacuity guard this
+gate RECOMMENDS is `grep -qE "no tests to run|^FAIL|^--- FAIL" out`, whose alternation is a `|`
+inside quotes. A naive split would cut the gate's own advice into three fragments and classify none
+of them — the same shape as §174's finding that the recommended fix broke `sh -c '…'` fences, one
+layer down.
+
+⚠ **AND `\b` AFTER A COMMAND NAME MATCHES A HYPHEN — WHICH THIS REPOSITORY ALREADY KNEW.**
+`go test-helper ./...`, `cargo test-fuzz run` and `node --test-reporter=x` were each classified as a
+MEASURED runner, which is the half that PERMITS a block. `plugin/scripts/lifecycle.mjs:1026` carries
+the identical lesson in its own comment — *"(?<![-\w]) not \b: a hyphen is a word boundary, so
+`--rm` matched the `rm` command"* — from a live report on 2026-08-26. The instance was fixed there
+and the CLASS was never swept, so it was rewritten from scratch two files away (`CLAUDE.md` §5, which
+exists for exactly this and which I did not apply to my own change).
+
+**What did NOT break, asserted rather than assumed:** the genuine hole still blocks (`go test` with
+a mid-chain guard and nothing else asserting), and the three real runner commands the hyphenated
+lookalikes shadow are still classified — without that arm the fix could have been "match nothing",
+which satisfies every other assertion in the block.
+
+**The method is the finding.** Four of these were invisible to a corpus sweep: a peer linted 77
+records and 114 fences against this working tree and reported no verdict change, correctly, because
+its fences do not happen to pipe into their checks. A green corpus is evidence about that corpus.
+The mutation catalogue and a deliberately hostile fixture are what say the check is live and narrow.

@@ -2822,7 +2822,7 @@ POSITIVE_CHECK_RE = re.compile(r"^\s*(?:if\s+|while\s+|until\s+)?(?:grep|test|\[
 # selection. Different mechanism, unmeasured, so unknown.
 EMPTY_RUN_FAILS_RE = re.compile(
     r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"           # leading VAR=value assignments
-    r"(?:\S*/)?(?:pytest\b|bun\s+test\b)")
+    r"(?:\S*/)?(?:pytest|bun\s+test)(?![-\w])")
 # ⚠ NO WRAPPER HERE, and this line was wrong for one commit: `npm test` was in this
 # table because it was measured at exit 0 — over a package.json whose script was
 # `node --test`. Its exit code is whatever the script runs, so over jest the same
@@ -2830,7 +2830,7 @@ EMPTY_RUN_FAILS_RE = re.compile(
 # wrapped thing, once, on one machine.
 EMPTY_RUN_PASSES_RE = re.compile(
     r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"
-    r"(?:\S*/)?(?:go\s+test\b|node\s+--test\b|cargo\s+test\b)")
+    r"(?:\S*/)?(?:go\s+test|node\s+--test|cargo\s+test)(?![-\w])")
 # ⚠ AN OPT-OUT FLAG FLIPS ANY RUNNER, so a segment carrying one is classified by
 # nothing above it. Reported with the vitest/jest numbers: both ship
 # `--passWithNoTests`, which turns their non-zero empty-directory case into 0, and a
@@ -2839,7 +2839,47 @@ EMPTY_RUN_OPT_OUT_RE = re.compile(r"--pass-?with-?no-?tests\b|--allow-?empty\b",
 ASSERTS_NOTHING_RE = re.compile(
     r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"
     r"(?:\S*/)?(?:tee|cat|echo|printf|true|false|exit|sleep|touch|cp|mv|ln|mkdir|rmdir|rm|"
-    r"sort|uniq|head|tail|wc|tr|cut|ls|pwd|date|env|which|umask|shift|read)\b")
+    r"sort|uniq|head|tail|wc|tr|cut|ls|pwd|date|env|which|umask|shift|read)(?![-\w])")
+# ⚠ `(?![-\w])` AND NOT `\b`, IN ALL THREE TABLES ABOVE. A hyphen is a word boundary,
+# so `test\b` matched `go test-helper`, `cargo test-fuzz run` and `node --test-reporter=x`
+# — each then classified as a MEASURED runner, which is the half that permits a block.
+# This exact trap is recorded in plugin/scripts/lifecycle.mjs where `--rm` matched the
+# `rm` command; the instance was fixed there and the CLASS was never swept, so it was
+# rewritten here from scratch (CLAUDE.md §5, BACKLOG §179).
+
+
+def pipeline_stages(segment):
+    """The stages of a shell pipeline, split on unquoted `|` that is not `||`.
+
+    ⚠ A SEGMENT IS NOT ITS FIRST COMMAND, and every table above matches at the
+    start of one. `wc -l out | grep -q "^12$"` asserts; anchored matching read the
+    `wc` and called the whole segment inert, so a fence with a real assertion was
+    declared vacuous and BLOCKED. Four such fences were found by attacking this
+    gate deliberately (BACKLOG §179).
+
+    Quote-aware, and that is load-bearing rather than tidy: the vacuity guard this
+    gate RECOMMENDS is `grep -qE "no tests to run|^FAIL|^--- FAIL" out`, whose
+    alternation is a `|` inside quotes. Splitting on it would cut the gate's own
+    advice into fragments and classify none of them.
+    """
+    stages, current, quote = [], "", None
+    for char in segment:
+        if quote:
+            current += char
+            if char == quote:
+                quote = None
+            continue
+        if char in "'\"":
+            quote = char
+            current += char
+            continue
+        if char == "|":
+            stages.append(current)
+            current = ""
+            continue
+        current += char
+    stages.append(current)
+    return [s.strip() for s in stages if s.strip()]
 
 
 def unaccounted_segments(fence):
@@ -2865,12 +2905,17 @@ def unaccounted_segments(fence):
     """
     out = []
     for segment in [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]:
-        if (FENCE_SETUP_RE.match(segment) or ASSERTS_NOTHING_RE.match(segment)
-                or (not EMPTY_RUN_OPT_OUT_RE.search(segment)
-                    and (EMPTY_RUN_FAILS_RE.match(segment) or EMPTY_RUN_PASSES_RE.match(segment)))
-                or POSITIVE_CHECK_RE.match(segment) or NEGATED_GREP_RE.match(segment)):
+        # EVERY stage must be accounted for, because any one of them can be the
+        # thing that fails — with `set -o pipefail` literally so, and without it
+        # the last stage's status is the segment's.
+        if all(FENCE_SETUP_RE.match(stage) or ASSERTS_NOTHING_RE.match(stage)
+               or (not EMPTY_RUN_OPT_OUT_RE.search(stage)
+                   and (EMPTY_RUN_FAILS_RE.match(stage) or EMPTY_RUN_PASSES_RE.match(stage)))
+               or POSITIVE_CHECK_RE.match(stage) or NEGATED_GREP_RE.match(stage)
+               for stage in pipeline_stages(segment)):
             continue
         out.append(segment)
+    return out
     return out
 
 
@@ -2889,12 +2934,18 @@ def vacuity_checks(fence):
     can fail the script", never as "the fence proves the mechanism".
     """
     segments = [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]
-    checks = [s for s in segments if POSITIVE_CHECK_RE.match(s) and not NEGATED_GREP_RE.match(s)]
-    # A runner that exits non-zero on an empty selection IS the vacuity check —
-    # measured, not assumed; see EMPTY_RUN_FAILS_RE.
-    checks += [s for s in segments
-               if EMPTY_RUN_FAILS_RE.match(s) and not EMPTY_RUN_OPT_OUT_RE.search(s)
-               and s not in checks]
+    # ANY STAGE OF A PIPELINE CAN BE THE CHECK. `cat out | grep -q -- "--- PASS"`
+    # asserts; reading only the head of the segment saw `cat` and called it inert,
+    # which is how a fence with a real assertion was declared vacuous (BACKLOG §179).
+    def is_check(segment):
+        for stage in pipeline_stages(segment):
+            if POSITIVE_CHECK_RE.match(stage) and not NEGATED_GREP_RE.match(stage):
+                return True
+            if EMPTY_RUN_FAILS_RE.match(stage) and not EMPTY_RUN_OPT_OUT_RE.search(stage):
+                return True
+        return False
+
+    checks = [s for s in segments if is_check(s)]
     if segments and NEGATED_GREP_RE.match(segments[-1]):
         checks.append(segments[-1])
     return checks

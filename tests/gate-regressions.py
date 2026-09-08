@@ -4322,6 +4322,39 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
         assert lint.unaccounted_segments(fence) == [elsewhere], elsewhere
         assert about(_lint_task(lint, _probe_task(fence))[0]) == [], elsewhere
 
+    # A SEGMENT IS NOT ITS FIRST COMMAND. Found by attacking this gate on purpose
+    # (BACKLOG 179): every table matches at the START of a segment, so a pipeline
+    # whose CHECK is a later stage read as inert and the fence was declared vacuous
+    # and BLOCKED. Four correct fences, each carrying a real assertion:
+    for tail_check in ('wc -l out | grep -q "^12$"',
+                       'cat out | grep -q -- "--- PASS"',
+                       "sort out | uniq | grep -q PASS",
+                       "tail -1 out | grep -q ok"):
+        fence = f"set -e\ngo test ./... | tee out\n! grep -q FAIL out\n{tail_check}"
+        assert lint.vacuity_checks(fence) == [tail_check], (tail_check, lint.vacuity_checks(fence))
+        assert about(_lint_task(lint, _probe_task(fence))[0]) == [], tail_check
+
+    # THE SPLITTER IS QUOTE-AWARE, AND THAT IS LOAD-BEARING: the vacuity guard this
+    # gate RECOMMENDS carries a pipe alternation inside quotes. Cutting on it would
+    # fragment the gate's own advice and classify none of the pieces.
+    quoted = 'grep -qE "no tests to run|^FAIL|^--- FAIL" out'
+    assert lint.pipeline_stages(quoted) == [quoted], lint.pipeline_stages(quoted)
+    assert lint.pipeline_stages("a | b | c") == ["a", "b", "c"]
+
+    # (?![-\w]) AND NOT \b, because a hyphen IS a word boundary. Each of these was
+    # classified as a MEASURED runner, which is the half that PERMITS a block. The
+    # identical trap is recorded in plugin/scripts/lifecycle.mjs, where the flag
+    # --rm matched the rm command; the instance was fixed there and the CLASS was
+    # never swept (CLAUDE.md section 5).
+    for lookalike in ("go test-helper ./...", "cargo test-fuzz run", "node --test-reporter=x"):
+        fence = f"set -e\n{lookalike}\n! grep -q FAIL out\necho done"
+        assert lint.unaccounted_segments(fence) == [lookalike], lookalike
+        assert about(_lint_task(lint, _probe_task(fence))[0]) == [], lookalike
+    # ...and the real commands they shadow are still classified, or the fix above
+    # would have been "match nothing", which satisfies every assertion in this block.
+    for real in ("go test ./...", "cargo test", "node --test"):
+        assert lint.unaccounted_segments(f"set -e\n{real}\n! grep -q FAIL out\necho done") == [], real
+
     print("PASS — an inert guard is advice beside a positive check and a failure alone, with its cost")
 
 

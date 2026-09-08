@@ -4302,7 +4302,11 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
         "cargo test zzz": False,
     }
     for command, fences in filters.items():
-        fence = f"set -e\n{command} | tee out\n! grep -q FAIL out\necho done"
+        # ⚠ NOT piped into `tee` here, and that is the correction: this fence USED
+        # to pipe every runner into tee, which MASKS its exit status without
+        # pipefail — so the assertion encoded the fail-open Codex later found
+        # (BACKLOG 180). The runner has to carry the fence's status to fence it.
+        fence = f"set -e\n{command}\n! grep -q FAIL out\necho done"
         assert bool(lint.vacuity_checks(fence)) is fences, (command, lint.vacuity_checks(fence))
         assert lint.unaccounted_segments(fence) == [], command
         assert bool(about(_lint_task(lint, _probe_task(fence))[0])) is (not fences), command

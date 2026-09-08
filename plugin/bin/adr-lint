@@ -2882,6 +2882,75 @@ def pipeline_stages(segment):
     return [s.strip() for s in stages if s.strip()]
 
 
+# `set -o pipefail`. WITHOUT it only a pipeline's LAST stage supplies status, so a
+# check in any earlier stage cannot fail the fence; WITH it any stage can.
+PIPEFAIL_RE = re.compile(r"^\s*set\s+(?:-[a-zA-Z]*o\s+pipefail|-o\s+pipefail)\b", re.M)
+# A tail that ALWAYS fails, which is what makes an OR-list's head load-bearing.
+ALWAYS_FAILS_RE = re.compile(r"^\s*(?:exit\s+[1-9]\d*|false)\s*$")
+
+
+def or_alternatives(segment):
+    """`a || b` split quote-aware on unquoted `||`."""
+    parts, current, quote, i = [], "", None, 0
+    while i < len(segment):
+        char = segment[i]
+        if quote:
+            current += char
+            if char == quote:
+                quote = None
+            i += 1
+            continue
+        if char in "'\"":
+            quote = char
+            current += char
+            i += 1
+            continue
+        if char == "|" and i + 1 < len(segment) and segment[i + 1] == "|":
+            parts.append(current)
+            current = ""
+            i += 2
+            continue
+        current += char
+        i += 1
+    parts.append(current)
+    return [p.strip() for p in parts if p.strip()]
+
+
+def status_carriers(segment, pipefail):
+    """The parts of one command whose failure can fail the fence.
+
+    Two shell facts this gate got wrong in both directions on 2026-09-08, each
+    reproduced against bash before it was encoded (BACKLOG 180):
+
+        set -e; (exit 5) | cat; echo R; exit 0        -> 0   tee MASKS the failure
+        set -eo pipefail; (exit 5) | cat; ...         -> 5
+        set -e; false || true; echo R; exit 0         -> 0   `|| true` NEUTRALISES
+
+    So an `a || b` list can only fail through its LAST alternative — `grep -q PASS
+    out || true` never fails and is not a vacuity check, though reading `grep`
+    alone says it is. And within that alternative, a pipeline's status is its LAST
+    stage unless `pipefail` is set.
+
+    Reading a check anywhere in a pipeline was the FIX for a false block and is a
+    FAIL-OPEN by itself: `pytest -k zzz | tee out` was counted as fenced by
+    pytest's exit 5, which `tee` discards. Both directions are wrong; the status
+    carrier is the only correct reading of either.
+    """
+    alternatives = or_alternatives(segment)
+
+    def carriers_of(alternative):
+        stages = pipeline_stages(alternative)
+        return stages if pipefail else stages[-1:]
+
+    # `a || b` fails only when BOTH fail. So when the tail ALWAYS fails - `exit 1`,
+    # `false` - the list fails exactly when the earlier alternatives do, and those
+    # are the carriers: `grep -q PASS out || exit 1` is a real check, while
+    # `grep -q PASS out || true` can never fail and is not one. Reading only the
+    # tail gets the first case wrong and reading only the head gets the second.
+    if len(alternatives) > 1 and ALWAYS_FAILS_RE.match(alternatives[-1]):
+        return [stage for alternative in alternatives[:-1] for stage in carriers_of(alternative)]
+    return carriers_of(alternatives[-1])
+
 def unaccounted_segments(fence):
     """Segments whose command this gate cannot classify, in written order.
 
@@ -2904,7 +2973,7 @@ def unaccounted_segments(fence):
     what it could not account for (ADR-005).
     """
     out = []
-    for segment in [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]:
+    for segment in [s.strip() for s in re.split(r"&&|;|\n", fence) if s.strip()]:
         # EVERY stage must be accounted for, because any one of them can be the
         # thing that fails — with `set -o pipefail` literally so, and without it
         # the last stage's status is the segment's.
@@ -2912,7 +2981,8 @@ def unaccounted_segments(fence):
                or (not EMPTY_RUN_OPT_OUT_RE.search(stage)
                    and (EMPTY_RUN_FAILS_RE.match(stage) or EMPTY_RUN_PASSES_RE.match(stage)))
                or POSITIVE_CHECK_RE.match(stage) or NEGATED_GREP_RE.match(stage)
-               for stage in pipeline_stages(segment)):
+               for alternative in or_alternatives(segment)
+               for stage in pipeline_stages(alternative)):
             continue
         out.append(segment)
     return out
@@ -2933,12 +3003,20 @@ def vacuity_checks(fence):
     The same proxy caveat as `inert_negated_guards` — read a hit as "this line
     can fail the script", never as "the fence proves the mechanism".
     """
-    segments = [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]
+    # NOT split on OR here, deliberately: or_alternatives needs the list intact
+    # to find its status carrier. Splitting first made 
+    # into two segments and counted the grep as a check it cannot be.
+    segments = [s.strip() for s in re.split(r"&&|;|\n", fence) if s.strip()]
     # ANY STAGE OF A PIPELINE CAN BE THE CHECK. `cat out | grep -q -- "--- PASS"`
     # asserts; reading only the head of the segment saw `cat` and called it inert,
     # which is how a fence with a real assertion was declared vacuous (BACKLOG §179).
+    pipefail = bool(PIPEFAIL_RE.search(fence))
+
     def is_check(segment):
-        for stage in pipeline_stages(segment):
+        # Only the STATUS CARRIER can fail the fence. A check sitting anywhere
+        # else - an earlier pipeline stage without pipefail, or the left of an
+        # OR-list - cannot, and counting it is a fail-open (BACKLOG 180).
+        for stage in status_carriers(segment, pipefail):
             if POSITIVE_CHECK_RE.match(stage) and not NEGATED_GREP_RE.match(stage):
                 return True
             if EMPTY_RUN_FAILS_RE.match(stage) and not EMPTY_RUN_OPT_OUT_RE.search(stage):

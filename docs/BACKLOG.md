@@ -11918,3 +11918,60 @@ to this input that keeps the exemption firing while making the write real?"
 was inverted, since a fence that CAN fail is one that must NOT be blocked. The tell was that the
 CONTROL cases failed too. A harness with no control is a harness whose output cannot be read in
 either direction (see also §182).
+
+## 184. CLOSED 2026-09-08 — the shell splitters mis-cut on an escape and a command substitution, and one of the three was a false block
+
+Found by probing `pipeline_stages` and `or_alternatives` — written earlier the same day — against shapes
+the shell has and they did not:
+
+```
+grep -qE "a\"b|c" out              -> split mid-pattern: a backslash escape closed the quote early
+grep -q $(cat out | head -1) out   -> split inside $( ): two fragments, both still classifiable
+grep -q "a\"||b" out               -> same escape bug on the OR splitter
+```
+
+Two of the three were ABSORBED — the garbage fragment landed in `unaccounted`, which is UNPROVEN and
+advises rather than blocks, and that is the conservative design working. **The command-substitution
+one was not.** `grep -q $(cat out` matched the check pattern and `head -1) out` matched the
+asserts-nothing pattern, so nothing looked unknown while the real check was lost, and a correct fence
+was REFUSED.
+
+⚠ **The containment was accidental, not designed.** Two mis-splits happened to produce unrecognisable
+fragments and one happened not to. That distinction is not a property of the splitter, so it was not
+something to rely on.
+
+Both splitters now share `_split_shell`, which tracks quotes, backslash escapes (double quotes only —
+single quotes take none) and `$( )`/backtick nesting. Asserted with the gate's own recommended guard,
+whose alternation is a `|` inside quotes, and with the vacuous control that must still block.
+
+## 185. CLOSED 2026-09-08 — a legacy record was routed as a TASK and told its own ADR was missing
+
+Reported 2026-09-08 from a 77-record corpus, with the mechanism traced in this repository's source and
+the count reconciled exactly: **34 false failures in one commit**, on records the commit never touched.
+
+```
+facts-first gate FAILED (ADR ownership) for docs/adr/001-tool-result-type-contract.md:
+  expected exactly one owning ADR (ADR-001), found 0.
+```
+
+The chain, reproduced here on a hermetic fixture:
+
+- `is_adr()` requires `## Existing Primitives Audit`. That section post-dates half of any older corpus,
+  so every record written before it answers false.
+- Control reaches the TASK branch, whose title test is `^# (Task )?ADR-…` — and a record titled
+  `# ADR-001: Tool result type contract` matches it. **The `Task ` it just parsed is discarded.**
+- The owner search then scans `dirname(dirname(file))` and widens upward, so it looks in `docs/` and the
+  repository root and **never in `docs/adr/`, where the record itself is**. `found 0`, always.
+
+The reporter's arithmetic accounted for the count with nothing left over: 77 records, 42 modern, 35
+legacy, minus `README.md` whose title does not match — 34.
+
+⚠ **The message was worse than the noise.** "expected exactly one owning ADR (ADR-001), found 0" reads
+as *this task's record is missing*, sending a reader to look for a record that is open in front of
+them. The truth was *this is not a task*.
+
+**Section presence is not a proxy for record-ness.** The discriminator is the title, and it was already
+being parsed: a file is a task when it lives under `*/tasks/`, when its title carries the `Task `
+prefix, or when its id carries a `-T<n>` component. All three arms are asserted, the last two as the
+must-fail direction — without them the fix could be "never check ownership", which the first assertion
+alone would accept.

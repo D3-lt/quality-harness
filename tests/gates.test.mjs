@@ -514,6 +514,42 @@ test('the plugin-local facts hook accepts valid facts and blocks invalid facts',
   expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], temp, payload), 0, 'invalid hook input')
 })
 
+test('a legacy record is not routed as a task and told its own ADR is missing', () => {
+  // docs/BACKLOG.md §185, reported 2026-09-08 from a 77-record corpus where this
+  // produced 34 false failures in ONE commit — every record predating the
+  // `## Existing Primitives Audit` section. `is_adr` requires that section, so
+  // those fell through to the task branch, whose title match accepted
+  // `# ADR-001: …` and DISCARDED the `Task ` it had just parsed. The owner search
+  // then looked in the corpus directory's PARENT and never in the corpus itself,
+  // so the answer was always "found 0" — reported as the task's ADR being
+  // missing, while the record IS the ADR.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-legacy-adr-'))
+  const adrDir = join(temp, 'docs', 'adr')
+  mkdirSync(join(adrDir, 'ADR-001-x', 'tasks'), { recursive: true })
+  const body = ['**Status:** Accepted', '', '## Decision', '', 'Do it.', '',
+    '## Alternatives Considered', '', '- Nothing.', '',
+    '## Consequences', '', 'Done.', ''].join('\n')
+  // A record from before that section existed, named without the ADR- prefix.
+  writeFileSync(join(adrDir, '001-legacy.md'), `# ADR-001: Tool result type contract\n\n${body}`)
+  writeFileSync(join(adrDir, 'ADR-001-x', 'tasks', 'T1-a.md'), '# Task ADR-001-T1: do it\n\n**Depends-on:** none\n')
+  // ...and a task titled without the word Task, outside a tasks/ directory: the
+  // `-T<n>` in its id is what still makes it a task.
+  writeFileSync(join(adrDir, 'loose-task.md'), '# ADR-001-T1: a task named tersely\n\n**Depends-on:** none\n')
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+
+  const owns = file => {
+    const r = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), join(adrDir, file)], temp,
+      undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
+    return /ADR ownership/.test(`${r.stdout}${r.stderr}`)
+  }
+  assert.equal(owns('001-legacy.md'), false, 'a record must not be asked which ADR owns it')
+  // The must-fail arms: a real task is still checked, or the fix would be
+  // "never check ownership" and the gate dead rather than correct.
+  assert.equal(owns(join('ADR-001-x', 'tasks', 'T1-a.md')), true, 'a task under tasks/ is still checked')
+  assert.equal(owns('loose-task.md'), true, 'a task id carrying -T<n> is still checked')
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('editing a template does not fail the facts gate', () => {
   // A template ships placeholders on purpose. Reported 2026-08-25: editing a
   // user-global adr-template.md failed the gate, and because the path stayed in

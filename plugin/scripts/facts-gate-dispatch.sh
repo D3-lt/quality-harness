@@ -188,7 +188,15 @@ elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
 elif [[ "$base" == ADR-*.md ]] || is_adr "$f"; then
   gate="adr-lint"
   out=$(run_adr_lint "$f" 2>&1); rc=$?
-elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' "$f"; then
+# A TASK, and the `Task ` prefix is the signal — it used to be parsed and thrown
+# away. Reported 2026-09-08 from a 77-record corpus where this produced 34 false
+# failures in one commit (BACKLOG §185): `is_adr` requires `## Existing Primitives
+# Audit`, a section that post-dates half of any older corpus, so every record
+# without it fell through to here — and a record titled `# ADR-001: …` matched
+# `^# (Task )?ADR-`. It was then told its owning ADR was missing, while the record
+# IS the ADR. Section presence is not a proxy for record-ness; the title is.
+elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' "$f" \
+    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' "$f"; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.
   tdir=$(dirname "$f"); parent=$(dirname "$tdir")

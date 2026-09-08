@@ -523,7 +523,8 @@ test('archive prefetch keeps incomplete history unknown and respects the shared 
     assert.ok(calls > 0, 'the seam must actually exercise history reading')
     if (failure === 'none') {
       assert.equal(answer.size, 2)
-      assert.equal(answer.get(files[1]), path.join(root, 'archive', 'README.md'))
+      // Inputs may retain Windows short names; returned catalogs use the native root.
+      assert.equal(answer.get(files[1]), path.join(realpathSync.native(root), 'archive', 'README.md'))
     } else assert.equal(answer.size, 0, failure + ' must fall back to ordinary per-file checks')
   }
   assert.equal(archiveHistory(files, Date.now() - 1, () => { throw new Error('budget spent') }).size, 0)

@@ -4224,6 +4224,41 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
     errors, advice = _lint_task(lint, _probe_task("set -o pipefail\ngo test ./..."))
     assert about(errors) == [] and about(advice) == []
 
+    # ⚠ THE PROMOTION MUST NOT BLOCK A FENCE WHOSE RUNNER ALREADY FENCES VACUITY,
+    # and the case is verbatim from a 114-fence corpus reported 2026-09-08
+    # (BACKLOG §177): `pytest … && ! grep … && make …` — guard mid-chain, `make`
+    # last, no un-negated grep anywhere. It escaped a block there only because
+    # that corpus writes no `set -e`; with errexit this gate would have refused a
+    # correct fence. `pytest` exits 5 on an empty selection, MEASURED, so it is
+    # the vacuity check and the guard is redundant.
+    pytest_fence = ("set -e\npytest tests/ -q && ! grep -q \"mark.xfail\" tests/ "
+                    "&& PYTHON=python3 make architecture-gates")
+    assert lint.inert_negated_guards(pytest_fence), "the guard is still inert; that part was right"
+    assert lint.vacuity_checks(pytest_fence) == ["pytest tests/ -q"], lint.vacuity_checks(pytest_fence)
+    errors, advice = _lint_task(lint, _probe_task(pytest_fence))
+    assert about(errors) == [] and len(about(advice)) == 1, (errors, advice)
+
+    # ...AND THE RUNNER THAT DOES NOT: `go test` exits 0 with no test files, which
+    # is the whole reason the negated-guard idiom exists in a Go corpus. Same
+    # shape, different runner, and this one IS the genuine hole.
+    go_fence = 'set -e\ngo test ./... | tee out\n! grep -q -- "--- FAIL" out\necho done'
+    assert lint.vacuity_checks(go_fence) == [], "go test must not count as a vacuity check"
+    errors, advice = _lint_task(lint, _probe_task(go_fence))
+    assert len(about(errors)) == 1 and about(advice) == [], (errors, advice)
+
+    # ⚠ AND A UNIVERSAL NEGATIVE IS NOT ASSERTED OVER SHELL THIS GATE CANNOT READ.
+    # Declaring a fence vacuous means "nothing here can fail on an empty run";
+    # ADR-016 settled that structure cannot be inferred from arbitrary shell, so
+    # one unclassifiable command makes the finding UNPROVEN, not a block.
+    unknown = 'set -e\ngo test ./... | tee out\n! grep -q FAIL out\nsome-bespoke-runner --all'
+    assert lint.unaccounted_segments(unknown) == ["some-bespoke-runner --all"]
+    errors, advice = _lint_task(lint, _probe_task(unknown))
+    assert about(errors) == [], "an unaccounted command must not block"
+    assert any("UNPROVEN here, not established" in a for a in about(advice)), advice
+    # The must-fail direction for that arm: the genuine hole above has NO
+    # unaccounted segment, or "unproven" would swallow every finding.
+    assert lint.unaccounted_segments(go_fence) == []
+
     print("PASS — an inert guard is advice beside a positive check and a failure alone, with its cost")
 
 

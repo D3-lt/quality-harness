@@ -2871,6 +2871,16 @@ def pipeline_stages(segment):
 PIPEFAIL_RE = re.compile(r"^\s*set\s+(?:-[a-zA-Z]*o\s+pipefail|-o\s+pipefail)\b", re.M)
 # A tail that ALWAYS fails, which is what makes an OR-list's head load-bearing.
 ALWAYS_FAILS_RE = re.compile(r"^\s*(?:exit\s+[1-9]\d*|false)\s*$")
+# ...and a tail that ALWAYS SUCCEEDS makes the whole list unable to fail, whatever
+# stands before it: `a || true || false` exits 0 because the middle `true`
+# short-circuits the `false` that follows. Found by a different-lineage review
+# 2026-09-08; the regressions covered two-alternative lists only, so a
+# three-alternative one passed against the narrower implementation (BACKLOG §187).
+ALWAYS_SUCCEEDS_RE = re.compile(r"^\s*(?:true|:)\s*$")
+# A shell FUNCTION DEFINITION is not a command being run. `grep() { return 0; }`
+# matched the positive-check pattern because `\b` accepts the boundary before `(`,
+# so defining a function named after a checker read as performing the check.
+FUNCTION_DEF_RE = re.compile(r"^\s*(?:function\s+)?[A-Za-z_]\w*\s*\(\s*\)")
 
 
 def _split_shell(segment, separator):
@@ -2976,6 +2986,10 @@ def status_carriers(segment, pipefail):
     # are the carriers: `grep -q PASS out || exit 1` is a real check, while
     # `grep -q PASS out || true` can never fail and is not one. Reading only the
     # tail gets the first case wrong and reading only the head gets the second.
+    # An alternative that cannot fail short-circuits everything after it, so the
+    # list as a whole cannot fail and carries no check.
+    if any(ALWAYS_SUCCEEDS_RE.match(alt) for alt in alternatives[:-1]):
+        return []
     if len(alternatives) > 1 and ALWAYS_FAILS_RE.match(alternatives[-1]):
         return [stage for alternative in alternatives[:-1] for stage in carriers_of(alternative)]
     return carriers_of(alternatives[-1])
@@ -3009,7 +3023,8 @@ def unaccounted_segments(fence):
         if all(FENCE_SETUP_RE.match(stage) or ASSERTS_NOTHING_RE.match(stage)
                or (not EMPTY_RUN_OPT_OUT_RE.search(stage)
                    and (EMPTY_RUN_FAILS_RE.match(stage) or EMPTY_RUN_PASSES_RE.match(stage)))
-               or POSITIVE_CHECK_RE.match(stage) or NEGATED_GREP_RE.match(stage)
+               or ((POSITIVE_CHECK_RE.match(stage) or NEGATED_GREP_RE.match(stage))
+                   and not FUNCTION_DEF_RE.match(stage))
                for alternative in or_alternatives(segment)
                for stage in pipeline_stages(alternative)):
             continue
@@ -3046,7 +3061,8 @@ def vacuity_checks(fence):
         # else - an earlier pipeline stage without pipefail, or the left of an
         # OR-list - cannot, and counting it is a fail-open (BACKLOG 180).
         for stage in status_carriers(segment, pipefail):
-            if POSITIVE_CHECK_RE.match(stage) and not NEGATED_GREP_RE.match(stage):
+            if (POSITIVE_CHECK_RE.match(stage) and not NEGATED_GREP_RE.match(stage)
+                    and not FUNCTION_DEF_RE.match(stage)):
                 return True
             if EMPTY_RUN_FAILS_RE.match(stage) and not EMPTY_RUN_OPT_OUT_RE.search(stage):
                 return True
@@ -3917,7 +3933,18 @@ FAIL_CALLS = re.compile(
     # blind to an entire testing idiom and reported a correct artifact as broken — the kind of
     # false alarm that teaches people to skip the gate.
     r"|->assert\w*\s*\("                                     # ->assertX(...) on any receiver
-    r"|\bassert\w*\s*\(",                                   # bare assertX(...) call
+    r"|\bassert\w*\s*\("                                    # bare assertX(...) call
+    # ⚠ A CONTEXT MANAGER THAT EXPECTS AN EXCEPTION IS A FAILURE CALL, and this
+    # was the commonest true test shape the check called dead. `with
+    # pytest.raises(X):` goes red when X is NOT raised — that IS the assertion.
+    # Reported 2026-09-08 from a 77-record corpus: 19 of 21 flagged tests were
+    # this one shape, and the reporter's own project memory had recorded it
+    # against adr-lint 2.85.0 with a note not to rewrite those tests. It survived
+    # every release since (BACKLOG §186). `self.assertRaises` already matched
+    # through `\bself\.assert`; the pytest spelling matched nothing.
+    r"|\b(?:pytest|pytest_asyncio)\.(?:raises|warns|deprecated_call)\b"
+    r"|\bassertRaises\w*\b|\bassertWarns\w*\b"
+    r"|\braises\s*\(\s*[A-Z]",                              # `with raises(ValueError)`
     re.I)
 
 
@@ -4540,9 +4567,33 @@ def check_tests_can_fail(infos, readme_text, errors, root):
                         body += h
                         break
             if not FAIL_CALLS.search(body):
-                errors.append(f"{inf['path'].name}: {tid} is marked done and names `{name}`, but "
-                              f"no failure call is reachable in its body or in a same-file helper "
-                              f"it hands the test handle to — nothing in it can go red")
+                # ⚠ "NOTHING IN IT CAN GO RED" IS A UNIVERSAL NEGATIVE OVER
+                # ARBITRARY CODE, and this gate cannot establish one — the same
+                # error as declaring a shell fence vacuous (CLAUDE.md §16,
+                # ADR-016). A test whose body only CALLS something still fails
+                # when that call raises, which is an ordinary smoke-test shape:
+                # `for body in bodies: Model(**body)` fences a schema and asserts
+                # nothing. Reported 2026-09-08 from a 77-record corpus where this
+                # check was 21 for 21 false (BACKLOG §186).
+                #
+                # So the BLOCK is kept only where the claim holds — a body that
+                # calls nothing at all, which is the dead test this check was
+                # written for. A body that calls something gets ADVICE naming
+                # what was and was not observed.
+                calls = [c for c in re.findall(r"\b([A-Za-z_]\w*)\s*\(", body)
+                         if c not in ("if", "while", "for", "return", "print", "len", "range", "str", "int")]
+                if calls:
+                    errors.advise(
+                        f"{inf['path'].name}: {tid} names `{name}`, and no failure call was "
+                        f"recognised in its body or in a same-file helper it hands the test handle "
+                        f"to. It calls `{calls[0]}`, and a call that raises fails a test just as an "
+                        f"assertion does — so whether this test can go red is UNPROVEN here, not "
+                        f"disproven. If it genuinely asserts nothing, give it one")
+                else:
+                    errors.append(
+                        f"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body "
+                        f"calls nothing and asserts nothing — there is no path by which it can go "
+                        f"red, so a green run of it proves nothing")
 
 
 def selected_by_filter(acc, name, rel=None):

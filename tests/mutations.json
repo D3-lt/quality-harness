@@ -4894,8 +4894,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (SHELL_ASSIGNMENT.test(candidate)) continue\n    if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue",
-      "to": "    if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue"
+      "from": "      if (SHELL_ASSIGNMENT.test(candidate)) continue\n      if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue",
+      "to": "      if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue"
     },
     {
       "label": "lifecycle: a changed PreToolUse finding is news again, not a repeat",
@@ -6385,16 +6385,156 @@
     {
       "label": "git-directory: metadata without refs cannot lend a green cache",
       "file": "plugin/scripts/git-directory.mjs",
-      "tests": ["tests/branch-state.test.mjs", "tests/statusline.test.mjs"],
+      "tests": [
+        "tests/branch-state.test.mjs",
+        "tests/statusline.test.mjs"
+      ],
       "from": "      && statSync(path.join(common, 'refs')).isDirectory()",
       "to": "      && true"
     },
     {
       "label": "performance-trace: diagnostic destinations cannot modify gated artifacts",
       "file": "plugin/scripts/performance-trace.mjs",
-      "tests": ["tests/performance-trace.test.mjs"],
+      "tests": [
+        "tests/performance-trace.test.mjs"
+      ],
       "from": "        const target = traceTarget(file, protectedPaths)",
       "to": "        const target = file"
+    },
+    {
+      "label": "gates: a READY line names evidence that cannot prove its fence",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    return f\"  ({inf['unproven']})\" if inf.get(\"unproven\") else \"\"\n",
+      "to": "    return \"\"\n"
+    },
+    {
+      "label": "gates: adr-next tells a pre-digest row from a changed Acceptance",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    if legacy:\n        return (\"carries exit-0 evidence that predates acceptance digests and cannot \"\n                \"prove this fence; re-run `adr-verify`\")\n",
+      "to": ""
+    },
+    {
+      "label": "lint: an inert guard that is the only vacuity check fails the record",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if not vacuity_checks(acc_all):\n",
+      "to": "        if False:\n"
+    },
+    {
+      "label": "lint: the inert-guard advisory names the cost of editing a verified fence",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if any(\"· exit 0 ·\" in b for b in vlog) else \"\")\n",
+      "to": "                if False else \"\")\n"
+    },
+    {
+      "label": "lint: a fence that cannot parse is reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if parsed == \"error\":\n",
+      "to": "        if False:\n"
+    },
+    {
+      "label": "lint: a Tests row naming a file with no test in it is still reported",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if name in (f.stem, f.name):\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n                    continue\n",
+      "to": "            if name in (f.stem, f.name):\n                continue\n"
+    },
+    {
+      "label": "lint: a Proposed record whose Implementation paths all exist is told so",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            elif named and all(path_is_tracked(p, tracked) for p in named):\n",
+      "to": "            elif False:\n"
+    },
+    {
+      "label": "verify: a run on an already-verified task is announced before it starts",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if prior:\n        print(f\"[adr-verify] {task.name} already carries {prior} exit-0 \"\n",
+      "to": "    if False:\n        print(f\"[adr-verify] {task.name} already carries {prior} exit-0 \"\n"
+    },
+    {
+      "label": "lifecycle: a Bash edit naming only Markdown files carries no mutation marker",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        if (markdown.length === 0 || !namesOnlyMarkdownFiles(use.input.command, cwd)) {\n",
+      "to": "        if (true) {\n"
+    },
+    {
+      "label": "lifecycle: a real non-Markdown path in a Bash edit keeps the marker",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false\n",
+      "to": "    if (false) return false\n"
+    },
+    {
+      "label": "lifecycle: a literal read-only subprocess argv in a heredoc is not a mutation",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      return isPotentialMutationCommand(line) || isGitPublishCommand(line) ? whole : '\"\"'\n",
+      "to": "      return whole\n"
+    },
+    {
+      "label": "lifecycle: a mutating literal subprocess argv is still a mutation",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      return isPotentialMutationCommand(line) || isGitPublishCommand(line) ? whole : '\"\"'\n",
+      "to": "      return '\"\"'\n"
+    },
+    {
+      "label": "lifecycle: a relative path follows the command's own cd",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        if (existsSync(next)) here = next\n",
+      "to": "        if (false) here = next\n"
+    },
+    {
+      "label": "lifecycle: a write outside the project is not a project change",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "          && !writesOutsideProject(use.input.command, cwd)) {\n",
+      "to": "          && true) {\n"
+    },
+    {
+      "label": "lifecycle: an absolute path back into the project is not outside it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (path.isAbsolute(token) && underDirectory(token, project)) return false\n",
+      "to": "      if (false) return false\n"
     }
   ]
 }

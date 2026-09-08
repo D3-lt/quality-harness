@@ -298,6 +298,52 @@ def is_done(text, digest, human, fence=None, first=None):
             return True
     return False
 
+def unprovable_evidence(text, digest, fence, first):
+    """Why a NOT-done task nonetheless carries an exit-0 entry, or None.
+
+    ADR-005 applied to the render rather than the rule. `is_done` above answers
+    one question and its answer for these tasks is a correct no: a pre-digest row
+    records only the displayed command, and a digest row names the fence it
+    actually ran against. What was missing is that this reader had already made
+    that observation and printed nothing of it — a bare `READY`, which reads as
+    "never attempted".
+
+    Reported 2026-09-08 from an outside corpus (docs/BACKLOG.md §172): 3 of its
+    15 READY tasks carried exit-0 entries, and that repository's own protocol
+    makes the next READY task the default next action, so a session was one step
+    from designing work already built. It only avoided that because a memory
+    happened to warn it. This is not a loosening — nothing here grants `done`;
+    it says which of two very different states produced the same word.
+    """
+    log = "\n".join(sections(text).get("Verification Log", []))
+    legacy = False
+    for line in log.split("\n"):
+        line = line.strip()
+        # A digest row reaching here cannot have matched, or `is_done` would have
+        # returned True — so its presence IS the mismatch, and it is the more
+        # specific of the two states: someone edited the Acceptance after the run.
+        m = VLOG_DIGEST_RE.match(line)
+        if m and m.group("exit") == "0":
+            return ("carries exit-0 evidence recorded against a different Acceptance "
+                    "— the fence changed after that run; re-run `adr-verify`")
+        m = VLOG_LEGACY_RE.match(line)
+        if m and m.group("exit") == "0":
+            legacy = True
+    if legacy:
+        return ("carries exit-0 evidence that predates acceptance digests and cannot "
+                "prove this fence; re-run `adr-verify`")
+    return None
+
+
+def unproven_note(inf):
+    """The parenthetical a READY line carries, or the empty string.
+
+    One spelling, because the two render paths — corpus and single record — are
+    exactly the pair that drifted apart when `classify` was extracted for the
+    same reason (docs/BACKLOG.md §41).
+    """
+    return f"  ({inf['unproven']})" if inf.get("unproven") else ""
+
 
 def human_stop(text):
     """The sign-off note that says STOP, or None when none does.
@@ -340,6 +386,10 @@ def load(tasks_dir):
             "acceptance": None if human else first,
             "human_observed": human,
             "done": is_done(text, digest, human, fence, first),
+            # Read whatever the answer above was, and rendered only when it is
+            # `ready`: a done task's evidence is the evidence, and a blocked or
+            # stopped task already prints a reason of its own.
+            "unproven": unprovable_evidence(text, digest, fence, first),
             # ADR-005 applied to routing. A sign-off that says STOP denies `done`
             # and used to fall straight through to `ready`, so the router offered
             # work the record forbids starting. Reported 2026-09-02 from another
@@ -784,7 +834,7 @@ def report_corpus(records, unreadable, flags):
 
     for name, answer in answers.items():
         for inf in answer["ready"]:
-            print(f"{name}  READY    {inf['id']}  {inf['goal']}")
+            print(f"{name}  READY    {inf['id']}  {inf['goal']}{unproven_note(inf)}")
         if "--all" not in flags:
             continue
         for inf in answer["done"]:
@@ -939,7 +989,7 @@ def main():
         for inf in done:
             print(f"done     {inf['id']}  {inf['goal']}")
         for inf in ready:
-            print(f"READY    {inf['id']}  {inf['goal']}")
+            print(f"READY    {inf['id']}  {inf['goal']}{unproven_note(inf)}")
         for inf in blocked:
             print(f"blocked  {inf['id']}  {inf['goal']}  (waiting on {', '.join(inf['blocked_by'])})")
         for inf in stopped:
@@ -972,6 +1022,8 @@ def main():
     inf = ready[0]
     print(f"Next: {inf['id']} — {inf['goal']}")
     print(f"  file: {inf['path']}")
+    if inf["unproven"]:
+        print(f"  ⚠ this task {inf['unproven']}")
     if inf["human_observed"]:
         print("  acceptance: human-observed — sign off with "
               f"`adr-verify {inf['path']} --human \"<who observed what>\"`")

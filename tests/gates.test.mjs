@@ -101,6 +101,33 @@ test('adr-verify executes acceptance and writes digest-bound evidence', () => {
   assert.match(task, /exit 0 .* acceptance-sha256:[0-9a-f]{64}/)
 })
 
+
+test('adr-verify says before the run what a failure on an already-verified task will read as', () => {
+  // docs/BACKLOG.md §174, reported 2026-09-08: "re-run adr-verify" is the migration
+  // adr-lint names for pre-digest evidence, and on a done task whose fence dialled
+  // an address only reachable outside its container, the migration appended a
+  // FAILED run to a finished task. The log stays append-only; the notice is what
+  // was missing, and it has to come BEFORE the run.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-prior-'))
+  const copy = join(temp, 'ok')
+  cpSync(fixture, copy, { recursive: true })
+  const taskPath = join(copy, 'tasks', 'T1-fixture.md')
+  const first = run('adr-verify', ['tasks/T1-fixture.md', '--cwd', '.'], copy)
+  expectExit(first, 0, 'first run')
+  assert.doesNotMatch(first.stdout, /already carries/, 'a task with no evidence gets no notice')
+  const second = run('adr-verify', ['tasks/T1-fixture.md', '--cwd', '.'], copy)
+  // The fixture's fence runs adr-lint over a task that now carries evidence and no
+  // Mutation Log, so this second run FAILS — exactly the shape the report came in
+  // with. The notice came first, and the failure was recorded anyway: a statement,
+  // never a refusal, and the log stays append-only.
+  assert.match(second.stdout, /already carries 1 exit-0 entry\. This run is appended whatever it exits/)
+  assert.match(second.stdout, /fix the fence FIRST/)
+  const rows = readFileSync(taskPath, 'utf8').match(/^- \d{4}-\d{2}-\d{2} · .* · exit \d+ · /gm) ?? []
+  assert.equal(rows.length, 2, 'both runs are in the log')
+  assert.ok(second.stdout.indexOf('already carries') < second.stdout.indexOf('WROTE this entry'),
+    'the notice precedes the run, or it cannot change what the author does')
+  rmSync(temp, { recursive: true, force: true })
+})
 test('the retirement seal survives a checkout that rewrote line endings', () => {
   // Reproduces, on this platform, what windows-latest reported on 2026-08-25:
   // git translates line endings on checkout, so an archive sealed here came back
@@ -207,6 +234,54 @@ test('an inline task claiming done is told nothing can prove it', () => {
   const quiet = run('adr-lint', [adr], temp)
   expectExit(quiet, 0, quiet.stdout)
   assert.doesNotMatch(quiet.stdout, /inline task/)
+  rmSync(temp, { recursive: true, force: true })
+})
+
+test('a Proposed record with no tasks is told its Status was not checked, and when its paths all exist', () => {
+  // docs/BACKLOG.md §174, reported 2026-09-08 from an 18-record corpus: four records
+  // shipped with 52 tests and sat `Proposed` for six weeks, because `[PASS] (no
+  // tasks dir — ADR-level checks only)` read as approval of the status and nothing
+  // anywhere read that line against what was built.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-proposed-'))
+  const adr = join(temp, 'ADR-001-proposed.md')
+  const record = (status, implementation) => [
+    '# ADR-001: Proposed', '',
+    `**Status:** ${status}`,
+    '**Spec:** None — no spec stage',
+    '**Served-path change:** None — this decision changes no served path.', '',
+    '## Existing Primitives Audit', '', 'Nothing existing covers it.', '',
+    '## Decision', '', 'Do the thing.', '',
+    '## Alternatives Considered', '', '- Doing nothing — rejected, the bug persists.', '',
+    '## Consequences', '', 'The thing is done.', '',
+    '## Wiring & Contract Changes', '', 'None.', '',
+    '## Implementation', '', ...implementation, '',
+    '## Out of Scope', '', '- The other thing (deferred: ADR-002)', '',
+  ].join('\n')
+
+  // Outside any repository: git cannot be asked, and the gate says so rather
+  // than passing quietly (ADR-005).
+  writeFileSync(adr, record('Proposed', ['- `src/gate.py` — the gate', '- `tests/test_gate.py` — its test']))
+  const unasked = run('adr-lint', [adr], temp)
+  expectExit(unasked, 0, unasked.stdout)
+  assert.match(unasked.stdout, /no tasks dir — ADR-level checks only; its Status is not checked/)
+  assert.match(unasked.stdout, /advice: .*git could not be asked .* did NOT run/)
+
+  // In a repository where every named path exists: the observation, and the
+  // admission that it concludes nothing.
+  spawnSync('git', ['init', '-q'], { cwd: temp, timeout: 60_000 })
+  mkdirSync(join(temp, 'src')); mkdirSync(join(temp, 'tests'))
+  writeFileSync(join(temp, 'src', 'gate.py'), 'x = 1\n')
+  writeFileSync(join(temp, 'tests', 'test_gate.py'), 'def test_x():\n    assert 1\n')
+  const built = run('adr-lint', [adr], temp)
+  expectExit(built, 0, built.stdout)
+  assert.match(built.stdout, /advice: .*Every path its ## Implementation names \(2\) already exists/)
+  assert.match(built.stdout, /this gate cannot tell which/)
+
+  // The must-stay-silent arms: a path that does not exist, and an Accepted record.
+  writeFileSync(adr, record('Proposed', ['- `src/gate.py` — the gate', '- `src/not_yet.py` — planned']))
+  assert.doesNotMatch(run('adr-lint', [adr], temp).stdout, /already exists/)
+  writeFileSync(adr, record('Accepted', ['- `src/gate.py` — the gate']))
+  assert.doesNotMatch(run('adr-lint', [adr], temp).stdout, /Status is `Accepted`/)
   rmSync(temp, { recursive: true, force: true })
 })
 

@@ -145,6 +145,67 @@ test('a pre-digest exit-0 row proves a single-line fence, and only that', () => 
     'a legacy row records one displayed line, so it cannot prove a multi-line fence')
 })
 
+test('a READY task says when it carries evidence that cannot prove its fence', () => {
+  // docs/BACKLOG.md §172, reported 2026-09-08 from an outside corpus: 3 of its 15
+  // READY tasks carried exit-0 entries, and that repository's protocol makes the
+  // next READY task the default next action — so a session was one step from
+  // designing work already built. It only avoided that because a palace memory
+  // happened to warn it.
+  //
+  // `is_done` is RIGHT to withhold done here and is not touched: a first-line-only
+  // row cannot prove a multi-line fence, and a digest names the fence it ran
+  // against. What was wrong is that this reader made that observation and printed
+  // nothing of it (ADR-005). The two states below produced the identical word.
+  const withLog = (fence, log) => {
+    const dir = mkdtempSync(join(os.tmpdir(), 'quality-harness-unproven-'))
+    temps.push(dir)
+    const tasksDir = join(dir, 'tasks')
+    mkdirSync(tasksDir)
+    writeFileSync(join(tasksDir, 'T1-t.md'),
+      `# Task T1: probe\n\n**Depends-on:** none\n**Consumes:** none\n**Produces:** none\n\n`
+      + `## Acceptance\n\n\`\`\`bash\n${fence}\n\`\`\`\n\n## Verification Log\n\n${log}`)
+    return tasksDir
+  }
+  const allOf = tasksDir => next([tasksDir, '--all'], root).stdout
+  const multi = 'set -o pipefail\ndocker run --rm probe'
+
+  // The reporter's own row, verbatim in shape: the truncated display form, which
+  // `adr-verify` writes precisely because the fence has more than one line.
+  const legacyRow = allOf(withLog(multi, '- 2026-08-21 · bf4bca5* · exit 0 · `docker run …`\n'))
+  assert.match(legacyRow, /^READY {4}T1 .*predates acceptance digests/m,
+    'a legacy exit-0 row the allowance refuses is named on the READY line')
+
+  // A DIFFERENT state, and it must not borrow the sentence above: here the run was
+  // digest-stamped and someone edited the Acceptance afterwards.
+  const stale = allOf(withLog(multi,
+    `- 2026-09-01 · no-git · exit 0 · \`docker run …\` · acceptance-sha256:${digestOf('other fence')}\n`))
+  assert.match(stale, /^READY {4}T1 .*a different Acceptance/m,
+    'a digest recorded against another fence is named as a changed Acceptance')
+  assert.doesNotMatch(stale, /predates acceptance digests/,
+    'the two states do not share one sentence — they send a reader to different places')
+
+  // ⚠ THE MUST-FAIL ARMS. Coverage cannot see a check that answers unconditionally
+  // (CLAUDE.md §4): without these, a note printed on every READY line would satisfy
+  // both assertions above and mean nothing.
+  const bare = allOf(withLog('printf T1', ''))
+  assert.match(bare, /^READY {4}T1 {2}Task T1: probe$/m,
+    'a task with no evidence at all carries no parenthetical')
+
+  // And the allowance itself still ACCEPTS what it accepted: a single-line fence
+  // whose displayed command matches is done, so it never reaches this render.
+  const accepted = allOf(withLog('bun run test',
+    '- 2026-08-20 · 691a106f* · exit 0 · `bun run test`\n'))
+  assert.match(accepted, /^done {5}T1 /m, 'the narrow allowance is unchanged')
+  assert.doesNotMatch(accepted, /READY/, 'an accepted legacy row is evidence, not a warning')
+
+  // The `Next:` block is the path a session actually reads, and it is a separate
+  // render — the pair that drifted when `classify` was extracted (docs/BACKLOG.md §41).
+  const chosen = next([withLog(multi, '- 2026-08-21 · bf4bca5* · exit 0 · `docker run …`\n')], root)
+  assert.match(chosen.stdout, /^ {2}⚠ this task carries exit-0 evidence that predates/m,
+    'the single-task answer carries the same observation as --all')
+  assert.equal(chosen.status, 0, 'the task is still READY: this states an observation, not a verdict')
+})
+
 test('a date-named record never borrows another record\'s tasks', () => {
   // docs/BACKLOG.md §66, reported 2026-08-29 against the sibling matching added
   // the same day. `2026-07-12-router.md` and `2026-06-01-db-doctor.md` both

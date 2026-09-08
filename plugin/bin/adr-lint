@@ -68,6 +68,27 @@ for _s in (_sys.stdout, _sys.stderr):
         pass
 # ---------------------------------------------------------------------------
 
+# `resolve_bash` lives in plugin/lib/fence.py beside this gate's bin/ — BACKLOG §171
+# moved it there so spec-verify could reach it, and §174 is the same move for this
+# gate: a fence is syntax-checked below through the shared resolver, because a bare
+# `bash` on Windows is the WSL launcher (CLAUDE.md §7). Found from THIS file, never
+# from PATH, and loaded under its own name so a test that already holds `fence` for
+# adr-verify is not displaced. A gate copied without lib/ runs on and says UNRUN for
+# the one check that needs it, rather than crashing a linter over a helper (ADR-005).
+import importlib.util as _ilu
+_fence_file = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib", "fence.py")
+try:
+    _fence_spec = _ilu.spec_from_file_location("qh_fence_for_adr_lint", _fence_file)
+    _fence_mod = _ilu.module_from_spec(_fence_spec)
+    _fence_spec.loader.exec_module(_fence_mod)
+    resolve_bash = _fence_mod.resolve_bash
+    FENCE_LIB_ERROR = None
+except Exception as _fence_error:  # lib/ is not beside bin/: a copied gate
+    FENCE_LIB_ERROR = f"plugin/lib/fence.py could not be loaded ({_fence_error})"
+
+    def resolve_bash(*_args, **_kwargs):
+        return None
+
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
 TASK_HEADERS = ["Depends-on", "Covers", "Produces", "Consumes"]
@@ -1378,6 +1399,22 @@ def check_task(path, all_stems, errors):
                 f"{path.name}: **Rests-on:** names `{name}` more than once. A mechanism "
                 f"declared twice is counted twice, so what the record admits is unproven "
                 f"would be wrong in the direction that flatters it")
+    elif declared is None and any(ln.strip().startswith("- ")
+                                  for ln in secs.get("Mutation Log", [])) \
+            and not any("· exit 0 ·" in ln for ln in secs.get("Verification Log", [])):
+        # Reported 2026-09-08 from an 18-record corpus (BACKLOG §174): `--covers` was
+        # refused for want of a header that ZERO of its ~90 task files carried. The
+        # task template has emitted one since v2.51.0, but a corpus authored before
+        # that never sees it, and a feature reachable only through a header nobody
+        # has stays at no adoption. Advised HERE, on a task that has killed a mutant
+        # and is still being verified — the moment the header would buy something.
+        # Not on a done task: BACKLOG §59 measured what an advisory that fires forty
+        # times on an unmodified tree does to the advice beside it.
+        errors.advise(
+            f"{path.name}: carries a Mutation Log but no **Rests-on:** header, so "
+            f"`adr-verify --covers` cannot name which mechanism a killed mutant bound. "
+            f"Declare what the fence's claim rests on (the task template emits the header) "
+            f"and the next killed mutant can be bound to one of them")
     acc = "\n".join(secs.get("Acceptance", []))
     if "```bash" not in acc and "Acceptance is human-observed:" not in acc:
         errors.append(f"{path.name}: ## Acceptance has no ```bash fence and no explicit "
@@ -1618,14 +1655,58 @@ def check_task(path, all_stems, errors):
     # `adr-lint` runs on corpora that did not adopt that convention, and because
     # the first fence written here without a positive assertion beside it would
     # lose its vacuity check in silence.
-    for guard in inert_negated_guards(acc_all):
-        errors.advise(
-            f"{path.name}: `{guard}` cannot fail this Acceptance fence. POSIX `set -e` does "
-            f"not apply to a command whose status is inverted with `!`, so a negated guard "
-            f"that is not the fence's last command is inert — the script carries on and "
-            f"exits on whatever follows. It READS like the vacuity guard while checking "
-            f"nothing. The un-negated form costs nothing and does fail: "
-            f"`if grep -qE \"no tests to run|^FAIL|^--- FAIL\" out; then exit 1; fi`")
+    inert = inert_negated_guards(acc_all)
+    if inert:
+        # Reported 2026-09-08 from a 166-fence corpus (BACKLOG §174): 37 inert guards,
+        # every one rescued by a positive assertion beside it — and an author who
+        # applied this advisory's own fix to all 37 took the corpus from 1 failing
+        # record to 12, because editing a fence changes its digest and the evidence
+        # recorded against it stops proving it. The advisory now carries that cost,
+        # since it is the advisory that prompts the edit; and it names the one shape
+        # the mechanical fix breaks — a guard that is the last line inside an
+        # `sh -c '…'` wrapper, where the closing quote must stay after `fi`.
+        cost = (" ⚠ This task carries exit-0 evidence: editing the fence changes its digest, "
+                "and `done` is refused until `adr-verify` re-runs it against the new text."
+                if any("· exit 0 ·" in b for b in vlog) else "")
+        wrapper = (" Inside an `sh -c '…'` wrapper the closing quote must stay AFTER `fi`."
+                   if re.search(r"\b(?:sh|bash)\s+-c\s+'", acc_all) else "")
+        fix = "`if grep -qE \"no tests to run|^FAIL|^--- FAIL\" out; then exit 1; fi`"
+        if not vacuity_checks(acc_all):
+            # The middle ground the same report proposed: a negated guard that is the
+            # fence's ONLY vacuity check leaves a fence that a filter matching nothing
+            # passes — the defect this pipeline exists to catch — and that is decidable
+            # from the text. One beside a positive assertion stays advice, because there
+            # the guard is redundant rather than the hole (§78 measured 0 of 50 as the
+            # only detector; the reporting corpus measured 0 of 37).
+            errors.append(
+                f"{path.name}: `{inert[0]}` cannot fail this Acceptance fence, and nothing "
+                f"else in it checks that the run scored anything — a filter matching "
+                f"nothing passes it. POSIX `set -e` does not apply to a command whose "
+                f"status is inverted with `!`, so the guard is inert unless it is the "
+                f"fence's last command. Use {fix}.{wrapper}{cost}")
+        else:
+            for guard in inert:
+                errors.advise(
+                    f"{path.name}: `{guard}` cannot fail this Acceptance fence. POSIX `set -e` does "
+                    f"not apply to a command whose status is inverted with `!`, so a negated guard "
+                    f"that is not the fence's last command is inert — the script carries on and "
+                    f"exits on whatever follows. It READS like the vacuity guard while checking "
+                    f"nothing; the positive assertion beside it is what fails. The un-negated "
+                    f"form costs nothing and does fail: {fix}.{wrapper}{cost}")
+    # Reported 2026-09-08 (BACKLOG §174): the advisory's fix, applied mechanically to
+    # a guard that was the last line of an `sh -c '…'` wrapper, produced a fence with
+    # a syntax error — caught by that corpus's own `sh -n` gate and never by this
+    # one. A fence that cannot PARSE can never run, which is strictly worse than one
+    # that cannot fail, and `bash -n` costs milliseconds.
+    if acc_all:
+        parsed, detail = fence_parses(acc_all)
+        if parsed == "error":
+            errors.append(f"{path.name}: the Acceptance fence does not parse (`bash -n`): "
+                          f"{detail}. A fence that cannot run can never fail, and adr-verify "
+                          f"would record its parse error as a failed run")
+        elif parsed == "unrun":
+            errors.advise(f"{path.name}: UNRUN — the fence syntax check did not run here: "
+                          f"{detail}. Whether this fence parses is unproven, not disproven")
     # Reported 2026-09-02 from an adopting corpus that had just parallelised its
     # fences to cut a 45s suite to 4.5s — the right optimisation, and one `wait`
     # away from a fence that always passes. Zero instances here today; it ships
@@ -2273,7 +2354,10 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                               f"current Acceptance digest."
                               f"{legacy_note} Acceptance changed after verification; re-run "
                               f"`adr-verify <task.md>` to record an entry against the fence as "
-                              f"it now stands")
+                              f"it now stands. ⚠ That run is appended whatever it exits: if the "
+                              f"fence no longer passes here — usually an environment it does not "
+                              f"set up for itself — fix the fence FIRST, or the log gains a failed "
+                              f"run on a task that was done")
 
 
 def check_status_allows_execution(adr_path, readme_text, errors):
@@ -2675,6 +2759,56 @@ def inert_negated_guards(fence):
     return [s for s in segments[:-1] if NEGATED_GREP_RE.match(s)]
 
 
+# A segment that can fail the fence on WRONG OUTPUT rather than on a crash: an
+# un-negated grep, a test/[ ]/[[ ]] expression, a file comparison, or `jq -e`.
+POSITIVE_CHECK_RE = re.compile(r"^\s*(?:if\s+|while\s+|until\s+)?(?:grep|test|\[\[?|cmp|diff|jq\s+-e)\b")
+
+
+def vacuity_checks(fence):
+    """Segments that can fail the fence when the run scored nothing, inert guards excluded.
+
+    The other half of `inert_negated_guards`, and the split the 2026-09-08 report
+    asked for (BACKLOG §174): of 37 inert guards in that corpus, every one sat
+    beside an un-negated `grep -q -- "--- PASS: <name>"` that DOES fail under
+    `set -e`, so no false pass flowed — but that rescue was the authors' habit,
+    not anything this gate guaranteed. A fence whose only vacuity check is inert
+    is genuinely vacuous, and that is decidable from the text.
+
+    A negated guard that IS the last command counts: its status is the script's.
+    The same proxy caveat as `inert_negated_guards` — read a hit as "this line
+    can fail the script", never as "the fence proves the mechanism".
+    """
+    segments = [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]
+    checks = [s for s in segments if POSITIVE_CHECK_RE.match(s) and not NEGATED_GREP_RE.match(s)]
+    if segments and NEGATED_GREP_RE.match(segments[-1]):
+        checks.append(segments[-1])
+    return checks
+
+
+def fence_parses(fence, bash=None):
+    """("ok" | "error" | "unrun", detail) for `bash -n` over an Acceptance fence.
+
+    Three answers, because a box with no POSIX shell and a fence with a syntax
+    error must not read alike (ADR-005). Through `resolve_bash`, never a bare
+    `bash`: on Windows that is the WSL launcher (CLAUDE.md §7, BACKLOG §171).
+    Injectable so the unrun arm is reachable from a test on a host that has bash.
+    """
+    if bash is None:
+        if FENCE_LIB_ERROR:
+            return "unrun", FENCE_LIB_ERROR
+        bash = resolve_bash()
+    if bash is None:
+        return "unrun", "no POSIX shell resolvable (set CLAUDE_CODE_GIT_BASH_PATH on Windows)"
+    try:
+        r = subprocess.run([bash, "-n"], input=fence, capture_output=True, text=True,
+                           encoding="utf-8", errors="replace", timeout=15)
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return "unrun", f"`{bash}` could not be run ({e.__class__.__name__})"
+    if r.returncode == 0:
+        return "ok", ""
+    first = next((ln.strip() for ln in r.stderr.splitlines() if ln.strip()), f"exit {r.returncode}")
+    return "error", re.sub(r"^[^:]*bash(?:\.exe)?: (?:line \d+: )?", "", first)
+
 # A command backgrounded with `&`. Deliberately NOT `&&`, and not the redirection
 # spellings `>&`, `&>`, `2>&1`, all of which contain the same character. The
 # lookahead for whitespace-or-end is what keeps a quoted `a&b` inside a grep
@@ -2955,6 +3089,34 @@ def check_enforcement(text, path, errors, root):
                           f"label in tests/mutations.json, a `path::name` test that exists, or a "
                           f"gate in bin/ — a pointer to nothing is the rot this header exists to "
                           f"avoid. Name the check, or say `None — <reason>`")
+
+def implementation_paths(text):
+    """Repository paths a record's ## Implementation section names in backticks.
+
+    A token counts when it carries a separator or a file suffix and no space —
+    `adr-lint` and `T1` do not. Deliberately that section alone and not
+    `Governs:`, which names what a decision governs and exists before the
+    decision is carried out. Absolute paths are left out: a check against
+    `git ls-files` can only answer for paths inside the tree (CLAUDE.md §8).
+    """
+    body = "\n".join(sections_of(text).get("Implementation", []))
+    out = []
+    for token in re.findall(r"`([^`\n]+)`", body):
+        token = re.sub(r"^\./", "", token.strip()).replace("\\", "/").rstrip("/")
+        if not token or " " in token or token.startswith("/") or re.match(r"^[A-Za-z]:", token):
+            continue
+        if not re.search(r"/|\.[A-Za-z0-9]+$", token):
+            continue
+        if token not in out:
+            out.append(token)
+    return out
+
+
+def path_is_tracked(candidate, tracked):
+    """Whether git knows `candidate` as a file, or as a directory holding files."""
+    prefix = candidate + "/"
+    return candidate in tracked or any(t.startswith(prefix) for t in tracked)
+
 
 
 def tracked_paths(root):
@@ -3397,6 +3559,19 @@ def check_tests_exist(infos, readme_text, errors, root):
                               f"Tests table names `{rel}` for `{name}`, but no such file exists "
                               f"in the repo — the row describes a test nothing can run")
                 continue
+            # Reported 2026-09-08 (BACKLOG §174): `test_cost_runaway_gate` in the name
+            # cell beside `tests/unit/test_cost_runaway_gate.py` in the file cell is a
+            # row naming a FILE, and the file exists. Read as a function that must be
+            # defined inside itself, it reported a test that was right there. Under
+            # pytest and go test a filter on the module's name selects its tests, so
+            # the claim the row makes is that the file's tests ran — which holds when
+            # the file holds at least one. A same-named file with no test in it is
+            # still the identity finding below.
+            if name in (f.stem, f.name):
+                source = f.read_text(errors="replace", encoding="utf-8")
+                if re.search(r"^\s*(?:async\s+)?def\s+test_\w+\s*\(|^\s*func\s+Test\w*\s*\(|"
+                             r"^\s*(?:it|test)\s*\(", source, re.M):
+                    continue
             # RAW source: `test_body` strips per branch, because a BDD test's name
             # is a string literal and stripping strings here deleted the thing
             # being searched for (docs/BACKLOG.md §57).
@@ -3423,8 +3598,10 @@ def check_tests_exist(infos, readme_text, errors, root):
                               f"Tests table names `{name}` in `{rel}`, but that file contains no "
                               f"executable definition with that name — so the row describes a test "
                               f"the acceptance run cannot have exercised. Either the test was never "
-                              f"written, or the table is stale after a rename — if you substitute a "
-                              f"name, check it covers the same behaviour before you edit")
+                              f"written, or the table is stale after a rename. The question that "
+                              f"separates the two is whether a sibling IN THAT SAME FILE fences the "
+                              f"same behaviour: if one does, name it; if none does, this is a "
+                              f"coverage gap, not a rename")
 
 
 # Test bodies that cannot fail, and tests the Acceptance never runs.
@@ -4716,6 +4893,33 @@ def main():
                 f"{adr.name}: {len(inline_done)} inline task(s) marked done, and no tasks/ "
                 f"directory — nothing here can carry tool-written evidence, so adr-verify has "
                 f"nowhere to write and adr-lint cannot check the claim. Move them to task files.")
+        # Reported 2026-09-08 from an 18-record corpus (BACKLOG §174): four records
+        # shipped with 52 tests between them and sat `Proposed` for six weeks, and
+        # three sessions in a row read `[PASS] (no tasks dir — ADR-level checks only)`
+        # as approval of that status. Without tasks NOTHING here reads the Status line
+        # against evidence — check_status_allows_execution needs a README of done
+        # tasks. The cheapest observation this gate CAN make: does every path the
+        # record's own ## Implementation names already exist? Against git, never the
+        # disk (CLAUDE.md §8). It says a coincidence is possible and concludes nothing.
+        status_m = re.search(r"^\*\*Status:\*\*\s*(.+?)\s*$", body, re.M)
+        status_text = status_m.group(1).strip().strip("`*") if status_m else ""
+        if re.match(r"^(proposed|draft)\b", status_text, re.I):
+            named = implementation_paths(body)
+            tracked = tracked_paths(root) if named else None
+            if named and tracked is None:
+                errors.advise(
+                    f"{adr.name}: Status is `{status_text}` and no tasks/ directory carries "
+                    f"evidence, so nothing here checks that status — and git could not be "
+                    f"asked whether the paths ## Implementation names exist, so that check "
+                    f"did NOT run")
+            elif named and all(path_is_tracked(p, tracked) for p in named):
+                errors.advise(
+                    f"{adr.name}: Status is `{status_text}` and no tasks/ directory carries "
+                    f"evidence, so NOTHING here checks that status against what was built. "
+                    f"Every path its ## Implementation names ({len(named)}) already exists in "
+                    f"this repository. That is consistent with a decision carried out and never "
+                    f"re-labelled, and with a plan naming files that predate it — this gate "
+                    f"cannot tell which. If it was executed, say so in Status")
     if tasks_dir:
         # BACKLOG §166, second half. A task whose OWN `**Status:**` names a terminal
         # state will never be built, so authoring advice about its sections and its
@@ -4820,7 +5024,7 @@ def main():
     # case that produced this is someone pasting `[PASS] …` into a PR body: the
     # identity has to travel with the claim, not sit above it where a copy drops
     # it.
-    print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only)") + f" · {gate_identity()}")
+    print(f"[{status}] {adr}" + (f" + {tasks_dir}" if tasks_dir else " (no tasks dir — ADR-level checks only; its Status is not checked against evidence here)") + f" · {gate_identity()}")
     for e in errors:
         print(f"  {e}")
     # Advice is printed on a PASS too: a record that is acceptable and a record

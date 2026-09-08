@@ -2372,17 +2372,17 @@ test('the writes a different-lineage review got past these classifiers', async (
     ['find -exec runs anything',           'subprocess.run(["find", ".", "-exec", "./mutate", "{}", ";"])'],
     ['stdout=open writes a file the argv never names',
                                            'subprocess.run(["grep", "x", "in"], stdout=open("out.txt", "w"))'],
-  ]) {
     // ⚠ THE CASE THAT DISTINGUISHES "EVERY ELEMENT MUST BE A LITERAL" FROM THE
-    // EXECUTABLE CHECK, and without it that guard's mutant came back GREEN on CI.
-    // `cmd = "rm"` is caught by the executable test whether or not non-literals
-    // are skipped, because skipping leaves `-rf` as the command. Here the literal
-    // head is a READ-ONLY name and the danger is in a computed argument, so only
-    // refusing the whole call keeps it: skipping `flag` would leave a bare
-    // `find . ./mutate`, which FIND_WRITES cannot see.
+    // EXECUTABLE CHECK. `cmd = "rm"` above is caught by the executable test
+    // whether or not non-literals are skipped, because skipping leaves `-rf` as
+    // the command name — so it cannot tell the two guards apart. Here the literal
+    // head is a READ-ONLY name and the danger is in a computed argument: skipping
+    // `flag` leaves a bare `find . ./mutate`, which FIND_WRITES cannot see.
     ['a computed argument hiding -exec',
      'flag = "-exec"\nsubprocess.run(["find", ".", flag, "./mutate", "{}", ";"])'],
+  ]) {
     assert.equal(isPotentialMutationCommand(heredoc(body)), true, label)
+  }
   }
   // ...and the genuinely read-only call the exemption exists for is still exempt,
   // or "recognise nothing" would satisfy every assertion above.

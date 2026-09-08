@@ -12074,6 +12074,18 @@ printf x > notes.txt        -> the shell mutation was DROPPED, not counted
 Both comparisons are made now and EITHER counts as inside, deliberately: saying "inside" keeps the
 marker and demands evidence, while a wrong "outside" silently drops the requirement.
 
+⚠ **AND CANONICALISING BOTH SIDES WAS NOT ENOUGH — the Windows job failed again on the same
+assertion.** `realpathSync` resolves the 8.3 short form of a Windows temp directory to its long form
+on one side of the comparison and not reliably on the other, so two spellings of the same directory
+still did not compare equal, and `printf x > notes.txt` — a command with **no `cd` anywhere** — was
+still exempted.
+
+The second fix stops computing the answer and states the invariant: **a command that never navigates
+runs where the session is, and that IS the project.** It cannot be outside it, whatever any path
+comparison says. The containment arithmetic still runs, but only for the harder question it was
+written for — where a `cd` actually landed. Two rounds on one defect, and the lesson is the shape of
+the first attempt: I fixed the path comparison twice before noticing the case never needed one.
+
 ⚠ **Nothing local could have found this.** `CLAUDE.md` §7 says the platform is a parameter and you
 cannot run Windows here; this is that rule collecting. The exemption was added, reviewed twice,
 attacked directly, and shipped past all of it — because every probe ran where `realpathSync` agrees

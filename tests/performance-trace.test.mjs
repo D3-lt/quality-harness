@@ -47,7 +47,9 @@ test('disabled, expired, full and unavailable trace targets never change executi
   const fill = Buffer.alloc(8 * 1024 * 1024, 32)
   writeFileSync(env.QUALITY_HARNESS_TRACE_FILE, fill)
   startPerformanceTrace('synthetic', '', env)('completed', { status: 0 })
-  assert.deepEqual(readFileSync(env.QUALITY_HARNESS_TRACE_FILE), fill)
+  // A failing Buffer diff can exhaust the mutation runner while formatting megabytes.
+  assert.equal(readFileSync(env.QUALITY_HARNESS_TRACE_FILE).equals(fill), true,
+    'full trace stays byte-for-byte unchanged')
 })
 
 test('an exhausted real artifact batch records unchecked work without a clean verdict', t => {

@@ -4463,6 +4463,27 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
         named_but_empty = [e for e in out if "Tests table names" in e]
         assert len(named_but_empty) == 1, ("a file named by the row that holds no test at all is "
                                            f"still a finding: {named_but_empty}")
+
+        # ⚠ A ROW POINTING AT A FILE THAT WAS NEVER CREATED IS NOT EVIDENCE THAT
+        # THE BEHAVIOUR IS UNFENCED. Reported 2026-09-08 by a corpus that acted on
+        # the old wording: the row named a file its author had planned, and the
+        # behaviour was fenced in a differently-named file all along. The reporter
+        # wrote two replacement tests before discovering that, and deleted both
+        # because no mutant died that was not already dying (BACKLOG 181).
+        probe.write_text(_probe_task("true", log=row,
+                                     tests="| `test_x` | `tests/never_created.py` | v | - |"),
+                         encoding="utf-8")
+        errs = lint.Findings()
+        _, ghost_info = lint.check_task(probe, set(), errs)
+        out = lint.Findings()
+        lint.check_tests_exist({"T1": ghost_info}, "| 1 | T1 | done |", out, root)
+        ghost = [e for e in out if "Tests table names" in e]
+        assert len(ghost) == 1, ghost
+        # It still BLOCKS - the row does point nowhere, which is a real defect.
+        assert "points nowhere" in ghost[0], ghost[0]
+        # ...but it may not conclude the behaviour is unfenced.
+        assert "unproven here" in ghost[0], ghost[0]
+        assert "nothing can run" not in ghost[0], "the old over-claim must not come back"
         # The must-fail arm: a name that is neither the file nor in it is still reported,
         # and the report now asks the discriminating question rather than suggesting a name.
         missing = findings("test_omega")

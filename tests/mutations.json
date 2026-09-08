@@ -6679,6 +6679,15 @@
       ],
       "from": "        return stages if pipefail else stages[-1:]\n",
       "to": "        return stages\n"
+    },
+    {
+      "label": "lint: a row naming a file that never existed does not claim the behaviour is unfenced",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                              f\"fenced ELSEWHERE is unproven here: a file that was planned and never \"\n",
+      "to": "                              f\"fenced ELSEWHERE is not in doubt: nothing can run it, and never \"\n"
     }
   ]
 }

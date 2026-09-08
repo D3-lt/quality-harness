@@ -3806,9 +3806,23 @@ def check_tests_exist(infos, readme_text, errors, root):
                             f"those tests exist is unproven here, not disproven. If the code lives "
                             f"in another repository, say which one in the task, and verify it there.")
                     continue
+                # ⚠ SAYS WHAT IT OBSERVED, AND STOPS. This used to end "the row
+                # describes a test nothing can run", which is a claim about the
+                # BEHAVIOUR drawn from an observation about a PATH. Reported
+                # 2026-09-08 by a corpus that acted on it: a row named
+                # `tests/unit/test_audit.py`, a file its author planned and never
+                # created, while the behaviour was fenced all along in
+                # `test_audit_warning.py` — a different file. The reporter wrote two
+                # replacement tests before finding that out and deleted both,
+                # because no mutant died that was not already dying (BACKLOG §181).
+                # The row is still wrong and still blocks; what it may not do is
+                # call the behaviour unfenced.
                 errors.append(f"{inf['path'].name}: {tid} has passing acceptance evidence and its "
-                              f"Tests table names `{rel}` for `{name}`, but no such file exists "
-                              f"in the repo — the row describes a test nothing can run")
+                              f"Tests table names `{rel}` for `{name}`, and that path names no file "
+                              f"in the repo — so the row points nowhere. Whether the behaviour is "
+                              f"fenced ELSEWHERE is unproven here: a file that was planned and never "
+                              f"created is not the same finding as a test that was deleted, so search "
+                              f"for the behaviour before treating this as a coverage gap")
                 continue
             # Reported 2026-09-08 (BACKLOG §174): `test_cost_runaway_gate` in the name
             # cell beside `tests/unit/test_cost_runaway_gate.py` in the file cell is a

@@ -960,7 +960,12 @@ export function heredocBodies(command) {
 // that slipped through: `tar -xf` extracts, `find -exec` runs anything, a
 // computed argv element hides the executable, and `stdout=open(...)` writes a
 // file the argv never names (BACKLOG §180).
-const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|awk|sed|jq|column|nl|tee)$/
+// ⚠ `sed`, `tee` and `awk` WERE IN THIS LIST AND ALL THREE WRITE. `sed -i` edits
+// in place, `tee` writes every file it is given, and an awk program can redirect
+// with `print > "f"`. They were typed here as "text utilities" — the exact error
+// CLAUDE.md §16 is about, made by the author of §16 in the same day's work, and
+// found by a different-lineage review (BACKLOG §187). A name is not a behaviour.
+const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/
 // `find` is read-only only while it neither executes nor deletes.
 const FIND_WRITES = /(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fls|fprint|fprintf|fputs)(?:\s|$)/
 

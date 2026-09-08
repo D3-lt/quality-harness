@@ -11975,3 +11975,81 @@ being parsed: a file is a task when it lives under `*/tasks/`, when its title ca
 prefix, or when its id carries a `-T<n>` component. All three arms are asserted, the last two as the
 must-fail direction — without them the fix could be "never check ownership", which the first assertion
 alone would accept.
+
+## 186. CLOSED 2026-09-08 — the most alarming thing this gate says was 21 for 21 wrong, and §185's fix was about to turn it on for every legacy corpus
+
+Reported 2026-09-08, immediately after §185 shipped the routing fix, by the corpus that found §185.
+The report is the reason §185 was not shipped alone.
+
+`check_tests_can_fail` blocks with *"no failure call is reachable in its body … — nothing in it can go
+red"*. That is the strongest claim `adr-lint` makes about anything: it says a test is decoration, and
+acting on it means rewriting a test that was correct. Across all 77 records the reporter enumerated
+every distinct test it flagged: **21 tests, 21 false positives.**
+
+⚠ **And §185 is what made this urgent.** Before it, legacy records never reached `adr-lint` at all —
+they were misrouted to the task branch. Fixing the routing hands 34 more records to a blocking check
+measured wrong every time it fired, in the population least able to tell a true finding from a false
+one. A fix that exposes a worse bug is not finished.
+
+**Shape 1 — `pytest.raises`, 19 of the 21.** `with pytest.raises(ValueError): create_app()` goes red
+when the exception is NOT raised; that IS the assertion. `self.assertRaises` already matched through
+`\bself\.assert`, and the pytest spelling matched nothing. ⚠ The reporter's own project memory had
+recorded this class against **adr-lint 2.85.0**, proved in-container at the time, with a note not to
+rewrite the tests it flagged — and it survived every release since, because nothing in this
+repository asserted it. A defect known to an adopter for weeks was invisible here.
+
+**Shape 3 — a test that asserts nothing and fails by an uncaught exception.**
+`for body in bodies: MontonioWebhookResponse(**body)` fences a schema; a `ValidationError` fails it.
+"Nothing in it can go red" is a universal negative over arbitrary code, which is `CLAUDE.md` §16 and
+ADR-016 — the identical error as declaring a shell fence vacuous, in a different language. The block
+is now kept only where the claim actually holds, a body that **calls nothing at all**, which is the
+dead test this check was written for. A body that calls something gets advice saying the question is
+UNPROVEN and naming the call.
+
+**Shape 2 did NOT reproduce.** The reporter suspected `async def` bodies were not extracted; measured
+here, `test_body` extracts them and finds their asserts. Their case has another cause, and it was told
+back to them as unreproduced rather than fixed on suspicion.
+
+## 187. CLOSED 2026-09-08 — the §12 review found three more fail-opens, and one was §16's author breaking §16
+
+The different-lineage review at the release sha returned **FAIL — do not tag**, with three HIGH
+findings, all fail-opens, all verified here against bash before anything was changed.
+
+**1. A three-alternative OR-list.** The two-alternative rule from §180 was right and did not
+generalise:
+
+```
+set -e; grep -q PASS /dev/null || true || false     -> exits 0
+```
+
+The middle `true` short-circuits the `false`, so the list cannot fail — while `status_carriers`
+saw an always-fails tail, flattened every earlier alternative and found the `grep`. ⚠ **The
+regressions covered two-alternative lists only, so a three-alternative one passed against the
+narrower implementation** — which is exactly the narrowing-mutant argument from §180 arriving as a
+real defect rather than a hypothetical. An alternative that cannot fail now makes the whole list
+unable to fail, whatever stands before it.
+
+**2. A function DEFINITION read as the check being performed.** `grep() { return 0; }` matched
+`POSITIVE_CHECK_RE` because `\b` accepts the boundary before `(` — the same word-boundary family as
+§179's hyphen, in a third spelling. Defining a function named after a checker counted as running it.
+Definitions are excluded now, and the compound construct stays UNPROVEN rather than becoming a block,
+which is what the reviewer recommended and what ADR-016 requires of a shape this gate cannot model.
+
+**3. ⚠ `sed`, `tee` and `awk` WERE IN A LIST NAMED `READ_ONLY_CHILD`.** `sed -i` edits in place,
+`tee` writes every file it is given, and an awk program redirects with `print > "f"`. All three were
+typed into that allowlist earlier the same day — in the commit that introduced the allowlist
+*because* "not recognised as mutating" had been read as "safe".
+
+```python
+subprocess.run(["sed", "-i.bak", "s/a/b/", "service.py"])   -> classified NON-mutating
+subprocess.run(["tee", "out.txt"])                          -> classified NON-mutating
+```
+
+**That is `CLAUDE.md` §16 broken by the session that wrote §16, in the same day's work, on the exact
+predicate §16 was written about.** The rule was authored, committed, and then violated within hours
+— which is the strongest available evidence for §16's own claim that prose does not bind and only an
+executable check does. There is now a mutant that re-adds all three names and dies.
+
+**What this says about the review that found them.** §179's self-attack found six defects; §180's
+review found four more; this review found three more still, after both. Each pass was real and none
+was sufficient, and the residual is not obviously zero now — it is only smaller than it was.

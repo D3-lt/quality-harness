@@ -6381,6 +6381,20 @@
       "tests": [
         "tests/hook-work.test.mjs"
       ]
+    },
+    {
+      "label": "git-directory: metadata without refs cannot lend a green cache",
+      "file": "plugin/scripts/git-directory.mjs",
+      "tests": ["tests/branch-state.test.mjs", "tests/statusline.test.mjs"],
+      "from": "      && statSync(path.join(common, 'refs')).isDirectory()",
+      "to": "      && true"
+    },
+    {
+      "label": "performance-trace: diagnostic destinations cannot modify gated artifacts",
+      "file": "plugin/scripts/performance-trace.mjs",
+      "tests": ["tests/performance-trace.test.mjs"],
+      "from": "        const target = traceTarget(file, protectedPaths)",
+      "to": "        const target = file"
     }
   ]
 }

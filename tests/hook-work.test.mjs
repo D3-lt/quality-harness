@@ -6,6 +6,7 @@ import path from 'node:path'
 import test from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
+import { archiveHistory } from '../plugin/scripts/run-shell-hook.mjs'
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginRoot = path.join(repoRoot, 'plugin')
 
@@ -236,6 +237,7 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   const scripts = path.join(root, 'plugin', 'scripts')
   mkdirSync(scripts, { recursive: true })
   cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'if [ "${QH_TEST_BULK-}" = 1 ]; then printf "%600000s\\n" "" >&2; fi',
@@ -269,8 +271,10 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
     pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href, files, root,
   ]) + ')'
+  const performanceTrace = path.join(root, 'performance.jsonl')
   const result = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
     CLAUDE_PLUGIN_ROOT: path.dirname(scripts), QUALITY_HARNESS_SHELL_TIMEOUT_MS: '2000',
+    QUALITY_HARNESS_TRACE_FILE: performanceTrace, QUALITY_HARNESS_TRACE_UNTIL: String(Date.now() + 60_000),
   }).stdout)
   assert.equal(typeof result.finding, 'string', JSON.stringify(result))
   assert.match(result.finding, /CHECKED .*first\.ts/)
@@ -292,6 +296,11 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   }
   assert.match(result.finding, /budget, not a finding/)
   assert.equal(result.runners, 1, 'one boundary needs one Node runner')
+  const operations = readFileSync(performanceTrace, 'utf8').trim().split('\n').map(JSON.parse)
+  const timedOut = operations.find(row => row.phase === 'end' && row.timedOut)
+  assert.ok(timedOut, 'a real shell timeout is observed despite advisory exit zero')
+  assert.ok(['timeout', 'cleanup-unconfirmed'].includes(timedOut.outcome))
+  assert.doesNotMatch(readFileSync(performanceTrace, 'utf8'), /first\.ts|slow\.ts|last\.ts/, 'artifact paths stay out of the trace')
   const bulk = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
     CLAUDE_PLUGIN_ROOT: path.dirname(scripts), QH_TEST_BULK: '1',
   }).stdout)
@@ -314,7 +323,7 @@ test('artifact batches use one runner and keep findings on both sides of a timed
 })
 
 test('historical archive discovery uses one scoped Git query and preserves nearest literal paths', t => {
-  const root = scratch(t)
+  const root = realpathSync(scratch(t))
   const project = path.join(root, 'project')
   run(['git', 'init', '-q', project], root)
   const scripts = path.join(root, 'plugin', 'scripts')
@@ -354,6 +363,21 @@ test('historical archive discovery uses one scoped Git query and preserves neare
   const commands = ordinary.trace.split('\n').filter(line => line.includes('built-in: git'))
   assert.ok(commands.length > 0, 'the probe must observe actual Git work')
   assert.equal(commands.length, 2, 'repository discovery plus one scoped history query')
+
+  cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  const files = [path.join(nested, 'first.md'), path.join(nested, 'second.md'), source,
+    path.join(sourceDir, 'another.ts')]
+  writeFileSync(trace, '')
+  const batch = run([process.execPath, path.join(scripts, 'run-shell-hook.mjs'),
+    'facts-gate-dispatch.sh', '--batch'], project, { GIT_TRACE: trace }, JSON.stringify({
+    paths: files, deadline: Date.now() + 30_000, windowMs: 30_000, timeoutMs: 10_000,
+  }))
+  assert.equal(((batch.stdout + batch.stderr).match(/CATALOG .*nested space\/README\.md/g) ?? []).length, 2,
+    'both deleted records still reach their nearest archive checker:\n' + batch.stdout + batch.stderr)
+  assert.doesNotMatch(batch.stdout + batch.stderr, /CATALOG .*src/)
+  const batchCommands = readFileSync(trace, 'utf8').split('\n').filter(line => line.includes('built-in: git'))
+  assert.ok(batchCommands.length <= 4, 'one history snapshot must replace repeated per-file probes:\n' + batchCommands.join('\n'))
 })
 
 test('artifact batch input and exhausted deadlines report unchecked work', async t => {
@@ -470,4 +494,37 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
   assert.doesNotMatch(confirmed.stderr, /cleanup could not be confirmed|Unchecked artifacts/)
   assert.match(confirmed.stderr, /budget, not a finding/)
   assert.ok(confirmed.stderr.indexOf('budget, not a finding') < confirmed.stderr.indexOf('CHECKED'))
+})
+
+test('archive prefetch keeps incomplete history unknown and respects the shared deadline', t => {
+  const root = realpathSync(scratch(t))
+  const files = [path.join(root, 'archive', 'one.md'), path.join(root, 'archive', 'two.md')]
+  const marker = '**Lifecycle:** Frozen historical ADR records\n'
+  const oid = 'a'.repeat(40)
+  const tree = Buffer.from('100644 blob ' + oid + '\tarchive/README.md\0')
+  const data = Buffer.from(oid + ' blob ' + Buffer.byteLength(marker) + '\n' + marker + '\n')
+  for (const failure of ['none', 'missing-tree', 'truncated-tree', 'failed-read', 'truncated-blob', 'wrong-id']) {
+    let calls = 0
+    const git = (_command, args, options) => {
+      calls++
+      assert.ok(options.timeout > 0 && options.timeout <= 3000)
+      let stdout = args.includes('rev-parse') ? Buffer.from(root + '\n')
+        : args.includes('ls-tree') ? tree : data
+      if (args.includes('ls-tree') && failure === 'missing-tree') return { status: 1, stdout: Buffer.alloc(0) }
+      if (args.includes('ls-tree') && failure === 'truncated-tree') stdout = tree.subarray(0, -1)
+      if (args.includes('cat-file')) {
+        if (failure === 'failed-read') return { status: null, error: new Error('ETIMEDOUT') }
+        if (failure === 'truncated-blob') stdout = data.subarray(0, -1)
+        if (failure === 'wrong-id') stdout = Buffer.from(data.toString().replace(oid, 'b'.repeat(40)))
+      }
+      return { status: 0, stdout }
+    }
+    const answer = archiveHistory(files, Date.now() + 10_000, git)
+    assert.ok(calls > 0, 'the seam must actually exercise history reading')
+    if (failure === 'none') {
+      assert.equal(answer.size, 2)
+      assert.equal(answer.get(files[1]), path.join(root, 'archive', 'README.md'))
+    } else assert.equal(answer.size, 0, failure + ' must fall back to ordinary per-file checks')
+  }
+  assert.equal(archiveHistory(files, Date.now() - 1, () => { throw new Error('budget spent') }).size, 0)
 })

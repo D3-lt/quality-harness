@@ -430,7 +430,11 @@ export function formatReport(report) {
     lines.push('| Handler | Runs | Total ms | p95 ms | Peak overlap | Unfinished | Failures | Timeouts |', '| --- | ---: | ---: | ---: | ---: | ---: | ---: | ---: |')
     for (const row of report.runtime.handlers) {
       lines.push('| ' + [row.handler, row.invocations, row.totalMs.toFixed(1), row.p95Ms?.toFixed(1) ?? 'unknown', row.maxConcurrent, row.unfinished, row.failures, row.timeouts].map(cell).join(' | ') + ' |')
+    }
+    for (const row of report.runtime.handlers) {
       if (row.outputLimits || row.cleanupUnconfirmed) lines.push('- ' + cell(row.handler) + ': output limits ' + row.outputLimits + '; cleanup unconfirmed ' + row.cleanupUnconfirmed)
+      if (row.outcomes) lines.push('- ' + cell(row.handler) + ' outcomes: ' + Object.entries(row.outcomes).map(([outcome, count]) => cell(outcome) + ' ' + count).join(', '))
+
     }
     for (const row of report.runtime.repeatedInputs) lines.push('- ' + cell('Repeated identical input: ' + row.handler + ' (' + row.event + ') × ' + row.count))
     lines.push('', 'Observed runs: ' + report.runtime.observed + '; peak overlap: ' + report.runtime.maxConcurrent + '; copied observations ignored: ' + report.runtime.ignoredDuplicates + '.')

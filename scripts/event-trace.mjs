@@ -61,7 +61,9 @@ export function analyzeTrace(text, registrations = []) {
           || (row.status !== null && (!Number.isInteger(row.status) || row.status < 0))
           || typeof row.timedOut !== 'boolean' || typeof row.outputLimitExceeded !== 'boolean'
           || ![null, true, false].includes(row.cleanupConfirmed)
-          || (row.error !== null && typeof row.error !== 'string')))) {
+          || (row.error !== null && typeof row.error !== 'string')
+          || (row.outcome !== undefined && (typeof row.outcome !== 'string'
+            || !/^[a-z][a-z-]{0,47}$/.test(row.outcome)))))) {
       problems.push('Line ' + (index + 1) + ': unsupported or malformed observation')
       continue
     }
@@ -91,6 +93,10 @@ export function analyzeTrace(text, registrations = []) {
     group.invocations++
     if (end) {
       group.completed++
+      if (end.outcome !== undefined) {
+        group.outcomes ??= Object.create(null)
+        group.outcomes[end.outcome] = (group.outcomes[end.outcome] ?? 0) + 1
+      }
       group.durations.push(end.durationMs)
       if (end.status !== 0 || end.error) group.failures++
       if (end.timedOut) group.timeouts++

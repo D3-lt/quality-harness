@@ -15,13 +15,17 @@ function probe(file) {
 
 function traceTarget(file, protectedPaths) {
   if (path.extname(file) !== '.jsonl') return null
-  const parent = realpathSync(path.dirname(file))
+  const parent = realpathSync.native(path.dirname(file))
   const target = path.join(parent, path.basename(file))
   const stat = probe(target)
   if (stat && (!stat.isFile() || stat.nlink > 1 || stat.size >= LIMIT)) return null
   for (const protectedPath of protectedPaths.filter(Boolean)) {
     let guarded = path.resolve(protectedPath)
-    try { guarded = realpathSync(guarded) } catch {}
+    try { guarded = realpathSync.native(guarded) } catch (error) {
+      if (error.code !== 'ENOENT' && error.code !== 'ENOTDIR') throw error
+      // A deleted leaf still has an identity; never compare its unresolved alias.
+      guarded = path.join(realpathSync.native(path.dirname(guarded)), path.basename(guarded))
+    }
     const relative = path.relative(guarded, target)
     if (!relative || (relative !== '..' && !relative.startsWith('..' + path.sep) && !path.isAbsolute(relative))) return null
   }

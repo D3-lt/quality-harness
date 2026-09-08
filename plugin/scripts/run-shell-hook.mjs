@@ -402,10 +402,11 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
         suffix.unshift(path.basename(directory))
         directory = parent
       }
-      directory = realpathSync(directory)
+      // Native resolution aligns Windows short names with Git's long-path spelling.
+      directory = realpathSync.native(directory)
       if (!roots.has(directory)) {
         const found = git(directory, ['rev-parse', '--show-toplevel'])
-        roots.set(directory, found ? realpathSync(found.toString('utf8').trim()) : null)
+        roots.set(directory, found ? realpathSync.native(found.toString('utf8').trim()) : null)
       }
       const root = roots.get(directory)
       if (!root) continue

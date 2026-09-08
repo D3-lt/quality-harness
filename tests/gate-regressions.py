@@ -4355,6 +4355,16 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
     for real in ("go test ./...", "cargo test", "node --test"):
         assert lint.unaccounted_segments(f"set -e\n{real}\n! grep -q FAIL out\necho done") == [], real
 
+    # ...AND THE OTHER HALF OF THE PIPELINE RULE, which a GREEN mutant said was
+    # untested: accounting must require EVERY stage, not just a recognised head.
+    # `cat out | some-bespoke-runner` is accounted for by its head and unknown at
+    # its tail, and the tail is the one whose status the segment carries.
+    mixed = "set -e\ngo test ./... | tee out\n! grep -q FAIL out\ncat out | some-bespoke-runner"
+    assert lint.unaccounted_segments(mixed) == ["cat out | some-bespoke-runner"], \
+        lint.unaccounted_segments(mixed)
+    assert about(_lint_task(lint, _probe_task(mixed))[0]) == [], \
+        "an unknown tail stage must make the finding UNPROVEN, not a block"
+
     print("PASS — an inert guard is advice beside a positive check and a failure alone, with its cost")
 
 

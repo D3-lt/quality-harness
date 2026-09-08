@@ -4259,6 +4259,40 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
     # unaccounted segment, or "unproven" would swallow every finding.
     assert lint.unaccounted_segments(go_fence) == []
 
+    # THE STATUS CARRIER, reported by a different-lineage review (BACKLOG 180).
+    # Each row was reproduced against bash before it was encoded, because a
+    # confident sentence about pipelines and OR-lists is not how they behave:
+    #
+    #   set -e; (exit 5) | cat; echo R; exit 0        -> 0
+    #   set -eo pipefail; (exit 5) | cat; ...         -> 5
+    #   set -e; grep -q NOPE /dev/null || true; ...   -> 0
+    #   set -e; grep -q NOPE /dev/null || exit 1; ... -> 1
+    #
+    # The FIRST of these was a fail-open this gate shipped for one commit: making
+    # any pipeline stage a check fixed a false block and made `pytest -k zzz |
+    # tee out` read as fenced by an exit 5 that tee discards.
+    carrier = {
+        # a runner whose status is MASKED by a pipe cannot fence the fence
+        "pytest -k zzz | tee out": True,
+        # ...unless pipefail is set, which is a property of the whole fence
+        "grep -q PASS out || true": True,
+        # an OR-list whose tail ALWAYS fails is load-bearing through its head
+        "grep -q PASS out || exit 1": False,
+        "grep -q PASS out || false": False,
+        # and a check that IS the status carrier still fences
+        "cat out | grep -q -- '--- PASS'": False,
+    }
+    for command, vacuous in carrier.items():
+        fence = f"set -e\ngo test ./... -run TestX\n! grep -q FAIL out\n{command}"
+        assert bool(about(_lint_task(lint, _probe_task(fence))[0])) is vacuous, \
+            (command, lint.vacuity_checks(fence), lint.unaccounted_segments(fence))
+
+    # pipefail is read from the FENCE, not the segment: the same piped runner
+    # fences when the fence sets it and does not when it does not.
+    piped = "pytest -k zzz | tee out"
+    assert lint.vacuity_checks(f"set -e\n{piped}\n! grep -q FAIL out\necho done") == []
+    assert lint.vacuity_checks(f"set -e\nset -o pipefail\n{piped}\n! grep -q FAIL out\necho done") == [piped]
+
     # ⚠ A NAME IN EITHER RUNNER TABLE IS A MEASUREMENT, AND TWO OF THEM WERE NOT.
     # Both defects below were live in this file's own history and are pinned here so
     # they cannot come back by someone typing a plausible list (BACKLOG §177).

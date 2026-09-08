@@ -15,6 +15,7 @@ import {
   FORWARDER_MARK, SHADOW_SCOPE, barePathWinner, citeOrphan, orphans, wiredInSettings,
 } from './standalone-link.mjs'
 
+import { ARTIFACT_OUTPUT_LIMIT } from './run-shell-hook.mjs'
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -1695,37 +1696,35 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
   }
   const ledger = ledgerDirectory ? path.join(ledgerDirectory, 'adr').split(path.sep).join('/') : ''
   try {
-    for (const filePath of uniqueTargets) {
+    if (uniqueTargets.length > 0) {
       const remaining = deadline - Date.now()
       if (remaining < 1_000) {
-        failures.push(`The boundary's ${Math.round(windowMs / 1000)}s window was exhausted before ${filePath} was gated. `
-          + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.')
-        break
-      }
-      const timeoutMs = Math.min(artifactGateTimeoutMs(), remaining)
-      const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
-        input: JSON.stringify({ tool_input: { file_path: filePath } }),
-        encoding: 'utf8',
-        env: { ...process.env, QUALITY_HARNESS_SHELL_TIMEOUT_MS: String(Math.max(timeoutMs, 100)), QUALITY_HARNESS_ADR_LEDGER: ledger },
-        timeout: timeoutMs + ARTIFACT_GATE_KILL_MARGIN_MS,
-      })
-      // The exit code no longer carries the verdict: the gates advise, so a finding
-      // arrives as OUTPUT with a clean exit. Reading status alone would drop every
-      // one of them silently, which is worse than blocking ever was — advisory has
-      // to mean reported, not swallowed.
-      const said = (run.stderr || '').trim()
-      if (run.status !== 0 || said) {
-        const detail = (said || run.error?.message || `artifact gate exited ${run.status}`).trim()
-        // A gate that ran out of time reported nothing about the artifact — name
-        // the budget, because the gate's own words would send the reader to the
-        // record instead of to the clock.
-        failures.push(budgetExhausted(detail, run.error)
-          ? `${detail}\nThe gate did not finish, so it says nothing about ${filePath}. `
-            + `This is a budget, not a finding: raise QUALITY_HARNESS_SHELL_TIMEOUT_MS `
-            + `(currently ${timeoutMs}ms, max 110000) for a corpus this size — the boundary `
-            + `still caps the whole pass at ${Math.round(windowMs / 1000)}s so the hook `
-            + `cannot outlive its own deadline.`
-          : detail)
+        failures.push(`The boundary's ${Math.round(windowMs / 1000)}s window was exhausted before ${uniqueTargets[0]} was gated. `
+          + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.\n'
+          + 'All remaining artifacts were not checked:\n' + uniqueTargets.join('\n'))
+      } else {
+        const timeoutMs = artifactGateTimeoutMs()
+        const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh', '--batch'], {
+          input: JSON.stringify({ paths: uniqueTargets, deadline, windowMs, timeoutMs }),
+          encoding: 'utf8',
+          // Each shell is capped separately; leave room for its diagnostic framing too.
+          maxBuffer: uniqueTargets.length * ARTIFACT_OUTPUT_LIMIT * 2,
+          env: { ...process.env, QUALITY_HARNESS_ADR_LEDGER: ledger },
+          timeout: remaining + ARTIFACT_GATE_KILL_MARGIN_MS,
+        })
+        // Advisory findings arrive on stderr with exit zero; status alone loses them.
+        const said = (run.stderr || '').trim()
+        if (run.status !== 0 || said) {
+          let detail = said || run.error?.message || `artifact gate exited ${run.status}`
+          if (run.status !== 0) {
+            detail += '\nThe runner did not complete; these artifacts may be unchecked:\n'
+              + uniqueTargets.join('\n')
+          }
+          failures.push(run.status !== 0 && budgetExhausted(detail, run.error)
+            ? `${detail}\nThe runner exhausted its time budget. This is a budget, not a finding `
+              + `about the listed artifacts; the whole pass is capped at ${Math.round(windowMs / 1000)}s.`
+            : detail)
+        }
       }
     }
   } finally {
@@ -2594,6 +2593,27 @@ function adrNumber(file, text) {
   return raw === undefined ? null : Number(raw)
 }
 
+// Shared task directories are read by several records. Keep one observation per
+// scan, including read failures; the next scan starts fresh and can see repairs.
+function corpusReader() {
+  const once = read => {
+    const results = new Map()
+    return key => {
+      if (!results.has(key)) {
+        try { results.set(key, { value: read(key) }) }
+        catch (error) { results.set(key, { error }) }
+      }
+      const result = results.get(key)
+      if ('error' in result) throw result.error
+      return result.value
+    }
+  }
+  return {
+    text: once(file => readFileSync(file, 'utf8')),
+    entries: once(directory => readdirSync(directory, { withFileTypes: true })),
+  }
+}
+
 // Where a record's tasks actually live. Two layouts, both real: `tasks/` beside
 // the record, and a sibling directory NAMED FOR THE RECORD holding it —
 // `docs/adr/ADR-110-slug.md` with `docs/adr/ADR-110/tasks/`. Measured against a
@@ -2604,7 +2624,7 @@ function adrNumber(file, text) {
 // `owned` says the directory is named for this record, which is attribution in
 // itself — no back-reference needed, and that corpus has none: its task files
 // never name their ADR in the text.
-function taskDirectoriesFor(file, number) {
+function taskDirectoriesFor(file, number, reader) {
   const directory = path.dirname(file)
   const found = [{ path: path.join(directory, 'tasks'), owned: false }]
   // A record with no number still owns the directory named after it. Ownership
@@ -2615,7 +2635,7 @@ function taskDirectoriesFor(file, number) {
   // numeric prefix could.
   const stem = path.basename(file).replace(/\.md$/i, '')
   let siblings = []
-  try { siblings = readdirSync(directory, { withFileTypes: true }) } catch { return found }
+  try { siblings = reader.entries(directory) } catch { return found }
   for (const entry of siblings) {
     if (!entry.isDirectory()) continue
     const owns = number !== null && /^(?:adr[-_]?)?0*(\d{1,4})\b/i.exec(entry.name)
@@ -2635,12 +2655,12 @@ function taskDirectoriesFor(file, number) {
  * number. Kept beside it rather than duplicated at the caller — a second
  * attribution rule is a second thing to keep in step (ADR-001, ADR-004).
  */
-function taskFilesFor(file, text) {
+function taskFilesFor(file, text, reader = corpusReader()) {
   const found = []
-  for (const tasks of taskDirectoriesFor(file, adrNumber(file, text))) {
+  for (const tasks of taskDirectoriesFor(file, adrNumber(file, text), reader)) {
     let entries = []
     try {
-      entries = readdirSync(tasks.path).filter(name => name.toLowerCase().endsWith('.md')
+      entries = reader.entries(tasks.path).map(entry => entry.name).filter(name => name.toLowerCase().endsWith('.md')
         && name.toLowerCase() !== 'readme.md')
     } catch { continue }
     for (const name of entries) found.push(path.join(tasks.path, name))
@@ -2680,21 +2700,21 @@ function taskFilesFor(file, text) {
  * `.queries.md` companion) self-excluded only by luck, which is exactly the
  * fragility a second condition removes.
  */
-function looksLikeRecord(file, directory) {
+function looksLikeRecord(file, directory, reader) {
   if (!/(^|[\\/])adr([\\/]|$)/i.test(directory)) return false
   if (/(^|[\\/])tasks([\\/]|$)/i.test(directory)) return false
   let text
-  try { text = readFileSync(file, 'utf8') } catch { return false }
+  try { text = reader.text(file) } catch { return false }
   return /^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S/im.test(text)
     && /^##\s+(Context|Decision)\b/im.test(text)
 }
 
-function readRecordFiles(root) {
+function readRecordFiles(root, reader) {
   const files = []
   const walk = (directory, depth) => {
     if (depth > 4 || files.length >= RECORD_BUDGET) return
     let entries
-    try { entries = readdirSync(directory, { withFileTypes: true }) } catch { return }
+    try { entries = reader.entries(directory) } catch { return }
     for (const entry of entries) {
       if (entry.name.startsWith('.')) continue
       const child = path.join(directory, entry.name)
@@ -2702,7 +2722,7 @@ function readRecordFiles(root) {
         if (UNINTERESTING_DIRECTORY.test(entry.name)) continue
         walk(child, depth + 1)
       } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')
-          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory))) {
+          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory, reader))) {
         files.push(child)
       }
     }
@@ -2756,7 +2776,8 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   // treats this as a list of records, and widening the return type to report a
   // second thing would break all of them to fix a message.
   const unreadable = []
-  const files = readRecordFiles(root)
+  const reader = corpusReader()
+  const files = readRecordFiles(root, reader)
   const recordsPerDirectory = new Map()
   for (const file of files) {
     const directory = path.dirname(file)
@@ -2766,7 +2787,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     let text
     try {
       if (statSync(file).size > 512 * 1024) continue
-      text = readFileSync(file, 'utf8')
+      text = reader.text(file)
     } catch { continue }
     const status = recordStatus(text)
     const kind = statusKind(status)
@@ -2784,7 +2805,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // has only two options, both wrong: treat them as executable (§48, where
       // the router offered an unaccepted record's tasks) or ignore them and
       // report a corpus with unfinished work as finished.
-      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text) })
+      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader) })
       continue
     }
     const declared = declaredGoverns(text)
@@ -2809,16 +2830,16 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // to keep in step with this one.
     const owned = []
     const texts = []
-    for (const tasks of taskDirectoriesFor(file, number)) {
+    for (const tasks of taskDirectoriesFor(file, number, reader)) {
       let taskEntries = []
       try {
-        taskEntries = readdirSync(tasks.path).filter(name => name.toLowerCase().endsWith('.md')
+        taskEntries = reader.entries(tasks.path).map(entry => entry.name).filter(name => name.toLowerCase().endsWith('.md')
           && name.toLowerCase() !== 'readme.md')
       } catch { continue }
       for (const name of taskEntries) {
         const taskPath = path.join(tasks.path, name)
         let taskText
-        try { taskText = readFileSync(taskPath, 'utf8') } catch { continue }
+        try { taskText = reader.text(taskPath) } catch { continue }
         // A directory NAMED for this record is attribution in itself.
         if (tasks.owned) {
           owned.push(taskPath)

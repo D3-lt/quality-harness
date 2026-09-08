@@ -135,6 +135,8 @@ export const TASKKILL_TIMEOUT_MS = 2_000
 // child exited on its own or the host killed the whole hook at its deadline —
 // a timeout that had fired and was then never reported (Codex review, 2026-09-05).
 export const CLEANUP_GRACE_MS = 1_000
+// ARTIFACT_OUTPUT_LIMIT preserves the former boundary runner's per-file allowance.
+export const ARTIFACT_OUTPUT_LIMIT = 1024 * 1024
 
 // Returns true only when the kill was CONFIRMED issued: taskkill exited 0, the
 // POSIX group kill did not throw, or the direct kill reported the signal sent.
@@ -165,6 +167,7 @@ export function runWithTimeout(executable, args, options = {}) {
   const {
     input = '',
     timeoutMs = DEFAULT_TIMEOUT_MS,
+    maxOutputBytes = Infinity,
     platform = process.platform,
     env = process.env,
     terminate = terminateProcessTree,
@@ -183,29 +186,47 @@ export function runWithTimeout(executable, args, options = {}) {
     let stderr = ''
     let spawnError = null
     let timedOut = false
+    let outputLimitExceeded = false
+    let outputBytes = 0
     let killConfirmed = null
     let grace = null
 
     child.stdout?.setEncoding('utf8')
     child.stderr?.setEncoding('utf8')
-    child.stdout?.on('data', chunk => { stdout += chunk })
-    child.stderr?.on('data', chunk => { stderr += chunk })
+    const capture = (stream, chunk) => {
+      if (outputLimitExceeded) return
+      const bytes = Buffer.byteLength(chunk)
+      const available = maxOutputBytes - outputBytes
+      if (bytes > available) {
+        chunk = Buffer.from(chunk).subarray(0, available).toString('utf8')
+        outputLimitExceeded = true
+      }
+      outputBytes += Math.min(bytes, available)
+      if (stream === 'stdout') stdout += chunk
+      else stderr += chunk
+      // A noisy artifact must not consume the shared runner's output allowance
+      // and prevent later artifacts from being checked.
+      if (outputLimitExceeded) stop()
+    }
+    child.stdout?.on('data', chunk => capture('stdout', chunk))
+    child.stderr?.on('data', chunk => capture('stderr', chunk))
     child.on('error', error => { spawnError = error })
 
     const settle = (status, closed) => {
       clearTimeout(timer)
       clearTimeout(grace)
       resolve({
-        error: spawnError, status, stderr, stdout, timedOut, pid: child.pid,
+        error: spawnError, status, stderr, stdout, timedOut, outputLimitExceeded, pid: child.pid,
         // `closed` is the only observation that the tree is gone; a kill that
         // was issued is not one that landed (ADR-005).
-        cleanupConfirmed: timedOut ? closed : null,
-        killIssued: timedOut ? killConfirmed : null,
+        cleanupConfirmed: timedOut || outputLimitExceeded ? closed : null,
+        killIssued: timedOut || outputLimitExceeded ? killConfirmed : null,
       })
     }
 
-    const timer = setTimeout(() => {
-      timedOut = true
+    const stop = () => {
+      if (grace !== null) return
+      clearTimeout(timer)
       killConfirmed = terminate(child, platform)
       // Whatever the kill said, do not wait on the child forever: settle after
       // the grace with the truth (cleanupConfirmed: false), and let go of the
@@ -215,6 +236,10 @@ export function runWithTimeout(executable, args, options = {}) {
         child.unref?.()
         settle(null, false)
       }, cleanupGraceMs)
+    }
+    const timer = setTimeout(() => {
+      timedOut = true
+      stop()
     }, timeoutMs)
 
     child.on('close', status => settle(status, true))
@@ -245,16 +270,17 @@ async function readStdin() {
   return raw
 }
 
-export async function runShellHook(scriptName) {
+// runShellHook runs one supported hook with bounded shell lifetime and advisory output.
+export async function runShellHook(scriptName, raw, options = {}) {
   if (!HOOK_SCRIPTS.has(scriptName)) {
     process.stderr.write(`quality-harness: unsupported shell hook: ${scriptName || '<missing>'}\n`)
     return 2
   }
 
+  const { timeoutMs = shellHookTimeoutMs(), maxOutputBytes, windowMs } = options
   const scriptPath = process.platform === 'win32'
     ? windowsPathForBash(path.join(SCRIPT_DIR, scriptName))
     : path.join(SCRIPT_DIR, scriptName)
-  const timeoutMs = shellHookTimeoutMs()
   const executable = resolveBashExecutable()
   if (!executable) {
     process.stderr.write('quality-harness: Git Bash was not found, so the artifact gates did not '
@@ -262,7 +288,7 @@ export async function runShellHook(scriptName) {
       + 'untouched — this is the harness reporting its own absence.\n')
     return 0
   }
-  const raw = await readStdin()
+  if (raw === undefined) raw = await readStdin()
   const run = await runWithTimeout(executable, [scriptPath, ...hookArguments(
     scriptName,
     raw,
@@ -270,6 +296,7 @@ export async function runShellHook(scriptName) {
   )], {
     input: normalizeHookPayload(raw),
     timeoutMs,
+    maxOutputBytes,
   })
   // A deferral notice printed on exit-0 stdout reaches nobody at PostToolUse —
   // Claude Code surfaces exit-0 stdout in transcript view only. Wrapping it as
@@ -290,16 +317,33 @@ export async function runShellHook(scriptName) {
     process.stdout.write(run.stdout)
   }
   if (run.stderr) process.stderr.write(run.stderr)
+  // Direct hooks stay advisory. A batch must stop if the prior shell may still
+  // be running, especially because its completed-command ledger is shared.
+  const batchStatus = run.cleanupConfirmed === false && windowMs !== undefined ? 1 : 0
+  if (run.cleanupConfirmed === false) {
+    process.stderr.write(`\nquality-harness: process cleanup could not be confirmed for `
+      + `${hookFilePathFromPayload(raw) || 'this edit'}; its checker may still be running.\n`)
+  }
   // Everything below is the harness failing to run, not a finding about the
   // edit. It used to exit 2, which BLOCKS the tool call: a Windows machine with
   // no Git Bash, a slow gate, a crashed shell — each one refused an edit it had
   // never even read. That is the failure the advisory rule exists to prevent,
   // and it is worse here than anywhere else, because the user is being stopped
   // by the harness's own breakage.
+  if (run.outputLimitExceeded) {
+    process.stderr.write(`\nquality-harness: ${scriptName} exceeded its ${maxOutputBytes}-byte output limit `
+      + `for ${hookFilePathFromPayload(raw)}. Its output is incomplete; this artifact is unchecked. Nothing is blocked.\n`)
+    return batchStatus
+  }
   if (run.timedOut) {
     process.stderr.write(`quality-harness: ${scriptName} timed out after ${timeoutMs}ms, so the `
-      + 'gates have no verdict on this edit. Nothing is blocked.\n')
-    return 0
+      + `gates have no verdict on ${hookFilePathFromPayload(raw) || 'this edit'}. Nothing is blocked.\n`)
+    if (windowMs !== undefined) {
+      process.stderr.write(`This timeout is a budget, not a finding about ${hookFilePathFromPayload(raw)}: `
+        + `raise QUALITY_HARNESS_SHELL_TIMEOUT_MS (currently ${timeoutMs}ms, max 110000) `
+        + `if needed. The boundary still caps the whole pass at ${Math.round(windowMs / 1000)}s.\n`)
+    }
+    return batchStatus
   }
   if (run.error) {
     process.stderr.write(`quality-harness: could not run ${scriptName}: ${run.error.message}. `
@@ -321,6 +365,43 @@ export async function runShellHook(scriptName) {
   return 0
 }
 
+// runArtifactBatch keeps one Node runner per boundary while each shell keeps its
+// own timeout and process-tree cleanup. The deadline includes caller startup work.
+export async function runArtifactBatch(raw) {
+  let batch
+  try { batch = JSON.parse(raw) } catch {}
+  if (!Array.isArray(batch?.paths) || batch.paths.length === 0
+      || !batch.paths.every(file => typeof file === 'string' && path.isAbsolute(file) && !file.includes('\0'))
+      || !Number.isFinite(batch.deadline) || !Number.isFinite(batch.windowMs) || batch.windowMs <= 0
+      || !Number.isFinite(batch.timeoutMs) || batch.timeoutMs < 100 || batch.timeoutMs > 110_000) {
+    process.stderr.write('quality-harness: invalid artifact batch; the gates did not run.\n')
+    return 2
+  }
+  for (const [index, filePath] of batch.paths.entries()) {
+    const remaining = batch.deadline - Date.now()
+    if (remaining < 1_000) {
+      process.stderr.write('The boundary\'s ' + Math.round(batch.windowMs / 1000)
+        + 's window was exhausted before ' + filePath + ' was gated. '
+        + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.\n'
+        + 'All remaining artifacts were not checked:\n' + batch.paths.slice(index).join('\n') + '\n')
+      break
+    }
+    const status = await runShellHook('facts-gate-dispatch.sh',
+      JSON.stringify({ tool_input: { file_path: filePath } }), {
+        timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
+        windowMs: batch.windowMs,
+      })
+    if (status !== 0) {
+      process.stderr.write('The batch stopped after unconfirmed process cleanup. Unchecked artifacts:\n'
+        + batch.paths.slice(index).join('\n') + '\n')
+      break
+    }
+  }
+  return 0
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  process.exitCode = await runShellHook(process.argv[2])
+  process.exitCode = process.argv[3] === '--batch' && process.argv[2] === 'facts-gate-dispatch.sh'
+    ? await runArtifactBatch(await readStdin())
+    : await runShellHook(process.argv[2])
 }

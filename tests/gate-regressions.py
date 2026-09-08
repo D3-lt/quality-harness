@@ -4378,6 +4378,23 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
     quoted = 'grep -qE "no tests to run|^FAIL|^--- FAIL" out'
     assert lint.pipeline_stages(quoted) == [quoted], lint.pipeline_stages(quoted)
     assert lint.pipeline_stages("a | b | c") == ["a", "b", "c"]
+    # ...and the three shapes the first splitter mis-cut (BACKLOG 184). Two were
+    # absorbed by the unaccounted rule; the command-substitution one was NOT, and
+    # produced a FALSE BLOCK: both fragments still looked classifiable, so the
+    # real grep was lost while nothing looked unknown.
+    for text, want in [
+        (r'grep -qE "a\"b|c" out', 1),          # backslash escape inside quotes
+        ('grep -q $(cat out | head -1) out', 1),  # a pipe inside $( )
+        ('grep -q `cat out | head -1` out', 1),   # ...and inside backticks
+    ]:
+        assert len(lint.pipeline_stages(text)) == want, (text, lint.pipeline_stages(text))
+    assert len(lint.or_alternatives(r'grep -q "a\"||b" out')) == 1
+    # The command-substitution fence must not be refused, and the vacuous control
+    # beside it must still be, or "never block" would satisfy the line above.
+    subst = 'set -e\nprintf "" | tee out\n! grep -q FAIL out\ngrep -q $(cat out | head -1) out'
+    assert about(_lint_task(lint, _probe_task(subst))[0]) == [], lint.vacuity_checks(subst)
+    vacuous = 'set -e\nprintf "" | tee out\n! grep -q FAIL out\necho done'
+    assert about(_lint_task(lint, _probe_task(vacuous))[0]), "the vacuous control must still block"
 
     # (?![-\w]) AND NOT \b, because a hyphen IS a word boundary. Each of these was
     # classified as a MEASURED runner, which is the half that PERMITS a block. The

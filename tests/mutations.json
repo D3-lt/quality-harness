@@ -6614,8 +6614,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if char in \"'\\\"\":\n            quote = char\n            current += char\n            continue\n        if char == \"|\":\n",
-      "to": "        if char in \"\\x00\":\n            quote = char\n            current += char\n            continue\n        if char == \"|\":\n"
+      "from": "        if char in \"'\\\"\":\n            quote = char\n            current += char\n            index += 1\n            continue\n",
+      "to": "        if char in \"\\x00\":\n            quote = char\n            current += char\n            index += 1\n            continue\n"
     },
     {
       "label": "lint: a runner name is matched whole, so a hyphenated lookalike is not it",
@@ -6706,6 +6706,33 @@
       ],
       "from": "      const expanded = token.startsWith('~/') ? path.join(os.homedir(), token.slice(2))\n        : (token === '~' ? os.homedir() : token)\n",
       "to": "      const expanded = token\n"
+    },
+    {
+      "label": "lint: the shell splitter does not cut inside a command substitution",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if segment.startswith(\"$(\", index):\n            depth += 1\n",
+      "to": "        if False:\n            depth += 1\n"
+    },
+    {
+      "label": "lint: the shell splitter honours a backslash escape inside quotes",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if char == \"\\\\\" and quote == '\"' and index + 1 < len(segment):\n",
+      "to": "            if False:\n"
+    },
+    {
+      "label": "dispatch: a record is not routed as a task because it lacks a modern section",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "elif [[ \"$f\" == */tasks/*.md ]] || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' \"$f\" \\\n    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' \"$f\"; then\n",
+      "to": "elif [[ \"$f\" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' \"$f\"; then\n"
     }
   ]
 }

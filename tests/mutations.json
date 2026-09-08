@@ -6497,8 +6497,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      return isPotentialMutationCommand(line) || isGitPublishCommand(line) ? whole : '\"\"'\n",
-      "to": "      return whole\n"
+      "from": "      if (!READ_ONLY_CHILD.test(executable)) return whole\n",
+      "to": "      if (false) return whole\n"
     },
     {
       "label": "lifecycle: a mutating literal subprocess argv is still a mutation",
@@ -6506,8 +6506,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      return isPotentialMutationCommand(line) || isGitPublishCommand(line) ? whole : '\"\"'\n",
-      "to": "      return '\"\"'\n"
+      "from": "        if (!literal) return whole\n",
+      "to": "        if (!literal) { words.push(element); continue }\n"
     },
     {
       "label": "lifecycle: a relative path follows the command's own cd",
@@ -6515,7 +6515,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        if (existsSync(next)) here = next\n",
+      "from": "        if (isDirectory(next)) here = next\n",
       "to": "        if (false) here = next\n"
     },
     {
@@ -6533,7 +6533,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (path.isAbsolute(token) && underDirectory(token, project)) return false\n",
+      "from": "      if (resolved !== null && underDirectory(resolved, project)) return false\n",
       "to": "      if (false) return false\n"
     },
     {
@@ -6596,7 +6596,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        for stage in pipeline_stages(segment):\n",
+      "from": "        for stage in status_carriers(segment, pipefail):\n",
       "to": "        for stage in [segment]:\n"
     },
     {
@@ -6605,8 +6605,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "               for stage in pipeline_stages(segment)):\n",
-      "to": "               for stage in [segment]):\n"
+      "from": "               for alternative in or_alternatives(segment)\n               for stage in pipeline_stages(alternative)):\n",
+      "to": "               for alternative in [segment]\n               for stage in [alternative]):\n"
     },
     {
       "label": "lint: the pipeline splitter does not cut inside quotes",
@@ -6614,8 +6614,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if char in \"'\\\"\":\n",
-      "to": "        if char in \"\\x00\":\n"
+      "from": "        if char in \"'\\\"\":\n            quote = char\n            current += char\n            continue\n        if char == \"|\":\n",
+      "to": "        if char in \"\\x00\":\n            quote = char\n            current += char\n            continue\n        if char == \"|\":\n"
     },
     {
       "label": "lint: a runner name is matched whole, so a hyphenated lookalike is not it",

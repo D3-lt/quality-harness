@@ -11827,3 +11827,49 @@ outside:** *"I could not tell a real gap from a mislocated row by reading. I cou
 writing the test and mutating. Both candidate tests passed, both looked reasonable, and one was
 worth nothing — the only thing that said so was that no mutation killed it which did not already
 kill something else. A test that passes is not evidence; a test that uniquely fails is."*
+
+## 182. OPEN — a check is admitted by its COMMAND NAME, and whether it can fail depends on its OPERATOR
+
+Found 2026-09-08 by running each admitted check against bash with the run scoring nothing, and
+comparing the gate's verdict to the shell's exit code rather than to an expectation.
+
+`POSITIVE_CHECK_RE` admits `grep`, `test`, `[`, `[[`, `cmp`, `diff` and `jq -e` as segments that "can
+fail the fence on wrong output". That is true of the command names and false of several things a
+person writes with them. With `out` created by `tee` and empty because nothing ran:
+
+```
+test -s out                 -> 1    a real check: fails on empty
+test -n "$(cat out)"        -> 1    real
+grep -q PASS out            -> 1    real
+jq -e . out                 -> 1    real
+test -f out                 -> 0    EXISTENCE, not content — cannot fail here
+[ -f out ]                  -> 0
+test -e out                 -> 0
+[ -d . ]                     -> 0
+diff expected.txt out       -> 0    both empty because nothing ran
+cmp out out                 -> 0
+```
+
+Every one of the last six is counted as the fence's vacuity check, so a fence whose ONLY assertion is
+`test -f out` — or a golden-file `diff` whose expected side is also empty — is not blocked. The
+golden-file case is the realistic one: comparing recorded output against actual output is an ordinary
+fence shape, and it passes proving nothing exactly when the run scored nothing.
+
+**This is `CLAUDE.md` §16 applied one level down, and the same shape as §178's runner tables.** There
+the classification was by command name when the answer depended on the *case being measured*; here it
+is by command name when the answer depends on the *operator*. A name is not a behaviour.
+
+**Direction and severity.** This UNDER-blocks: the fence still receives the inert-guard advisory, it
+is simply not refused. That is the safe direction and it is why v2.96.0 ships with this open rather
+than holding the release — §16's own last bullet says a classification permitting a block needs
+stronger evidence than one permitting advice, and this is the advice side.
+
+**What a fix must not do:** widen the block. The cheap correct move is to admit only the operators
+that can fail on an empty run (`-s`, `-n`, `-z` on captured content, a `grep` with a pattern) and let
+the rest fall to `unaccounted`, which is UNPROVEN rather than a verdict.
+
+⚠ **And a second-order finding about the method:** the first version of this probe compared
+`blocks == can_fail` and reported ten MISMATCHES that were all correct — the polarity was inverted,
+since a fence that CAN fail is one that must NOT be blocked. A harness that reports everything as
+broken is as useless as one that reports nothing, and the tell was that the control cases failed too.
+Both controls are in the probe now.

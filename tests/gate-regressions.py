@@ -741,6 +741,7 @@ def main():
     test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(lint)
     test_a_fence_that_cannot_parse_is_reported_and_no_shell_is_said(lint)
     test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint)
+    test_a_test_that_expects_an_exception_is_not_a_dead_test(lint)
     test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint)
     import hashlib as _h
     assert digest == _h.sha256(nxt.normalize_acceptance(acceptance).encode("utf-8")).hexdigest()
@@ -1327,15 +1328,20 @@ def main():
         root = Path(tmp)
         (root / "tests").mkdir()
 
+        class _Errs(list):
+            def __init__(self): super().__init__(); self.advice = []
+            def advise(self, message): self.advice.append(message)
+
         def can_fail(source, name="test_probe", filename="probe.py"):
             (root / "tests" / filename).write_text(source, encoding="utf-8")
             infos = {"T1": {"human": False, "tests": [(name, f"tests/{filename}")],
                             "path": Path("T1-probe.md")}}
-            errors = []
+            errors = _Errs()
             lint.check_tests_can_fail(infos, "| T1 | probe | done |", errors, root)
             return errors
 
-        # A body with no failure call at all: green for every input, forever.
+        # A body that calls NOTHING and asserts nothing: green for every input,
+        # forever, and the only shape where "it cannot go red" is checkable.
         assert can_fail("def test_probe():\n    value = 1 + 1\n"), "no assertion must be caught"
         # The ordinary case.
         assert can_fail("def test_probe():\n    assert 1 + 1 == 2\n") == []
@@ -1350,12 +1356,19 @@ def main():
         assert can_fail(
             "def check_value(v):\n    assert v == 2\n\n"
             "def test_probe():\n    check_value(1 + 1)\n") == []
-        # But only one level, and only within the file: a helper that asserts
-        # nothing does not launder the test.
-        assert can_fail(
+        # ⚠ A HELPER THAT ASSERTS NOTHING IS NOW ADVICE, NOT A BLOCK, and this
+        # assertion was inverted deliberately (BACKLOG 186). The test still CALLS
+        # `check_value`, and a call that raises fails a test exactly as an assert
+        # does — so "nothing in it can go red" is a universal negative this gate
+        # cannot establish over arbitrary code. Reported by a corpus where the
+        # blocking form was 21 for 21 false. It must still SAY something, or the
+        # laundering this arm was written for goes unremarked.
+        laundered = can_fail(
             "def check_value(v):\n    return v\n\n"
-            "def test_probe():\n    check_value(1 + 1)\n"), \
-            "a helper with no assertion must not satisfy the check"
+            "def test_probe():\n    check_value(1 + 1)\n")
+        assert laundered == [], "a body that calls something must not BLOCK"
+        assert any("UNPROVEN here" in a for a in laundered.advice), laundered.advice
+        assert any("check_value" in a for a in laundered.advice), "the advice names the call it saw"
 
     # Would the Acceptance filter actually run the test the task names? A filter
     # that selects nothing is the failure adr-verify's scored_nothing also guards.
@@ -4410,6 +4423,29 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
     for real in ("go test ./...", "cargo test", "node --test"):
         assert lint.unaccounted_segments(f"set -e\n{real}\n! grep -q FAIL out\necho done") == [], real
 
+    # ⚠ THE OR-LIST RULE WAS RIGHT FOR TWO ALTERNATIVES AND WRONG FOR THREE, and the
+    # regressions above covered only two — so a three-alternative list passed against
+    # the narrower implementation. `a || true || false` exits 0: the middle `true`
+    # short-circuits the `false`. An alternative that cannot fail makes the whole
+    # list unable to fail, whatever stands before it (BACKLOG 187).
+    three = "set -e\n! grep -q FAIL /dev/null\ngrep -q PASS /dev/null || true || false"
+    assert lint.vacuity_checks(three) == [], lint.vacuity_checks(three)
+    assert about(_lint_task(lint, _probe_task(three))[0]), "a vacuous 3-alternative list must block"
+    # ...and the two-alternative forms keep their meanings.
+    for tail, vacuous in [("grep -q PASS out || exit 1", False), ("grep -q PASS out || true", True)]:
+        fence = f"set -e\n! grep -q FAIL out\n{tail}"
+        assert bool(about(_lint_task(lint, _probe_task(fence))[0])) is vacuous, tail
+
+    # A FUNCTION DEFINITION IS NOT THE CHECK BEING RUN. `grep() { return 0; }`
+    # matched the positive-check pattern because \b accepts the boundary before `(`,
+    # so DEFINING a function named after a checker read as PERFORMING the check.
+    fndef = "set -e\n! grep -q FAIL /dev/null\ngrep() { return 0; }"
+    assert lint.vacuity_checks(fndef) == [], lint.vacuity_checks(fndef)
+    assert lint.unaccounted_segments(fndef), "a construct this gate cannot model stays UNPROVEN"
+    # ...and a real grep invocation is still a check, or the guard would be
+    # "recognise nothing" and pass every assertion above.
+    assert lint.vacuity_checks("set -e\n! grep -q FAIL out\ngrep -q PASS out") == ["grep -q PASS out"]
+
     # ...AND THE OTHER HALF OF THE PIPELINE RULE, which a GREEN mutant said was
     # untested: accounting must require EVERY stage, not just a recognised head.
     # `cat out | some-bespoke-runner` is accounted for by its head and unknown at
@@ -4505,6 +4541,30 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
         # and the report now asks the discriminating question rather than suggesting a name.
         missing = findings("test_omega")
         assert len(missing) == 1 and "sibling IN THAT SAME FILE" in missing[0], missing
+
+
+def test_a_test_that_expects_an_exception_is_not_a_dead_test(lint):
+    """BACKLOG 186 — 21 of 21 flagged tests in a reporting corpus were false."""
+    # A `with pytest.raises(X):` block goes red when X is NOT raised. That IS the
+    # assertion, and it was the commonest true shape this check called dead: 19 of
+    # the 21. The reporter's own project memory had recorded the class against
+    # adr-lint 2.85.0 with a note not to rewrite those tests; it survived every
+    # release since, because nothing here asserted it.
+    for body in ('with pytest.raises(ValueError):\n    create_app()',
+                 'with pytest.warns(UserWarning):\n    f()',
+                 'with raises(ValueError):\n    f()',
+                 'with self.assertRaises(ValueError):\n    f()',
+                 'with pytest.deprecated_call():\n    f()',
+                 'assert 1 == 2'):
+        assert lint.FAIL_CALLS.search(body), body
+    # ...and the must-fail direction: a body that asserts nothing and expects
+    # nothing is still not recognised, or the widening above would be "match
+    # everything" and the check dead rather than corrected.
+    for body in ('x = 1', 'for b in bodies:\n    Model(**b)'):
+        assert not lint.FAIL_CALLS.search(body), body
+
+    print("PASS — a test that expects an exception is not a dead test")
+
 
     print("PASS — a Tests row naming its own file is not a missing test")
 

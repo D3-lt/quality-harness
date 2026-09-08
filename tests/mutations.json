@@ -204,8 +204,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if not FAIL_CALLS.search(body):\n                errors.append(",
-      "to": "            if False:\n                errors.append("
+      "from": "                    errors.append(\n                        f\"{inf['path'].name}: {tid} is marked done and names `{name}`, and its body \"\n",
+      "to": "                    pass\n                    _unused = (\n"
     },
     {
       "label": "gates: postmortem dates are YYYY-MM-DD",
@@ -6627,13 +6627,13 @@
       "to": "    r\"(?:\\S*/)?(?:go\\s+test|node\\s+--test|cargo\\s+test)\\b\")\n"
     },
     {
-      "label": "lifecycle: the read-only child allowlist does not admit an extracting archiver",
+      "label": "lifecycle: the read-only child allowlist admits no archiver and no in-place editor",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|awk|sed|jq|column|nl|tee)$/\n",
-      "to": "const READ_ONLY_CHILD = /^(?:grep|tar|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|awk|sed|jq|column|nl|tee)$/\n"
+      "from": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/\n",
+      "to": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|tar|sed|tee|jq|column|nl)$/\n"
     },
     {
       "label": "lifecycle: an output-handle keyword keeps a subprocess call",
@@ -6733,6 +6733,42 @@
       ],
       "from": "elif [[ \"$f\" == */tasks/*.md ]] || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' \"$f\" \\\n    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' \"$f\"; then\n",
       "to": "elif [[ \"$f\" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' \"$f\"; then\n"
+    },
+    {
+      "label": "lint: a test expecting an exception is recognised as able to fail",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    r\"|\\b(?:pytest|pytest_asyncio)\\.(?:raises|warns|deprecated_call)\\b\"\n",
+      "to": "    r\"|\\bzzzNeverMatchesThisToken\\b\"\n"
+    },
+    {
+      "label": "lint: a body that calls something is UNPROVEN, not a dead test",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if calls:\n",
+      "to": "                if False:\n"
+    },
+    {
+      "label": "lint: an OR alternative that always succeeds makes the list unable to fail",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if any(ALWAYS_SUCCEEDS_RE.match(alt) for alt in alternatives[:-1]):\n        return []\n",
+      "to": "    if False:\n        return []\n"
+    },
+    {
+      "label": "lint: a shell function definition is not a check being performed",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                    and not FUNCTION_DEF_RE.match(stage)):\n",
+      "to": "                    and True):\n"
     }
   ]
 }

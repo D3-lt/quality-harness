@@ -4268,6 +4268,22 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
 
         assert findings("test_gate") == [], "the row names the file itself"
         assert findings("test_alpha") == [], "a definition that exists"
+        # ⚠ THE ARM THE FIRST WRITING OF THIS TEST MISSED, and a GREEN mutant said
+        # so: a name that is neither the file nor in it never reaches the new
+        # guard at all, so reverting the guard to an unconditional `continue`
+        # changed nothing any assertion here could see. A file whose STEM matches
+        # the row and which holds no test is the case the guard decides.
+        (root / "tests" / "test_empty.py").write_text("VALUE = 1\n", encoding="utf-8")
+        probe.write_text(_probe_task("true", log=row,
+                                     tests="| `test_empty` | `tests/test_empty.py` | v | — |"),
+                         encoding="utf-8")
+        errs = lint.Findings()
+        _, empty_info = lint.check_task(probe, set(), errs)
+        out = lint.Findings()
+        lint.check_tests_exist({"T1": empty_info}, "| 1 | T1 | done |", out, root)
+        named_but_empty = [e for e in out if "Tests table names" in e]
+        assert len(named_but_empty) == 1, ("a file named by the row that holds no test at all is "
+                                           f"still a finding: {named_but_empty}")
         # The must-fail arm: a name that is neither the file nor in it is still reported,
         # and the report now asks the discriminating question rather than suggesting a name.
         missing = findings("test_omega")

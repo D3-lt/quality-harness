@@ -1271,8 +1271,20 @@ export function writesOutsideProject(command, cwd) {
   const here = nearestExistingDirectory(path.resolve(cwd))
   if (!here) return false
   const project = gitRepositoryRoot(here) ?? here
+  // ⚠ A COMMAND THAT NEVER NAVIGATES RUNS WHERE THE SESSION IS, AND THAT IS THE
+  // PROJECT — so it cannot be outside it, whatever any path comparison says. This
+  // guard is the invariant; everything below is the harder question of where a
+  // `cd` actually landed. Without it the answer depended on two paths agreeing,
+  // and on Windows they did not: `printf x > notes.txt`, with no `cd` anywhere,
+  // was exempted from the evidence gate and its mutation marker dropped —
+  // `other: 0` where 1 was expected, on a runner where the temp directory's short
+  // and long forms do not compare equal (BACKLOG §188). Canonicalising both sides
+  // was the first fix and it was not enough; this states the thing that is true
+  // by construction instead of computing it.
+  const trail = segmentDirectories(command, cwd)
+  if (!trail.some(step => step.navigation)) return false
   let work = 0
-  for (const { segment, dir, navigation } of segmentDirectories(command, cwd)) {
+  for (const { segment, dir, navigation } of trail) {
     if (navigation) continue
     if (dir === null || underDirectory(dir, project)) return false
     for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {

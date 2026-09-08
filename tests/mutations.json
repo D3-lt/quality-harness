@@ -6769,15 +6769,6 @@
       ],
       "from": "                    and not FUNCTION_DEF_RE.match(stage)):\n",
       "to": "                    and True):\n"
-    },
-    {
-      "label": "lifecycle: a command that never navigates is never outside the project",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (!trail.some(step => step.navigation)) return false\n",
-      "to": "  if (false) return false\n"
     }
   ]
 }

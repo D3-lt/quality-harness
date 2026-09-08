@@ -277,6 +277,21 @@ test('a Proposed record with no tasks is told its Status was not checked, and wh
   assert.match(built.stdout, /advice: .*Every path its ## Implementation names \(2\) already exists/)
   assert.match(built.stdout, /this gate cannot tell which/)
 
+  // ⚠ THE HEADING IS MATCHED BY PREFIX, and a GREEN mutant said this arm was
+  // missing. docs/BACKLOG.md §177: a peer ran this check against the four
+  // records it was written for and got ZERO hits, because `sections_of` keys on
+  // the exact heading text and those records say "## Implementation Plan". An
+  // advisory silent on its own target population is the silence it was built to
+  // end.
+  for (const heading of ['Implementation Plan', 'Implementation Notes']) {
+    writeFileSync(adr, record('Proposed', ['- `src/gate.py` — the gate']).replace('## Implementation', `## ${heading}`))
+    const renamed = run('adr-lint', [adr], temp)
+    assert.match(renamed.stdout, /already exists/, `## ${heading} must be read as the same section`)
+  }
+  // The must-fail direction: a heading that merely CONTAINS the word is not it.
+  writeFileSync(adr, record('Proposed', ['- `src/gate.py` — the gate']).replace('## Implementation', '## Notes on Implementation'))
+  assert.doesNotMatch(run('adr-lint', [adr], temp).stdout, /already exists/)
+
   // The must-stay-silent arms: a path that does not exist, and an Accepted record.
   writeFileSync(adr, record('Proposed', ['- `src/gate.py` — the gate', '- `src/not_yet.py` — planned']))
   assert.doesNotMatch(run('adr-lint', [adr], temp).stdout, /already exists/)

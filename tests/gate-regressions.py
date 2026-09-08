@@ -4259,6 +4259,69 @@ def test_an_inert_guard_is_advice_beside_a_positive_check_and_a_failure_alone(li
     # unaccounted segment, or "unproven" would swallow every finding.
     assert lint.unaccounted_segments(go_fence) == []
 
+    # ⚠ A NAME IN EITHER RUNNER TABLE IS A MEASUREMENT, AND TWO OF THEM WERE NOT.
+    # Both defects below were live in this file's own history and are pinned here so
+    # they cannot come back by someone typing a plausible list (BACKLOG §177).
+    #
+    # 1. `bun test` with no tests exits 1 — MEASURED — so it fences vacuity. It was
+    #    in the inert half because it had been typed, not run, which made
+    #    `bun test && ! grep … && echo done` a BLOCK on a correct fence.
+    bun = 'set -e\nbun test && ! grep -q FAIL out && echo done'
+    assert lint.vacuity_checks(bun) == ["bun test"], lint.vacuity_checks(bun)
+    assert about(_lint_task(lint, _probe_task(bun))[0]) == [], "a bun fence must not block"
+    #
+    # 2. `npm test` is a WRAPPER: its exit is whatever package.json's script runs. It
+    #    was measured at 0 over a script of `node --test`; over jest the same command
+    #    exits non-zero on an empty suite. A wrapper measurement measures the wrapped
+    #    thing, once, on one machine — so wrappers are UNKNOWN, never classified.
+    for wrapper in ("npm test", "yarn test", "make verify", "docker compose run --rm app pytest"):
+        fence = f"set -e\ngo test ./... | tee out\n! grep -q FAIL out\n{wrapper}"
+        assert lint.unaccounted_segments(fence) == [wrapper], (wrapper, lint.unaccounted_segments(fence))
+        assert about(_lint_task(lint, _probe_task(fence))[0]) == [], f"{wrapper} must not block"
+    #
+    # ...AND THE DIRECT RUNNERS THAT WERE MEASURED AT 0 STAY CLASSIFIED, or the
+    # unknown arm above would swallow the genuine finding entirely.
+    for direct in ("go test ./...", "node --test", "cargo test"):
+        assert lint.unaccounted_segments(f"set -e\n{direct}\n! grep -q FAIL out\necho done") == [], direct
+        assert lint.vacuity_checks(f"set -e\n{direct}\n! grep -q FAIL out\necho done") == [], direct
+
+    # ⚠ THE AXIS THIS TABLE IS KEYED ON, and the first writing of it used the wrong
+    # one. The hole is a fence whose tests were never written, so its FILTER selects
+    # nothing while real tests sit beside it — not an empty directory. Reported
+    # 2026-09-08 with both numbers measured: vitest and jest exit 1 with no test
+    # files and 0 when `-t` selects nothing, so an empty-directory table classifies
+    # them backwards. Every row below is the filter case, measured with a passing
+    # baseline in the same directory (BACKLOG §177).
+    filters = {
+        # fences it — measured non-zero when the filter selects nothing
+        "pytest -k test_x -q": True,
+        "bun test -t zzz": True,
+        # does not — measured 0 in the same shape
+        "go test ./... -run TestX": False,
+        "node --test --test-name-pattern=zzz": False,
+        "cargo test zzz": False,
+    }
+    for command, fences in filters.items():
+        fence = f"set -e\n{command} | tee out\n! grep -q FAIL out\necho done"
+        assert bool(lint.vacuity_checks(fence)) is fences, (command, lint.vacuity_checks(fence))
+        assert lint.unaccounted_segments(fence) == [], command
+        assert bool(about(_lint_task(lint, _probe_task(fence))[0])) is (not fences), command
+
+    # An OPT-OUT FLAG flips any of them, and this gate cannot see a repo's own script
+    # setting it — so a segment carrying one is classified by nothing.
+    optout = "set -e\npytest -k test_x --passWithNoTests\n! grep -q FAIL out\necho done"
+    assert lint.vacuity_checks(optout) == [], "the opt-out removes the runner's own fencing"
+    assert lint.unaccounted_segments(optout) == ["pytest -k test_x --passWithNoTests"]
+    assert about(_lint_task(lint, _probe_task(optout))[0]) == [], "and it must not block either"
+
+    # Runners measured by OTHER sessions on THEIR versions stay in neither table: a
+    # fence carries no version, so a bare name cannot be classified from one point.
+    for elsewhere in ("npx vitest run -t zzz", "npx jest -t zzz", "phpunit --filter zzz tests",
+                      "python3 -m unittest discover"):
+        fence = f"set -e\n{elsewhere}\n! grep -q FAIL out\necho done"
+        assert lint.unaccounted_segments(fence) == [elsewhere], elsewhere
+        assert about(_lint_task(lint, _probe_task(fence))[0]) == [], elsewhere
+
     print("PASS — an inert guard is advice beside a positive check and a failure alone, with its cost")
 
 

@@ -2356,6 +2356,57 @@ test('a relative path follows the command\'s own cd, and a write outside the pro
   assert.doesNotMatch(home.stdout, /project_state\.md/)
 })
 
+test('the writes a different-lineage review got past these classifiers', async () => {
+  // docs/BACKLOG.md §180. Every input below is verbatim from that review and each
+  // was classified NON-mutating or docs-only at the time. The coarse mutants for
+  // these functions already died, which is exactly the point: they prove a branch
+  // is reachable, not that it is NARROW enough. A guard is only worth the input
+  // that would slip past a narrower version of it (CLAUDE.md §4).
+  const heredoc = body => `python3 - <<'PY'\nimport subprocess\n${body}\nPY`
+
+  // withoutReadOnlySubprocessCalls read "not recognised as mutating" as "safe" —
+  // ADR-005 inverted, inside the gate that enforces it.
+  for (const [label, body] of [
+    ['an executable hidden in a variable', 'cmd = "rm"\nsubprocess.run([cmd, "-rf", "build"])'],
+    ['tar extracts',                       'subprocess.run(["tar", "-xf", "archive.tar"])'],
+    ['find -exec runs anything',           'subprocess.run(["find", ".", "-exec", "./mutate", "{}", ";"])'],
+    ['stdout=open writes a file the argv never names',
+                                           'subprocess.run(["grep", "x", "in"], stdout=open("out.txt", "w"))'],
+  ]) {
+    assert.equal(isPotentialMutationCommand(heredoc(body)), true, label)
+  }
+  // ...and the genuinely read-only call the exemption exists for is still exempt,
+  // or "recognise nothing" would satisfy every assertion above.
+  assert.equal(isPotentialMutationCommand(
+    heredoc('out = subprocess.run(["grep", "-rn", "x", "tests/"], capture_output=True).stdout')), false)
+  assert.equal(isPotentialMutationCommand(
+    heredoc('subprocess.run(["find", ".", "-name", "*.py"])')), false)
+
+  // The Markdown-only marker suppression laundered a code write through the
+  // docs-only escape: one .md argument silenced the Stop notice for a command
+  // that rewrote a gate.
+  const launder = 'python3 -c "open(\'plugin/bin/adr-lint\',\'w\').write(\'x\')" docs/BACKLOG.md'
+  assert.equal(namesOnlyMarkdownFiles(launder, repoRoot), false, 'an interpreter body cannot be read')
+  assert.equal(namesOnlyMarkdownFiles("python3 - <<EOF\nopen('x','w')\nEOF\ndocs/a.md", repoRoot), false)
+  assert.equal(namesOnlyMarkdownFiles('some-tool --out docs/a.md', repoRoot), false, 'unknown command')
+  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true,
+    'a real docs edit still earns the exemption')
+
+  // writesOutsideProject exempted genuine in-repository writes: the CWD was the
+  // boundary rather than the git root, and `cd` followed into a FILE, which bash
+  // rejects while staying where it was.
+  assert.equal(writesOutsideProject('cd ../docs && touch BACKLOG.md', path.join(repoRoot, 'plugin')), false,
+    'the project is its git root, not wherever the session happens to stand')
+  assert.equal(writesOutsideProject('cd /etc/passwd; touch plugin/bin/adr-lint', repoRoot), false,
+    'cd into a file fails and the shell stays in the repository')
+  assert.deepEqual(segmentDirectories('cd /etc/passwd; touch x', repoRoot).map(t => t.dir),
+    [repoRoot, repoRoot])
+  // ...and a write that really is outside is still exempt, or the fix would be
+  // "always false" and the exemption dead rather than correct.
+  const away = await mkdtemp(path.join(testTmp, 'quality-away-'))
+  assert.equal(writesOutsideProject(`cd "${away}" && touch note.md`, repoRoot), true)
+})
+
 test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {
   const { dir, file } = await unverifiedDocsChange('interim')
   const at = (event, message) => runLifecycleHook({

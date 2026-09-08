@@ -81,6 +81,10 @@ Before recording a fix done: name the class so it can be searched for; enumerate
 **with a command**, not from memory; put the command and its output in the record, including when
 it found nothing or did not work. Siblings you leave are new tasks, named in the record.
 
+**And the class includes the change you are writing, not only the bug you are fixing.** Before adding
+a pattern over names or paths, search this repository for prior art on that exact hazard: a lesson
+already paid for in one file is reproducible verbatim in another, and was.
+
 Why: `.claude/rules/05-audit-the-class.md`
 
 ## 6. Nothing personal reaches GitHub
@@ -206,3 +210,19 @@ Why: `.claude/rules/14-mrw-and-agentsmemory.md`
   answer to "may this be released"** (§13.4).
 
 Why: `.claude/rules/15-know-what-ci-says.md`
+
+## 16. A classifier is an empirical claim, and an unrecognised input is not a safe one
+
+A predicate over an open input space — shell commands, runner names, file paths — is not code that
+can be reasoned correct. Every member of it is a claim about the world.
+
+- **Execute each name before you write it down, on the case the gate is actually about.** A list
+  typed from memory reads exactly like a measured one. So does a list measured on the wrong question.
+- **"Not recognised as X" is never "known to be not-X."** That is ADR-005 applied to a gate's own
+  predicates rather than to its verdict, and it is the direction that fails open.
+- **Reproduce shell semantics against a shell before encoding them.** Pipelines, `||`, `set -e` and
+  `pipefail` do not behave the way a confident sentence about them behaves.
+- A classification that permits a **block** needs stronger evidence than one that permits advice:
+  unaccounted costs a weaker finding, wrong costs a false refusal of correct work.
+
+Why: `.claude/rules/16-classifiers-are-empirical.md`

@@ -1147,14 +1147,23 @@ export function namesOnlyMarkdownFiles(command, cwd = process.cwd()) {
       if (!invocation) return false
       const name = executableName(invocation.words[invocation.index]).split('/').pop()
       if (!DIRECT_FILE_WRITER.test(name)) return false
+      const commandWord = invocation.words[invocation.index]
       for (const match of trimmed.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
         const candidate = match[1] ?? match[2] ?? match[3]
+        if (candidate === commandWord) continue
         if (candidate.startsWith('-') || SHELL_ASSIGNMENT.test(candidate) || /^.{2,}:/.test(candidate)) continue
         if (/\.md$/i.test(candidate)) {
           markdown = true
           continue
         }
-        if (!/[/.]/.test(candidate) || candidate === '.' || candidate === '..') continue
+        if (candidate === '.' || candidate === '..') continue
+        // ⚠ A BARE WORD CAN BE A DIRECTORY, AND `cp docs/BACKLOG.md plugin` WRITES
+        // INTO IT. Requiring a `/` or a `.` before checking meant a bare directory
+        // name was skipped entirely, so copying a document into a CODE directory
+        // classified as docs-only and withheld the mutation marker — the same
+        // laundering §180 closed for interpreters, through a plainer door. Found
+        // 2026-09-08 by probing this function directly (BACKLOG §183). `plugin/`
+        // with a slash was held; `plugin` without one was not.
         if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false
       }
     }
@@ -1251,11 +1260,18 @@ export function writesOutsideProject(command, cwd) {
     for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
       const token = match[1] ?? match[2] ?? match[3]
       if (/[$`]/.test(token)) return false
+      // ⚠ `~` IS EXPANDED BY THE SHELL AND WAS NOT EXPANDED HERE, so
+      // `cd /tmp && touch ~/<repo>/plugin/bin/adr-lint` resolved the token
+      // against /tmp, landed outside, and EXEMPTED a write bash makes inside the
+      // repository. `$HOME` was already held because `$` marks a token this
+      // cannot follow; `~` carries no such mark (BACKLOG §183).
+      const expanded = token.startsWith('~/') ? path.join(os.homedir(), token.slice(2))
+        : (token === '~' ? os.homedir() : token)
       // Relative tokens are resolved against the directory the segment RUNS IN,
       // so `../..`-style traversal back into the project is caught. Anything
       // path-shaped counts; a bare word cannot be judged and is left alone.
-      const resolved = path.isAbsolute(token) ? token
-        : (/[/.]/.test(token) && token !== '.' && token !== '..' ? path.resolve(dir, token) : null)
+      const resolved = path.isAbsolute(expanded) ? expanded
+        : (/[/.]/.test(expanded) && expanded !== '.' && expanded !== '..' ? path.resolve(dir, expanded) : null)
       if (resolved !== null && underDirectory(resolved, project)) return false
     }
     work += 1

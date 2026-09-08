@@ -2407,6 +2407,36 @@ test('the writes a different-lineage review got past these classifiers', async (
   assert.equal(writesOutsideProject(`cd "${away}" && touch note.md`, repoRoot), true)
 })
 
+test('two doors into the evidence gate that this release opened and closed', async () => {
+  // docs/BACKLOG.md §183, found by probing these two functions directly rather
+  // than through a transcript. BOTH are fail-opens introduced by this range: a
+  // real code write escaping the Stop evidence requirement. Before this range
+  // neither exemption existed, so each was a REGRESSION in what the gate can see.
+  //
+  // 1. A BARE WORD CAN BE A DIRECTORY. `cp docs/BACKLOG.md plugin` writes into a
+  //    code directory; requiring a `/` or a `.` in a token skipped it entirely,
+  //    so the command read as docs-only and the mutation marker was withheld.
+  //    `plugin/` with a slash was held all along, which is what made it look fine.
+  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin', repoRoot), false)
+  assert.equal(namesOnlyMarkdownFiles('mv docs/BACKLOG.md plugin', repoRoot), false)
+  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin/', repoRoot), false)
+  // ...and the exemption still fires for a real documents-only edit, or the fix
+  // would be "never docs-only" and the optimisation dead rather than correct.
+  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true)
+  assert.equal(namesOnlyMarkdownFiles('cd docs && touch a.md', repoRoot), true)
+
+  // 2. `~` IS EXPANDED BY THE SHELL AND WAS NOT EXPANDED HERE. `$HOME` was
+  //    already held, because `$` marks a token this cannot follow; `~` carries no
+  //    such mark, so a write bash makes INSIDE the repository was exempted.
+  const under = path.relative(os.homedir(), repoRoot)
+  if (!under.startsWith('..')) {
+    assert.equal(writesOutsideProject(`cd /tmp && touch ~/${under}/plugin/bin/adr-lint`, repoRoot), false)
+  }
+  assert.equal(writesOutsideProject('cd /tmp && touch "$HOME/x/plugin/bin/adr-lint"', repoRoot), false)
+  // ...and a tilde path that really is outside the project is still exempt.
+  assert.equal(writesOutsideProject('cd /tmp && touch ~/scratch-qh-note.md', repoRoot), true)
+})
+
 test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {
   const { dir, file } = await unverifiedDocsChange('interim')
   const at = (event, message) => runLifecycleHook({

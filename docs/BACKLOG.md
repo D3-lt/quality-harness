@@ -11560,3 +11560,64 @@ arbitrary MCP call — and an unreadable one must be `UNKNOWN`, never silence (A
 **What a fix must not do:** treat an unrecognised `mcp__*` write as clean. The safe direction here
 is the expensive one — an MCP tool this gate cannot parse is an unverified change it must SAY it
 cannot account for.
+
+## 177. CLOSED 2026-09-08 — §174's blocking promotion would have refused a CORRECT fence, and the corpus that proved it escaped only by not writing `set -e`
+
+§174 promoted an inert `! grep` guard to a blocking failure when it is a fence's only vacuity check.
+A peer session was asked to try to break that from the working tree before it shipped, invoking
+`plugin/bin/adr-lint` by absolute path and quoting the identity line (only the ROOT distinguishes
+the copies — an unreleased tree carries the last released version number, so both said `2.95.0`).
+
+**It reported no regression across 77 records — and then named the fence that matters anyway.** From
+its own corpus, verbatim:
+
+```
+pytest … -q && ! grep -q "mark.xfail" … && PYTHON=python3 make architecture-gates
+```
+
+Guard mid-chain, `make` last, no un-negated `grep` anywhere. Under §174's predicate that is
+"no vacuity check" and therefore a BLOCK — on a fence that is correct. It did not go red there only
+because that corpus writes `set -o pipefail` and never `set -e`, so `inert_negated_guards` never
+evaluated it. **Luck, not correctness**, and the peer said so rather than reporting a pass.
+
+**The cause, measured rather than assumed:**
+
+```
+pytest <dir with no tests>            -> exit 5
+pytest -k <filter matching nothing>   -> exit 5
+python3 -m unittest discover          -> exit 5
+go test ./...   (no test files)       -> exit 0
+node --test     (no test files)       -> exit 0
+```
+
+That asymmetry is the whole reason the negated-guard idiom exists: a Go corpus needs
+`! grep -- "--- PASS"` because its runner says nothing on an empty run, and a pytest corpus never
+writes one because exit 5 already says it. **The predicate did not know the commonest runner in the
+population it judged** — 102 of that corpus's 114 fences are pytest. A runner that fails on an empty
+selection is now itself the vacuity check (`EMPTY_RUN_FAILS_RE`), and adding one to that list is a
+claim about its exit code that must be measured the same way.
+
+⚠ **AND THE DEEPER ERROR, which the near-miss exposed: the promotion was asserting a UNIVERSAL
+NEGATIVE.** "Nothing in this fence can fail when the run scored nothing" is unprovable over arbitrary
+shell — `inert_negated_guards`'s own docstring already cites ADR-016 for exactly that, and only ever
+asserts the positive ("this line cannot fail the script"), which is checkable. The blocking arm
+quietly asserted the negative. It now blocks only when EVERY segment is a check, a runner, or
+recognised setup; one command it cannot classify and the finding is advice that says
+`UNPROVEN here, not established` and names what it could not account for (ADR-005). The genuine
+target — a `go test` runner, a mid-chain guard, nothing else asserting — still blocks.
+
+**Second finding from the same run: the Proposed/Implementation advisory was silent on exactly the
+four records that produced §174's B1.** The peer checked out the commit before those records were
+flipped to Accepted, into a worktree so `Status: Proposed` and a real git context both held, and got
+zero advisory hits on three records whose every path is tracked. Cause: `sections_of` keys on the
+exact heading text, and the extractor asked for `## Implementation` alone —
+`## Implementation Plan` and `## Implementation Notes` are the same section under another name and
+returned nothing. Matched by prefix now. The peer flagged its own uncertainty here correctly ("I do
+not know your extraction rule"), which is what made the report actionable rather than a guess.
+
+⚠ **What the peer could NOT establish, reported as INCONCLUSIVE and worth keeping that way:** it
+could not build a positive control that reaches the vacuity check from the CLI — a synthetic record
+hit the digest check, the missing-Mutation-Log check and the no-killed-mutant check first. So
+"my corpus stayed green" is not evidence the check is live. It is live here, and the evidence is the
+mutation catalogue rather than the corpus: `lint: an inert guard that is the only vacuity check
+fails the record` is RED, which is the arm a green corpus cannot supply.

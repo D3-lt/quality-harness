@@ -1671,7 +1671,8 @@ def check_task(path, all_stems, errors):
         wrapper = (" Inside an `sh -c '…'` wrapper the closing quote must stay AFTER `fi`."
                    if re.search(r"\b(?:sh|bash)\s+-c\s+'", acc_all) else "")
         fix = "`if grep -qE \"no tests to run|^FAIL|^--- FAIL\" out; then exit 1; fi`"
-        if not vacuity_checks(acc_all):
+        unaccounted = unaccounted_segments(acc_all)
+        if not vacuity_checks(acc_all) and not unaccounted:
             # The middle ground the same report proposed: a negated guard that is the
             # fence's ONLY vacuity check leaves a fence that a filter matching nothing
             # passes — the defect this pipeline exists to catch — and that is decidable
@@ -1684,6 +1685,16 @@ def check_task(path, all_stems, errors):
                 f"nothing passes it. POSIX `set -e` does not apply to a command whose "
                 f"status is inverted with `!`, so the guard is inert unless it is the "
                 f"fence's last command. Use {fix}.{wrapper}{cost}")
+        elif unaccounted and not vacuity_checks(acc_all):
+            # ADR-005 on the predicate itself: no check was FOUND, and a command
+            # here could be one. Say which, rather than blocking on a negative
+            # this gate cannot establish.
+            errors.advise(
+                f"{path.name}: `{inert[0]}` cannot fail this Acceptance fence, and no other "
+                f"segment was recognised as checking that the run scored anything — but "
+                f"`{unaccounted[0]}` is a command this gate cannot classify, so whether the "
+                f"fence is vacuous is UNPROVEN here, not established. If nothing in it fails "
+                f"on an empty run, use {fix}.{wrapper}{cost}")
         else:
             for guard in inert:
                 errors.advise(
@@ -2762,6 +2773,62 @@ def inert_negated_guards(fence):
 # A segment that can fail the fence on WRONG OUTPUT rather than on a crash: an
 # un-negated grep, a test/[ ]/[[ ]] expression, a file comparison, or `jq -e`.
 POSITIVE_CHECK_RE = re.compile(r"^\s*(?:if\s+|while\s+|until\s+)?(?:grep|test|\[\[?|cmp|diff|jq\s+-e)\b")
+# A RUNNER THAT ITSELF FAILS ON AN EMPTY SELECTION, so a fence calling one already
+# has its vacuity check and needs no guard. Measured 2026-09-08 rather than assumed,
+# because the whole promotion below turns on it:
+#
+#     pytest <dir with no tests>            -> exit 5
+#     pytest -k <filter matching nothing>   -> exit 5
+#     python3 -m unittest discover          -> exit 5
+#     go test ./...   (no test files)       -> exit 0   ← NOT here, deliberately
+#     node --test     (no test files)       -> exit 0   ← NOT here, deliberately
+#
+# That asymmetry is why the negated-guard idiom exists at all: a Go corpus needs
+# `! grep -- "--- PASS"` because its runner says nothing, and a pytest corpus never
+# writes one because exit 5 already says it. Adding a runner here is a claim about
+# its exit code and must be measured the same way (BACKLOG §177).
+EMPTY_RUN_FAILS_RE = re.compile(
+    r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"           # leading VAR=value assignments
+    r"(?:\S*/)?(?:pytest\b|python3?\s+-m\s+(?:pytest|unittest)\b)")
+# What this gate can affirmatively account for in a fence: setup that asserts
+# nothing, a check, or a runner. Anything else is a command it does not know, and
+# a fence containing one cannot be declared vacuous — see `unaccounted_segments`.
+KNOWN_INERT_RE = re.compile(
+    r"^\s*(?:[A-Z_][A-Za-z0-9_]*=\S*\s+)*"
+    r"(?:\S*/)?(?:tee|cat|echo|printf|true|false|exit|sleep|touch|cp|mv|ln|sort|uniq|head|tail|"
+    r"wc|sed|awk|tr|cut|xargs|find|ls|pwd|date|env|which|command|source|\.|umask|shift|read|"
+    r"go|node|npm|npx|pnpm|yarn|bun|cargo|make|just|docker|podman|bash|sh|zsh|python3?|ruby|perl|php)\b")
+
+
+def unaccounted_segments(fence):
+    """Segments whose command this gate cannot classify, in written order.
+
+    ⚠ THE REASON THE FAILURE ARM NEEDS THIS. Declaring a fence vacuous is a
+    UNIVERSAL NEGATIVE — "nothing in here can fail when the run scored nothing" —
+    over arbitrary shell, and ADR-016 settled that structure cannot be safely
+    inferred from a shell fence. `inert_negated_guards` only ever asserts the
+    positive ("this line cannot fail the script"), which is checkable; the
+    promotion to a blocking failure was quietly asserting the negative.
+
+    Measured 2026-09-08 (BACKLOG §177): a corpus of 114 fences, 102 of them
+    pytest, had a fence — `pytest … && ! grep -q … && make …` — that this gate
+    would have BLOCKED as vacuous while `pytest`'s own exit 5 fences it perfectly
+    well. It escaped only because that corpus writes no `set -e`. A predicate
+    ignorant of the commonest runner in the population it judges is not a
+    predicate to block on.
+
+    So: a fence is only declared vacuous when every segment is a check, a runner,
+    or recognised setup. One unknown command and the finding stays advice, naming
+    what it could not account for (ADR-005).
+    """
+    out = []
+    for segment in [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]:
+        if (FENCE_SETUP_RE.match(segment) or KNOWN_INERT_RE.match(segment)
+                or EMPTY_RUN_FAILS_RE.match(segment) or POSITIVE_CHECK_RE.match(segment)
+                or NEGATED_GREP_RE.match(segment)):
+            continue
+        out.append(segment)
+    return out
 
 
 def vacuity_checks(fence):
@@ -2780,6 +2847,9 @@ def vacuity_checks(fence):
     """
     segments = [s.strip() for s in re.split(r"&&|\|\||;|\n", fence) if s.strip()]
     checks = [s for s in segments if POSITIVE_CHECK_RE.match(s) and not NEGATED_GREP_RE.match(s)]
+    # A runner that exits non-zero on an empty selection IS the vacuity check —
+    # measured, not assumed; see EMPTY_RUN_FAILS_RE.
+    checks += [s for s in segments if EMPTY_RUN_FAILS_RE.match(s) and s not in checks]
     if segments and NEGATED_GREP_RE.match(segments[-1]):
         checks.append(segments[-1])
     return checks
@@ -3099,7 +3169,14 @@ def implementation_paths(text):
     decision is carried out. Absolute paths are left out: a check against
     `git ls-files` can only answer for paths inside the tree (CLAUDE.md §8).
     """
-    body = "\n".join(sections_of(text).get("Implementation", []))
+    # Any heading that OPENS with "Implementation" — `## Implementation Plan` and
+    # `## Implementation Notes` are the same section under another name, and an
+    # exact match found zero paths in the four records this check was written for
+    # (BACKLOG §177). `sections_of` keys on the exact heading text, so the widening
+    # belongs here rather than there.
+    body = "\n".join(lines for heading, lines in sections_of(text).items()
+                     if re.match(r"implementation\b", heading.strip(), re.I)
+                     for lines in lines)
     out = []
     for token in re.findall(r"`([^`\n]+)`", body):
         token = re.sub(r"^\./", "", token.strip()).replace("\\", "/").rstrip("/")

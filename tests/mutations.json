@@ -6425,7 +6425,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if not vacuity_checks(acc_all):\n",
+      "from": "        if not vacuity_checks(acc_all) and not unaccounted:\n",
       "to": "        if False:\n"
     },
     {
@@ -6535,6 +6535,33 @@
       ],
       "from": "      if (path.isAbsolute(token) && underDirectory(token, project)) return false\n",
       "to": "      if (false) return false\n"
+    },
+    {
+      "label": "lint: a runner that fails on an empty selection is itself the vacuity check",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    checks += [s for s in segments if EMPTY_RUN_FAILS_RE.match(s) and s not in checks]\n",
+      "to": "    pass\n"
+    },
+    {
+      "label": "lint: a fence is not declared vacuous over a command the gate cannot classify",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if not vacuity_checks(acc_all) and not unaccounted:\n",
+      "to": "        if not vacuity_checks(acc_all):\n"
+    },
+    {
+      "label": "lint: an Implementation heading is matched by prefix, not exactly",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     if re.match(r\"implementation\\b\", heading.strip(), re.I)\n",
+      "to": "                     if heading.strip() == \"Implementation\"\n"
     }
   ]
 }

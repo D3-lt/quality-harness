@@ -2383,7 +2383,6 @@ test('the writes a different-lineage review got past these classifiers', async (
   ]) {
     assert.equal(isPotentialMutationCommand(heredoc(body)), true, label)
   }
-  }
   // ...and the genuinely read-only call the exemption exists for is still exempt,
   // or "recognise nothing" would satisfy every assertion above.
   assert.equal(isPotentialMutationCommand(

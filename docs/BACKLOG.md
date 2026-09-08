@@ -12053,3 +12053,41 @@ executable check does. There is now a mutant that re-adds all three names and di
 **What this says about the review that found them.** §179's self-attack found six defects; §180's
 review found four more; this review found three more still, after both. Each pass was real and none
 was sufficient, and the residual is not obviously zero now — it is only smaller than it was.
+
+## 188. CLOSED 2026-09-08 — the Windows job caught a fail-open the whole macOS session could not: canonicalising only the side that exists
+
+The v2.96.0 release campaign went red on two jobs. All three failures were introduced by this range,
+and the first is the one that matters: **a Windows-only fail-open in the evidence gate**, invisible to
+every check run on the development machine.
+
+**1. `underDirectory` canonicalised one side and not the other.** It compared `canonical(root)` with
+`canonical(candidate)`, and `realpathSync` resolves a path that EXISTS while throwing for one that
+does not — so a not-yet-created write target stayed lexical while the root came back resolved. On
+macOS those still share a prefix. On Windows, where the resolved form can differ in case or drive
+mapping, they stop sharing one, and an in-repository write reads as OUTSIDE the project — exempted
+from the evidence gate entirely. The `windows` job saw it as `other: 0` where 1 was expected:
+
+```
+printf x > notes.txt        -> the shell mutation was DROPPED, not counted
+```
+
+Both comparisons are made now and EITHER counts as inside, deliberately: saying "inside" keeps the
+marker and demands evidence, while a wrong "outside" silently drops the requirement.
+
+⚠ **Nothing local could have found this.** `CLAUDE.md` §7 says the platform is a parameter and you
+cannot run Windows here; this is that rule collecting. The exemption was added, reviewed twice,
+attacked directly, and shipped past all of it — because every probe ran where `realpathSync` agrees
+with the lexical path.
+
+**2. Two of my own assertions passed on Windows for the wrong reason.** Three used `/tmp`, which does
+not exist there, so the `cd` failed and the shell stayed put — which is exactly the behaviour the
+parser copies, so "nothing was outside anything" satisfied two assertions that expected `false`. The
+third expected `true` and failed honestly. All three use a real temporary directory now. A test that
+passes because its precondition was never met is `CLAUDE.md` §4 in the test's own voice.
+
+**3. A GREEN mutant: `a mutating literal subprocess argv is still a mutation`.** The guard requires
+EVERY argv element to be a literal, and the case asserted for it — `cmd = "rm"` — is caught by the
+executable check whether or not non-literals are skipped, because skipping leaves `-rf` as the
+command name. The distinguishing case has a READ-ONLY literal head and the danger in a computed
+argument: `find` with a computed `-exec`, where skipping the non-literal leaves a bare
+`find . ./mutate` that `FIND_WRITES` cannot see. Asserted now.

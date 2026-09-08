@@ -115,3 +115,52 @@ bash scripts/selftest.sh
 The tests change declarations and source between scans, exercise clean and broken
 wiring, refuse escaping source paths, and run bounded real commands to verify
 input/output preservation and timeout reporting.
+
+## Optional live operation timings
+
+The installed plugin can append timings from inside its existing branch reader,
+shell runner and artifact batch. This adds no wrapper process. It is off by default.
+Set both variables in the environment used to launch the session:
+
+```powershell
+$env:QUALITY_HARNESS_TRACE_FILE = Join-Path $env:TEMP 'qh-performance.jsonl'
+$env:QUALITY_HARNESS_TRACE_UNTIL = [DateTimeOffset]::UtcNow.AddMinutes(5).ToUnixTimeMilliseconds().ToString()
+```
+
+Or, in Bash:
+
+```bash
+export QUALITY_HARNESS_TRACE_FILE="${TMPDIR:-/tmp}/qh-performance.jsonl"
+
+export QUALITY_HARNESS_TRACE_UNTIL="$(node -p 'Date.now() + 5 * 60_000')"
+```
+
+Use an absolute `.jsonl` path on a local disk, outside every checkout and Git
+metadata directory; its parent must already exist. Symlinks, multiply linked files,
+and current gated artifacts (including files inside a gated directory) are refused.
+Start the session from that environment, then analyze the file in this repository:
+
+```bash
+node --expose-internals scripts/event-analyser.mjs --trace /absolute/path/to/qh-performance.jsonl
+```
+
+The analyser lists these as `operation/…` and counts outcomes such as
+`cache-hit`, `timeout`, `budget-exhausted` and `cleanup-unconfirmed`.
+A completed shell means its process finished; its ordinary output still carries
+the artifact verdict. A `processed` batch attempted every path and may contain
+failed shell executions. The diagnostic record never grants permission to proceed.
+
+Recording expires at the supplied Unix-millisecond deadline (at most 15 minutes
+ahead) and stops appending at an 8 MiB soft limit. Concurrent writers can exceed
+that limit by their in-flight records. Existing files are never cleared. Delete
+or move the old capture before a new one, and unset the variables when finished.
+
+Only invocation IDs, input hashes, wall-clock timings and execution outcomes are
+written. Payloads, paths, prompts and child output are omitted. These operation
+records carry no session/tool correlation, so they do not establish duplicate
+hook delivery or provide complete session coverage. Nested batch/shell durations
+overlap and must not be added as independent CPU cost.
+
+A full, expired or unwritable target is silently skipped to preserve gate output.
+A start without an end is unfinished evidence, never success. Missing records
+do not prove that work did not run; this is optional diagnostic sampling.

@@ -2373,13 +2373,20 @@ test('the writes a different-lineage review got past these classifiers', async (
     ['stdout=open writes a file the argv never names',
                                            'subprocess.run(["grep", "x", "in"], stdout=open("out.txt", "w"))'],
     // ⚠ THE CASE THAT DISTINGUISHES "EVERY ELEMENT MUST BE A LITERAL" FROM THE
-    // EXECUTABLE CHECK. `cmd = "rm"` above is caught by the executable test
-    // whether or not non-literals are skipped, because skipping leaves `-rf` as
-    // the command name — so it cannot tell the two guards apart. Here the literal
-    // head is a READ-ONLY name and the danger is in a computed argument: skipping
-    // `flag` leaves a bare `find . ./mutate`, which FIND_WRITES cannot see.
-    ['a computed argument hiding -exec',
-     'flag = "-exec"\nsubprocess.run(["find", ".", flag, "./mutate", "{}", ";"])'],
+    // EXECUTABLE CHECK, and it took three tries to find one that does. `cmd = "rm"`
+    // is caught by the executable test whether or not non-literals are skipped,
+    // because skipping leaves `-rf` as the command name. A computed `"-exec"` looked
+    // right and was worse than useless: that literal string trips `\bexec\b` in
+    // VISIBLE_CODE_MUTATION_TOKENS, so the case read MUTATING for a reason having
+    // nothing to do with this guard, and the mutant stayed GREEN behind it twice.
+    //
+    // These two carry a READ-ONLY literal head and a computed element that trips no
+    // token by itself, so only refusing the whole call keeps them: skipping the
+    // non-literal leaves `find . flag`, which FIND_WRITES cannot see (BACKLOG §188).
+    ['a computed argument that could be -delete',
+     'flag = "-delete"\nsubprocess.run(["find", ".", flag])'],
+    ['a computed argument to a read-only head',
+     'p = "x"\nsubprocess.run(["grep", p, "in"])'],
   ]) {
     assert.equal(isPotentialMutationCommand(heredoc(body)), true, label)
   }

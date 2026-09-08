@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -152,4 +152,279 @@ test('already-shown edit context skips discovery without hiding a later first ma
   assert.equal(context(later).text, '', 'unmatched files have no context yet')
   writeFileSync(record, recordFor('later.js'))
   assert.match(context(later).text, /Retain the contract/, 'a no-match must not consume the first mention')
+})
+
+test('corpus scans read shared inputs once and see fresh changes on the next scan', t => {
+  const root = scratch(t)
+  const project = path.join(root, 'project')
+  const docs = path.join(project, 'docs', 'adr')
+  const tasks = path.join(docs, 'tasks')
+  mkdirSync(tasks, { recursive: true })
+  const record = (id, status = 'Accepted') =>
+    '# ' + id + ': Probe\n\n**Status:** ' + status + '\n\n## Decision\nKeep the contract.\n'
+  const task = (id, affected) => '# Task ' + id + ': Probe\n\n## Affected Files\n' +
+    '| File | Change |\n| --- | --- |\n| ' + affected + ' | modify |\n'
+  writeFileSync(path.join(docs, 'ADR-001.md'), record('ADR-001'))
+  writeFileSync(path.join(docs, 'ADR-002.md'), record('ADR-002'))
+  writeFileSync(path.join(docs, 'ADR-003.md'), record('ADR-003', 'Unknown'))
+  writeFileSync(path.join(docs, '2026-01-01-dated.md'), record('Dated decision'))
+  const first = path.join(tasks, 'T1-first.md')
+  const second = path.join(tasks, 'T2-second.md')
+  writeFileSync(first, task('ADR-001-T1', 'src/first.js'))
+  writeFileSync(second, task('ADR-002-T2', 'src/second.js'))
+  const probe = async (moduleUrl, project, first, second, replacement, added) => {
+    const fs = await import('node:fs')
+    const path = await import('node:path')
+    const { syncBuiltinESMExports } = await import('node:module')
+    const counts = { files: {}, directories: {} }
+    for (const [method, bucket] of [['readFileSync', 'files'], ['readdirSync', 'directories']]) {
+      const original = fs.default[method]
+      fs.default[method] = function(file, ...args) {
+        const relative = path.relative(project, String(file))
+        if (!relative.startsWith('..') && !path.isAbsolute(relative)) {
+          counts[bucket][relative] = (counts[bucket][relative] ?? 0) + 1
+        }
+        return original.call(this, file, ...args)
+      }
+    }
+    syncBuiltinESMExports()
+    const { adrCorpus } = await import(moduleUrl)
+    const scan = () => {
+      counts.files = {}
+      counts.directories = {}
+      const corpus = adrCorpus(project, { tracked: null })
+      return {
+        counts: structuredClone(counts),
+        records: corpus.map(entry => ({
+          file: path.basename(entry.file), governs: entry.governs,
+          tasks: entry.taskFiles.map(file => path.basename(file)),
+        })),
+        unreadable: corpus.unreadable.map(entry => path.basename(entry.file)),
+      }
+    }
+    const before = scan()
+    fs.writeFileSync(first, replacement)
+    fs.rmSync(second)
+    fs.writeFileSync(path.join(path.dirname(second), 'T3-added.md'), added)
+    const after = scan()
+    process.stdout.write(JSON.stringify({ before, after }))
+  }
+  const code = '(' + probe.toString() + ')(...' + JSON.stringify([
+    pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href,
+    project, first, second,
+    task('ADR-001-T1', 'src/changed.js'), task('ADR-002-T3', 'src/added.js'),
+  ]) + ')'
+  const { before, after } = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], project).stdout)
+  const entry = (scan, name) => scan.records.find(record => record.file === name)
+  assert.deepEqual(entry(before, 'ADR-001.md').governs, ['src/first.js'])
+  assert.deepEqual(entry(before, 'ADR-002.md').governs, ['src/second.js'])
+  assert.deepEqual(entry(before, '2026-01-01-dated.md').tasks, [], 'shared tasks need explicit ownership')
+  assert.deepEqual(before.unreadable, ['ADR-003.md'], 'unclassified records remain visible')
+  assert.deepEqual(entry(after, 'ADR-001.md').governs, ['src/changed.js'], 'a new scan sees edited task contents')
+  assert.deepEqual(entry(after, 'ADR-002.md').governs, ['src/added.js'], 'a new scan sees additions and deletions')
+  assert.deepEqual(entry(after, 'ADR-002.md').tasks, ['T3-added.md'])
+  for (const scan of [before, after]) {
+    assert.ok(Object.keys(scan.counts.files).length >= 6, 'the probe must observe actual file reads')
+    assert.ok(Object.keys(scan.counts.directories).length >= 3, 'the probe must observe actual directory reads')
+    assert.equal(Math.max(...Object.values(scan.counts.files)), 1, 'each file is read at most once per scan')
+    assert.equal(Math.max(...Object.values(scan.counts.directories)), 1, 'each directory is listed at most once per scan')
+  }
+})
+
+test('artifact batches use one runner and keep findings on both sides of a timed-out file', t => {
+  const root = realpathSync(scratch(t))
+  const scripts = path.join(root, 'plugin', 'scripts')
+  mkdirSync(scripts, { recursive: true })
+  cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
+  writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
+    '#!/bin/bash',
+    'if [ "${QH_TEST_BULK-}" = 1 ]; then printf "%600000s\\n" "" >&2; fi',
+    'if [ "${QH_TEST_FLOOD-}" = 1 ]; then case "$1" in *first.ts) printf "%4000000s\\n" "" >&2; sleep 20 ;; esac; fi',
+    'case "$1" in',
+    '  *slow.ts) [ -n "${QH_TEST_BULK-}${QH_TEST_FLOOD-}" ] || sleep 20 ;;',
+    '  *) printf "CHECKED %s\\n" "$1" >&2 ;;',
+    'esac',
+    '',
+  ].join('\n'))
+  const files = ['first.ts', 'slow.ts', 'last.ts'].map(name => path.join(root, name))
+  const probe = async (moduleUrl, files, root) => {
+    const cp = await import('node:child_process')
+    const { syncBuiltinESMExports } = await import('node:module')
+    const original = cp.default.spawnSync
+    let runners = 0
+    cp.default.spawnSync = function(command, args, options) {
+      if (command === process.execPath && args[0]?.endsWith('run-shell-hook.mjs')) runners++
+      return original.call(this, command, args, options)
+    }
+    syncBuiltinESMExports()
+    const { runArtifactGates } = await import(moduleUrl)
+    const finding = runArtifactGates(files, root, 20_000)
+    process.stdout.write(JSON.stringify(process.env.QH_TEST_BULK === '1' || process.env.QH_TEST_FLOOD === '1'
+      ? { length: finding?.length, last: /CHECKED .*last\.ts/.test(finding),
+        unchecked: /may be unchecked/.test(finding), limited: /output limit/.test(finding), runners }
+      : { finding, runners }))
+  }
+  const code = '(' + probe.toString() + ')(...' + JSON.stringify([
+    pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href, files, root,
+  ]) + ')'
+  const result = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
+    CLAUDE_PLUGIN_ROOT: path.dirname(scripts), QUALITY_HARNESS_SHELL_TIMEOUT_MS: '2000',
+  }).stdout)
+  assert.equal(typeof result.finding, 'string', JSON.stringify(result))
+  assert.match(result.finding, /CHECKED .*first\.ts/)
+  assert.match(result.finding, /timed out after 2000ms/)
+  assert.match(result.finding, /slow\.ts/)
+  assert.match(result.finding, /CHECKED .*last\.ts/, 'a timed-out file must not swallow later findings')
+  assert.match(result.finding, /budget, not a finding/)
+  assert.equal(result.runners, 1, 'one boundary needs one Node runner')
+  const bulk = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
+    CLAUDE_PLUGIN_ROOT: path.dirname(scripts), QH_TEST_BULK: '1',
+  }).stdout)
+  assert.equal(bulk.last, true, 'large combined output retains the last finding')
+  assert.equal(bulk.unchecked, false, 'combined output must not kill a completed batch')
+  assert.ok(bulk.length > 1024 * 1024, 'exercise more than the old single-file output limit')
+  assert.equal(bulk.runners, 1)
+  const flood = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root, {
+    CLAUDE_PLUGIN_ROOT: path.dirname(scripts), QH_TEST_FLOOD: '1',
+  }).stdout)
+  assert.equal(flood.last, true, 'one oversized file must not prevent checking later artifacts')
+  assert.equal(flood.limited, true, 'an output limit leaves the noisy artifact explicitly unchecked')
+  assert.equal(flood.unchecked, false, 'only the noisy shell is stopped, not the batch runner')
+  assert.ok(result.finding.indexOf('budget, not a finding') < result.finding.lastIndexOf('CHECKED'),
+    'timeout guidance must precede the later real finding it does not describe')
+})
+
+test('historical archive discovery uses one scoped Git query and preserves nearest literal paths', t => {
+  const root = scratch(t)
+  const project = path.join(root, 'project')
+  run(['git', 'init', '-q', project], root)
+  const scripts = path.join(root, 'plugin', 'scripts')
+  const bin = path.join(root, 'plugin', 'bin')
+  mkdirSync(scripts, { recursive: true })
+  mkdirSync(bin)
+  cpSync(path.join(pluginRoot, 'scripts', 'facts-gate-dispatch.sh'), path.join(scripts, 'facts-gate-dispatch.sh'))
+  writeFileSync(path.join(bin, 'adr-retire-check'), '#!/bin/bash\nprintf "CATALOG %s\\n" "$1"\nexit 1\n', { mode: 0o755 })
+  const archive = path.join(project, 'docs', 'archive [x]')
+  const nested = path.join(archive, 'nested space')
+  for (const dir of [archive, nested]) {
+    mkdirSync(dir, { recursive: true })
+    writeFileSync(path.join(dir, 'README.md'), '**Lifecycle:** Frozen historical ADR records\n')
+  }
+  const sourceDir = path.join(project, 'src', 'deep', 'nested')
+  mkdirSync(sourceDir, { recursive: true })
+  const source = path.join(sourceDir, 'changed.ts')
+  writeFileSync(source, 'source\n')
+  writeFileSync(path.join(sourceDir, 'README.md'), '> **Lifecycle:** Frozen historical ADR records\n')
+  run(['git', 'add', '.'], project)
+  run(['git', '-c', 'user.name=Harness Test', '-c', 'user.email=harness@example.invalid',
+    'commit', '-qm', 'archive fixture'], project)
+  rmSync(archive, { recursive: true })
+  const trace = path.join(root, 'git.trace')
+  const check = file => {
+    writeFileSync(trace, '')
+    const result = run(['bash', path.join(scripts, 'facts-gate-dispatch.sh').replaceAll('\\', '/'),
+      file.replaceAll('\\', '/')], project, { GIT_TRACE: trace })
+    return { output: result.stderr + result.stdout, trace: readFileSync(trace, 'utf8') }
+  }
+  assert.match(check(path.join(nested, 'record.md')).output, /CATALOG .*archive \[x\]\/nested space\/README\.md/)
+  assert.match(check(nested).output, /CATALOG .*archive \[x\]\/nested space\/README\.md/,
+    'a deleted directory is governed by its own historical catalog')
+  assert.match(check(path.join(archive, 'record.md')).output, /CATALOG .*archive \[x\]\/README\.md/)
+  const ordinary = check(source)
+  assert.equal(ordinary.output, '', 'unrelated source must not acquire archive findings')
+  const commands = ordinary.trace.split('\n').filter(line => line.includes('built-in: git'))
+  assert.ok(commands.length > 0, 'the probe must observe actual Git work')
+  assert.equal(commands.length, 2, 'repository discovery plus one scoped history query')
+})
+
+test('artifact batch input and exhausted deadlines report unchecked work', async t => {
+  const { runArtifactBatch } = await import('../plugin/scripts/run-shell-hook.mjs')
+  let stderr = ''
+  t.mock.method(process.stderr, 'write', chunk => { stderr += chunk; return true })
+  const valid = { paths: ['unchecked.md', 'also-unchecked.md'].map(name => path.join(os.tmpdir(), name)), deadline: Date.now() - 1,
+    windowMs: 1000, timeoutMs: 100 }
+  for (const value of [null, {}, { ...valid, paths: [] }, { ...valid, paths: ['relative.md'] },
+    { ...valid, paths: ['bad\0path'] }, { ...valid, deadline: null }, { ...valid, timeoutMs: 0 }]) {
+    stderr = ''
+    assert.equal(await runArtifactBatch(JSON.stringify(value)), 2)
+    assert.match(stderr, /invalid artifact batch; the gates did not run/)
+  }
+  stderr = ''
+  assert.equal(await runArtifactBatch('not JSON'), 2)
+  assert.match(stderr, /invalid artifact batch/)
+  stderr = ''
+  assert.equal(await runArtifactBatch(JSON.stringify(valid)), 0)
+  assert.match(stderr, /window was exhausted before .*unchecked\.md was gated/)
+  assert.match(stderr, /also-unchecked\.md/, 'every artifact skipped by the deadline is identified')
+  const { runArtifactGates } = await import('../plugin/scripts/lifecycle.mjs')
+  assert.match(runArtifactGates(valid.paths, os.tmpdir(), 500), /also-unchecked\.md/,
+    'a deadline exhausted before runner startup also identifies every unchecked artifact')
+})
+
+test('an output limit terminates the noisy child and reports cleanup separately from timeout', async () => {
+  const { runWithTimeout, terminateProcessTree } = await import('../plugin/scripts/run-shell-hook.mjs')
+  let run
+  try {
+    run = await runWithTimeout(process.execPath, ['-e',
+      "process.stdout.write('x'.repeat(10000)); setInterval(() => {}, 1000)"], {
+      timeoutMs: 5000, maxOutputBytes: 1024,
+    })
+    assert.equal(run.outputLimitExceeded, true)
+    assert.equal(run.timedOut, false, 'an output limit is not a time limit')
+    assert.equal(run.killIssued, true)
+    assert.equal(run.cleanupConfirmed, true)
+    assert.ok(Buffer.byteLength(run.stdout + run.stderr) <= 1024)
+  } finally {
+    // A failing mutation must not leave its synthetic child on the user's machine.
+    if (run?.pid && !run.cleanupConfirmed) terminateProcessTree({ pid: run.pid }, process.platform)
+  }
+})
+
+test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t => {
+  const root = scratch(t)
+  const probe = async (moduleUrl, root) => {
+    const cp = await import('node:child_process')
+    const { EventEmitter } = await import('node:events')
+    const { PassThrough } = await import('node:stream')
+    const { syncBuiltinESMExports } = await import('node:module')
+    let calls = 0
+    // Fault injection: a child with no observable PID or close event. It creates
+    // no OS process, so the cleanup-failure test cannot itself leak one.
+    cp.default.spawn = () => {
+      calls++
+      const child = new EventEmitter()
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.unref = () => {}
+      return child
+    }
+    syncBuiltinESMExports()
+    const { runShellHook, runArtifactBatch } = await import(moduleUrl)
+    let stderr = ''
+    process.stderr.write = chunk => { stderr += chunk; return true }
+    const paths = ['current.md', 'remaining.md'].map(name => root + '/' + name)
+    const directStatus = await runShellHook('facts-gate-dispatch.sh',
+      JSON.stringify({ tool_input: { file_path: paths[0] } }), { timeoutMs: 100 })
+    const direct = { status: directStatus, calls, stderr }
+    calls = 0
+    stderr = ''
+    const status = await runArtifactBatch(JSON.stringify({
+      paths, deadline: Date.now() + 10_000, windowMs: 10_000, timeoutMs: 100,
+    }))
+    process.stdout.write(JSON.stringify({ direct, batch: { status, calls, stderr } }))
+  }
+  const code = '(' + probe.toString() + ')(...' + JSON.stringify([
+    pathToFileURL(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs')).href, root,
+  ]) + ')'
+  const { direct, batch } = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root).stdout)
+  assert.equal(direct.calls, 1, 'the control must exercise the injected child')
+  assert.equal(direct.status, 0, 'direct edit hooks stay advisory')
+  assert.equal(batch.status, 0, 'the batch reports unchecked work without blocking')
+  assert.equal(batch.calls, 1, 'unconfirmed cleanup must prevent starting the next shell')
+  assert.match(direct.stderr, /cleanup could not be confirmed/)
+  assert.match(batch.stderr, /cleanup could not be confirmed/)
+  assert.match(batch.stderr, /current\.md/)
+  assert.match(batch.stderr, /remaining\.md/)
+  assert.match(batch.stderr, /Unchecked artifacts/)
 })

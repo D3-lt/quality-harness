@@ -111,21 +111,27 @@ git_archive_catalog_for() {
   rel_target="${target#"$repo"/}"
   # The target itself may be a deleted archive directory. Try its historical
   # catalog before walking parents (file targets simply miss this probe).
-  candidate="$rel_target/README.md"
-  if git -C "$repo" show "HEAD:$candidate" 2>/dev/null \
-    | grep -q '^\*\*Lifecycle:\*\* Frozen historical ADR records$'; then
-    printf '%s/%s\n' "$repo" "$candidate"
-    return 0
-  fi
+  local candidates=("$rel_target/README.md") matches=() match
   rel_dir=$(dirname "$rel_target")
   while [ "$rel_dir" != "." ] && [ "$rel_dir" != "/" ]; do
-    candidate="$rel_dir/README.md"
-    if git -C "$repo" show "HEAD:$candidate" 2>/dev/null \
-      | grep -q '^\*\*Lifecycle:\*\* Frozen historical ADR records$'; then
-      printf '%s/%s\n' "$repo" "$candidate"
-      return 0
-    fi
+    candidates+=("$rel_dir/README.md")
     rel_dir=$(dirname "$rel_dir")
+  done
+  # One history read, scoped to these exact paths. NUL framing and literal
+  # pathspecs preserve spaces, brackets and non-ASCII names without Git quoting.
+  while IFS= read -r -d '' match; do
+    matches+=("${match#HEAD:}")
+  done < <(git -C "$repo" --literal-pathspecs grep -l -z -G --threads=1 --no-textconv \
+    -e '^\*\*Lifecycle:\*\* Frozen historical ADR records$' HEAD -- "${candidates[@]}" 2>/dev/null)
+  [ "${#matches[@]}" -gt 0 ] || return 1
+  # git grep orders paths lexically; ownership still belongs to the nearest catalog.
+  for candidate in "${candidates[@]}"; do
+    for match in "${matches[@]}"; do
+      if [ "$candidate" = "$match" ]; then
+        printf '%s/%s\n' "$repo" "$candidate"
+        return 0
+      fi
+    done
   done
   return 1
 }

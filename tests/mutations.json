@@ -168,8 +168,8 @@
       "tests": [
         "tests/gate-rules.test.mjs"
       ],
-      "from": "    const timer = setTimeout(() => {\n      timedOut = true\n      killConfirmed = terminate(child, platform)",
-      "to": "    const timer = setTimeout(() => {\n      killConfirmed = null"
+      "from": "    const timer = setTimeout(() => {\n      timedOut = true\n      stop()",
+      "to": "    const timer = setTimeout(() => {\n      stop()"
     },
     {
       "label": "hooks: the wrapper propagates a child's exit code",
@@ -1750,7 +1750,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text) })",
+      "from": "      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader) })",
       "to": "      void status"
     },
     {
@@ -2785,7 +2785,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  for (const tasks of taskDirectoriesFor(file, adrNumber(file, text))) {",
+      "from": "  for (const tasks of taskDirectoriesFor(file, adrNumber(file, text), reader)) {",
       "to": "  for (const tasks of []) {"
     },
     {
@@ -2857,7 +2857,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory))) {",
+      "from": "          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory, reader))) {",
       "to": "          && ADR_FILE.test(entry.name)) {"
     },
     {
@@ -6251,6 +6251,136 @@
       "only": "already-shown edit context",
       "from": "  if (alreadyMentionedThisSession(input.session_id, resolved)) return ''",
       "to": "  if (false) return ''"
+    },
+    {
+      "label": "hook-work: corpus inputs are read once per scan",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "only": "corpus scans",
+      "from": "      if (!results.has(key)) {",
+      "to": "      if (true) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: corpus observations are fresh in each scan",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "only": "corpus scans",
+      "from": "  const reader = corpusReader()",
+      "to": "  const reader = adrCorpus.cachedReader ??= corpusReader()",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: a batch checks every artifact",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batches",
+      "from": "  for (const [index, filePath] of batch.paths.entries()) {",
+      "to": "  for (const [index, filePath] of batch.paths.slice(0, 1).entries()) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: batch files retain their individual timeout",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batches",
+      "from": "timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT",
+      "to": "timeoutMs: remaining, maxOutputBytes: ARTIFACT_OUTPUT_LIMIT",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: an incidental historical marker is not an archive",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "only": "historical archive discovery",
+      "from": "-e '^\\*\\*Lifecycle:\\*\\* Frozen historical ADR records$' HEAD",
+      "to": "-e '\\*\\*Lifecycle:\\*\\* Frozen historical ADR records' HEAD",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: nearest historical catalog keeps ownership",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "only": "historical archive discovery",
+      "from": "  for candidate in \"${candidates[@]}\"; do",
+      "to": "  for candidate in \"${candidates[${#candidates[@]}-1]}\"; do",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: a noisy artifact has its own output limit",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "an output limit terminates",
+      "from": "      if (bytes > available) {",
+      "to": "      if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: exceeding the output limit stops the noisy child",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "an output limit terminates",
+      "from": "      if (outputLimitExceeded) stop()",
+      "to": "      if (outputLimitExceeded) void 0",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: timeout guidance stays with the timed-out artifact",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batches",
+      "from": "    if (windowMs !== undefined) {",
+      "to": "    if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: unconfirmed cleanup prevents the next artifact",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "unconfirmed cleanup stops",
+      "from": "    if (status !== 0) {",
+      "to": "    if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: direct hooks disclose unconfirmed cleanup",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "unconfirmed cleanup stops",
+      "from": "  if (run.cleanupConfirmed === false) {",
+      "to": "  if (false) {",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: the deadline identifies all remaining artifacts",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "only": "artifact batch input",
+      "from": "+ 'All remaining artifacts were not checked:\\n' + batch.paths.slice(index).join('\\n')",
+      "to": "+ 'All remaining artifacts were not checked:\\n' + filePath",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
+    },
+    {
+      "label": "hook-work: a pre-start deadline identifies every unchecked artifact",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "only": "artifact batch input",
+      "from": "+ 'All remaining artifacts were not checked:\\n' + uniqueTargets.join('\\n')",
+      "to": "+ 'All remaining artifacts were not checked:\\n' + uniqueTargets[0]",
+      "tests": [
+        "tests/hook-work.test.mjs"
+      ]
     }
   ]
 }

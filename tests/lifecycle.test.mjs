@@ -10,6 +10,10 @@ import {
   analyzeTranscript,
   artifactGateTimeoutMs,
   bashDeletionMutationPaths,
+  namesOnlyMarkdownFiles,
+  segmentDirectories,
+  writesOutsideProject,
+  interpreterCommandLooksMutating,
   bashNavigationImpact,
   mutatesOnlyTempPaths,
   checkCommandOrigin,
@@ -2257,6 +2261,99 @@ test('EVIDENCE-LIMITED does not release a code change, however well explained', 
     last_assistant_message: 'EVIDENCE-LIMITED: the integration environment is unreachable',
   })
   assert.match(run.stdout, /"systemMessage"/)
+})
+
+test('a Bash edit that names only Markdown files is a docs-only change', async () => {
+  // docs/BACKLOG.md §174, reported 2026-09-08: the Stop gate listed
+  // `<Bash mutation: …>` under "Changed paths" for a commit touching fourteen
+  // Markdown files and demanded a forty-minute test run. The marker stands in
+  // for a write that could not be resolved to a path; when every path the
+  // command names is Markdown it adds nothing and defeats `docsOnly`.
+  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true)
+  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin/bin/adr-lint', repoRoot), false)
+  assert.equal(namesOnlyMarkdownFiles('git add docs/', repoRoot), false)
+  assert.equal(namesOnlyMarkdownFiles('gh run list --limit 1 --json status', repoRoot), false)
+
+  const dir = await checkedProject('quality-md-bash-')
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
+  await writeFile(path.join(dir, 'service.py'), 'x = 1\n')
+  const stopAfter = async command => {
+    await writeFile(file, transcript([
+      toolUse('b1', 'Bash', { command }), toolResult('b1'),
+    ]))
+    return runLifecycleHook({
+      hook_event_name: 'Stop', transcript_path: file, cwd: dir,
+      last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes',
+    })
+  }
+  // Markdown only: the escape a docs change is entitled to.
+  const docs = await stopAfter('sed -i "s/a/b/" notes.md')
+  assert.equal(docs.stdout, '', docs.stdout)
+  // The control: a write that also reaches code keeps the marker and the gate.
+  const code = await stopAfter('sed -i "s/a/b/" notes.md service.py')
+  assert.match(code.stdout, /"systemMessage"/)
+  assert.match(code.stdout, /<Bash mutation: /)
+})
+
+test('a heredoc that only reads through a literal read-only subprocess is not a mutation', () => {
+  // docs/BACKLOG.md §175, verbatim from the reporting session: a Python heredoc
+  // that grepped the tree and printed a JSON summary was listed under "Changed
+  // paths" as a mutation, on the strength of `subprocess` and `re.search(`.
+  const body = [
+    'import re,pathlib,subprocess,json', 'defs={}',
+    'out=subprocess.run(["grep","-rnoE",r"def test_[a-z0-9_]+","tests/"],capture_output=True,text=True).stdout',
+    'for line in out.splitlines():', '  m=re.search(r"def (test_\\w+)",line)',
+    '  defs.setdefault(m.group(1),[]).append(line.split(":")[0])',
+    'print(json.dumps(defs,indent=0))',
+  ].join('\n')
+  const heredoc = script => `cd /repo\ngh run list --limit 1 --json headSha 2>&1 | head -3\npython3 - <<'PY'\n${script}\nPY`
+  assert.equal(isPotentialMutationCommand(heredoc(body)), false)
+  // The must-fail arms: a literal argv that mutates, a computed argv, and
+  // `shell=True` each keep the command a mutation.
+  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run(["rm","-rf","build"])')), true)
+  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run(argv)')), true)
+  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run("ls", shell=True)')), true)
+  assert.equal(isPotentialMutationCommand(heredoc('import pathlib\npathlib.Path("x").write_text("y")')), true)
+})
+
+test('a relative path follows the command\'s own cd, and a write outside the project is not a project change', async () => {
+  // docs/BACKLOG.md §175, verbatim from the reporting session: `cd` into
+  // the session's memory directory under the user's Claude config, outside the
+  // repository, then `cat >> project_adr_corpus_state.md`. The
+  // gate reported `<repo>/project_adr_corpus_state.md` — a path that has never
+  // existed — because the relative token was resolved against the session cwd.
+  const dir = await checkedProject('quality-cd-')
+  const elsewhere = await mkdtemp(path.join(testTmp, 'quality-elsewhere-'))
+  await mkdir(path.join(dir, 'sub'))
+  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
+
+  // The trail: a cd that exists is followed, one that does not leaves the shell
+  // where it was (that is what the shell does), and one this cannot read is null.
+  const trail = segmentDirectories(`cd sub && cat >> a.md\ncd /no/such/dir; cat >> b.md\ncd "$X"; cat >> c.md`, dir)
+  assert.deepEqual(trail.filter(t => !t.navigation).map(t => t.dir), [path.join(dir, 'sub'), path.join(dir, 'sub'), null])
+
+  assert.deepEqual(bashMarkdownMutationPaths('cd sub && cat >> a.md', dir), [path.join(dir, 'sub', 'a.md')])
+  const outside = `cd "${elsewhere}"\ncat >> project_state.md <<'EOF'\nhello\nEOF\necho done`
+  assert.deepEqual(bashMarkdownMutationPaths(outside, dir), [], 'nothing under the project was named')
+  assert.equal(writesOutsideProject(outside, dir), true)
+  // Reaching back in by an absolute path, or through a variable, is not "outside".
+  assert.equal(writesOutsideProject(`cd "${elsewhere}" && cp x ${path.join(dir, 'y.py')}`, dir), false)
+  assert.equal(writesOutsideProject(`cd "${elsewhere}" && cp x "$REPO/y.py"`, dir), false)
+  assert.equal(writesOutsideProject('sed -i s/a/b/ notes.md', dir), false)
+
+  // Through the hook: the outside write owes nothing; the same write inside does.
+  const file = path.join(dir, 'agent.jsonl')
+  const stopAfter = async command => {
+    await writeFile(file, transcript([toolUse('b1', 'Bash', { command }), toolResult('b1')]))
+    return runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir, last_assistant_message: 'Done.' })
+  }
+  const away = await stopAfter(outside)
+  assert.equal(away.stdout, '', away.stdout)
+  const home = await stopAfter("cat >> notes.md <<'EOF'\nhello\nEOF\necho done")
+  assert.match(home.stdout, /"systemMessage"/)
+  assert.match(home.stdout, /notes\.md/)
+  assert.doesNotMatch(home.stdout, /project_state\.md/)
 })
 
 test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {

@@ -2412,6 +2412,15 @@ test('the writes a different-lineage review got past these classifiers', async (
   // rejects while staying where it was.
   assert.equal(writesOutsideProject('cd ../docs && touch BACKLOG.md', path.join(repoRoot, 'plugin')), false,
     'the project is its git root, not wherever the session happens to stand')
+  // ⚠ A COMMAND THAT NEVER NAVIGATES CANNOT BE OUTSIDE THE PROJECT — true by
+  // construction, and it was being COMPUTED from two paths agreeing. On the
+  // Windows runner they did not: `printf x > notes.txt`, with no `cd` anywhere,
+  // was exempted and its mutation marker dropped, so a session that wrote a file
+  // was asked for no evidence (BACKLOG 188). Canonicalising both sides was the
+  // first fix and did not hold; this asserts the invariant instead.
+  assert.equal(writesOutsideProject('printf x > notes.txt', repoRoot), false,
+    'no cd means the command ran in the project')
+  assert.equal(writesOutsideProject('sed -i "s/a/b/" plugin/bin/adr-lint', repoRoot), false)
   assert.equal(writesOutsideProject('cd /etc/passwd; touch plugin/bin/adr-lint', repoRoot), false,
     'cd into a file fails and the shell stays in the repository')
   assert.deepEqual(segmentDirectories('cd /etc/passwd; touch x', repoRoot).map(t => t.dir),

@@ -6688,6 +6688,24 @@
       ],
       "from": "                              f\"fenced ELSEWHERE is unproven here: a file that was planned and never \"\n",
       "to": "                              f\"fenced ELSEWHERE is not in doubt: nothing can run it, and never \"\n"
+    },
+    {
+      "label": "lifecycle: a bare directory name is a write target, not a skipped token",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "        if (candidate === '.' || candidate === '..') continue\n",
+      "to": "        if (!/[/.]/.test(candidate) || candidate === '.' || candidate === '..') continue\n"
+    },
+    {
+      "label": "lifecycle: a tilde path is expanded before it is judged outside the project",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      const expanded = token.startsWith('~/') ? path.join(os.homedir(), token.slice(2))\n        : (token === '~' ? os.homedir() : token)\n",
+      "to": "      const expanded = token\n"
     }
   ]
 }

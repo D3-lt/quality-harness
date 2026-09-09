@@ -413,19 +413,26 @@ def split_dependencies(value):
     return qualified, local
 
 
-def resolve_qualified_dep(pointer, corpus_dir):
+def resolve_qualified_dep(pointer, root, corpus_dir, tracked):
     """Whether `ADR-003-T4` names a record in this corpus that has that task.
 
     Resolved against the CORPUS rather than the sibling set — that is the whole
     change. The same argument that requires every cited ADR to resolve: a
     dependency naming a record that does not exist, or a task that record does
     not have, is a pointer to nothing.
+
+    None means the corpus could not be listed. This one BLOCKS, so a
+    could-not-look read as "no such record" is a false refusal of correct work,
+    which is the direction CLAUDE.md §16 weighs heaviest.
     """
     found = QUALIFIED_DEP.match(pointer)
-    if not found or corpus_dir is None:
+    if not found:
         return False
+    records = record_files(root, corpus_dir, tracked)
+    if records is None:
+        return None
     number, task = int(found.group("number")), found.group("task")
-    for candidate, candidate_number in record_files(corpus_dir):
+    for candidate, candidate_number in records:
         if candidate_number != number:
             continue
         tasks = candidate.with_suffix("") / "tasks"
@@ -433,6 +440,7 @@ def resolve_qualified_dep(pointer, corpus_dir):
             return False
         return any(id_matches(task, f.stem) for f in tasks.glob("*.md")
                    if f.name.lower() != "readme.md")
+    return False
     return False
 
 
@@ -1370,7 +1378,7 @@ def check_step_proof_map(path, text, secs, errors):
                     f"`adr-verify <task.md> --steps {step_id}`.")
 
 
-def check_task(path, all_stems, errors):
+def check_task(path, all_stems, errors, root, tracked):
     text = path.read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
     test_rows = task_tests_rows(secs)
@@ -1581,7 +1589,12 @@ def check_task(path, all_stems, errors):
         if not any(id_matches(d, s) for s in all_stems):
             errors.append(f"{path.name}: Depends-on '{d}' matches no sibling task file")
     for d in qualified:
-        if not resolve_qualified_dep(d, path.parent.parent.parent):
+        resolved = resolve_qualified_dep(d, root, path.parent.parent.parent, tracked)
+        if resolved is None:
+            errors.advise(f"{path.name}: Depends-on '{d}' was NOT resolved — the corpus could "
+                          f"not be listed from git. This is 'I could not look', not 'that "
+                          f"record does not exist'")
+        elif not resolved:
             errors.append(f"{path.name}: Depends-on '{d}' names no record in this corpus, or a "
                           f"record with no such task — a cross-record dependency must resolve, "
                           f"for the same reason a cited ADR must")
@@ -1880,7 +1893,7 @@ def check_dag(infos, readme_text, errors):
                           f"— {a} must land in a strictly earlier {mode}")
 
 
-def check_cross_record_cycles(corpus_dir, errors):
+def check_cross_record_cycles(root, corpus_dir, tracked, errors):
     """A dependency cycle that exists only in the UNION of records.
 
     Per-record `check_dag` cannot see one by construction: each record's graph is
@@ -1893,10 +1906,13 @@ def check_cross_record_cycles(corpus_dir, errors):
     already `check_dag`'s finding, and reporting it twice from two tools is how a
     reader learns to skim one of them.
     """
-    if corpus_dir is None or not corpus_dir.is_dir():
+    records = record_files(root, corpus_dir, tracked)
+    if records is None:
+        errors.advise("cross-record dependency cycles were NOT checked: this corpus could not "
+                      "be listed from git. This is 'I could not look', not 'there is no cycle'")
         return
     edges, nodes = [], set()
-    for record, record_number in record_files(corpus_dir):
+    for record, record_number in records:
         tasks = record.with_suffix("") / "tasks"
         if not tasks.is_dir():
             continue
@@ -3613,42 +3629,85 @@ def invalidates_pointer(text):
 # enumerated as ADR-2026, which is §66 returning in a spelling nobody checked.
 # Found by listing awkward filenames against this pattern rather than by reading
 # it — CLAUDE.md §5 applied to the guard itself (BACKLOG §191).
-RECORD_FILE_RE = re.compile(r"^(?!\d{4}[-_.]\d{2}[-_.]\d{2})(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+# ⚠ AND EVERY WIDTH A PERSON WRITES A DATE COMPONENT IN, not only two digits.
+# The separator fix above still read `2026-9-9-x.md` as ADR-2026, because the
+# guard demanded `\d{2}`. Found by a different-lineage review executing the
+# pattern rather than reading it — the same §5 move that found the separators,
+# one round later, on the guard that had just been widened. The year half is
+# anchored to `19|20` so a record whose slug OPENS with a number (`0042-01-x.md`)
+# is still enumerated: rejecting a real record is a false "not a record", and
+# only the date spellings are worth that cost.
+RECORD_FILE_RE = re.compile(r"^(?!(?:19|20)\d{2}[-_.]\d{1,2}[-_.])(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+# A TASK is not a record, and the task branch of `facts-gate-dispatch.sh` already
+# says so with this same `-T<n>` discriminator (BACKLOG §185). `001-T2.md`
+# enumerated as record 1, which made `resolve_record_number("ADR-001")` answer
+# True on a corpus where record 1 is genuinely absent — a missing record masked
+# by its own task. Rejected aggressively on purpose: admitting a task fails OPEN,
+# refusing a record only costs an advisory (CLAUDE.md §16).
+TASK_FILE_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+$", re.I)
 
 
-def record_files(corpus_dir):
-    """(path, number) for every record in the corpus, ADR- prefixed or not.
+def record_files(root, corpus_dir, tracked):
+    """(path, number) for every record in the corpus, or None for could-not-look.
 
     Named-based only, deliberately: reading every file's title to resolve a
     number would open the whole corpus on a check that runs per record, and an
     outside corpus has already reported this gate as slow (BACKLOG §162). A
     record whose NAME carries no number and whose title does is not enumerated
     here; that is a known limit, not an oversight.
+
+    ⚠ ENUMERATED FROM GIT, NEVER FROM THE DISK, and NONE IS NOT AN EMPTY CORPUS.
+    `Path.glob` suppresses the error it hits: an unreadable `docs/adr/` returned
+    an empty sequence, so `check_pointers` claimed a tracked record was absent
+    and `check_cross_record_cycles` built zero nodes and became a gate that
+    cannot fail. `tracked_paths` already draws that line and says why; sourcing
+    this from it is what makes both answers the same answer (CLAUDE.md §8,
+    ADR-005). `tracked` is positional and has NO DEFAULT so a call site that
+    forgets it fails loudly rather than falling back to the disk.
     """
-    if corpus_dir is None or not corpus_dir.is_dir():
-        return
-    for candidate in sorted(corpus_dir.glob("*.md")):
-        found = RECORD_FILE_RE.match(candidate.name)
+    if root is None or corpus_dir is None or tracked is None:
+        return None
+    try:
+        # Both sides resolved, or neither: `realpathSync` on one side only is
+        # what made the Windows path guard fail open (BACKLOG §188), and on
+        # macOS `/tmp` is `/private/tmp`. `.as_posix()` because git speaks
+        # forward slashes on every platform (CLAUDE.md §7).
+        prefix = corpus_dir.resolve().relative_to(Path(root).resolve()).as_posix()
+    except Exception:
+        return None
+    prefix = "" if prefix == "." else prefix + "/"
+    out = []
+    for entry in tracked:
+        entry = entry.replace("\\", "/")
+        if prefix and not entry.startswith(prefix):
+            continue
+        name = entry[len(prefix):]
+        if not name or "/" in name or not name.lower().endswith(".md"):
+            continue
+        if TASK_FILE_RE.match(name[:-len(".md")]):
+            continue
+        found = RECORD_FILE_RE.match(name)
         if found:
-            yield candidate, int(found.group(1))
+            out.append((corpus_dir / name, int(found.group(1))))
+    return sorted(out)
 
 
 
-def resolve_record_number(pointer, corpus_dir):
-    """Whether `ADR-001` names a record in this corpus.
+def resolve_record_number(pointer, root, corpus_dir, tracked):
+    """Whether `ADR-001` names a record in this corpus. None when it could not look.
 
     The same number comparison `resolve_qualified_dep` makes, without the task
     half — a cited record may have no tasks at all, and requiring one would
     report a real record as missing.
     """
     found = re.match(r"ADR-0*(\d{1,4})", pointer, re.I)
-    if not found or corpus_dir is None:
+    if not found:
         return False
+    records = record_files(root, corpus_dir, tracked)
+    if records is None:
+        return None
     number = int(found.group(1))
-    for candidate, candidate_number in record_files(corpus_dir):
-        if candidate_number == number:
-            return True
-    return False
+    return any(candidate_number == number for _, candidate_number in records)
 
 
 # A file extension as a person writes one: short, alphanumeric, no underscore.
@@ -3673,21 +3732,38 @@ def _looks_like_a_path(pointer):
     `§45` is a fragment OF the file cited beside it, not a file of its own;
     `section_fragments` pairs it back up and `check_pointers` resolves it there.
 
-    ⚠ AN EXTENSION IS REQUIRED, and a separator alone is not enough. Reported
-    2026-09-09 from a 41-record corpus: of 21 findings from this branch, 13 were
-    false and 8 of those were TRACKER IDS — `ops/NCR-04`, `obs/OBS-1` — which the
-    `[/\\]` rule claimed because they contain a slash. A citation with no
-    extension names no file this gate can resolve, so claiming it does is a
-    finding about the reader's notation rather than the record.
+    ⚠ AN EXTENSION IS REQUIRED, AND SO IS A SEPARATOR; either alone is not
+    enough. Reported 2026-09-09 from a 41-record corpus: of 21 findings from this
+    branch, 13 were false and 8 of those were TRACKER IDS — `ops/NCR-04`,
+    `obs/OBS-1` — which the `[/\\]` rule claimed because they contain a slash. A
+    citation with no extension names no file this gate can resolve.
 
-    That direction is deliberate: this branch ADVISES, so under-reporting costs a
-    weaker finding while over-reporting costs 8 false lines a reader learns to
-    skim (CLAUDE.md §16). A genuinely missing extensionless path is the known
-    cost, and it is smaller than the noise it replaces.
+    The other half was found a round later, by a different-lineage review: the
+    six-character extension cutoff fixed the reported `PageAnalyser.llm_calls`
+    and not the CLASS it belongs to, because `PageAnalyser.calls` is five. There
+    is no rule that separates `Identifier.identifier` from `crypto.py` — both are
+    a word, a dot and a word — so requiring a directory is the discriminator that
+    exists (CLAUDE.md §5: the class, not the instance).
+
+    That also retires the four MISLEADING findings the same report declined to
+    push on: a bare `crypto.py` that lives at `src/<pkg>/crypto.py` was reported
+    as matching no tracked file, which is literally true and reads as worse than
+    it is. A bare name can only be resolved by a suffix match, and the reporter
+    judged that ambiguity not worth buying.
+
+    The direction is deliberate and this branch ADVISES, so under-reporting costs
+    a weaker finding while over-reporting costs lines a reader learns to skim
+    (CLAUDE.md §16). A genuinely missing bare or extensionless path is the known
+    cost, and it is smaller than the noise it replaces. Measured on this
+    repository's own corpus: every cited path carries both, so nothing here
+    changes.
     """
     if pointer.startswith("§"):
         return False
-    return bool(FILE_EXTENSION_RE.search(without_line_suffix(pointer)))
+    # Both separators, never one: a structural test on a path that knows only
+    # `/` is a Windows-shaped hole (CLAUDE.md §7).
+    cited = without_line_suffix(pointer).replace("\\", "/")
+    return "/" in cited and bool(FILE_EXTENSION_RE.search(cited))
 
 
 SECTION_FRAGMENT = re.compile(r"§\s*(\d+)")
@@ -3770,7 +3846,8 @@ def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
         if not head:
             continue
         if re.match(r"ADR-\d", head, re.I):
-            if not resolve_record_number(head, corpus_dir):
+            cited_record = resolve_record_number(head, root, corpus_dir, tracked)
+            if cited_record is False:
                 errors.advise(f"{path.name}: Cross-references: cites `{head}`, which is not a "
                               f"record in this corpus")
         elif _looks_like_a_path(head) and not leaves_the_tree(head):
@@ -3793,7 +3870,7 @@ def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
             errors.advise(f"{path.name}: Cross-references: cites `{relative} §{number}`, but that "
                           f"file has no heading numbering section {number}")
     invalidated = invalidates_pointer(text)
-    if invalidated and not resolve_record_number(invalidated, corpus_dir):
+    if invalidated and resolve_record_number(invalidated, root, corpus_dir, tracked) is False:
         errors.advise(f"{path.name}: Invalidates: names `{invalidated}`, which is not a record in "
                       f"this corpus — a decision cannot invalidate one that was never written")
 
@@ -5253,6 +5330,9 @@ def main():
         sys.exit(2)
     errors = Findings()
     root = git_root(adr.parent)
+    # Listed ONCE for the whole record. Three checks resolve pointers against the
+    # corpus and every one of them used to glob the disk instead (CLAUDE.md §8).
+    tracked = tracked_paths(root)
     # Before any check runs, so every finding this record produces is judged the
     # same way. A record at or above the cutoff, or a corpus that declares none,
     # is checked exactly as it was before this existed.
@@ -5357,7 +5437,7 @@ def main():
             terminal = terminal_task_status(p.read_text(errors="replace", encoding="utf-8"))
             if terminal:
                 withdrawn_tasks[p.name] = terminal
-            covers, info = check_task(p, stems, errors)
+            covers, info = check_task(p, stems, errors, root, tracked)
             all_covers |= covers
             m = re.match(r"(T\d+)(?!\d)", p.stem, re.I)
             if m:
@@ -5397,8 +5477,8 @@ def main():
     check_enforcement(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
                       root)
     check_pointers(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
-                   root, adr.parent)
-    check_cross_record_cycles(adr.parent, errors)
+                   root, adr.parent, tracked)
+    check_cross_record_cycles(root, adr.parent, tracked, errors)
 
     if spec_file is not None:
         # inline-task ADRs carry **Covers:** lines in the ADR body itself

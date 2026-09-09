@@ -6767,8 +6767,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        found = RECORD_FILE_RE.match(candidate.name)\n",
-      "to": "        found = re.match(r\"^ADR-0*(\\d{1,4})\", candidate.name, re.I)\n"
+      "from": "        found = RECORD_FILE_RE.match(name)\n",
+      "to": "        found = re.match(r\"^ADR-0*(\\d{1,4})\", name, re.I)\n"
     },
     {
       "label": "lint: a date-named file's year is not read as a record number",
@@ -6776,7 +6776,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "RECORD_FILE_RE = re.compile(r\"^(?!\\d{4}[-_.]\\d{2}[-_.]\\d{2})(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
+      "from": "RECORD_FILE_RE = re.compile(r\"^(?!(?:19|20)\\d{2}[-_.]\\d{1,2}[-_.])(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
       "to": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n"
     },
     {
@@ -6785,7 +6785,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { grep -qE '^# ADR-[0-9]' \"$f\" && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' \"$f\"; }; then\n",
+      "from": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { bom_free \"$f\" | grep -qE '^# ADR-[0-9]' \\\n         && ! bom_free \"$f\" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; then\n",
       "to": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\"; then\n"
     },
     {
@@ -6794,8 +6794,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    return bool(FILE_EXTENSION_RE.search(without_line_suffix(pointer)))\n",
-      "to": "    return bool(re.search(r\"[/\\\\]\", pointer) or FILE_EXTENSION_RE.search(pointer))\n"
+      "from": "    return \"/\" in cited and bool(FILE_EXTENSION_RE.search(cited))\n",
+      "to": "    return bool(re.search(r\"[/\\\\]\", cited) or FILE_EXTENSION_RE.search(cited))\n"
     },
     {
       "label": "lint: a :line suffix is not part of the filename it follows",
@@ -6805,6 +6805,42 @@
       ],
       "from": "            cited = without_line_suffix(head)\n",
       "to": "            cited = head\n"
+    },
+    {
+      "label": "lint: a date component of any width keeps a year out of the record numbers",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "RECORD_FILE_RE = re.compile(r\"^(?!(?:19|20)\\d{2}[-_.]\\d{1,2}[-_.])(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
+      "to": "RECORD_FILE_RE = re.compile(r\"^(?!(?:19|20)\\d{2}[-_.]\\d{2}[-_.])(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n"
+    },
+    {
+      "label": "lint: a task file does not stand in for the record it belongs to",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if TASK_FILE_RE.match(name[:-len(\".md\")]):\n            continue\n",
+      "to": ""
+    },
+    {
+      "label": "lint: a corpus that cannot be listed is not a corpus with nothing in it",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if root is None or corpus_dir is None or tracked is None:\n        return None\n",
+      "to": "    if root is None or corpus_dir is None or tracked is None:\n        return []\n"
+    },
+    {
+      "label": "dispatch: a byte-order mark is stripped before a title is read",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "  printf '%s\\n' \"${first#$'\\xEF\\xBB\\xBF'}\"\n",
+      "to": "  printf '%s\\n' \"$first\"\n"
     }
   ]
 }

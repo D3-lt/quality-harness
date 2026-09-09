@@ -12241,3 +12241,90 @@ real defects in the reporting corpus: ADR-072 cites `015-byok-billing-model.md` 
 `036-go-live-blocker-remediation.md`. So the fix narrows the token classifier in FRONT of the check
 and leaves the check itself alone. Under-reporting is the safe half here because this branch advises
 (`CLAUDE.md` §16), and the known cost is a genuinely missing extensionless path.
+
+## 192. CLOSED 2026-09-09 — the release-candidate review found four defects the gate was green over, and one of them only exists on Linux
+
+The §12 review of `17078b0..54ee033`, run after `scripts/selftest.sh` was green and before the tag,
+returned REQUEST CHANGES with three HIGH findings and one MEDIUM. All four reproduce. The release
+was held and re-cut rather than shipped with them named, because three fail OPEN.
+
+### The corpus was enumerated from the DISK, next to a helper that already knew better
+
+`record_files` globbed `docs/adr/*.md`. `Path.glob` suppresses the error it hits, so an unreadable
+corpus directory returned an empty sequence and every caller read that as an empty corpus:
+
+```
+$ chmod 111 docs/adr        # the files inside are tracked and readable
+Path.glob sees: []
+git-backed records: [('001-first.md', 1), ('002-second.md', 2)]
+resolve ADR-002: True
+```
+
+`check_pointers` then advised that a tracked `ADR-002` is "not a record in this corpus", and
+`check_cross_record_cycles` built zero nodes and became a gate that cannot fail — the §190 symptom
+again, from a different cause. `resolve_qualified_dep` is worse: it BLOCKS, so a could-not-look was
+a refusal of correct work.
+
+⚠ **`tracked_paths` was already three hundred lines away, with a docstring saying exactly this** —
+that None and an empty set must never collapse, and that resolving against `Path.exists()` makes a
+gate's verdict depend on who is asking. `CLAUDE.md` §5's second half, again: the lesson was paid for
+in one function and rewritten fresh in another. `record_files` now takes `tracked` as a REQUIRED
+positional with no default, so a call site that forgets it raises rather than falling back to the
+disk. Two forgotten sites and seven test helpers did exactly that, loudly, on the first run.
+
+### The date guard covered one width, one commit after covering one separator
+
+`2026-9-9-x.md` still enumerated as ADR-2026. The lookahead demanded `\d{2}`, so every
+single-digit-component spelling walked past it. Enumerated with a command rather than read:
+
+```
+2026-9-9-x.md    -> 2026     2026-9-09-x.md -> 2026
+2026-09-9-x.md   -> 2026     2026-7-2_x.md  -> 2026
+2026-07-x.md     -> 2026     2026-07.md     -> 2026
+```
+
+The year half is anchored to `(?:19|20)` so `0042-01-foo.md` is still record 42: rejecting a real
+record costs a false advisory, and only the date spellings are worth that. **This is the same guard,
+found the same way, one round apart — the sweep the first fix should have run.**
+
+### A task file stood in for the record it belongs to
+
+`001-T2.md` enumerated as record 1, so `resolve_record_number("ADR-001")` answered True on a corpus
+where record 1 is genuinely absent. A missing record masked by its own task. Rejected aggressively
+(`TASK_FILE_RE`), because admitting a task fails open and refusing a record only costs an advisory
+(`CLAUDE.md` §16); `042-t3-storage.md` is asserted as still a record.
+
+### A UTF-8 BOM hid a record from the commit boundary, on Linux and Windows only
+
+Three bytes preserved §190's fail-open. Measured on one file, `EF BB BF # ADR-001: Legacy`:
+
+| grep | `^# ADR-[0-9]` | control, no BOM |
+|---|---|---|
+| GNU grep 3.11 (debian) | 0 | 1 |
+| busybox grep 1.37 | 0 | 1 |
+| BSD grep (macOS 15) | **1** | 1 |
+
+So a BOM-led legacy record routed nowhere on the platforms CI blocks on, and the boundary exited
+silently. Stripped with a shell helper rather than by anchoring to line 1: the title patterns scan
+the whole file on purpose, and narrowing them would trade one silence for another.
+
+⚠ **The reviewer's own evidence line said BOTH title greps miss it, and that did not reproduce here**
+— because it was read on macOS, where BSD grep skips the mark itself. The finding was right and its
+measurement was platform-silent. `CLAUDE.md` §7 applied to a REVIEW rather than to code: a review run
+on one platform carries that platform's answer, and the direction of the error is not predictable
+from the finding. **The routing assertion in the regression cannot fail on macOS either**, before or
+after the fix, so the helper is asserted directly beside it — an arm that fails on every platform.
+
+### The extension cutoff fixed the reported attribute and not its class
+
+`PageAnalyser.llm_calls` was six characters and `PageAnalyser.calls` is five. There is no rule that
+separates `Identifier.identifier` from `crypto.py` — both are a word, a dot and a word — so a
+SEPARATOR is required now, which is the discriminator that exists. That also retires the four
+misleading bare-filename findings §191 declined to push on. Measured on this repository's own
+corpus: every cited path carries both a separator and an extension, so nothing here changes.
+
+**What found these, since it was not reading the code:** a different-lineage review that executed the
+classifiers on inputs it constructed, and then a `chmod` fixture, a container running two other greps,
+and a filename sweep to confirm each one. Four review rounds went into 2.96.0 and a fifth into this
+release candidate; each found real defects, and none was sufficient. The residual is smaller, not
+zero.

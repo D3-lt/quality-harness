@@ -908,7 +908,7 @@ def main():
                 "## Verification Log\n\n## Mutation Log\n\n" + row + "\n",
                 encoding="utf-8")
             errs = lint.Findings()
-            lint.check_task(probe, set(), errs)
+            lint.check_task(probe, set(), errs, None, None)
             return [e for e in errs if "Mutation Log entry" in e]
 
     assert mlog_errors(human_mut) == [], \
@@ -2233,11 +2233,16 @@ def main():
     # shape it assumes ever changes, rather than passing against a fixture that
     # agrees with the code by construction.
     corpus = repo_root / "docs" / "adr"
-    assert lint.resolve_qualified_dep("ADR-003-T1", corpus), "ADR-003 has a T1"
-    assert not lint.resolve_qualified_dep("ADR-003-T9", corpus), "ADR-003 has no T9"
-    assert not lint.resolve_qualified_dep("ADR-900-T1", corpus), "no ADR-900 exists"
+    corpus_tracked = lint.tracked_paths(repo_root)
+    assert lint.resolve_qualified_dep("ADR-003-T1", repo_root, corpus, corpus_tracked), "ADR-003 has a T1"
+    assert not lint.resolve_qualified_dep("ADR-003-T9", repo_root, corpus, corpus_tracked), "ADR-003 has no T9"
+    assert not lint.resolve_qualified_dep("ADR-900-T1", repo_root, corpus, corpus_tracked), "no ADR-900 exists"
     # Zero-padding and the slash form are the same pointer.
-    assert lint.resolve_qualified_dep("ADR-0003/T1", corpus)
+    assert lint.resolve_qualified_dep("ADR-0003/T1", repo_root, corpus, corpus_tracked)
+    # ⚠ COULD-NOT-LOOK IS NOT "NO SUCH RECORD", and this one BLOCKS — a corpus
+    # that cannot be listed used to read as a corpus with nothing in it, which
+    # turned a missing observation into a refusal of correct work (ADR-005).
+    assert lint.resolve_qualified_dep("ADR-003-T1", repo_root, corpus, None) is None
 
     # A cycle ACROSS records. Per-record DAG checks cannot see one by
     # construction: each record's graph is acyclic on its own, and the cycle
@@ -2253,14 +2258,17 @@ def main():
             (tasks / f"{tid}-t.md").write_text(f"# Task {tid}: probe\n\n**Depends-on:** {dep}\n")
         found = []
         errs = lint.Findings()
-        lint.check_cross_record_cycles(cyc_dir, errs)
+        # `tracked` is injected rather than committed: the seam is what makes the
+        # could-not-look arm below reachable on a host with no git at all.
+        lint.check_cross_record_cycles(cyc_dir, cyc_dir,
+                                       [f"{n}.md" for n in ("ADR-010-a", "ADR-011-b")], errs)
         found = [str(e) for e in errs] + [str(a) for a in errs.advice]
         assert any("cycle" in f.lower() for f in found), f"a two-record cycle must be caught: {found}"
         assert any("010" in f and "011" in f for f in found), f"and must name both: {found}"
 
     # And the real corpus, which has cross-record edges and no cycle, stays quiet.
     errs = lint.Findings()
-    lint.check_cross_record_cycles(corpus, errs)
+    lint.check_cross_record_cycles(repo_root, corpus, corpus_tracked, errs)
     assert not list(errs) and not errs.advice, f"a healthy corpus must be silent: {list(errs)}"
 
     with tempfile.TemporaryDirectory() as js_tmp:
@@ -2371,7 +2379,7 @@ def main():
                 "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
                 "## Verification Log\n", encoding="utf-8")
             errs = lint.Findings()
-            lint.check_task(probe, set(), errs)
+            lint.check_task(probe, set(), errs, None, None)
             return [a for a in errs.advice if "TDD red" in a]
 
     assert step_one_advice("1. Confirm the gate is red first: `spec-verify --spec x`") == [], \
@@ -2832,7 +2840,7 @@ def main():
                 "## Stop Condition\n\nstop\n\n## Out of Scope\n\n- none\n\n"
                 "## Verification Log\n", encoding="utf-8")
             errs = lint.Findings()
-            lint.check_task(probe, set(stems), errs)
+            lint.check_task(probe, set(stems), errs, None, None)
             return ([e for e in errs if "Blocked-on" in e],
                     [a for a in errs.advice if "Blocked-on" in a])
 
@@ -4187,7 +4195,7 @@ def _lint_task(lint, body):
         probe = Path(tmp) / "T1-probe.md"
         probe.write_text(body, encoding="utf-8")
         errs = lint.Findings()
-        lint.check_task(probe, set(), errs)
+        lint.check_task(probe, set(), errs, None, None)
         return list(errs), list(errs.advice)
 
 
@@ -4493,7 +4501,7 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
             probe.write_text(_probe_task("true", log=row, tests=f"| `{name}` | `tests/test_gate.py` | v | — |"),
                              encoding="utf-8")
             errs = lint.Findings()
-            _, info = lint.check_task(probe, set(), errs)
+            _, info = lint.check_task(probe, set(), errs, None, None)
             out = lint.Findings()
             lint.check_tests_exist({"T1": info}, "| 1 | T1 | done |", out, root)
             return [e for e in out if "Tests table names" in e]
@@ -4510,7 +4518,7 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
                                      tests="| `test_empty` | `tests/test_empty.py` | v | — |"),
                          encoding="utf-8")
         errs = lint.Findings()
-        _, empty_info = lint.check_task(probe, set(), errs)
+        _, empty_info = lint.check_task(probe, set(), errs, None, None)
         out = lint.Findings()
         lint.check_tests_exist({"T1": empty_info}, "| 1 | T1 | done |", out, root)
         named_but_empty = [e for e in out if "Tests table names" in e]
@@ -4527,7 +4535,7 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
                                      tests="| `test_x` | `tests/never_created.py` | v | - |"),
                          encoding="utf-8")
         errs = lint.Findings()
-        _, ghost_info = lint.check_task(probe, set(), errs)
+        _, ghost_info = lint.check_task(probe, set(), errs, None, None)
         out = lint.Findings()
         lint.check_tests_exist({"T1": ghost_info}, "| 1 | T1 | done |", out, root)
         ghost = [e for e in out if "Tests table names" in e]

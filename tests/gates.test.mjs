@@ -599,6 +599,43 @@ test('a corpus that does not prefix its records with ADR- is still seen, and sti
   rmSync(temp, { recursive: true, force: true })
 })
 
+test('a cited tracker id or section number is not reported as a missing file', () => {
+  // docs/BACKLOG.md §191, triaged by the reporting corpus across all 21 findings
+  // this branch produced there: 13 false. `_looks_like_a_path` claimed anything
+  // with a slash OR a dot-suffix, so tracker ids and attribute references were
+  // reported as files that do not exist, and a real file cited with a `:line`
+  // suffix was reported missing because the suffix was matched as part of its name.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-xref-'))
+  const adrDir = join(temp, 'docs', 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  const cite = xref => ['# ADR-001: probe', '', '**Status:** Accepted',
+    '**Cross-references:** ' + xref,
+    '**Served-path change:** None — this decision changes no served path.', '',
+    '## Decision', '', 'Do it.', '', '## Alternatives Considered', '', '- Nothing.', '',
+    '## Consequences', '', 'Done.', ''].join('\n')
+  writeFileSync(join(adrDir, 'ADR-001-probe.md'), cite('none'))
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+  spawnSync('git', ['add', '-A'], { cwd: temp, timeout: 60_000 })
+  const flagged = xref => {
+    writeFileSync(join(adrDir, 'ADR-001-probe.md'), cite(xref))
+    spawnSync('git', ['add', '-A'], { cwd: temp, timeout: 60_000 })
+    return /no tracked file matches/.test(run('adr-lint', [join(adrDir, 'ADR-001-probe.md')], temp).stdout)
+  }
+  // The false ones, by the class the reporter counted them in.
+  assert.equal(flagged('`ops/NCR-04`'), false, 'a tracker id is not a file')
+  assert.equal(flagged('`obs/OBS-1`'), false, 'a tracker id is not a file')
+  assert.equal(flagged('`PageAnalyser.llm_calls`'), false, 'an attribute reference is not a file')
+  assert.equal(flagged('`§6.1`'), false, 'a section number is not a file')
+  // A REAL file cited with a line suffix resolves to the file.
+  assert.equal(flagged('`docs/adr/ADR-001-probe.md:137`'), false, 'the :line suffix is not part of the name')
+  // ⚠ THE MUST-FAIL ARMS. Without these the fix could be "claim nothing", which
+  // satisfies every assertion above — and this branch found two real stale paths
+  // in the reporting corpus, so its true positives are the point of keeping it.
+  assert.equal(flagged('`.tmp/scratch-notes.md`'), true, 'an untracked file is still reported')
+  assert.equal(flagged('`docs/adr/ADR-404-gone.md:12`'), true, 'a stale path with a line suffix is still reported')
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('editing a template does not fail the facts gate', () => {
   // A template ships placeholders on purpose. Reported 2026-08-25: editing a
   // user-global adr-template.md failed the gate, and because the path stayed in

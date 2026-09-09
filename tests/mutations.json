@@ -6726,15 +6726,6 @@
       "to": "            if False:\n"
     },
     {
-      "label": "dispatch: a record is not routed as a task because it lacks a modern section",
-      "file": "plugin/scripts/facts-gate-dispatch.sh",
-      "tests": [
-        "tests/gates.test.mjs"
-      ],
-      "from": "elif [[ \"$f\" == */tasks/*.md ]] || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' \"$f\" \\\n    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' \"$f\"; then\n",
-      "to": "elif [[ \"$f\" == */tasks/*.md ]] || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]+' \"$f\"; then\n"
-    },
-    {
       "label": "lint: a test expecting an exception is recognised as able to fail",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -6796,6 +6787,24 @@
       ],
       "from": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { grep -qE '^# ADR-[0-9]' \"$f\" && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' \"$f\"; }; then\n",
       "to": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\"; then\n"
+    },
+    {
+      "label": "lint: a cited token needs a file extension, not merely a slash",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return bool(FILE_EXTENSION_RE.search(without_line_suffix(pointer)))\n",
+      "to": "    return bool(re.search(r\"[/\\\\]\", pointer) or FILE_EXTENSION_RE.search(pointer))\n"
+    },
+    {
+      "label": "lint: a :line suffix is not part of the filename it follows",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            cited = without_line_suffix(head)\n",
+      "to": "            cited = head\n"
     }
   ]
 }

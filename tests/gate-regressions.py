@@ -2255,8 +2255,13 @@ def main():
         (amb_dir / "003-real" / "tasks").mkdir(parents=True)
         for name, text in (
             ("003-real.md", "# ADR-003: the real record\n"),
-            # a task, whose name is one character away from a record's
+            # A task in BOTH title spellings. `# Task ADR-…` is refused by the
+            # record pattern anyway; only `# ADR-003-T2` — which reads as a
+            # record until you notice the `-T2` — needs the task pattern, and a
+            # fixture carrying only the first spelling left that guard GREEN
+            # under mutation while appearing to test it.
             ("003-T2-plan.md", "# Task ADR-003-T2: a plan\n"),
+            ("003-T3.md", "# ADR-003-T3: a plan with no Task prefix\n"),
             # a RECORD whose slug merely opens with a T and a number
             ("004-t2.md", "# ADR-004: slug t2\n"),
             # a record numbered like a year — the `19|20` anchor excluded it
@@ -2269,8 +2274,8 @@ def main():
         (amb_dir / "003-real" / "tasks" / "T1-x.md").write_text(
             "# Task ADR-003-T1: x\n", encoding="utf-8")
         amb_tracked = {f"docs/adr/{n}" for n in
-                       ("003-real.md", "003-T2-plan.md", "004-t2.md", "2000-13-storage.md",
-                        "2026-9-9-router.md", "1899-9-9-notes.md")}
+                       ("003-real.md", "003-T2-plan.md", "003-T3.md", "004-t2.md",
+                        "2000-13-storage.md", "2026-9-9-router.md", "1899-9-9-notes.md")}
         amb_tracked.add("docs/adr/003-real/tasks/T1-x.md")
         numbers = {p.name: n for p, n in lint.record_files(amb_root, amb_dir, amb_tracked)}
         assert numbers == {"003-real.md": 3, "004-t2.md": 4, "2000-13-storage.md": 2000}, numbers

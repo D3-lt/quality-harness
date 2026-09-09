@@ -300,10 +300,15 @@ export async function runShellHook(scriptName, raw, options = {}) {
   if (scriptName === 'facts-gate-dispatch.sh' && options.archiveCatalog !== undefined) {
     args.push(process.platform === 'win32' ? windowsPathForBash(options.archiveCatalog) : options.archiveCatalog)
   }
+  const payloadForEnv = parsedHookPayload(raw, process.platform)
+  const sessionId = typeof payloadForEnv?.session_id === 'string' ? payloadForEnv.session_id : ''
   const run = await runWithTimeout(executable, [scriptPath, ...args], {
     input: normalizeHookPayload(raw),
     timeoutMs,
     maxOutputBytes,
+    env: sessionId
+      ? { ...process.env, QUALITY_HARNESS_SESSION_ID: sessionId }
+      : process.env,
   })
   finish(run.cleanupConfirmed === false ? 'cleanup-unconfirmed'
     : run.outputLimitExceeded ? 'output-limit' : run.timedOut ? 'timeout'

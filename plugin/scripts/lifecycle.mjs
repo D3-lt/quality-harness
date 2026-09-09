@@ -1761,6 +1761,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   }
 
   let lastMutation = -1
+  let authorship = 'none'
   let lastTreeRefresh = -1
   let lastValidation = -1
   let lastSuccessfulValidation = -1
@@ -1791,6 +1792,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
 
   for (const use of uses) {
     if (MUTATION_TOOLS.has(use.name) && executed(use)) {
+      authorship = 'native'
       lastMutation = Math.max(lastMutation, use.position)
       const filePath = use.input.file_path ?? use.input.notebook_path
       if (typeof filePath === 'string') record(use.position, filePath)
@@ -1806,6 +1808,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       } else if (navigation !== 'inert' && isPotentialMutationCommand(use.input.command)
           && !mutatesOnlyTempPaths(use.input.command, cwd)
           && !writesOutsideProject(use.input.command, cwd)) {
+        if (authorship !== 'native') authorship = 'bash'
         lastMutation = Math.max(lastMutation, use.position)
         const markdown = bashMarkdownMutationPaths(use.input.command, cwd)
         record(use.position, ...markdown)
@@ -1839,10 +1842,15 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
         }
       }
     }
+    if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)
+        && authorship === 'none') {
+      authorship = 'UNPROVEN'
+    }
   }
 
   return {
-    hasMutations: lastMutation >= 0,
+    authorship,
+    hasMutations: lastMutation >= 0 || authorship === 'UNPROVEN',
     verifiedAfterLastMutation: lastMutation >= 0
       && lastSuccessfulValidation > Math.max(lastMutation, lastTreeRefresh)
       && lastSuccessfulValidation === lastValidation,
@@ -3446,7 +3454,7 @@ function alreadyMentionedThisSession(sessionId, key) {
   try { return Date.now() - statSync(marker).mtimeMs <= SAID_MARKER_MAX_AGE_MS } catch { return false }
 }
 
-function firstMentionThisSession(sessionId, key) {
+export function firstMentionThisSession(sessionId, key) {
   const marker = sessionMentionPath(sessionId, key)
   if (!marker) return true
   sweepStaleMarkers()
@@ -4070,6 +4078,11 @@ async function readStdin() {
 }
 
 async function main() {
+  const argv = process.argv.slice(2)
+  if (argv[0] === '--first-mention') {
+    process.exitCode = firstMentionThisSession(argv[1], argv[2]) ? 0 : 1
+    return
+  }
   const startedAt = Date.now()
   let input
   try {

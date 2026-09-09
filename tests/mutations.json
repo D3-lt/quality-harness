@@ -6769,6 +6769,33 @@
       ],
       "from": "                    and not FUNCTION_DEF_RE.match(stage)):\n",
       "to": "                    and True):\n"
+    },
+    {
+      "label": "lint: a record is enumerated whether or not its name carries the ADR- prefix",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        found = RECORD_FILE_RE.match(candidate.name)\n",
+      "to": "        found = re.match(r\"^ADR-0*(\\d{1,4})\", candidate.name, re.I)\n"
+    },
+    {
+      "label": "lint: a date-named file's year is not read as a record number",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "RECORD_FILE_RE = re.compile(r\"^(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
+      "to": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n"
+    },
+    {
+      "label": "dispatch: a record identified only by its title still reaches adr-lint",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\" \\\n    || { grep -qE '^# ADR-[0-9]' \"$f\" && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' \"$f\"; }; then\n",
+      "to": "elif [[ \"$base\" == ADR-*.md ]] || is_adr \"$f\"; then\n"
     }
   ]
 }

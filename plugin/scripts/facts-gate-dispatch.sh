@@ -185,7 +185,16 @@ if [ -n "$archive_readme" ]; then
 elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
   gate="postmortem-verify"
   out=$("$BIN/postmortem-verify" "$f" 2>&1); rc=$?
-elif [[ "$base" == ADR-*.md ]] || is_adr "$f"; then
+# ...or a file whose TITLE says it is a record. Reported 2026-09-09 (BACKLOG §190):
+# §185 stopped legacy records being misrouted to the task branch, and nothing
+# claimed them instead — so the commit boundary went SILENT on records that fail
+# adr-lint when it is invoked directly. That traded a false failure for no
+# failure, which is the worse direction. `is_adr` requires a section half of any
+# older corpus predates, and those corpora also name records without the `ADR-`
+# prefix, so neither existing arm sees them. The title does — with the same
+# `-T<n>` discriminator §185 used, so a task is still a task.
+elif [[ "$base" == ADR-*.md ]] || is_adr "$f" \
+    || { grep -qE '^# ADR-[0-9]' "$f" && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' "$f"; }; then
   gate="adr-lint"
   out=$(run_adr_lint "$f" 2>&1); rc=$?
 # A TASK, and the `Task ` prefix is the signal — it used to be parsed and thrown

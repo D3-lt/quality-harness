@@ -12147,3 +12147,47 @@ for a reason unrelated to the guard under test.
 under-blocks, which is the safe half — with two smaller members recorded beside it. Each round above
 was real and none was sufficient; the honest claim is that the residual is smaller than it was, not
 that it is gone.
+
+## 190. CLOSED 2026-09-09 — §185 traded a false failure for SILENCE, and a corpus without the `ADR-` prefix was invisible to three checks
+
+Reported 2026-09-09 from a 41-record corpus running v2.96.0, with both findings reproduced here on a
+hermetic fixture before anything was changed. The reporter also confirmed §186 landed: their vacuity
+findings went from 23 blocking at 2.95.0 to 1 advisory at 2.96.0, and the `pytest.raises` shape stopped
+firing.
+
+⚠ **1. THE §185 FIX SHIPPED A REGRESSION IN THE WORSE DIRECTION.** §185 stopped legacy records being
+misrouted to the task branch and told their own ADR was missing. Nothing then claimed them. The
+`adr-lint` arm needs `[[ "$base" == ADR-*.md ]] || is_adr "$f"`, and a corpus that names records
+`NNN-slug.md` AND predates `## Existing Primitives Audit` satisfies neither — so the commit boundary
+went **silent** on records that fail `adr-lint` when it is invoked directly. Measured by the reporter
+on one tree: of 41 records that fail when linted directly, the facts gate reported nothing for 1 at
+2.95.0 and **35 at 2.96.0**.
+
+A false failure is loud and gets fixed. Silence is the fail-open half, and this is the second time in
+two days that closing one finding opened a worse one (§186 was the first). The dispatch now also
+accepts a file whose TITLE says it is a record, with the same `-T<n>` discriminator §185 introduced, so
+a task is still a task.
+
+⚠ **2. AND `glob("ADR-*.md")` MADE A CROSS-RECORD CHECK UNABLE TO FAIL.** Three sites enumerated the
+corpus that way. On a corpus with no `ADR-` prefixes that enumerates **nothing**, so:
+
+- every `Cross-references:` and `Invalidates:` pointer resolved to absent — 93 false advisory lines in
+  the reporting corpus, each naming a record sitting in the same directory;
+- `check_cross_record_cycles` built its graph from the same glob and therefore had **zero nodes**. A
+  gate that cannot fail is the defect this project exists to demonstrate the absence of, and it was
+  sitting in the gate.
+
+Proven by rename alone: `git mv 002-second.md ADR-002-second.md`, no content change, and the finding
+disappears. `adr-write/SKILL.md` tells authors to match existing repository naming, so the corpus was
+following this project's own advice.
+
+⚠ **THE FIX HAD TO NOT RE-OPEN §66.** Widening to `NNN-slug.md` naively reads the `2026` of
+`2026-07-12-router.md` as a record number and grows an ADR-2026 — measured on a real corpus 2026-08-26.
+`plugin/scripts/lifecycle.mjs::adrNumber` already carries the guard, so the enumerator BORROWS it
+rather than inventing one: `^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?(\d{1,4})[-._]`. That is `CLAUDE.md` §5
+applied to the change being written, which §179 recorded me failing to do two days running.
+
+**Known limit, stated rather than discovered later:** the enumerator is NAME-based. A record whose
+filename carries no number and whose title does is not enumerated, because reading every file's title
+on a per-record check would open the whole corpus, and §162 already reports this gate as slow on an
+outside corpus.

@@ -6776,7 +6776,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "RECORD_FILE_RE = re.compile(r\"^(?!\\d{4}-\\d{2}-\\d{2})(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
+      "from": "RECORD_FILE_RE = re.compile(r\"^(?!\\d{4}[-_.]\\d{2}[-_.]\\d{2})(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
       "to": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n"
     },
     {

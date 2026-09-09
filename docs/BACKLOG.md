@@ -12187,6 +12187,12 @@ following this project's own advice.
 rather than inventing one: `^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?(\d{1,4})[-._]`. That is `CLAUDE.md` §5
 applied to the change being written, which §179 recorded me failing to do two days running.
 
+⚠ **AND THE GUARD I BORROWED COVERED ONE SPELLING OF A DATE.** `2026-07-12-x.md` was excluded;
+`2026_07_12-x.md` and `2026.07.12-x.md` walked straight past and enumerated as **ADR-2026** — §66
+returning in a separator nobody had checked. Found by listing awkward filenames against the pattern
+rather than by reading it, which is the same §5 move applied to the guard instead of the bug. The
+lookahead is `\d{4}[-_.]\d{2}[-_.]\d{2}` now, and both spellings are asserted.
+
 ⚠ **AND THE FIX SUPERSEDED §185's MUTANT, which CI caught before I did.** `dispatch: a record is not
 routed as a task because it lacks a modern section` went GREEN on the shard: the widened `adr-lint`
 arm now claims a title-identified record BEFORE the task branch, so reverting that branch alone

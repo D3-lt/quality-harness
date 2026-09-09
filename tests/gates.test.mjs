@@ -596,6 +596,17 @@ test('a corpus that does not prefix its records with ADR- is still seen, and sti
   assert.match(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
     /cites `ADR-2026`, which is not a record in this corpus/,
     "a date-named file's year must not become a record number")
+  // ...and EVERY separator a date is written with, not only the hyphen. Found by
+  // listing awkward filenames against the pattern rather than by reading it:
+  // `2026_07_12-x.md` walked past the borrowed guard and enumerated as ADR-2026,
+  // which is §66 returning in a spelling nobody had checked (BACKLOG §191).
+  for (const dated of ['2026_07_12-router.md', '2026.07.12-router.md']) {
+    writeFileSync(join(adrDir, dated), '# ' + dated + '\n\nprose\n')
+    writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-2026`'))
+    assert.match(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
+      /cites `ADR-2026`, which is not a record in this corpus/, dated)
+    rmSync(join(adrDir, dated))
+  }
   rmSync(temp, { recursive: true, force: true })
 })
 

@@ -12399,6 +12399,12 @@ could-not-look read as nothing, one more time. `git ls-files -z` emits every nam
 
 ### What this round cost, and what it says
 
+⚠ **And one of the mutants written for this round went GREEN, which is a finding about the test.**
+The task-title guard survived deletion because the fixture titled its task `# Task ADR-003-T2` — a
+spelling the RECORD pattern refuses anyway. Only `# ADR-003-T2`, which reads as a record until you
+notice the suffix, needs that guard at all, and the fixture carried no such file while appearing to
+test it. Both spellings are in the fixture now.
+
 A superseded mutant was removed rather than left scoring GREEN: the date-width case no longer exists
 as a distinct mechanism, and a mutant that can only fail for another mutant's reason is not evidence
 (§188, §190). Five review rounds have now each found real defects in this release, and the two most

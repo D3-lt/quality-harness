@@ -3654,8 +3654,9 @@ def invalidates_pointer(text):
 # `2026-9-9-x.md` still enumerated as ADR-2026, and anchoring the year to
 # `19|20` then admitted `1899-9-9-notes.md` while excluding a real `2000-13-x.md`.
 # The `-T<n>` half was worse — `003-T2-plan.md` read as record 3 — and the
-# "a false negative only costs advice" premise it rested on was FALSE, because
-# `resolve_qualified_dep` blocks. A name-shaped rule over an open input space is
+# "a false negative only costs advice" premise it rested on was FALSE: BOTH
+# `resolve_qualified_dep` and `check_cross_record_cycles` append rather than
+# advise. A name-shaped rule over an open input space is
 # a claim about the world (CLAUDE.md §16), and the world here answers: a record's
 # TITLE says which it is. Only the two ambiguous shapes are read, so the corpus
 # is not opened for a check that runs per record (BACKLOG §162, §192).

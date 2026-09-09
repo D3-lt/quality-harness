@@ -158,8 +158,8 @@ Every gate in `bin/` is a plain `python3` or `node` program with a meaningful ex
 repository, or point at the installed copy, and run them directly:
 
 ```bash
-python3 plugin/bin/adr-lint docs/adr          # from a clone
-python3 "$(qh-root)/bin/adr-lint" docs/adr    # from an install, in a shell that has qh-root
+python3 plugin/bin/adr-lint docs/adr/ADR-001-skills-are-never-linked.md          # from a clone
+python3 "$(qh-root)/bin/adr-lint" docs/adr/ADR-001-skills-are-never-linked.md    # from an install, in a shell that has qh-root
 ```
 
 They exit non-zero on a failing finding and print advisories that do not fail; `qh-doctor`

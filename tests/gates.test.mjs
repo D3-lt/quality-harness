@@ -1953,7 +1953,7 @@ test('a document that never claimed to be a record is not judged as a malformed 
     for (const [label, file] of [['a backlog', backlog], ['a README', readme], ['a wave plan', wave]]) {
       const result = run('adr-lint', [file], dir)
       expectExit(result, 2, `${label} is not a record and must not be judged as one`)
-      assert.match(result.stdout, /NOT A DECISION RECORD/, label)
+      assert.match(result.stdout, /not-recognised/, label)
       assert.doesNotMatch(result.stdout, /Alternatives Considered/, `${label}: no content finding may be made`)
     }
 
@@ -1963,14 +1963,14 @@ test('a document that never claimed to be a record is not judged as a malformed 
     const named = write('ADR-901-no-status.md', '# ADR-901: a draft\n\n## Context\n\nprose\n')
     const namedResult = run('adr-lint', [named], dir)
     expectExit(namedResult, 1, 'a file named ADR- is judged even with no Status line')
-    assert.doesNotMatch(namedResult.stdout, /NOT A DECISION RECORD/)
+    assert.doesNotMatch(namedResult.stdout, /not-recognised|NOT A DECISION RECORD/)
 
     // And a document carrying a Status line is a record whatever it is called.
     const odd = write('decision-2026-09-05.md',
       '# A decision\n\n**Status:** Accepted\n\n## Context\n\nprose\n')
     const oddResult = run('adr-lint', [odd], dir)
     assert.notEqual(oddResult.status, 2, `a Status line makes it a record: ${oddResult.stdout}`)
-    assert.doesNotMatch(oddResult.stdout, /NOT A DECISION RECORD/)
+    assert.doesNotMatch(oddResult.stdout, /not-recognised|NOT A DECISION RECORD/)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

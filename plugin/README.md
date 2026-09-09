@@ -13,7 +13,7 @@ to go red.
 
 Ask, rather than trusting this page:
 
-    node "${CLAUDE_PLUGIN_ROOT}/scripts/qh-doctor.mjs"
+    node "$(qh-root)/scripts/qh-doctor.mjs"
 
 It reports the resolved root and version, what ships, whether each installed home
 gate is a forwarder or a stale copy, drift against this plugin, and how many lint

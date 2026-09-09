@@ -59,6 +59,13 @@ import {
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
+
+function gitInit(dir) {
+  const run = spawnSync('git', ['init', '-q', '-b', 'main'], {
+    cwd: dir, encoding: 'utf8', timeout: 15_000,
+  })
+  assert.equal(run.status ?? 0, 0, run.stderr)
+}
 // One root per run, removed at the end. Every fixture used to go straight under
 // the OS temp directory and nothing removed it: a Windows peer measured ~93
 // directories left per run, 1117 after twelve (2026-09-05), and the runner's
@@ -3329,6 +3336,7 @@ test('a Proposed record has no ready tasks, and the router says why it stopped c
   await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T9.md'), evidenced)
   await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-accepted', 'tasks', 'T1.md'), task('001-T1'))
   await writeFile(path.join(root, 'docs', 'adr', 'ADR-002-proposed', 'tasks', 'T1.md'), task('002-T1'))
+  gitInit(root)
 
   const state = observe(root)
   assert.equal(state.usesVerificationLog, true, 'otherwise this asserts nothing about status')
@@ -3399,6 +3407,7 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   await writeFile(path.join(root, 'docs', 'adr', '2026-08-17-dated', 'tasks', 'T9.md'),
     '# Task T9\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n\n'
     + '- 2026-08-29 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n')
+  gitInit(root)
 
   assert.deepEqual(adrCorpus(root).map(r => path.basename(r.file)), ['2026-08-17-dated.md'],
     'a record named by date is still a record')
@@ -3432,6 +3441,7 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   await writeFile(path.join(archived, 'docs', 'adr-archive', 'ADR-012', 'tasks', 'T1.md'), task)
   await writeFile(path.join(archived, 'docs', 'adr', 'ADR-020.md'), record('ADR-020: live'))
   await writeFile(path.join(archived, 'docs', 'adr', 'ADR-020', 'tasks', 'T1.md'), task)
+  gitInit(archived)
   const scoped = observe(archived)
   assert.deepEqual(scoped.ready.map(f => path.basename(path.dirname(path.dirname(f)))), ['ADR-020'],
     `an archived task is history, not next work:\n${scoped.ready.join('\n')}`)
@@ -3446,6 +3456,7 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   const blind = await mkdtemp(path.join(testTmp, 'quality-blind-'))
   await mkdir(path.join(blind, 'docs', 'adr', 'thing', 'tasks'), { recursive: true })
   await writeFile(path.join(blind, 'docs', 'adr', 'thing', 'tasks', 'T1.md'), task)
+  gitInit(blind)
   const { main: workNextMain } = await import('../plugin/scripts/work-next.mjs')
   const capture = fn => {
     const written = []
@@ -3462,6 +3473,7 @@ test('a date-named record is read, and a docs/adr that yields nothing says so', 
   // Must-fail direction: the sentence is about a corpus with tasks, not every
   // corpus. An empty tree still reads as empty.
   const empty = await mkdtemp(path.join(testTmp, 'quality-empty-'))
+  gitInit(empty)
   assert.doesNotMatch(capture(() => workNextMain([empty])), /discovery failure/,
     'an actually empty corpus is not reported as a discovery failure')
 })
@@ -4039,6 +4051,7 @@ test('importing the router does not end the process that imported it', async () 
   await writeFile(path.join(settledTasks, 'T1.md'),
     '# Task ADR-001-T1\n\n**Status:** done\n\n## Acceptance\n\n```bash\ntrue\n```\n\n'
     + '## Verification Log\n\n- 2026-08-26 · abc1234 · exit 0 · `true` · acceptance-sha256:beef\n')
+  gitInit(settled)
   const { nextStage: stageOf, observe: observeAt } = await import('../plugin/scripts/work-next.mjs')
   assert.equal(stageOf(observeAt(settled)), null,
     'the fixture must be in the nothing-waiting state, or the branch under test is never reached')
@@ -4094,6 +4107,7 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
     + '## Verification Log\n\n'
   await writeFile(path.join(tasks, 'T1.md'), backed)
   await writeFile(path.join(tasks, 'T2.md'), unbacked)
+  gitInit(root)
 
   const state = observe(root)
   assert.equal(state.usesVerificationLog, true)
@@ -4110,15 +4124,17 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
   assert.equal(foreign.usesVerificationLog, false)
   assert.notEqual(nextStage(foreign)?.id, 'adr-verify')
 
-  // An empty repository starts at the top of the DAG.
+  // An empty repository is told to verify work, not to start a spec.
   const empty = await mkdtemp(path.join(testTmp, 'quality-router-empty-'))
-  assert.equal(nextStage(observe(empty)).id, 'spec-write')
+  gitInit(empty)
+  assert.notEqual(nextStage(observe(empty))?.id, 'spec-write')
 
   // A superseded record still in the active corpus is a stage of its own.
   const retire = await mkdtemp(path.join(testTmp, 'quality-router-retire-'))
   await mkdir(path.join(retire, 'docs', 'adr'), { recursive: true })
   await writeFile(path.join(retire, 'docs', 'adr', 'ADR-002-old.md'),
     '# ADR-002: Old\n\n**Status:** Superseded by ADR-003\n')
+  gitInit(retire)
   assert.equal(nextStage(observe(retire)).id, 'adr-retire')
 
   // It reads and never blocks, in every branch it can print.
@@ -4141,10 +4157,13 @@ test('the lifecycle router reads corpus state, and says so when it cannot', asyn
   assert.match(run.stdout, /records evidence some other way/)
   assert.match(run.stdout, /adr-verify <task file>/)
 
-  // An empty repository is told where to start rather than shown an empty table.
-  const nothing = cli(await mkdtemp(path.join(testTmp, 'quality-router-cli-')))
+  // An empty repository is told no QH corpus is in use, not to write a spec.
+  const emptyCli = await mkdtemp(path.join(testTmp, 'quality-router-cli-'))
+  gitInit(emptyCli)
+  const nothing = cli(emptyCli)
   assert.equal(nothing.status, 0)
-  assert.match(nothing.stdout, /spec-write/)
+  assert.match(nothing.stdout, /no QH corpus is in use/i)
+  assert.doesNotMatch(nothing.stdout, /^Next: \/spec-write/m)
 
   // And the retirement branch prints its evidence.
   assert.match(cli(retire).stdout, /ADR-002-old\.md/)
@@ -4253,6 +4272,7 @@ test('a signed-off human-observed task is finished, not ready forever', async ()
   await mkdir(tasks, { recursive: true })
   await writeFile(path.join(root, 'docs', 'adr', 'ADR-001-probe.md'), record)
   await writeFile(path.join(tasks, 'T9.md'), evidenced)
+  gitInit(root)
 
   // UNSIGNED: genuinely still waiting on the person, so it IS ready.
   await writeFile(path.join(tasks, 'T1.md'), humanTask(false))

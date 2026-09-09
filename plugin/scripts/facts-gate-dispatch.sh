@@ -283,7 +283,23 @@ elif [[ "$base_lc" == "architecture.md" ]] \
   out=$("$BIN/arch-lint" "$f" 2>&1); rc=$?
 fi
 
-[ -z "$gate" ] && exit 0
+if [ -z "$gate" ]; then
+  # A miss is a named state (not-recognised / UNPROVEN), never a clean skip and
+  # never "not a decision record" for a file that holds some other ADR shape.
+  # Corpus gates do not run. Session PostToolUse names the miss at most once
+  # per file per session via lifecycle.mjs firstMentionThisSession.
+  if [ ! -e "$f" ] || [ ! -r "$f" ]; then
+    printf 'UNPROVEN: could not classify %s\n' "$f"
+    exit 0
+  fi
+  if [ "$boundary" = "PostToolUse" ] && [ -n "${QUALITY_HARNESS_SESSION_ID:-}" ]; then
+    if ! node "$SCRIPT_DIR/lifecycle.mjs" --first-mention "$QUALITY_HARNESS_SESSION_ID" "not-recognised:$f"; then
+      exit 0
+    fi
+  fi
+  printf 'not-recognised: %s is not a QH record or task\n' "$f"
+  exit 0
+fi
 [ "$rc" -eq 0 ] && exit 0
 
 # NOTHING HERE REFUSES A CALL. Every boundary informs; the decision stays with

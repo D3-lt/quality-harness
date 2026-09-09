@@ -62,6 +62,30 @@ esac
 # declares `date`, `category` or `severity`; a guide, a template or a skill declares
 # `name`/`description` or nothing. A path under `docs/postmortems/` still routes here
 # whatever its frontmatter, because there the author has said what the file is.
+# ⚠ A UTF-8 BOM DEFEATS A `^#` ANCHOR ON LINUX AND NOT ON macOS, so the platform
+# that develops this cannot see it (CLAUDE.md §7). Measured 2026-09-09 on the
+# same file, `EF BB BF # ADR-001: Legacy`:
+#
+#   GNU grep 3.11 (debian)   ^# ADR-[0-9]  ->  0 matches   (control, no BOM: 1)
+#   busybox grep 1.37        ^# ADR-[0-9]  ->  0 matches
+#   BSD grep (macOS 15)      ^# ADR-[0-9]  ->  1 match     — skips the BOM itself
+#
+# So a BOM-led legacy record routed nowhere on Linux and Windows and the boundary
+# exited silently — §190's fail-open, preserved by three bytes. Reported by a
+# different-lineage review whose own evidence line said BOTH greps miss it; that
+# did not reproduce here, because it was read on macOS. The finding was right and
+# its measurement was platform-silent.
+#
+# Stripped rather than anchored around: the title patterns below scan the WHOLE
+# file on purpose, and narrowing them to line 1 would trade this silence for
+# another one. `read`+`printf` are builtins, so this costs one `tail`.
+bom_free() {
+  local first
+  IFS= read -r first < "$1" || return 0
+  printf '%s\n' "${first#$'\xEF\xBB\xBF'}"
+  tail -n +2 -- "$1"
+}
+
 is_postmortem() {
   grep -q '^## Symptom' "$1" && grep -q '^## Root Cause' "$1" \
     && grep -q '^## Investigation' "$1" && grep -q '^## Lesson' "$1" \
@@ -139,7 +163,7 @@ git_archive_catalog_for() {
 collect_owning_adrs() {
   local search_dir="$1" candidate candidate_id
   for candidate in "$search_dir"/*.md; do
-    candidate_id=$(sed -nE '1s/^# (ADR-[^: ]+).*/\1/p' "$candidate")
+    candidate_id=$(bom_free "$candidate" | sed -nE '1s/^# (ADR-[^: ]+).*/\1/p')
     if [[ -n "$adr_ref" && -n "$candidate_id" \
           && "$adr_ref" != "$candidate_id" \
           && "$adr_ref" != "$candidate_id"-* ]]; then
@@ -156,7 +180,7 @@ is_adr() {
 
 is_architecture() {
   local markers
-  if grep -q '^# Architecture:' "$1" \
+  if bom_free "$1" | grep -q '^# Architecture:' \
     && grep -qE '^\*\*(Tier|Gate command|Last full audit):\*\*|^## (Module Map|Dependency Contracts|Concept Ownership \(DRY\)|Composition Root|Test Doubles|Trust & Data Boundaries|Superseded)$' "$1"; then
     return 0
   fi
@@ -194,7 +218,8 @@ elif [[ "$f" == */docs/postmortems/*.md ]] || is_postmortem "$f"; then
 # prefix, so neither existing arm sees them. The title does — with the same
 # `-T<n>` discriminator §185 used, so a task is still a task.
 elif [[ "$base" == ADR-*.md ]] || is_adr "$f" \
-    || { grep -qE '^# ADR-[0-9]' "$f" && ! grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' "$f"; }; then
+    || { bom_free "$f" | grep -qE '^# ADR-[0-9]' \
+         && ! bom_free "$f" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; }; then
   gate="adr-lint"
   out=$(run_adr_lint "$f" 2>&1); rc=$?
 # A TASK, and the `Task ` prefix is the signal — it used to be parsed and thrown
@@ -204,12 +229,12 @@ elif [[ "$base" == ADR-*.md ]] || is_adr "$f" \
 # without it fell through to here — and a record titled `# ADR-001: …` matched
 # `^# (Task )?ADR-`. It was then told its owning ADR was missing, while the record
 # IS the ADR. Section presence is not a proxy for record-ness; the title is.
-elif [[ "$f" == */tasks/*.md ]] || grep -qE '^# Task ADR-[A-Za-z0-9._-]+' "$f" \
-    || grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+' "$f"; then
+elif [[ "$f" == */tasks/*.md ]] || bom_free "$f" | grep -qE '^# Task ADR-[A-Za-z0-9._-]+' \
+    || bom_free "$f" | grep -qE '^# (Task )?ADR-[A-Za-z0-9._-]*-T[0-9]+'; then
   # Resolve the ADR id from the task itself. Never pick the first nearby ADR: a wrong green
   # verdict is worse than an explicit ambiguity failure.
   tdir=$(dirname "$f"); parent=$(dirname "$tdir")
-  adr_ref=$(sed -nE '1s/^# (Task )?(ADR-[^: ]+).*/\2/p' "$f")
+  adr_ref=$(bom_free "$f" | sed -nE '1s/^# (Task )?(ADR-[^: ]+).*/\2/p')
   candidates=()
   shopt -s nullglob
   collect_owning_adrs "$parent"

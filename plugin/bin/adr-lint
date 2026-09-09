@@ -425,9 +425,8 @@ def resolve_qualified_dep(pointer, corpus_dir):
     if not found or corpus_dir is None:
         return False
     number, task = int(found.group("number")), found.group("task")
-    for candidate in sorted(corpus_dir.glob("ADR-*.md")):
-        digits = re.match(r"ADR-0*(\d{1,4})", candidate.name, re.I)
-        if not digits or int(digits.group(1)) != number:
+    for candidate, candidate_number in record_files(corpus_dir):
+        if candidate_number != number:
             continue
         tasks = candidate.with_suffix("") / "tasks"
         if not tasks.is_dir():
@@ -1897,12 +1896,11 @@ def check_cross_record_cycles(corpus_dir, errors):
     if corpus_dir is None or not corpus_dir.is_dir():
         return
     edges, nodes = [], set()
-    for record in sorted(corpus_dir.glob("ADR-*.md")):
-        digits = re.match(r"ADR-0*(\d{1,4})", record.name, re.I)
+    for record, record_number in record_files(corpus_dir):
         tasks = record.with_suffix("") / "tasks"
-        if not digits or not tasks.is_dir():
+        if not tasks.is_dir():
             continue
-        here = digits.group(1).zfill(3)
+        here = str(record_number).zfill(3)
         for f in sorted(tasks.glob("*.md")):
             if f.name.lower() == "readme.md":
                 continue
@@ -3597,6 +3595,39 @@ def invalidates_pointer(text):
     # turned it into a pointer named `the`.
     return None
 
+# A corpus whose records are named `NNN-slug.md` rather than `ADR-NNN-slug.md`.
+# Reported 2026-09-09 from a 41-record corpus where EVERY cross-reference read as
+# "not a record in this corpus" — 93 advisory lines, all false — because the
+# enumeration globbed `ADR-*.md` and that corpus has none (BACKLOG §190). Worse
+# than the noise: `check_cross_record_cycles` built its graph from the same glob,
+# so on such a corpus it had ZERO nodes and was a gate that could not fail.
+#
+# ⚠ THE DATE GUARD IS NOT OPTIONAL AND IT IS BORROWED, NOT INVENTED.
+# `plugin/scripts/lifecycle.mjs::adrNumber` carries it from a real corpus on
+# 2026-08-26: unanchored, `(\d{3,4})[-._]` reads the `2026` of `2026-07-12-x.md`
+# as an ADR number and the corpus grows an ADR-2026 (BACKLOG §66). Widening the
+# enumeration without it would trade one corpus's false absence for another's
+# false record — which is CLAUDE.md §5, applied to the change being written.
+RECORD_FILE_RE = re.compile(r"^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+
+
+def record_files(corpus_dir):
+    """(path, number) for every record in the corpus, ADR- prefixed or not.
+
+    Named-based only, deliberately: reading every file's title to resolve a
+    number would open the whole corpus on a check that runs per record, and an
+    outside corpus has already reported this gate as slow (BACKLOG §162). A
+    record whose NAME carries no number and whose title does is not enumerated
+    here; that is a known limit, not an oversight.
+    """
+    if corpus_dir is None or not corpus_dir.is_dir():
+        return
+    for candidate in sorted(corpus_dir.glob("*.md")):
+        found = RECORD_FILE_RE.match(candidate.name)
+        if found:
+            yield candidate, int(found.group(1))
+
+
 
 def resolve_record_number(pointer, corpus_dir):
     """Whether `ADR-001` names a record in this corpus.
@@ -3609,9 +3640,8 @@ def resolve_record_number(pointer, corpus_dir):
     if not found or corpus_dir is None:
         return False
     number = int(found.group(1))
-    for candidate in sorted(corpus_dir.glob("ADR-*.md")):
-        digits = re.match(r"ADR-0*(\d{1,4})", candidate.name, re.I)
-        if digits and int(digits.group(1)) == number:
+    for candidate, candidate_number in record_files(corpus_dir):
+        if candidate_number == number:
             return True
     return False
 

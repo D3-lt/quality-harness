@@ -3646,13 +3646,43 @@ def resolve_record_number(pointer, corpus_dir):
     return False
 
 
+# A file extension as a person writes one: short, alphanumeric, no underscore.
+# `PageAnalyser.llm_calls` is an attribute reference and `§6.1` is a section
+# number; `\.\w+$` called both of them files (BACKLOG §191).
+FILE_EXTENSION_RE = re.compile(r"\.[A-Za-z][A-Za-z0-9]{0,5}$")
+# `docs/adr/060-x.md:137` names a file AND a line. The `§` spelling of the same
+# idea is already paired back to its file by `section_fragments`; this is the
+# other spelling, and without it the suffix was treated as part of the filename
+# and a tracked file was reported missing.
+LINE_SUFFIX_RE = re.compile(r":\d+$")
+
+
+def without_line_suffix(pointer):
+    """`path:137` -> `path`. Any other token unchanged."""
+    return LINE_SUFFIX_RE.sub("", pointer)
+
+
 def _looks_like_a_path(pointer):
-    """A cited token that names a file rather than a section or a phrase.
+    """A cited token that names a file rather than a section, id or attribute.
 
     `§45` is a fragment OF the file cited beside it, not a file of its own;
     `section_fragments` pairs it back up and `check_pointers` resolves it there.
+
+    ⚠ AN EXTENSION IS REQUIRED, and a separator alone is not enough. Reported
+    2026-09-09 from a 41-record corpus: of 21 findings from this branch, 13 were
+    false and 8 of those were TRACKER IDS — `ops/NCR-04`, `obs/OBS-1` — which the
+    `[/\\]` rule claimed because they contain a slash. A citation with no
+    extension names no file this gate can resolve, so claiming it does is a
+    finding about the reader's notation rather than the record.
+
+    That direction is deliberate: this branch ADVISES, so under-reporting costs a
+    weaker finding while over-reporting costs 8 false lines a reader learns to
+    skim (CLAUDE.md §16). A genuinely missing extensionless path is the known
+    cost, and it is smaller than the noise it replaces.
     """
-    return bool(re.search(r"[/\\]", pointer) or re.search(r"\.\w+$", pointer))
+    if pointer.startswith("§"):
+        return False
+    return bool(FILE_EXTENSION_RE.search(without_line_suffix(pointer)))
 
 
 SECTION_FRAGMENT = re.compile(r"§\s*(\d+)")
@@ -3739,7 +3769,11 @@ def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
                 errors.advise(f"{path.name}: Cross-references: cites `{head}`, which is not a "
                               f"record in this corpus")
         elif _looks_like_a_path(head) and not leaves_the_tree(head):
-            if not any(path_matches_declaration(f, head) for f in tracked):
+            # Resolve the FILE, not the file-plus-line. `docs/x.md:137` is a
+            # tracked file and a line number; matching the whole token against
+            # tracked paths reported a file that is right there as missing.
+            cited = without_line_suffix(head)
+            if not any(path_matches_declaration(f, cited) for f in tracked):
                 errors.advise(f"{path.name}: Cross-references: cites `{head}`, which no tracked "
                               f"file matches")
     for relative, number in section_fragments(cross_reference_pointers(text)):

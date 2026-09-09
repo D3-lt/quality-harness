@@ -12187,7 +12187,51 @@ following this project's own advice.
 rather than inventing one: `^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?(\d{1,4})[-._]`. That is `CLAUDE.md` §5
 applied to the change being written, which §179 recorded me failing to do two days running.
 
+⚠ **AND THE FIX SUPERSEDED §185's MUTANT, which CI caught before I did.** `dispatch: a record is not
+routed as a task because it lacks a modern section` went GREEN on the shard: the widened `adr-lint`
+arm now claims a title-identified record BEFORE the task branch, so reverting that branch alone
+changes nothing a test can observe — reaching §185's original bug would take two edits. The
+user-visible behaviour is covered by the new mutant (`a record identified only by its title still
+reaches adr-lint`), which is RED and fails to SILENCE, the exact symptom §190 is about. The
+superseded entry was removed rather than left scoring GREEN, the same call as §188's unobservable
+guard: a mutant that cannot fail is not evidence, it is a claim that something is untested when it
+is untestable.
+
 **Known limit, stated rather than discovered later:** the enumerator is NAME-based. A record whose
 filename carries no number and whose title does is not enumerated, because reading every file's title
 on a per-record check would open the whole corpus, and §162 already reports this gate as slow on an
 outside corpus.
+
+## 191. CLOSED 2026-09-09 — the PATH arm of the same cross-reference check: 13 of 21 findings false, triaged one by one from outside
+
+Reported 2026-09-09, immediately after §190, by the same corpus — and the report is a full triage of
+every finding the branch produced there, sorted into false, misleading and true. That shape is worth
+as much as the finding: it says which lines the check earns.
+
+`_looks_like_a_path` claimed any token containing a separator OR a dot-suffix. Both halves over-reach:
+
+| class | count | example | why it is not a file |
+|---|---|---|---|
+| tracker ids | 8 | `ops/NCR-04`, `obs/OBS-1`, `auth/AUTH-1` | a slash, no extension — the corpus has cited these for months |
+| attribute references | 2 | `PageAnalyser.llm_calls` | `\.\w+$` read `.llm_calls` as an extension |
+| section fragments | 1 | `§6.1` | the same rule read `.1` as an extension |
+| **a real file with a `:line`** | **2** | `docs/adr/060-x.md:137` | the file is tracked; the suffix was matched as part of its NAME |
+
+The last row is the one that mattered most and the reporter ranked it first for exactly the right
+reason: it **claims a tracked file is missing**. The `§` spelling of that idea was already paired back
+to its file by `section_fragments`; `:NNN` is the same idea spelled the other way and had no handling.
+
+An extension is required now, and the line suffix is stripped before resolution. `§`-led tokens are
+refused outright.
+
+**What was deliberately NOT changed**, because the reporter judged it and did not push: four findings
+name a bare filename that exists at a longer path (`crypto.py` under `src/wcag_scanner/`). The message
+is literally true and reads as worse than it is, but a suffix match brings its own ambiguity. Left
+alone, and said out loud rather than silently.
+
+⚠ **AND THE BRANCH EARNS ITS KEEP — the same report says so.** Four findings were TRUE, and two are
+real defects in the reporting corpus: ADR-072 cites `015-byok-billing-model.md` where the record is
+`015-wallet-billing-engine.md`, and ADR-073 cites `036-gdpr-erasure.md` where it is
+`036-go-live-blocker-remediation.md`. So the fix narrows the token classifier in FRONT of the check
+and leaves the check itself alone. Under-reporting is the safe half here because this branch advises
+(`CLAUDE.md` §16), and the known cost is a genuinely missing extensionless path.

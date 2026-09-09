@@ -12450,3 +12450,51 @@ written by the author of §16, two days after writing it.
 
 **Corrected here rather than carried:** this entry's parent claimed `resolve_qualified_dep` is the
 only blocking consumer. It is not; `check_cross_record_cycles` appends as well. See §193.
+
+## 195. OPEN 2026-09-09 — OpenCode support: what is already portable, what is not, and the one question that decides it
+
+Asked for from outside: users of the OpenCode terminal agent want this harness there. Nothing is
+being built yet. This entry records the surface as MEASURED on 2026-09-09 so the decision is made
+against facts rather than against a recollection of either product.
+
+### What is already host-neutral, measured
+
+`plugin/bin/qh-mcp` runs standalone, spoken to over stdio with no Claude Code anywhere:
+
+```
+initialize ok: {'name': 'quality-harness', 'version': '2.97.0'}
+tools: qh_adr_lint qh_adr_next qh_adr_debt qh_adr_judge qh_arch_lint
+       qh_adr_retire_check qh_postmortem_verify qh_adr_context qh_orientation
+```
+
+Every gate in `plugin/bin` is a standalone Python or Node executable with a `.cmd` shim beside it,
+so any agent that can run a shell command already has them. The whole `CLAUDE_*` coupling is three
+variables — `CLAUDE_PLUGIN_ROOT`, `CLAUDE_PLUGIN_DATA`, `CLAUDE_CODE_GIT_BASH_PATH`.
+
+### What does not port
+
+`hooks/hooks.json` is a Claude Code declaration. An OpenCode plugin is a JavaScript module exporting
+hook functions, loaded from `.opencode/plugins/` or the user's config directory, so the automatic
+boundary needs an adapter that shells out to `lifecycle.mjs` and `branch-state.mjs` — both of which
+already read a JSON payload on stdin, so the adapter is a payload translation rather than a rewrite.
+Documented event names that line up: `session.created`, `tool.execute.before`, `tool.execute.after`,
+`session.compacted`.
+
+### ⚠ THE QUESTION THAT DECIDES WHETHER THIS IS WORTH BUILDING
+
+**Their documented event list shows no clean equivalent of `UserPromptSubmit`.** `.claude/rules/15`
+is one incident about exactly this: `SessionStart` ALONE IS NOT ENOUGH, because it fires when a
+session begins and the session about to plan a release on a red branch is the one that never sees it.
+A port built on `session.created` alone would reproduce the failure §15 exists to prevent, and would
+do it silently, in someone else's harness, under this project's name.
+
+So the first thing to establish is whether OpenCode can run something on every user message —
+`message.updated` is a candidate and was NOT verified. **Unverified is the state this entry is in;
+it is not a plan.**
+
+### And the constraint that shapes any answer
+
+`CLAUDE.md` §14 and the Quality Harness section of the user's global rules both say the plugin
+package is the only source of truth, and that a second copy goes stale silently while serving an
+older shape under a name that looks current. That measured hazard is about copies of the SKILLS.
+Any OpenCode work has to be an adapter over the shipped gates, never a translated second lifecycle.

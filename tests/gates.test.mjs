@@ -607,6 +607,35 @@ test('a corpus that does not prefix its records with ADR- is still seen, and sti
       /cites `ADR-2026`, which is not a record in this corpus/, dated)
     rmSync(join(adrDir, dated))
   }
+  // ...and EVERY WIDTH, not only two digits. The separator fix above still read
+  // `2026-9-9-x.md` as ADR-2026 because the guard demanded `\d{2}` — found one
+  // round later by a different-lineage review executing the pattern. The year
+  // half is anchored to 19|20, so the arm below proves a record whose slug opens
+  // with a number is still enumerated rather than swept up with the dates.
+  for (const dated of ['2026-9-9-router.md', '2026-9-09-router.md', '2026-07-router.md']) {
+    writeFileSync(join(adrDir, dated), '# ' + dated + '\n\nprose\n')
+    writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-2026`'))
+    assert.match(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
+      /cites `ADR-2026`, which is not a record in this corpus/, dated)
+    rmSync(join(adrDir, dated))
+  }
+  // A TASK IS NOT A RECORD. `001-T2.md` enumerated as record 1, so a citation to
+  // a record that does not exist resolved against its own task file and the
+  // absence was masked (reported by review, 2026-09-09).
+  writeFileSync(join(adrDir, '003-T1.md'), '# Task ADR-003-T1: x\n\nprose\n')
+  writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-003`'))
+  assert.match(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
+    /cites `ADR-003`, which is not a record in this corpus/,
+    'a task file must not stand in for the record it belongs to')
+  rmSync(join(adrDir, '003-T1.md'))
+  // ...and the must-fail arm for that guard: a record whose slug merely OPENS
+  // with a T-and-a-number is still a record.
+  writeFileSync(join(adrDir, '003-t1-storage.md'), record('003', 'none'))
+  writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-003`'))
+  assert.doesNotMatch(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
+    /cites `ADR-003`, which is not a record in this corpus/,
+    'a record with a T-prefixed slug is still a record')
+  rmSync(join(adrDir, '003-t1-storage.md'))
   rmSync(temp, { recursive: true, force: true })
 })
 
@@ -644,6 +673,51 @@ test('a cited tracker id or section number is not reported as a missing file', (
   // in the reporting corpus, so its true positives are the point of keeping it.
   assert.equal(flagged('`.tmp/scratch-notes.md`'), true, 'an untracked file is still reported')
   assert.equal(flagged('`docs/adr/ADR-404-gone.md:12`'), true, 'a stale path with a line suffix is still reported')
+  // The six-character extension cutoff fixed the REPORTED attribute and not its
+  // class: `PageAnalyser.calls` is five. A separator is required now, which also
+  // retires the four misleading bare-filename findings the same report declined
+  // to push on (BACKLOG §191, second round).
+  assert.equal(flagged('`PageAnalyser.calls`'), false, 'a short attribute reference is not a file')
+  assert.equal(flagged('`crypto.py`'), false, 'a bare filename cannot be resolved without a suffix match')
+  rmSync(temp, { recursive: true, force: true })
+})
+
+test('a UTF-8 BOM does not hide a record from the commit boundary', () => {
+  // Reported by a different-lineage review, 2026-09-09. `^#` does not match a
+  // line that opens with EF BB BF on GNU grep 3.11 or busybox 1.37, and DOES on
+  // the BSD grep macOS ships — so a BOM-led legacy record routed nowhere on
+  // Linux and Windows and the boundary exited silently, preserving §190's
+  // fail-open with three bytes.
+  //
+  // ⚠ THE ROUTING ARM BELOW CANNOT FAIL ON macOS, before or after the fix,
+  // because BSD grep skips the BOM itself. It is a real assertion on the Linux
+  // and Windows CI jobs and a vacuous one here, so the helper is asserted
+  // DIRECTLY as well — that arm fails on every platform (CLAUDE.md §7).
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-bom-'))
+  const adrDir = join(temp, 'docs', 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  const BOM = '﻿'
+  writeFileSync(join(adrDir, '001-legacy.md'), BOM + '# ADR-001: Legacy\n\nprose\n')
+  writeFileSync(join(adrDir, '001-T2.md'), BOM + '# Task ADR-001-T2: legacy task\n\nprose\n')
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+
+  const dispatch = join(root, 'scripts', 'facts-gate-dispatch.sh')
+  const routed = run('bash', [dispatch, join(adrDir, '001-legacy.md')], temp, undefined,
+    { ...env, CLAUDE_PROJECT_DIR: temp })
+  assert.match(`${routed.stdout}${routed.stderr}`, /adr-lint/,
+    'a BOM-led record must still reach the record gate')
+
+  // The helper itself, on any platform: the first byte it emits is `#`.
+  const stripped = run('bash', ['-c',
+    'source /dev/stdin <<< "$(sed -n \'/^bom_free() {/,/^}/p\' "$1")"; bom_free "$2" | head -c 1',
+    'bash', dispatch, join(adrDir, '001-legacy.md')], temp)
+  assert.equal(stripped.stdout, '#', 'bom_free must strip a leading byte-order mark')
+  // ...and must not eat a byte from a file that carries no mark.
+  writeFileSync(join(adrDir, '002-plain.md'), '# ADR-002: Plain\n\nprose\n')
+  const plain = run('bash', ['-c',
+    'source /dev/stdin <<< "$(sed -n \'/^bom_free() {/,/^}/p\' "$1")"; bom_free "$2" | head -c 3',
+    'bash', dispatch, join(adrDir, '002-plain.md')], temp)
+  assert.equal(plain.stdout, '# A', 'bom_free must leave an unmarked file alone')
   rmSync(temp, { recursive: true, force: true })
 })
 

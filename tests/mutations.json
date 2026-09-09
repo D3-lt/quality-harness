@@ -1660,8 +1660,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\\n`)\n    return 0",
-      "to": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\\n`)\n    process.exit(0)"
+      "from": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    return 0",
+      "to": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    process.exit(0)"
     },
     {
       "label": "fixture: the corpus is copied, not linked to",
@@ -2920,8 +2920,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (entry.isDirectory() && /(^|[-_])archive(d|s)?$|^archive/i.test(entry.name)) continue",
-      "to": "      if (false) continue"
+      "from": "    if (isArchivePath(norm)) continue",
+      "to": "    if (false) continue"
     },
     {
       "label": "next: an undecided record is named as undecided before its tasks are offered",

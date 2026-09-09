@@ -5378,7 +5378,7 @@ def main():
     # must not become the way to silence one.
     if not re.match(r"(?:adr|spec)[-_]?\d", adr.name, re.I) and not re.search(
             r"(?m)^\*\*Status:\*\*", adr.read_text(errors="replace", encoding="utf-8")):
-        print(f"NOT A DECISION RECORD: {adr} has no **Status:** line and is not named ADR-…, "
+        print(f"not-recognised: {adr} has no **Status:** line and is not named ADR-…, "
               f"so nothing here was checked. This is not a finding about that file — "
               f"`adr-lint` reads one record at a time, and a backlog, a README or a "
               f"pre-registration kept beside the records is not one. `adr-debt <corpus-dir>` "

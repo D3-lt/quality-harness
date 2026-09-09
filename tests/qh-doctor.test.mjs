@@ -145,7 +145,7 @@ test('the plugin README points at the command and enumerates nothing', () => {
   // Same correction as the skill's: `/qh-doctor/` matched a second, prose mention,
   // so a mutation on the invocation left the assertion green. The door must give a
   // line a reader can paste.
-  assert.match(readme, /^\s+node "\$\{CLAUDE_PLUGIN_ROOT\}\/scripts\/qh-doctor\.mjs"$/m,
+  assert.match(readme, /^\s+node "\$\(qh-root\)\/scripts\/qh-doctor\.mjs"$/m,
     'the door must give a runnable invocation, not just name the command')
   assert.doesNotMatch(readme, NAMES_A_COUNT,
     'a count here rots on the next release — ask qh-doctor instead')

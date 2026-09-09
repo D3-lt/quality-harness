@@ -16,10 +16,10 @@
 //
 // Reads only. Suggests only. Exit 0 whatever it finds; a router that refused
 // would be the thing this harness spent a week removing.
-import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs'
+import { readFileSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { adrCorpus } from './lifecycle.mjs'
+import { adrCorpus, trackedPaths } from './lifecycle.mjs'
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
 // move, so the router explains itself instead of asserting.
@@ -33,34 +33,46 @@ const STAGES = [
   },
   {
     id: 'adr-execute',
-    entry: '/adr-execute <adr>',
+    entry: '/quality-harness:adr-execute <adr>',
     when: 'an Accepted ADR has tasks that are ready and not yet done',
     why: 'The decision is made and the work is not. Execute it task by task.',
   },
   {
     id: 'adr-retire',
-    entry: '/adr-retire',
+    entry: '/quality-harness:adr-retire',
     when: 'a record is Superseded or Withdrawn but still sits in the active corpus',
     why: 'A retired decision left active still governs, and adr-context will hand it '
       + 'to whoever edits those files next.',
   },
   {
     id: 'arch-write',
-    entry: '/arch-write',
+    entry: '/quality-harness:arch-write',
     when: 'every task of an Accepted ADR carries evidence and the architecture document '
       + 'is older than the record',
     why: 'The decision shipped and the map still shows the old shape.',
   },
   {
     id: 'adr-write',
-    entry: '/adr-write',
+    entry: '/quality-harness:adr-write',
     when: 'a spec is Ready-for-ADR and no record Covers its facts',
     why: 'Requirements are settled and nothing has decided how to meet them.',
   },
   {
+    id: 'adr-write-no-tasks',
+    entry: '/quality-harness:adr-write',
+    when: 'accepted records have no task files',
+    why: 'The records are classified and there is no task inventory to execute.',
+  },
+  {
+    id: 'core',
+    entry: 'verify or execute the current work',
+    when: 'no QH corpus is in use',
+    why: 'Claim verification does not require a decision corpus.',
+  },
+  {
     id: 'spec-write',
-    entry: '/spec-write',
-    when: 'there is no spec corpus at all, or the work is not yet decided',
+    entry: '/quality-harness:spec-write',
+    when: 'the work is not yet decided',
     why: 'Nothing downstream can be verified against requirements nobody wrote.',
   },
 ]
@@ -71,37 +83,79 @@ const read = file => {
   } catch { return '' }
 }
 
-function taskFiles(directory) {
+function posixRel(rel) {
+  return String(rel).replaceAll('\\', '/')
+}
+
+function isArchivePath(rel) {
+  return posixRel(rel).split('/').some(part =>
+    /(^|[-_])archive(d|s)?$|^archive/i.test(part))
+}
+
+function taskFiles(directory, listing) {
+  if (listing == null) return null
   const found = []
-  const walk = (dir, depth) => {
-    if (depth > 5 || found.length > 400) return
-    let entries = []
-    try { entries = readdirSync(dir, { withFileTypes: true }) } catch { return }
-    for (const entry of entries) {
-      const child = path.join(dir, entry.name)
-      // An ARCHIVE is history, never a work order (CLAUDE.md §10). `adr-state`
-      // and `adr-context` read archives deliberately — they answer "what was
-      // decided, and what was killed" — but this reader answers "what should be
-      // done next", and an archived task is by definition not that. Measured
-      // 2026-08-29 on a consumer corpus where this listed 75 archived tasks as
-      // executable next work, including a record archived precisely because
-      // re-running its acceptance would stamp July's work with today's date
-      // (docs/BACKLOG.md §62).
-      if (entry.isDirectory() && /(^|[-_])archive(d|s)?$|^archive/i.test(entry.name)) continue
-      if (entry.isDirectory()) walk(child, depth + 1)
-      else if (entry.name.toLowerCase().endsWith('.md') && /[\\/]tasks[\\/]/.test(child)
-        && !/readme\.md$/i.test(entry.name)) found.push(child)
-    }
+  for (const rel of listing) {
+    const norm = posixRel(rel)
+    if (!/(?:^|\/)tasks\//.test(norm)) continue
+    if (!/\.md$/i.test(norm)) continue
+    if (/readme\.md$/i.test(norm)) continue
+    if (isArchivePath(norm)) continue
+    found.push(path.join(directory, rel))
   }
-  const docs = path.join(directory, 'docs')
-  walk(existsSync(docs) ? docs : directory, 0)
   return found
+}
+
+function specFiles(directory, listing) {
+  if (listing == null) return null
+  return listing.filter(rel => /(?:^|\/)docs\/specs\/[^/]+\.md$/i.test(posixRel(rel)))
+    .map(rel => path.join(directory, rel))
+}
+
+function specStatus(text) {
+  if (!text) return null
+  const block = text.match(/\*\*Status:\*\*\s*([^\n*]+)/)
+  return block ? block[1].trim().replace(/\s*·.*$/, '').trim() : null
+}
+
+function specBoundIds(text) {
+  const ids = new Set()
+  for (const line of text.split('\n')) {
+    const fact = line.match(/^\|\s*(F-\d+)\s*\|/)
+    if (fact) ids.add(fact[1])
+    const scen = line.match(/^### (UC\d+-S\d+)\b/)
+    if (scen) ids.add(scen[1])
+  }
+  return ids
+}
+
+function coveredIds(corpus) {
+  const ids = new Set()
+  const files = []
+  for (const record of corpus) {
+    files.push(record.file)
+    for (const file of record.taskFiles ?? []) files.push(file)
+  }
+  for (const entry of corpus.unreadable ?? []) {
+    files.push(entry.file)
+    for (const file of entry.taskFiles ?? []) files.push(file)
+  }
+  for (const file of files) {
+    const text = read(file)
+    const line = text.match(/\*\*Covers:\*\*\s*([^\n]+)/)
+    if (!line || /\bnone\b/i.test(line[1])) continue
+    for (const id of line[1].match(/\b(?:F-\d+|UC\d+-S\d+)\b/g) ?? []) ids.add(id)
+  }
+  return ids
 }
 
 /** Observations, each carrying the evidence that produced it. */
 export function observe(directory) {
+  const listing = trackedPaths(directory)
+  const look = listing == null ? 'UNPROVEN' : 'ok'
   const corpus = adrCorpus(directory)
-  const tasks = taskFiles(directory)
+  const tasks = taskFiles(directory, listing) ?? []
+  const specPaths = specFiles(directory, listing) ?? []
 
   // A task that CLAIMS done without a tool-written exit-0 entry. The grammar is
   // adr-verify's, and anything off it was typed by a person.
@@ -168,9 +222,24 @@ export function observe(directory) {
   const retirable = corpus.filter(record => record.kind === 'graveyard'
     && !/[\\/]archive[\\/]/i.test(record.file))
 
-  const specs = existsSync(path.join(directory, 'docs', 'specs'))
-    ? readdirSync(path.join(directory, 'docs', 'specs')).filter(n => n.endsWith('.md'))
-    : []
+  const covered = coveredIds(corpus)
+  const unprovenSpecs = []
+  const uncoveredReady = []
+  for (const file of specPaths) {
+    const text = read(file)
+    if (!text) {
+      unprovenSpecs.push(file)
+      continue
+    }
+    const status = specStatus(text)
+    if (!status) {
+      unprovenSpecs.push(file)
+      continue
+    }
+    if (!/^Ready-for-ADR\b/i.test(status)) continue
+    const ids = [...specBoundIds(text)]
+    if (ids.length === 0 || ids.some(id => !covered.has(id))) uncoveredReady.push(file)
+  }
 
   // Does this corpus record evidence the way adr-verify writes it at all? On a
   // real 149-record corpus that uses its own conventions, 395 of 405 task files
@@ -180,6 +249,7 @@ export function observe(directory) {
     /^- \d{4}-\d{2}-\d{2} · .*· exit 0\b/m.test(read(file)))
 
   return {
+    look,
     usesVerificationLog,
     records: corpus.length,
     accepted: corpus.filter(record => record.kind === 'governing').length,
@@ -194,11 +264,15 @@ export function observe(directory) {
     ready,
     notYetDecided,
     retirable,
-    specs: specs.length,
+    specs: specPaths.length,
+    uncoveredReadySpecs: uncoveredReady,
+    unprovenSpecs,
+    specStatusUnproven: unprovenSpecs.length > 0,
   }
 }
 
 export function nextStage(state) {
+  if (state.look === 'UNPROVEN') return null
   // Both of these read the Verification Log grammar. A corpus that never writes
   // it is not behind on evidence; it keeps its records somewhere this tool
   // cannot see, and saying so is the honest answer.
@@ -209,8 +283,9 @@ export function nextStage(state) {
     return STAGES.find(s => s.id === 'adr-execute')
   }
   if (state.retirable.length) return STAGES.find(s => s.id === 'adr-retire')
-  if (state.accepted && !state.tasks) return STAGES.find(s => s.id === 'adr-write')
-  if (!state.records && !state.specs) return STAGES.find(s => s.id === 'spec-write')
+  if (state.uncoveredReadySpecs?.length) return STAGES.find(s => s.id === 'adr-write')
+  if (state.accepted && !state.tasks) return STAGES.find(s => s.id === 'adr-write-no-tasks')
+  if (!state.records && !state.specs && !state.tasks) return STAGES.find(s => s.id === 'core')
   return null
 }
 
@@ -240,6 +315,7 @@ export function main(argv = process.argv.slice(2)) {
 
   if (json) {
     process.stdout.write(`${JSON.stringify({
+      look: state.look,
       records: state.records,
       accepted: state.accepted,
       undecidedRecords: state.undecided,
@@ -249,9 +325,17 @@ export function main(argv = process.argv.slice(2)) {
       tasksUnderAnUndecidedRecord: state.notYetDecided.map(relative),
       retirableInActiveCorpus: state.retirable.map(record => relative(record.file)),
       specs: state.specs,
+      uncoveredReadySpecs: (state.uncoveredReadySpecs ?? []).map(relative),
+      unprovenSpecs: (state.unprovenSpecs ?? []).map(relative),
       next: stage ? { id: stage.id, entry: stage.entry, when: stage.when } : null,
       stages: STAGES.map(({ id, entry, when }) => ({ id, entry, when })),
     }, null, 2)}\n`)
+    return 0
+  }
+
+  if (state.look === 'UNPROVEN') {
+    process.stdout.write('could-not-look: git could not list the tree (UNPROVEN). '
+      + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
     return 0
   }
 
@@ -260,6 +344,10 @@ export function main(argv = process.argv.slice(2)) {
     + (state.undecided
       ? ` ${state.undecided} further record(s) carry a status this reader does not act on.\n`
       : '\n'))
+  if (state.unprovenSpecs?.length) {
+    process.stdout.write(`\n${state.unprovenSpecs.length} spec file(s) have an UNPROVEN Status `
+      + '(unreadable or missing). They are not counted as "not Ready-for-ADR".\n')
+  }
   // Said whatever the next stage is, and BEFORE it: work that exists and is not
   // executable is the answer to "why is nothing waiting?", and a reader who does
   // not get it concludes the corpus is finished (docs/BACKLOG.md §48).
@@ -297,17 +385,20 @@ export function main(argv = process.argv.slice(2)) {
         + 'this corpus records evidence some other way, so the execution stages cannot see it. '
         + 'Everything below is still the flow; only the state reading is blind here.\n')
     } else {
-      process.stdout.write('\nNothing in the corpus is waiting on a lifecycle stage. '
-        + 'Anything you start now begins at /spec-write or /adr-write.\n')
+      process.stdout.write('\nNothing in the QH corpus is waiting.\n')
     }
-    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(24)} ${entry.when}\n`)
+    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\n`)
     return 0
+  }
+  if (stage.id === 'core') {
+    process.stdout.write('\nNo QH corpus is in use.\n')
   }
   process.stdout.write(`\nNext: ${stage.entry}\n  because ${stage.when}.\n  ${stage.why}\n`)
   const evidence = stage.id === 'adr-verify' ? state.unbacked
     : stage.id === 'adr-execute' ? state.ready
       : stage.id === 'adr-retire' ? state.retirable.map(record => record.file)
-        : []
+        : stage.id === 'adr-write' ? state.uncoveredReadySpecs
+          : []
   for (const file of evidence.slice(0, 5)) process.stdout.write(`    ${relative(file)}\n`)
   if (evidence.length > 5) process.stdout.write(`    (+${evidence.length - 5} more)\n`)
   return 0

@@ -12366,6 +12366,15 @@ record only costs an advisory. `resolve_qualified_dep` BLOCKS, so it cost a refu
 the direction `CLAUDE.md` §16 weighs heaviest, applied to a gate by the person who had just written
 that section into the rules.
 
+⚠ **And the correction to that correction: `resolve_qualified_dep` is not the only blocking consumer,
+which is what this entry and the code comment beside it both claimed.**
+`check_cross_record_cycles` appends too. Asserted from memory while writing the fix, repeated to the
+next reviewer as a premise, and disproved by reading `errors.append` in the cycle check — a count of
+blocking callers is exactly the kind of claim `CLAUDE.md` says to establish with a command rather
+than from memory (§5).
+the direction `CLAUDE.md` §16 weighs heaviest, applied to a gate by the person who had just written
+that section into the rules.
+
 The name no longer decides. Only the two ambiguous shapes — task-shaped and date-shaped — are opened,
 and their TITLE says which they are; an ambiguous title that cannot be read leaves the whole
 enumeration unproven rather than dropping that one file. The corpus is still not opened for the
@@ -12411,3 +12420,33 @@ as a distinct mechanism, and a mutant that can only fail for another mutant's re
 serious were introduced BY the previous round's fix. That is the argument for the review being the
 gate rather than the formality, and for holding a release rather than naming a known fail-open in the
 notes.
+
+## 194. OPEN 2026-09-09 — round six: five real findings, all on inputs no reporting corpus has produced
+
+Round six of the release-candidate review returned REQUEST CHANGES with three HIGH and two MEDIUM
+against `0234e81`. **All five are real and none is being fixed before v2.97.0 ships.** That is a
+judgement about reachability, and the reasoning is recorded here so it can be disagreed with.
+
+| # | finding | direction | what it takes to reach |
+|---|---|---|---|
+| 1 | a case-only corpus path (`DOCS/ADR/…`) enumerates zero records on a case-insensitive filesystem | false BLOCK | invoking the gate with a path spelled differently from the one git holds |
+| 2 | `_title_says_record` reads an unrecognised title as "definitely not a record", and never compares the title's number to the filename's | both | an AMBIGUOUS-shaped filename only, plus frontmatter, leading spaces, a setext heading, or a title naming a different record |
+| 3 | one unreadable ambiguous entry demotes the WHOLE enumeration to unproven | blocking becomes advisory | a sparse checkout, or a tracked symlink that dangles |
+| 4 | a `tasks/` directory implemented as a submodule reads as no tasks | false BLOCK | a gitlink where the layout documents a directory |
+| 5 | `errors="replace"` collapses two filenames whose raw bytes differ | fail open | invalid UTF-8 bytes in a filename |
+
+**Why these are named rather than fixed.** §190, §192 and §193 were gates going SILENT on ordinary
+corpora — a legacy record, a BOM, a title with no trailing newline. These five need a mis-spelled
+path, a filename and a title disagreeing about which record they are, a sparse checkout, a submodule,
+or an invalid byte sequence. The severity labels held constant across three rounds while the
+reachability collapsed, and the labels hide that.
+
+⚠ **And the measured cost of another round is not zero.** Two of the last three HIGH findings were
+introduced BY the previous round's fix: §193's erased unterminated title came from §192's BOM helper,
+and §192's own narrowing came from §191's. A seventh round has a real chance of adding a defect more
+reachable than the five it closes. **Finding 2 is the one to take first** when this is picked up: it
+is the §16 inversion again — "not recognised as X" read as "known to be not-X" — in a predicate
+written by the author of §16, two days after writing it.
+
+**Corrected here rather than carried:** this entry's parent claimed `resolve_qualified_dep` is the
+only blocking consumer. It is not; `check_cross_record_cycles` appends as well. See §193.

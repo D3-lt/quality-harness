@@ -3608,7 +3608,12 @@ def invalidates_pointer(text):
 # as an ADR number and the corpus grows an ADR-2026 (BACKLOG §66). Widening the
 # enumeration without it would trade one corpus's false absence for another's
 # false record — which is CLAUDE.md §5, applied to the change being written.
-RECORD_FILE_RE = re.compile(r"^(?!\d{4}-\d{2}-\d{2})(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+# ⚠ EVERY SEPARATOR A DATE IS WRITTEN WITH, not only the hyphen. The borrowed
+# guard covered `2026-07-12-x.md`; `2026_07_12-x.md` walked straight past it and
+# enumerated as ADR-2026, which is §66 returning in a spelling nobody checked.
+# Found by listing awkward filenames against this pattern rather than by reading
+# it — CLAUDE.md §5 applied to the guard itself (BACKLOG §191).
+RECORD_FILE_RE = re.compile(r"^(?!\d{4}[-_.]\d{2}[-_.]\d{2})(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
 
 
 def record_files(corpus_dir):

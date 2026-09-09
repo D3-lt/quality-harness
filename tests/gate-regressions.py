@@ -2244,6 +2244,53 @@ def main():
     # turned a missing observation into a refusal of correct work (ADR-005).
     assert lint.resolve_qualified_dep("ADR-003-T1", repo_root, corpus, None) is None
 
+    # ⚠ THE NAME CANNOT SETTLE A TASK-SHAPED OR DATE-SHAPED FILENAME, so the
+    # TITLE does. Two rounds of widening a name-shaped guard by hand each left it
+    # wrong in BOTH directions, and the premise that a false negative here only
+    # costs advice was false — `resolve_qualified_dep` blocks (BACKLOG §193).
+    # Every row below was reported by a review that executed the classifier.
+    with tempfile.TemporaryDirectory() as amb:
+        amb_root = Path(amb)
+        amb_dir = amb_root / "docs" / "adr"
+        (amb_dir / "003-real" / "tasks").mkdir(parents=True)
+        for name, text in (
+            ("003-real.md", "# ADR-003: the real record\n"),
+            # a task, whose name is one character away from a record's
+            ("003-T2-plan.md", "# Task ADR-003-T2: a plan\n"),
+            # a RECORD whose slug merely opens with a T and a number
+            ("004-t2.md", "# ADR-004: slug t2\n"),
+            # a record numbered like a year — the `19|20` anchor excluded it
+            ("2000-13-storage.md", "# ADR-2000: storage\n"),
+            # dated notes in two spellings; neither is a record
+            ("2026-9-9-router.md", "router notes\n"),
+            ("1899-9-9-notes.md", "older notes\n"),
+        ):
+            (amb_dir / name).write_text(text, encoding="utf-8")
+        (amb_dir / "003-real" / "tasks" / "T1-x.md").write_text(
+            "# Task ADR-003-T1: x\n", encoding="utf-8")
+        amb_tracked = {f"docs/adr/{n}" for n in
+                       ("003-real.md", "003-T2-plan.md", "004-t2.md", "2000-13-storage.md",
+                        "2026-9-9-router.md", "1899-9-9-notes.md")}
+        amb_tracked.add("docs/adr/003-real/tasks/T1-x.md")
+        numbers = {p.name: n for p, n in lint.record_files(amb_root, amb_dir, amb_tracked)}
+        assert numbers == {"003-real.md": 3, "004-t2.md": 4, "2000-13-storage.md": 2000}, numbers
+        # The blocking resolver must not stop at the first name carrying the
+        # number: sorted order puts the task-shaped file first.
+        assert lint.resolve_qualified_dep("ADR-003-T1", amb_root, amb_dir, amb_tracked) is True
+        # ⚠ AND THE TASKS COME FROM GIT TOO. An IGNORED task sitting on disk used
+        # to satisfy a blocking dependency, because this half still globbed.
+        (amb_dir / "003-real" / "tasks" / "T9-ignored.md").write_text(
+            "# Task ADR-003-T9: ignored\n", encoding="utf-8")
+        assert lint.resolve_qualified_dep("ADR-003-T9", amb_root, amb_dir, amb_tracked) is False
+        # ...and a tracked task the worktree does not hold still resolves.
+        assert lint.resolve_qualified_dep(
+            "ADR-005-T1", amb_root, amb_dir,
+            amb_tracked | {"docs/adr/005-absent.md", "docs/adr/005-absent/tasks/T1-y.md"}) is True
+        # An ambiguous name whose title cannot be read leaves the WHOLE
+        # enumeration unproven rather than quietly dropping that one file.
+        assert lint.record_files(amb_root, amb_dir,
+                                 amb_tracked | {"docs/adr/2027-1-1-gone.md"}) is None
+
     # A cycle ACROSS records. Per-record DAG checks cannot see one by
     # construction: each record's graph is acyclic on its own, and the cycle
     # only exists in the union. Making cross-record edges real without widening

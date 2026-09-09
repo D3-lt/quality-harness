@@ -588,6 +588,14 @@ test('a corpus that does not prefix its records with ADR- is still seen, and sti
   writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-404`'))
   assert.match(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
     /cites `ADR-404`, which is not a record in this corpus/, 'a genuinely absent record is still named')
+  // ...and the §66 guard has to be ASSERTED, not merely fixtured: a GREEN mutant
+  // said so. The date-named file above only proves the guard when something
+  // depends on it, so cite the YEAR as a record — without the guard the date file
+  // enumerates as ADR-2026 and this citation silently resolves.
+  writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-2026`'))
+  assert.match(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
+    /cites `ADR-2026`, which is not a record in this corpus/,
+    "a date-named file's year must not become a record number")
   rmSync(temp, { recursive: true, force: true })
 })
 

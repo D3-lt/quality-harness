@@ -550,6 +550,47 @@ test('a legacy record is not routed as a task and told its own ADR is missing', 
   rmSync(temp, { recursive: true, force: true })
 })
 
+test('a corpus that does not prefix its records with ADR- is still seen, and still spoken to', () => {
+  // docs/BACKLOG.md §190, reported 2026-09-09 from a 41-record corpus. Two
+  // findings, and the first is a REGRESSION this project shipped in v2.96.0.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-unprefixed-'))
+  const adrDir = join(temp, 'docs', 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  const record = (id, xref) => ['# ADR-' + id + ': probe', '',
+    '**Status:** Accepted', '**Cross-references:** ' + xref,
+    '**Served-path change:** None — this decision changes no served path.', '',
+    '## Decision', '', 'Do it.', '',
+    '## Alternatives Considered', '', '- Nothing.', '',
+    '## Consequences', '', 'Done.', ''].join('\n')
+  writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-002`'))
+  writeFileSync(join(adrDir, '002-second.md'), record('002', 'none'))
+  // ⚠ THE §66 GUARD, carried into this enumeration rather than reinvented: a
+  // date-named file's YEAR must not be read as a record number, or widening the
+  // glob trades one corpus's false absence for another's false record.
+  writeFileSync(join(adrDir, '2026-07-12-router.md'), '# 2026-07-12 router notes\n\nprose\n')
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+
+  // 1. The commit boundary must not be SILENT on a record that fails adr-lint.
+  //    §185 stopped these being misrouted to the task branch and nothing claimed
+  //    them instead, which traded a false failure for none — the worse direction.
+  const dispatched = run('bash', [join(root, 'scripts', 'facts-gate-dispatch.sh'), join(adrDir, '001-first.md')],
+    temp, undefined, { ...env, CLAUDE_PROJECT_DIR: temp })
+  assert.match(`${dispatched.stdout}${dispatched.stderr}`, /adr-lint/,
+    'a record the linter would fail must not pass the boundary unremarked')
+
+  // 2. A cross-reference to a neighbour in the same directory resolves. The
+  //    enumeration globbed `ADR-*.md`, so such a corpus enumerated NOTHING and
+  //    every citation read as an absence.
+  const linted = run('adr-lint', [join(adrDir, '001-first.md')], temp)
+  assert.doesNotMatch(linted.stdout, /not a record in this corpus/)
+
+  // The must-fail arms. Without them the fix could be "resolve everything".
+  writeFileSync(join(adrDir, '001-first.md'), record('001', '`ADR-404`'))
+  assert.match(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
+    /cites `ADR-404`, which is not a record in this corpus/, 'a genuinely absent record is still named')
+  rmSync(temp, { recursive: true, force: true })
+})
+
 test('editing a template does not fail the facts gate', () => {
   // A template ships placeholders on purpose. Reported 2026-08-25: editing a
   // user-global adr-template.md failed the gate, and because the path stayed in

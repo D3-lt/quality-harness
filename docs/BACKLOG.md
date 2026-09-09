@@ -12328,3 +12328,80 @@ classifiers on inputs it constructed, and then a `chmod` fixture, a container ru
 and a filename sweep to confirm each one. Four review rounds went into 2.96.0 and a fifth into this
 release candidate; each found real defects, and none was sufficient. The residual is smaller, not
 zero.
+
+## 193. CLOSED 2026-09-09 — the fix for a fail-open shipped a fail-open, and a name-shaped guard was wrong in both directions twice
+
+Round five of the release-candidate review, on `acaf062`, returned REQUEST CHANGES with two HIGH and
+two MEDIUM. All four reproduce. The release was held a second time.
+
+### The BOM helper erased a file whose title has no trailing newline
+
+`IFS= read -r first < "$1" || return 0` returns non-zero at EOF **even when it filled the variable**,
+so a one-line record with no terminator produced nothing at all:
+
+```
+no-newline.md        raw grep = MATCH    through bom_free = miss
+bom+no-newline.md    raw grep = miss     through bom_free = miss
+```
+
+The first column is the state BEFORE this helper existed. So the fix for §192's fail-open introduced
+a NARROWER fail-open of the same kind, and the regression written beside it covered only
+newline-terminated input. It is byte-oriented now — a three-byte check, then `tail -c +4` or `cat` —
+which also preserves NULs and stops buffering an arbitrarily long first line.
+
+### A filename cannot settle whether a file is a record, and two rounds of guessing proved it
+
+The name-shaped guards were widened by hand twice, and each round was wrong in BOTH directions:
+
+| input | before | correct |
+|---|---|---|
+| `003-T2-plan.md` beside `003-real.md` | record 3, and sorted FIRST, so a real dependency BLOCKED | a task |
+| `004-t2.md` titled `# ADR-004` | excluded | a record |
+| `2000-13-storage.md` titled `# ADR-2000` | excluded by the `19|20` anchor | a record |
+| `1899-9-9-notes.md` | ADR-1899 | a dated note |
+| `2026-9-9-router.md` | ADR-2026 | a dated note |
+
+⚠ **And the premise the aggressive rejection rested on was FALSE.** §192 argued that refusing a real
+record only costs an advisory. `resolve_qualified_dep` BLOCKS, so it cost a refusal of correct work —
+the direction `CLAUDE.md` §16 weighs heaviest, applied to a gate by the person who had just written
+that section into the rules.
+
+The name no longer decides. Only the two ambiguous shapes — task-shaped and date-shaped — are opened,
+and their TITLE says which they are; an ambiguous title that cannot be read leaves the whole
+enumeration unproven rather than dropping that one file. The corpus is still not opened for the
+unambiguous majority (§162).
+
+### The blocking resolver stopped at the first name carrying the number
+
+`resolve_qualified_dep` returned on the first candidate whose number matched, and sorted order puts
+`003-T2-plan.md` ahead of `003-real.md`. It considers every candidate now.
+
+### And its task half was still reading the disk
+
+`tasks.is_dir()` and `tasks.glob()` survived §192's conversion untouched, so an IGNORED task file on
+disk satisfied a blocking dependency and a tracked task absent from a sparse worktree read as
+missing. Tasks come from `tracked` now, like the records — the same §8 fix, applied to the half that
+was missed the first time.
+
+### `core.quotePath=false` turns off ONE kind of escaping
+
+It suppresses the escaping of non-ASCII bytes and nothing else. A path holding a tab, a newline, a
+backslash or a quote still arrives C-quoted and wrapped in double quotes:
+
+```
+docs/adr/001-first.md
+"docs/adr/002-tab\there.md"
+```
+
+The parser rejected the quoted entry, so a corpus containing one such file enumerated as EMPTY —
+could-not-look read as nothing, one more time. `git ls-files -z` emits every name verbatim, and the
+`.strip()` is gone because a name's own bytes may be spaces.
+
+### What this round cost, and what it says
+
+A superseded mutant was removed rather than left scoring GREEN: the date-width case no longer exists
+as a distinct mechanism, and a mutant that can only fail for another mutant's reason is not evidence
+(§188, §190). Five review rounds have now each found real defects in this release, and the two most
+serious were introduced BY the previous round's fix. That is the argument for the review being the
+gate rather than the formality, and for holding a release rather than naming a known fail-open in the
+notes.

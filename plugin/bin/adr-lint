@@ -429,18 +429,31 @@ def resolve_qualified_dep(pointer, root, corpus_dir, tracked):
     if not found:
         return False
     records = record_files(root, corpus_dir, tracked)
-    if records is None:
+    prefix = corpus_prefix(root, corpus_dir)
+    if records is None or prefix is None:
         return None
     number, task = int(found.group("number")), found.group("task")
+    # EVERY candidate carrying that number, not the first. Sorted order put a
+    # task-shaped name ahead of the real record, and returning on the first
+    # match turned a resolvable dependency into a BLOCK.
     for candidate, candidate_number in records:
         if candidate_number != number:
             continue
-        tasks = candidate.with_suffix("") / "tasks"
-        if not tasks.is_dir():
-            return False
-        return any(id_matches(task, f.stem) for f in tasks.glob("*.md")
-                   if f.name.lower() != "readme.md")
-    return False
+        # Tasks from GIT as well, for the reason the records are: `tasks.is_dir()`
+        # and `tasks.glob()` let an IGNORED file on disk satisfy a blocking
+        # dependency, and made a tracked task read as absent in a sparse or
+        # damaged worktree (CLAUDE.md §8). Reported by review, 2026-09-09.
+        tasks_prefix = f"{prefix}{candidate.stem}/tasks/"
+        for entry in tracked:
+            if not entry.startswith(tasks_prefix):
+                continue
+            name = entry[len(tasks_prefix):]
+            if not name or "/" in name or not name.lower().endswith(".md"):
+                continue
+            if name.lower() == "readme.md":
+                continue
+            if id_matches(task, name[:-len(".md")]):
+                return True
     return False
 
 
@@ -3450,7 +3463,7 @@ def tracked_paths(root):
     if root is None:
         return None
     found = set()
-    for args in (["ls-files"], ["ls-files", "--others", "--exclude-standard"]):
+    for args in (["ls-files", "-z"], ["ls-files", "--others", "--exclude-standard", "-z"]):
         try:
             r = subprocess.run(["git", "-C", str(root), "-c", "core.quotePath=false", *args],
                                capture_output=True, text=True, timeout=30,
@@ -3459,7 +3472,14 @@ def tracked_paths(root):
             return None
         if r.returncode != 0:
             return None
-        found.update(line.strip() for line in r.stdout.splitlines() if line.strip())
+        # ⚠ NUL-SEPARATED, AND NOT `.strip()`ed. `core.quotePath=false` turns off
+        # the escaping of non-ASCII bytes and NOTHING ELSE: a path holding a tab,
+        # a newline, a backslash or a quote still comes back C-quoted and wrapped
+        # in double quotes, which `record_files` then rejected — so a corpus
+        # containing one such file enumerated as EMPTY rather than as
+        # could-not-look. `-z` emits every name verbatim. Stripping would corrupt
+        # a name whose own bytes are spaces (reported by review, 2026-09-09).
+        found.update(p for p in r.stdout.split("\0") if p)
     return found
 
 
@@ -3629,22 +3649,53 @@ def invalidates_pointer(text):
 # enumerated as ADR-2026, which is §66 returning in a spelling nobody checked.
 # Found by listing awkward filenames against this pattern rather than by reading
 # it — CLAUDE.md §5 applied to the guard itself (BACKLOG §191).
-# ⚠ AND EVERY WIDTH A PERSON WRITES A DATE COMPONENT IN, not only two digits.
-# The separator fix above still read `2026-9-9-x.md` as ADR-2026, because the
-# guard demanded `\d{2}`. Found by a different-lineage review executing the
-# pattern rather than reading it — the same §5 move that found the separators,
-# one round later, on the guard that had just been widened. The year half is
-# anchored to `19|20` so a record whose slug OPENS with a number (`0042-01-x.md`)
-# is still enumerated: rejecting a real record is a false "not a record", and
-# only the date spellings are worth that cost.
-RECORD_FILE_RE = re.compile(r"^(?!(?:19|20)\d{2}[-_.]\d{1,2}[-_.])(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
-# A TASK is not a record, and the task branch of `facts-gate-dispatch.sh` already
-# says so with this same `-T<n>` discriminator (BACKLOG §185). `001-T2.md`
-# enumerated as record 1, which made `resolve_record_number("ADR-001")` answer
-# True on a corpus where record 1 is genuinely absent — a missing record masked
-# by its own task. Rejected aggressively on purpose: admitting a task fails OPEN,
-# refusing a record only costs an advisory (CLAUDE.md §16).
-TASK_FILE_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+$", re.I)
+# ⚠ AND THE NAME CANNOT SETTLE EITHER CLASS, so it no longer tries. Two rounds
+# of widening this guard by hand each left it wrong in both directions:
+# `2026-9-9-x.md` still enumerated as ADR-2026, and anchoring the year to
+# `19|20` then admitted `1899-9-9-notes.md` while excluding a real `2000-13-x.md`.
+# The `-T<n>` half was worse — `003-T2-plan.md` read as record 3 — and the
+# "a false negative only costs advice" premise it rested on was FALSE, because
+# `resolve_qualified_dep` blocks. A name-shaped rule over an open input space is
+# a claim about the world (CLAUDE.md §16), and the world here answers: a record's
+# TITLE says which it is. Only the two ambiguous shapes are read, so the corpus
+# is not opened for a check that runs per record (BACKLOG §162, §192).
+RECORD_FILE_RE = re.compile(r"^(?:adr[-_]?)?(\d{1,4})[-._]", re.I)
+# `003-T2.md`, `003-T2-plan.md` — a task file, or a record with a slug of `t2`.
+TASK_SHAPED_RE = re.compile(r"^(?:adr[-_]?)?\d{1,4}[-._]T\d+(?:[-._]|$)", re.I)
+# `2026-07-12-x.md` in every separator and width — a dated note, or an ADR-2026.
+DATE_SHAPED_RE = re.compile(r"^\d{4}[-_.]\d{1,2}[-_.]")
+# Checked in this order: `# ADR-003-T2` is both, and it is a task.
+TITLE_TASK_RE = re.compile(r"^﻿?#\s*(?:Task\s+)?ADR[-_]?[A-Za-z0-9._-]*-T\d+", re.I)
+TITLE_RECORD_RE = re.compile(r"^﻿?#\s*ADR[-_ ]?\d", re.I)
+
+
+def corpus_prefix(root, corpus_dir):
+    """The corpus directory as git names it, or None when that cannot be said.
+
+    Both sides resolved, or neither: canonicalising one side of a path
+    comparison is what made the Windows path guard fail open (BACKLOG §188), and
+    on macOS `/tmp` is `/private/tmp`. `.as_posix()` because git speaks forward
+    slashes on every platform (CLAUDE.md §7).
+    """
+    if root is None or corpus_dir is None:
+        return None
+    try:
+        prefix = corpus_dir.resolve().relative_to(Path(root).resolve()).as_posix()
+    except Exception:
+        return None
+    return "" if prefix == "." else prefix + "/"
+
+
+def _title_says_record(path):
+    """True record, False not a record, None could not read the title."""
+    try:
+        with open(path, encoding="utf-8", errors="replace") as fh:
+            first = fh.readline()
+    except OSError:
+        return None
+    if TITLE_TASK_RE.match(first):
+        return False
+    return bool(TITLE_RECORD_RE.match(first))
 
 
 def record_files(root, corpus_dir, tracked):
@@ -3665,30 +3716,34 @@ def record_files(root, corpus_dir, tracked):
     ADR-005). `tracked` is positional and has NO DEFAULT so a call site that
     forgets it fails loudly rather than falling back to the disk.
     """
-    if root is None or corpus_dir is None or tracked is None:
+    if tracked is None:
         return None
-    try:
-        # Both sides resolved, or neither: `realpathSync` on one side only is
-        # what made the Windows path guard fail open (BACKLOG §188), and on
-        # macOS `/tmp` is `/private/tmp`. `.as_posix()` because git speaks
-        # forward slashes on every platform (CLAUDE.md §7).
-        prefix = corpus_dir.resolve().relative_to(Path(root).resolve()).as_posix()
-    except Exception:
+    prefix = corpus_prefix(root, corpus_dir)
+    if prefix is None:
         return None
-    prefix = "" if prefix == "." else prefix + "/"
     out = []
     for entry in tracked:
-        entry = entry.replace("\\", "/")
+        # NO SEPARATOR REWRITING HERE. git reports forward slashes on every
+        # platform, and a backslash in a POSIX name is part of the name.
         if prefix and not entry.startswith(prefix):
             continue
         name = entry[len(prefix):]
         if not name or "/" in name or not name.lower().endswith(".md"):
             continue
-        if TASK_FILE_RE.match(name[:-len(".md")]):
-            continue
         found = RECORD_FILE_RE.match(name)
-        if found:
-            out.append((corpus_dir / name, int(found.group(1))))
+        if not found:
+            continue
+        stem = name[:-len(".md")]
+        if TASK_SHAPED_RE.match(stem) or DATE_SHAPED_RE.match(name):
+            says = _title_says_record(corpus_dir / name)
+            if says is None:
+                # An ambiguous name whose title cannot be read leaves the WHOLE
+                # enumeration unproven. Dropping just that file would answer a
+                # question this never asked (ADR-005).
+                return None
+            if not says:
+                continue
+        out.append((corpus_dir / name, int(found.group(1))))
     return sorted(out)
 
 

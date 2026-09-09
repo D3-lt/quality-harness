@@ -718,6 +718,63 @@ test('a UTF-8 BOM does not hide a record from the commit boundary', () => {
     'source /dev/stdin <<< "$(sed -n \'/^bom_free() {/,/^}/p\' "$1")"; bom_free "$2" | head -c 3',
     'bash', dispatch, join(adrDir, '002-plain.md')], temp)
   assert.equal(plain.stdout, '# A', 'bom_free must leave an unmarked file alone')
+  // ⚠ AND A FILE WHOSE TITLE HAS NO TRAILING NEWLINE MUST SURVIVE. The first
+  // version of this helper read the line into a variable, and `read` returns
+  // non-zero at EOF even when it filled it — so such a record produced NOTHING
+  // and stopped routing. `grep` matched it before the helper existed and missed
+  // it after: a fail-open introduced by the fix for a fail-open (BACKLOG §193).
+  // This arm fails on every platform, unlike the routing assertion above.
+  writeFileSync(join(adrDir, '003-unterminated.md'), '# ADR-003: Unterminated')
+  writeFileSync(join(adrDir, '004-bom-unterminated.md'), BOM + '# ADR-004: Unterminated')
+  for (const name of ['003-unterminated.md', '004-bom-unterminated.md']) {
+    const kept = run('bash', ['-c',
+      'source /dev/stdin <<< "$(sed -n \'/^bom_free() {/,/^}/p\' "$1")"; bom_free "$2" | head -c 5',
+      'bash', dispatch, join(adrDir, name)], temp)
+    assert.equal(kept.stdout, '# ADR', name)
+    const dispatched = run('bash', [dispatch, join(adrDir, name)], temp, undefined,
+      { ...env, CLAUDE_PROJECT_DIR: temp })
+    assert.match(`${dispatched.stdout}${dispatched.stderr}`, /adr-lint/, name)
+  }
+  rmSync(temp, { recursive: true, force: true })
+})
+
+test('a tracked path git has to quote is still a record, not an empty corpus', () => {
+  // Reported by review, 2026-09-09 (BACKLOG §193). `core.quotePath=false` turns
+  // off the escaping of NON-ASCII bytes and nothing else: a name holding a tab,
+  // a newline, a backslash or a quote still comes back C-quoted and wrapped in
+  // double quotes. The parser rejected those entries, so a corpus containing one
+  // enumerated as EMPTY — which is the could-not-look-read-as-nothing this whole
+  // change is about. `git ls-files -z` emits every name verbatim.
+  const temp = mkdtempSync(join(os.tmpdir(), 'quality-harness-quoted-'))
+  const adrDir = join(temp, 'docs', 'adr')
+  mkdirSync(adrDir, { recursive: true })
+  const record = n => ['# ADR-' + n + ': probe', '', '**Status:** Accepted',
+    '**Cross-references:** `ADR-002`',
+    '**Served-path change:** None — this decision changes no served path.', '',
+    '## Decision', '', 'Do it.', '', '## Alternatives Considered', '', '- Nothing.', '',
+    '## Consequences', '', 'Done.', ''].join('\n')
+  writeFileSync(join(adrDir, '001-first.md'), record('001'))
+  // A tab is legal in a POSIX filename and illegal on Windows. Build it, and if
+  // the filesystem refuses, say which platform refused rather than asserting
+  // nothing quietly.
+  let quoted = null
+  try {
+    quoted = join(adrDir, '002-tab\there.md')
+    writeFileSync(quoted, record('002'))
+  } catch (err) {
+    console.log(`skip: this filesystem refuses a tab in a filename (${process.platform}): ${err.code}`)
+    rmSync(temp, { recursive: true, force: true })
+    return
+  }
+  spawnSync('git', ['init', '-q', '.'], { cwd: temp, timeout: 60_000 })
+  spawnSync('git', ['add', '-A'], { cwd: temp, timeout: 60_000 })
+  // git really does quote it — assert the premise, or this test proves nothing.
+  const listed = spawnSync('git', ['-c', 'core.quotePath=false', 'ls-files'],
+    { cwd: temp, timeout: 60_000, encoding: 'utf8' })
+  assert.match(listed.stdout, /"docs\/adr\/002-tab/, 'git must quote this name for the test to mean anything')
+  assert.doesNotMatch(run('adr-lint', [join(adrDir, '001-first.md')], temp).stdout,
+    /cites `ADR-002`, which is not a record in this corpus/,
+    'a record git has to quote is still a record')
   rmSync(temp, { recursive: true, force: true })
 })
 

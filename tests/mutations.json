@@ -2119,8 +2119,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        return any(id_matches(task, f.stem) for f in tasks.glob(\"*.md\")",
-      "to": "        return True or any(id_matches(task, f.stem) for f in tasks.glob(\"*.md\")"
+      "from": "            if id_matches(task, name[:-len(\".md\")]):\n",
+      "to": "            if True or id_matches(task, name[:-len(\".md\")]):\n"
     },
     {
       "label": "next: a foreign dependency that is not done blocks",
@@ -6776,8 +6776,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "RECORD_FILE_RE = re.compile(r\"^(?!(?:19|20)\\d{2}[-_.]\\d{1,2}[-_.])(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
-      "to": "RECORD_FILE_RE = re.compile(r\"^(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n"
+      "from": "        if TASK_SHAPED_RE.match(stem) or DATE_SHAPED_RE.match(name):\n",
+      "to": "        if TASK_SHAPED_RE.match(stem):\n"
     },
     {
       "label": "dispatch: a record identified only by its title still reaches adr-lint",
@@ -6807,21 +6807,12 @@
       "to": "            cited = head\n"
     },
     {
-      "label": "lint: a date component of any width keeps a year out of the record numbers",
-      "file": "plugin/bin/adr-lint",
-      "tests": [
-        "tests/gates.test.mjs"
-      ],
-      "from": "RECORD_FILE_RE = re.compile(r\"^(?!(?:19|20)\\d{2}[-_.]\\d{1,2}[-_.])(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n",
-      "to": "RECORD_FILE_RE = re.compile(r\"^(?!(?:19|20)\\d{2}[-_.]\\d{2}[-_.])(?:adr[-_]?)?(\\d{1,4})[-._]\", re.I)\n"
-    },
-    {
       "label": "lint: a task file does not stand in for the record it belongs to",
       "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        if TASK_FILE_RE.match(name[:-len(\".md\")]):\n            continue\n",
+      "from": "    if TITLE_TASK_RE.match(first):\n        return False\n",
       "to": ""
     },
     {
@@ -6830,8 +6821,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    if root is None or corpus_dir is None or tracked is None:\n        return None\n",
-      "to": "    if root is None or corpus_dir is None or tracked is None:\n        return []\n"
+      "from": "    if tracked is None:\n        return None\n",
+      "to": "    if tracked is None:\n        return []\n"
     },
     {
       "label": "dispatch: a byte-order mark is stripped before a title is read",
@@ -6839,8 +6830,35 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "  printf '%s\\n' \"${first#$'\\xEF\\xBB\\xBF'}\"\n",
-      "to": "  printf '%s\\n' \"$first\"\n"
+      "from": "    tail -c +4 -- \"$1\"\n",
+      "to": "    cat -- \"$1\"\n"
+    },
+    {
+      "label": "lint: a qualified dependency resolves against git, not the worktree",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        for entry in tracked:\n            if not entry.startswith(tasks_prefix):\n",
+      "to": "        for entry in sorted(str(p.relative_to(root)) for p in (candidate.with_suffix(\"\") / \"tasks\").glob(\"*.md\")):\n            if not entry.startswith(tasks_prefix):\n"
+    },
+    {
+      "label": "lint: a tracked path git has to quote is read verbatim",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for args in ([\"ls-files\", \"-z\"], [\"ls-files\", \"--others\", \"--exclude-standard\", \"-z\"]):\n",
+      "to": "    for args in ([\"ls-files\"], [\"ls-files\", \"--others\", \"--exclude-standard\"]):\n"
+    },
+    {
+      "label": "dispatch: a title with no trailing newline is not erased",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "bom_free() {\n  if [ \"$(head -c 3 -- \"$1\" 2>/dev/null | od -An -tx1 | tr -d ' \\n')\" = \"efbbbf\" ]; then\n    tail -c +4 -- \"$1\"\n  else\n    cat -- \"$1\"\n  fi\n}\n",
+      "to": "bom_free() {\n  local first\n  IFS= read -r first < \"$1\" || return 0\n  printf '%s\\n' \"${first#$'\\xEF\\xBB\\xBF'}\"\n  tail -n +2 -- \"$1\"\n}\n"
     }
   ]
 }

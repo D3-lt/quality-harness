@@ -78,12 +78,21 @@ esac
 #
 # Stripped rather than anchored around: the title patterns below scan the WHOLE
 # file on purpose, and narrowing them to line 1 would trade this silence for
-# another one. `read`+`printf` are builtins, so this costs one `tail`.
+# another one.
+#
+# ⚠ BYTE-ORIENTED, BECAUSE THE FIRST VERSION OF THIS HELPER ERASED A FILE. It
+# read the first line into a variable, and `read` returns non-zero at EOF even
+# when it filled that variable — so a one-line record with NO TRAILING NEWLINE
+# produced nothing at all. `grep '^# ADR-'` matched such a file BEFORE the helper
+# existed and missed it after: a fail-open introduced by the fix for a fail-open,
+# caught by review before it shipped (BACKLOG §193). Reading bytes also keeps
+# NULs and does not buffer an arbitrarily long first line.
 bom_free() {
-  local first
-  IFS= read -r first < "$1" || return 0
-  printf '%s\n' "${first#$'\xEF\xBB\xBF'}"
-  tail -n +2 -- "$1"
+  if [ "$(head -c 3 -- "$1" 2>/dev/null | od -An -tx1 | tr -d ' \n')" = "efbbbf" ]; then
+    tail -c +4 -- "$1"
+  else
+    cat -- "$1"
+  fi
 }
 
 is_postmortem() {

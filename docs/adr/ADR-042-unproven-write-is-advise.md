@@ -32,7 +32,8 @@ tests/statusline.test.mjs
 Members in: the UNPROVEN assignment; Stop / SubagentStop / TaskCompleted `unverified` at 4084; `sessionStateNote`; `statusline.mjs` `reading()`; PreToolUse commit advice at 4054 (F-2). Members left out: `work-next --json` `layer`; `hooks.json` `statusLine`; a path extractor for every MCP write; `tests/staged-product.test.mjs` F-24 (stays: `mcp__mrw__mrw_write` remains UNPROVEN, `lastMutation` -1).
 
 
-**Enforced-by:** `tests/lifecycle.test.mjs::an unknown non-Bash write is Advise, not nothing edited`, `tests/lifecycle.test.mjs::Read or Grep is not Advise every turn`, `tests/lifecycle.test.mjs::PreToolUse commit advice Advises on UNPROVEN writes`, `tests/lifecycle.test.mjs::PreToolUse commit advice does not Advise on Read or Grep`
+**Enforced-by:** `tests/lifecycle.test.mjs::an unknown non-Bash write is Advise, not nothing edited`, `tests/lifecycle.test.mjs::Read or Grep is not Advise every turn`, `tests/lifecycle.test.mjs::PreToolUse commit advice Advises on UNPROVEN writes`, `tests/lifecycle.test.mjs::PreToolUse commit advice does not Advise on Read or Grep`, `tests/lifecycle.test.mjs::PreToolUse commit advice still Advises after a failed git commit`, `tests/lifecycle.test.mjs::PreToolUse commit advice still Advises after a foreign git -C commit`
+
 **Invalidates:** none — checked (does not reverse ADR-038 F-24; does not reverse ADR-039–041)
 **Served-path change:** Stop, PreCompact `sessionStateNote`, the user-wired statusline segment, and PreToolUse on Bash `git commit` Advise on an unknown write; a Read/Grep turn does not.
 

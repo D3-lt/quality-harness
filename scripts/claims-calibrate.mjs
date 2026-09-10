@@ -7,7 +7,7 @@
 // ADR-035 T4. Repository tooling: it never ships, and nothing consumes its
 // output but a person reading it.
 //
-// ⚠ WHAT THIS CAN AND CANNOT MEASURE, AS OF 2026-09-06.
+// ⚠ WHAT THIS CAN AND CANNOT MEASURE, AS OF 2026-09-10.
 //
 // T4 was written to measure the PRECISION of `completionClaim()`'s `asserted`
 // arm: at least thirty real final messages, at most three `asserted` rows that
@@ -15,9 +15,9 @@
 //
 // The arm was withdrawn first — on 2026-09-04, by that same criterion, after the
 // first real eval run classified three answers `asserted` and all three were
-// honest disclosures (BACKLOG §124). `completionClaim()` now returns only
-// `unavailable`, `limited`, `hedged` or `none`; there is no producer of
-// `asserted` anywhere.
+// honest disclosures (BACKLOG §124). ADR-036 (Accepted 2026-09-07) then retired
+// it. `completionClaim()` now returns only `unavailable`, `limited`, `hedged`
+// or `none`; there is no producer of `asserted` anywhere.
 //
 // So the labelling exercise T4 describes CANNOT BE RUN: it asks a human to label
 // rows of a kind the classifier can no longer emit, and a run that reports
@@ -25,9 +25,8 @@
 // empty set dressed as a measurement. This tool refuses to print that number.
 //
 // What it does instead is the half that is still true and still useful: show the
-// distribution over REAL final messages of the arms that do exist. That is what
-// a future attempt to restore `asserted` has to beat, and it is the baseline
-// nobody has taken.
+// distribution over REAL final messages of the arms that do exist. ADR-036
+// retired the arm; this is not a restoration plan.
 //
 // Exit codes:
 //   0  a sample was printed
@@ -165,15 +164,15 @@ async function main() {
     console.log('')
     console.log('  `completionClaim()` has no `asserted` arm: it can return only unavailable,')
     console.log('  limited, hedged or none. The arm T4 was written to calibrate was withdrawn')
-    console.log('  on 2026-09-04 by ADR-035\'s own pre-registered criterion (BACKLOG §124),')
-    console.log('  before this measurement was ever taken.')
+    console.log('  on 2026-09-04 by ADR-035\'s own pre-registered criterion (BACKLOG §124)')
+    console.log('  and retired by ADR-036 (Accepted). There is no producer of `asserted`.')
     console.log('')
     console.log('  So there is nothing to label, and "0 false positives, precision 1.00" would')
     console.log('  be a number computed over an empty set. T4\'s criterion is satisfied by its')
     console.log('  OTHER branch — the arm is withdrawn — not by a calibration that passed.')
     console.log('')
-    console.log('  The distribution above is the baseline a restored `asserted` arm must beat.')
-    console.log('  It is not a verdict on anything.')
+    console.log('  The distribution above is the remaining arms on real finals. ADR-036')
+    console.log('  retired the arm; this is not a restoration plan.')
   } else {
     console.log('LABEL EVERY `asserted` ROW ABOVE BY HAND (ADR-035 T4 step 2).')
     console.log('The labels are the operator\'s, not this tool\'s. Count the rows that assert')

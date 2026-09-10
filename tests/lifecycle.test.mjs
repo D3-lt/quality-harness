@@ -2526,6 +2526,187 @@ test('PreToolUse commit advice stays quiet after a published UNPROVEN write then
   assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
 })
 
+test('PreToolUse commit advice still Advises after a failed git commit', async () => {
+  // Stress F1 against 5860b5b: executed() treated an is_error commit as a publish,
+  // so the second git commit was silent while HEAD never moved. Measured in a
+  // created repo: exit 1 for untracked, a clean tree, and a declining pre-commit hook.
+  const dir = await checkedProject('quality-failed-commit-')
+  const write = [
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+  ]
+  const failures = [
+    'nothing added to commit but untracked files present (use "git add" to track)',
+    'nothing to commit, working tree clean',
+    'hook declined to commit',
+  ]
+  for (const [index, detail] of failures.entries()) {
+    const file = path.join(dir, `fail-${index}.jsonl`)
+    await writeFile(file, transcript([
+      ...write,
+      toolUse('c1', 'Bash', { command: 'git commit -m probe' }),
+      toolResult('c1', true, detail),
+    ]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    assert.ok(state.lastUnprovenWrite > state.lastPublish, detail)
+    const run = runLifecycleHook({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+      session_id: `failed-commit-${index}-${Date.now()}-${process.pid}`,
+    })
+    assert.equal(run.status, 0, `${detail}: ${run.stderr}`)
+    assert.match(run.stderr, /would publish unchecked/i, detail)
+  }
+
+  const pendingFile = path.join(dir, 'no-result.jsonl')
+  await writeFile(pendingFile, transcript([
+    ...write,
+    toolUse('c1', 'Bash', { command: 'git commit -m probe' }),
+  ]))
+  const pendingState = analyzeTranscript(await readFile(pendingFile, 'utf8'), dir)
+  assert.ok(pendingState.lastUnprovenWrite > pendingState.lastPublish, 'no result is not a publish')
+  const pending = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: pendingFile, cwd: dir,
+    session_id: `failed-commit-pending-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(pending.status, 0, pending.stderr)
+  assert.match(pending.stderr, /would publish unchecked/i, pending.stderr)
+
+  const quietFile = path.join(dir, 'published.jsonl')
+  await writeFile(quietFile, transcript([
+    ...write,
+    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
+  ]))
+  const quietState = analyzeTranscript(await readFile(quietFile, 'utf8'), dir)
+  assert.equal(quietState.lastUnprovenWrite > quietState.lastPublish, false)
+  const quiet = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
+    session_id: `failed-commit-quiet-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(quiet.status, 0, quiet.stderr)
+  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, 'a successful local commit still publishes')
+})
+
+test('PreToolUse commit advice still Advises after a foreign git -C commit', async () => {
+  // Stress F2 against 5860b5b: isGitPublishCommand never asked where the command
+  // ran, so a commit in another repository moved this session's lastPublish.
+  const dir = await checkedProject('quality-foreign-publish-')
+  const other = await mkdtemp(path.join(testTmp, 'quality-foreign-other-'))
+  gitInit(other)
+  const write = [
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+  ]
+  const foreignCommands = [
+    `git -C "${bashPath(other)}" commit -m other`,
+    `git --git-dir "${bashPath(other)}/.git" --work-tree "${bashPath(other)}" commit -m other`,
+    `git -C "${bashPath(other)}" push`,
+    `git -C "${bashPath(path.relative(dir, other))}" commit -m other`,
+
+  ]
+  for (const [index, command] of foreignCommands.entries()) {
+    const file = path.join(dir, `foreign-${index}.jsonl`)
+    await writeFile(file, transcript([
+      ...write,
+      toolUse('c1', 'Bash', { command }), toolResult('c1'),
+    ]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    assert.ok(state.lastUnprovenWrite > state.lastPublish, command)
+    const run = runLifecycleHook({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+      session_id: `foreign-publish-${index}-${Date.now()}-${process.pid}`,
+    })
+    assert.equal(run.status, 0, `${command}: ${run.stderr}`)
+    assert.match(run.stderr, /would publish unchecked/i, command)
+  }
+
+  const erroredFile = path.join(dir, 'foreign-errored.jsonl')
+  await writeFile(erroredFile, transcript([
+    ...write,
+    toolUse('c1', 'Bash', { command: `git -C "${bashPath(other)}" commit -m other` }),
+    toolResult('c1', true, 'nothing to commit, working tree clean'),
+  ]))
+  const erroredState = analyzeTranscript(await readFile(erroredFile, 'utf8'), dir)
+  assert.ok(erroredState.lastUnprovenWrite > erroredState.lastPublish, 'an errored foreign commit is not a publish here')
+  const errored = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: erroredFile, cwd: dir,
+    session_id: `foreign-publish-errored-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(errored.status, 0, errored.stderr)
+  assert.match(errored.stderr, /would publish unchecked/i, errored.stderr)
+
+  const sandbox = await mkdtemp(path.join(testTmp, 'quality-foreign-nest-'))
+  const nested = path.join(sandbox, 'wrap', 'project')
+  await mkdir(nested, { recursive: true })
+  await writeFile(path.join(nested, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
+  gitInit(nested)
+  gitInit(sandbox)
+  const nestFile = path.join(nested, 'relative.jsonl')
+  await writeFile(nestFile, transcript([
+    ...write,
+    toolUse('c1', 'Bash', { command: 'git -C ../.. commit -m other' }), toolResult('c1'),
+  ]))
+  const nestState = analyzeTranscript(await readFile(nestFile, 'utf8'), nested)
+  assert.ok(nestState.lastUnprovenWrite > nestState.lastPublish, 'git -C ../..')
+  const nestRun = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: nestFile, cwd: nested,
+    session_id: `foreign-publish-relative-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(nestRun.status, 0, nestRun.stderr)
+  assert.match(nestRun.stderr, /would publish unchecked/i, 'git -C ../..')
+
+  assert.equal(isGitPublishCommand('echo git commit'), false)
+  assert.equal(isGitPublishCommand("cat <<'EOF'\ngit commit -m x\nEOF"), false)
+
+  const quietFile = path.join(dir, 'local.jsonl')
+  await writeFile(quietFile, transcript([
+    ...write,
+    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
+  ]))
+  const quietState = analyzeTranscript(await readFile(quietFile, 'utf8'), dir)
+  assert.equal(quietState.lastUnprovenWrite > quietState.lastPublish, false)
+  const quiet = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
+    session_id: `foreign-publish-quiet-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(quiet.status, 0, quiet.stderr)
+  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, 'a successful local commit still publishes')
+})
+
+test('PreToolUse commit advice still Advises when the transcript starts with a UTF-8 BOM', async () => {
+  const dir = await checkedProject('quality-bom-transcript-')
+  const dirtyFile = path.join(dir, 'bom-write.jsonl')
+  await writeFile(dirtyFile, `\uFEFF${transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+  ])}`)
+  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
+  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish, 'BOM must not drop the write')
+  const dirty = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
+    session_id: `bom-transcript-dirty-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(dirty.status, 0, dirty.stderr)
+  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
+
+  const quietFile = path.join(dir, 'bom-read.jsonl')
+  await writeFile(quietFile, `\uFEFF${transcript([
+    toolUse('r1', 'Read', { file_path: path.join(dir, 'a.py') }), toolResult('r1'),
+  ])}`)
+  const quiet = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
+    session_id: `bom-transcript-quiet-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(quiet.status, 0, quiet.stderr)
+  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, 'BOM + Read is still not a write')
+})
+
+
 
 
 test('SubagentStart states the leaf-role contract, and never blocks', async () => {

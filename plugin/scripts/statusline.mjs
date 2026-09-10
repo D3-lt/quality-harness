@@ -6,6 +6,9 @@
 //   QH ✗ 3 unverified       edits since the last publish, nothing has checked them
 //   QH · nothing edited     (only when the project names a check)
 //   QH ? transcript 61MB    too large to read per render; not a verdict
+//   QH CI ✓                 CI of this branch is green (no session token)
+//   QH CI ✗ / QH CI … / QH CI ?   CI red, in flight, or unknown
+//   QH ✓ checked · CI ✓     session token composed with CI
 //   (nothing)               no transcript, not a project this plugin can read
 //
 // Reads the statusLine JSON Claude Code pipes to a statusLine command (stdin:

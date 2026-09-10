@@ -50,6 +50,8 @@ node --test --test-name-pattern 'empty tree is not routed|discovery failure, not
 
 ## Mutation Log
 
+- 2026-09-10 · bbaba36 · mutant killed · exit 1 · `plugin/scripts/work-next.mjs` · empty tree must name Core, not funnel the adopter into spec-write · acceptance-sha256:fd097bdc6a984c63dddc59e11399870d5db076a8a6d098df95b655f0c8f510b9
+
 ## Invariants
 
 - `trackedPaths` returning null is UNPROVEN, never zero specs or zero tasks.
@@ -67,4 +69,9 @@ A routing test that cannot fail on an empty tree, or that treats git failure as 
 
 - Cursor / OpenCode adapters (T3 / F-17)
 
+## Notes
+
+Class: a missing corpus was treated as a reason to begin at spec-write. Sweep: `rg -n "spec-write|id === 'core'" plugin/scripts/work-next.mjs` — `nextStage` returns `core` for zero records/specs/tasks and never `spec-write`; leftover and UNPROVEN refuse that Next line in prose; STAGES still lists spec-write as a named skill. Covered siblings: leftover (F-18), discovery failure (F-7), git cannot list (F-30/F-31). None left.
+
 ## Verification Log
+- 2026-09-10 · bbaba36 · exit 0 · `node --test --test-name-pattern 'empty tree is not routed|discovery failure, not spec-write|could-not-look is UNPROVEN|null-stage leftover|skill names are namespaced|two adr-write arms|Ready-for-ADR spec with no covering|unreadable spec Status|disk-only specs and tasks|Proposed and Draft unfinished' tests/staged-product.test.mjs` · acceptance-sha256:fd097bdc6a984c63dddc59e11399870d5db076a8a6d098df95b655f0c8f510b9 · ms:968

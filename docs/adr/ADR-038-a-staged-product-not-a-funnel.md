@@ -1,6 +1,6 @@
 # ADR-038: A staged product, not a funnel
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-09
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-09-a-staged-product-not-a-funnel.md`

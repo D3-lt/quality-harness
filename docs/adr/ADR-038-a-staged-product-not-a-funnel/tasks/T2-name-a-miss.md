@@ -52,6 +52,8 @@ node --test --test-name-pattern 'QH-shaped record still reaches|MADR file is not
 
 ## Mutation Log
 
+- 2026-09-10 · 21a75c6 · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · a miss must be named not-recognised, not silently skipped under another word · acceptance-sha256:3692ee919b2b62bd22493f78fddc64a0f28ac2c5a0355669e28ee6c94323b438
+
 ## Invariants
 
 - `is_adr` still requires the four QH sections.
@@ -69,4 +71,9 @@ A miss that is silent, or a matcher change that starts classifying foreign ADR s
 
 - Widening the heading grammar (F-26)
 
+## Notes
+
+Class: a miss was a silent skip or "not a decision record". Sweep: `rg -n "not-recognised|not a decision record" plugin/scripts/facts-gate-dispatch.sh plugin/bin/adr-lint plugin/scripts/lifecycle.mjs` — dispatcher and Core print `not-recognised`; "not a decision record" exists only as a comment forbidding it; PostToolUse uses `firstMentionThisSession`. Matcher (`is_adr`) unchanged. No silent-skip sibling left.
+
 ## Verification Log
+- 2026-09-10 · 21a75c6 · exit 0 · `node --test --test-name-pattern 'QH-shaped record still reaches|MADR file is not-recognised|unreadable file is UNPROVEN|once per file per session|adr-lint still refuses a directory|is_adr still requires' tests/staged-product.test.mjs` · acceptance-sha256:3692ee919b2b62bd22493f78fddc64a0f28ac2c5a0355669e28ee6c94323b438 · ms:811

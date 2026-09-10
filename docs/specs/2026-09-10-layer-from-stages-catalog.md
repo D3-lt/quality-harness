@@ -1,7 +1,7 @@
 # Spec: Name Core and Corpus from the STAGES catalog
 
-> **Date:** 2026-09-10 · **Status:** Grilling
-> **Owner:** zy · **Becomes:** ADR (unassigned)
+> **Date:** 2026-09-10 · **Status:** Ready-for-ADR
+> **Owner:** zy · **Becomes:** ADR-043
 > **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec <this file>` exits 0.
 > **Cross-references:** docs/specs/2026-09-10-statusline-layer-unproven-as-advise.md (leftover: layer; Goal is UNPROVEN-write Advise, shipped as ADR-042), docs/specs/2026-09-09-a-staged-product-not-a-funnel.md, docs/adr/ADR-038-a-staged-product-not-a-funnel.md, docs/adr/ADR-039-records-use-the-same-listing.md, docs/adr/ADR-040-sessionstart-ready-uses-the-listing.md, docs/adr/ADR-041-a-probe-prefix-is-not-the-mutation.md, docs/adr/ADR-042-unproven-write-is-advise.md, plugin/scripts/work-next.mjs (`STAGES`, `nextStage`, `--json`), plugin/scripts/statusline.mjs (`render`), plugin/hooks/hooks.json, plugin/README.md (status line)
 
@@ -39,7 +39,7 @@ ADR-038's product layers are Core, Session, and Corpus. `work-next --json` alrea
 
 ## Scenarios
 
-### UC1-S1 [happy] an empty tree --json names layer core from next.id core [@draft] → `— to bind`
+### UC1-S1 [happy] an empty tree --json names layer core from next.id core [@implemented] → `tests/staged-product.test.mjs::layer from STAGES: empty tree --json is core` cmd:`node --test --test-name-pattern 'layer from STAGES: empty tree --json is core' tests/staged-product.test.mjs`
 
 ```gherkin
 Given a git repo with no classified QH records, specs, or task files
@@ -50,7 +50,7 @@ And layer is core
 And next.id is not session and not spec-write
 ```
 
-### UC1-S2 [failure] a non-core STAGES id is corpus, never session [@draft] → `— to bind`
+### UC1-S2 [failure] a non-core STAGES id is corpus, never session [@implemented] → `tests/staged-product.test.mjs::layer from STAGES: catalog ids are corpus never session` cmd:`node --test --test-name-pattern 'layer from STAGES: catalog ids are corpus never session' tests/staged-product.test.mjs`
 
 ```gherkin
 Given the STAGES catalog ids adr-verify, adr-execute, adr-retire, arch-write, adr-write, adr-write-no-tasks, spec-write
@@ -60,7 +60,7 @@ And layer is not session
 And session is not a STAGES id and is never next.id
 ```
 
-### UC1-S3 [failure] UNPROVEN look does not name a layer [@draft] → `— to bind`
+### UC1-S3 [failure] UNPROVEN look does not name a layer [@implemented] → `tests/staged-product.test.mjs::layer from STAGES: UNPROVEN look has no layer key` cmd:`node --test --test-name-pattern 'layer from STAGES: UNPROVEN look has no layer key' tests/staged-product.test.mjs`
 
 ```gherkin
 Given observe cannot list the tree (look UNPROVEN)
@@ -70,7 +70,7 @@ And the object has no layer key
 And this is not Core and not an empty corpus
 ```
 
-### UC1-S4 [failure] the wired statusline segment does not grow a layer token [@draft] → `— to bind`
+### UC1-S4 [failure] the wired statusline segment does not grow a layer token [@implemented] → `tests/statusline.test.mjs::the wired statusline segment does not grow a layer token` cmd:`node --test --test-name-pattern 'the wired statusline segment does not grow a layer token' tests/statusline.test.mjs`
 
 ```gherkin
 Given statusline.mjs render() and plugin/hooks/hooks.json
@@ -84,7 +84,7 @@ And this fact does not claim QH set Claude's bar
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | Proposed. Current: STAGES ids executed 2026-09-10 from plugin/scripts/work-next.mjs: adr-verify, adr-execute, adr-retire, arch-write, adr-write, adr-write-no-tasks, core, spec-write. No session id. No corpus id. nextStage returns adr-verify, adr-execute, adr-retire, adr-write, adr-write-no-tasks, core, or null; never spec-write, never arch-write, never session. node plugin/scripts/work-next.mjs --json on this corpus: look ok, next.id adr-execute, next keys id/entry/when, no layer; stages catalog the eight ids above, no session. statusline.mjs render() emits QH checked / unverified / nothing edited / too-large plus optional CI; no layer token. plugin/hooks/hooks.json has no statusLine. plugin/README.md: the plugin cannot set statusLine. After: work-next --json adds a top-level layer whose value is exactly core or corpus, from a closed table over STAGES ids (core → core; every other catalog id → corpus). When next is non-null, layer is that table applied to next.id. When next is null and look is ok, layer is corpus. When look is UNPROVEN, layer is absent. layer is never session. Session is hooks, not a work-next stage. This fact does not add a layer token to statusline.mjs render(). Plugin does not set Claude's statusLine. Does not reverse ADR-038–042. No peel-cat, no event ledger, no hook opt-in. Why it can fail: treating next.id as Session; a path classifier; emitting layer on UNPROVEN look; putting Core/Corpus on the statusline (session-check clock); claiming QH installed the bar; routing an empty tree to spec-write. | `— to bind` | @draft | |
+| F-1 | Accepted. Current: STAGES ids executed 2026-09-10 from plugin/scripts/work-next.mjs: adr-verify, adr-execute, adr-retire, arch-write, adr-write, adr-write-no-tasks, core, spec-write. No session id. No corpus id. nextStage returns adr-verify, adr-execute, adr-retire, adr-write, adr-write-no-tasks, core, or null; never spec-write, never arch-write, never session. node plugin/scripts/work-next.mjs --json on this corpus: look ok, next.id adr-execute, next keys id/entry/when, no layer; stages catalog the eight ids above, no session. statusline.mjs render() emits QH checked / unverified / nothing edited / too-large plus optional CI; no layer token. plugin/hooks/hooks.json has no statusLine. plugin/README.md: the plugin cannot set statusLine. After: work-next --json adds a top-level layer whose value is exactly core or corpus, from a closed table over STAGES ids (core → core; every other catalog id → corpus). When next is non-null, layer is that table applied to next.id. When next is null and look is ok, layer is corpus. When look is UNPROVEN, layer is absent. layer is never session. Session is hooks, not a work-next stage. This fact does not add a layer token to statusline.mjs render(). Plugin does not set Claude's statusLine. Does not reverse ADR-038–042. No peel-cat, no event ledger, no hook opt-in. Why it can fail: treating next.id as Session; a path classifier; emitting layer on UNPROVEN look; putting Core/Corpus on the statusline (session-check clock); claiming QH installed the bar; routing an empty tree to spec-write. | `tests/staged-product.test.mjs::layer from STAGES: catalog ids are corpus never session` | @implemented | node --test --test-name-pattern 'layer from STAGES:' tests/staged-product.test.mjs && node --test --test-name-pattern 'the wired statusline segment does not grow a layer token' tests/statusline.test.mjs |
 
 ## Domain
 
@@ -124,16 +124,16 @@ And this fact does not claim QH set Claude's bar
 
 ## Open Questions
 
-<!-- Empty until the user rejects or amends F-1. F-1 is the in-progress grill. -->
+<!-- F-1 Accepted 2026-09-10. Statusline layer token and INSTALL segment-not-the-bar are other specs. -->
 
 ## Verify
 
 ```bash
-python3 plugin/bin/spec-verify --draft docs/specs/2026-09-10-layer-from-stages-catalog.md
+python3 plugin/bin/spec-verify --spec docs/specs/2026-09-10-layer-from-stages-catalog.md
 ```
 
 ## Grill Log (appendix)
 
 | # | Question | Fact | Decision |
 |---|----------|------|----------|
-| 1 | Current / after / why it can fail: `work-next --json` names Core/Session/Corpus as `layer` from a closed table over STAGES ids (not a path); Session is hooks not `next.id`; plugin cannot set the host statusLine; no peel-cat, no ledger, no hook opt-in; do not reverse ADR-038–042? | F-1 | proposed (recommended: accept — `--json` only, `core` or `corpus`, never `session`; statusline token out of this fact) — awaiting accept/amend/reject |
+| 1 | Current / after / why it can fail: `work-next --json` names Core/Session/Corpus as `layer` from a closed table over STAGES ids (not a path); Session is hooks not `next.id`; plugin cannot set the host statusLine; no peel-cat, no ledger, no hook opt-in; do not reverse ADR-038–042? | F-1 | Accepted. `--json` top-level `layer` is `core` or `corpus` from a closed table over STAGES ids (`core` → `core`; every other catalog id → `corpus`). `next` non-null → table(`next.id`). `next` null + `look` ok → `corpus`. `look` UNPROVEN → no `layer`. `layer` is never `session`. This fact does not add a layer token to statusline `render()`. QH does not set Claude's `statusLine`. Does not reverse ADR-038–042. |

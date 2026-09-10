@@ -86,7 +86,7 @@ And this is not treated as no ready tasks (omitting the section is not enough)
 And a fixture that is not a repository is a different member (already empty; not this failure)
 ```
 
-### UC2-S1 [happy] SessionStart may treat a listing-named corpus dir as a corpus (F-2 Accepted) [@spec] → `tests/lifecycle.test.mjs::SessionStart may treat a listing-named corpus dir as a corpus`
+### UC2-S1 [happy] SessionStart may treat a listing-named corpus dir as a corpus (F-2 Accepted) [@implemented] → `tests/lifecycle.test.mjs::SessionStart may treat a listing-named corpus dir as a corpus` cmd:`node --test --test-name-pattern 'SessionStart may treat a listing-named corpus dir as a corpus' tests/lifecycle.test.mjs`
 
 ```gherkin
 Given a git repository whose listing includes docs/adr (or another of the five relative names)
@@ -95,7 +95,7 @@ Then corpus existence for the shadow-install notice may be true
 And this spec does not reverse showing that notice when a listed corpus dir exists
 ```
 
-### UC2-S2 [failure] a disk-only corpus dir is not a corpus (F-2 Accepted) [@spec] → `tests/lifecycle.test.mjs::a disk-only corpus dir is not a corpus`
+### UC2-S2 [failure] a disk-only corpus dir is not a corpus (F-2 Accepted) [@implemented] → `tests/lifecycle.test.mjs::a disk-only corpus dir is not a corpus` cmd:`node --test --test-name-pattern 'a disk-only corpus dir is not a corpus' tests/lifecycle.test.mjs`
 
 ```gherkin
 Given a git repository that can list
@@ -106,7 +106,7 @@ Then the corpus-existence look does not treat that directory as a corpus
 And the shadow-install notice is not opened on that account
 ```
 
-### UC2-S3 [failure] git cannot list is UNPROVEN, not no corpus (F-2 Accepted) [@spec] → `tests/lifecycle.test.mjs::git cannot list is UNPROVEN, not no corpus`
+### UC2-S3 [failure] git cannot list is UNPROVEN, not no corpus (F-2 Accepted) [@implemented] → `tests/lifecycle.test.mjs::git cannot list is UNPROVEN, not no corpus` cmd:`node --test --test-name-pattern 'git cannot list is UNPROVEN, not no corpus' tests/lifecycle.test.mjs`
 
 ```gherkin
 Given a git repository (rev-parse succeeds)
@@ -185,7 +185,7 @@ Members in for F-2: the five relative names (`docs/adr`, `docs/specs`, `docs/dec
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
 | F-1 | Accepted. Current: SessionStart `sessionOrientation` and the compact note `sessionStateNote` both call `readyTaskLines`, which walks `taskDirectories` (`existsSync(docs)` then `readdirSync`, else walk `root`). `insideRepository` is only `git rev-parse --show-toplevel`; `trackedPaths` is never asked. A gitignored `tasks/` dir, or a repo git cannot list, is still offered as ADR tasks in flight when `adr-next` answers. After: both callers inventory task directories from `trackedPaths` (ls-files plus `--others --exclude-standard`). Disk-only task dirs (on disk, absent from that listing) are not ready. When git cannot list, that look is UNPROVEN, not a silent empty ready list and not "no ready tasks". Not-a-repository stays no ADR reading (existing test; not this member). After does not unify with `work-next` `taskFiles` / `observe` or with `adr-next`. This spec does not reverse ADR-038 F-13–F-33. Why it can fail: F-31 stays green; `session orientation states this project` git-inits untracked-not-ignored files that `--others` would list, so it does not catch disk-only; a not-a-repo fixture tests the wrong git-fail member; a green `sessionOrientation` test leaves `sessionStateNote` walking disk. | `tests/lifecycle.test.mjs::a disk-only task dir is not in flight` | @implemented | `node --test --test-name-pattern 'a disk-only task dir is not in flight' tests/lifecycle.test.mjs` |
-| F-2 | Accepted. Current: `hasDecisionCorpus` answers whether a decision corpus exists by `statSync` of five relative directory names (`docs/adr`, `docs/specs`, `docs/decisions`, `adr`, `specs`) and returns true on the first that `isDirectory()`. It never consults `trackedPaths`. The only product caller is `sessionOrientation`, which uses that boolean (with `projectCheckCommand` and `readyTaskLines`) to decide whether the shadow-install notice is worth emitting. `sessionStateNote` is not a caller. After: that SessionStart gate answers corpus existence from `trackedPaths` (ls-files plus `--others --exclude-standard`). A disk-only directory among those names (on disk, absent from the listing) is not a corpus. When git cannot list, that look is UNPROVEN, not "no corpus" (a false that would skip the notice). Not-a-repository stays no ADR reading (F-1; not this member). After does not unify with `work-next` `observe` / `adrCorpus` or with `adr-next`. This spec does not reverse F-1 or ADR-038 F-13–F-33. Why it can fail: a green F-1 ready-task test leaves `hasDecisionCorpus` still `statSync`-ing; a gitignored `docs/adr` still opens the shadow-install notice; treating listing-null as false hides the notice (ADR-005); a not-a-repo fixture tests the wrong git-fail member. | `tests/lifecycle.test.mjs::a disk-only corpus dir is not a corpus` | @spec | |
+| F-2 | Accepted. Current: `hasDecisionCorpus` answers whether a decision corpus exists by `statSync` of five relative directory names (`docs/adr`, `docs/specs`, `docs/decisions`, `adr`, `specs`) and returns true on the first that `isDirectory()`. It never consults `trackedPaths`. The only product caller is `sessionOrientation`, which uses that boolean (with `projectCheckCommand` and `readyTaskLines`) to decide whether the shadow-install notice is worth emitting. `sessionStateNote` is not a caller. After: that SessionStart gate answers corpus existence from `trackedPaths` (ls-files plus `--others --exclude-standard`). A disk-only directory among those names (on disk, absent from the listing) is not a corpus. When git cannot list, that look is UNPROVEN, not "no corpus" (a false that would skip the notice). Not-a-repository stays no ADR reading (F-1; not this member). After does not unify with `work-next` `observe` / `adrCorpus` or with `adr-next`. This spec does not reverse F-1 or ADR-038 F-13–F-33. Why it can fail: a green F-1 ready-task test leaves `hasDecisionCorpus` still `statSync`-ing; a gitignored `docs/adr` still opens the shadow-install notice; treating listing-null as false hides the notice (ADR-005); a not-a-repo fixture tests the wrong git-fail member. | `tests/lifecycle.test.mjs::a disk-only corpus dir is not a corpus` | @implemented | `node --test --test-name-pattern 'a disk-only corpus dir is not a corpus' tests/lifecycle.test.mjs` |
 
 ## Domain
 

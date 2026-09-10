@@ -2337,6 +2337,70 @@ test('Read or Grep is not Advise every turn', async () => {
   assert.equal(dirtyReading.kind, 'unverified')
 })
 
+test('PreToolUse commit advice Advises on UNPROVEN writes', async () => {
+  const dir = await checkedProject('quality-unproven-commit-')
+  for (const name of ['mcp__mrw__mrw_write', 'mcp__other__write']) {
+    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
+    await writeFile(file, transcript([toolUse('t1', name, { plan: 'docs/a.md' }), toolResult('t1')]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    assert.equal(state.authorship, 'UNPROVEN', name)
+    assert.equal(state.lastMutation, -1, name)
+    assert.deepEqual(state.mutationPaths, [])
+    const run = runLifecycleHook({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+      session_id: `unproven-commit-${name}-${Date.now()}-${process.pid}`,
+    })
+    assert.equal(run.status, 0, `${name}: ${run.stderr}`)
+    assert.match(run.stderr, /would publish unchecked/i, name)
+    assert.match(run.stderr, /Nothing has verified the work/, name)
+  }
+})
+
+test('PreToolUse commit advice does not Advise on Read or Grep', async () => {
+  const dir = await checkedProject('quality-unproven-commit-read-')
+  const names = [
+    ['Read', { file_path: path.join(dir, 'a.py') }],
+    ['Grep', { pattern: 'x' }],
+    ['Glob', { glob_pattern: '*.md' }],
+    ['WebSearch', { search_term: 'x' }],
+    ['WebFetch', { url: 'https://example.com' }],
+    ['Task', { prompt: 'x' }],
+    ['TodoWrite', { todos: [] }],
+    ['Skill', { skill: 'x' }],
+    ['Agent', { prompt: 'x' }],
+    ['mcp__mrw__mrw_read', { specs: ['a.md:1'] }],
+  ]
+  for (const [name, input] of names) {
+    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
+    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    const run = runLifecycleHook({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+      session_id: `unproven-commit-read-${name}-${Date.now()}-${process.pid}`,
+    })
+    assert.notEqual(state.authorship, 'UNPROVEN', name)
+    assert.equal(run.status, 0, name)
+    assert.doesNotMatch(run.stderr, /would publish unchecked/i, name)
+    assert.doesNotMatch(run.stderr, /Nothing has verified the work/, name)
+  }
+
+  // Same fixture with a native write must still Advise — otherwise the silence
+  // above is vacuous (CLAUDE.md §4).
+  const dirtyFile = path.join(dir, 'native-write.jsonl')
+  await writeFile(dirtyFile, transcript([
+    toolUse('w1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('w1'),
+  ]))
+  const dirty = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
+    session_id: `unproven-commit-read-dirty-${Date.now()}-${process.pid}`,
+  })
+  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
+})
+
+
 
 test('SubagentStart states the leaf-role contract, and never blocks', async () => {
   // hooks.json declares this event and the installed plugin registers it, so

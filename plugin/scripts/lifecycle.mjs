@@ -2987,30 +2987,6 @@ function looksLikeRecord(file, directory, reader) {
     && /^##\s+(Context|Decision)\b/im.test(text)
 }
 
-function readRecordFiles(root, reader) {
-  const files = []
-  const walk = (directory, depth) => {
-    if (depth > 4 || files.length >= RECORD_BUDGET) return
-    let entries
-    try { entries = reader.entries(directory) } catch { return }
-    for (const entry of entries) {
-      if (entry.name.startsWith('.')) continue
-      const child = path.join(directory, entry.name)
-      if (entry.isDirectory()) {
-        if (UNINTERESTING_DIRECTORY.test(entry.name)) continue
-        walk(child, depth + 1)
-      } else if (entry.isFile() && entry.name.toLowerCase().endsWith('.md')
-          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory, reader))) {
-        files.push(child)
-      }
-    }
-  }
-  const docs = path.join(root, 'docs')
-  if (existsSync(docs)) walk(docs, 0)
-  if (!files.length) walk(root, 0)
-  return files
-}
-
 function recordFilesFromListing(root, tracked, reader) {
   const files = []
   for (const rel of tracked) {

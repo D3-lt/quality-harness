@@ -50,6 +50,8 @@ node --test --test-name-pattern 'SessionStart offers ready tasks the listing nam
 
 ## Mutation Log
 
+- 2026-09-10 · b17f676 · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · git-fail must be named UNPROVEN, not a silent empty ready list · acceptance-sha256:0468bfb9fbae6a814f3ffbc315edbc38b1b5ffc52cdfb26beef8895a67867a58
+
 ## Invariants
 
 - Disk-only `tasks/` is not in flight.
@@ -69,4 +71,9 @@ A green F-31 test while SessionStart still `readdirSync`s, or UNPROVEN that only
 - `hasDecisionCorpus` (T2)
 - Unify with `work-next` / `adr-next`
 
+## Notes
+
+Class: SessionStart inventoried ready task dirs from disk. Sweep: `rg -n 'function taskDirectories\(|function readyTaskLines\(|sessionOrientation\(|sessionStateNote\(' plugin/scripts/lifecycle.mjs` — both callers pass the listing; listing-null is UNPROVEN. Sibling: hasDecisionCorpus (T2).
+
 ## Verification Log
+- 2026-09-10 · b17f676 · exit 0 · `node --test --test-name-pattern 'SessionStart offers ready tasks the listing named|a disk-only task dir is not in flight|git cannot list is UNPROVEN, not no ready tasks' tests/lifecycle.test.mjs` · acceptance-sha256:0468bfb9fbae6a814f3ffbc315edbc38b1b5ffc52cdfb26beef8895a67867a58 · ms:578

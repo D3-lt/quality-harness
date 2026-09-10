@@ -4051,7 +4051,7 @@ export async function handleHook(input) {
     // live 2.3.0 session on 2026-08-26.
     // Same rule as the completion gates: with no check to name, this has nothing
     // to ask for.
-    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {
+    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {
       advise('Nothing has verified the work since your last change, so this commit would publish '
         + `unchecked. ${missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))} `
         + 'Nothing is blocked — this is what the gate sees before you commit.', input)

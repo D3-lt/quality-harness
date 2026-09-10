@@ -4,19 +4,20 @@
 **Date:** 2026-09-10
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-10-statusline-layer-unproven-as-advise.md`
-**Cross-references:** ADR-005, ADR-038 F-24, ADR-041, `plugin/scripts/lifecycle.mjs` (`analyzeTranscript`, `sessionStateNote`), `plugin/scripts/statusline.mjs` (`reading`)
+**Cross-references:** ADR-005, ADR-038 F-20 / F-24, ADR-041, `plugin/scripts/lifecycle.mjs` (`analyzeTranscript`, `sessionStateNote`, PreToolUse), `plugin/scripts/statusline.mjs` (`reading`)
+
 **Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/statusline.mjs`
 
 Class: Advise surfaces that ignore `authorship` UNPROVEN and key `lastMutation` / `mutationPathsSince`. Enumerated 2026-09-10 with `rg -n "authorship = 'UNPROVEN'|function sessionStateNote|unverifiedSince:|export function reading|unverifiedSince\\(state.lastPublish\\)" plugin/scripts/lifecycle.mjs plugin/scripts/statusline.mjs` and `git ls-files -- plugin/scripts/lifecycle.mjs plugin/scripts/statusline.mjs tests/lifecycle.test.mjs tests/statusline.test.mjs tests/staged-product.test.mjs plugin/hooks/hooks.json`:
 
 ```
 plugin/scripts/statusline.mjs:42:export function reading(...)
-plugin/scripts/lifecycle.mjs:1882:      authorship = 'UNPROVEN'
-plugin/scripts/lifecycle.mjs:1908:    unverifiedSince: position => lastMutation > position
-plugin/scripts/lifecycle.mjs:3311:export function sessionStateNote(...)
-plugin/scripts/lifecycle.mjs:3317:  const pending = state.unverifiedSince(state.lastPublish)
-plugin/scripts/lifecycle.mjs:4044:    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {
-plugin/scripts/lifecycle.mjs:4074:  const unverified = state.unverifiedSince(state.lastPublish)
+plugin/scripts/lifecycle.mjs:1889:      authorship = 'UNPROVEN'
+plugin/scripts/lifecycle.mjs:1915:    unverifiedSince: position => lastMutation > position
+plugin/scripts/lifecycle.mjs:3318:export function sessionStateNote(...)
+plugin/scripts/lifecycle.mjs:3325:  const pending = state.unverifiedSince(state.lastPublish) || unprovenWrite
+plugin/scripts/lifecycle.mjs:4054:    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {
+plugin/scripts/lifecycle.mjs:4084:  const unverified = state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN'
 ```
 
 ```
@@ -28,11 +29,13 @@ tests/staged-product.test.mjs
 tests/statusline.test.mjs
 ```
 
-Members in: the UNPROVEN assignment; Stop / SubagentStop / TaskCompleted `unverified` at 4074; `sessionStateNote`; `statusline.mjs` `reading()`. Members left out: PreToolUse commit advice at 4044 (same `lastMutation` key; not in the spec Contracts); `work-next --json` `layer`; `hooks.json` `statusLine`; a path extractor for every MCP write; `tests/staged-product.test.mjs` F-24 (stays: `mcp__mrw__mrw_write` remains UNPROVEN, `lastMutation` -1).
+Members in: the UNPROVEN assignment; Stop / SubagentStop / TaskCompleted `unverified` at 4084; `sessionStateNote`; `statusline.mjs` `reading()`; PreToolUse commit advice at 4054 (F-2). Members left out: `work-next --json` `layer`; `hooks.json` `statusLine`; a path extractor for every MCP write; `tests/staged-product.test.mjs` F-24 (stays: `mcp__mrw__mrw_write` remains UNPROVEN, `lastMutation` -1).
 
-**Enforced-by:** `tests/lifecycle.test.mjs::an unknown non-Bash write is Advise, not nothing edited`, `tests/lifecycle.test.mjs::Read or Grep is not Advise every turn`
+
+**Enforced-by:** `tests/lifecycle.test.mjs::an unknown non-Bash write is Advise, not nothing edited`, `tests/lifecycle.test.mjs::Read or Grep is not Advise every turn`, `tests/lifecycle.test.mjs::PreToolUse commit advice Advises on UNPROVEN writes`, `tests/lifecycle.test.mjs::PreToolUse commit advice does not Advise on Read or Grep`
 **Invalidates:** none — checked (does not reverse ADR-038 F-24; does not reverse ADR-039–041)
-**Served-path change:** Stop, PreCompact `sessionStateNote`, and the user-wired statusline segment Advise on an unknown write; a Read/Grep turn does not.
+**Served-path change:** Stop, PreCompact `sessionStateNote`, the user-wired statusline segment, and PreToolUse on Bash `git commit` Advise on an unknown write; a Read/Grep turn does not.
+
 
 ## Context
 
@@ -46,17 +49,20 @@ Debt at authoring (`python3 plugin/bin/adr-debt docs/adr`): none of the deferred
 - `MUTATION_TOOLS` / native Edit/Write/MultiEdit/NotebookEdit — **reuse.**
 - Stop / SubagentStop / TaskCompleted `unverified` — **reshape.** Also true when `authorship === 'UNPROVEN'`.
 - `sessionStateNote` / `statusline.mjs` `reading()` — **reshape.** Advise on that UNPROVEN; do not key only `mutationPathsSince`.
-- PreToolUse commit advice — **leave.** Not in the spec Contracts.
+- PreToolUse commit advice — **reshape.** Advise on that UNPROVEN; do not key only `unverifiedSince(lastPublish)`.
+
 - `work-next.mjs --json` — **leave.** No `layer`.
 - `hooks.json` — **leave.** No `statusLine`.
 
 ## Decision
 
-**UNPROVEN for Advise is a write-shaped unknown, not every non-Bash tool_use. The three wired surfaces Advise on that UNPROVEN. Known non-write names do not. F-24 stands.**
+**UNPROVEN for Advise is a write-shaped unknown, not every non-Bash tool_use. The wired surfaces (Stop / SubagentStop / TaskCompleted, `sessionStateNote`, `reading()`, PreToolUse commit advice) Advise on that UNPROVEN. Known non-write names do not. F-24 stands.**
+
 
 1. Executed names that must not Advise (measured 2026-09-10, currently UNPROVEN): Read, Grep, Glob, WebSearch, WebFetch, Task, TodoWrite, Skill, Agent, `mcp__mrw__mrw_read`. They keep `authorship` `none` when that is all that ran.
 2. Any other executed non-Bash name outside `MUTATION_TOOLS` stays UNPROVEN, including `mcp__mrw__mrw_write` and `mcp__other__write`. Fail-closed: "not recognised as a read" is not "known not a write" (CLAUDE.md §16). No path extractor; `lastMutation` stays -1.
-3. Stop / SubagentStop / TaskCompleted, `sessionStateNote`, and `reading()` Advise when `authorship === 'UNPROVEN'`, not "nothing edited" / `kind: nothing`.
+3. Stop / SubagentStop / TaskCompleted, `sessionStateNote`, `reading()`, and PreToolUse on Bash `git commit` Advise when `authorship === 'UNPROVEN'`, not "nothing edited" / `kind: nothing` / a silent commit.
+
 4. This record does not add `layer`, does not set Claude's `statusLine`, and does not reverse ADR-038–041.
 
 ## Alternatives Considered
@@ -74,10 +80,13 @@ Debt at authoring (`python3 plugin/bin/adr-debt docs/adr`): none of the deferred
 | Stop / SubagentStop / TaskCompleted | Session evidence | Advise on UNPROVEN write |
 | `sessionStateNote` | PreCompact / compact SessionStart | not silent nothing-edited |
 | `statusline.mjs` `reading` | user-wired segment | not `kind: nothing` |
+| PreToolUse commit advice | Session evidence | Advise on UNPROVEN write at `git commit` |
+
 
 ## Wiring & Contract Changes
 
-Inherited from the spec §Contracts Touched; delta: none.
+Inherited from the spec §Contracts Touched; delta: PreToolUse on Bash `git commit` Advises on UNPROVEN write authorship (F-2).
+
 
 ## Inter-task Contracts
 
@@ -89,13 +98,15 @@ See `docs/adr/ADR-042-unproven-write-is-advise/tasks/README.md`.
 
 ## Consequences
 
-- **Positive:** an MCP write is Advise on Stop / compact note / the wired segment, not silent nothing-edited. A Read/Grep turn stays quiet.
-- **Negative:** an unknown tool name that is actually read-only and not in the denylist Advises (fail-closed). PreToolUse commit advice still ignores UNPROVEN writes.
+- **Positive:** an MCP write is Advise on Stop / compact note / the wired segment / PreToolUse `git commit`, not silent nothing-edited. A Read/Grep turn stays quiet.
+- **Negative:** an unknown tool name that is actually read-only and not in the denylist Advises (fail-closed).
+
 - **Neutral:** F-24's `lastMutation` -1 / empty paths stay. Probe-only Bash stays `none` (ADR-041).
 
 ## Out of Scope
 
-Inherited from the spec §Non-Goals; delta: PreToolUse commit advice named as a sibling left out.
+Inherited from the spec §Non-Goals; delta: none.
+
 
 - Peel `cat` / `pwd` / `git status` / unknown `neither` (permanent: boundary: CLAUDE.md §16; ADR-041 left those unpeeled)
 - Event ledger / ADR-035 `claims.jsonl` (permanent: boundary: Non-Goal)
@@ -106,7 +117,6 @@ Inherited from the spec §Non-Goals; delta: PreToolUse commit advice named as a 
 - Cursor / OpenCode host adapter; `plugin/CORE.md`; a 15th skill; MCP verify (permanent: boundary: Non-Goal)
 - Claim the plugin can set Claude Code's `statusLine` (permanent: fact: the plugin cannot set that host field; citation: file `plugin/README.md:29`)
 - Unify with SessionStart listing (ADR-040) or `observe` / `adrCorpus` (ADR-039) (permanent: boundary: Non-Goal)
-- PreToolUse commit advice on UNPROVEN writes (permanent: boundary: not in F-1 Contracts)
 
 ## Risks
 

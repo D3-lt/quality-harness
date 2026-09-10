@@ -81,6 +81,9 @@ have — the number is measured by the CLI, not written here.
 - **Hooks** on `SessionStart`, `SubagentStart`, `SubagentStop`, `TaskCompleted`, `Stop`,
   `PreToolUse` and `PostToolUse`. They advise and never seize the session (README, "It never
   blocks you").
+- **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Add this to your own command to see `QH ✗` for unverified work and UNPROVEN writes:
+  `node "$(qh-root)/scripts/statusline.mjs" <<< "$input"`
+
 - **`bin/` on the Bash tool's `PATH`** while the plugin is enabled — Claude Code does this for any
   plugin that ships a `bin/` directory. So `adr-lint`, `adr-verify`, `qh-root` and the other gates
   resolve by bare name inside a session. Outside a session they do not, unless you create

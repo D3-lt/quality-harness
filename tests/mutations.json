@@ -555,8 +555,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {",
-      "to": "    if (state.hasMutations && !state.verifiedAfterLastMutation && projectCheckCommand(input.cwd)) {"
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {",
+      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {"
     },
     {
       "label": "advisory: a project that names no check hears nothing",
@@ -629,6 +629,15 @@
       ],
       "from": "  const unverified = state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN'",
       "to": "  const unverified = state.hasMutations && !state.verifiedAfterLastMutation"
+    },
+    {
+      "label": "advisory: PreToolUse commit advice Advises on UNPROVEN write authorship",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {",
+      "to": "    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {"
     },
     {
       "label": "advisory: a verify script is the project's named check",

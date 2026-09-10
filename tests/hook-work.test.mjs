@@ -173,7 +173,15 @@ test('corpus scans read shared inputs once and see fresh changes on the next sca
   const second = path.join(tasks, 'T2-second.md')
   writeFileSync(first, task('ADR-001-T1', 'src/first.js'))
   writeFileSync(second, task('ADR-002-T2', 'src/second.js'))
-  const probe = async (moduleUrl, project, first, second, replacement, added) => {
+  const listed = [
+    'docs/adr/ADR-001.md', 'docs/adr/ADR-002.md', 'docs/adr/ADR-003.md',
+    'docs/adr/2026-01-01-dated.md', 'docs/adr/tasks/T1-first.md', 'docs/adr/tasks/T2-second.md',
+  ]
+  const listedAfter = [
+    'docs/adr/ADR-001.md', 'docs/adr/ADR-002.md', 'docs/adr/ADR-003.md',
+    'docs/adr/2026-01-01-dated.md', 'docs/adr/tasks/T1-first.md', 'docs/adr/tasks/T3-added.md',
+  ]
+  const probe = async (moduleUrl, project, first, second, replacement, added, listed, listedAfter) => {
     const fs = await import('node:fs')
     const path = await import('node:path')
     const { syncBuiltinESMExports } = await import('node:module')
@@ -190,10 +198,10 @@ test('corpus scans read shared inputs once and see fresh changes on the next sca
     }
     syncBuiltinESMExports()
     const { adrCorpus } = await import(moduleUrl)
-    const scan = () => {
+    const scan = tracked => {
       counts.files = {}
       counts.directories = {}
-      const corpus = adrCorpus(project, { tracked: null })
+      const corpus = adrCorpus(project, { tracked })
       return {
         counts: structuredClone(counts),
         records: corpus.map(entry => ({
@@ -203,17 +211,18 @@ test('corpus scans read shared inputs once and see fresh changes on the next sca
         unreadable: corpus.unreadable.map(entry => path.basename(entry.file)),
       }
     }
-    const before = scan()
+    const before = scan(listed)
     fs.writeFileSync(first, replacement)
     fs.rmSync(second)
     fs.writeFileSync(path.join(path.dirname(second), 'T3-added.md'), added)
-    const after = scan()
+    const after = scan(listedAfter)
     process.stdout.write(JSON.stringify({ before, after }))
   }
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
     pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href,
     project, first, second,
     task('ADR-001-T1', 'src/changed.js'), task('ADR-002-T3', 'src/added.js'),
+    listed, listedAfter,
   ]) + ')'
   const { before, after } = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], project).stdout)
   const entry = (scan, name) => scan.records.find(record => record.file === name)
@@ -226,7 +235,7 @@ test('corpus scans read shared inputs once and see fresh changes on the next sca
   assert.deepEqual(entry(after, 'ADR-002.md').tasks, ['T3-added.md'])
   for (const scan of [before, after]) {
     assert.ok(Object.keys(scan.counts.files).length >= 6, 'the probe must observe actual file reads')
-    assert.ok(Object.keys(scan.counts.directories).length >= 3, 'the probe must observe actual directory reads')
+    assert.ok(Object.keys(scan.counts.directories).length >= 1, 'the probe must observe actual directory reads')
     assert.equal(Math.max(...Object.values(scan.counts.files)), 1, 'each file is read at most once per scan')
     assert.equal(Math.max(...Object.values(scan.counts.directories)), 1, 'each directory is listed at most once per scan')
   }

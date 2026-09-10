@@ -2523,25 +2523,34 @@ const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|cover
 // walking a directory that is not a repository once surfaced another project's
 // tasks from a shared temp directory, and a session must never be handed work
 // that belongs to a codebase it was not opened on.
-function taskDirectories(root) {
+function posixListed(rel) {
+  return String(rel).replaceAll('\\', '/')
+}
+
+function listedAbsolute(root, rel) {
+  const parts = posixListed(rel).split('/').filter(part => part && part !== '.')
+  return parts.length ? path.join(root, ...parts) : root
+}
+
+// ADR task directories from the git listing, not a disk walk. A gitignored
+// tasks/ dir is not in flight; git-fail is UNPROVEN at the caller.
+function taskDirectories(root, listing) {
+  if (listing == null) return []
   const found = []
-  const walk = (directory, depth, allowUninteresting) => {
-    if (depth > 4 || found.length >= 6) return
-    let entries
-    try { entries = readdirSync(directory, { withFileTypes: true }) } catch { return }
-    for (const entry of entries) {
-      if (!entry.isDirectory() || entry.name.startsWith('.')) continue
-      if (!allowUninteresting && UNINTERESTING_DIRECTORY.test(entry.name)) continue
-      const child = path.join(directory, entry.name)
-      if (entry.name === 'tasks') found.push(child)
-      else walk(child, depth + 1, allowUninteresting)
-    }
+  const seen = new Set()
+  for (const rel of listing) {
+    if (found.length >= 6) break
+    const norm = posixListed(rel)
+    const parts = norm.split('/').filter(Boolean)
+    const index = parts.indexOf('tasks')
+    if (index < 0) continue
+    const dirParts = parts.slice(0, index + 1)
+    if (dirParts.some((part, i) => i < dirParts.length - 1 && UNINTERESTING_DIRECTORY.test(part))) continue
+    const key = dirParts.join('/')
+    if (seen.has(key)) continue
+    seen.add(key)
+    found.push(listedAbsolute(root, key))
   }
-  // `docs/` is where records live by convention; only fall back to the tree at
-  // large when it holds none, and never into test fixtures either way.
-  const docs = path.join(root, 'docs')
-  if (existsSync(docs)) walk(docs, 0, false)
-  if (!found.length) walk(root, 0, false)
   return found
 }
 
@@ -2644,14 +2653,15 @@ export function spawnGate(tool, args, options = {}, platform = process.platform,
   return spawnSync(command, [...prefix, tool, ...args], options)
 }
 
-function readyTaskLines(root, insideRepository) {
-  // Without a repository there is no "this project", and the walk below would
-  // be scanning whatever else shares the directory.
-  if (!insideRepository) return []
+function readyTaskLines(root, insideRepository, listing) {
+  // Without a repository there is no "this project". Git-fail (listing null
+  // while inside a repo) is UNPROVEN, not an empty ready list.
+  if (!insideRepository) return { look: 'ok', lines: [] }
+  if (listing == null) return { look: 'UNPROVEN', lines: [] }
   const tool = path.join(PLUGIN_ROOT, 'bin', 'adr-next')
-  if (!existsSync(tool)) return []
+  if (!existsSync(tool)) return { look: 'ok', lines: [] }
   const lines = []
-  for (const directory of taskDirectories(root)) {
+  for (const directory of taskDirectories(root, listing)) {
     const run = spawnGate(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
     if (run.status !== 0 && run.status !== 3) continue
     let report
@@ -2668,7 +2678,7 @@ function readyTaskLines(root, insideRepository) {
       lines.push(`  ${relative}: all ${report.done.length} task(s) carry exit-0 evidence.`)
     }
   }
-  return lines
+  return { look: 'ok', lines }
 }
 
 // What a session would otherwise learn by hitting a wall. Additive only: this
@@ -3001,6 +3011,22 @@ function readRecordFiles(root, reader) {
   return files
 }
 
+function recordFilesFromListing(root, tracked, reader) {
+  const files = []
+  for (const rel of tracked) {
+    if (files.length >= RECORD_BUDGET) break
+    const norm = posixListed(rel)
+    if (!/\.md$/i.test(norm)) continue
+    if (/(?:^|\/)tasks\//i.test(norm)) continue
+    const slash = norm.lastIndexOf('/')
+    const base = slash < 0 ? norm : norm.slice(slash + 1)
+    const dirNorm = slash < 0 ? '' : norm.slice(0, slash)
+    const absolute = listedAbsolute(root, rel)
+    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader)) files.push(absolute)
+  }
+  return files
+}
+
 /**
 /**
  * Repository-relative paths git knows about, or null when git cannot answer.
@@ -3032,20 +3058,20 @@ export function trackedPaths(root) {
 /**
  * Every decision record in a repository, with what it governs already resolved.
  *
- * Reads the corpus and asks git ONE read-only question — which paths it tracks —
- * so a `Governs:` declaration matching nothing can be reported rather than
- * silently governing nothing. `tracked` is an injectable seam: pass a listing to
- * make the resolution hermetic, or null to read a corpus without resolving
- * declarations at all. Nothing here writes, and nothing here runs a check.
+ * Asks git which paths it tracks, then inventories record files from that
+ * listing. `tracked` is an injectable seam: pass a listing to make the look
+ * hermetic. null means the look could not happen — no disk walk, no Governs
+ * resolution (ADR-005). An empty array means the tree was listed and held
+ * no files. Nothing here writes, and nothing here runs a check.
  */
 export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   const records = []
-  // Attached to the returned array rather than changing its shape: every caller
-  // treats this as a list of records, and widening the return type to report a
-  // second thing would break all of them to fix a message.
   const unreadable = []
+  Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
+  Object.defineProperty(records, 'look', { value: tracked == null ? 'UNPROVEN' : 'ok', enumerable: false })
+  if (tracked == null) return records
   const reader = corpusReader()
-  const files = readRecordFiles(root, reader)
+  const files = recordFilesFromListing(root, tracked, reader)
   const recordsPerDirectory = new Map()
   for (const file of files) {
     const directory = path.dirname(file)
@@ -3168,9 +3194,6 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       ],
     })
   }
-  // Non-enumerable so nothing that JSON-serialises a corpus starts emitting it,
-  // and every existing consumer keeps seeing a plain array of records.
-  Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
   return records
 }
 
@@ -3208,6 +3231,7 @@ export function decisionsGoverning(paths, root, corpus = adrCorpus(root)) {
   return {
     governing: corpus.filter(record => record.kind === 'governing' && hits(record)),
     graveyard: corpus.filter(record => record.kind === 'graveyard' && hits(record)),
+    look: corpus.look ?? 'ok',
   }
 }
 
@@ -3297,8 +3321,13 @@ export function sessionStateNote(state, cwd, root, insideRepository, now = new D
     ? `Last check: \`${state.lastVerdictCommand}\` ${state.lastVerdict ?? 'unknown'}.`
     : 'No check has run this session.')
   if (tasks) {
-    const ready = readyTaskLines(root, insideRepository)
-    if (ready.length) parts.push(`ADR task in flight: ${ready[0].trim()}`)
+    const listing = insideRepository ? trackedPaths(root) : null
+    const ready = readyTaskLines(root, insideRepository, listing)
+    if (ready.look === 'UNPROVEN') {
+      parts.push('ADR tasks in flight: UNPROVEN (git could not list the tree).')
+    } else if (ready.lines.length) {
+      parts.push(`ADR task in flight: ${ready.lines[0].trim()}`)
+    }
   }
   return { at: now.toISOString(), status, unverified: pending, files, other, text: parts.join(' ') }
 }
@@ -3650,13 +3679,15 @@ export function staleVersionNotice(pluginRoot = PLUGIN_ROOT, homeDirectory = os.
     + 'consistent so nothing else will say so. Restart Claude Code to pick up the newer one.'
 }
 
-// Whether this repository has anything the gates would read. Cheap on purpose:
-// the answer only decides whether an advisory line is worth a user's attention.
-function hasDecisionCorpus(root) {
-  for (const relative of ['docs/adr', 'docs/specs', 'docs/decisions', 'adr', 'specs']) {
-    try {
-      if (statSync(path.join(root, relative)).isDirectory()) return true
-    } catch { /* absent is the common case */ }
+const CORPUS_DIR_NAMES = ['docs/adr', 'docs/specs', 'docs/decisions', 'adr', 'specs']
+
+export function hasDecisionCorpus(root, listing = trackedPaths(root)) {
+  if (listing == null) return 'UNPROVEN'
+  for (const rel of listing) {
+    const norm = posixListed(rel)
+    for (const dir of CORPUS_DIR_NAMES) {
+      if (norm === dir || norm.startsWith(`${dir}/`)) return true
+    }
   }
   return false
 }
@@ -3678,14 +3709,21 @@ export function sessionOrientation(cwd) {
   const stale = staleVersionNotice()
   if (stale) lines.push(stale)
 
-  const ready = readyTaskLines(root, repositoryRoot !== null)
+  const inside = repositoryRoot !== null
+  const listing = inside ? trackedPaths(root) : null
+  const ready = readyTaskLines(root, inside, listing)
+  if (inside && ready.look === 'UNPROVEN') {
+    lines.push('could-not-look: git could not list the tree (UNPROVEN). Ready tasks and corpus existence are not known.')
+  }
+  const corpusLook = inside ? hasDecisionCorpus(root, listing) : false
 
   // A stale standalone copy can only give a wrong answer where a gate actually
   // runs, so the warning belongs in a repository that has a corpus for one to
   // read. Ungated it opened every session in every repository — including ones
   // that never opted into this lifecycle at all, which is the noise this
   // project was told is worse than not shipping the plugin.
-  if (check || ready.length || hasDecisionCorpus(root)) {
+  // Git-fail is UNPROVEN, not "no corpus" — a false would skip this notice.
+  if (check || ready.lines.length || corpusLook === true || corpusLook === 'UNPROVEN') {
     const shadow = shadowInstallNotice()
     if (shadow) {
       lines.push(`${shadow} \`node \${CLAUDE_PLUGIN_ROOT}/scripts/sync-standalone.mjs\` reports `
@@ -3700,9 +3738,9 @@ export function sessionOrientation(cwd) {
     }
   }
 
-  if (ready.length) {
-    const shown = ready.slice(0, 3)
-    if (ready.length > shown.length) shown.push(`  (+${ready.length - shown.length} more record set(s))`)
+  if (ready.lines.length) {
+    const shown = ready.lines.slice(0, 3)
+    if (ready.lines.length > shown.length) shown.push(`  (+${ready.lines.length - shown.length} more record set(s))`)
     lines.push(['ADR tasks in flight:', ...shown].join('\n'))
   }
 

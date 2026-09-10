@@ -53,6 +53,8 @@ node --test --test-name-pattern 'disk-only record files are not the corpus|lefto
 
 ## Mutation Log
 
+- 2026-09-10 · 456d619 · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · listed records must come from the listing, not a disk walk of docs/adr · acceptance-sha256:1c43d566cd6a49bff542829477b96e84e8cdc880cbf2cbd4b44b060ef8bbb372
+
 ## Invariants
 
 - A disk-only `docs/adr` file is not a record.
@@ -72,4 +74,9 @@ A green F-1 test while `adr-state` still walks disk, or a leftover caller that p
 - A shared Governs module with `adr-lint`
 - SessionStart (ADR-040)
 
+## Notes
+
+Class: leftover product callers of adrCorpus inventoried records from disk. Sweep: `rg -n 'adrCorpus\(|readRecordFiles\(' plugin --glob '!**/node_modules/**'` — adr-state, adr-context, and decisionsGoverning default share the listing rule; `readRecordFiles` unused (Non-Goal). No other plugin/ callers. SessionStart is ADR-040.
+
 ## Verification Log
+- 2026-09-10 · 456d619 · exit 0 · `node --test --test-name-pattern 'disk-only record files are not the corpus|leftover adrCorpus callers use the listing, not the disk' tests/staged-product.test.mjs` · acceptance-sha256:1c43d566cd6a49bff542829477b96e84e8cdc880cbf2cbd4b44b060ef8bbb372 · ms:404

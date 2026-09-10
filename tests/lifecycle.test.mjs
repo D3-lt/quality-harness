@@ -2663,6 +2663,53 @@ test('git cannot list is UNPROVEN, not no corpus', async () => {
   assert.match(text, /corpus existence/)
 })
 
+test('listing-null still names a stale shadow install, not no corpus', async () => {
+  const home = await mkdtemp(path.join(testTmp, 'ss-shadow-home-'))
+  await mkdir(path.join(home, '.claude', 'bin'), { recursive: true })
+  await writeFile(path.join(home, '.claude', 'bin', 'adr-lint'), '#!/usr/bin/env python3\n# stale copy\n')
+  assert.match(shadowInstallNotice(home, pluginDir), /SEPARATE copy/)
+
+  const hookEnv = {
+    ...process.env,
+    HOME: home,
+    USERPROFILE: home,
+    CLAUDE_PLUGIN_DATA: ledgerHome,
+  }
+
+  const unprovenRoot = await mkdtemp(path.join(testTmp, 'ss-shadow-unproven-'))
+  gitInit(unprovenRoot)
+  corruptGitIndex(unprovenRoot)
+  const unproven = runLifecycleHook(
+    { hook_event_name: 'SessionStart', cwd: unprovenRoot, source: 'startup' },
+    { env: hookEnv },
+  )
+  const unprovenSaid = `${unproven.stdout}${unproven.stderr}`
+  assert.match(unprovenSaid, /UNPROVEN/)
+  assert.match(unprovenSaid, /SEPARATE copy/,
+    'listing-null must still consider a shadow install; corpusLook === UNPROVEN is not "no corpus"')
+
+  const emptyRoot = await mkdtemp(path.join(testTmp, 'ss-shadow-empty-'))
+  writeFileSync(path.join(emptyRoot, 'README.md'), 'listed\n')
+  gitInit(emptyRoot)
+  const empty = runLifecycleHook(
+    { hook_event_name: 'SessionStart', cwd: emptyRoot, source: 'startup' },
+    { env: hookEnv },
+  )
+  assert.doesNotMatch(`${empty.stdout}${empty.stderr}`, /SEPARATE copy/,
+    'a listed tree with no corpus dir must not open the shadow notice')
+
+  const corpusRoot = await mkdtemp(path.join(testTmp, 'ss-shadow-corpus-'))
+  await mkdir(path.join(corpusRoot, 'docs', 'adr'), { recursive: true })
+  writeFileSync(path.join(corpusRoot, 'docs', 'adr', 'ADR-001-listed.md'),
+    '# ADR-001: Listed\n\n**Status:** Accepted\n')
+  gitInit(corpusRoot)
+  const listed = runLifecycleHook(
+    { hook_event_name: 'SessionStart', cwd: corpusRoot, source: 'startup' },
+    { env: hookEnv },
+  )
+  assert.match(`${listed.stdout}${listed.stderr}`, /SEPARATE copy/)
+})
+
 test('reported: a scratch directory made the standard way is still scratch', async () => {
   // `W=$(mktemp -d)` is how everyone makes a scratch directory, and every use of
   // it armed the unresolved-deletion sentinel AND counted as repository

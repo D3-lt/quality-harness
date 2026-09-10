@@ -153,7 +153,7 @@ function coveredIds(corpus) {
 export function observe(directory) {
   const listing = trackedPaths(directory)
   const look = listing == null ? 'UNPROVEN' : 'ok'
-  const corpus = adrCorpus(directory)
+  const corpus = adrCorpus(directory, { tracked: listing })
   const tasks = taskFiles(directory, listing) ?? []
   const specPaths = specFiles(directory, listing) ?? []
 

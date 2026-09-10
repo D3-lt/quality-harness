@@ -13,7 +13,7 @@
 // is NOT here on purpose: anything about lessons learned. That is a different
 // kind of memory with a different lifetime, and it lives outside this harness.
 import path from 'node:path'
-import { adrCorpus } from './lifecycle.mjs'
+import { adrCorpus, trackedPaths } from './lifecycle.mjs'
 
 import { pathToFileURL } from 'node:url'
 
@@ -28,7 +28,13 @@ export function main(argv) {
   return 2
   }
   const root = argv.find(a => !a.startsWith('--')) ?? process.cwd()
-  const corpus = adrCorpus(root)
+  const listing = trackedPaths(root)
+  const corpus = adrCorpus(root, { tracked: listing })
+  if (listing == null) {
+    if (json) process.stdout.write(`${JSON.stringify({ look: 'UNPROVEN', read: null })}\n`)
+    else process.stdout.write('could-not-look: git could not list the tree (UNPROVEN).\n')
+    return 0
+  }
   const relative = record => path.relative(root, record.file) || record.file
   const label = record => `ADR-${String(record.number ?? '?').padStart(3, '0')}`
 

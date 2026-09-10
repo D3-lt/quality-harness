@@ -23,6 +23,8 @@ import {
   commandInsideWrappers,
   describeCommand,
   sessionOrientation,
+  sessionStateNote,
+  hasDecisionCorpus,
   spawnGate,
   probedPythonVersion,
   resolvePython,
@@ -2575,6 +2577,92 @@ test('session orientation states this project, and only this project', async () 
   assert.doesNotMatch(run.stdout, /"decision"/)
 })
 
+function quietSessionState() {
+  return {
+    lastPublish: 0,
+    mutationPathsSince: () => [],
+    unverifiedSince: () => false,
+    lastVerdictCommand: null,
+    lastVerdict: null,
+  }
+}
+
+function corruptGitIndex(dir) {
+  writeFileSync(path.join(dir, '.git', 'index'), 'not-an-index')
+}
+
+test('SessionStart offers ready tasks the listing named', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'ss-ready-listed-'))
+  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
+  gitInit(root)
+  assert.match(sessionOrientation(root), /ADR tasks in flight/)
+  const note = sessionStateNote(quietSessionState(), root, root, true)
+  assert.match(note.text, /ADR task in flight/)
+})
+
+test('a disk-only task dir is not in flight', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'ss-ready-hidden-'))
+  await mkdir(path.join(root, 'docs', 'hidden', 'tasks'), { recursive: true })
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+    path.join(root, 'docs', 'hidden', 'tasks', 'T1-fixture.md'))
+  writeFileSync(path.join(root, '.gitignore'), 'hidden/\n')
+  writeFileSync(path.join(root, 'README.md'), 'listed\n')
+  gitInit(root)
+  const text = sessionOrientation(root)
+  assert.doesNotMatch(text, /ADR tasks in flight/)
+  const note = sessionStateNote(quietSessionState(), root, root, true)
+  assert.doesNotMatch(note.text, /ADR task in flight/)
+  assert.doesNotMatch(note.text, /UNPROVEN/)
+})
+
+test('git cannot list is UNPROVEN, not no ready tasks', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'ss-ready-fail-'))
+  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
+  gitInit(root)
+  corruptGitIndex(root)
+  const text = sessionOrientation(root)
+  assert.match(text, /UNPROVEN/)
+  assert.doesNotMatch(text, /ADR tasks in flight/)
+  const note = sessionStateNote(quietSessionState(), root, root, true)
+  assert.match(note.text, /UNPROVEN/)
+  assert.doesNotMatch(note.text, /is ready/)
+})
+
+test('SessionStart may treat a listing-named corpus dir as a corpus', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'ss-corpus-listed-'))
+  await mkdir(path.join(root, 'docs', 'adr'), { recursive: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-listed.md'), '# ADR-001: Listed\n\n**Status:** Accepted\n')
+  gitInit(root)
+  assert.equal(hasDecisionCorpus(root), true)
+})
+
+test('a disk-only corpus dir is not a corpus', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'ss-corpus-hidden-'))
+  await mkdir(path.join(root, 'docs', 'adr'), { recursive: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'hidden.md'), '# not listed\n')
+  writeFileSync(path.join(root, '.gitignore'), 'docs/adr/\n')
+  writeFileSync(path.join(root, 'README.md'), 'listed\n')
+  gitInit(root)
+  assert.equal(hasDecisionCorpus(root), false)
+  assert.doesNotMatch(sessionOrientation(root), /UNPROVEN/)
+})
+
+test('git cannot list is UNPROVEN, not no corpus', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'ss-corpus-fail-'))
+  await mkdir(path.join(root, 'docs', 'adr'), { recursive: true })
+  writeFileSync(path.join(root, 'docs', 'adr', 'ADR-001-disk.md'), '# ADR-001: Disk\n\n**Status:** Accepted\n')
+  gitInit(root)
+  corruptGitIndex(root)
+  assert.equal(hasDecisionCorpus(root), 'UNPROVEN')
+  const text = sessionOrientation(root)
+  assert.match(text, /UNPROVEN/)
+  assert.match(text, /corpus existence/)
+})
+
 test('reported: a scratch directory made the standard way is still scratch', async () => {
   // `W=$(mktemp -d)` is how everyone makes a scratch directory, and every use of
   // it armed the unresolved-deletion sentinel AND counted as repository
@@ -2694,6 +2782,13 @@ async function decisionCorpus(prefix) {
   await write('docs/adr/archive/ADR-000-mongo.md',
     '# ADR-000: Mongo for everything\n\n**Status:** Withdrawn\n**Governs:**\n'
     + '- type: path\n  pattern: "src/orders/**"\n- type: package\n  pattern: "mongodb@>=6"\n')
+  await mkdir(path.join(root, 'src', 'orders'), { recursive: true })
+  await mkdir(path.join(root, 'src', 'queue'), { recursive: true })
+  await mkdir(path.join(root, 'migrations'), { recursive: true })
+  await write('src/orders/schema.ts', '// fixture path Governs resolves against the listing\n')
+  await write('src/queue/worker.ts', '// fixture path Governs resolves against the listing\n')
+  await write('migrations/001.sql', '-- fixture path Governs resolves against the listing\n')
+  gitInit(root)
   return root
 }
 
@@ -3075,6 +3170,7 @@ test('the corpus reader handles the spellings real repositories use', async () =
   // A record with no status at all is neither governing nor graveyard.
   await write('0009-no-status.md', '# ADR-0009: Nothing declared\n\n**Governs:** `src/**`\n')
 
+  gitInit(root)
   const corpus = adrCorpus(root)
   const nygard = corpus.find(record => /event sourcing/.test(record.title))
   assert.ok(nygard, 'a `## Status` section is a status')
@@ -3203,7 +3299,10 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
   await writeFile(path.join(dir, 'docs', 'adr', 'ADR-002-rotted.md'),
     record('002', '`bin/adr-lint`'))
 
-  const tracked = ['plugin/bin/adr-lint', 'plugin/bin/adr-verify', 'tests/mutations.json']
+  const tracked = [
+    'docs/adr/ADR-001-live.md', 'docs/adr/ADR-002-rotted.md',
+    'plugin/bin/adr-lint', 'plugin/bin/adr-verify', 'tests/mutations.json',
+  ]
 
   // The DIRTY answer: `bin/adr-lint` is exactly what this repository's records
   // said before the move, and exactly what nothing matched after it.
@@ -3233,7 +3332,7 @@ test('a Governs declaration that matches nothing tracked is reported, and could-
     '# ADR-003: typed\n\n**Status:** Accepted\n**Governs:**\n'
     + '- type: path\n  pattern: "plugin/bin/**"\n- type: package\n  pattern: "mongodb@>=6"\n'
     + '\n## Context\n\nx\n')
-  const typed = adrCorpus(dir, { tracked }).find(entry => entry.number === 3)
+  const typed = adrCorpus(dir, { tracked: [...tracked, 'docs/adr/ADR-003-typed.md'] }).find(entry => entry.number === 3)
   assert.deepEqual(typed.unresolved, ['package:mongodb@>=6'],
     `a non-path matcher is still recorded as before: ${JSON.stringify(typed.unresolved)}`)
 
@@ -3486,6 +3585,7 @@ test('a path outside this corpus is said to be outside, never "none governs" (BA
   const { main, within } = await import('../plugin/scripts/adr-context.mjs')
   const mine = await mkdtemp(path.join(testTmp, 'quality-context-mine-'))
   const theirs = await mkdtemp(path.join(testTmp, 'quality-context-theirs-'))
+  gitInit(mine)
   const say = (argv, root) => {
     const out = []
     const stdout = process.stdout.write
@@ -3528,6 +3628,9 @@ test('adr-context answers which decisions govern a path, and which were killed t
     record('001', 'Accepted', 'src/pay.js', 'every catalogue entry still matches the source it mutates, exactly once'))
   await writeFile(path.join(dir, 'docs', 'adr', 'ADR-002-dead.md'),
     record('002', 'Withdrawn', 'src/pay.js'))
+  await mkdir(path.join(dir, 'src'), { recursive: true })
+  await writeFile(path.join(dir, 'src', 'pay.js'), '// fixture path Governs resolves against the listing\n')
+  gitInit(dir)
 
   const say = () => {
     const written = []
@@ -3626,9 +3729,10 @@ test('adr-context answers which decisions govern a path, and which were killed t
   assert.equal(code, 0)
   assert.match(cap.written.join(''), /none governs/)
 
-  // A repository with no corpus at all says so rather than reporting emptiness
-  // as an absence of governance.
+  // A git repository with no corpus at all says so rather than reporting emptiness
+  // as an absence of governance. Not-a-repo / git-fail is UNPROVEN (F-3), not this.
   const bare = await mkdtemp(path.join(testTmp, 'adr-context-bare-'))
+  gitInit(bare)
   cap = say()
   try { main(['src/pay.js'], bare) } finally { cap.done() }
   assert.match(cap.written.join(''), /No decision records found/)
@@ -3810,9 +3914,14 @@ test('adr-state derives what is decided now, instead of asking anyone to maintai
     [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--nope'], { encoding: 'utf8', timeout: 60_000 }).status, 2)
 
   // A directory with no records says so rather than printing an empty report.
+  const none = await mkdtemp(path.join(testTmp, 'quality-none-'))
+  const unproven = spawnSync(process.execPath,
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), none], { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(unproven.status, 0)
+  assert.match(unproven.stdout, /UNPROVEN/)
+  gitInit(none)
   const empty = spawnSync(process.execPath,
-    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), await mkdtemp(path.join(testTmp, 'quality-none-'))],
-    { encoding: 'utf8', timeout: 60_000 })
+    [path.join(pluginDir, 'scripts', 'adr-state.mjs'), none], { encoding: 'utf8', timeout: 60_000 })
   assert.equal(empty.status, 0)
   assert.match(empty.stdout, /No decision records found/)
 })
@@ -3848,6 +3957,7 @@ test('reported: the layouts and scale a real corpus actually has', async () => {
   await writeFile(path.join(adr, '2026-03-08-retrospective.md'),
     '# Retrospective\n\n**Status:** Accepted\n')
 
+  gitInit(root)
   const corpus = adrCorpus(root)
   const record = corpus.find(entry => entry.number === 110)
   assert.ok(record, 'the record is found')
@@ -4186,6 +4296,7 @@ test('a record the corpus reader cannot read is reported, not silently dropped',
   await writeFile(path.join(adr, 'ADR-003-odd.md'), '# ADR-003: Odd\n\n**Status:** Implemented\n')
   await writeFile(path.join(adr, 'ADR-004-nameless.md'), '# ADR-004: Nameless\n\nNo status here.\n')
 
+  gitInit(root)
   const corpus = adrCorpus(root)
   assert.equal(corpus.length, 1, 'only the Accepted record is a record this reader can apply')
 
@@ -4220,6 +4331,7 @@ test('adr-state reports the three kinds of record it did not read, separately', 
   await writeFile(path.join(adr, 'ADR-003-odd.md'), '# ADR-003: Odd\n\n**Status:** Implemented\n')
   await writeFile(path.join(adr, 'ADR-004-nameless.md'), '# ADR-004: Nameless\n\nNothing.\n')
 
+  gitInit(root)
   const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-state.mjs'), root],
     { encoding: 'utf8', timeout: 30_000 })
   assert.equal(run.status ?? 0, 0, 'adr-state reads and never refuses')

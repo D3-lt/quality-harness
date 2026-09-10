@@ -2857,8 +2857,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "          && (ADR_FILE.test(entry.name) || looksLikeRecord(child, directory, reader))) {",
-      "to": "          && ADR_FILE.test(entry.name)) {"
+      "from": "    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader)) files.push(absolute)",
+      "to": "    if (ADR_FILE.test(base)) files.push(absolute)"
     },
     {
       "label": "checks: a build is not a project's check",

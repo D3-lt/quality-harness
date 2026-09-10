@@ -11,7 +11,7 @@ import { realpathSync } from 'node:fs'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
 
-import { adrCorpus, decisionsGoverning } from './lifecycle.mjs'
+import { adrCorpus, decisionsGoverning, trackedPaths } from './lifecycle.mjs'
 
 // The CLI is behind an import guard (BACKLOG §27). It used to run at module
 // scope, so importing this file — to test it, or from any tool that walks the
@@ -65,7 +65,13 @@ export function main(argv, root = process.cwd()) {
     return 2
   }
 
-  const corpus = adrCorpus(root)
+  const listing = trackedPaths(root)
+  const corpus = adrCorpus(root, { tracked: listing })
+  if (listing == null) {
+    if (json) process.stdout.write(`${JSON.stringify({ look: 'UNPROVEN', read: null, governing: [], graveyard: [] }, null, 2)}\n`)
+    else process.stdout.write('could-not-look: git could not list the tree (UNPROVEN).\n')
+    return 0
+  }
   const { governing, graveyard } = decisionsGoverning(targets, root, corpus)
   const shape = record => ({
     file: path.relative(root, record.file) || record.file,

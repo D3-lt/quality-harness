@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { analyzeTranscript, firstMentionThisSession } from '../plugin/scripts/lifecycle.mjs'
+import { analyzeTranscript, firstMentionThisSession, adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
@@ -25,6 +25,17 @@ function gitInit(dir) {
     cwd: dir, encoding: 'utf8', timeout: 15_000,
   })
   assert.equal(run.status ?? 0, 0, run.stderr)
+}
+
+function corruptGitIndex(dir) {
+  writeFileSync(path.join(dir, '.git', 'index'), 'not-an-index')
+}
+
+function plantAccepted(root, rel, id, title = 'Thing') {
+  const file = path.join(root, ...rel.split('/'))
+  mkdirSync(path.dirname(file), { recursive: true })
+  writeFileSync(file, acceptedRecord(id, title))
+  return file
 }
 
 function workNext(root, flags = []) {
@@ -183,6 +194,86 @@ test('could-not-look is UNPROVEN, not an empty corpus', async () => {
   assert.doesNotMatch(run.stdout, /write a spec/i)
   assert.doesNotMatch(run.stdout, /^Next: \/spec-write/m)
   assert.doesNotMatch(run.stdout, /^Next: \/quality-harness:spec-write/m)
+})
+
+test('observe passes the listing into adrCorpus', async () => {
+  const src = readFileSync(path.join(pluginDir, 'scripts', 'work-next.mjs'), 'utf8')
+  assert.match(src, /adrCorpus\(directory,\s*\{\s*tracked:\s*listing\s*\}\)/)
+})
+
+test('a failed listing is not a disk corpus of records', async () => {
+  const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
+  const root = mkdtempSync(path.join(testTmp, 'records-no-git-'))
+  plantAccepted(root, 'docs/adr/ADR-001-disk.md', '001', 'On disk')
+  const state = observe(root)
+  assert.equal(state.look, 'UNPROVEN')
+  assert.equal(state.records, 0)
+  assert.equal(state.accepted, 0)
+  assert.notEqual(nextStage(state)?.id, 'spec-write')
+  const run = workNext(root)
+  assert.match(run.stdout, /UNPROVEN/)
+  assert.doesNotMatch(run.stdout, /no QH corpus is in use/i)
+  const json = JSON.parse(workNext(root, ['--json']).stdout)
+  assert.equal(json.look, 'UNPROVEN')
+  assert.equal(json.records, 0)
+})
+
+test('disk-only record files are not the corpus', async () => {
+  const { observe } = await import('../plugin/scripts/work-next.mjs')
+  const root = mkdtempSync(path.join(testTmp, 'records-ignored-'))
+  writeFileSync(path.join(root, '.gitignore'), 'secret/\n')
+  plantAccepted(root, 'docs/adr/ADR-001-listed.md', '001', 'Listed')
+  plantAccepted(root, 'docs/adr/secret/ADR-002-hidden.md', '002', 'Hidden')
+  gitInit(root)
+  const state = observe(root)
+  assert.equal(state.look, 'ok')
+  assert.equal(state.records, 1)
+  const names = adrCorpus(root).map(record => path.basename(record.file))
+  assert.deepEqual(names, ['ADR-001-listed.md'])
+})
+
+test('leftover adrCorpus callers use the listing, not the disk', async () => {
+  const listed = mkdtempSync(path.join(testTmp, 'leftover-listed-'))
+  writeFileSync(path.join(listed, '.gitignore'), 'secret/\n')
+  plantAccepted(listed, 'docs/adr/ADR-001-listed.md', '001', 'Listed')
+  plantAccepted(listed, 'docs/adr/secret/ADR-002-hidden.md', '002', 'Hidden')
+  gitInit(listed)
+  const state = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', listed], {
+    encoding: 'utf8', timeout: 30_000,
+  })
+  assert.equal(state.status, 0, state.stderr)
+  assert.equal(JSON.parse(state.stdout).read, 1)
+  const ctx = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-context.mjs'), 'docs/adr/ADR-001-listed.md'], {
+    encoding: 'utf8', timeout: 30_000, cwd: listed,
+  })
+  assert.equal(ctx.status, 0, ctx.stderr)
+  assert.doesNotMatch(ctx.stdout, /UNPROVEN/)
+  assert.doesNotMatch(ctx.stdout, /ADR-002-hidden/)
+  const fromDefault = decisionsGoverning(['docs/adr/ADR-001-listed.md'], listed)
+  assert.equal(fromDefault.look, 'ok')
+  assert.equal(fromDefault.governing.length, 0)
+
+  const failed = mkdtempSync(path.join(testTmp, 'leftover-fail-'))
+  plantAccepted(failed, 'docs/adr/ADR-001-disk.md', '001', 'On disk')
+  gitInit(failed)
+  corruptGitIndex(failed)
+  const unproven = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-state.mjs'), failed], {
+    encoding: 'utf8', timeout: 30_000,
+  })
+  assert.equal(unproven.status, 0, unproven.stderr)
+  assert.match(unproven.stdout, /UNPROVEN/)
+  assert.doesNotMatch(unproven.stdout, /No decision records found/)
+  assert.doesNotMatch(unproven.stdout, /1 record\(s\) read/)
+  const unprovenCtx = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-context.mjs'), 'docs/adr/ADR-001-disk.md'], {
+    encoding: 'utf8', timeout: 30_000, cwd: failed,
+  })
+  assert.equal(unprovenCtx.status, 0, unprovenCtx.stderr)
+  assert.match(unprovenCtx.stdout, /UNPROVEN/)
+  assert.doesNotMatch(unprovenCtx.stdout, /No decision records found/)
+  const dg = decisionsGoverning(['docs/adr/ADR-001-disk.md'], failed)
+  assert.equal(dg.look, 'UNPROVEN')
+  assert.equal(dg.governing.length, 0)
+  assert.equal(adrCorpus(failed).length, 0)
 })
 
 test('null-stage leftover is not spec-write', async () => {

@@ -6,7 +6,7 @@
 // for a large transcript.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -17,6 +17,34 @@ import { CI_STALE_MS, SIZE_CAP, ciReading, findGitDir, reading, render, renderCi
 const testDir = dirname(fileURLToPath(import.meta.url))
 const repoRoot = resolve(testDir, '..')
 const script = join(repoRoot, 'plugin', 'scripts', 'statusline.mjs')
+
+const QH_STATUSLINE_ONE_LINER = 'node "$(qh-root)/scripts/statusline.mjs" <<< "$input"'
+
+function stripFenceTicks(line) {
+  return line.replace(/^`+/, '').replace(/`+$/, '').trim()
+}
+
+function shippedStatuslineSurfaces() {
+  return [
+    join(repoRoot, 'docs', 'INSTALL.md'),
+    join(repoRoot, 'plugin', 'README.md'),
+    join(repoRoot, 'plugin', 'scripts', 'statusline.mjs'),
+  ]
+}
+
+function assertComposeNotReplacement(text) {
+  assert.match(text, /keep (the host|your existing|that) command/i)
+  assert.match(text, /\$input/)
+  assert.match(text, /qh=\$\(node "\$\(qh-root\)\/scripts\/statusline\.mjs" <<< "\$input"/)
+  assert.match(text, /printf '%s\\n' "\$qh"/)
+  assert.match(text, /refreshInterval/)
+  assert.doesNotMatch(text, /delete.{0,40}refreshInterval|remove.{0,40}refreshInterval/i)
+  assert.match(text, /cannot set.{0,80}statusLine/i)
+  for (const line of text.split('\n')) {
+    const stripped = stripFenceTicks(line.replace(/^\/\/\s*/, '').trim())
+    assert.notEqual(stripped, QH_STATUSLINE_ONE_LINER)
+  }
+}
 
 const line = (id, name, input, result) => [
   JSON.stringify({ type: 'assistant', message: { content: [{ type: 'tool_use', id, name, input }] } }),
@@ -185,4 +213,45 @@ test('the CI piece reads the hook\'s cache: green, red with a count, running, st
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }
+})
+
+test('the wired statusline segment does not grow a layer token', () => {
+  const kinds = [
+    { kind: 'checked' },
+    { kind: 'unverified', count: 2 },
+    { kind: 'nothing', check: 'node --test' },
+    { kind: 'too-large', bytes: 61 * 1024 * 1024 },
+  ]
+  for (const value of kinds) {
+    const out = render(value)
+    assert.doesNotMatch(out, /layer/i)
+    assert.doesNotMatch(out, /corpus/i)
+  }
+  const withCi = render({ kind: 'checked' }, { state: 'green' })
+  assert.doesNotMatch(withCi, /layer/i)
+  const hooks = readFileSync(join(repoRoot, 'plugin', 'hooks', 'hooks.json'), 'utf8')
+  assert.doesNotMatch(hooks, /statusLine/)
+  const src = readFileSync(script, 'utf8')
+  const renderStart = src.indexOf('export function render(')
+  const renderEnd = src.indexOf('export async function main')
+  assert.ok(renderStart >= 0 && renderEnd > renderStart)
+  assert.doesNotMatch(src.slice(renderStart, renderEnd), /layer/i)
+})
+
+test('statusline segment: copy-paste is compose not a replacement command', () => {
+  for (const path of shippedStatuslineSurfaces()) {
+    const text = readFileSync(path, 'utf8')
+    assertComposeNotReplacement(text)
+  }
+})
+
+test('statusline segment: recipe does not delete refreshInterval or claim QH set the bar', () => {
+  for (const path of shippedStatuslineSurfaces()) {
+    const text = readFileSync(path, 'utf8')
+    assert.match(text, /refreshInterval/)
+    assert.doesNotMatch(text, /delete.{0,40}refreshInterval|remove.{0,40}refreshInterval/i)
+    assert.match(text, /cannot set.{0,80}statusLine/i)
+  }
+  const hooks = readFileSync(join(repoRoot, 'plugin', 'hooks', 'hooks.json'), 'utf8')
+  assert.doesNotMatch(hooks, /statusLine/)
 })

@@ -81,8 +81,9 @@ have — the number is measured by the CLI, not written here.
 - **Hooks** on `SessionStart`, `SubagentStart`, `SubagentStop`, `TaskCompleted`, `Stop`,
   `PreToolUse` and `PostToolUse`. They advise and never seize the session (README, "It never
   blocks you").
-- **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Add this to your own command to see `QH ✗` for unverified work and UNPROVEN writes:
-  `node "$(qh-root)/scripts/statusline.mjs" <<< "$input"`
+- **Status line (user-wired).** The plugin cannot set Claude's `statusLine`. Keep that command (and any `refreshInterval`). Feed the same `$input` to the script and append its stdout — one line, or empty:
+    qh=$(node "$(qh-root)/scripts/statusline.mjs" <<< "$input" 2>/dev/null)
+    [ -n "$qh" ] && printf '%s\n' "$qh"
 
 - **`bin/` on the Bash tool's `PATH`** while the plugin is enabled — Claude Code does this for any
   plugin that ships a `bin/` directory. So `adr-lint`, `adr-verify`, `qh-root` and the other gates

@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | SessionStart inventories ready task dirs from the listing | pending | F-1, UC1-S1, UC1-S2, UC1-S3 | `node --test --test-name-pattern 'SessionStart offers ready tasks the listing named\|a disk-only task dir is not in flight\|git cannot list is UNPROVEN, not no ready tasks' tests/lifecycle.test.mjs` |
+| T1 | SessionStart inventories ready task dirs from the listing | done | F-1, UC1-S1, UC1-S2, UC1-S3 | `node --test --test-name-pattern 'SessionStart offers ready tasks the listing named\|a disk-only task dir is not in flight\|git cannot list is UNPROVEN, not no ready tasks' tests/lifecycle.test.mjs` |
 | T2 | SessionStart corpus existence uses the listing | pending | F-2, UC2-S1, UC2-S2, UC2-S3 | `node --test --test-name-pattern 'SessionStart may treat a listing-named corpus dir as a corpus\|a disk-only corpus dir is not a corpus\|git cannot list is UNPROVEN, not no corpus' tests/lifecycle.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.

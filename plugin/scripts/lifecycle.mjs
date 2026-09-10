@@ -1705,17 +1705,52 @@ export function bashNavigationImpact(command, cwd) {
 //
 // — five markers, all the same, none of them the write. Peel the navigation and
 // describe what is left.
+//
+// A leading echo / ls / validation probe is the same hole one class over.
+// Isolated those names are already not mutations; describeCommand still named
+// the echo/ls prefix of `…; rm -rf build` because it peeled only cd. Live
+// 2026-09-10 Stop. Peel only those executed names, and only when the segment
+// itself is not a mutation. Unknown `neither` verbs are not known read-only
+// (ADR-005 / CLAUDE.md §16). This is not READ_ONLY_CHILD — that list strips
+// Python subprocess argv.
+function isKnownProbePrefix(segment) {
+  if (typeof segment !== 'string' || !segment.trim()) return false
+  if (isPotentialMutationCommand(segment)) return false
+  if (isValidationCommand(segment)) return true
+  const invocation = commandInvocation(segment)
+  if (!invocation) return false
+  const name = executableName(invocation.words[invocation.index])
+  return name === 'echo' || name === 'ls'
+}
+
+function peelOneLeadingProbe(remainder) {
+  const trimmed = remainder.replace(/^\s+/, '')
+  const segments = shellSegments(remainder)
+  if (segments.length < 2) return remainder
+  const first = segments[0]
+  if (!isKnownProbePrefix(first) || !trimmed.startsWith(first)) return remainder
+  return trimmed.slice(first.length).replace(/^\s*(?:&&|\|\||[;&|\n])\s*/, '')
+}
+
 export function describeCommand(command, limit = 72) {
   // A heredoc body is input to a command, not the command. Splicing it in is
   // what put raw newlines and mid-token truncation into the sentence before.
   const script = withoutHeredocBodies(String(command ?? ''))
   let remainder = script
   while (true) {
-    const peeled = remainder.replace(NAVIGATION_PREFIX, '')
-    if (peeled === remainder) break
-    remainder = peeled
+    const afterNav = remainder.replace(NAVIGATION_PREFIX, '')
+    if (afterNav !== remainder) {
+      remainder = afterNav
+      continue
+    }
+    const afterProbe = peelOneLeadingProbe(remainder)
+    if (afterProbe !== remainder) {
+      remainder = afterProbe
+      continue
+    }
+    break
   }
-  // All navigation and nothing else: describe the navigation rather than nothing.
+  // All navigation/probes and nothing else: describe the original rather than nothing.
   const line = collapse(remainder) || collapse(script)
   if (line.length <= limit) return line
   const cut = line.slice(0, limit)

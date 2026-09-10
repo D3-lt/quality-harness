@@ -2187,6 +2187,69 @@ test('an unresolvable Bash write is named in one readable line', async () => {
   assert.equal(path.isAbsolute(marker), false)
 })
 
+test('Stop names the mutating remainder after a probe prefix', async () => {
+  // Live 2026-09-10 Stop in a foreign repo: Changed paths named the echo/ls
+  // prefix of a long cache listing, truncated, because describeCommand peels only cd.
+  // because describeCommand peels only cd, then truncates. Isolated echo/ls are
+  // not mutations; the hole is the prefix of a compound that does mutate.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-probe-prefix-'))
+  await writeFile(path.join(dir, 'go.mod'), 'module example\n')
+  const file = path.join(dir, 'agent.jsonl')
+  const cacheLs = 'ls /var/cache/quality-harness/quality-harness/2.97.0/skills/quality-policy'
+  const command = `echo "== cache versions"; ${cacheLs}; rm -rf build`
+  assert.equal(describeCommand(command), 'rm -rf build')
+  assert.equal(
+    describeCommand('adr-lint --version; node plugin/scripts/work-next.mjs'),
+    'node plugin/scripts/work-next.mjs')
+  assert.match(describeCommand('echo x > out.txt; rm -rf build'), /echo x > out.txt/)
+  assert.match(describeCommand('mystery-tool write-files; rm -rf build'), /mystery-tool/)
+
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command }), toolResult('b1'),
+  ]))
+  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  const message = `${run.stdout}${run.stderr}`
+  assert.match(message, /Changed paths include/, message)
+  const markers = message.match(/<Bash mutation: [^>]*>/g) ?? []
+  for (const marker of markers) {
+    assert.doesNotMatch(marker, /echo "== cache versions"/, marker)
+    assert.doesNotMatch(marker, /\bls /, marker)
+  }
+  const buildPath = path.resolve(dir, 'build')
+  assert.ok(
+    markers.some(marker => marker.includes('rm -rf build')) || message.includes(buildPath),
+    message)
+  // Non-Goal: which inferred check a go.mod repo is told to run stays `go test`.
+  assert.match(message, /go test/, message)
+})
+
+test('probe-only Bash is not Session authorship', async () => {
+  const dir = await mkdtemp(path.join(testTmp, 'quality-probe-only-'))
+  await writeFile(path.join(dir, 'go.mod'), 'module example\n')
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Bash', {
+      command: 'echo "== cache versions"; ls /var/cache/quality-harness',
+    }), toolResult('e1'),
+    toolUse('v1', 'Bash', { command: 'adr-lint --version' }), toolResult('v1'),
+  ]))
+  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  const message = `${run.stdout}${run.stderr}`
+  assert.doesNotMatch(message, /Changed paths include/, message)
+  assert.doesNotMatch(message, /go test/, message)
+
+  // Same fixture with a later mutating segment must still speak — otherwise the
+  // silence above is vacuous (CLAUDE.md §4).
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', {
+      command: 'echo "== cache versions"; ls /var/cache/quality-harness/x; rm -rf build',
+    }), toolResult('b1'),
+  ]))
+  const dirty = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  const dirtyMessage = `${dirty.stdout}${dirty.stderr}`
+  assert.match(dirtyMessage, /Changed paths include/, dirtyMessage)
+})
+
 test('SubagentStart states the leaf-role contract, and never blocks', async () => {
   // hooks.json declares this event and the installed plugin registers it, so
   // subagentContract runs on every subagent launch in production. Nothing had

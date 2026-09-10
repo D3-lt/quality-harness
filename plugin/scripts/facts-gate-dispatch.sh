@@ -207,8 +207,15 @@ if [ -z "$archive_readme" ]; then
 
 fi
 if [ -z "$archive_readme" ]; then
+  # Missing is could-not-look (ADR-005 / F-15), never a clean skip. Unreadable
+  # existing files still fall through: -f is true, ADR-*.md can match by name,
+  # and the UNPROVEN arm below names a file that exists but cannot be read.
+  if [ ! -f "$f" ]; then
+    printf 'UNPROVEN: could not classify %s\n' "$f"
+    exit 0
+  fi
   case "$f" in
-    *.md) [ -f "$f" ] || exit 0 ;;
+    *.md) ;;
     *) exit 0 ;;
   esac
 fi

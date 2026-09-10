@@ -665,6 +665,47 @@ export function isGitPublishCommand(command) {
   return false
 }
 
+function commandSucceeded(result) {
+  if (result === undefined) return false
+  if (result.is_error === true || result.interrupted === true) return false
+  let exitCode = null
+  walk(result, object => {
+    for (const [key, value] of Object.entries(object)) {
+      if (/^(?:exit_code|exitCode)$/.test(key) && Number.isInteger(value) && exitCode === null) {
+        exitCode = value
+      }
+    }
+  })
+  return exitCode === null || exitCode === 0
+}
+
+function sameDirectory(left, right) {
+  return underDirectory(left, right) && underDirectory(right, left)
+}
+
+// lastPublish is this project's publish, not "a git commit/push ran".
+// gitCommandDirectory already resolves -C / --git-dir / --work-tree; the
+// mutation side's segmentDirectories trail supplies the cd. Conservative:
+// unknown directory is not a this-project publish.
+function gitPublishTargetsThisProject(command, cwd) {
+  if (typeof command !== 'string' || typeof cwd !== 'string') return false
+  const here = nearestExistingDirectory(path.resolve(cwd))
+  if (!here) return false
+  const project = gitRepositoryRoot(here) ?? here
+  let targetsThis = false
+  for (const { segment, dir } of segmentDirectories(command, cwd)) {
+    if (!['commit', 'push'].includes(gitSubcommand(segment))) continue
+    if (dir === null) continue
+    const target = gitCommandDirectory(segment, dir)
+    const targetHere = nearestExistingDirectory(path.resolve(target))
+    if (!targetHere) continue
+    const targetRoot = gitRepositoryRoot(targetHere) ?? targetHere
+    if (sameDirectory(targetRoot, project)) targetsThis = true
+  }
+  return targetsThis
+}
+
+
 function isGitMutationCommand(command) {
   if (typeof command !== 'string') return false
   const mutating = new Set([
@@ -1774,6 +1815,8 @@ const NAVIGATION_PREFIX = /^\s*(?:cd|pushd|popd)(?:[ \t]+(?:"[^"]*"|'[^']*'|[^\s
 const collapse = text => text.replace(/\s+/g, ' ').trim()
 
 export function analyzeTranscript(raw, cwd = process.cwd()) {
+  if (typeof raw === 'string' && raw.charCodeAt(0) === 0xFEFF) raw = raw.slice(1)
+
   const uses = []
   const results = new Map()
   let position = 0
@@ -1874,9 +1917,14 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
           record(use.position, `<Bash mutation: ${describeCommand(use.input.command)}>`)
         }
       }
-      if (isGitPublishCommand(use.input.command)) {
+      // Did this project get published? executed() is true for an is_error
+      // result unless a hook blocked it, so a failed commit used to move the
+      // boundary. A commit in another repository did too (stress, 2026-09-10).
+      if (commandSucceeded(results.get(use.id))
+          && gitPublishTargetsThisProject(use.input.command, cwd)) {
         lastPublish = Math.max(lastPublish, use.position)
       }
+
     }
     if (use.name === 'Bash' && isValidationCommand(use.input.command)
         && use.input.run_in_background !== true) {

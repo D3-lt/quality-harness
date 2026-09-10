@@ -12498,3 +12498,29 @@ it is not a plan.**
 package is the only source of truth, and that a second copy goes stale silently while serving an
 older shape under a name that looks current. That measured hazard is about copies of the SKILLS.
 Any OpenCode work has to be an adapter over the shipped gates, never a translated second lifecycle.
+
+## 196. OPEN 2026-09-10 — ADR-039 still names unused `readRecordFiles` after the walker was deleted
+
+ADR-039 (Accepted) records as Neutral that unused `readRecordFiles` stays in `lifecycle.mjs`, and as
+a Non-Goal "Untangle `lifecycle.mjs`, including deleting unused `readRecordFiles`". A later commit
+on this branch deleted the function. The record still says it stays. History is not rewritten
+(CLAUDE.md §10).
+
+Command (2026-09-10), plugin product tree:
+
+```
+rg -n 'function readRecordFiles|readRecordFiles\(' plugin --glob '!**/node_modules/**' --glob '!**/__pycache__/**'
+```
+
+Output: empty. The symbol is gone from `plugin/`.
+
+The Accepted record still cites the old line and the stay/Non-Goal:
+
+```
+docs/adr/ADR-039-records-use-the-same-listing.md:13:plugin/scripts/lifecycle.mjs:2990:function readRecordFiles(root, reader) {
+docs/adr/ADR-039-records-use-the-same-listing.md:91:- **Neutral:** Unused `readRecordFiles` stays in `lifecycle.mjs`.
+docs/adr/ADR-039-records-use-the-same-listing.md:97:- Untangle `lifecycle.mjs`, including deleting unused `readRecordFiles`
+```
+
+Leave the record. A later author who wants the corpus to describe today's tree writes a new record,
+not an edit of 039.

@@ -17,7 +17,7 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Observe passes the listing into adrCorpus | pending | F-1, UC1-S1, UC1-S2 | `node --test --test-name-pattern 'observe passes the listing into adrCorpus\|a failed listing is not a disk corpus of records' tests/staged-product.test.mjs` |
+| T1 | Observe passes the listing into adrCorpus | done | F-1, UC1-S1, UC1-S2 | `node --test --test-name-pattern 'observe passes the listing into adrCorpus\|a failed listing is not a disk corpus of records' tests/staged-product.test.mjs` |
 | T2 | Listed records are the corpus, including leftover callers | pending | F-2, F-3, UC1-S3, UC1-S4, UC2-S1, UC2-S2 | `node --test --test-name-pattern 'disk-only record files are not the corpus\|leftover adrCorpus callers use the listing, not the disk' tests/staged-product.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.

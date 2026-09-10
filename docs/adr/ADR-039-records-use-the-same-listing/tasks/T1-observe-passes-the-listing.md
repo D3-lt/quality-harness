@@ -50,6 +50,8 @@ node --test --test-name-pattern 'observe passes the listing into adrCorpus|a fai
 
 ## Mutation Log
 
+- 2026-09-10 · 48d2477 · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a null listing must not walk disk into a corpus of records · acceptance-sha256:57b9f67710f8008bccec61b438743014fb812920ee78e45f01f3abcf93535e17
+
 ## Invariants
 
 - `tracked == null` is UNPROVEN, never a disk walk of `docs/adr`.
@@ -68,4 +70,9 @@ A F-1 test that stays green while `readRecordFiles` still walks, or that treats 
 - Leftover callers (T2)
 - SessionStart ready / `hasDecisionCorpus` (ADR-040)
 
+## Notes
+
+Class: a null listing was treated as a disk corpus of records. Sweep: `rg -n 'adrCorpus\(|readRecordFiles\(' plugin --glob '!**/node_modules/**'` — observe and leftover CLIs pass `{ tracked: listing }`; `adrCorpus` returns on null without calling `readRecordFiles`; unused `readRecordFiles` stays (Non-Goal). Siblings: leftover callers (T2), SessionStart (ADR-040).
+
 ## Verification Log
+- 2026-09-10 · 48d2477 · exit 0 · `node --test --test-name-pattern 'observe passes the listing into adrCorpus|a failed listing is not a disk corpus of records' tests/staged-product.test.mjs` · acceptance-sha256:57b9f67710f8008bccec61b438743014fb812920ee78e45f01f3abcf93535e17 · ms:260

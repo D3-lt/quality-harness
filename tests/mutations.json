@@ -627,7 +627,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const unverified = state.unverifiedSince(state.lastPublish)",
+      "from": "  const unverified = state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN'",
       "to": "  const unverified = state.hasMutations && !state.verifiedAfterLastMutation"
     },
     {
@@ -5011,8 +5011,8 @@
       "tests": [
         "tests/statusline.test.mjs"
       ],
-      "from": "    kind: edited.length === 0 ? 'nothing' : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',",
-      "to": "    kind: edited.length === 0 ? 'nothing' : 'checked',"
+      "from": "    kind: unprovenWrite ? 'unverified' : edited.length === 0 ? 'nothing' : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',",
+      "to": "    kind: unprovenWrite ? 'unverified' : edited.length === 0 ? 'nothing' : 'checked',"
     },
     {
       "label": "statusline: a transcript over the cap is said, not read",

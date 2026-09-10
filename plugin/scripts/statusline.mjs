@@ -16,8 +16,11 @@
 // per-session cache, and only under SIZE_CAP — above it the segment says so
 // rather than reading a verdict out of a stale cache (ADR-005).
 //
-// Wire it from your own statusLine command; the plugin cannot set that for you:
-//   node "$(qh-root)/scripts/statusline.mjs" <<< "$input"
+// Keep that command (and any refreshInterval). Feed the same $input to this
+// script and append its stdout — one line, or empty.
+// The plugin cannot set Claude's statusLine:
+//   qh=$(node "$(qh-root)/scripts/statusline.mjs" <<< "$input" 2>/dev/null)
+//   [ -n "$qh" ] && printf '%s\n' "$qh"
 // Exit is always 0 and stderr is never written: an error string in a status
 // line is permanent noise on the one surface a user cannot dismiss.
 import { readFileSync, statSync, writeFileSync } from 'node:fs'

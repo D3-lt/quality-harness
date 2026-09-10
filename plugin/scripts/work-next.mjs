@@ -23,7 +23,7 @@ import { adrCorpus, trackedPaths } from './lifecycle.mjs'
 
 // The DAG, as edges. Each stage names what must be TRUE for it to be the next
 // move, so the router explains itself instead of asserting.
-const STAGES = [
+export const STAGES = [
   {
     id: 'adr-verify',
     entry: 'adr-verify <task file>',
@@ -289,6 +289,12 @@ export function nextStage(state) {
   return null
 }
 
+export function productLayer(look, nextId) {
+  if (look === 'UNPROVEN') return undefined
+  if (nextId == null) return 'corpus'
+  return nextId === 'core' ? 'core' : 'corpus'
+}
+
 /**
  * The CLI half, returning an exit code instead of taking the process with it.
  *
@@ -328,6 +334,7 @@ export function main(argv = process.argv.slice(2)) {
       uncoveredReadySpecs: (state.uncoveredReadySpecs ?? []).map(relative),
       unprovenSpecs: (state.unprovenSpecs ?? []).map(relative),
       next: stage ? { id: stage.id, entry: stage.entry, when: stage.when } : null,
+      layer: productLayer(state.look, stage?.id),
       stages: STAGES.map(({ id, entry, when }) => ({ id, entry, when })),
     }, null, 2)}\n`)
     return 0

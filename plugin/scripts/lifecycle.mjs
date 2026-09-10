@@ -1812,6 +1812,12 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
   let lastVerdictCommand = null
   let lastUnresolvedDeletion = -1
   let lastPublish = -1
+  // Write-shaped unknown as a position. authorship is one session-wide scalar:
+  // Bash mutation (git commit included) sets 'bash', native Write sets 'native',
+  // and UNPROVEN is assigned only while authorship is still 'none'. After the
+  // first of those, an MCP write can never become UNPROVEN again. Gate Advise
+  // on lastUnprovenWrite > lastPublish — the same boundary lastMutation uses.
+  let lastUnprovenWrite = -1
   const mutationPaths = []
   // Where each path was recorded, so a boundary can ask for the ones that matter
   // to it. The flat list above keeps its meaning for every existing consumer.
@@ -1884,9 +1890,9 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       }
     }
     if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)
-        && !KNOWN_NON_WRITE_TOOLS.has(use.name)
-        && authorship === 'none') {
-      authorship = 'UNPROVEN'
+        && !KNOWN_NON_WRITE_TOOLS.has(use.name)) {
+      lastUnprovenWrite = Math.max(lastUnprovenWrite, use.position)
+      if (authorship === 'none') authorship = 'UNPROVEN'
     }
   }
 
@@ -1898,6 +1904,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       && lastSuccessfulValidation === lastValidation,
     lastMutation,
     lastPublish,
+    lastUnprovenWrite,
     lastSuccessfulValidation,
     mutationPaths,
     // Paths recorded after a given position. A commit gates what is being
@@ -3321,7 +3328,7 @@ export function sessionStateNote(state, cwd, root, insideRepository, now = new D
   const other = edited.length - files.length
   const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
   if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
-  const unprovenWrite = state.authorship === 'UNPROVEN'
+  const unprovenWrite = (state.lastUnprovenWrite ?? -1) > state.lastPublish
   const pending = state.unverifiedSince(state.lastPublish) || unprovenWrite
   // Three states, not two: 'neutral' is a session that edited nothing since its
   // last publish, which says nothing about what an EARLIER session left — a
@@ -4051,7 +4058,7 @@ export async function handleHook(input) {
     // live 2.3.0 session on 2026-08-26.
     // Same rule as the completion gates: with no check to name, this has nothing
     // to ask for.
-    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {
+    if ((state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {
       advise('Nothing has verified the work since your last change, so this commit would publish '
         + `unchecked. ${missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))} `
         + 'Nothing is blocked — this is what the gate sees before you commit.', input)
@@ -4081,7 +4088,7 @@ export async function handleHook(input) {
   // rate's denominator is only honest if nothing can reach an exit without being
   // counted, so this must not be pushed down into the branches that follow.
   const check = projectCheckCommand(input.cwd)
-  const unverified = state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN'
+  const unverified = state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish
   recordClaim(input, claim, !check ? 'no-check' : unverified ? 'unverified' : 'verified',
     state.mutationPathsSince(state.lastPublish).length)
   if (event !== 'Stop') {

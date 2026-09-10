@@ -2400,6 +2400,132 @@ test('PreToolUse commit advice does not Advise on Read or Grep', async () => {
   assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
 })
 
+test('PreToolUse commit advice Advises on mrw_write after a published Bash mutation', async () => {
+  // Live Case A / S3: T2 plants mrw_write as the FIRST act, so authorship is
+  // still UNPROVEN at PreToolUse. A real session has already mutated; git
+  // commit itself is a Bash mutation and overwrites the scalar. The gate has
+  // to be lastUnprovenWrite > lastPublish, same shape as lastMutation.
+  const dir = await checkedProject('quality-unproven-after-bash-')
+  const published = [
+    toolUse('b1', 'Bash', { command: 'echo hi > src/a.py' }), toolResult('b1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
+  ]
+  const cleanFile = path.join(dir, 'clean.jsonl')
+  await writeFile(cleanFile, transcript(published))
+  const cleanState = analyzeTranscript(await readFile(cleanFile, 'utf8'), dir)
+  assert.equal(cleanState.authorship, 'bash')
+  assert.equal(cleanState.unverifiedSince(cleanState.lastPublish), false)
+  const clean = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: cleanFile, cwd: dir,
+    session_id: `unproven-after-bash-clean-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(clean.status, 0, clean.stderr)
+  assert.doesNotMatch(clean.stderr, /would publish unchecked/i, 'published Bash work is not re-advised')
+
+  const dirtyFile = path.join(dir, 'dirty.jsonl')
+  await writeFile(dirtyFile, transcript([
+    ...published,
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+  ]))
+  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
+  assert.notEqual(dirtyState.authorship, 'UNPROVEN',
+    'the scalar was overwritten; lastUnprovenWrite is the remaining signal')
+  assert.equal(dirtyState.unverifiedSince(dirtyState.lastPublish), false)
+  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish)
+  const dirty = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
+    session_id: `unproven-after-bash-dirty-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(dirty.status, 0, dirty.stderr)
+  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
+  assert.match(dirty.stderr, /Nothing has verified the work/, dirty.stderr)
+})
+
+test('PreToolUse commit advice Advises on mrw_write after a published native Write', async () => {
+  // S5: native Write sets authorship 'native'; git commit does not demote it
+  // to bash, so UNPROVEN can never be assigned afterwards.
+  const dir = await checkedProject('quality-unproven-after-write-')
+  const published = [
+    toolUse('n1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('n1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
+  ]
+  const cleanFile = path.join(dir, 'clean.jsonl')
+  await writeFile(cleanFile, transcript(published))
+  const cleanState = analyzeTranscript(await readFile(cleanFile, 'utf8'), dir)
+  assert.equal(cleanState.authorship, 'native')
+  assert.equal(cleanState.unverifiedSince(cleanState.lastPublish), false)
+  const clean = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: cleanFile, cwd: dir,
+    session_id: `unproven-after-write-clean-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(clean.status, 0, clean.stderr)
+  assert.doesNotMatch(clean.stderr, /would publish unchecked/i, 'published native write is not re-advised')
+
+  const dirtyFile = path.join(dir, 'dirty.jsonl')
+  await writeFile(dirtyFile, transcript([
+    ...published,
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+  ]))
+  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
+  assert.notEqual(dirtyState.authorship, 'UNPROVEN',
+    'native authorship blocks UNPROVEN promotion; lastUnprovenWrite is the remaining signal')
+  assert.equal(dirtyState.unverifiedSince(dirtyState.lastPublish), false)
+  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish)
+  const dirty = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
+    session_id: `unproven-after-write-dirty-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(dirty.status, 0, dirty.stderr)
+  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
+  assert.match(dirty.stderr, /Nothing has verified the work/, dirty.stderr)
+})
+
+test('PreToolUse commit advice stays quiet after a published UNPROVEN write then Read', async () => {
+  // S4: silence after publish+Read must be lastUnprovenWrite <= lastPublish,
+  // not because the commit overwrote authorship and dropped the write.
+  const dir = await checkedProject('quality-unproven-then-read-')
+  const published = [
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
+  ]
+  const quietFile = path.join(dir, 'read.jsonl')
+  await writeFile(quietFile, transcript([
+    ...published,
+    toolUse('r1', 'Read', { file_path: path.join(dir, 'a.py') }), toolResult('r1'),
+  ]))
+  const quietState = analyzeTranscript(await readFile(quietFile, 'utf8'), dir)
+  assert.ok(quietState.lastUnprovenWrite >= 0, 'the MCP write was recorded as a position')
+  assert.equal(quietState.lastUnprovenWrite > quietState.lastPublish, false,
+    'silence is the publish boundary, not a lost UNPROVEN flag')
+  assert.notEqual(quietState.authorship, 'UNPROVEN')
+  const quiet = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: quietFile, cwd: dir,
+    session_id: `unproven-then-read-quiet-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(quiet.status, 0, quiet.stderr)
+  assert.doesNotMatch(quiet.stderr, /would publish unchecked/i, quiet.stderr)
+
+  const dirtyFile = path.join(dir, 'rewrite.jsonl')
+  await writeFile(dirtyFile, transcript([
+    ...published,
+    toolUse('w2', 'mcp__mrw__mrw_write', { plan: 'docs/b.md' }), toolResult('w2'),
+  ]))
+  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
+  assert.ok(dirtyState.lastUnprovenWrite > dirtyState.lastPublish)
+  const dirty = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: dirtyFile, cwd: dir,
+    session_id: `unproven-then-read-dirty-${Date.now()}-${process.pid}`,
+  })
+  assert.equal(dirty.status, 0, dirty.stderr)
+  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
+})
+
 
 
 test('SubagentStart states the leaf-role contract, and never blocks', async () => {

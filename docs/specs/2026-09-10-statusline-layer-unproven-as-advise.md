@@ -79,13 +79,43 @@ Then that path does not Advise unverified work on the strength of that authorshi
 And this holds for Glob, WebSearch, WebFetch, Task, TodoWrite, Skill, Agent, and mcp__mrw__mrw_read as well
 ```
 
+### UC1-S5 [happy] PreToolUse Advises on mrw_write after a published Bash mutation (F-2) [@implemented] → `tests/lifecycle.test.mjs::PreToolUse commit advice Advises on mrw_write after a published Bash mutation` cmd:`node --test --test-name-pattern 'PreToolUse commit advice Advises on mrw_write after a published Bash mutation' tests/lifecycle.test.mjs`
+
+```gherkin
+Given an executed Bash mutation, then a completed git commit, then mcp__mrw__mrw_write
+When PreToolUse runs on Bash git commit
+Then lastUnprovenWrite is after lastPublish
+And that PreToolUse path Advises that the commit would publish unchecked
+And the same fixture without the MCP write stays quiet
+```
+
+### UC1-S6 [happy] PreToolUse Advises on mrw_write after a published native Write (F-2) [@implemented] → `tests/lifecycle.test.mjs::PreToolUse commit advice Advises on mrw_write after a published native Write` cmd:`node --test --test-name-pattern 'PreToolUse commit advice Advises on mrw_write after a published native Write' tests/lifecycle.test.mjs`
+
+```gherkin
+Given an executed native Write, then a completed git commit, then mcp__mrw__mrw_write
+When PreToolUse runs on Bash git commit
+Then lastUnprovenWrite is after lastPublish
+And that PreToolUse path Advises that the commit would publish unchecked
+And the same fixture without the MCP write stays quiet
+```
+
+### UC1-S7 [failure] PreToolUse stays quiet after a published UNPROVEN write then Read (F-2) [@implemented] → `tests/lifecycle.test.mjs::PreToolUse commit advice stays quiet after a published UNPROVEN write then Read` cmd:`node --test --test-name-pattern 'PreToolUse commit advice stays quiet after a published UNPROVEN' tests/lifecycle.test.mjs`
+
+```gherkin
+Given mcp__mrw__mrw_write, then a completed git commit, then Read
+When PreToolUse runs on Bash git commit
+Then lastUnprovenWrite is not after lastPublish
+And that path stays quiet
+And a later mcp__mrw__mrw_write after that publish still Advises
+```
+
 
 ## Facts
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
 | F-1 | Accepted. Current: `analyzeTranscript` sets `authorship` UNPROVEN for an executed tool_use that is not Bash and not in MUTATION_TOOLS (Edit, Write, MultiEdit, NotebookEdit) while authorship is still none. Executed 2026-09-10: Read, Grep, Glob, WebSearch, WebFetch, Task, TodoWrite, Skill, Agent, mcp__mrw__mrw_write, mcp__mrw__mrw_read are each UNPROVEN, lastMutation -1, hasMutations true, unverifiedSince(lastPublish) false. Edit/Write/MultiEdit/NotebookEdit are native. Isolated `echo hi` Bash is none. Stop (`unverifiedSince`), `sessionStateNote`, and `statusline.mjs` `reading()` do not read authorship; they key lastMutation / mutationPathsSince. Read+Grep: sessionStateNote status neutral, "nothing edited since the last publish." Statusline reading() of Read-only and of mcp__mrw__mrw_write: kind nothing. `node plugin/scripts/work-next.mjs --json` on this corpus: look ok, next.id adr-execute (not spec-write), next has id/entry/when, no layer; stages entries the same. statusline.mjs has no layer. Plugin hooks.json has no statusLine; README tells the user to wire `node "$(qh-root)/scripts/statusline.mjs" <<< "$input"`. After: Stop, sessionStateNote, and the statusline segment the user already wired treat UNPROVEN write authorship as Advise, not silent nothing-edited. The classifier those three surfaces use for that Advise does not treat Read, Grep, Glob, WebSearch, WebFetch, Task, TodoWrite, Skill, Agent, or mcp__mrw__mrw_read as UNPROVEN. ADR-038 F-24 stands: mcp__mrw__mrw_write remains UNPROVEN, never "no mutation". After does not add a layer field to work-next --json or to the statusline segment. After does not claim QH sets Claude's statusLine. This spec does not reverse ADR-038–041, does not peel cat/pwd/git status/unknown neither, does not add a hook opt-in, and does not add an event ledger. Why it can fail: wiring today's authorship UNPROVEN into unverifiedSince or statusline kind would Advise every turn after a Read/Grep (hasMutations is already true; only lastMutation keeps the surfaces quiet). A green F-24 MCP test leaves Stop/statusline/sessionStateNote silent because they ignore authorship. Claiming the plugin wired Claude's bar. Shipping layer in the same fact so a green UNPROVEN-Advise test is treated as the leftover closed. | `tests/lifecycle.test.mjs::an unknown non-Bash write is Advise, not nothing edited` | @implemented | `node --test --test-name-pattern 'an unknown non-Bash write is Advise, not nothing edited' tests/lifecycle.test.mjs` |
-| F-2 | Accepted. Current: PreToolUse on Bash `git commit` (lifecycle.mjs, ADR-038 F-20) Advises only when `unverifiedSince(lastPublish)` and a project check exists. An UNPROVEN write has `lastMutation` -1, so that condition is false; `git commit` after `mcp__mrw__mrw_write` is silent. After: that same PreToolUse path Advises when `authorship === 'UNPROVEN'`, with the same wrapping as native unverified commit advice. Read, Grep, Glob, WebSearch, WebFetch, Task, TodoWrite, Skill, Agent, and `mcp__mrw__mrw_read` stay not UNPROVEN and that path stays quiet. F-24 stands: `mcp__mrw__mrw_write` remains UNPROVEN, never "no mutation". After does not add `layer`, does not set Claude's `statusLine`, and does not reverse ADR-038–041. Why it can fail: a green Stop / sessionStateNote / statusline F-1 test while PreToolUse still keys only `lastMutation`. | `tests/lifecycle.test.mjs::PreToolUse commit advice Advises on UNPROVEN writes` | @implemented | `node --test --test-name-pattern 'PreToolUse commit advice Advises on UNPROVEN writes' tests/lifecycle.test.mjs` |
+| F-2 | Accepted. Current: PreToolUse on Bash `git commit` (lifecycle.mjs, ADR-038 F-20) Advises only when `unverifiedSince(lastPublish)` and a project check exists. An UNPROVEN write has `lastMutation` -1, so that condition is false; `git commit` after `mcp__mrw__mrw_write` is silent. After: that same PreToolUse path Advises when `lastUnprovenWrite > lastPublish`, with the same wrapping as native unverified commit advice. The session-wide `authorship` scalar is not the gate: a prior Bash mutation or native Write, and `git commit` itself, overwrite UNPROVEN so a later MCP write would otherwise stay silent. Read, Grep, Glob, WebSearch, WebFetch, Task, TodoWrite, Skill, Agent, and `mcp__mrw__mrw_read` stay not UNPROVEN and `lastUnprovenWrite` stays -1 so that path stays quiet. After a published UNPROVEN write, `lastUnprovenWrite <= lastPublish`, so a later Read stays quiet. F-24 stands: `mcp__mrw__mrw_write` remains UNPROVEN, never "no mutation". After does not add `layer`, does not set Claude's `statusLine`, and does not reverse ADR-038–041. Why it can fail: a green first-write T2 fixture (`mrw_write` as the first act) while PreToolUse still keys `authorship === 'UNPROVEN'`, so `mrw_write` after a published Bash mutation or native Write is silent. | `tests/lifecycle.test.mjs::PreToolUse commit advice Advises on mrw_write after a published Bash mutation` | @implemented | `node --test --test-name-pattern 'PreToolUse commit advice Advises on mrw_write after a published Bash mutation' tests/lifecycle.test.mjs` |
 
 ## Domain
 

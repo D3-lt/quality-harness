@@ -12,6 +12,7 @@ README must be regenerated.
 |-------|------|------------|
 | 1 | T1 | none |
 | 2 | T2 | T1 |
+| 3 | T3 | T2 |
 
 
 ## Task Index
@@ -20,6 +21,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | Advise on UNPROVEN write authorship, not every UNPROVEN tool_use | done | F-1, UC1-S1, UC1-S2 | `node --test --test-name-pattern 'an unknown non-Bash write is Advise, not nothing edited\|Read or Grep is not Advise every turn' tests/lifecycle.test.mjs && node --test --test-name-pattern 'an MCP write is UNPROVEN authorship, not no mutation' tests/staged-product.test.mjs` |
 | T2 | PreToolUse commit advice Advises on UNPROVEN write authorship | done | F-2, UC1-S3, UC1-S4 | `node --test --test-name-pattern 'PreToolUse commit advice Advises on UNPROVEN writes\|PreToolUse commit advice does not Advise on Read or Grep' tests/lifecycle.test.mjs` |
+| T3 | UNPROVEN write after a published Bash or native mutation still Advises | done | F-2, UC1-S5, UC1-S6, UC1-S7 | `node --test --test-name-pattern 'PreToolUse commit advice Advises on mrw_write after a published\|PreToolUse commit advice stays quiet after a published UNPROVEN' tests/lifecycle.test.mjs` |
 
 
 Status: `pending` | `partial` | `blocked` | `done`.
@@ -30,5 +32,5 @@ None.
 
 ## Notes
 
-- F-1 tests are bound and green. F-2 PreToolUse is T2. F-24 MCP write stays UNPROVEN. layer leftover is not this fact.
+- F-1 tests are bound and green. F-2 PreToolUse is T2 (first write) and T3 (write after a published Bash/native mutation). F-24 MCP write stays UNPROVEN. layer leftover is not this fact.
 

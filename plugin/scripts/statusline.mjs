@@ -58,7 +58,7 @@ export function reading(input, { analyze = analyzeTranscript, now = Date.now() }
   try { raw = readFileSync(transcript, 'utf8') } catch { return null }
   const state = analyze(raw, cwd)
   const edited = state.mutationPathsSince(state.lastPublish)
-  const unprovenWrite = state.authorship === 'UNPROVEN'
+  const unprovenWrite = (state.lastUnprovenWrite ?? -1) > state.lastPublish
   const value = {
     kind: unprovenWrite ? 'unverified' : edited.length === 0 ? 'nothing' : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',
     count: edited.length > 0 ? edited.length : unprovenWrite ? 1 : 0,

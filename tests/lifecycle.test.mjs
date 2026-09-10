@@ -48,6 +48,7 @@ import {
 } from '../plugin/scripts/lifecycle.mjs'
 import { plan as syncPlan } from '../plugin/scripts/sync-standalone.mjs'
 import { NEVER_MIRRORED, SHADOW_SCOPE } from '../plugin/scripts/standalone-link.mjs'
+import { reading } from '../plugin/scripts/statusline.mjs'
 import {
   HOOK_SCRIPTS,
   hookArguments,
@@ -2249,6 +2250,93 @@ test('probe-only Bash is not Session authorship', async () => {
   const dirtyMessage = `${dirty.stdout}${dirty.stderr}`
   assert.match(dirtyMessage, /Changed paths include/, dirtyMessage)
 })
+
+test('an unknown non-Bash write is Advise, not nothing edited', async () => {
+  const dir = await checkedProject('quality-unproven-write-')
+  const surfaces = async (name, input) => {
+    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
+    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+    const note = sessionStateNote(state, dir, dir, false)
+    const value = reading({
+      session_id: `unproven-write-${name}-${Date.now()}-${process.pid}`,
+      transcript_path: file,
+      workspace: { current_dir: dir },
+    })
+    return { file, state, stop: `${stop.stdout}${stop.stderr}`, note, reading: value }
+  }
+
+  for (const name of ['mcp__mrw__mrw_write', 'mcp__other__write']) {
+    const seen = await surfaces(name, { plan: 'docs/a.md' })
+    assert.equal(seen.state.authorship, 'UNPROVEN', name)
+    assert.equal(seen.state.lastMutation, -1, name)
+    assert.deepEqual(seen.state.mutationPaths, [])
+    assert.match(seen.stop, /systemMessage/, seen.stop)
+    assert.doesNotMatch(seen.stop, /nothing edited since the last publish/)
+    assert.notEqual(seen.note.status, 'neutral', name)
+    assert.doesNotMatch(seen.note.text, /nothing edited since the last publish/)
+    assert.notEqual(seen.reading.kind, 'nothing', name)
+  }
+
+  const hooks = readFileSync(path.join(pluginDir, 'hooks', 'hooks.json'), 'utf8')
+  assert.doesNotMatch(hooks, /statusLine/)
+})
+
+test('Read or Grep is not Advise every turn', async () => {
+  const dir = await checkedProject('quality-unproven-read-')
+  const names = [
+    ['Read', { file_path: path.join(dir, 'a.py') }],
+    ['Grep', { pattern: 'x' }],
+    ['Glob', { glob_pattern: '*.md' }],
+    ['WebSearch', { search_term: 'x' }],
+    ['WebFetch', { url: 'https://example.com' }],
+    ['Task', { prompt: 'x' }],
+    ['TodoWrite', { todos: [] }],
+    ['Skill', { skill: 'x' }],
+    ['Agent', { prompt: 'x' }],
+    ['mcp__mrw__mrw_read', { specs: ['a.md:1'] }],
+  ]
+  for (const [name, input] of names) {
+    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
+    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+    const said = `${stop.stdout}${stop.stderr}`
+    const note = sessionStateNote(state, dir, dir, false)
+    const value = reading({
+      session_id: `unproven-read-${name}-${Date.now()}-${process.pid}`,
+      transcript_path: file,
+      workspace: { current_dir: dir },
+    })
+    assert.notEqual(state.authorship, 'UNPROVEN', name)
+    assert.equal(state.unverifiedSince(state.lastPublish), false, name)
+    assert.doesNotMatch(said, /systemMessage/, said)
+    assert.equal(note.status, 'neutral', name)
+    assert.match(note.text, /nothing edited since the last publish/)
+    assert.equal(value.kind, 'nothing', name)
+  }
+
+  // Same fixture with a native write must still Advise — otherwise the silence
+  // above is vacuous (CLAUDE.md §4).
+  const dirtyFile = path.join(dir, 'native-write.jsonl')
+  await writeFile(dirtyFile, transcript([
+    toolUse('w1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('w1'),
+  ]))
+  const dirty = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: dirtyFile, cwd: dir })
+  const dirtySaid = `${dirty.stdout}${dirty.stderr}`
+  assert.match(dirtySaid, /systemMessage/, dirtySaid)
+  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
+  const dirtyNote = sessionStateNote(dirtyState, dir, dir, false)
+  assert.notEqual(dirtyNote.status, 'neutral')
+  const dirtyReading = reading({
+    session_id: `unproven-read-dirty-${Date.now()}-${process.pid}`,
+    transcript_path: dirtyFile,
+    workspace: { current_dir: dir },
+  })
+  assert.equal(dirtyReading.kind, 'unverified')
+})
+
 
 test('SubagentStart states the leaf-role contract, and never blocks', async () => {
   // hooks.json declares this event and the installed plugin registers it, so

@@ -20,6 +20,12 @@ const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
 const MUTATION_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
+// Executed 2026-09-10: these names were UNPROVEN but must not Advise (ADR-042).
+// Anything else unknown stays UNPROVEN — not-recognised is not known-not-a-write.
+const KNOWN_NON_WRITE_TOOLS = new Set([
+  'Read', 'Grep', 'Glob', 'WebSearch', 'WebFetch', 'Task', 'TodoWrite',
+  'Skill', 'Agent', 'mcp__mrw__mrw_read',
+])
 const DOC_EXTENSIONS = new Set(['.md', '.mdx', '.rst', '.txt'])
 const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 // Per artifact, at the commit and completion boundaries. The per-edit boundary
@@ -1878,6 +1884,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       }
     }
     if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)
+        && !KNOWN_NON_WRITE_TOOLS.has(use.name)
         && authorship === 'none') {
       authorship = 'UNPROVEN'
     }
@@ -3314,17 +3321,20 @@ export function sessionStateNote(state, cwd, root, insideRepository, now = new D
   const other = edited.length - files.length
   const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
   if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
-  const pending = state.unverifiedSince(state.lastPublish)
+  const unprovenWrite = state.authorship === 'UNPROVEN'
+  const pending = state.unverifiedSince(state.lastPublish) || unprovenWrite
   // Three states, not two: 'neutral' is a session that edited nothing since its
   // last publish, which says nothing about what an EARLIER session left — a
   // reader walking back must not stop on it (Codex review, 2026-09-05).
-  const status = edited.length === 0 ? 'neutral' : pending ? 'unverified' : 'verified'
+  const status = edited.length === 0 && !unprovenWrite ? 'neutral' : pending ? 'unverified' : 'verified'
   const parts = []
   if (edited.length) {
     // The observation, narrowly: whether a recognised check passed after the
     // edits. The commit gate also runs artifact gates, so this is not its verdict.
     parts.push(`${files.length} path(s) edited since the last publish${other ? ` and ${other} shell mutation(s)` : ''}; `
       + `${pending ? 'no recognised check has passed since' : 'a recognised check passed after them'}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
+  } else if (unprovenWrite) {
+    parts.push('UNPROVEN write since the last publish; no recognised check has proven it.')
   } else {
     parts.push('nothing edited since the last publish.')
   }
@@ -4071,7 +4081,7 @@ export async function handleHook(input) {
   // rate's denominator is only honest if nothing can reach an exit without being
   // counted, so this must not be pushed down into the branches that follow.
   const check = projectCheckCommand(input.cwd)
-  const unverified = state.unverifiedSince(state.lastPublish)
+  const unverified = state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN'
   recordClaim(input, claim, !check ? 'no-check' : unverified ? 'unverified' : 'verified',
     state.mutationPathsSince(state.lastPublish).length)
   if (event !== 'Stop') {

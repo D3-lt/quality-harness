@@ -6859,6 +6859,36 @@
       ],
       "from": "bom_free() {\n  if [ \"$(head -c 3 -- \"$1\" 2>/dev/null | od -An -tx1 | tr -d ' \\n')\" = \"efbbbf\" ]; then\n    tail -c +4 -- \"$1\"\n  else\n    cat -- \"$1\"\n  fi\n}\n",
       "to": "bom_free() {\n  local first\n  IFS= read -r first < \"$1\" || return 0\n  printf '%s\\n' \"${first#$'\\xEF\\xBB\\xBF'}\"\n  tail -n +2 -- \"$1\"\n}\n"
+    },
+    {
+      "label": "dispatch: a missing path is UNPROVEN, not a silent skip",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/staged-product.test.mjs"
+      ],
+      "only": "unreadable file is UNPROVEN",
+      "from": "  if [ ! -f \"$f\" ]; then\n    printf 'UNPROVEN: could not classify %s\\n' \"$f\"\n    exit 0\n  fi\n",
+      "to": "  if [ ! -f \"$f\" ]; then\n    exit 0\n  fi\n"
+    },
+    {
+      "label": "hook: session_id from the payload reaches the facts-gate dispatcher",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/staged-product.test.mjs"
+      ],
+      "only": "once per file per session",
+      "from": "    env: sessionId\n      ? { ...process.env, QUALITY_HARNESS_SESSION_ID: sessionId }\n      : process.env,",
+      "to": "    env: process.env,"
+    },
+    {
+      "label": "lifecycle: listing-null still opens the shadow-install notice",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "only": "listing-null still names a stale shadow install",
+      "from": "  if (check || ready.lines.length || corpusLook === true || corpusLook === 'UNPROVEN') {",
+      "to": "  if (check || ready.lines.length || corpusLook === true) {"
     }
   ]
 }

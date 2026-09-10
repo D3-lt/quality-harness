@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
-  existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync,
+  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -47,6 +47,22 @@ function workNext(root, flags = []) {
 function factsGate(file, boundary = '', env = {}) {
   return spawnSync('bash', [path.join(pluginDir, 'scripts', 'facts-gate-dispatch.sh'), file, boundary], {
     encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...env },
+  })
+}
+function factsHook(file, payload = {}) {
+  const env = { ...process.env }
+  delete env.QUALITY_HARNESS_SESSION_ID
+  return spawnSync(process.execPath, [
+    path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'),
+    'facts-gate-dispatch.sh',
+  ], {
+    encoding: 'utf8', timeout: 60_000, env,
+    input: JSON.stringify({
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Edit',
+      tool_input: { file_path: file },
+      ...payload,
+    }),
   })
 }
 
@@ -499,20 +515,45 @@ test('a MADR file is not-recognised, not a failed record', () => {
 })
 
 test('an unreadable file is UNPROVEN, not a clean skip', () => {
+  // Class: silent missing-file arms in facts-gate-dispatch.sh. Command (2026-09-10):
+  //   rg -n '\[ -f .* \] \|\| exit 0|^\s+\*\) exit 0' plugin/scripts/facts-gate-dispatch.sh
+  // Members then: 211 `*.md) [ -f "$f" ] || exit 0` (the miss); 212 `*) exit 0`
+  // (unclassified, including a missing non-md path). Same UNPROVEN vocabulary.
   const root = mkdtempSync(path.join(testTmp, 'unread-md-'))
-  const file = path.join(root, 'missing.md')
-  const run = factsGate(file)
-  assert.equal(run.status, 0)
-  const said = `${run.stdout}${run.stderr}`
-  if (said.trim()) {
-    assert.match(said, /UNPROVEN|not-recognised/)
-    assert.doesNotMatch(said, /definitely not a record/i)
-  }
+  const missing = path.join(root, 'missing.md')
+  const absent = factsGate(missing)
+  assert.equal(absent.status, 0)
+  const absentSaid = `${absent.stdout}${absent.stderr}`
+  assert.ok(absentSaid.trim(), 'a missing *.md must name the miss, not print 0 bytes')
+  assert.match(absentSaid, /UNPROVEN/)
+  assert.doesNotMatch(absentSaid, /definitely not a record/i)
+
+  const absentOther = factsGate(path.join(root, 'missing.js'))
+  assert.equal(absentOther.status, 0)
+  const otherSaid = `${absentOther.stdout}${absentOther.stderr}`
+  assert.ok(otherSaid.trim(), 'a missing unclassified path must name the miss, not skip')
+  assert.match(otherSaid, /UNPROVEN/)
+
   const present = path.join(root, 'notes.md')
   writeFileSync(present, '# Notes\n\nNot a record.\n')
   const named = factsGate(present)
-  assert.match(`${named.stdout}${named.stderr}`, /not-recognised|UNPROVEN/)
+  assert.match(`${named.stdout}${named.stderr}`, /not-recognised/)
   assert.doesNotMatch(`${named.stdout}${named.stderr}`, /definitely not a record/i)
+
+  if (process.platform === 'win32') return
+  const locked = path.join(root, 'locked.md')
+  writeFileSync(locked, '# Notes\n\nUnreadable.\n')
+  chmodSync(locked, 0o000)
+  try {
+    const unread = factsGate(locked)
+    assert.equal(unread.status, 0)
+    const unreadSaid = `${unread.stdout}${unread.stderr}`
+    assert.ok(unreadSaid.trim(), 'an unreadable *.md must name UNPROVEN, not skip')
+    assert.match(unreadSaid, /UNPROVEN/)
+    assert.doesNotMatch(unreadSaid, /definitely not a record/i)
+  } finally {
+    chmodSync(locked, 0o644)
+  }
 })
 
 test('PostToolUse names not-recognised once per file per session via firstMentionThisSession', () => {
@@ -520,12 +561,12 @@ test('PostToolUse names not-recognised once per file per session via firstMentio
   const file = path.join(root, 'notes.md')
   writeFileSync(file, '# Notes\n\nHouse notes, not a QH record.\n')
   const session = `staged-once-${Date.now()}`
-  const env = { QUALITY_HARNESS_SESSION_ID: session }
-  const first = factsGate(file, 'PostToolUse', env)
-  const second = factsGate(file, 'PostToolUse', env)
+  const first = factsHook(file, { session_id: session })
+  const second = factsHook(file, { session_id: session })
+  assert.equal(first.status, 0, first.stderr)
   assert.match(`${first.stdout}${first.stderr}`, /not-recognised/)
   assert.doesNotMatch(`${second.stdout}${second.stderr}`, /not-recognised/)
-  const commit = factsGate(file, 'PreToolUse', env)
+  const commit = factsHook(file, { session_id: session, hook_event_name: 'PreToolUse' })
   assert.match(`${commit.stdout}${commit.stderr}`, /not-recognised/)
   const always = adrLint(file)
   assert.match(`${always.stdout}${always.stderr}`, /not-recognised/)

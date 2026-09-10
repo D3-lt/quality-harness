@@ -52,6 +52,8 @@ node --test --test-name-pattern 'first shipped README command|MCP write is UNPRO
 
 ## Mutation Log
 
+- 2026-09-10 · 8718ffe · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · an MCP write must be UNPROVEN authorship, not treated as no mutation · acceptance-sha256:64d3930a9af9f0cf83247ed5a65a0c0a8a125abcc98fb02f94963cfdb5c89381
+
 ## Invariants
 
 - `hooks.json` has no opt-in switch.
@@ -69,4 +71,9 @@ A README first command that still interpolates `CLAUDE_PLUGIN_ROOT`, or an MCP w
 
 - A Cursor / OpenCode adapter (F-17)
 
+## Notes
+
+Class: an unknown write was treated as no edits, and the first shipped command interpolated `CLAUDE_PLUGIN_ROOT`. Sweep: `rg -n "authorship = 'UNPROVEN'|CLAUDE_PLUGIN_ROOT" plugin/scripts/lifecycle.mjs plugin/README.md` — one UNPROVEN assignment in `analyzeTranscript`; first README command uses `qh-root`. Later README lines still interpolate `CLAUDE_PLUGIN_ROOT` (F-16 is the first command only). No in-process registry, no CORE.md. Path extractors for every MCP name stay UNPROVEN (F-24).
+
 ## Verification Log
+- 2026-09-10 · 8718ffe · exit 0 · `node --test --test-name-pattern 'first shipped README command|MCP write is UNPROVEN|native Edit or Write|hooks stay always-on|plugin ships no CORE.md|no in-process plugin registry|post-edit-check still runs|qh-mcp still excludes' tests/staged-product.test.mjs` · acceptance-sha256:64d3930a9af9f0cf83247ed5a65a0c0a8a125abcc98fb02f94963cfdb5c89381 · ms:221

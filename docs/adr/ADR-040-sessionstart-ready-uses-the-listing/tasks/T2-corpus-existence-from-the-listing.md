@@ -50,6 +50,8 @@ node --test --test-name-pattern 'SessionStart may treat a listing-named corpus d
 
 ## Mutation Log
 
+- 2026-09-10 · a40ea19 · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · listing-null must be UNPROVEN, not no corpus · acceptance-sha256:f01acd8f9a5024643c9241825543d13afcfb15cba7fbf31d57dee28c51ca751f
+
 ## Invariants
 
 - Disk-only `docs/adr` (or the four sibling names) is not a corpus for this gate.
@@ -69,4 +71,9 @@ A green F-1 ready-task test while `hasDecisionCorpus` still `statSync`s, or list
 - Unify with `observe` / `adrCorpus` (ADR-039)
 - Unify with `adr-next`
 
+## Notes
+
+Class: SessionStart corpus existence answered from disk `statSync`. Sweep: `rg -n 'function hasDecisionCorpus|sessionOrientation\(' plugin/scripts/lifecycle.mjs` — `hasDecisionCorpus` reads the listing; listing-null is `'UNPROVEN'`; `sessionOrientation` is the only product caller. `sessionStateNote` is not a caller. ADR-039 owns `adrCorpus`.
+
 ## Verification Log
+- 2026-09-10 · a40ea19 · exit 0 · `node --test --test-name-pattern 'SessionStart may treat a listing-named corpus dir as a corpus|a disk-only corpus dir is not a corpus|git cannot list is UNPROVEN, not no corpus' tests/lifecycle.test.mjs` · acceptance-sha256:f01acd8f9a5024643c9241825543d13afcfb15cba7fbf31d57dee28c51ca751f · ms:257

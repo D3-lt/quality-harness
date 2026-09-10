@@ -47,7 +47,7 @@ ADR-038 F-30/F-31 already take specs and tasks from `trackedPaths`. `observe()` 
 
 ## Scenarios
 
-### UC1-S1 [happy] observe passes the listing into adrCorpus (F-1 Accepted) [@spec] → `tests/staged-product.test.mjs::observe passes the listing into adrCorpus`
+### UC1-S1 [happy] observe passes the listing into adrCorpus (F-1 Accepted) [@implemented] → `tests/staged-product.test.mjs::observe passes the listing into adrCorpus` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given observe() has taken listing = trackedPaths(directory)
@@ -56,7 +56,7 @@ Then it calls adrCorpus with { tracked: listing }
 And it does not ask git for a second listing in that call
 ```
 
-### UC1-S2 [failure] a failed listing is not a disk corpus of records (F-1 Accepted) [@spec] → `tests/staged-product.test.mjs::a failed listing is not a disk corpus of records`
+### UC1-S2 [failure] a failed listing is not a disk corpus of records (F-1 Accepted) [@implemented] → `tests/staged-product.test.mjs::a failed listing is not a disk corpus of records` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given git cannot list the tree
@@ -165,7 +165,7 @@ Members in for F-3: `adr-state.mjs:31` `adrCorpus(root)`; `adr-context.mjs:68` `
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | Accepted. Current: `observe()` already holds `listing = trackedPaths(directory)` and sets `look` from it (ADR-038 F-30/F-31). It then calls `adrCorpus(directory)` with no `{ tracked: listing }`. `adrCorpus` defaults `tracked = trackedPaths(root)` and always `readRecordFiles` (`existsSync(docs)` then `readdirSync`). When git cannot list, `look === 'UNPROVEN'` but `records` / `accepted` (and `--json`) can still come from that disk walk. After: `observe()` passes `{ tracked: listing }` into `adrCorpus` and does not disk-walk records when git could not list. A missing listing is not an empty corpus. Passing the option object is not enough if `readRecordFiles` still walks. This spec does not reverse ADR-038 F-13–F-33. | `tests/staged-product.test.mjs::a failed listing is not a disk corpus of records` | @spec | |
+| F-1 | Accepted. Current: `observe()` already holds `listing = trackedPaths(directory)` and sets `look` from it (ADR-038 F-30/F-31). It then calls `adrCorpus(directory)` with no `{ tracked: listing }`. `adrCorpus` defaults `tracked = trackedPaths(root)` and always `readRecordFiles` (`existsSync(docs)` then `readdirSync`). When git cannot list, `look === 'UNPROVEN'` but `records` / `accepted` (and `--json`) can still come from that disk walk. After: `observe()` passes `{ tracked: listing }` into `adrCorpus` and does not disk-walk records when git could not list. A missing listing is not an empty corpus. Passing the option object is not enough if `readRecordFiles` still walks. This spec does not reverse ADR-038 F-13–F-33. | `tests/staged-product.test.mjs::a failed listing is not a disk corpus of records` | @implemented | `node --test tests/staged-product.test.mjs` |
 | F-2 | Accepted. Current: when git lists, `adrCorpus` still takes record files from `readRecordFiles` (`const files = readRecordFiles(root, reader)`). That walker does `existsSync(docs)` then `walk` via `reader.entries`, and if none, walks `root`. The `tracked` option is only the Governs-unresolved seam; it does not choose which record files exist. Specs and tasks already come from the listing (`specFiles` / `taskFiles`; ADR-038 F-30/F-31). After: when git lists successfully, record files also come from that listing. Disk-only `docs/adr` files are not the corpus. This spec does not reverse F-1 or ADR-038 F-13–F-33. | `tests/staged-product.test.mjs::disk-only record files are not the corpus` | @spec | |
 | F-3 | Accepted. Current: product callers of `adrCorpus(` without `{ tracked: listing }` are `adr-state.mjs` (`adrCorpus(root)`), `adr-context.mjs` (`adrCorpus(root)`), and `decisionsGoverning`'s default `corpus = adrCorpus(root)` — the same function default, not a second walker. `readRecordFiles` is only called from `adrCorpus`, so it is not a separate inventory. `observe()` is F-1, not this fact. After: leftover product callers (`adr-state.mjs`, `adr-context.mjs`, `decisionsGoverning` default) use the same listing rule as `observe` (pass tracked listing; git fail = UNPROVEN, not a disk walk; disk-only files are not the corpus). After does not force a shared in-process module with `adr-lint`. Why it can fail: a green `observe` / F-1 / F-2 test leaves these callers reporting a disk corpus, or no records, when git could not list. This spec does not reverse F-1, F-2, or ADR-038 F-13–F-33. | `tests/staged-product.test.mjs::leftover adrCorpus callers use the listing, not the disk` | @spec | |
 

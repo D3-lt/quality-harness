@@ -555,8 +555,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {",
-      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {"
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {",
+      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {"
     },
     {
       "label": "advisory: a project that names no check hears nothing",
@@ -627,7 +627,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const unverified = state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN'",
+      "from": "  const unverified = state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish",
       "to": "  const unverified = state.hasMutations && !state.verifiedAfterLastMutation"
     },
     {
@@ -636,8 +636,17 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {",
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {",
       "to": "    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {"
+    },
+    {
+      "label": "advisory: PreToolUse commit advice Advises on UNPROVEN write after a published mutation",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {",
+      "to": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {"
     },
     {
       "label": "advisory: a verify script is the project's named check",

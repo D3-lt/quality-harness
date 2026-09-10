@@ -82,3 +82,5 @@ there were; do not pad the sample.
 - Measuring recall as a gate — it is recorded as a number in the same sign-off, never a threshold.
 
 ## Verification Log
+- 2026-09-10 · human-observed · 2026-09-10 · n=67 · asserted=0 · false positives=n/a · precision=not-reported (empty set) · withdrawn in d7a764b · remaining none=63 hedged=4 limited=0 unavailable=0 of 80 newest transcripts · operator labelled every asserted row (none existed) · ADR-036 retired the arm · sweep: no producer of kind asserted in plugin/scripts/lifecycle.mjs or claim-status.mjs; ASSERTION_ARM_WITHDRAWN is a label
+- 2026-09-10 · human-observed · observed and signed-off: n=67 · asserted=0 · false-positives=n/a · precision=unreported (empty set) · arm retired in d7a764b by ADR-036 · remaining none=63 hedged=4 limited=0 unavailable=0 of 80 newest transcripts · labelled every asserted row (none existed)

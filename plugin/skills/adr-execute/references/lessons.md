@@ -152,3 +152,7 @@ later, in the same document. Knowing a failure mode does not protect you from it
 does. Config-only assertions are invisible to every gate here — such a test genuinely CAN fail, just
 not for the reason anyone cares about — so this one is caught by an independent reviewer or not at
 all.
+
+### 2026-09-10 — `adr-next` reads "withdrawn" in a human sign-off as STOP
+
+A negative word anywhere in `--human` text wins (`withdraw`, `not `, `fail`, `stop`, …). A task whose prescribed sign-off is `withdrawn in <sha>` — the criterion's success branch, not a stop — routed `stopped` while its README said `done`. State an affirmative verb (`observed`, `signed-off`) and name a retired arm as `retired`, not `withdrawn`. Do not edit the first log line: append a second.

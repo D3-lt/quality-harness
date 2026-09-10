@@ -87,7 +87,7 @@ UC-1 through UC-5 are grilled (F-13–F-33). Open Questions is empty. Binding te
 
 ## Scenarios
 
-### UC1-S1 [happy] An empty tree is told to verify work, not to write a spec [@implemented] → `tests/staged-product.test.mjs::an empty tree is not routed to spec-write`
+### UC1-S1 [happy] An empty tree is told to verify work, not to write a spec [@implemented] → `tests/staged-product.test.mjs::an empty tree is not routed to spec-write` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a git repository with no classified QH records, no specs, and no task files
@@ -97,7 +97,7 @@ And the output says no QH corpus is in use
 And it names Core (verify or execute the current work) or an honest empty
 ```
 
-### UC1-S2 [failure] Task files with no classified records are a discovery failure, not a spec-write [@implemented] → `tests/staged-product.test.mjs::task files with no records are a discovery failure, not spec-write`
+### UC1-S2 [failure] Task files with no classified records are a discovery failure, not a spec-write [@implemented] → `tests/staged-product.test.mjs::task files with no records are a discovery failure, not spec-write` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a tree whose task walker finds task files and whose record walker finds none
@@ -106,7 +106,7 @@ Then it reports a discovery failure
 And it does not print Next: /spec-write
 ```
 
-### UC1-S3 [failure] Could-not-look is not an empty corpus [@implemented] → `tests/staged-product.test.mjs::could-not-look is UNPROVEN, not an empty corpus`
+### UC1-S3 [failure] Could-not-look is not an empty corpus [@implemented] → `tests/staged-product.test.mjs::could-not-look is UNPROVEN, not an empty corpus` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given observe cannot classify the tree (no git, unreadable directory)
@@ -115,7 +115,7 @@ Then the output uses could-not-look or UNPROVEN vocabulary
 And it does not treat the tree as "no spec corpus, write a spec"
 ```
 
-### UC2-S1 [happy] A QH-shaped record still reaches adr-lint [@implemented] → `tests/staged-product.test.mjs::a QH-shaped record still reaches adr-lint`
+### UC2-S1 [happy] A QH-shaped record still reaches adr-lint [@implemented] → `tests/staged-product.test.mjs::a QH-shaped record still reaches adr-lint` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a markdown file that is a classified QH record
@@ -123,7 +123,7 @@ When the facts gate runs on that file
 Then adr-lint runs against it
 ```
 
-### UC2-S2 [failure] A MADR file is not-recognised, not a failed record [@implemented] → `tests/staged-product.test.mjs::a MADR file is not-recognised, not a failed record`
+### UC2-S2 [failure] A MADR file is not-recognised, not a failed record [@implemented] → `tests/staged-product.test.mjs::a MADR file is not-recognised, not a failed record` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a MADR or Nygard ADR that is not QH-shaped
@@ -133,7 +133,7 @@ And it does not claim the file is not a decision record
 And it does not claim a tracked path is missing because a heading looked like a path
 ```
 
-### UC2-S3 [failure] An unreadable or ambiguous heading is UNPROVEN [@implemented] → `tests/staged-product.test.mjs::an unreadable file is UNPROVEN, not a clean skip`
+### UC2-S3 [failure] An unreadable or ambiguous heading is UNPROVEN [@implemented] → `tests/staged-product.test.mjs::an unreadable file is UNPROVEN, not a clean skip` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a file whose heading the classifier does not recognise as record, task, or other
@@ -142,7 +142,7 @@ Then the result is UNPROVEN
 And it is not reported as "definitely not a record"
 And it is not reported as a clean skip
 ```
-### UC2-S4 [failure] PostToolUse names not-recognised at most once per file per session [@implemented] → `tests/staged-product.test.mjs::PostToolUse names not-recognised once per file per session via firstMentionThisSession`
+### UC2-S4 [failure] PostToolUse names not-recognised at most once per file per session [@implemented] → `tests/staged-product.test.mjs::PostToolUse names not-recognised once per file per session via firstMentionThisSession` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a markdown file classified not-recognised
@@ -153,7 +153,7 @@ And a later git-commit PreToolUse names it again
 And a direct adr-lint of the file always names it
 And the once-per-session key uses firstMentionThisSession, not a second session store
 ```
-### UC2-S5 [happy] post-edit-check still runs when the facts gate does not classify a record [@implemented] → `tests/staged-product.test.mjs::post-edit-check still runs on unclassified files`
+### UC2-S5 [happy] post-edit-check still runs when the facts gate does not classify a record [@implemented] → `tests/staged-product.test.mjs::post-edit-check still runs on unclassified files` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given PostToolUse on a file that is not a QH record or task
@@ -161,7 +161,7 @@ When post-edit-check.sh runs
 Then it is not skipped merely because the facts gate did not classify a QH record
 ```
 
-### UC3-S1 [happy] Doctor and verify run without CLAUDE_PLUGIN_ROOT [@implemented] → `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT`
+### UC3-S1 [happy] Doctor and verify run without CLAUDE_PLUGIN_ROOT [@implemented] → `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given CLAUDE_PLUGIN_ROOT is unset
@@ -171,14 +171,14 @@ Then it does not resolve to /scripts/qh-doctor.mjs
 And adr-verify can be invoked on a task file by a working-tree or forwarder path
 ```
 
-### UC3-S2 [failure] The first shipped command must not die on an unset plugin root [@implemented] → `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT`
+### UC3-S2 [failure] The first shipped command must not die on an unset plugin root [@implemented] → `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a marketplace install and a normal shell with CLAUDE_PLUGIN_ROOT unset
 When a user runs the first command on plugin/README.md as written today
 Then that command as shipped after this spec does not MODULE_NOT_FOUND
 ```
-### UC3-S3 [failure] Docs name a file; adr-lint still refuses a directory [@implemented] → `tests/staged-product.test.mjs::adr-lint still refuses a directory and docs name a file`
+### UC3-S3 [failure] Docs name a file; adr-lint still refuses a directory [@implemented] → `tests/staged-product.test.mjs::adr-lint still refuses a directory and docs name a file` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given INSTALL or the doctor prints an adr-lint example
@@ -187,7 +187,7 @@ Then the path in the example is a file, not a directory
 And adr-lint on a directory still exits non-zero with expected a record FILE
 ```
 
-### UC4-S1 [happy] A corpus with an unbacked done is sent to adr-verify [@implemented] → `tests/lifecycle.test.mjs::the lifecycle router reads corpus state, and says so when it cannot`
+### UC4-S1 [happy] A corpus with an unbacked done is sent to adr-verify [@implemented] → `tests/lifecycle.test.mjs::the lifecycle router reads corpus state, and says so when it cannot` cmd:`node --test --test-name-pattern 'the lifecycle router reads corpus state' tests/lifecycle.test.mjs`
 
 ```gherkin
 Given observe finds usesVerificationLog and at least one unbacked done
@@ -195,7 +195,7 @@ When work-next runs
 Then Next names adr-verify and the task path
 ```
 
-### UC4-S2 [failure] Accepted records with no tasks do not reuse the spec-ready blurb [@implemented] → `tests/staged-product.test.mjs::the two adr-write arms print different because-lines`
+### UC4-S2 [failure] Accepted records with no tasks do not reuse the spec-ready blurb [@implemented] → `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given classified Accepted records and zero task files
@@ -203,7 +203,7 @@ When work-next chooses a next stage
 Then it does not print that a spec is Ready-for-ADR
 And if it names adr-write, the because-line matches the actual condition
 ```
-### UC4-S3 [happy] Catalog dump and JSON skill entries are namespaced [@implemented] → `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not`
+### UC4-S3 [happy] Catalog dump and JSON skill entries are namespaced [@implemented] → `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given work-next prints the stage catalog or --json stages
@@ -211,7 +211,7 @@ When a stage entry names a skill
 Then that entry uses the /quality-harness: prefix
 And adr-verify stays an unprefixed command name
 ```
-### UC4-S4 [happy] A Ready-for-ADR spec with no covering record goes to adr-write [@implemented] → `tests/staged-product.test.mjs::a Ready-for-ADR spec with no covering record goes to adr-write`
+### UC4-S4 [happy] A Ready-for-ADR spec with no covering record goes to adr-write [@implemented] → `tests/staged-product.test.mjs::a Ready-for-ADR spec with no covering record goes to adr-write` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given observe finds a spec with Status Ready-for-ADR whose facts no classified record Covers
@@ -221,7 +221,7 @@ Then Next is /quality-harness:adr-write
 And the because-line says a spec is Ready-for-ADR and no record Covers its facts
 ```
 
-### UC4-S5 [failure] Unreadable spec Status is UNPROVEN, not "not Ready-for-ADR" [@implemented] → `tests/staged-product.test.mjs::unreadable spec Status is UNPROVEN, not not-Ready-for-ADR`
+### UC4-S5 [failure] Unreadable spec Status is UNPROVEN, not "not Ready-for-ADR" [@implemented] → `tests/staged-product.test.mjs::unreadable spec Status is UNPROVEN, not not-Ready-for-ADR` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a spec file observe cannot read
@@ -229,7 +229,7 @@ When work-next classifies specs
 Then that spec is UNPROVEN
 And it does not count as "no Ready-for-ADR spec"
 ```
-### UC4-S8 [failure] A specs directory only on disk is not a spec corpus [@implemented] → `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN`
+### UC4-S8 [failure] A specs directory only on disk is not a spec corpus [@implemented] → `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given docs/specs exists on disk with markdown files git does not list
@@ -237,7 +237,7 @@ When observe counts specs
 Then those files are not counted as the spec corpus
 And a git listing failure is UNPROVEN, not zero specs
 ```
-### UC4-S9 [failure] Disk-only task files are not the task inventory [@implemented] → `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN`
+### UC4-S9 [failure] Disk-only task files are not the task inventory [@implemented] → `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given markdown under docs/**/tasks/ on disk that git does not list
@@ -246,7 +246,7 @@ Then those files are not counted as the task corpus
 And a git listing failure is UNPROVEN, not zero tasks
 And archive directories stay excluded
 ```
-### UC4-S6 [failure] Proposed/Draft tasks are named, not treated as finished or as spec-write [@implemented] → `tests/staged-product.test.mjs::Proposed and Draft unfinished tasks are named, not finished or spec-write`
+### UC4-S6 [failure] Proposed/Draft tasks are named, not treated as finished or as spec-write [@implemented] → `tests/staged-product.test.mjs::Proposed and Draft unfinished tasks are named, not finished or spec-write` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given unfinished tasks whose owning record is Proposed, Draft, or an unrecognised status
@@ -255,7 +255,7 @@ Then those tasks are named as not executable
 And the output does not say the corpus is finished
 And Next is not /spec-write and not /quality-harness:spec-write
 ```
-### UC4-S7 [happy] The two adr-write arms print different because-lines [@implemented] → `tests/staged-product.test.mjs::the two adr-write arms print different because-lines`
+### UC4-S7 [happy] The two adr-write arms print different because-lines [@implemented] → `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given nextStage would return adr-write
@@ -263,7 +263,7 @@ When the arm is Ready-for-ADR uncovered spec versus accepted records with no tas
 Then the printed when text matches that arm
 And both Next lines may still be /quality-harness:adr-write
 ```
-### UC5-S1 [failure] An MCP write is UNPROVEN, not "no mutation" [@implemented] → `tests/staged-product.test.mjs::an MCP write is UNPROVEN authorship, not no mutation`
+### UC5-S1 [failure] An MCP write is UNPROVEN, not "no mutation" [@implemented] → `tests/staged-product.test.mjs::an MCP write is UNPROVEN authorship, not no mutation` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a transcript whose only write is a tool_use not in MUTATION_TOOLS and not Bash
@@ -271,7 +271,7 @@ When analyzeTranscript runs
 Then authorship is UNPROVEN
 And it does not treat empty mutationPaths and lastMutation -1 as no edits
 ```
-### UC5-S2 [happy] A native Edit/Write is still a mutation [@implemented] → `tests/staged-product.test.mjs::a native Edit or Write is still a mutation`
+### UC5-S2 [happy] A native Edit/Write is still a mutation [@implemented] → `tests/staged-product.test.mjs::a native Edit or Write is still a mutation` cmd:`node --test tests/staged-product.test.mjs`
 
 ```gherkin
 Given a transcript whose write is Edit, Write, MultiEdit, or NotebookEdit
@@ -286,39 +286,39 @@ Scouted from the repository this session. Behavioural rows are bound in `tests/s
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | The shipped plugin is already three directories: `plugin/bin` (gates), `plugin/hooks` plus `plugin/scripts` (session), `plugin/skills` (lifecycle). Marketplace source is `./plugin`. | `tests/staged-product.test.mjs::marketplace source is the plugin directory` | @implemented | |
-| F-2 | README asserts layout neutrality (`no folder layout, no test command`) while `is_adr` in the facts gate requires `## Existing Primitives Audit` plus Decision, Alternatives Considered, and Consequences. The fence command is layout-neutral; the lifecycle is not. | `tests/staged-product.test.mjs::is_adr still requires the four QH sections` | @implemented | |
-| F-3 | `nextStage` returns spec-write when `!records && !specs`. An empty adopter tree is therefore routed into the decision corpus. | `tests/staged-product.test.mjs::an empty tree is not routed to spec-write` | @implemented | |
-| F-4 | When `nextStage` returns null, the human output still says anything you start now begins at `/spec-write` or `/adr-write`. A healthy corpus is told to start a spec. | `tests/staged-product.test.mjs::null-stage leftover is not spec-write` | @implemented | |
-| F-5 | `work-next` stage entries for skills are unnamespaced (`/spec-write`, `/adr-write`, `/adr-execute`). Installed skills are `/quality-harness:…`. | `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not` | @implemented | |
-| F-6 | `nextStage` maps `accepted && !tasks` to adr-write, whose `when` text is `a spec is Ready-for-ADR and no record Covers its facts`. The condition and the blurb are different questions. | `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` | @implemented | |
-| F-7 | Task files with zero classified records are already called a discovery failure in the CLI, because two walkers disagree. The spec-write default still sits under that case when specs are also zero. | `tests/staged-product.test.mjs::task files with no records are a discovery failure, not spec-write` | @implemented | |
-| F-8 | ADR-012 Accepted permanently excludes `adr-verify` and `spec-verify` from `qh-mcp` because both execute text the corpus supplies. This spec does not reverse that. Desktop gets reading gates; the write path stays a shell. | `tests/staged-product.test.mjs::qh-mcp still excludes verify gates` | @implemented | |
-| F-9 | `analyzeTranscript` treats authorship as `Edit`, `Write`, `MultiEdit`, `NotebookEdit`, plus Bash that looks like mutation. An MCP write is not in `MUTATION_TOOLS`, so the evidence gate can fail-open. | `tests/staged-product.test.mjs::an MCP write is UNPROVEN authorship, not no mutation` | @implemented | |
-| F-10 | ONBOARDING tells the reader not to adopt the whole lifecycle on day one. `hooks.json` has no stage switch: SessionStart, UserPromptSubmit, PreToolUse, and two PostToolUse scripts run regardless of whether a QH corpus exists. | `tests/staged-product.test.mjs::hooks stay always-on with no stage switch` | @implemented | |
-| F-11 | `plugin/README.md`'s first command is `node "${CLAUDE_PLUGIN_ROOT}/scripts/qh-doctor.mjs"`. `qh-doctor.mjs` itself locates the plugin from `import.meta.url`. The breakage is the README, not the doctor. | `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT` | @implemented | |
-| F-12 | `adr-lint` on a directory prints `expected a record FILE, got a directory` and exits 1. INSTALL documents `python3 plugin/bin/adr-lint docs/adr`. | `tests/staged-product.test.mjs::adr-lint still refuses a directory and docs name a file` | @implemented | |
-| F-13 | After this spec is accepted, an empty tree (zero classified records, zero specs, zero task files) must not receive `Next: /spec-write` or `Next: /quality-harness:spec-write`. | `tests/staged-product.test.mjs::an empty tree is not routed to spec-write` | @implemented | |
-| F-14 | After this spec is accepted, every `work-next` Next line that names a skill uses the `/quality-harness:` prefix; CLI gates stay unprefixed command names. | `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not` | @implemented | |
-| F-15 | After this spec is accepted, a file that is not a QH record or task is reported as not-recognised or UNPROVEN, never as a clean skip and never as "not a decision record" when the file contains some other ADR shape. | `tests/staged-product.test.mjs::a MADR file is not-recognised, not a failed record` | @implemented | |
-| F-16 | After this spec is accepted, the first command on the shipped plugin README locates the doctor without requiring `CLAUDE_PLUGIN_ROOT` to be set. | `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT` | @implemented | |
-| F-17 | This spec adds no in-process plugin registry. A later host is a Session adapter that spawns existing Core CLIs (and, if needed, translates a JSON hook payload). A later ADR house style is a Corpus recognition profile, decided in its own ADR. Core's contract is argv + stdin JSON + exit code + stdout. | `tests/staged-product.test.mjs::no in-process plugin registry was added` | @implemented | |
-| F-18 | When `nextStage` returns null, `work-next` must not say that new work begins at `/spec-write` or `/adr-write`. It says nothing in the QH corpus is waiting. Spec-write remains a skill you can invoke; it is not the default leftover. | `tests/staged-product.test.mjs::null-stage leftover is not spec-write` | @implemented | |
-| F-19 | After this spec is accepted, a `work-next` because-line (`STAGES.when` printed for the chosen stage) must match the predicate that fired. When `nextStage` returns adr-write because `accepted && !tasks`, the because-line says the records have no tasks. The Ready-for-ADR blurb is printed only when observe() saw a Ready-for-ADR spec with no covering record. | `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` | @implemented | |
-| F-20 | After this spec is accepted: Core (`adr-lint FILE`) always names not-recognised or UNPROVEN when that is the classification. Session PostToolUse names it at most once per file per session and does not run record checks. The commit boundary (lifecycle PreToolUse on Bash `git commit`, same dispatcher) names it again. There is no Claude Commit hook today. | `tests/staged-product.test.mjs::PostToolUse names not-recognised once per file per session via firstMentionThisSession` | @implemented | |
-| F-21 | After this spec is accepted, `hooks.json` stays always-on: no opt-in switch and no new events. Corpus gates still do not run on unclassified files (F-15, F-20). Session Advise (unverified work, branch-state) still runs on trees with no QH corpus. | `tests/staged-product.test.mjs::hooks stay always-on with no stage switch` | @implemented | |
-| F-22 | This spec does not add `plugin/CORE.md`. Marketplace Core is taught in `plugin/README.md` (F-16). `docs/INSTALL.md` and ONBOARDING stay GitHub-only. | `tests/staged-product.test.mjs::plugin ships no CORE.md` | @implemented | |
-| F-23 | After this spec is accepted, `adr-lint` still refuses a directory. INSTALL and the doctor (if they print an example) name a file. This spec does not add a directory/corpus walker on `adr-lint`; a later record may, when a measured need exists. | `tests/staged-product.test.mjs::adr-lint still refuses a directory and docs name a file` | @implemented | |
-| F-24 | After this spec is accepted, `analyzeTranscript` treats a `tool_use` that is not in `MUTATION_TOOLS` and is not classified Bash as UNPROVEN authorship, never as `lastMutation: -1` / empty `mutationPaths` meaning no edits. This spec does not invent a path extractor for every MCP name. A later record may treat a named tool as a mutation once a fixture exists for that name. BACKLOG §176 already reproduces `mcp__mrw__mrw_write`. | `tests/staged-product.test.mjs::an MCP write is UNPROVEN authorship, not no mutation` | @implemented | |
-| F-25 | After this spec is accepted, every skill name `work-next` prints — Next line, null-stage catalog dump, and `--json` `stages[].entry` — uses the `/quality-harness:` prefix. CLI gates stay unprefixed. | `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not` | @implemented | |
-| F-26 | This spec does not change which files classify as QH records or tasks. Positive-match arms already in `facts-gate-dispatch.sh` stay (`ADR-*.md`, four QH sections, `# ADR-[0-9]` title, task title / `tasks/`). F-15 and F-20 change what a miss is called, not the matcher. A later record may extend the grammar with a foreign-corpus fixture. | `tests/staged-product.test.mjs::is_adr still requires the four QH sections` | @implemented | |
-| F-27 | After this spec is accepted, `nextStage` returns adr-write when observe() finds at least one spec with Status Ready-for-ADR whose `@spec`/`@implemented` IDs are not covered by any classified record (the covering relation `adr-lint` already enforces). That arm is after evidence and retirement, and before `accepted && !tasks`. The Ready-for-ADR because-line is used only for this arm (F-19). If observe cannot read a spec's Status, that spec is UNPROVEN, not "not Ready-for-ADR". | `tests/staged-product.test.mjs::a Ready-for-ADR spec with no covering record goes to adr-write` | @implemented | |
-| F-28 | After this spec is accepted, unfinished tasks under a Proposed, Draft, or unrecognised-status record stay named as not executable. That output is not "the corpus is finished" and is not a spec-write Next line (F-13, F-18). | `tests/staged-product.test.mjs::Proposed and Draft unfinished tasks are named, not finished or spec-write` | @implemented | |
-| F-29 | After this spec is accepted, the two adr-write predicates (F-19 `accepted && !tasks`, F-27 Ready-for-ADR uncovered spec) do not share one `STAGES.when` string. Allowed: two stage entries that share the same skill Next line, or one id whose `when` is chosen from the arm that fired. | `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` | @implemented | |
-| F-30 | After this spec is accepted, `observe()` must not decide that specs exist, or which spec files exist, via `existsSync` / `readdirSync` on `docs/specs`. Spec paths are resolved with `git ls-files` plus `--others --exclude-standard` (the same listing `adrCorpus` already uses). If git cannot list, that look is UNPROVEN, not "zero specs". | `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN` | @implemented | |
-| F-31 | After this spec is accepted, `taskFiles()` must not inventory tasks via `existsSync` / `readdirSync`. Task paths come from the same git listing as F-30 (`trackedPaths`). Archive directories stay excluded. If git cannot list, that look is UNPROVEN, not "zero tasks". | `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN` | @implemented | |
-| F-32 | After this spec is accepted, PostToolUse names not-recognised at most once per file per session using the existing `firstMentionThisSession` ledger in `lifecycle.mjs`, not a second session store. | `tests/staged-product.test.mjs::PostToolUse names not-recognised once per file per session via firstMentionThisSession` | @implemented | |
-| F-33 | After this spec is accepted, `post-edit-check.sh` still runs on Edit/Write of unclassified files. It is a syntax/type advisory, not a corpus gate. F-21 skips `adr-lint` / `spec-verify` / `arch-lint` on a miss; this spec does not make the syntax check corpus-aware. | `tests/staged-product.test.mjs::post-edit-check still runs on unclassified files` | @implemented | |
+| F-1 | The shipped plugin is already three directories: `plugin/bin` (gates), `plugin/hooks` plus `plugin/scripts` (session), `plugin/skills` (lifecycle). Marketplace source is `./plugin`. | `tests/staged-product.test.mjs::marketplace source is the plugin directory` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-2 | README asserts layout neutrality (`no folder layout, no test command`) while `is_adr` in the facts gate requires `## Existing Primitives Audit` plus Decision, Alternatives Considered, and Consequences. The fence command is layout-neutral; the lifecycle is not. | `tests/staged-product.test.mjs::is_adr still requires the four QH sections` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-3 | `nextStage` returns spec-write when `!records && !specs`. An empty adopter tree is therefore routed into the decision corpus. | `tests/staged-product.test.mjs::an empty tree is not routed to spec-write` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-4 | When `nextStage` returns null, the human output still says anything you start now begins at `/spec-write` or `/adr-write`. A healthy corpus is told to start a spec. | `tests/staged-product.test.mjs::null-stage leftover is not spec-write` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-5 | `work-next` stage entries for skills are unnamespaced (`/spec-write`, `/adr-write`, `/adr-execute`). Installed skills are `/quality-harness:…`. | `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-6 | `nextStage` maps `accepted && !tasks` to adr-write, whose `when` text is `a spec is Ready-for-ADR and no record Covers its facts`. The condition and the blurb are different questions. | `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-7 | Task files with zero classified records are already called a discovery failure in the CLI, because two walkers disagree. The spec-write default still sits under that case when specs are also zero. | `tests/staged-product.test.mjs::task files with no records are a discovery failure, not spec-write` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-8 | ADR-012 Accepted permanently excludes `adr-verify` and `spec-verify` from `qh-mcp` because both execute text the corpus supplies. This spec does not reverse that. Desktop gets reading gates; the write path stays a shell. | `tests/staged-product.test.mjs::qh-mcp still excludes verify gates` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-9 | `analyzeTranscript` treats authorship as `Edit`, `Write`, `MultiEdit`, `NotebookEdit`, plus Bash that looks like mutation. An MCP write is not in `MUTATION_TOOLS`, so the evidence gate can fail-open. | `tests/staged-product.test.mjs::an MCP write is UNPROVEN authorship, not no mutation` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-10 | ONBOARDING tells the reader not to adopt the whole lifecycle on day one. `hooks.json` has no stage switch: SessionStart, UserPromptSubmit, PreToolUse, and two PostToolUse scripts run regardless of whether a QH corpus exists. | `tests/staged-product.test.mjs::hooks stay always-on with no stage switch` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-11 | `plugin/README.md`'s first command is `node "${CLAUDE_PLUGIN_ROOT}/scripts/qh-doctor.mjs"`. `qh-doctor.mjs` itself locates the plugin from `import.meta.url`. The breakage is the README, not the doctor. | `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-12 | `adr-lint` on a directory prints `expected a record FILE, got a directory` and exits 1. INSTALL documents `python3 plugin/bin/adr-lint docs/adr`. | `tests/staged-product.test.mjs::adr-lint still refuses a directory and docs name a file` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-13 | After this spec is accepted, an empty tree (zero classified records, zero specs, zero task files) must not receive `Next: /spec-write` or `Next: /quality-harness:spec-write`. | `tests/staged-product.test.mjs::an empty tree is not routed to spec-write` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-14 | After this spec is accepted, every `work-next` Next line that names a skill uses the `/quality-harness:` prefix; CLI gates stay unprefixed command names. | `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-15 | After this spec is accepted, a file that is not a QH record or task is reported as not-recognised or UNPROVEN, never as a clean skip and never as "not a decision record" when the file contains some other ADR shape. | `tests/staged-product.test.mjs::a MADR file is not-recognised, not a failed record` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-16 | After this spec is accepted, the first command on the shipped plugin README locates the doctor without requiring `CLAUDE_PLUGIN_ROOT` to be set. | `tests/staged-product.test.mjs::first shipped README command does not require CLAUDE_PLUGIN_ROOT` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-17 | This spec adds no in-process plugin registry. A later host is a Session adapter that spawns existing Core CLIs (and, if needed, translates a JSON hook payload). A later ADR house style is a Corpus recognition profile, decided in its own ADR. Core's contract is argv + stdin JSON + exit code + stdout. | `tests/staged-product.test.mjs::no in-process plugin registry was added` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-18 | When `nextStage` returns null, `work-next` must not say that new work begins at `/spec-write` or `/adr-write`. It says nothing in the QH corpus is waiting. Spec-write remains a skill you can invoke; it is not the default leftover. | `tests/staged-product.test.mjs::null-stage leftover is not spec-write` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-19 | After this spec is accepted, a `work-next` because-line (`STAGES.when` printed for the chosen stage) must match the predicate that fired. When `nextStage` returns adr-write because `accepted && !tasks`, the because-line says the records have no tasks. The Ready-for-ADR blurb is printed only when observe() saw a Ready-for-ADR spec with no covering record. | `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-20 | After this spec is accepted: Core (`adr-lint FILE`) always names not-recognised or UNPROVEN when that is the classification. Session PostToolUse names it at most once per file per session and does not run record checks. The commit boundary (lifecycle PreToolUse on Bash `git commit`, same dispatcher) names it again. There is no Claude Commit hook today. | `tests/staged-product.test.mjs::PostToolUse names not-recognised once per file per session via firstMentionThisSession` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-21 | After this spec is accepted, `hooks.json` stays always-on: no opt-in switch and no new events. Corpus gates still do not run on unclassified files (F-15, F-20). Session Advise (unverified work, branch-state) still runs on trees with no QH corpus. | `tests/staged-product.test.mjs::hooks stay always-on with no stage switch` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-22 | This spec does not add `plugin/CORE.md`. Marketplace Core is taught in `plugin/README.md` (F-16). `docs/INSTALL.md` and ONBOARDING stay GitHub-only. | `tests/staged-product.test.mjs::plugin ships no CORE.md` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-23 | After this spec is accepted, `adr-lint` still refuses a directory. INSTALL and the doctor (if they print an example) name a file. This spec does not add a directory/corpus walker on `adr-lint`; a later record may, when a measured need exists. | `tests/staged-product.test.mjs::adr-lint still refuses a directory and docs name a file` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-24 | After this spec is accepted, `analyzeTranscript` treats a `tool_use` that is not in `MUTATION_TOOLS` and is not classified Bash as UNPROVEN authorship, never as `lastMutation: -1` / empty `mutationPaths` meaning no edits. This spec does not invent a path extractor for every MCP name. A later record may treat a named tool as a mutation once a fixture exists for that name. BACKLOG §176 already reproduces `mcp__mrw__mrw_write`. | `tests/staged-product.test.mjs::an MCP write is UNPROVEN authorship, not no mutation` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-25 | After this spec is accepted, every skill name `work-next` prints — Next line, null-stage catalog dump, and `--json` `stages[].entry` — uses the `/quality-harness:` prefix. CLI gates stay unprefixed. | `tests/staged-product.test.mjs::work-next skill names are namespaced and CLI gates are not` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-26 | This spec does not change which files classify as QH records or tasks. Positive-match arms already in `facts-gate-dispatch.sh` stay (`ADR-*.md`, four QH sections, `# ADR-[0-9]` title, task title / `tasks/`). F-15 and F-20 change what a miss is called, not the matcher. A later record may extend the grammar with a foreign-corpus fixture. | `tests/staged-product.test.mjs::is_adr still requires the four QH sections` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-27 | After this spec is accepted, `nextStage` returns adr-write when observe() finds at least one spec with Status Ready-for-ADR whose `@spec`/`@implemented` IDs are not covered by any classified record (the covering relation `adr-lint` already enforces). That arm is after evidence and retirement, and before `accepted && !tasks`. The Ready-for-ADR because-line is used only for this arm (F-19). If observe cannot read a spec's Status, that spec is UNPROVEN, not "not Ready-for-ADR". | `tests/staged-product.test.mjs::a Ready-for-ADR spec with no covering record goes to adr-write` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-28 | After this spec is accepted, unfinished tasks under a Proposed, Draft, or unrecognised-status record stay named as not executable. That output is not "the corpus is finished" and is not a spec-write Next line (F-13, F-18). | `tests/staged-product.test.mjs::Proposed and Draft unfinished tasks are named, not finished or spec-write` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-29 | After this spec is accepted, the two adr-write predicates (F-19 `accepted && !tasks`, F-27 Ready-for-ADR uncovered spec) do not share one `STAGES.when` string. Allowed: two stage entries that share the same skill Next line, or one id whose `when` is chosen from the arm that fired. | `tests/staged-product.test.mjs::the two adr-write arms print different because-lines` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-30 | After this spec is accepted, `observe()` must not decide that specs exist, or which spec files exist, via `existsSync` / `readdirSync` on `docs/specs`. Spec paths are resolved with `git ls-files` plus `--others --exclude-standard` (the same listing `adrCorpus` already uses). If git cannot list, that look is UNPROVEN, not "zero specs". | `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-31 | After this spec is accepted, `taskFiles()` must not inventory tasks via `existsSync` / `readdirSync`. Task paths come from the same git listing as F-30 (`trackedPaths`). Archive directories stay excluded. If git cannot list, that look is UNPROVEN, not "zero tasks". | `tests/staged-product.test.mjs::disk-only specs and tasks are not the corpus; git failure is UNPROVEN` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-32 | After this spec is accepted, PostToolUse names not-recognised at most once per file per session using the existing `firstMentionThisSession` ledger in `lifecycle.mjs`, not a second session store. | `tests/staged-product.test.mjs::PostToolUse names not-recognised once per file per session via firstMentionThisSession` | @implemented | `node --test tests/staged-product.test.mjs` |
+| F-33 | After this spec is accepted, `post-edit-check.sh` still runs on Edit/Write of unclassified files. It is a syntax/type advisory, not a corpus gate. F-21 skips `adr-lint` / `spec-verify` / `arch-lint` on a miss; this spec does not make the syntax check corpus-aware. | `tests/staged-product.test.mjs::post-edit-check still runs on unclassified files` | @implemented | `node --test tests/staged-product.test.mjs` |
 
 ## Domain
 

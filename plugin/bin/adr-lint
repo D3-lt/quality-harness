@@ -1489,8 +1489,11 @@ def check_task(path, all_stems, errors, root, tracked):
     # is wrong rather than that a fence they can see is not there.
     acc_match = ACCEPTANCE_FENCE.search(acc)
     if not acc_match and "Acceptance is human-observed:" not in acc:
-        opener = re.search(r"^[ \t]*```(\S*)", acc, re.M)
-        found = (f"its fence opens with ```{opener.group(1) or ''}, which is not a runnable "
+        # The WHOLE opener line, trimmed: ```bash title=x was reported as "opens
+        # with ```bash", which names the part that is fine and hides the part
+        # that was rejected (ADR-045 T9).
+        opener = re.search(r"^[ \t]*```.*$", acc, re.M)
+        found = (f"its fence opens with {opener.group(0).strip()}, which is not a runnable "
                  f"Acceptance fence — " if opener else "")
         errors.append(f"{path.name}: ## Acceptance has no runnable fence (```bash, ```sh or "
                       f"```shell) and no explicit 'Acceptance is human-observed:' sentence — "

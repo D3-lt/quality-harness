@@ -8,7 +8,7 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -1062,4 +1062,48 @@ test('tool-written evidence outranks the task file\'s own Status word', () => {
   // case at all.
   assert.equal(routeOf(body('withdrawn', evidence)), 'done',
     'evidence is read before the status word, for a terminal status too')
+})
+
+// ADR-045. adr-next carried its own `sections` with no code-fence toggle, so a
+// task whose Acceptance fence held a line beginning `## ` read as two sections
+// here and one in adr-lint: a shorter body, a different sha256, and `is_done`
+// calling a task unverified against the very entry adr-verify wrote for it.
+// adr-verify's own Acceptance reader was a regex that stopped at the same line
+// and refused to run the fence at all. Both now read through one shared
+// `sections_of`, and this is the outermost check of that (CLAUDE.md §4): the
+// digest is never compared here — the writer's CLI writes it, the reader's CLI
+// reads it, and `done` is the only word that means they agreed.
+test("a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest", () => {
+  // `## B` is a bash comment inside the fence and a Markdown heading outside one.
+  const fence = 'printf one\n## B\nprintf two'
+  const { tasksDir } = corpus([{ id: 'T1', fence }])
+  const taskPath = join(tasksDir, 'T1-t.md')
+
+  const verify = spawnSync('python3', [join(bin, 'adr-verify'), taskPath],
+    { cwd: tasksDir, env, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(verify.status, 0,
+    `adr-verify must run the whole fence rather than stop at the fenced heading: ${verify.stdout}${verify.stderr}`)
+  const written = readFileSync(taskPath, 'utf8')
+  const row = written.match(/^- \d{4}-\d{2}-\d{2} · \S+ · exit 0 · .* · acceptance-sha256:([0-9a-f]{64})/m)
+  assert.ok(row, `adr-verify wrote a digest row: ${written}`)
+  // The fence adr-verify hashed is the WHOLE fence: its digest is the digest of
+  // both commands with the comment between them, not of `printf one` alone.
+  assert.equal(row[1], digestOf(fence), 'adr-verify hashed the whole fence, through the fenced heading')
+
+  const route = out => ['done', 'ready', 'blocked', 'stopped']
+    .find(bucket => (out[bucket] ?? []).some(t => t.id === 'T1')) ?? 'nowhere'
+  const after = next(['--all', '--json', tasksDir], tasksDir)
+  const parsed = JSON.parse(after.stdout)
+  assert.equal(route(parsed), 'done',
+    `adr-next must read the section the writer read and compute the digest the writer wrote: ${after.stdout}`)
+
+  // DIRTY: the same reader, one character later. An edited fence is a different
+  // Acceptance, and the digest exists to say so — this is not the defect, it is
+  // the check working, and the test must show it still can.
+  writeFileSync(taskPath, written.replace('printf two', 'printf three'))
+  const edited = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.equal(route(edited), 'ready', 'an edited fence is not done')
+  const entry = edited.ready.find(t => t.id === 'T1')
+  assert.match(entry.unproven ?? '', /different Acceptance/,
+    `and the reason names the recorded-against-another-fence state: ${JSON.stringify(entry)}`)
 })

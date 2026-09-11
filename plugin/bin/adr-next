@@ -35,6 +35,8 @@ word was unknown and unknown meant ready (BACKLOG §166).
 Exit: 0 = a ready task was printed (or --all rendered)
       3 = nothing ready: everything is done, or the rest is blocked or stopped
       1 = the ADR or tasks directory could not be read
+      2 = could not run: plugin/lib/record.py is not beside this gate's bin/
+          (a gate copied on its own; ADR-045)
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -42,8 +44,9 @@ resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
 which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 """
-import hashlib
+import importlib.util as _ilu
 import json
+import os
 import re
 import sys
 from pathlib import Path
@@ -54,6 +57,30 @@ for _s in (_sys.stdout, _sys.stderr):
         _s.reconfigure(encoding="utf-8", errors="replace")
     except Exception:
         pass
+
+# The record grammar — `sections_of`, `normalize_acceptance`, `acceptance_digest` —
+# lives in plugin/lib/record.py and is loaded the way adr-verify loads fence.py
+# (ADR-045): from THIS file's path, never from PATH or cwd, so a forwarder run reads
+# the grammar of the install it forwards to. Until 2026-09-11 this gate carried its
+# own `sections` with NO code-fence toggle: a task whose Acceptance fence held a
+# line beginning `## ` read as two sections here and one in adr-lint, its digest
+# differed from the one adr-verify wrote, and `is_done` called a verified task
+# unverified with nothing said. The reader of the evidence now hashes with the
+# writer's function. A gate copied without lib/ says so and exits 2 (ADR-005).
+_lib = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib")
+_record_file = os.path.join(_lib, "record.py")
+if not os.path.isfile(_record_file):
+    sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
+                     f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
+                     f"or through a forwarder.\n")
+    sys.exit(2)
+_loaded_record = sys.modules.get("record")
+if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
+    _record_spec = _ilu.spec_from_file_location("record", _record_file)
+    _loaded_record = _ilu.module_from_spec(_record_spec)
+    sys.modules["record"] = _loaded_record
+    _record_spec.loader.exec_module(_loaded_record)
+from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -204,37 +231,9 @@ def status_stop(text):
             f"not evidence that the work is wanted")
 
 
-def sections(text):
-    out, current = {}, None
-    for line in text.split("\n"):
-        m = re.match(r"^##\s+(.+?)\s*$", line)
-        if m:
-            current = m.group(1)
-            out.setdefault(current, [])
-            continue
-        if current is not None:
-            out[current].append(line)
-    return out
-
-
-def normalize_acceptance(raw):
-    """Canonical Acceptance text — must stay identical to adr-lint/adr-verify.
-
-    A digest computed differently here would silently disagree with the evidence
-    those tools write, and this list would call verified tasks unverified.
-    """
-    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    start, end = 0, len(lines)
-    while start < end and not lines[start].strip():
-        start += 1
-    while end > start and not lines[end - 1].strip():
-        end -= 1
-    return "\n".join(lines[start:end])
-
-
 def acceptance(text):
     """The task's Acceptance fence body, its first command line, and its digest."""
-    body = "\n".join(sections(text).get("Acceptance", []))
+    body = "\n".join(sections_of(text).get("Acceptance", []))
     m = re.search(r"```bash\n(.*?)```", body, re.S)
     if not m:
         human = "Acceptance is human-observed:" in body
@@ -245,7 +244,7 @@ def acceptance(text):
     preamble = re.compile(r"^(?:set\s+[-+][A-Za-z]+|cd\s+\S+|export\s+\S+=|#)")
     body = [ln.strip() for ln in fence.split("\n") if ln.strip()]
     first = next((ln for ln in body if not preamble.match(ln)), body[0] if body else "")
-    digest = hashlib.sha256(fence.encode("utf-8")).hexdigest()
+    digest = acceptance_digest(fence)
     return fence, first, digest
 
 
@@ -276,7 +275,7 @@ def is_done(text, digest, human, fence=None, first=None):
     is the only reading that does not require a tool to assert what it cannot
     observe.
     """
-    log = "\n".join(sections(text).get("Verification Log", []))
+    log = "\n".join(sections_of(text).get("Verification Log", []))
     want_legacy = None
     if fence is not None and first is not None and "\n" not in fence:
         want_legacy = first.replace("`", "'")
@@ -315,7 +314,7 @@ def unprovable_evidence(text, digest, fence, first):
     happened to warn it. This is not a loosening — nothing here grants `done`;
     it says which of two very different states produced the same word.
     """
-    log = "\n".join(sections(text).get("Verification Log", []))
+    log = "\n".join(sections_of(text).get("Verification Log", []))
     legacy = False
     for line in log.split("\n"):
         line = line.strip()
@@ -353,7 +352,7 @@ def human_stop(text):
     its return to carry a reason is how a second caller starts branching on a
     tuple it does not need. The log is short and already in memory.
     """
-    log = "\n".join(sections(text).get("Verification Log", []))
+    log = "\n".join(sections_of(text).get("Verification Log", []))
     for line in log.split("\n"):
         if (m := VLOG_HUMAN_RE.match(line.strip())) and human_outcome(m.group("note")) == "stop":
             # ⚠ THE REASON CARRIES ITS OWN PROVENANCE. Both stop routes print through

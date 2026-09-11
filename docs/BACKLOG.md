@@ -12524,3 +12524,31 @@ docs/adr/ADR-039-records-use-the-same-listing.md:97:- Untangle `lifecycle.mjs`, 
 
 Leave the record. A later author who wants the corpus to describe today's tree writes a new record,
 not an edit of 039.
+
+## 197. OPEN 2026-09-11 — three fence-blind `## ` readers remain in adr-verify after ADR-045
+
+ADR-045 moved the record grammar into `plugin/lib/record.py` and routed adr-verify's two Acceptance
+readers through the shared, fence-aware `sections_of`. The class it fixed was "a reader that stops at
+the next `^## ` line whatever fence it is inside". Enumerated 2026-09-11 on `ea12656`:
+
+```
+$ rg -n '\(\?=\^## \|\\Z\)' plugin/bin
+plugin/bin/adr-verify:666:    m = re.search(rf"(^## {re.escape(section)}\s*\n)(.*?)(?=^## |\Z)", text, re.M | re.S)
+plugin/bin/adr-verify:1672:    section = re.search(r"^## Ordered Steps$(?P<body>.*?)(?=^## |\Z)", text,
+plugin/bin/adr-verify:1983:    section = re.search(r"^## Verification Log\s*\n(.*?)(?=^## |\Z)",
+plugin/bin/adr-verify:2171:    section = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+plugin/bin/adr-verify:2542:    m = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
+```
+
+2171 and 2542 are fixed. The three left decide no digest, which is why they were not pulled into
+ADR-045, and each needs its own regression before it moves:
+
+- **666** finds a section by position to REWRITE it (the entry writer). A `## ` line inside a fenced
+  output excerpt in the Verification Log — a test failure that printed a Markdown heading is enough —
+  would end the section early, and the next entry would be appended in the wrong place.
+- **1983** reads the Verification Log for the same reason; the same excerpt truncates what it reads.
+- **1672** reads Ordered Steps; a fenced `## ` there is unlikely but not impossible.
+
+Also left (a different disagreement, not fence-blindness): `adr-next` matches only a ```bash fence
+under Acceptance while `adr-verify` and `adr-lint` read ```sh and ```shell too (`ACCEPTANCE_FENCE`).
+A task written with ```sh is verified by one tool and offered as READY by another.

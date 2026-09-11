@@ -12552,3 +12552,28 @@ ADR-045, and each needs its own regression before it moves:
 Also left (a different disagreement, not fence-blindness): `adr-next` matches only a ```bash fence
 under Acceptance while `adr-verify` and `adr-lint` read ```sh and ```shell too (`ACCEPTANCE_FENCE`).
 A task written with ```sh is verified by one tool and offered as READY by another.
+
+## 198. CLOSED 2026-09-11 — §197's three readers moved, and §197 was wrong about adr-lint
+
+Correction to §197, which is left as written (CLAUDE.md §10). Its last paragraph says adr-verify AND
+adr-lint read ```sh and ```shell. adr-verify did. adr-lint's `ACCEPTANCE_FENCE` did, but the check
+that matters — the digest path at `plugin/bin/adr-lint:1654` on `01cb598` — was a third regex,
+`bash\s*\n` only. Probed 2026-09-11 (Codex review of ADR-045 T1/T2, HIGH): a ```sh task adr-verify
+ran and recorded; README `done`; adr-lint reported "no ```bash fence", `acc_all` was `""`, and the
+whole `want_digest` block was skipped — the same output byte for byte with the digest forged. Not
+"a different disagreement" as §197 called it: a fail-open in the gate whose one job is to refuse a
+digest that does not match (CLAUDE.md §16).
+
+Both halves of §197 are closed by ADR-045:
+
+- T3 — one opener, `record.ACCEPTANCE_FENCE`, imported by adr-verify, adr-lint (fence check, digest
+  path, human-mutant advisory) and adr-next. Class command and every hit's disposition are in the task.
+- T6 — `append_entry`, `declared_steps`, `claims_in` read through `record.section_span` /
+  `sections_of`; `rg -n '\(\?=\^## \|\\Z\)' plugin/bin` is empty and the one-module test refuses the
+  shape. Each has its own regression: the entry writer on a fenced excerpt, `--steps` on a step
+  declared after a fenced line, the sweep on a claim after one.
+
+Also from the same review, in the same record: T4 (a missing lib exits the gate's own could-not-run
+code, and the `record.py`-absent branch of adr-verify / spec-verify has a fixture), T5 (a repeated
+`## ` heading is a finding). Left named: a `record.py` that exists but raises on import is a traceback
+(spec §Non-Goals); the eight non-CR/LF separators `splitlines()` folds are documented, not changed.

@@ -30,8 +30,10 @@ resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
 which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 
-Exit: 0 the stream ended · 2 = usage, a broken invocation. A protocol error is a
-JSON-RPC error object on stdout, never an exit code — the client is still there.
+Exit: 0 the stream ended · 2 = usage, a broken invocation · 4 = could not run:
+plugin/lib/fence.py is not beside this gate's bin/ (a gate copied on its own;
+ADR-045), so no server ever started. A protocol error is a JSON-RPC error object on
+stdout, never an exit code — the client is still there.
 """
 
 import json
@@ -52,11 +54,13 @@ _fence_file = os.path.join(_lib, "fence.py")
 if not os.path.isfile(_fence_file):
     # A gate COPIED somewhere without plugin/lib beside its bin/ — the stale-copy
     # shape the standalone forwarders exist to replace. Said in one sentence as
-    # could-not-run (exit 2, ADR-005), never as a traceback.
+    # could-not-run, never as a traceback. Exit 4, its own code: 2 is "you invoked
+    # this wrong", and a caller reading it would re-check its command line rather
+    # than its install (ADR-005; ADR-045 T4).
     sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/fence.py is not beside this gate's bin/ "
                      f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
                      f"or through a forwarder.\n")
-    sys.exit(2)
+    sys.exit(4)
 # Loaded from its EXACT path, and replaced if something else already answers to
 # the name. `sys.path.insert(0, lib)` beats an earlier search-path entry but not
 # the import cache: a sitecustomize or an embedding loader that had imported some

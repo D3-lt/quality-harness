@@ -12,7 +12,9 @@ Modes (cumulative):
   --implemented  + run every @implemented test; any failure fails the gate.
 
 Exit codes: 0 pass · 1 structural failure · 2 bound test missing · 3 @implemented test failing
-            4 could not run a bound test — nothing was observed, so nothing is claimed
+            4 could not run — a bound test could not be started, or plugin/lib/fence.py or
+            plugin/lib/record.py is not beside this gate's bin/ (a gate copied on its own;
+            ADR-045). Nothing was observed, so nothing is claimed — never a finding's code.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -40,11 +42,14 @@ _fence_file = os.path.join(_lib, "fence.py")
 if not os.path.isfile(_fence_file):
     # A gate COPIED somewhere without plugin/lib beside its bin/ — the stale-copy
     # shape the standalone forwarders exist to replace. Said in one sentence as
-    # could-not-run (exit 2, ADR-005), never as a traceback.
+    # could-not-run, never as a traceback. Exit 4 — this gate's "nothing was
+    # observed" code — and NOT 2, which is "bound test missing", a finding about
+    # the spec that would send a caller to fix a spec this gate never opened
+    # (ADR-005; ADR-045 T4).
     sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/fence.py is not beside this gate's bin/ "
                      f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
                      f"or through a forwarder.\n")
-    sys.exit(2)
+    sys.exit(4)
 # Loaded from its EXACT path, and replaced if something else already answers to
 # the name. `sys.path.insert(0, lib)` beats an earlier search-path entry but not
 # the import cache: a sitecustomize or an embedding loader that had imported some
@@ -62,13 +67,13 @@ from fence import *  # noqa: E402,F401,F403
 
 # The record grammar — `sections_of` — lives in plugin/lib/record.py beside fence.py
 # and is loaded the same way (ADR-045). Until 2026-09-11 this gate carried its own
-# copy, one of five identical ones.
+# copy, one of five identical ones. Same exit as the fence above, for the same reason.
 _record_file = os.path.join(_lib, "record.py")
 if not os.path.isfile(_record_file):
     sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
                      f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
                      f"or through a forwarder.\n")
-    sys.exit(2)
+    sys.exit(4)
 _loaded_record = sys.modules.get("record")
 if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
     _record_spec = _ilu.spec_from_file_location("record", _record_file)

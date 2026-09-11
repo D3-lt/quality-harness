@@ -1107,3 +1107,34 @@ test("a heading inside the Acceptance fence is not a heading: adr-next agrees wi
   assert.match(entry.unproven ?? '', /different Acceptance/,
     `and the reason names the recorded-against-another-fence state: ${JSON.stringify(entry)}`)
 })
+
+// ADR-045 T3. adr-next matched a bare ```bash\n — no `sh`, no `shell`, not even a
+// space after the label — while adr-verify ran and recorded all three. A task
+// written with ```sh was verified by one tool and offered as READY by the other
+// (docs/BACKLOG.md §197). One opener now, `record.ACCEPTANCE_FENCE`, and this is
+// the outermost check of it: the writer's CLI records, the reader's CLI says done.
+test("a sh-labelled Acceptance fence adr-verify recorded is done to adr-next", () => {
+  for (const opener of ['sh', 'shell', 'bash  ']) {
+    const { tasksDir } = corpus([{ id: 'T1', fence: 'printf one' }])
+    const taskPath = join(tasksDir, 'T1-t.md')
+    writeFileSync(taskPath, readFileSync(taskPath, 'utf8').replace('```bash\n', `\`\`\`${opener}\n`))
+    const verify = spawnSync('python3', [join(bin, 'adr-verify'), taskPath],
+      { cwd: tasksDir, env, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(verify.status, 0, `adr-verify runs a \`\`\`${opener.trim()} fence: ${verify.stdout}${verify.stderr}`)
+    const route = out => ['done', 'ready', 'blocked', 'stopped']
+      .find(bucket => (out[bucket] ?? []).some(t => t.id === 'T1')) ?? 'nowhere'
+    const after = next(['--all', '--json', tasksDir], tasksDir)
+    assert.equal(route(JSON.parse(after.stdout)), 'done',
+      `adr-next reads the fence the writer ran (\`\`\`${opener.trim()}): ${after.stdout}`)
+  }
+  // DIRTY: a fence in a language no gate runs is not an Acceptance to either tool —
+  // adr-verify refuses it and adr-next has no fence to hash, so the task is not done.
+  const { tasksDir } = corpus([{ id: 'T1', fence: 'print(1)' }])
+  const taskPath = join(tasksDir, 'T1-t.md')
+  writeFileSync(taskPath, readFileSync(taskPath, 'utf8').replace('```bash\n', '```python\n'))
+  const refused = spawnSync('python3', [join(bin, 'adr-verify'), taskPath],
+    { cwd: tasksDir, env, encoding: 'utf8', timeout: 60_000 })
+  assert.equal(refused.status, 2, `a python fence is refused: ${refused.stdout}${refused.stderr}`)
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  assert.ok(!(parsed.done ?? []).some(t => t.id === 'T1'), `not done: ${JSON.stringify(parsed)}`)
+})

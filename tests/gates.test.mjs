@@ -6,6 +6,7 @@ import {
   readdirSync,
   readFileSync,
   rmSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
@@ -1580,7 +1581,10 @@ test('adr-lint cross-checks every ordered step against an explicit proof', (t) =
   )
   const legacyParity = lint(legacyTildeHeading, 'legacy tilde-heading parity')
   expectExit(legacyParity, 1, 'legacy tilde-heading parity')
-  assert.match(legacyParity.stdout, /Acceptance has no ```bash fence/)
+  assert.match(legacyParity.stdout, /Acceptance has no runnable fence \(```bash, ```sh or ```shell\)/)
+  // The tilde-fenced `## Acceptance` IS a second heading to the shared reader,
+  // and since ADR-045 T5 the reader says so rather than silently keeping the last.
+  assert.match(legacyParity.stdout, /## Acceptance appears more than once/)
 })
 
 // A parallelised Acceptance fence that collects its children with a bare `wait`
@@ -1763,33 +1767,102 @@ test('every shipped gate answers --version with the version of the tree it was r
 
 // A gate copied somewhere without plugin/lib beside its bin/ is the stale-copy
 // shape the forwarders exist to replace. It must say so in one sentence and exit
-// 2 — could not run, ADR-005 — never die in a traceback. And the same gate WITH
-// lib/ beside it must run, or this would pass for a gate that always refused.
+// with ITS OWN could-not-run code — could not run, ADR-005 — never die in a
+// traceback, and never wear the code of a finding. And the same gate WITH lib/
+// beside it must run, or this would pass for a gate that always refused.
 //
-// Two shared modules, two sentences: the fence gates name fence.py (checked
-// first, so a gate missing both names it), and the record-grammar gates name
-// record.py (ADR-045). The file named is the file a reader goes looking for.
-test('a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs', () => {
-  const missing = {
-    'adr-verify': 'fence', 'spec-verify': 'fence', 'qh-mcp': 'fence',
-    'adr-lint': 'record', 'adr-next': 'record', 'arch-lint': 'record',
-    'adr-debt': 'record', 'adr-retire-check': 'record',
-  }
-  for (const [gate, lib] of Object.entries(missing)) {
+// ADR-045 T4. The code is per gate, because each gate's Exit block is the
+// authority for that gate: adr-verify and spec-verify exit 4, the could-not-look
+// code they already had (2 there is "no Acceptance section" / "bound test
+// missing" — findings about the record, and a caller reading 2 would go and edit
+// a file the gate never opened); qh-mcp exits 4 (2 is usage); adr-lint and the
+// record-only gates exit 2, which their Exit blocks reserve for "nothing was
+// checked". Until T4 every gate exited 2 and three of the eight headers called
+// that something else.
+//
+// Every lib each gate loads is exercised, one absence at a time: a gate that loads
+// fence.py AND record.py is run with neither (fence.py named — it is checked
+// first) and then with fence.py alone (record.py named). Until T4 the second arm
+// did not exist, so the record branch of adr-verify and spec-verify was reachable
+// by no test, and `mutations.json` could guard only adr-next's and adr-lint's.
+const LIB_ABSENT = {
+  'adr-verify': { libs: ['fence', 'record'], code: 4 },
+  'spec-verify': { libs: ['fence', 'record'], code: 4 },
+  'qh-mcp': { libs: ['fence'], code: 4 },
+  'adr-lint': { libs: ['record'], code: 2 },
+  'adr-next': { libs: ['record'], code: 2 },
+  'arch-lint': { libs: ['record'], code: 2 },
+  'adr-debt': { libs: ['record'], code: 2 },
+  'adr-retire-check': { libs: ['record'], code: 2 },
+}
+
+/** The `Exit:` block of a gate's module docstring — the contract a caller reads. */
+function exitBlock(gate) {
+  const doc = readFileSync(join(bin, gate), 'utf8').split('"""')[1] ?? ''
+  const at = doc.search(/^\s*Exit( codes)?:/m)
+  assert.notEqual(at, -1, `${gate} declares its exit codes in its docstring`)
+  return doc.slice(at).split(/\n\s*\n/)[0]
+}
+
+test('a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs', () => {
+  for (const [gate, { libs, code }] of Object.entries(LIB_ABSENT)) {
+    // The contract names the code AND the meaning: a numeral alone is what let
+    // three headers call this "usage" or "bound test missing" for a day.
+    const contract = exitBlock(gate)
+    assert.match(contract, new RegExp(`(?<![\\w-])${code}(?![\\w-])[^\\n]*(?:\\n[^\\n]*)*?could not run`),
+      `${gate}'s Exit block must say ${code} is could-not-run:\n${contract}`)
+    assert.match(contract, /plugin\/lib\/(?:fence|record)\.py/, `${gate}'s Exit block names the lib: ${contract}`)
+
     const temp = mkdtempSync(join(os.tmpdir(), 'qh-nolib-'))
     try {
       mkdirSync(join(temp, 'bin'), { recursive: true })
+      mkdirSync(join(temp, 'lib'), { recursive: true })
       mkdirSync(join(temp, '.claude-plugin'), { recursive: true })
       writeFileSync(join(temp, '.claude-plugin', 'plugin.json'), JSON.stringify({ name: 'quality-harness', version: '0.0.0-fixture' }))
       cpSync(join(bin, gate), join(temp, 'bin', gate))
-      const without = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
-      assert.equal(without.status, 2, `${gate} without lib/: could-not-run is exit 2, got ${without.status}\n${without.stdout}${without.stderr}`)
-      assert.match(without.stderr, new RegExp(`could not run: plugin/lib/${lib}\\.py is not beside this gate's bin/`),
-        `${gate}: the reason is a sentence naming ${lib}.py, not a traceback — ${without.stderr}`)
-      assert.doesNotMatch(without.stderr, /Traceback/, `${gate}: no traceback`)
+      // One lib absent at a time, in load order: the first run has none of them,
+      // each later run has every lib before the one under test.
+      for (const [i, lib] of libs.entries()) {
+        for (const earlier of libs.slice(0, i)) cpSync(join(root, 'lib', `${earlier}.py`), join(temp, 'lib', `${earlier}.py`))
+        const without = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
+        assert.equal(without.status, code,
+          `${gate} without lib/${lib}.py: could-not-run is exit ${code}, got ${without.status}\n${without.stdout}${without.stderr}`)
+        assert.match(without.stderr, new RegExp(`^\\[${gate}\\] could not run: plugin/lib/${lib}\\.py is not beside this gate's bin/ \\(looked in `),
+          `${gate}: the reason is a sentence naming ${lib}.py, not a traceback — ${without.stderr}`)
+        assert.equal(without.stderr.trim().split('\n').length, 1,
+          `${gate}: ONE sentence on stderr, so a caller reading the first line has the whole reason: ${without.stderr}`)
+        assert.equal(without.stdout, '', `${gate}: nothing on stdout — no version was found, so none is stated: ${without.stdout}`)
+        assert.doesNotMatch(without.stderr, /Traceback/, `${gate}: no traceback`)
+      }
       cpSync(join(root, 'lib'), join(temp, 'lib'), { recursive: true })
       const withLib = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
       assert.equal(withLib.status, 0, `${gate} with lib/ beside it must run: ${withLib.stdout}${withLib.stderr}`)
+    } finally { rmSync(temp, { recursive: true, force: true }) }
+  }
+})
+
+// The loader resolves lib/ from realpath(__file__) — the PHYSICAL gate — and not
+// from the path it was invoked by, cwd, or PATH. A symlink into a directory with
+// no lib/ at all is the case that tells realpath from abspath: the link's own
+// directory has nothing, the target's has everything, and only realpath finds it.
+// This is the behavioural half of the structural assertion in the one-module test;
+// a source regex for `realpath(__file__)` is satisfied by the fence loader alone.
+test('a gate reached through a symlink loads the lib beside its real file, not beside the link', { skip: process.platform === 'win32' && 'symlinks need a privilege the Windows runner does not grant' }, () => {
+  for (const gate of ['adr-verify', 'adr-lint', 'adr-next']) {
+    const temp = mkdtempSync(join(os.tmpdir(), 'qh-lib-symlink-'))
+    try {
+      mkdirSync(join(temp, 'bin'), { recursive: true })
+      symlinkSync(join(bin, gate), join(temp, 'bin', gate))
+      const linked = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(linked.status, 0,
+        `${gate} through a symlink resolves lib/ beside its real file: ${linked.stdout}${linked.stderr}`)
+      // DIRTY, same directory: a COPY there has no real file elsewhere to resolve
+      // to, so the same invocation path refuses — the arm above is realpath at work.
+      rmSync(join(temp, 'bin', gate))
+      cpSync(join(bin, gate), join(temp, 'bin', gate))
+      const copied = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(copied.status, LIB_ABSENT[gate].code, `${gate} copied beside no lib/ refuses: ${copied.stdout}${copied.stderr}`)
+      assert.match(copied.stderr, /could not run: plugin\/lib\/(?:fence|record)\.py is not beside this gate's bin\//)
     } finally { rmSync(temp, { recursive: true, force: true }) }
   }
 })
@@ -1875,12 +1948,42 @@ test('the record grammar is one module: every gate loads plugin/lib/record.py an
   // And qh-mcp reads no records, so it must NOT have grown the preamble by copy-paste.
   assert.doesNotMatch(readFileSync(join(bin, 'qh-mcp'), 'utf8'), /record\.py/, 'qh-mcp does not read records')
 
+  // ADR-045 T3 and T6: the fence OPENER and the section READER are one grammar
+  // too. No gate may carry its own regex for either — the three opener spellings
+  // and the fence-blind `(?=^## |\Z)` readers were the drift T1 left behind.
+  // Enumerated by the shape of a regex literal, not by a word a docstring uses.
+  for (const gate of RECORD_GATES) {
+    const source = readFileSync(join(bin, gate), 'utf8')
+    assert.doesNotMatch(source, /```\(\?:bash|```bash\\s\*\\n|```bash\\n\(/,
+      `${gate} carries its own Acceptance fence opener; record.ACCEPTANCE_FENCE is the one grammar`)
+    assert.doesNotMatch(source, /\(\?=\^## \|\\Z\)/,
+      `${gate} carries a fence-blind section reader; record.sections_of / section_span is the one grammar`)
+  }
+  // DIRTY for the two scans above: the shapes they refuse are matched when present.
+  assert.match('re.compile(r"```(?:bash|sh|shell)\\s*\\n(.*?)```", re.S)', /```\(\?:bash|```bash\\s\*\\n|```bash\\n\(/)
+  assert.match('re.search(r"```bash\\n(.*?)```", body, re.S)', /```\(\?:bash|```bash\\s\*\\n|```bash\\n\(/)
+  assert.match('re.search(r"^## Acceptance\\s*$(.*?)(?=^## |\\Z)", text, re.M | re.S)', /\(\?=\^## \|\\Z\)/)
+
   // The module ships LF wherever it is checked out — asked of git, not read from
   // bytes, because what matters is the answer git gives for the path (CLAUDE.md §7).
-  const attr = spawnSync('git', ['-C', repoRoot, 'check-attr', 'text', 'eol', '--', 'plugin/lib/record.py'],
-    { encoding: 'utf8', timeout: 60_000 })
-  assert.equal(attr.status, 0, attr.stderr)
-  assert.match(attr.stdout, /eol: lf/, `plugin/lib/record.py must be eol=lf like fence.py: ${attr.stdout}`)
+  // Asked in a repository THIS TEST CREATED (CLAUDE.md §9), holding the real
+  // .gitattributes and the real file at its real path: the answer is about the
+  // rules, and the rules are what ships. Shown able to answer otherwise on a path
+  // no rule covers, or `eol: lf` could be the only thing this git ever says.
+  const attrs = mkdtempSync(join(os.tmpdir(), 'qh-attrs-'))
+  try {
+    const init = spawnSync('git', ['init', '-q', attrs], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(init.status, 0, `the fixture needs its own repository: ${init.stderr}`)
+    cpSync(join(repoRoot, '.gitattributes'), join(attrs, '.gitattributes'))
+    mkdirSync(join(attrs, 'plugin', 'lib'), { recursive: true })
+    cpSync(join(root, 'lib', 'record.py'), join(attrs, 'plugin', 'lib', 'record.py'))
+    writeFileSync(join(attrs, 'plugin', 'lib', 'record.bin'), 'not covered by any rule\n')
+    const attr = spawnSync('git', ['-C', attrs, 'check-attr', 'text', 'eol', '--', 'plugin/lib/record.py', 'plugin/lib/record.bin'],
+      { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(attr.status, 0, attr.stderr)
+    assert.match(attr.stdout, /^plugin\/lib\/record\.py: eol: lf$/m, `plugin/lib/record.py must be eol=lf like fence.py: ${attr.stdout}`)
+    assert.match(attr.stdout, /^plugin\/lib\/record\.bin: eol: unspecified$/m, `an uncovered path is answered differently: ${attr.stdout}`)
+  } finally { rmSync(attrs, { recursive: true, force: true }) }
 })
 
 // The shared functions themselves, loaded on their own so the assertions are
@@ -1919,6 +2022,54 @@ test('record.py: a fenced ## is not a heading, blank edges are trimmed, and the 
   assert.equal(got.crlf, 'printf a\nprintf b', 'CRLF is normalized before hashing')
   assert.equal(got.digest, got.sha, 'the digest is sha256 of exactly the normalized utf-8 bytes')
   assert.notEqual(got.digest, got.digest_other, 'and one more byte is a different digest')
+})
+
+// ADR-045 T3, T5, T6 — the rest of the shared grammar, on its own: which opener
+// makes a fence runnable, which headings repeat, and where a section IS in the
+// text for a writer that must splice into it. Each clean beside its dirty.
+test('record.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads', () => {
+  const probe = [
+    'import importlib.util, json, sys',
+    'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
+    'record = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(record)',
+    'F = record.ACCEPTANCE_FENCE',
+    'body = lambda s: (m := F.search(s)) and m.group(1)',
+    // A repeated heading, a fenced `## ` that is text, CRLF line breaks, and a
+    // heading with trailing spaces — one document, every rule.
+    'doc = "# T\\r\\n\\r\\n## A  \\r\\nfirst\\r\\n\\r\\n```\\r\\n## Fenced\\r\\n```\\r\\n## B\\r\\nb\\r\\n## A\\r\\nsecond\\r\\n"',
+    'spans = {h: record.section_span(doc, h) for h in ("A", "B", "Missing")}',
+    'print(json.dumps({',
+    '    "openers": {k: body(f"```{k}\\n  x\\n```") for k in ("bash", "sh", "shell", "bash  ", "python", "", "bashful")},',
+    '    "crlf_opener": body("```sh\\r\\n  x\\r\\n```"),',
+    '    "repeated": record.repeated_headings(doc),',
+    '    "clean": record.repeated_headings("## A\\n\\n```\\n## A\\n```\\n## B\\n"),',
+    '    "sections": record.sections_of(doc),',
+    '    "spans": spans,',
+    '    "slices": {h: doc[s[1]:s[2]] for h, s in spans.items() if s},',
+    '    "heads": {h: doc[s[0]:s[1]] for h, s in spans.items() if s},',
+    '}))',
+  ].join('\n')
+  const out = run('python3', ['-c', probe, join(root, 'lib', 'record.py')])
+  expectExit(out, 0, 'record.py probe')
+  const got = JSON.parse(out.stdout)
+  // The three openers, with or without trailing whitespace, and nothing else:
+  // `bashful` is not `bash`, a bare ``` is not runnable, and `python` never was.
+  assert.deepEqual(got.openers,
+    { bash: '  x\n', sh: '  x\n', shell: '  x\n', 'bash  ': '  x\n', python: null, '': null, bashful: null },
+    `the one opener grammar: ${JSON.stringify(got.openers)}`)
+  assert.equal(got.crlf_opener, '  x\r\n', 'a CRLF opener line is a fence too (CLAUDE.md §7)')
+  // A heading twice is named; the same heading once outside a fence and once inside is not.
+  assert.deepEqual(got.repeated, ['A'], `only the real repeat: ${JSON.stringify(got.repeated)}`)
+  assert.deepEqual(got.clean, [], 'a fenced `## A` is text, not a second A')
+  // The reader keeps the LAST A, and the span points at that same body — the two
+  // views cannot disagree because they are one walk.
+  assert.deepEqual(got.sections, { A: ['second'], B: ['b'] }, JSON.stringify(got.sections))
+  assert.deepEqual(got.spans.Missing, null, 'no heading, no span')
+  assert.equal(got.heads.A, '## A\r\n', 'the span starts at the LAST heading line, line break included')
+  assert.equal(got.slices.A, 'second\r\n', 'and its body is the body the reader returns')
+  assert.equal(got.heads.B, '## B\r\n')
+  assert.equal(got.slices.B, 'b\r\n', 'a body ends where the next unfenced heading starts')
 })
 
 // ADR-045 F-3. adr-lint's listing includes untracked, non-ignored files (a

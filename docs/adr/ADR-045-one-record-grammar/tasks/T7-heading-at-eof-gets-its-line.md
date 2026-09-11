@@ -49,6 +49,7 @@ node --test --test-name-pattern 'ends the file without a line break' tests/evide
 | 4 — it is used | `--human` on the truncated fixture, read back by the shared grammar |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/bin/adr-verify` · without the break the entry is glued onto a heading that ends the file, and the read-back through sections_of finds no Verification Log section · acceptance-sha256:09e2899d49ca072ebc421023b2c8faa28a6621df8766ca245801c5c26547f02f
 
 ## Invariants
 
@@ -72,3 +73,5 @@ A green run while `--human` on a heading-at-EOF task leaves a line beginning `##
 Class: every splice by `section_span` — `append_entry` is the only one (`rg -n 'section_span\(' plugin/bin` → one call). The Mutation Log writer shares it, so the fix covers `--mutant` and `--human-mutant` rows too. Found by the second Codex review of ADR-045 (M2), which also produced the old/new byte matrix: CRLF same, trailing blanks same, fenced `## ` different by design, heading-at-EOF regressive.
 
 ## Verification Log
+- 2026-09-11 · eb0fe36 · exit 0 · `node --test --test-name-pattern 'ends the file without a line break' tests/evidence-chain.test.mjs` · acceptance-sha256:09e2899d49ca072ebc421023b2c8faa28a6621df8766ca245801c5c26547f02f · ms:286
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'ends the file without a line break' tests/evidence-chain.test.mjs` · acceptance-sha256:09e2899d49ca072ebc421023b2c8faa28a6621df8766ca245801c5c26547f02f · ms:203

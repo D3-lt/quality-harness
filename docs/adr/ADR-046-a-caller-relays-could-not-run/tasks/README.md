@@ -21,9 +21,9 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | The dispatcher relays a gate's could-not-run code as UNPROVEN | pending | — | `node --test --test-name-pattern 'the dispatcher relays a gate that could not run' tests/gates.test.mjs` |
-| T2 | qh-mcp relays a reading gate's could-not-run code on the error channel | pending | — | `node --test --test-name-pattern 'could-not-run code reaches the client' tests/mcp-server.test.mjs` |
-| T3 | The SessionStart orientation says UNPROVEN when adr-next could not run | pending | — | `node --test --test-name-pattern 'when adr-next could not run' tests/lifecycle.test.mjs` |
+| T1 | The dispatcher relays a gate's could-not-run code as UNPROVEN | done | — | `node --test --test-name-pattern 'the dispatcher relays a gate that could not run' tests/gates.test.mjs` |
+| T2 | qh-mcp relays a reading gate's could-not-run code on the error channel | done | — | `node --test --test-name-pattern 'could-not-run code reaches the client' tests/mcp-server.test.mjs` |
+| T3 | The SessionStart orientation says UNPROVEN when adr-next could not run | done | — | `node --test --test-name-pattern 'when adr-next could not run' tests/lifecycle.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

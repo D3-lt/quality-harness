@@ -50,6 +50,7 @@ node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/
 | 4 — it is used | the attributed and tilde arms through `adr-lint` |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/bin/adr-lint` · the first-token capture names ```bash title=x as ```bash again, and the attributed arm asserts the whole line · acceptance-sha256:c2f7f9d91f7bf1785cf90e87b2fc1b7cf9425f516cde6c551fc799037ca73830
 
 ## Invariants
 
@@ -72,3 +73,5 @@ A green run while adr-lint reports ```bash title=x as opening with ```bash.
 Class: every place a gate prints an opener it found — `rg -n 'opens with' plugin/bin` → adr-lint only. Found by the second Codex review of ADR-045 (L2).
 
 ## Verification Log
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` · acceptance-sha256:c2f7f9d91f7bf1785cf90e87b2fc1b7cf9425f516cde6c551fc799037ca73830 · ms:1798
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` · acceptance-sha256:c2f7f9d91f7bf1785cf90e87b2fc1b7cf9425f516cde6c551fc799037ca73830 · ms:1711

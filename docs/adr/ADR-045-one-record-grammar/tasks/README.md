@@ -19,7 +19,7 @@ README must be regenerated.
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
 | T1 | The record grammar is one module | done | F-1, F-2, UC1-S1, UC1-S2, UC2-S1, UC2-S2, UC2-S3 | `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module\|record.py: a fenced ## is not a heading\|a gate copied without plugin/lib says so and exits 2' tests/gates.test.mjs` |
-| T2 | The two git listings are named for their rule | pending | F-3, UC3-S1, UC3-S2 | `node --test --test-name-pattern "adr-lint's tracked_or_unignored_paths includes an untracked file" tests/gates.test.mjs` |
+| T2 | The two git listings are named for their rule | done | F-3, UC3-S1, UC3-S2 | `node --test --test-name-pattern "adr-lint's tracked_or_unignored_paths includes an untracked file" tests/gates.test.mjs` |
 
 
 Status: `pending` | `partial` | `blocked` | `done`.

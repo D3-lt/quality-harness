@@ -62,6 +62,8 @@ node --test --test-name-pattern 'a heading inside the Acceptance fence is not a 
 
 ## Mutation Log
 
+- 2026-09-11 · 1409897* · mutant killed · exit 1 · `plugin/lib/record.py` · with no fence toggle a `## ` line inside the Acceptance fence is a heading again: adr-verify sees no closing fence and refuses the run, adr-next hashes a shorter body · acceptance-sha256:089098d2c87a8affe5e9bc723ab696e75eb9d990c020280f5777df1dffffadec
+
 ## Invariants
 
 - No gate under `plugin/bin` defines `sections_of`, `sections`, `normalize_acceptance` or `acceptance_digest`.
@@ -89,3 +91,5 @@ A green run while any gate still defines one of the three names, or while adr-ne
 Class: `rg -n 'def sections_of|def sections\(|def normalize_acceptance|def acceptance_digest' plugin/bin` (eleven on `ea12656`, zero after). Loader model: adr-verify's `fence.py` preamble. Outermost: the two CLIs.
 
 ## Verification Log
+- 2026-09-11 · 1409897 · exit 0 · `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so and exits 2' tests/gates.test.mjs` · acceptance-sha256:089098d2c87a8affe5e9bc723ab696e75eb9d990c020280f5777df1dffffadec · ms:1039
+- 2026-09-11 · 1409897* · exit 0 · `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so and exits 2' tests/gates.test.mjs` · acceptance-sha256:089098d2c87a8affe5e9bc723ab696e75eb9d990c020280f5777df1dffffadec · ms:925

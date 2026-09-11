@@ -2760,10 +2760,28 @@ function readyTaskLines(root, insideRepository, listing) {
   const lines = []
   for (const directory of taskDirectories(root, listing)) {
     const run = spawnGate(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
-    if (run.status !== 0 && run.status !== 3) continue
-    let report
-    try { report = JSON.parse(run.stdout) } catch { continue }
     const relative = path.relative(root, directory) || directory
+    // ADR-046 T3. adr-next answers 0 (a ready task) or 3 (nothing ready); any
+    // other outcome is the gate NOT answering — its lib missing beside a copied
+    // bin/ (exit 2, ADR-045 T4), an interpreter that never ran (status null), a
+    // hang guard that fired — and every one of them was a `continue`: the same
+    // silence as a directory with no tasks, which is how Windows sessions ran
+    // empty for a month (the two paragraphs above spawnGate). A look that did not
+    // happen is UNPROVEN, said where the ready line would have been, with the
+    // gate's own first line so the reader knows which of these it was.
+    if (run.status !== 0 && run.status !== 3) {
+      const said = (run.stderr ?? '').trim().split('\n')[0] || (run.stdout ?? '').trim().split('\n')[0] || 'it said nothing'
+      const how = run.status === null
+        ? `adr-next did not run (${run.error?.message ?? `killed by ${run.signal ?? 'an unknown signal'}`})`
+        : `adr-next could not run (exit ${run.status})`
+      lines.push(`  ${relative}: UNPROVEN — ${how}: ${said} Ready tasks there are not known.`)
+      continue
+    }
+    let report
+    try { report = JSON.parse(run.stdout) } catch {
+      lines.push(`  ${relative}: UNPROVEN — adr-next exited ${run.status} but its answer was not JSON. Ready tasks there are not known.`)
+      continue
+    }
     if (report.ready?.length) {
       const next = report.ready[0]
       lines.push(`  ${relative}: ${next.id} is ready — ${next.goal}`

@@ -7284,6 +7284,36 @@
       "only": "^record\\.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest$"
     },
     {
+      "label": "facts-gate-dispatch: a gate's could-not-run exit is UNPROVEN, never an unsatisfied artifact (ADR-046 T1)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if [ -n \"$(unrun_exit \"$gate\")\" ] && [ \"$rc\" -eq \"$(unrun_exit \"$gate\")\" ]; then",
+      "to": "if false; then",
+      "only": "^the dispatcher relays a gate that could not run as UNPROVEN, never as an unsatisfied artifact$"
+    },
+    {
+      "label": "qh-mcp: a reading gate's could-not-run exit is the error channel, not isError false content (ADR-046 T2)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/mcp-server.test.mjs"
+      ],
+      "from": "    if completed.returncode == UNRUN_EXIT.get(gate):",
+      "to": "    if False:",
+      "only": "^a reading gate that exits its own could-not-run code reaches the client on the error channel, not as content$"
+    },
+    {
+      "label": "lifecycle: an adr-next that could not run is UNPROVEN in the orientation, not silence (ADR-046 T3)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (run.status !== 0 && run.status !== 3) {\n      const said =",
+      "to": "    if (run.status !== 0 && run.status !== 3) continue\n    if (false) {\n      const said =",
+      "only": "^SessionStart says UNPROVEN, with the gate's reason, when adr-next could not run$"
+    },
+    {
       "label": "record: section_span points at the section the reader returns (ADR-045 T6)",
       "file": "plugin/lib/record.py",
       "tests": [

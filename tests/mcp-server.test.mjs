@@ -4,7 +4,7 @@
 // and the framing is exactly where a hand-written JSON-RPC server goes wrong.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs'
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { dirname, join } from 'node:path'
 import test from 'node:test'
@@ -337,6 +337,46 @@ test('a gate that ran and found something returns content, and one that could no
   assert.doesNotMatch(absent.error.message, /\bfailed\b/i,
     'a gate that could not run must not borrow the vocabulary of one that ran (ADR-005)')
   assert.ok(absent.error.message.includes('ADR-000-not-here.md'), 'the error must name what was attempted')
+})
+
+// ADR-046 T2. A gate that COMPLETED with its own could-not-run code — adr-next
+// exit 2 for a missing plugin/lib/record.py (ADR-045 T4) — came back as
+// `isError: false` content: "adr-next exit 2 · could not run …" wearing the shape
+// of a gate that ran and found something. ADR-012 §2 reserves the error channel
+// for exactly this. Driven against a server copied WITHOUT record.py, the shape
+// that produces the code; the same copy with record.py beside it answers content.
+test('a reading gate that exits its own could-not-run code reaches the client on the error channel, not as content', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-mcp-nolib-'))
+  try {
+    mkdirSync(join(dir, 'lib'))
+    mkdirSync(join(dir, '.claude-plugin'))
+    cpSync(bin, join(dir, 'bin'), { recursive: true })
+    cpSync(join(repoRoot, 'plugin', 'lib', 'fence.py'), join(dir, 'lib', 'fence.py'))
+    cpSync(join(repoRoot, 'plugin', '.claude-plugin', 'plugin.json'), join(dir, '.claude-plugin', 'plugin.json'))
+    const speak = (name, args) => {
+      const input = [INIT, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name, arguments: args } }]
+        .map(request => JSON.stringify(request)).join('\n') + '\n'
+      const result = runPython([join(dir, 'bin', 'qh-mcp')], { input, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(result.status, 0, result.stderr)
+      return result.stdout.split('\n').filter(Boolean).map(line => JSON.parse(line)).find(reply => reply.id === 2)
+    }
+    for (const [name, args] of [
+      ['qh_adr_next', { path: join(fixture, 'tasks'), json: true }],
+      ['qh_adr_lint', { adr: join(fixture, 'ADR-001-selftest.md') }],
+    ]) {
+      const unrun = speak(name, args)
+      assert.ok(unrun.error, `${name}: a gate that exited its could-not-run code is not content: ${JSON.stringify(unrun.result)}`)
+      assert.match(unrun.error.message, /^could not run: adr-(next|lint) exit 2 — \[adr-(next|lint)\] could not run: plugin\/lib\/record\.py is not beside/,
+        `${name}: the gate's code and its own sentence, verbatim: ${unrun.error.message}`)
+      assert.doesNotMatch(unrun.error.message, /\bfailed\b|not satisfied/i, 'not the vocabulary of a gate that ran (ADR-005)')
+    }
+    // DIRTY: the same server with record.py beside it runs the gate and returns content.
+    cpSync(join(repoRoot, 'plugin', 'lib', 'record.py'), join(dir, 'lib', 'record.py'))
+    const ran = speak('qh_adr_next', { path: join(fixture, 'tasks'), json: true })
+    assert.equal(ran.error, undefined, JSON.stringify(ran.error))
+    assert.equal(ran.result.isError, false)
+    assert.match(ran.result.content[0].text, /^adr-next exit [03]\n/, ran.result.content[0].text)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
 })
 
 test('gate output is returned verbatim', () => {

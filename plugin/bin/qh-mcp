@@ -33,7 +33,10 @@ one that just ran (ADR-031).
 Exit: 0 the stream ended · 2 = usage, a broken invocation · 4 = could not run:
 plugin/lib/fence.py is not beside this gate's bin/ (a gate copied on its own;
 ADR-045), so no server ever started. A protocol error is a JSON-RPC error object on
-stdout, never an exit code — the client is still there.
+stdout, never an exit code — the client is still there. So is a reading gate that
+exits ITS OWN could-not-run code (2 in adr-lint, adr-next, adr-debt, arch-lint,
+adr-retire-check — `UNRUN_EXIT`): it read nothing, so it is the error channel
+with the gate's sentence, never `isError: false` content (ADR-012 §2; ADR-046).
 """
 
 import json
@@ -110,7 +113,8 @@ INSTRUCTIONS = (
     "They only read. A gate that finds problems returns them as content with its exit "
     "code: findings are ADVICE, never a refusal, so report them and let the work "
     "proceed. The error channel means the gate COULD NOT RUN — a missing path, a gate "
-    "that is not installed — which is not the same answer as finding nothing. "
+    "that is not installed, a gate that exited its own could-not-run code — which is "
+    "not the same answer as finding nothing. "
     "The two gates that record evidence, because they execute text the corpus "
     "supplies, are deliberately absent and cannot be enabled."
 )
@@ -200,6 +204,22 @@ class GateDidNotRun(Exception):
     """The gate never produced a verdict. Not a finding — see ADR-005."""
 
 
+# Each reading gate's OWN could-not-run code, read from its Exit block and
+# verified by running each gate with its lib removed (ADR-045 T4; ADR-046 T2).
+# A completed process that exits this code has read nothing and judged nothing —
+# the grammar module missing beside a copied bin/ is the case — and until
+# 2026-09-11 `_gate_result` returned it as `isError: false` content: "adr-next
+# exit 2 · could not run …" wearing the shape of a gate that ran. ADR-012 §2
+# reserves the error channel for exactly this ("a gate that could not run must
+# not borrow the vocabulary of one that ran and found nothing"), so the code is
+# relayed there, with the gate's own sentence. adr-judge and postmortem-verify
+# reserve no such code (adr-judge's 2 is a broken invocation, refused above before
+# anything is spawned; postmortem-verify exits 0 or 1), so nothing is claimed for
+# them. Keyed on the CODE, never on the wording: a classifier over stderr text
+# is an empirical claim about every gate's prose (CLAUDE.md §16).
+UNRUN_EXIT = {"adr-lint": 2, "adr-next": 2, "adr-debt": 2, "arch-lint": 2, "adr-retire-check": 2}
+
+
 def _gate_result(gate, completed, paths):
     """The tool result for a gate that ran. T3 owns this shape.
 
@@ -208,7 +228,14 @@ def _gate_result(gate, completed, paths):
     ending arrives as LF. That is a spelling of the same output, not a summary or
     a grade, and it is what a JSON payload should carry anyway. Nothing else —
     no re-wording, no filtering, no verdict of the server's own.
+
+    ONE process outcome is not a result at all: the gate's could-not-run code
+    (`UNRUN_EXIT`). That is the gate's own verdict that it has none, relayed on
+    the channel ADR-012 §2 reserves for it, carrying the gate's first line.
     """
+    if completed.returncode == UNRUN_EXIT.get(gate):
+        said = (completed.stderr.strip() or completed.stdout.strip() or "it said nothing").splitlines()[0]
+        raise GateDidNotRun("could not run: {} exit {} — {}".format(gate, completed.returncode, said))
     body = ["{} exit {}".format(gate, completed.returncode),
             "read: {}".format(", ".join(paths)) if paths else "read: —",
             "", completed.stdout]

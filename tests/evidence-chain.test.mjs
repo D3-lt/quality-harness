@@ -2962,6 +2962,52 @@ test('an entry is appended after a fenced ## line in the Verification Log, not i
   assert.match(`${refused.stdout}${refused.stderr}`, /no ## Verification Log section/)
 })
 
+// ADR-045 T7. The T6 writer splices by `section_span`, and a `## Verification Log`
+// heading that is the file's LAST LINE with no line break has a span whose head
+// ends at the heading text — so the entry was written onto the same line:
+// `## Verification Log- 2026-…`, one line, no section, exit 0. The regex T6
+// replaced required `\n` after the heading and refused the file; that refusal was
+// the only thing standing between a truncated file and corrupt evidence. The
+// writer now supplies the missing break. Read back through the grammar every gate
+// reads, not by string search: the entry must be IN the section.
+const sectionsOf = (copy) => {
+  const probe = [
+    'import importlib.util, json, sys',
+    'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
+    'record = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(record)',
+    'print(json.dumps(record.sections_of(open(sys.argv[2], encoding="utf-8", newline="").read())))',
+  ].join('\n')
+  const out = run('python3', ['-c', probe, join(root, 'lib', 'record.py'), taskPath(copy)], copy)
+  expectExit(out, 0, 'record.py probe')
+  return JSON.parse(out.stdout)
+}
+
+test('an entry appended under a heading that ends the file without a line break lands in the section, on its own line', () => {
+  for (const eol of ['\n', '\r\n']) {
+    const copy = corpus()
+    const truncated = readTask(copy).replace(/## Verification Log\n[\s\S]*$/, '## Verification Log')
+    writeTask(copy, eol === '\n' ? truncated : truncated.replace(/\n/g, eol))
+    assert.ok(!readTask(copy).endsWith('\n'), 'the fixture ends on the heading with no line break')
+    expectExit(verify(copy, ['--human', 'a person watched it pass']), 0, `--human on a heading at EOF (${JSON.stringify(eol)})`)
+    const text = readFileSync(taskPath(copy), 'utf8')
+    assert.doesNotMatch(text, /## Verification Log-/, `the entry is not glued onto the heading: ${text.slice(-120)}`)
+    assert.ok(text.includes(`## Verification Log${eol}- `), `the heading keeps the file's own line ending: ${JSON.stringify(text.slice(-90))}`)
+    const sections = sectionsOf(copy)
+    assert.ok('Verification Log' in sections, `the heading is still a heading to the shared reader: ${Object.keys(sections)}`)
+    assert.match(sections['Verification Log'].join('\n'), /^- \d{4}-\d{2}-\d{2} · human-observed · a person watched it pass$/m,
+      `the entry is IN the section every gate reads: ${JSON.stringify(sections['Verification Log'])}`)
+  }
+
+  // DIRTY: the reader the assertion relies on can say "not a section". The glued
+  // line the old splice produced is not a heading, so a task carrying it has no
+  // Verification Log at all — which is what made the corruption silent.
+  const glued = corpus()
+  writeTask(glued, readTask(glued).replace(/## Verification Log\n[\s\S]*$/, '## Verification Log- 2026-09-01 · human-observed · glued\n'))
+  const sections = sectionsOf(glued)
+  assert.ok(!('Verification Log' in sections), `a glued heading is not a heading: ${Object.keys(sections)}`)
+})
+
 // ADR-045 T6. `declared_steps` read Ordered Steps with the same fence-blind regex,
 // so an `[S<n>]` written after a fenced `## ` line was undeclared to `--steps` and a
 // run naming it was refused. Now through the shared `sections_of`.

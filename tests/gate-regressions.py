@@ -674,9 +674,12 @@ def test_proof_map_contract(bin_dir, lint):
         "## Acceptance", "", "```bash", "true", "```", "~~~markdown",
         "## Acceptance", "shown example only", "~~~", "", "## Tests", "",
     ])
+    # ADR-045 T8: a tilde fence is a fence to the shared reader, so the shown
+    # `## Acceptance` is text inside the one real section, which keeps its fence.
     legacy_sections = lint.sections_of(legacy_tilde_heading)
-    assert "```bash" not in "\n".join(legacy_sections["Acceptance"])
+    assert "```bash" in "\n".join(legacy_sections["Acceptance"])
     assert "shown example only" in legacy_sections["Acceptance"]
+    assert list(legacy_sections) == ["Acceptance", "Tests"], list(legacy_sections)
 
     plugin_root = Path(bin_dir).resolve().parent
     template = (plugin_root / "templates" / "task-template.md").read_text(encoding="utf-8")

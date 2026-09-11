@@ -39,6 +39,8 @@ __all__ = [
     "sections_of",
     "section_span",
     "repeated_headings",
+    "unterminated_fence",
+    "fence_safe",
     "normalize_acceptance",
     "acceptance_digest",
 ]
@@ -58,6 +60,13 @@ ACCEPTANCE_FENCE = re.compile(r"```(?:bash|sh|shell)\s*\n(.*?)```", re.S)
 
 _HEADING = re.compile(r"^## (.+?)\s*$")
 
+# A line that opens or closes a code fence for the purposes of finding headings:
+# its first non-blank characters are ``` or ~~~ (CommonMark's two fence
+# markers). Both are recognised here so a tilde fence around a `## ` line is text
+# to every gate, and so `fence_safe` neutralises both in a tool-written excerpt.
+# Only the BACKTICK form with a shell label is runnable (`ACCEPTANCE_FENCE`).
+_FENCE_LINE = re.compile(r"^(?P<indent>[ \t]*)(?:```|~~~)")
+
 
 def _sections(text):
     """Every `## ` section of `text` in document order, fence-aware.
@@ -74,10 +83,12 @@ def _sections(text):
     regex until ADR-045 T6, and a `## ` line inside a fenced output excerpt ended
     its section early (docs/BACKLOG.md §197).
 
-    A line whose first non-blank characters are ``` toggles a code fence, and a
-    `## ` line inside one is text, not a heading — an Acceptance fence that writes
-    a task file through a heredoc, or a bash comment beginning `## `, is the case.
-    `## ` needs the single space every gate has always required.
+    A line whose first non-blank characters are ``` or ~~~ toggles a code fence
+    (`_FENCE_LINE`), and a `## ` line inside one is text, not a heading — an
+    Acceptance fence that writes a task file through a heredoc, or a bash comment
+    beginning `## `, is the case. `## ` needs the single space every gate has
+    always required. A fence still open at the end of the text is reported by
+    `unterminated_fence`, never closed here.
 
     Lines are split with `str.splitlines()`, so every separator Python treats as
     a line break — `\\n`, `\\r\\n`, `\\r`, and also VT, FF, FS, GS, RS, NEL, LS and
@@ -86,13 +97,27 @@ def _sections(text):
     folded; the eight others are a documented behaviour of the shared grammar,
     not an accident of one reader.
     """
-    out, cur, fence, pos = [], None, False, 0
+    return _scan(text)[0]
+
+
+def _scan(text):
+    """The one walk: `(sections, open_fence)`.
+
+    `sections` is what `_sections` documents. `open_fence` is None when every
+    fence closed, else `(line_number, opener_line)` for the fence still open at
+    the end of the text — the 1-based line and its text, for a gate that wants to
+    name it. Callers do not resolve an open fence: every heading after it is
+    text, and a reader that guessed where it should have closed would be reading
+    a record that does not exist (ADR-045 T8).
+    """
+    out, cur, fence, pos, lineno = [], None, None, 0, 0
     for raw in text.splitlines(keepends=True):
         start, pos = pos, pos + len(raw)
+        lineno += 1
         line = raw.splitlines()[0]
-        if line.lstrip().startswith("```"):
-            fence = not fence
-        m = None if fence else _HEADING.match(line)
+        if _FENCE_LINE.match(line):
+            fence = None if fence is not None else (lineno, line)
+        m = None if fence is not None else _HEADING.match(line)
         if m:
             if cur is not None:
                 cur[4] = start
@@ -103,7 +128,38 @@ def _sections(text):
     if cur is not None:
         cur[4] = len(text)
         out.append(tuple(cur))
-    return out
+    return out, fence
+
+
+def unterminated_fence(text):
+    """`(line_number, opener_line)` of a code fence that never closes, or None.
+
+    A fence open at the end of a record hides every heading after it — the
+    Acceptance a gate would run, the Verification Log it would write into — and
+    the walk cannot tell that from a record that ends inside a long example. So
+    it is reported, never resolved: adr-lint names the line, adr-verify refuses
+    to run or write against the file (ADR-045 T8). The same walk as
+    `sections_of`, so the fence this names is the fence that hid the headings.
+    """
+    return _scan(text)[1]
+
+
+def fence_safe(line):
+    """`line` spelled so it can never open or close a fence.
+
+    A line whose first non-blank characters are a fence marker gets a backslash
+    before them: `  ```` becomes `  \\````, which Markdown renders as the literal
+    characters and this grammar reads as text. For a WRITER that quotes text it
+    did not author — adr-verify's excerpt of a failed run's last lines — so the
+    quoted output can never toggle the grammar of the record it is written into.
+    Measured 2026-09-11: a bound test that printed one ``` line put three fence
+    lines into the log; the walk went out of phase, `## Mutation Log` became text,
+    and the next entry landed under it with exit 0 (ADR-045 T8).
+    """
+    m = _FENCE_LINE.match(line)
+    if not m:
+        return line
+    return line[:m.end("indent")] + "\\" + line[m.end("indent"):]
 
 
 def sections_of(text):

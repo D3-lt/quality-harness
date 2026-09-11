@@ -1572,19 +1572,20 @@ test('adr-lint cross-checks every ordered step against an explicit proof', (t) =
     shown.stdout,
   )
 
-  // ADR-018 versions only its own proof-map parser. The historical section
-  // reader did not understand tilde fences, so changing that globally would
-  // silently change old task exit behavior under a compatibility feature.
+  // ADR-018 versions only its own proof-map parser and decided nothing about the
+  // section reader. Until ADR-045 T8 that reader knew only the backtick fence, so
+  // a `## Acceptance` shown inside a ~~~ example was a second heading — this
+  // assertion froze that as "parity" with an observed behaviour, not a decision
+  // (ADR-018 says nothing about tildes). The grammar now has CommonMark's two
+  // markers, and the shown heading is text: one Acceptance, its fence runnable.
   const legacyTildeHeading = legacyTask.replace(
     '\n## Tests',
     '\n~~~markdown\n## Acceptance\nshown example only\n~~~\n\n## Tests',
   )
-  const legacyParity = lint(legacyTildeHeading, 'legacy tilde-heading parity')
-  expectExit(legacyParity, 1, 'legacy tilde-heading parity')
-  assert.match(legacyParity.stdout, /Acceptance has no runnable fence \(```bash, ```sh or ```shell\)/)
-  // The tilde-fenced `## Acceptance` IS a second heading to the shared reader,
-  // and since ADR-045 T5 the reader says so rather than silently keeping the last.
-  assert.match(legacyParity.stdout, /## Acceptance appears more than once/)
+  const legacyParity = lint(legacyTildeHeading, 'legacy tilde-fenced heading is text')
+  expectExit(legacyParity, 0, 'a tilde-fenced ## Acceptance is an example, not a second section')
+  assert.doesNotMatch(legacyParity.stdout, /Acceptance has no runnable fence/, legacyParity.stdout)
+  assert.doesNotMatch(legacyParity.stdout, /## Acceptance appears more than once/, legacyParity.stdout)
 })
 
 // A parallelised Acceptance fence that collects its children with a bare `wait`
@@ -2070,6 +2071,43 @@ test('record.py: the opener is bash, sh or shell; a repeated heading is named; a
   assert.equal(got.slices.A, 'second\r\n', 'and its body is the body the reader returns')
   assert.equal(got.heads.B, '## B\r\n')
   assert.equal(got.slices.B, 'b\r\n', 'a body ends where the next unfenced heading starts')
+})
+
+// ADR-045 T8. Two more views of the one walk: a fence still open at the end of
+// the text is NAMED (line and opener) rather than closed for the author, and a
+// line a writer quotes is spelled so it can never open or close a fence. A tilde
+// fence hides a `## ` line exactly as a backtick fence does — the grammar has two
+// markers, and a reader that knew only one read a tilde-fenced heading as real.
+test('record.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle', () => {
+  const probe = [
+    'import importlib.util, json, sys',
+    'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
+    'record = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(record)',
+    'closed = "## A\\n```\\n## B\\n```\\n## C\\n"',
+    'open_ = "## A\\ntext\\n  ```bash\\n## B\\n## C\\n"',
+    'tilde = "## A\\n~~~\\n## B\\n~~~\\n## C\\n"',
+    'quoted = ["  ```", "~~~x", "\\t```bash", "plain", "a ``` inside", ""]',
+    'print(json.dumps({',
+    '    "closed": record.unterminated_fence(closed),',
+    '    "open": record.unterminated_fence(open_),',
+    '    "open_keys": list(record.sections_of(open_)),',
+    '    "tilde_keys": list(record.sections_of(tilde)),',
+    '    "safe": [record.fence_safe(q) for q in quoted],',
+    '    "safe_closes": record.unterminated_fence("## A\\n```\\n" + "\\n".join(record.fence_safe(q) for q in quoted) + "\\n```\\n"),',
+    '}))',
+  ].join('\n')
+  const out = run('python3', ['-c', probe, join(root, 'lib', 'record.py')])
+  expectExit(out, 0, 'record.py probe')
+  const got = JSON.parse(out.stdout)
+  assert.equal(got.closed, null, 'every fence closed: nothing to name')
+  assert.deepEqual(got.open, [3, '  ```bash'], `the open fence is named by its 1-based line and its own text: ${JSON.stringify(got.open)}`)
+  assert.deepEqual(got.open_keys, ['A'], 'every heading after the open fence is text')
+  assert.deepEqual(got.tilde_keys, ['A', 'C'], `a tilde-fenced ## is text, like a backtick-fenced one: ${JSON.stringify(got.tilde_keys)}`)
+  // Indentation kept, the marker escaped, and a line that is not a fence line untouched.
+  assert.deepEqual(got.safe, ['  \\```', '\\~~~x', '\t\\```bash', 'plain', 'a ``` inside', ''],
+    `fence_safe: ${JSON.stringify(got.safe)}`)
+  assert.equal(got.safe_closes, null, 'a fence holding only fence_safe lines closes where the writer closed it')
 })
 
 // ADR-045 F-3. adr-lint's listing includes untracked, non-ignored files (a

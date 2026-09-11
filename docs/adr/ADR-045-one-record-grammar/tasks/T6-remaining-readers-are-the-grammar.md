@@ -58,6 +58,8 @@ node --test --test-name-pattern 'appended after a fenced ## line|sees a step dec
 
 ## Mutation Log
 
+- 2026-09-11 · 9942edb* · mutant killed · exit 1 · `plugin/bin/adr-verify` · with declared_steps reading nothing, --steps S2 is refused as against a task declaring no identities, so the fenced-line fixture cannot record the step it declares · acceptance-sha256:058be607b3587ee6e46a5bac5bce405460f736b195cc71282ebf8fecae9fd41f
+
 ## Invariants
 
 - Every task file adr-verify has written is byte-identical under the new writer: the blank lines after `## Verification Log` are kept as the regex's `\s*\n` kept them (measured over the corpus's 209 tracked records: `sections_of` old and new agree on every file).
@@ -82,3 +84,5 @@ A green run while an entry can land inside a fenced excerpt, or while `rg -n '\(
 Class: `rg -n '\(\?=\^## \|\\Z\)' plugin/bin` — three on `01cb598` (adr-verify:667, :1673, :1984), zero after. All three are the same class as T1's two: a reader that stops at a fenced `## `. None was "not Acceptance grammar" — the section grammar is the grammar, whatever the heading — so all three move. BACKLOG §197 also said adr-verify and adr-lint read ```sh / ```shell; adr-lint's digest path did not (T3), and the correction entry says so.
 
 ## Verification Log
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'appended after a fenced ## line|sees a step declared after a fenced' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'fenced ## line in the Verification Log is still a claim' tests/sweep.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash|the record grammar is one module' tests/gates.test.mjs` · acceptance-sha256:058be607b3587ee6e46a5bac5bce405460f736b195cc71282ebf8fecae9fd41f · ms:822
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'appended after a fenced ## line|sees a step declared after a fenced' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'fenced ## line in the Verification Log is still a claim' tests/sweep.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash|the record grammar is one module' tests/gates.test.mjs` · acceptance-sha256:058be607b3587ee6e46a5bac5bce405460f736b195cc71282ebf8fecae9fd41f · ms:676

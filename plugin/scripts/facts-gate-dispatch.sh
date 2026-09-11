@@ -309,6 +309,36 @@ if [ -z "$gate" ]; then
 fi
 [ "$rc" -eq 0 ] && exit 0
 
+# A GATE THAT COULD NOT RUN HAS NOT FOUND ANYTHING (ADR-005; ADR-046 T1). Every
+# gate dispatched here reserves one exit code for "nothing was checked" — its
+# lib missing beside a copied bin/, a bound test that could not start — and
+# until 2026-09-11 that code fell through to the finding text below: "adr-lint is
+# not satisfied … Fix the artifact, not the gate", about a record the gate never
+# opened. The code is the GATE'S, read from its Exit block and verified by running
+# each gate with its lib removed (ADR-045 T4):
+#
+#   adr-lint 2 · arch-lint 2 · adr-retire-check 2 · spec-verify 4
+#
+# postmortem-verify declares no such code (0 valid · 1 violations), so nothing
+# of its can be told apart here, and nothing is claimed for it. The line is the
+# UNPROVEN vocabulary the rest of this file already uses, on stdout like the
+# other could-not-look lines, and it exits 0 like everything else here.
+unrun_exit() {
+  case "$1" in
+    "spec-verify --draft") printf '4' ;;
+    adr-lint|arch-lint|adr-retire-check) printf '2' ;;
+    *) printf '' ;;
+  esac
+}
+if [ -n "$(unrun_exit "$gate")" ] && [ "$rc" -eq "$(unrun_exit "$gate")" ]; then
+  # The gate's own sentence, which says WHY it could not run; its first line
+  # when it wrote none (stderr is merged into $out above, and on this path the
+  # gates write nothing to stdout).
+  reason=$(printf '%s\n' "$out" | grep -m1 'could not run' || printf '%s\n' "$out" | head -n1)
+  printf 'UNPROVEN: %s could not run (exit %s): %s\n' "$gate" "$rc" "$reason"
+  exit 0
+fi
+
 # NOTHING HERE REFUSES A CALL. Every boundary informs; the decision stays with
 # the agent and its owner.
 #

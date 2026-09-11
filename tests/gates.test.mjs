@@ -5,6 +5,7 @@ import {
   mkdtempSync,
   readdirSync,
   readFileSync,
+  realpathSync,
   rmSync,
   symlinkSync,
   writeFileSync,
@@ -513,6 +514,53 @@ test('the plugin-local facts hook accepts valid facts and blocks invalid facts',
   writeFileSync(invalid, '# Broken spec\n\n## Facts\n\n## Grill Log\n')
   const payload = JSON.stringify({ tool_input: { file_path: invalid } })
   expectExit(run(process.execPath, [hook, 'facts-gate-dispatch.sh'], temp, payload), 0, 'invalid hook input')
+})
+
+// ADR-046 T1. A gate that could not run has not found anything (ADR-005), and
+// the dispatcher printed "adr-lint is not satisfied … Fix the artifact, not the
+// gate" for ANY nonzero exit — including the could-not-run code each gate
+// reserves (ADR-045 T4): a record the gate never opened, blamed. Driven through
+// the hook adapter on stdin, the outermost boundary (CLAUDE.md §4), against a
+// plugin copied WITHOUT lib/ — the shape that produces the code — for the
+// exit-2 gate (adr-lint) and the exit-4 gate (spec-verify), at both boundaries.
+// Dirty beside it: the real plugin on a broken spec still says "not satisfied".
+test('the dispatcher relays a gate that could not run as UNPROVEN, never as an unsatisfied artifact', () => {
+  // realpath: the adapter's main guard compares import.meta.url with argv[1], and
+  // on macOS os.tmpdir() is under /var → /private/var (CLAUDE.md §7).
+  const temp = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-dispatch-nolib-')))
+  try {
+    for (const part of ['bin', 'scripts', 'hooks']) cpSync(join(root, part), join(temp, part), { recursive: true })
+    const hook = join(temp, 'scripts', 'run-shell-hook.mjs')
+    const cases = [
+      { file: 'ADR-001-selftest.md', gate: 'adr-lint', code: 2, lib: 'record' },
+      { file: 'spec-selftest.md', gate: 'spec-verify --draft', code: 4, lib: 'fence' },
+    ]
+    for (const { file, gate, code, lib } of cases) {
+      for (const event of ['PostToolUse', undefined]) {
+        const payload = JSON.stringify({ tool_input: { file_path: join(fixture, file) }, hook_event_name: event })
+        const out = run(process.execPath, [hook, 'facts-gate-dispatch.sh'], fixture, payload)
+        expectExit(out, 0, `${gate} could not run (${event ?? 'completion'})`)
+        const said = event === 'PostToolUse' ? JSON.parse(out.stdout).hookSpecificOutput.additionalContext : out.stdout
+        assert.match(said, new RegExp(`^UNPROVEN: ${gate.replace(/[-.]/g, '\\$&')} could not run \\(exit ${code}\\): \\[${gate.split(' ')[0]}\\] could not run: plugin/lib/${lib}\\.py is not beside`),
+          `${gate} (${event ?? 'completion'}): could-not-run reaches the caller as could-not-run, with the gate's own sentence: ${out.stdout}${out.stderr}`)
+        assert.doesNotMatch(`${out.stdout}${out.stderr}`, /not satisfied|Fix the artifact/,
+          `${gate}: no verdict about an artifact the gate never opened: ${out.stdout}${out.stderr}`)
+      }
+    }
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+
+  // DIRTY: the real plugin, a spec with a real finding — the finding text, not UNPROVEN.
+  const broken = mkdtempSync(join(os.tmpdir(), 'qh-dispatch-finding-'))
+  try {
+    const spec = join(broken, 'broken.md')
+    writeFileSync(spec, '# Broken spec\n\n## Facts\n\n## Grill Log\n')
+    const payload = JSON.stringify({ tool_input: { file_path: spec }, hook_event_name: 'PostToolUse' })
+    const out = run(process.execPath, [join(root, 'scripts', 'run-shell-hook.mjs'), 'facts-gate-dispatch.sh'], broken, payload)
+    expectExit(out, 0, 'a finding is advice')
+    const said = JSON.parse(out.stdout).hookSpecificOutput.additionalContext
+    assert.match(said, /^spec-verify --draft is not satisfied yet for /, `a gate that RAN and found something says so: ${said}`)
+    assert.doesNotMatch(said, /UNPROVEN: .* could not run/, 'and is not mistaken for one that could not run')
+  } finally { rmSync(broken, { recursive: true, force: true }) }
 })
 
 test('a legacy record is not routed as a task and told its own ADR is missing', () => {

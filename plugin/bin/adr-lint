@@ -89,6 +89,29 @@ except Exception as _fence_error:  # lib/ is not beside bin/: a copied gate
     def resolve_bash(*_args, **_kwargs):
         return None
 
+# The record grammar — `sections_of`, `normalize_acceptance`, `acceptance_digest` —
+# lives in plugin/lib/record.py and is loaded the way adr-verify loads fence.py
+# (ADR-045). Unlike the resolver above this is not a helper one check needs: every
+# section this gate reads goes through it, so a gate copied without lib/ says so
+# in one sentence and exits 2 (could-not-run, ADR-005) rather than lint nothing.
+# Same module NAME as the other gates load, deliberately — the digest adr-verify
+# writes and this gate verifies is one function object when both run in one
+# process, which is what the parity harness asserts.
+_lib = os.path.dirname(_fence_file)
+_record_file = os.path.join(_lib, "record.py")
+if not os.path.isfile(_record_file):
+    sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
+                     f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
+                     f"or through a forwarder.\n")
+    sys.exit(2)
+_loaded_record = sys.modules.get("record")
+if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
+    _record_spec = _ilu.spec_from_file_location("record", _record_file)
+    _loaded_record = _ilu.module_from_spec(_record_spec)
+    sys.modules["record"] = _loaded_record
+    _record_spec.loader.exec_module(_loaded_record)
+from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402
+
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
 TASK_HEADERS = ["Depends-on", "Covers", "Produces", "Consumes"]
@@ -373,20 +396,6 @@ def disposition_span(text):
     return None
 
 
-def sections_of(text):
-    out, cur, fence = {}, None, False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fence = not fence
-        m = None if fence else re.match(r"^## (.+?)\s*$", line)
-        if m:
-            cur = m.group(1)
-            out[cur] = []
-        elif cur is not None:
-            out[cur].append(line)
-    return out
-
-
 QUALIFIED_DEP = re.compile(r"^ADR[-\s]?0*(?P<number>\d{1,4})[-/](?P<task>T\d+)$", re.I)
 
 
@@ -602,24 +611,9 @@ def task_tests_table(rows):
     return table
 
 
-def normalize_acceptance(raw):
-    """Canonical Acceptance text shared with adr-verify's evidence writer.
-
-    Normalize line endings and remove only blank lines adjacent to the Markdown
-    fence. Shell-significant indentation and internal blank lines stay intact.
-    """
-    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    start, end = 0, len(lines)
-    while start < end and not lines[start].strip():
-        start += 1
-    while end > start and not lines[end - 1].strip():
-        end -= 1
-    return "\n".join(lines[start:end])
-
-
-def acceptance_digest(command):
-    """SHA-256 of the complete normalized Acceptance fence."""
-    return hashlib.sha256(command.encode("utf-8")).hexdigest()
+# `normalize_acceptance` and `acceptance_digest` come from plugin/lib/record.py
+# (preamble above): the bytes this gate hashes to check a `done` row are the bytes
+# adr-verify hashed to write it, by construction rather than by two kept copies.
 
 
 def spec_ids(spec_path):
@@ -1014,7 +1008,7 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     def permanent_candidates():
         nonlocal permanent_paths
         if permanent_paths is _ROOT_UNSET:
-            permanent_paths = tracked_paths(root)
+            permanent_paths = tracked_or_unignored_paths(root)
         return permanent_paths
 
     if not re.search(r"^\*\*Status:\*\*", text, re.M):
@@ -3442,8 +3436,15 @@ def path_is_tracked(candidate, tracked):
 
 
 
-def tracked_paths(root):
-    """Repository-relative paths git knows about, or None when git cannot answer.
+def tracked_or_unignored_paths(root):
+    """Repository-relative paths git tracks, PLUS files on disk that git does not
+    ignore — or None when git cannot answer.
+
+    Named for its rule (ADR-045): two `ls-files` calls, tracked and
+    `--others --exclude-standard`. `arch-lint` has a `tracked_paths` that lists
+    the index only and refuses the second call on purpose; the two functions
+    carried one name and opposite membership until 2026-09-11, so a reader
+    carried one gate's rule into the other.
 
     None and an EMPTY SET are different answers and must never collapse. An
     empty set says "this tree holds no files"; None says "I could not look", and
@@ -3712,7 +3713,7 @@ def record_files(root, corpus_dir, tracked):
     `Path.glob` suppresses the error it hits: an unreadable `docs/adr/` returned
     an empty sequence, so `check_pointers` claimed a tracked record was absent
     and `check_cross_record_cycles` built zero nodes and became a gate that
-    cannot fail. `tracked_paths` already draws that line and says why; sourcing
+    cannot fail. `tracked_or_unignored_paths` already draws that line and says why; sourcing
     this from it is what makes both answers the same answer (CLAUDE.md §8,
     ADR-005). `tracked` is positional and has NO DEFAULT so a call site that
     forgets it fails loudly rather than falling back to the disk.
@@ -3883,7 +3884,7 @@ def check_pointers(text, path, errors, root, corpus_dir, tracked=None):
     test on any platform. A branch with no seam is a branch with no test.
     """
     if tracked is None:
-        tracked = tracked_paths(root)
+        tracked = tracked_or_unignored_paths(root)
     if tracked is False or tracked is None:
         errors.advise(f"{path.name}: could not list the files git tracks, so `Governs:`, "
                       f"`Cross-references:` and `Invalidates:` were NOT resolved. This is "
@@ -5388,7 +5389,7 @@ def main():
     root = git_root(adr.parent)
     # Listed ONCE for the whole record. Three checks resolve pointers against the
     # corpus and every one of them used to glob the disk instead (CLAUDE.md §8).
-    tracked = tracked_paths(root)
+    tracked = tracked_or_unignored_paths(root)
     # Before any check runs, so every finding this record produces is judged the
     # same way. A record at or above the cutoff, or a corpus that declares none,
     # is checked exactly as it was before this existed.
@@ -5455,7 +5456,7 @@ def main():
         status_text = status_m.group(1).strip().strip("`*") if status_m else ""
         if re.match(r"^(proposed|draft)\b", status_text, re.I):
             named = implementation_paths(body)
-            tracked = tracked_paths(root) if named else None
+            tracked = tracked_or_unignored_paths(root) if named else None
             if named and tracked is None:
                 errors.advise(
                     f"{adr.name}: Status is `{status_text}` and no tasks/ directory carries "
@@ -5509,7 +5510,7 @@ def main():
         # The evidence chain, and the only checks strictFrom cannot reach. Held
         # here rather than tagged at each call site so the exclusion is visible
         # in one place and a new check inside these functions inherits it.
-        tracked = tracked_paths(root)
+        tracked = tracked_or_unignored_paths(root)
         check_go_acceptance_fences(infos, errors, root, tracked)
         # BACKLOG §61. Read once per record, from the files git tracks rather than
         # from the disk — a check whose answer depends on what is lying around is

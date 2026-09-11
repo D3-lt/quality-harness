@@ -2233,7 +2233,7 @@ def main():
     # shape it assumes ever changes, rather than passing against a fixture that
     # agrees with the code by construction.
     corpus = repo_root / "docs" / "adr"
-    corpus_tracked = lint.tracked_paths(repo_root)
+    corpus_tracked = lint.tracked_or_unignored_paths(repo_root)
     assert lint.resolve_qualified_dep("ADR-003-T1", repo_root, corpus, corpus_tracked), "ADR-003 has a T1"
     assert not lint.resolve_qualified_dep("ADR-003-T9", repo_root, corpus, corpus_tracked), "ADR-003 has no T9"
     assert not lint.resolve_qualified_dep("ADR-900-T1", repo_root, corpus, corpus_tracked), "no ADR-900 exists"

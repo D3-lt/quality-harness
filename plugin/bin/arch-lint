@@ -23,7 +23,8 @@ Checks:
              in the repo ('! grep PAT missing-path' inverts exit 2 into a permanent
              pass). A check whose path doesn't exist yet is tagged (deferred: <pointer>).
 
-Exit: 0 pass · 1 failures found
+Exit: 0 pass · 1 failures found · 2 could not run: plugin/lib/record.py is not
+beside this gate's bin/ (a gate copied on its own; ADR-045)
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -31,6 +32,8 @@ resolver: `qh-root` and `qh-doctor` answer which copy is newest on the machine,
 which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 """
+import importlib.util as _ilu
+import os
 import re
 import subprocess
 import sys
@@ -50,25 +53,30 @@ for _s in (_sys.stdout, _sys.stderr):
         pass
 # ---------------------------------------------------------------------------
 
+# The record grammar — `sections_of` — lives in plugin/lib/record.py and is loaded
+# the way adr-verify loads fence.py (ADR-045): from THIS file's path, never from
+# PATH or cwd. Until 2026-09-11 this gate carried its own copy, one of five
+# identical ones. A gate copied without lib/ says so and exits 2 (ADR-005).
+_lib = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib")
+_record_file = os.path.join(_lib, "record.py")
+if not os.path.isfile(_record_file):
+    sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
+                     f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
+                     f"or through a forwarder.\n")
+    sys.exit(2)
+_loaded_record = sys.modules.get("record")
+if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
+    _record_spec = _ilu.spec_from_file_location("record", _record_file)
+    _loaded_record = _ilu.module_from_spec(_record_spec)
+    sys.modules["record"] = _loaded_record
+    _record_spec.loader.exec_module(_loaded_record)
+from record import sections_of  # noqa: E402
+
 RULE_SECTIONS = ["Dependency Contracts", "Concept Ownership (DRY)", "Composition Root",
                  "Test Doubles", "Trust & Data Boundaries"]
 ALL_SECTIONS = ["Module Map"] + RULE_SECTIONS + ["Superseded"]
 SYNC_PROSE = re.compile(r"keep.{0,12}sync|manually|by review|remember|be careful|discipline",
                         re.I)
-
-
-def sections_of(text):
-    out, cur, fence = {}, None, False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fence = not fence
-        m = None if fence else re.match(r"^## (.+?)\s*$", line)
-        if m:
-            cur = m.group(1)
-            out[cur] = []
-        elif cur is not None:
-            out[cur].append(line)
-    return out
 
 
 def data_rows(lines):

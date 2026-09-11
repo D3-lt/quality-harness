@@ -60,6 +60,23 @@ if os.path.realpath(getattr(_loaded, "__file__", None) or "") != os.path.realpat
     _spec.loader.exec_module(_loaded)
 from fence import *  # noqa: E402,F401,F403
 
+# The record grammar — `sections_of` — lives in plugin/lib/record.py beside fence.py
+# and is loaded the same way (ADR-045). Until 2026-09-11 this gate carried its own
+# copy, one of five identical ones.
+_record_file = os.path.join(_lib, "record.py")
+if not os.path.isfile(_record_file):
+    sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
+                     f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
+                     f"or through a forwarder.\n")
+    sys.exit(2)
+_loaded_record = sys.modules.get("record")
+if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
+    _record_spec = _ilu.spec_from_file_location("record", _record_file)
+    _loaded_record = _ilu.module_from_spec(_record_spec)
+    sys.modules["record"] = _loaded_record
+    _record_spec.loader.exec_module(_loaded_record)
+from record import sections_of  # noqa: E402
+
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
 # print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
@@ -102,20 +119,6 @@ def cells(row):
     if parts and not parts[-1].strip():
         parts = parts[:-1]
     return [c.strip().replace("\\|", "|") for c in parts]
-
-
-def sections_of(text):
-    out, cur, fence = {}, None, False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fence = not fence
-        m = None if fence else re.match(r"^## (.+?)\s*$", line)
-        if m:
-            cur = m.group(1)
-            out[cur] = []
-        elif cur is not None:
-            out[cur].append(line)
-    return out
 
 
 def is_unbound(test):

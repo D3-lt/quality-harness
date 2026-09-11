@@ -147,6 +147,24 @@ if os.path.realpath(getattr(_loaded, "__file__", None) or "") != os.path.realpat
     _spec.loader.exec_module(_loaded)
 from fence import *  # noqa: E402,F401,F403
 
+# The record grammar — `sections_of`, `normalize_acceptance`, `acceptance_digest` —
+# lives in plugin/lib/record.py beside fence.py and is loaded the same way (ADR-045).
+# This gate WRITES the digest adr-lint verifies and adr-next reads; until 2026-09-11
+# each carried its own copy of these functions, and adr-next's had drifted.
+_record_file = os.path.join(_lib, "record.py")
+if not os.path.isfile(_record_file):
+    sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
+                     f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
+                     f"or through a forwarder.\n")
+    sys.exit(2)
+_loaded_record = sys.modules.get("record")
+if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
+    _record_spec = _ilu.spec_from_file_location("record", _record_file)
+    _loaded_record = _ilu.module_from_spec(_record_spec)
+    sys.modules["record"] = _loaded_record
+    _record_spec.loader.exec_module(_loaded_record)
+from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402
+
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
 # print and WRITE `·` and `—`; under cp1252 a `·` lands as a bare 0xB7 byte,
@@ -237,26 +255,9 @@ def scored_nothing(output):
     return not any(re.search(p, output, re.M) for p in SOMETHING_RAN)
 
 
-def normalize_acceptance(raw):
-    """Canonical Acceptance text used both for execution and evidence hashing.
-
-    Keep shell-significant indentation and internal blank lines. Only line-ending
-    representation and blank lines introduced next to the Markdown fence are
-    normalized. adr-lint carries the same small function deliberately: the writer
-    and verifier must hash exactly the same bytes without a shared dependency.
-    """
-    lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
-    start, end = 0, len(lines)
-    while start < end and not lines[start].strip():
-        start += 1
-    while end > start and not lines[end - 1].strip():
-        end -= 1
-    return "\n".join(lines[start:end])
-
-
-def acceptance_digest(command):
-    """SHA-256 of the complete normalized Acceptance fence."""
-    return hashlib.sha256(command.encode("utf-8")).hexdigest()
+# `normalize_acceptance` and `acceptance_digest` come from plugin/lib/record.py
+# (preamble above). The writer and the verifier hash the same bytes because they
+# run the same function, not because two copies were kept in step by hand.
 
 
 # A non-zero exit is only evidence when it came from a FAILING ASSERTION. A run
@@ -2168,11 +2169,25 @@ def acceptance_of(text):
     sweep calls superseded. A claim disappearing from the denominator makes the
     rate look better, which is the direction that matters.
     """
-    section = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
-    if not section:
+    section = acceptance_section(text)
+    if section is None:
         return None
-    fence = ACCEPTANCE_FENCE.search(section.group(1))
+    fence = ACCEPTANCE_FENCE.search(section)
     return fence.group(1) if fence else None
+
+
+def acceptance_section(text):
+    """The body of `## Acceptance`, or None when there is no such heading.
+
+    Through the shared, fence-aware `sections_of` (ADR-045). This was a regex
+    ending at the next `^## ` line, which is also where a bash comment or a
+    heredoc INSIDE the fence can begin — so a fence holding `## B` had no closing
+    marker as far as this gate could see, and it refused to run a task adr-lint
+    hashed whole. Both readers of the section go through here so the sweep and
+    the recorder cannot disagree about what the fence was.
+    """
+    body = sections_of(text).get("Acceptance")
+    return None if body is None else "\n".join(body)
 
 
 def runs_nothing(fence):
@@ -2539,10 +2554,10 @@ def main():
         print(entry)
         sys.exit(0)
 
-    m = re.search(r"^## Acceptance\s*$(.*?)(?=^## |\Z)", text, re.M | re.S)
-    if not m:
+    m = acceptance_section(text)
+    if m is None:
         fail(f"{task.name}: no ## Acceptance section")
-    fm = ACCEPTANCE_FENCE.search(m.group(1))
+    fm = ACCEPTANCE_FENCE.search(m)
     if not fm:
         fail(f"{task.name}: no non-empty ```bash fence under ## Acceptance "
              f'(```sh and ```shell are read too; human-observed task? '

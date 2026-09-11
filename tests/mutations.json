@@ -7274,6 +7274,16 @@
       "only": "^a task whose code fence never closes is READY with a note saying its sections could not be read$"
     },
     {
+      "label": "record: only CR, LF and CRLF break a line; the eight other separators are bytes (ADR-045 T11)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "_LINE_BREAK = re.compile(r\"\\r\\n|\\r|\\n\")",
+      "to": "_LINE_BREAK = re.compile(r\"\\r\\n|\\r|\\n|[\\v\\f\\x1c\\x1d\\x1e\\x85\\u2028\\u2029]\")",
+      "only": "^record\\.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest$"
+    },
+    {
       "label": "record: section_span points at the section the reader returns (ADR-045 T6)",
       "file": "plugin/lib/record.py",
       "tests": [

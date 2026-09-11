@@ -45,6 +45,7 @@ __all__ = [
     "first_fence_line",
     "normalize_acceptance",
     "acceptance_digest",
+    "split_lines",
 ]
 
 _HEADING = re.compile(r"^## (.+?)\s*$")
@@ -122,14 +123,34 @@ def _sections(text):
     fence still open at the end of the text is reported by `unterminated_fence`,
     never closed here.
 
-    Lines are split with `str.splitlines()`, so every separator Python treats as
-    a line break — `\\n`, `\\r\\n`, `\\r`, and also VT, FF, FS, GS, RS, NEL, LS and
-    PS — ends a line, and a reader that joins the lines back with `\\n` has turned
-    each of them into `\\n`. Files this gate reads arrive with CR/CRLF already
-    folded; the eight others are a documented behaviour of the shared grammar,
-    not an accident of one reader.
+    Lines are split by `split_lines`: `\\r\\n`, `\\r` and `\\n` end a line and
+    NOTHING ELSE does. Until ADR-045 T11 this was `str.splitlines()`, which also
+    breaks on VT, FF, FS, GS, RS, NEL, LS and PS — so a heading holding one of
+    them read as two lines, one of which could be a second heading (a repeated-
+    heading block manufactured from one line), and a command holding one was
+    hashed with that byte turned into `\\n`, which is not "otherwise preserved".
     """
     return _scan(text)[0]
+
+
+# The only line breaks this grammar knows. Markdown's are these three; Python's
+# `str.splitlines()` adds eight more (VT, FF, FS, GS, RS, NEL, LS, PS) that no
+# editor shows as a line break and no gate wants to treat as one (ADR-045 T11).
+_LINE_BREAK = re.compile(r"\r\n|\r|\n")
+
+
+def split_lines(text):
+    """`(line, start, end)` for every line of `text`: the line without its break,
+    the offset of its first character, and the offset just past its break (or
+    `len(text)` for an unterminated last line). Empty text yields nothing; a text
+    ending in a break yields no empty line after it — the same lines
+    `str.splitlines()` gives for CR/LF input, and only those."""
+    pos = 0
+    for m in _LINE_BREAK.finditer(text):
+        yield text[pos:m.start()], pos, m.end()
+        pos = m.end()
+    if pos < len(text):
+        yield text[pos:], pos, len(text)
 
 
 def _scan(text):
@@ -142,11 +163,9 @@ def _scan(text):
     text, and a reader that guessed where it should have closed would be reading
     a record that does not exist (ADR-045 T8).
     """
-    out, cur, fence, pos, lineno = [], None, None, 0, 0
-    for raw in text.splitlines(keepends=True):
-        start, pos = pos, pos + len(raw)
+    out, cur, fence, lineno = [], None, None, 0
+    for line, start, pos in split_lines(text):
         lineno += 1
-        line = raw.splitlines()[0]
         if fence is None:
             opened = _fence_opened(line)
             if opened:
@@ -200,7 +219,7 @@ def fence_safe(line):
 
 
 def _as_lines(section):
-    return section if isinstance(section, list) else section.splitlines()
+    return section if isinstance(section, list) else [ln for ln, _s, _e in split_lines(section)]
 
 
 def acceptance_fence(section):
@@ -294,12 +313,11 @@ def normalize_acceptance(raw):
     """Canonical Acceptance text — the bytes the digest is taken over.
 
     CR and CRLF become LF, and only the blank lines adjacent to the Markdown fence
-    are removed. Shell-significant indentation and internal blank lines stay
-    intact. The section this text came out of was already read line by line
-    (`_sections`), so any other Unicode line separator inside the fence has
-    become `\\n` before it arrives here; nothing else about the command changes.
-    The writer (`adr-verify`), the verifier (`adr-lint`) and the reader
-    (`adr-next`) hash exactly these bytes.
+    are removed. Shell-significant indentation, internal blank lines and every
+    other byte stay intact — including VT, FF, FS, GS, RS, NEL, LS and PS, which
+    are not line breaks to this grammar (`split_lines`, ADR-045 T11) and reach
+    the digest as the bytes they are. The writer (`adr-verify`), the verifier
+    (`adr-lint`) and the reader (`adr-next`) hash exactly these bytes.
     """
     lines = raw.replace("\r\n", "\n").replace("\r", "\n").split("\n")
     start, end = 0, len(lines)

@@ -115,6 +115,70 @@ Added 2026-09-11, closing BACKLOG §197: `append_entry` (the entry writer), `dec
   - b. the section is absent → the writer still refuses with the add-a-heading sentence, so the append is the section being found, not a fallback.
 - **Postconditions:** `rg -n '\(\?=\^## \|\\Z\)' plugin/bin` finds nothing; the one-module test refuses the shape.
 
+### UC-8: the writer supplies the line break a heading at end-of-file left out
+
+Added 2026-09-11 after the second Codex review (MEDIUM, introduced by T6): `append_entry` splices by `section_span`, and a `## Verification Log` that is the file's last line with no line break has a span whose head ends at the heading text. Reproduced: `--human` wrote `## Verification Log- 2026-…` — one line, no section, exit 0. The regex T6 replaced required `\n` after the heading and refused the file.
+
+- **Trigger:** `adr-verify --human` (or any recording path) on a task whose target heading is the file's last line with no terminator · **Preconditions:** LF or CRLF file
+- **Main flow:**
+  1. The writer adds the missing break in `\n` form after the heading and appends the entry on its own line; `write_source` spells the file's own line ending back.
+  2. `sections_of` on the written file reads the entry INSIDE the section.
+- **Failure paths:**
+  - a. the break is not added → the glued line is not a heading to any reader, and the evidence is silently outside every section (the live defect).
+- **Postconditions:** the heading keeps the file's own line ending; the entry is in the section the grammar reads.
+
+### UC-9: a quoted line cannot toggle the grammar, and an open fence is reported
+
+Added 2026-09-11 after the second Codex review (A): adr-verify quotes a failed run's last lines inside an indented ``` fence. A bound test that printed one ``` line put three fence lines into the log; the walk went out of phase, `## Mutation Log` became text, and the next `--human` entry landed under it with exit 0. Reproduced on a fence whose command prints `chr(96)*3`.
+
+- **Trigger:** a run whose output holds a line whose first non-blank characters are ``` or ~~~; separately, a record whose fence never closes · **Preconditions:** none
+- **Main flow:**
+  1. `record.fence_safe(line)` spells such a line with a backslash before the marker; `excerpt_fence` — the one place adr-verify writes a fence into a record — passes every quoted line through it.
+  2. `record.unterminated_fence(text)` names the line and opener of a fence still open at end of text, from the same walk as `sections_of`.
+  3. adr-verify refuses to run or write against a task with an open fence (exit 2); adr-lint blocks a task on it and advises an ADR; adr-next carries it as the task's `unproven` note.
+- **Failure paths:**
+  - a. the writer stops escaping → the excerpt toggles the grammar and the next entry lands under the wrong heading (the live defect).
+  - b. the open fence is resolved silently → every heading after it is text and no gate says so.
+- **Postconditions:** the next entry is read back in the Verification Log by `sections_of`; a hand-left open fence is refused, blocked, advised and noted, by line.
+
+### UC-10: an unrunnable opener is named whole
+
+Added 2026-09-11 after the second Codex review (LOW): adr-lint captured the opener to its first token, so ```bash title=x was reported as "opens with ```bash" — the part that is fine — and the rejected `title=x` was the one thing left out.
+
+- **Trigger:** an Acceptance whose first fence line is not a runnable opener · **Preconditions:** none
+- **Main flow:**
+  1. adr-lint names the whole first fence line, trimmed, through `record.first_fence_line`.
+- **Failure paths:**
+  - a. the capture stops at whitespace → the author is shown a line that is not the one rejected.
+- **Postconditions:** ```bash title=x, ~~~bash and ```BASH are each named as written.
+
+### UC-11: one fence grammar
+
+Added 2026-09-11 after the second Codex review (MEDIUM): the section walk toggled on any line whose first non-blank characters were ```, while the runnable opener was an unanchored regex over the section text — two grammars for the same three characters. Measured: `prose ```bash` ran; a ````bash opener matched from its second backtick; an inner ```bash inside a four-backtick fence ran; `echo '```'` ran as `echo '`; a ~~~-fenced `## Acceptance` was a second heading.
+
+- **Trigger:** any gate reads a record · **Preconditions:** none
+- **Main flow:**
+  1. A fence line is three or more ``` or ~~~ after any leading blanks (`record._FENCE`); an opener's info string follows the marker; a closer has nothing after it and matches the same marker at least as long; a backtick opener whose info string holds a backtick is not an opener (CommonMark).
+  2. `sections_of`, `section_span`, `repeated_headings`, `unterminated_fence`, `fence_safe`, `acceptance_fence` and `first_fence_line` are views of that one grammar. The runnable opener is a LINE: backticks, exactly `bash`, `sh` or `shell`, optional trailing blanks; the body runs to the matching closer; example fences before it are walked over.
+  3. adr-verify, adr-lint and adr-next find the fence with `acceptance_fence` and nothing else; `ACCEPTANCE_FENCE` no longer exists.
+- **Failure paths:**
+  - a. a second grammar returns → the one-module test refuses the shape; the probe's edge cases disagree.
+  - b. a digest of an existing fence changes → forbidden; recomputed over every tracked record before the change: 222 files, 97 digests, 0 differences.
+- **Postconditions:** the three CLIs agree on ```bash title=x, ```BASH, ~~~bash, a four-backtick outer with an inner ```bash, an unterminated fence and an indented ```bash.
+
+### UC-12: only CR, LF and CRLF break a line
+
+Added 2026-09-11 after the second Codex review (MEDIUM), reversing the Non-Goal below: `str.splitlines()` also breaks on VT, FF, FS, GS, RS, NEL, LS and PS, so a heading holding one read as two lines — the second possibly a heading, manufacturing the repeated-heading block of UC-6 out of one line — and a command holding one was hashed with the byte turned into `\n`.
+
+- **Trigger:** any gate reads a record · **Preconditions:** none
+- **Main flow:**
+  1. `record.split_lines(text)` yields `(line, start, end)` on `\r\n`, `\r`, `\n` and nothing else; the walk and `acceptance_fence` read through it.
+  2. A heading holding any of the eight is one heading with the byte in its name; a command holding one reaches the digest as the bytes it is.
+- **Failure paths:**
+  - a. `splitlines()` returns → the probe shows a heading split and a repeat manufactured.
+  - b. a digest of an existing fence changes → forbidden; recomputed over every tracked record: 0 differences (the corpus holds none of the eight).
+- **Postconditions:** adr-verify's `--help` and every docstring that described `splitlines()` describe this.
+
 ## Scenarios
 
 ### UC4-S1 [happy] a sh-labelled task the writer recorded is digest-checked by the verifier [@implemented] → `tests/evidence-chain.test.mjs::a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped` cmd:`node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs`
@@ -221,6 +285,109 @@ Then claims is 1 and held is 1
 And the same log without the exit-0 row reports 0 claims
 ```
 
+### UC8-S1 [happy] an entry under a heading that ends the file lands in the section [@implemented] → `tests/evidence-chain.test.mjs::an entry appended under a heading that ends the file without a line break lands in the section, on its own line` cmd:`node --test --test-name-pattern 'ends the file without a line break' tests/evidence-chain.test.mjs`
+
+```gherkin
+Given a task whose "## Verification Log" is the last line of the file with no line break, in LF and in CRLF
+When adr-verify --human appends an entry
+Then the heading keeps the file's own line ending and the entry is on its own line
+And sections_of reads the entry inside "Verification Log"
+And a glued "## Verification Log- …" line is not a heading to sections_of
+```
+
+### UC8-S2 [failure] the glued line the old splice produced is not a heading [@implemented] → `tests/evidence-chain.test.mjs::an entry appended under a heading that ends the file without a line break lands in the section, on its own line` cmd:`node --test --test-name-pattern 'ends the file without a line break' tests/evidence-chain.test.mjs`
+
+```gherkin
+Given a task carrying the line "## Verification Log- 2026-09-01 · human-observed · glued"
+When sections_of reads it
+Then there is no "Verification Log" section — which is why the corruption was silent
+```
+
+### UC9-S1 [happy] a printed fence line is written escaped and the next entry lands in the log [@implemented] → `tests/evidence-chain.test.mjs::a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked` cmd:`node --test --test-name-pattern 'cannot toggle the grammar' tests/evidence-chain.test.mjs`
+
+```gherkin
+Given a task whose Acceptance prints a ``` line and exits 1, with a "## Mutation Log" after the Verification Log
+When adr-verify records the run and then --human appends an entry
+Then the printed line is written as "  \```" inside the excerpt
+And sections_of reads the new entry in "Verification Log" and "Mutation Log" holds only its own row
+```
+
+### UC9-S2 [failure] an open fence is refused, blocked, advised and noted by line [@implemented] → `tests/evidence-chain.test.mjs::a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked` cmd:`node --test --test-name-pattern 'cannot toggle the grammar' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'code fence never closes' tests/adr-next.test.mjs`
+
+```gherkin
+Given a task with a fence somebody left open, and an ADR with a ~~~ fence left open
+When adr-verify --human runs the task
+Then it exits 2 naming the fence's line and writes nothing
+When adr-lint runs each
+Then the task is blocked and the ADR is advised, each naming the line and the opener
+When adr-next reads the task
+Then it is READY with an unproven note naming the open fence, and a closed fence carries no such note
+```
+
+### UC9-S3 [failure] the grammar names the open fence and spells a quoted line safe [@implemented] → `tests/gates.test.mjs::record.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle` cmd:`node --test --test-name-pattern 'an unclosed fence is named by line' tests/gates.test.mjs`
+
+```gherkin
+Given plugin/lib/record.py loaded on its own
+When unterminated_fence reads a closed document and an open one
+Then the closed one is None and the open one is its 1-based line and opener text
+And a ~~~-fenced "## " line is text like a ```-fenced one
+And fence_safe escapes "  ```", "~~~x" and a tab-indented ```bash, and leaves other lines alone
+```
+
+### UC10-S1 [failure] an attributed or tilde opener is named whole [@implemented] → `tests/evidence-chain.test.mjs::a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped` cmd:`node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs`
+
+```gherkin
+Given a task whose Acceptance opens with "```bash title=x  " and one whose fence is ~~~bash
+When adr-lint runs each
+Then it exits 1 saying the fence opens with ```bash title=x, and with ~~~bash, respectively
+And never "opens with ```bash,"
+```
+
+### UC10-S2 [happy] a runnable opener is not named, and the row it recorded is accepted [@implemented] → `tests/evidence-chain.test.mjs::a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped` cmd:`node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs`
+
+```gherkin
+Given a task whose Acceptance opens with ```sh, ```shell or ```bash followed by spaces
+When adr-verify records it and adr-lint runs
+Then adr-lint exits 0 and says nothing about a fence
+```
+
+### UC11-S1 [happy] the fence edges, each against the one grammar [@implemented] → `tests/gates.test.mjs::record.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads` cmd:`node --test --test-name-pattern 'record.py: the opener is bash' tests/gates.test.mjs`
+
+```gherkin
+Given plugin/lib/record.py loaded on its own
+When acceptance_fence reads ```bash title=x, ```BASH, ~~~bash, "see ```bash", an indented ```bash, an inner ```bash inside a ```` fence, a ````bash fence with a ``` line inside, an open fence, a command holding a ``` line, an example fence before the real one, and a ``` line inside a ~~~ fence
+Then only the indented, four-backtick, command-holding, after-example and tilde-then-bash cases have a body, and each body is exactly the lines between opener and matching closer
+And a line whose info string holds a backtick is not a fence, so the heading after it is a heading
+And first_fence_line names ```bash title=x and ~~~bash whole and trimmed
+```
+
+### UC11-S2 [failure] every gate finds the fence through one function [@implemented] → `tests/gates.test.mjs::the record grammar is one module: every gate loads plugin/lib/record.py and none keeps a copy` cmd:`node --test --test-name-pattern 'the record grammar is one module' tests/gates.test.mjs`
+
+```gherkin
+Given the gates under plugin/bin
+When their sources are scanned
+Then no gate carries an opener regex or a fence-blind section reader
+And the scan matches those shapes when present
+```
+
+### UC12-S1 [happy] a heading holding a form feed is one heading and a NEL reaches the digest [@implemented] → `tests/gates.test.mjs::record.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest` cmd:`node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs`
+
+```gherkin
+Given plugin/lib/record.py loaded on its own
+When a heading holds each of VT, FF, FS, GS, RS, NEL, LS, PS
+Then it is one heading with the byte in its name and no repeat is manufactured
+And CR, LF and CRLF do break a line and do manufacture the repeat
+And a NEL inside the Acceptance fence is in the normalized text and the digest is sha256 of exactly those bytes
+```
+
+### UC12-S2 [failure] the three real breaks do split, and do manufacture the repeat [@implemented] → `tests/gates.test.mjs::record.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest` cmd:`node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs`
+
+```gherkin
+Given "## A" followed by "## A" separated by CR, by LF and by CRLF
+When sections_of and repeated_headings read each
+Then each is two lines and "A" is reported repeated — so the splitter is shown able to split
+```
+
 ### UC1-S1 [happy] adr-next reports done what adr-verify recorded, with a `## ` line inside the fence [@implemented] → `tests/adr-next.test.mjs::a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest` cmd:`node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs`
 
 ```gherkin
@@ -300,11 +467,16 @@ And arch-lint has no tracked_or_unignored_paths
 | F-5 | Accepted 2026-09-11 (Codex review, MEDIUM ×2; ADR-005). Current at `01cb598`: adr-verify:155 and spec-verify:65's `record.py`-absent branch is reachable by no test (the no-lib fixture lacks both libs, so the `fence.py` check fires first), `mutations.json` guards only adr-next's and adr-lint's `isfile`, and every lib-absent exit is 2 — which spec-verify:14 documents as "bound test missing", adr-verify:87 as "usage, authoring, or transaction problem", adr-lint:35 as "usage": a finding's code, or a code sending the caller to the wrong remedy. After: could-not-load exits the gate's OWN could-not-run code — 4 in adr-verify, spec-verify and qh-mcp (the could-not-look code the first two already had; new in qh-mcp), 2 in adr-lint, adr-next, arch-lint, adr-debt, adr-retire-check (their Exit blocks reserve 2 for "nothing was checked") — for `fence.py` and `record.py` alike; every Exit block says so in words; one line on stderr, nothing on stdout, no traceback. The test copies every lib a gate loads BEFORE the one under test, so each branch is reached; a symlink probe binds `realpath(__file__)` behaviourally; `check-attr` is asked in a repository the test creates (CLAUDE.md §9). Why it can fail: an `isfile` guard removed is a traceback; a code changed disagrees with the Exit block the test reads. | `tests/gates.test.mjs::a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs` | @implemented | `node --test --test-name-pattern 'a gate copied without plugin/lib says so' tests/gates.test.mjs` |
 | F-6 | Accepted 2026-09-11 (Codex review, MEDIUM; owner's decision: define it). Current at `01cb598`: `sections_of` keeps the LAST of a repeated `## ` heading; the adr-verify regex it replaced kept the first; adr-next's old `sections` merged both; no gate reports the repeat. After: `record.repeated_headings(text)` names every heading that repeats outside a fence, from the same walk `sections_of` uses; adr-lint blocks a repeated `## Acceptance` (`errors.append`, the severity of the no-fence check — two fences, one digest) and advises any other repeat in a task or an ADR (`errors.advise`, the severity of a missing section); adr-verify refuses to run or write against a task with any repeated heading (exit 2, authoring). Last-wins stays the documented reading so that until the record is fixed every gate reads the same body. Why it can fail: the check is removed; a fenced `## ` is counted as a repeat. | `tests/evidence-chain.test.mjs::a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice` | @implemented | `node --test --test-name-pattern 'a repeated ## Acceptance is refused' tests/evidence-chain.test.mjs` |
 | F-7 | Accepted 2026-09-11 (BACKLOG §197, closed). Current at `01cb598`: adr-verify:667 `append_entry`, :1673 `declared_steps`, :1984 `claims_in` read a section with `(?=^## \|\Z)` — the fence-blind class T1 removed from the two Acceptance readers. The Verification Log is where a fenced excerpt lives (a failed run's last lines), so the writer appended the next entry INSIDE such a fence and the sweep dropped every claim after it. After: `record.section_span(text, heading)` gives `(start, body_start, end)` from the same walk as `sections_of` (last-wins on a repeat, identical to the reader); `append_entry` splices by it and keeps the blank lines after the heading byte for byte; `declared_steps` and `claims_in` read through `sections_of`. `rg -n '\(\?=\^## \|\\Z\)' plugin/bin` finds nothing and the one-module test refuses the shape. Docstrings state what `splitlines()` does to the eight non-CR/LF separators (adr-verify:20 said "command content is otherwise preserved", which was false). Why it can fail: any of the three regexes returns — each has its own regression and catalogue entry. | `tests/evidence-chain.test.mjs::an entry is appended after a fenced ## line in the Verification Log, not inside the fence` | @implemented | `node --test --test-name-pattern 'appended after a fenced ## line' tests/evidence-chain.test.mjs` |
+| F-8 | Accepted 2026-09-11 (second Codex review, MEDIUM; introduced by T6). Current at `1739425`: `append_entry` splices by `section_span`; a `## Verification Log` that is the file's last line with no line break has a head ending at the heading text, and the entry was written onto it — `## Verification Log- 2026-…`, no section, exit 0. The regex T6 replaced refused the file. After: the writer adds the missing break in `\n` form; `write_source` spells CRLF back; the entry is read back IN the section by `sections_of`; a glued line is shown not to be a heading. Why it can fail: the break is not added. | `tests/evidence-chain.test.mjs::an entry appended under a heading that ends the file without a line break lands in the section, on its own line` | @implemented | `node --test --test-name-pattern 'ends the file without a line break' tests/evidence-chain.test.mjs` |
+| F-9 | Accepted 2026-09-11 (second Codex review, A). Current at `1739425`: adr-verify wrote a failed run's tail inside an indented ``` fence with no neutralising; a test that printed one ``` line put three fence lines into the log, the walk went out of phase, and the next entry landed under `## Mutation Log` with exit 0. After: `record.fence_safe` escapes a fence line's marker with a backslash and `excerpt_fence` is the one writer of a fence into a record; `record.unterminated_fence` names an open fence by line from the same walk; adr-verify refuses (exit 2), adr-lint blocks a task and advises an ADR, adr-next carries it as the `unproven` note. Why it can fail: the escaping is dropped; the refusal, block or note is removed; the name returns None. | `tests/evidence-chain.test.mjs::a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked` | @implemented | `node --test --test-name-pattern 'cannot toggle the grammar' tests/evidence-chain.test.mjs` |
+| F-10 | Accepted 2026-09-11 (second Codex review, LOW). Current at `1739425`: adr-lint:1472 `^[ \t]*```(\S*)` named ```bash title=x as "opens with ```bash". After: `record.first_fence_line` returns the whole first fence line trimmed and adr-lint prints it; ~~~bash and ```BASH are named the same way. Why it can fail: the capture stops at the first token. | `tests/evidence-chain.test.mjs::a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped` | @implemented | `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` |
+| F-11 | Accepted 2026-09-11 (second Codex review, MEDIUM). Current at `1739425`: two fence grammars — the walk's line-start ``` toggle and `ACCEPTANCE_FENCE`, an unanchored regex over the section text: `prose ```bash` ran, ````bash matched from its second backtick, an inner ```bash inside a ```` fence ran, `echo '```'` ran as `echo '`, a ~~~-fenced heading was a heading. After: `record._FENCE` (three or more ``` or ~~~ after leading blanks; closer same marker, at least as long, nothing after; a backtick info string holding a backtick is not an opener) and every reader a view of it; `acceptance_fence(section)` walks fence to fence and returns the body of the first backtick opener labelled exactly bash/sh/shell; `first_fence_line`; `ACCEPTANCE_FENCE` deleted; three gates call the function. Digests recomputed over every tracked record: 222 files, 97 digests, 0 differences. Probed through three CLIs on six edges: identical. Why it can fail: a closer ignores length or marker or trailing text; a tilde fence runs; the inline-code rule is dropped; a gate grows a private regex. | `tests/gates.test.mjs::record.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads` | @implemented | `node --test --test-name-pattern 'record.py: the opener is bash' tests/gates.test.mjs` |
+| F-12 | Accepted 2026-09-11 (second Codex review, MEDIUM; the Non-Goal below reversed — the owner said no edges). Current at `1739425`: `str.splitlines()` in the walk; a heading holding VT, FF, FS, GS, RS, NEL, LS or PS read as two lines and could manufacture a repeated heading (a T5 block) from one line; a command holding one was hashed with the byte turned to `\n`. After: `record.split_lines` on `\r\n`, `\r` and `\n` only, used by the walk and `acceptance_fence`; the eight are bytes; docstrings and adr-verify `--help` say so. Digests recomputed over every tracked record: 0 differences. Why it can fail: the eight return to the splitter. | `tests/gates.test.mjs::record.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest` | @implemented | `node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs` |
 | F-3 | Accepted. Current: adr-lint:3445 `tracked_paths` = `git ls-files` ∪ `git ls-files --others --exclude-standard` (a file being added counts, ADR-011 / ADR-017); arch-lint:279 `tracked_paths` = `git ls-files --cached` only, refusing `--others` because it admits a file that exists only on this laptop. Same name, opposite membership, both citing CLAUDE.md §8. After: adr-lint's is `tracked_or_unignored_paths` — tracked, or on disk and not ignored, which is exactly what its two `ls-files` calls answer; arch-lint's keeps `tracked_paths`, because `--cached` is the index and the index is what "tracked" means to git (a staged file is tracked; `committed_paths` would be false for it). Both bodies unchanged; every call site and the comment at adr-lint:3715 renamed. Why it can fail: the rename alters membership; a call site keeps the old name; the two listings agree on an untracked file. | `tests/gates.test.mjs::adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lint's tracked_paths excludes it` | @implemented | `node --test --test-name-pattern "adr-lint's tracked_or_unignored_paths includes an untracked file" tests/gates.test.mjs` |
 
 ## Domain
 
-**record grammar** = how a gate finds a `## ` section (fence-aware: a line starting with ``` toggles a fence, and a heading inside a fence is text), how it normalizes an Acceptance fence (line endings to `\n`, blank lines trimmed at the fence edges only), and how it hashes it (sha256 of the utf-8 normalized text). **loaded by path** = `importlib.util.spec_from_file_location` on `<dirname(dirname(realpath(__file__)))>/lib/<module>.py`, the `fence.py` idiom; never `sys.path`, never cwd. **copy** = a `def` of one of the three names in a gate. **tracked_or_unignored_paths** = `ls-files` ∪ `ls-files --others --exclude-standard`. **tracked_paths** (arch-lint) = `ls-files --cached`. **could-not-run** = exit 2 with a sentence, never a traceback (ADR-005).
+**record grammar** = how a gate finds a `## ` section (fence-aware: a line starting with ``` toggles a fence, and a heading inside a fence is text) — *amended 2026-09-11 (UC-11, UC-12): a fence line is three or more ``` or ~~~ after leading blanks, closed only by the same marker at least as long with nothing after it; only CR, LF and CRLF break a line*, how it normalizes an Acceptance fence (line endings to `\n`, blank lines trimmed at the fence edges only), and how it hashes it (sha256 of the utf-8 normalized text). **loaded by path** = `importlib.util.spec_from_file_location` on `<dirname(dirname(realpath(__file__)))>/lib/<module>.py`, the `fence.py` idiom; never `sys.path`, never cwd. **copy** = a `def` of one of the three names in a gate. **tracked_or_unignored_paths** = `ls-files` ∪ `ls-files --others --exclude-standard`. **tracked_paths** (arch-lint) = `ls-files --cached`. **could-not-run** = exit 2 with a sentence, never a traceback (ADR-005).
 
 ## Contracts Touched
 
@@ -323,7 +495,7 @@ And arch-lint has no tracked_or_unignored_paths
 - Changing any gate's block/advise policy, or any digest for a fence that contains no `## ` line (the normalized bytes of such a fence are unchanged, so every existing `acceptance-sha256:` stands).
 - adr-verify's other three `(?=^## |\Z)` readers (adr-verify:666 `append_entry`'s section finder, :1672 Ordered Steps, :1983 Verification Log) — siblings of the same class, left for the backlog with this enumeration; they do not decide a digest. *2026-09-11: pulled into scope as F-7 / UC-7 after the Codex review; the line above is left as written.*
 - adr-next's ```bash-only fence match (adr-verify also reads ```sh / ```shell) — a different disagreement, not this spec. *2026-09-11: pulled into scope as F-4 / UC-4 — the review showed adr-lint's digest path had the same narrowing, and that it failed open; the line above is left as written.*
-- Making `sections_of` source-preserving for the eight non-CR/LF separators `str.splitlines()` recognises (VT, FF, FS, GS, RS, NEL, LS, PS). Owner's decision 2026-09-11: document what the reader does (F-7), do not change the bytes adr-lint has hashed since the digest existed. The shipped corpus has no such separator (Codex probe, 137 tasks).
+- Making `sections_of` source-preserving for the eight non-CR/LF separators `str.splitlines()` recognises (VT, FF, FS, GS, RS, NEL, LS, PS). Owner's decision 2026-09-11: document what the reader does (F-7), do not change the bytes adr-lint has hashed since the digest existed. The shipped corpus has no such separator (Codex probe, 137 tasks). *2026-09-11, later: reversed as F-12 / UC-12 after the second Codex review — the owner's instruction is no edges, and the earlier line recorded a session's reading, not the owner's decision; the bytes adr-lint has hashed do not change because the corpus holds none of the eight (recomputed: 0 differences). The line above is left as written.*
 - Catching a `record.py` that exists but raises on import (a partially-written copy): a traceback and exit 1 today. Named by the review as residual; not a finding this spec fixes.
 - Rewriting ADR-011. Its rejection stands as history; this spec records what superseded it.
 - Moving `fence.py`, or any file, so no `Governs:` header or `tests/mutations.json` `file:` path changes except the additions here.
@@ -360,3 +532,7 @@ python3 plugin/bin/spec-verify --spec docs/specs/2026-09-11-one-record-grammar.m
 | 6 | What code does a gate exit when it cannot load a shared module? (Codex review, MEDIUM; ADR-005) | F-5 | The gate's own could-not-run code, read from its Exit block: 4 where 2 is a finding (adr-verify, spec-verify) or usage with no could-not-run code (qh-mcp); 2 where the block already reserves it for "nothing was checked". Owner's decision: distinct from every finding code, per gate. |
 | 7 | Is a repeated `## Acceptance` defined? (Codex review, MEDIUM) | F-6 | Owner's decision: define it. Reported, never resolved: adr-lint blocks a repeated Acceptance and advises other repeats; adr-verify refuses. Last-wins stays the documented reading so the gates agree until the record is fixed. |
 | 8 | Are the three remaining `(?=^## \|\Z)` readers the same class? (BACKLOG §197) | F-7 | Yes — every one reads a section and stops at a fenced `## `. All three move to the shared grammar with their own regressions; the writer's span comes from the reader's walk. |
+| 9 | Did T6's writer introduce a corruption the old regex refused? (second Codex review, MEDIUM) | F-8 | Yes — a heading at EOF with no break. Reproduced, fixed at the writer, read back through the grammar. |
+| 10 | Can tool-written output toggle the grammar of the record it is written into? (second Codex review, A) | F-9 | It could, with one printed ``` line. Neutralised at the writer through the grammar; an open fence is reported by line by every gate, never resolved. |
+| 11 | Are the walk and the runnable opener one grammar? (second Codex review, MEDIUM) | F-11 | They were two. One now, CommonMark's two markers, length-matched closers, a runnable opener that is a line. Corpus digests: 0 differences. |
+| 12 | Is the `splitlines()` behaviour a documented non-goal or an edge? (second Codex review, MEDIUM) | F-12 | An edge — the owner said no edges. Three line breaks; the eight separators are bytes. Corpus digests: 0 differences. |

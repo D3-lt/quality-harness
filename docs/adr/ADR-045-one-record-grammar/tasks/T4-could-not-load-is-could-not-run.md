@@ -66,6 +66,8 @@ node --test --test-name-pattern 'a gate copied without plugin/lib says so|reache
 
 ## Mutation Log
 
+- 2026-09-11 · 9942edb* · mutant killed · exit 1 · `plugin/bin/adr-verify` · without the record.py guard the fence-present / record-absent fixture dies in an ImportError traceback with exit 1 instead of one sentence and exit 4 — the arm no fixture reached before T4 · acceptance-sha256:4240c0e7e8ed54c06d5890b39a2f9320cabe6d180126c18269d6809e341aa796
+
 ## Invariants
 
 - No lib-absent exit shares a number with a finding in the same gate's Exit block.
@@ -90,3 +92,5 @@ A green run while any gate's record branch is reached by no fixture, or while a 
 Class: `rg -n 'record.py|fence\.py' plugin/bin/*` — every `isfile` guard: adr-verify ×2, spec-verify ×2, qh-mcp ×1, adr-lint ×1 (record; fence is a `try`), adr-next, arch-lint, adr-debt, adr-retire-check ×1 each. All nine hard guards have a fixture arm; before this task adr-verify's and spec-verify's record arms had none. The structural `realpath(__file__)` regex stays (it is satisfiable by the fence loader alone) and is now backed by the symlink probe, which is not.
 
 ## Verification Log
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'a gate copied without plugin/lib says so|reached through a symlink loads the lib|every exit code a gate can literally produce|the record grammar is one module' tests/gates.test.mjs` · acceptance-sha256:4240c0e7e8ed54c06d5890b39a2f9320cabe6d180126c18269d6809e341aa796 · ms:1115
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'a gate copied without plugin/lib says so|reached through a symlink loads the lib|every exit code a gate can literally produce|the record grammar is one module' tests/gates.test.mjs` · acceptance-sha256:4240c0e7e8ed54c06d5890b39a2f9320cabe6d180126c18269d6809e341aa796 · ms:1170

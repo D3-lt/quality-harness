@@ -63,6 +63,7 @@ node --test --test-name-pattern 'a heading inside the Acceptance fence is not a 
 ## Mutation Log
 
 - 2026-09-11 · 1409897* · mutant killed · exit 1 · `plugin/lib/record.py` · with no fence toggle a `## ` line inside the Acceptance fence is a heading again: adr-verify sees no closing fence and refuses the run, adr-next hashes a shorter body · acceptance-sha256:089098d2c87a8affe5e9bc723ab696e75eb9d990c020280f5777df1dffffadec
+- 2026-09-11 · 9942edb* · mutant killed · exit 1 · `plugin/lib/record.py` · with no fence toggle a ## line inside the Acceptance fence is a heading again: adr-verify sees no closing fence and refuses the run, adr-next hashes a shorter body · acceptance-sha256:fe96549c1b3b443a5df25efb861ef28760eb2b52c44d578f3fb07caea9ed7a07
 
 ## Invariants
 
@@ -95,3 +96,5 @@ Class: `rg -n 'def sections_of|def sections\(|def normalize_acceptance|def accep
 ## Verification Log
 - 2026-09-11 · 1409897 · exit 0 · `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so and exits 2' tests/gates.test.mjs` · acceptance-sha256:089098d2c87a8affe5e9bc723ab696e75eb9d990c020280f5777df1dffffadec · ms:1039
 - 2026-09-11 · 1409897* · exit 0 · `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so and exits 2' tests/gates.test.mjs` · acceptance-sha256:089098d2c87a8affe5e9bc723ab696e75eb9d990c020280f5777df1dffffadec · ms:925
+- 2026-09-11 · 9942edb · exit 0 · `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so' tests/gates.test.mjs` · acceptance-sha256:fe96549c1b3b443a5df25efb861ef28760eb2b52c44d578f3fb07caea9ed7a07 · ms:1094
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so' tests/gates.test.mjs` · acceptance-sha256:fe96549c1b3b443a5df25efb861ef28760eb2b52c44d578f3fb07caea9ed7a07 · ms:1009

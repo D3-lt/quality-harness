@@ -54,6 +54,8 @@ node --test --test-name-pattern 'a repeated ## Acceptance is refused' tests/evid
 
 ## Mutation Log
 
+- 2026-09-11 · 9942edb* · mutant killed · exit 1 · `plugin/lib/record.py` · with repeated_headings answering nothing, adr-verify records against the second Acceptance, adr-lint passes the task with two of them, and the record.py probe sees no repeat · acceptance-sha256:0e14f1babbd9d1f4f6a620072768e8895eee336119fd0f6808d854a80620e6a0
+
 ## Invariants
 
 - `sections_of(text)` and `section_span(text, h)` select the same occurrence of `h`.
@@ -79,3 +81,5 @@ A green run while a task with two `## Acceptance` sections passes adr-lint or is
 Design: one walk (`record._sections`) feeds `sections_of`, `section_span` and `repeated_headings`, so a reader, a writer and the report cannot select different bodies. Raising on a duplicate was rejected: seven gates would each need a handler, and a linter that dies on a malformed record has stopped linting. First-wins was rejected: it changes the body every gate reads today for no gain once the repeat is reported.
 
 ## Verification Log
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'a repeated ## Acceptance is refused' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash' tests/gates.test.mjs` · acceptance-sha256:0e14f1babbd9d1f4f6a620072768e8895eee336119fd0f6808d854a80620e6a0 · ms:501
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'a repeated ## Acceptance is refused' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash' tests/gates.test.mjs` · acceptance-sha256:0e14f1babbd9d1f4f6a620072768e8895eee336119fd0f6808d854a80620e6a0 · ms:482

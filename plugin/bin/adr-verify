@@ -174,7 +174,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, section_span, repeated_headings, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
+from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -424,6 +424,21 @@ def failure_tail(stdout, stderr, keep=10):
         parts.append(head)
         parts.extend(shown)
     return parts
+
+
+def excerpt_fence(lines):
+    """The indented fence a run's quoted output is written in, unable to toggle the grammar.
+
+    Every line is passed through `record.fence_safe` first: a line of the quoted
+    output that itself begins with ``` or ~~~ is written with a backslash before
+    the marker, so the excerpt closes exactly where this function closes it.
+    Without that, a bound test that printed one ``` line put THREE fence lines
+    into the Verification Log, the section walk went out of phase, `## Mutation
+    Log` became text, and the next entry landed under it with exit 0 — reproduced
+    2026-09-11 (ADR-045 T8). The one place a fence is written into a record is
+    here, so the neutralising cannot be forgotten by one of two writers.
+    """
+    return "\n".join(["  ```"] + ["  " + fence_safe(ln) for ln in lines] + ["  ```"])
 
 
 def collapse_repeats(lines):
@@ -1516,7 +1531,7 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     refuse_unreadable(entry, sha)
     block = entry
     if verdict != "killed":
-        block += f"\n  ```\n  {detail}\n  ```"
+        block += "\n" + excerpt_fence(detail.splitlines() or [""])
     append_entry(task, task.read_text(errors="replace", encoding="utf-8"), block, section="Mutation Log")
     print(block)
     # ⚠ THREE OUTCOMES, THREE CODES. `killed` is 0, `survived` is 1 — a finding
@@ -2316,8 +2331,7 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None):
     refuse_unreadable(entry, sha)
     block = entry
     if code != 0:
-        out = failure_tail(stdout_text, stderr_text)
-        block += "\n" + "\n".join(["  ```"] + ["  " + ln for ln in out] + ["  ```"])
+        block += "\n" + excerpt_fence(failure_tail(stdout_text, stderr_text))
     append_entry(task, text, block)
     # Say that the file was WRITTEN. Recording the run is the point of this tool —
     # evidence is tool-written or it is not evidence — but nothing said so, and a
@@ -2581,6 +2595,15 @@ def main():
              f"more than once. A task has one of each section; with two, the fence this "
              f"gate would run and the log it would write into are whichever came last, and "
              f"a reader cannot tell which that was. Merge them and re-run.")
+    # ADR-045 T8. A fence that never closes hides every heading after it from the
+    # walk — the Acceptance this gate would run, the log it would write into — and
+    # the walk cannot tell that from a record that ends inside an example. Refused
+    # before anything runs or is written, as the authoring problem it is (exit 2).
+    unclosed = unterminated_fence(text)
+    if unclosed:
+        fail(f"{task.name}: the code fence opened at line {unclosed[0]} ({unclosed[1].strip()}) is "
+             f"never closed, so every heading after it reads as text to this gate and to every "
+             f"other. Close the fence and re-run; nothing was run or written.")
 
     if human_mutant is not None:
         # The modes that RUN something are mutually exclusive with the one that

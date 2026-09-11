@@ -7144,6 +7144,66 @@
       "only": "^an entry appended under a heading that ends the file without a line break lands in the section, on its own line$"
     },
     {
+      "label": "adr-verify: a quoted output line that is itself a fence line is written escaped (ADR-045 T8)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    return \"\\n\".join([\"  ```\"] + [\"  \" + fence_safe(ln) for ln in lines] + [\"  ```\"])",
+      "to": "    return \"\\n\".join([\"  ```\"] + [\"  \" + ln for ln in lines] + [\"  ```\"])",
+      "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
+    },
+    {
+      "label": "adr-verify: an unclosed fence is refused before anything runs or is written (ADR-045 T8)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    unclosed = unterminated_fence(text)\n    if unclosed:\n        fail(f\"{task.name}: the code fence opened at line",
+      "to": "    unclosed = None\n    if unclosed:\n        fail(f\"{task.name}: the code fence opened at line",
+      "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
+    },
+    {
+      "label": "adr-lint: an unclosed fence in a task blocks, not advises (ADR-045 T8)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_unterminated_fence(path, text, errors, blocking=True)",
+      "to": "    check_unterminated_fence(path, text, errors, blocking=False)",
+      "only": "^a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked$"
+    },
+    {
+      "label": "record: unterminated_fence names the fence the walk left open (ADR-045 T8)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return _scan(text)[1]",
+      "to": "    return None",
+      "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
+    },
+    {
+      "label": "record: fence_safe escapes a fence line rather than returning it (ADR-045 T8)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    m = _FENCE_LINE.match(line)\n    if not m:\n        return line",
+      "to": "    m = None\n    if not m:\n        return line",
+      "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
+    },
+    {
+      "label": "record: a tilde fence is a fence for heading purposes (ADR-045 T8)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "_FENCE_LINE = re.compile(r\"^(?P<indent>[ \\t]*)(?:```|~~~)\")",
+      "to": "_FENCE_LINE = re.compile(r\"^(?P<indent>[ \\t]*)(?:```)\")",
+      "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
+    },
+    {
       "label": "record: section_span points at the section the reader returns (ADR-045 T6)",
       "file": "plugin/lib/record.py",
       "tests": [

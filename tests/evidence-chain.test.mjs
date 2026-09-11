@@ -2883,6 +2883,16 @@ test('a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint
   assert.match(refused.stdout, /no runnable fence \(```bash, ```sh or ```shell\)/, refused.stdout)
   assert.match(refused.stdout, /opens with ```python, which is not a runnable Acceptance fence/,
     `the opener it found is named so the author knows what to change: ${refused.stdout}`)
+  // ADR-045 T9. The WHOLE opener line, trimmed: ```bash title=x was reported as
+  // "opens with ```bash" — the part that is fine — and the rejected `title=x`
+  // was the one thing the message left out.
+  const attributed = corpus()
+  withOpener(attributed, 'bash title=x  ')
+  const named = lint(attributed)
+  expectExit(named, 1, 'an attributed bash opener is not a runnable Acceptance')
+  assert.match(named.stdout, /opens with ```bash title=x, which is not a runnable Acceptance fence/,
+    `the full opener is named, trimmed: ${named.stdout}`)
+  assert.doesNotMatch(named.stdout, /opens with ```bash,/, 'not truncated at the first token')
 })
 
 // ADR-045 T5. `sections_of` keeps the LAST of a repeated `## ` heading, in every

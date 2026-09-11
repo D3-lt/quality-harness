@@ -1765,8 +1765,17 @@ test('every shipped gate answers --version with the version of the tree it was r
 // shape the forwarders exist to replace. It must say so in one sentence and exit
 // 2 — could not run, ADR-005 — never die in a traceback. And the same gate WITH
 // lib/ beside it must run, or this would pass for a gate that always refused.
+//
+// Two shared modules, two sentences: the fence gates name fence.py (checked
+// first, so a gate missing both names it), and the record-grammar gates name
+// record.py (ADR-045). The file named is the file a reader goes looking for.
 test('a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs', () => {
-  for (const gate of ['adr-verify', 'spec-verify', 'qh-mcp']) {
+  const missing = {
+    'adr-verify': 'fence', 'spec-verify': 'fence', 'qh-mcp': 'fence',
+    'adr-lint': 'record', 'adr-next': 'record', 'arch-lint': 'record',
+    'adr-debt': 'record', 'adr-retire-check': 'record',
+  }
+  for (const [gate, lib] of Object.entries(missing)) {
     const temp = mkdtempSync(join(os.tmpdir(), 'qh-nolib-'))
     try {
       mkdirSync(join(temp, 'bin'), { recursive: true })
@@ -1775,8 +1784,8 @@ test('a gate copied without plugin/lib says so and exits 2; with lib/ beside it,
       cpSync(join(bin, gate), join(temp, 'bin', gate))
       const without = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
       assert.equal(without.status, 2, `${gate} without lib/: could-not-run is exit 2, got ${without.status}\n${without.stdout}${without.stderr}`)
-      assert.match(without.stderr, /could not run: plugin\/lib\/fence\.py is not beside this gate's bin\//,
-        `${gate}: the reason is a sentence, not a traceback — ${without.stderr}`)
+      assert.match(without.stderr, new RegExp(`could not run: plugin/lib/${lib}\\.py is not beside this gate's bin/`),
+        `${gate}: the reason is a sentence naming ${lib}.py, not a traceback — ${without.stderr}`)
       assert.doesNotMatch(without.stderr, /Traceback/, `${gate}: no traceback`)
       cpSync(join(root, 'lib'), join(temp, 'lib'), { recursive: true })
       const withLib = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
@@ -1792,7 +1801,10 @@ test('a gate whose manifest cannot be read says so instead of guessing', () => {
   const temp = mkdtempSync(join(os.tmpdir(), 'qh-version-blind-'))
   try {
     mkdirSync(join(temp, 'bin'), { recursive: true })
-    // No .claude-plugin at all.
+    // No .claude-plugin at all. lib/ IS beside bin/ — the subject here is the
+    // manifest, and since ADR-045 a gate without lib/record.py exits 2 before
+    // it can say anything about a version (the test above owns that case).
+    cpSync(join(root, 'lib'), join(temp, 'lib'), { recursive: true })
     cpSync(join(bin, 'adr-lint'), join(temp, 'bin', 'adr-lint'))
     const out = spawnSync('python3', [join(temp, 'bin', 'adr-lint'), '--version'],
       { cwd: repoRoot, env, encoding: 'utf8', timeout: 60_000 })
@@ -1807,6 +1819,157 @@ test('a gate whose manifest cannot be read says so instead of guessing', () => {
     assert.doesNotMatch(out.stdout, new RegExp(real.replace(/\./g, '\\.')),
       `a blind gate must not fall back to another tree's version: ${out.stdout}`)
   } finally { rmSync(temp, { recursive: true, force: true }) }
+})
+
+// ADR-045. The record grammar — sections_of, normalize_acceptance,
+// acceptance_digest — was eleven `def`s across seven gates, and one had drifted
+// (adr-next's `sections` had no fence toggle). One module now, loaded the way
+// fence.py is. This test enumerates the class rather than remembering it: any
+// gate that grows a private copy fails here, whatever it is called.
+const RECORD_GATES = ['adr-lint', 'adr-verify', 'adr-next', 'spec-verify', 'arch-lint', 'adr-debt', 'adr-retire-check']
+const GRAMMAR_NAMES = ['sections_of', 'sections', 'normalize_acceptance', 'acceptance_digest']
+
+test('the record grammar is one module: every gate loads plugin/lib/record.py and none keeps a copy', () => {
+  // Top-level function names per gate, by AST — a regex over `def ` would also
+  // match a docstring that mentions one of these names, which several do.
+  const probe = [
+    'import ast, json, pathlib, sys',
+    'out = {}',
+    'for path in sorted(pathlib.Path(sys.argv[1]).iterdir()):',
+    '    if path.suffix or not path.is_file():',
+    '        continue',
+    '    tree = ast.parse(path.read_text(encoding="utf-8"), filename=str(path))',
+    '    out[path.name] = sorted(n.name for n in tree.body if isinstance(n, (ast.FunctionDef, ast.AsyncFunctionDef)))',
+    'print(json.dumps(out))',
+  ].join('\n')
+  const scan = run('python3', ['-c', probe, bin])
+  expectExit(scan, 0, 'top-level def scan')
+  const defs = JSON.parse(scan.stdout)
+  const copies = Object.entries(defs)
+    .flatMap(([gate, names]) => names.filter(n => GRAMMAR_NAMES.includes(n)).map(n => `${gate}::${n}`))
+  assert.deepEqual(copies, [], `a gate keeps a private copy of the grammar: ${copies.join(', ')}`)
+
+  // DIRTY: the scan must be able to find one. Same probe, on a directory holding
+  // a gate-shaped file that defines a copy — otherwise the deepEqual above would
+  // pass for a probe that returns {} for everything.
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-grammar-copy-'))
+  try {
+    writeFileSync(join(temp, 'fake-gate'), 'import re\n\ndef normalize_acceptance(raw):\n    return raw\n\n\ndef other():\n    pass\n')
+    const dirty = run('python3', ['-c', probe, temp])
+    expectExit(dirty, 0, 'dirty scan')
+    assert.deepEqual(JSON.parse(dirty.stdout)['fake-gate'], ['normalize_acceptance', 'other'],
+      'the scan reads top-level defs, so a copy cannot hide from it')
+  } finally { rmSync(temp, { recursive: true, force: true }) }
+
+  // Every record-reading gate loads record.py FROM ITS OWN PATH (a forwarder execs
+  // $root/bin/<gate>, so cwd and PATH would both name the wrong install), and
+  // imports the names from the module rather than redefining them.
+  for (const gate of RECORD_GATES) {
+    const source = readFileSync(join(bin, gate), 'utf8')
+    assert.match(source, /os\.path\.realpath\(__file__\)/, `${gate} resolves lib/ from its own file`)
+    assert.match(source, /_record_file = os\.path\.join\(_lib, "record\.py"\)/, `${gate} names lib/record.py`)
+    assert.match(source, /^from record import sections_of/m, `${gate} imports the grammar from the module`)
+    assert.match(source, /could not run: plugin\/lib\/record\.py is not beside this gate's bin\//,
+      `${gate} says could-not-run in a sentence when lib/ is absent`)
+  }
+  // And qh-mcp reads no records, so it must NOT have grown the preamble by copy-paste.
+  assert.doesNotMatch(readFileSync(join(bin, 'qh-mcp'), 'utf8'), /record\.py/, 'qh-mcp does not read records')
+
+  // The module ships LF wherever it is checked out — asked of git, not read from
+  // bytes, because what matters is the answer git gives for the path (CLAUDE.md §7).
+  const attr = spawnSync('git', ['-C', repoRoot, 'check-attr', 'text', 'eol', '--', 'plugin/lib/record.py'],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(attr.status, 0, attr.stderr)
+  assert.match(attr.stdout, /eol: lf/, `plugin/lib/record.py must be eol=lf like fence.py: ${attr.stdout}`)
+})
+
+// The shared functions themselves, loaded on their own so the assertions are
+// about the module and not about whichever gate happened to import it first.
+// Clean AND dirty for each: a heading that IS a section beside one that is not,
+// blank lines that are trimmed beside ones that stay, a digest that changes.
+test('record.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that', () => {
+  const probe = [
+    'import hashlib, importlib.util, json, sys',
+    'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
+    'record = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(record)',
+    'doc = "# T\\n\\n## A\\n\\n```bash\\necho one\\n## B\\necho two\\n```\\n\\n## C\\n\\ntext\\n"',
+    'sections = record.sections_of(doc)',
+    'raw = "\\n\\n  printf a\\n\\nprintf b\\n\\n\\n"',
+    'norm = record.normalize_acceptance(raw)',
+    'print(json.dumps({',
+    '    "keys": list(sections),',
+    '    "a_body": sections["A"],',
+    '    "norm": norm,',
+    '    "crlf": record.normalize_acceptance("printf a\\r\\nprintf b\\r\\n"),',
+    '    "digest": record.acceptance_digest(norm),',
+    '    "digest_other": record.acceptance_digest(norm + "x"),',
+    '    "sha": hashlib.sha256(norm.encode("utf-8")).hexdigest(),',
+    '}))',
+  ].join('\n')
+  const out = run('python3', ['-c', probe, join(root, 'lib', 'record.py')])
+  expectExit(out, 0, 'record.py probe')
+  const got = JSON.parse(out.stdout)
+  // `## B` is inside the fence and is text; `## C` is outside and is a heading.
+  assert.deepEqual(got.keys, ['A', 'C'], `a fenced ## is not a heading, an unfenced one is: ${JSON.stringify(got.keys)}`)
+  assert.deepEqual(got.a_body, ['', '```bash', 'echo one', '## B', 'echo two', '```', ''],
+    'the fenced heading line stays in the section that holds the fence')
+  // Only the blank lines at the edges go; the indentation and the internal blank stay.
+  assert.equal(got.norm, '  printf a\n\nprintf b', 'blank edges trimmed, indentation and internal blank kept')
+  assert.equal(got.crlf, 'printf a\nprintf b', 'CRLF is normalized before hashing')
+  assert.equal(got.digest, got.sha, 'the digest is sha256 of exactly the normalized utf-8 bytes')
+  assert.notEqual(got.digest, got.digest_other, 'and one more byte is a different digest')
+})
+
+// ADR-045 F-3. adr-lint's listing includes untracked, non-ignored files (a
+// record and the files it governs land in one commit — ADR-011, ADR-017);
+// arch-lint's deliberately lists the index only. They carried ONE name and
+// opposite membership. The name now states the rule, and this is the difference,
+// measured on a repository the test creates (CLAUDE.md §9): both include the
+// committed file, only adr-lint's includes the untracked one, neither includes
+// the ignored one.
+test("adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lint's tracked_paths excludes it", () => {
+  const sandbox = mkdtempSync(join(os.tmpdir(), 'qh-listing-'))
+  const git = (...args) => {
+    const r = spawnSync('git', ['-C', sandbox, ...args], { encoding: 'utf8', timeout: 60_000 })
+    assert.equal(r.status, 0, `git ${args.join(' ')}: ${r.stderr}`)
+    return r
+  }
+  try {
+    git('init', '-q')
+    writeFileSync(join(sandbox, '.gitignore'), 'ignored.txt\n')
+    writeFileSync(join(sandbox, 'kept.txt'), 'committed\n')
+    git('add', '.gitignore', 'kept.txt')
+    git('-c', 'user.name=probe', '-c', 'user.email=probe@example.invalid', 'commit', '-q', '-m', 'seed')
+    writeFileSync(join(sandbox, 'new.txt'), 'being added\n')
+    writeFileSync(join(sandbox, 'ignored.txt'), 'only here\n')
+
+    const probe = [
+      'import json, pathlib, runpy, sys',
+      'lint = runpy.run_path(sys.argv[1])',
+      'arch = runpy.run_path(sys.argv[2])',
+      'root = pathlib.Path(sys.argv[3])',
+      'ours = lint["tracked_or_unignored_paths"](root)',
+      'theirs = arch["tracked_paths"](root)',
+      'print(json.dumps({',
+      '    "lint": sorted(ours),',
+      '    "arch": sorted(p.name for p in theirs),',
+      '    "lint_has_old_name": "tracked_paths" in lint,',
+      '    "arch_has_new_name": "tracked_or_unignored_paths" in arch,',
+      '}))',
+    ].join('\n')
+    const out = run('python3', ['-c', probe, join(bin, 'adr-lint'), join(bin, 'arch-lint'), sandbox])
+    expectExit(out, 0, 'listing probe')
+    const got = JSON.parse(out.stdout)
+    assert.deepEqual(got.lint, ['.gitignore', 'kept.txt', 'new.txt'],
+      `adr-lint's listing is tracked OR unignored, so the file being added is a member: ${JSON.stringify(got.lint)}`)
+    assert.deepEqual(got.arch, ['.gitignore', 'kept.txt'],
+      `arch-lint's listing is the index, so the file being added is not: ${JSON.stringify(got.arch)}`)
+    // The name is the rule: the old shared name is gone from adr-lint, and
+    // arch-lint did not acquire the other one.
+    assert.equal(got.lint_has_old_name, false, 'adr-lint no longer answers to the name that stated the wrong rule')
+    assert.equal(got.arch_has_new_name, false, "arch-lint's listing keeps its own name")
+  } finally { rmSync(sandbox, { recursive: true, force: true }) }
 })
 
 test('a path::name pointer at a production function does not resolve as a test', () => {
@@ -2088,6 +2251,10 @@ test('a gate whose manifest is unreadable says so, and states no version (BACKLO
     // readable manifest and this case cannot otherwise be reached.
     const fakeBin = join(temp, 'bin')
     mkdirSync(fakeBin, { recursive: true })
+    // lib/ beside bin/, as every install has it: since ADR-045 a gate without
+    // lib/record.py exits 2 before it reaches the manifest, and that arm has its
+    // own test. This one is about the manifest.
+    cpSync(join(root, 'lib'), join(temp, 'lib'), { recursive: true })
     const copied = join(fakeBin, 'adr-lint')
     writeFileSync(copied, readFileSync(join(bin, 'adr-lint'), 'utf8'))
 

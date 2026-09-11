@@ -2434,8 +2434,8 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    fence = ACCEPTANCE_FENCE.search(section.group(1))",
-      "to": "    fence = re.search(r'^```bash\\n(.*?)```', section.group(1), re.S)"
+      "from": "    fence = ACCEPTANCE_FENCE.search(section)\n    return fence.group(1) if fence else None",
+      "to": "    fence = re.search(r'^```bash\\n(.*?)```', section, re.S)\n    return fence.group(1) if fence else None"
     },
     {
       "label": "sweep: a fence of only comments runs nothing",
@@ -6073,7 +6073,7 @@
         "tests/gates.test.mjs"
       ],
       "only": "declared in its own docstring",
-      "from": "Exit: 0 the contract holds · 1 it does not.",
+      "from": "Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py\nis not beside this gate's bin/ (a gate copied on its own; ADR-045).",
       "to": "The contract either holds or it does not."
     },
     {
@@ -6907,6 +6907,97 @@
       "only": "listing-null still names a stale shadow install",
       "from": "  if (check || ready.lines.length || corpusLook === true || corpusLook === 'UNPROVEN') {",
       "to": "  if (check || ready.lines.length || corpusLook === true) {"
+    },
+    {
+      "label": "record: a ## line inside a code fence is text, not a heading (ADR-045)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/adr-next.test.mjs",
+        "tests/gates.test.mjs"
+      ],
+      "from": "            fence = not fence",
+      "to": "            fence = False",
+      "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$|^record\\.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that$"
+    },
+    {
+      "label": "record: normalize_acceptance trims the blank lines at the fence's trailing edge",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    while end > start and not lines[end - 1].strip():\n        end -= 1",
+      "to": "    while False:\n        end -= 1",
+      "only": "^record\\.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that$"
+    },
+    {
+      "label": "record: acceptance_digest hashes the fence it was given, not a constant",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return hashlib.sha256(command.encode(\"utf-8\")).hexdigest()",
+      "to": "    return hashlib.sha256(b\"\").hexdigest()",
+      "only": "^record\\.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that$"
+    },
+    {
+      "label": "adr-next: the section reader is the shared fence-aware one, not a private fence-blind copy (ADR-045)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402",
+      "to": "from record import normalize_acceptance, acceptance_digest  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+      "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
+    },
+    {
+      "label": "adr-verify: the Acceptance section is read fence-aware, not cut at the next ^## line (ADR-045)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    body = sections_of(text).get(\"Acceptance\")\n    return None if body is None else \"\\n\".join(body)",
+      "to": "    m = re.search(r\"^## Acceptance\\s*$(.*?)(?=^## |\\Z)\", text, re.M | re.S)\n    return None if not m else m.group(1)",
+      "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
+    },
+    {
+      "label": "adr-next: a gate copied without plugin/lib says so instead of dying in a traceback",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-lint: a gate copied without plugin/lib says so instead of dying in a traceback",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-lint: tracked_or_unignored_paths lists the unignored files on disk as well as the tracked ones (ADR-045)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    for args in ([\"ls-files\", \"-z\"], [\"ls-files\", \"--others\", \"--exclude-standard\", \"-z\"]):",
+      "to": "    for args in ([\"ls-files\", \"-z\"],):",
+      "only": "^adr\\-lint's tracked_or_unignored_paths includes an untracked file; arch\\-lint's tracked_paths excludes it$"
+    },
+    {
+      "label": "arch-lint: tracked_paths lists the index and nothing that exists only on this disk (ADR-045)",
+      "file": "plugin/bin/arch-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\"],",
+      "to": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\", \"--others\", \"--exclude-standard\"],",
+      "only": "^adr\\-lint's tracked_or_unignored_paths includes an untracked file; arch\\-lint's tracked_paths excludes it$"
     }
   ]
 }

@@ -18,6 +18,8 @@ file, the scanned dir, or the git root); prose/URL/F-n pointers are listed as-is
 Exit: 0 = report printed, every path/ADR pointer resolves
       1 = malformed pointer (deferred with nothing after the colon) or
           a path/ADR pointer that resolves to nothing
+      2 = could not run: plugin/lib/record.py is not beside this gate's bin/
+          (a gate copied on its own; ADR-045)
 
 The loop: run this at /adr-write time. Every reported item is either pulled
 into the new ADR's Context, re-deferred with a fresh pointer, or classified as
@@ -32,6 +34,8 @@ which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 """
 import datetime
+import importlib.util as _ilu
+import os
 import re
 import subprocess
 import sys
@@ -50,6 +54,25 @@ for _s in (_sys.stdout, _sys.stderr):
     except Exception:
         pass
 # ---------------------------------------------------------------------------
+
+# The record grammar — `sections_of` — lives in plugin/lib/record.py and is loaded
+# the way adr-verify loads fence.py (ADR-045): from THIS file's path, never from
+# PATH or cwd. Until 2026-09-11 this gate carried its own copy, one of five
+# identical ones. A gate copied without lib/ says so and exits 2 (ADR-005).
+_lib = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(__file__))), "lib")
+_record_file = os.path.join(_lib, "record.py")
+if not os.path.isfile(_record_file):
+    sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
+                     f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
+                     f"or through a forwarder.\n")
+    sys.exit(2)
+_loaded_record = sys.modules.get("record")
+if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
+    _record_spec = _ilu.spec_from_file_location("record", _record_file)
+    _loaded_record = _ilu.module_from_spec(_record_spec)
+    sys.modules["record"] = _loaded_record
+    _record_spec.loader.exec_module(_loaded_record)
+from record import sections_of  # noqa: E402
 
 
 def disposition_span(text):
@@ -227,20 +250,6 @@ def deferred_pointer(line):
     """
     span = disposition_span(line)
     return deferred_pointer_of(span[0]) if span else None
-
-
-def sections_of(text):
-    out, cur, fence = {}, None, False
-    for line in text.splitlines():
-        if line.lstrip().startswith("```"):
-            fence = not fence
-        m = None if fence else re.match(r"^## (.+?)\s*$", line)
-        if m:
-            cur = m.group(1)
-            out[cur] = []
-        elif cur is not None:
-            out[cur].append(line)
-    return out
 
 
 def git_root(d):

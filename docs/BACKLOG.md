@@ -12577,3 +12577,36 @@ Also from the same review, in the same record: T4 (a missing lib exits the gate'
 code, and the `record.py`-absent branch of adr-verify / spec-verify has a fixture), T5 (a repeated
 `## ` heading is a finding). Left named: a `record.py` that exists but raises on import is a traceback
 (spec §Non-Goals); the eight non-CR/LF separators `splitlines()` folds are documented, not changed.
+
+## 199. CLOSED 2026-09-11 — the second Codex review of ADR-045: what T3–T6 introduced, and the edges they left
+
+Findings of the different-lineage review of `9942edb`..`1739425` (CLAUDE.md §12), each closed in ADR-045
+T7–T11 or ADR-046, with the two corrections to earlier records that §10 says go here rather than into them.
+
+- **§198 overstated T6's writer bug.** §198 and T6 describe the fenced `## FAIL` case as reachable from
+  tool-written output. It was not: adr-verify indents every excerpt line by two spaces, and `_HEADING`
+  is line-start, so an indented `## ` inside an excerpt was never a heading. The T6 fixture used an
+  unindented fence with an unindented `## FAIL` — a hand-written shape. The class T6 closed is real
+  (a fence-blind reader ends a section at any `^## ` line), and the reachable member was the one the
+  review then found: an excerpt line that is itself ``` (T8). §198 and T6 are left as written.
+- **T8** — a quoted output line that is a fence line toggled the grammar; `## Mutation Log` became
+  text and the next entry landed under it, exit 0. Neutralised at the writer through the grammar
+  (`record.fence_safe`, `excerpt_fence`); an open fence is named by line by adr-verify (refuses),
+  adr-lint (blocks a task, advises an ADR) and adr-next (`unproven` note).
+- **T7** — T6's writer glued an entry onto a heading that ended the file without a line break; the regex
+  it replaced had refused that file. **T9** — adr-lint named an unrunnable opener to its first token.
+  **T10** — two fence grammars became one (CommonMark's two markers, length-matched closers, a runnable
+  opener that is a line; `ACCEPTANCE_FENCE` deleted for `acceptance_fence`). **T11** — `splitlines()`'s
+  eight extra separators, which the spec had filed as a non-goal on a session's reading rather than the
+  owner's decision; reversed as a dated line, the corpus recomputed with 0 differences each time.
+- **ADR-046** — three callers turned a gate's own could-not-run exit into something else:
+  `facts-gate-dispatch.sh` into "not satisfied … Fix the artifact", `qh-mcp` into `isError: false`
+  content, `lifecycle.mjs` into silence. A separate record because ADR-045 governs the grammar inside the
+  gates and these are Session-layer surfaces relaying what a gate says about itself.
+
+Left named (T11 §Out of Scope): the gates still call Python's `splitlines()` on record text OUTSIDE
+`sections_of` — header lines (`**Rests-on:**`, `**Status:**`), table rows, the proof-map parser.
+Enumerated 2026-09-11: `rg -n 'splitlines\(\)' plugin/bin/adr-lint plugin/bin/adr-next plugin/bin/adr-verify plugin/bin/spec-verify plugin/bin/arch-lint plugin/bin/adr-debt plugin/bin/adr-retire-check | rg -v '^\S+:\s*#'`
+→ 25 call sites. None decides a heading or a digest (those go through `record.split_lines`), so a
+stray FF in a header line can at most misread that header. Not fixed here: each is a different reader
+with a different regression, and the class is the whole set of them.

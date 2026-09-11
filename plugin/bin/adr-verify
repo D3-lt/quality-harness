@@ -694,6 +694,15 @@ def append_entry(task, text, block, section="Verification Log"):
              f"task file and re-run. This tool appends entries; it does not create the section, "
              f"because a task file's shape is the author's.")
     start, body_start, end = span
+    head = text[start:body_start]
+    # A heading that is the file's LAST LINE with no line break: the span's head
+    # ends at the heading text itself, and splicing the entry after it produced
+    # `## Verification Log- 2026-…` — one line, no section (ADR-045 T7). The regex
+    # this replaced required `\n` after the heading and refused the file; the
+    # writer now supplies the break the author left out. `text` is in `\n` form
+    # (read_text folds CRLF), and write_source spells it back in the file's own.
+    if not head.endswith("\n"):
+        head += "\n"
     # The heading keeps the blank lines that follow it, byte for byte what the
     # regex `^## <section>\s*\n` kept: its `\s*` ran through the whitespace after
     # the heading and backtracked to the last line break in it. A writer that
@@ -706,7 +715,7 @@ def append_entry(task, text, block, section="Verification Log"):
     # multi-line template placeholder: from '<Tool-written by' to the line ending in '>'
     sec = re.sub(r"^<Tool-written by.*?>\s*$", "", sec, flags=re.M | re.S)
     body = sec.strip("\n")
-    new = text[start:body_start] + (body + "\n" if body else "") + block + "\n"
+    new = head + (body + "\n" if body else "") + block + "\n"
     tail = text[end:]
     write_source(task, text[:start] + new + ("\n" + tail if tail else ""), file_newline(task))
 

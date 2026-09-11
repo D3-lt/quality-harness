@@ -3139,6 +3139,39 @@ test('a disk-only task dir is not in flight', async () => {
   assert.doesNotMatch(note.text, /UNPROVEN/)
 })
 
+// ADR-046 T3. readyTaskLines tolerated adr-next's 0 and 3 and `continue`d on
+// anything else — the silence of a directory with no tasks, for a gate whose lib
+// was missing beside a copied bin/ (exit 2, ADR-045 T4). Through the SessionStart
+// hook on stdin, the outermost boundary, with CLAUDE_PLUGIN_ROOT pointing at a
+// plugin copied WITHOUT lib/: the orientation must say UNPROVEN where the ready
+// line would be, with the gate's own sentence; the real plugin on the same
+// repository offers the task.
+test('SessionStart says UNPROVEN, with the gate\'s reason, when adr-next could not run', async () => {
+  const root = await mkdtemp(path.join(testTmp, 'ss-ready-unrun-'))
+  await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
+  await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),
+    path.join(root, 'docs', 'tasks', 'T1-fixture.md'))
+  gitInit(root)
+  const nolib = await mkdtemp(path.join(testTmp, 'plugin-nolib-'))
+  await cp(path.join(pluginDir, 'bin'), path.join(nolib, 'bin'), { recursive: true })
+  await cp(path.join(pluginDir, 'scripts'), path.join(nolib, 'scripts'), { recursive: true })
+  const orientation = run => JSON.parse(run.stdout).hookSpecificOutput.additionalContext
+
+  const unrun = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root },
+    { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, CLAUDE_PLUGIN_ROOT: nolib } })
+  assert.equal(unrun.status, 0, unrun.stderr)
+  const said = orientation(unrun)
+  assert.match(said, /ADR tasks in flight:\n {2}docs\/tasks: UNPROVEN — adr-next could not run \(exit 2\): \[adr-next\] could not run: plugin\/lib\/record\.py is not beside/,
+    `could-not-run reaches the session as UNPROVEN, with the gate's sentence: ${said}`)
+  assert.doesNotMatch(said, /is ready —|all \d+ task\(s\) carry|nothing ready/, `no verdict about tasks nobody read: ${said}`)
+
+  // DIRTY: the same repository through the real plugin offers the task.
+  const ran = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root })
+  assert.equal(ran.status, 0, ran.stderr)
+  assert.match(orientation(ran), /docs\/tasks: T1 is ready —/, orientation(ran))
+  assert.doesNotMatch(orientation(ran), /UNPROVEN — adr-next/)
+})
+
 test('git cannot list is UNPROVEN, not no ready tasks', async () => {
   const root = await mkdtemp(path.join(testTmp, 'ss-ready-fail-'))
   await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })

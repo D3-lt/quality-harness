@@ -60,7 +60,7 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        block += \"\\n\" + \"\\n\".join([\"  ```\"] + [\"  \" + ln for ln in out] + [\"  ```\"])",
+      "from": "        block += \"\\n\" + excerpt_fence(failure_tail(stdout_text, stderr_text))",
       "to": "        pass"
     },
     {
@@ -3086,7 +3086,7 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    if not acc_match and \"Acceptance is human-observed:\" not in acc:",
+      "from": "    if acc_body is None and \"Acceptance is human-observed:\" not in acc:",
       "to": "    if False:",
       "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
     },
@@ -6948,8 +6948,8 @@
         "tests/adr-next.test.mjs",
         "tests/gates.test.mjs"
       ],
-      "from": "            fence = not fence",
-      "to": "            fence = False",
+      "from": "            if opened:\n                fence = (lineno, line, opened)",
+      "to": "            if False:\n                fence = (lineno, line, opened)",
       "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$|^record\\.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that$"
     },
     {
@@ -7179,7 +7179,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    return _scan(text)[1]",
+      "from": "    open_fence = _scan(text)[1]\n    return None if open_fence is None else open_fence[:2]",
       "to": "    return None",
       "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
     },
@@ -7189,7 +7189,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    m = _FENCE_LINE.match(line)\n    if not m:\n        return line",
+      "from": "    m = _FENCE.match(line)\n    if not m:\n        return line",
       "to": "    m = None\n    if not m:\n        return line",
       "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
     },
@@ -7199,8 +7199,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "_FENCE_LINE = re.compile(r\"^(?P<indent>[ \\t]*)(?:```|~~~)\")",
-      "to": "_FENCE_LINE = re.compile(r\"^(?P<indent>[ \\t]*)(?:```)\")",
+      "from": "_FENCE = re.compile(r\"^(?P<indent>[ \\t]*)(?P<marker>`{3,}|~{3,})(?P<rest>.*)$\")",
+      "to": "_FENCE = re.compile(r\"^(?P<indent>[ \\t]*)(?P<marker>`{3,})(?P<rest>.*)$\")",
       "only": "^record\\.py: an unclosed fence is named by line, a tilde fence is a fence, and fence_safe spells a fence line so it cannot toggle$"
     },
     {

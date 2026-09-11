@@ -1956,7 +1956,7 @@ test('the record grammar is one module: every gate loads plugin/lib/record.py an
   for (const gate of RECORD_GATES) {
     const source = readFileSync(join(bin, gate), 'utf8')
     assert.doesNotMatch(source, /```\(\?:bash|```bash\\s\*\\n|```bash\\n\(/,
-      `${gate} carries its own Acceptance fence opener; record.ACCEPTANCE_FENCE is the one grammar`)
+      `${gate} carries its own Acceptance fence opener; record.acceptance_fence is the one grammar`)
     assert.doesNotMatch(source, /\(\?=\^## \|\\Z\)/,
       `${gate} carries a fence-blind section reader; record.sections_of / section_span is the one grammar`)
   }
@@ -2034,8 +2034,8 @@ test('record.py: the opener is bash, sh or shell; a repeated heading is named; a
     'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
     'record = importlib.util.module_from_spec(spec)',
     'spec.loader.exec_module(record)',
-    'F = record.ACCEPTANCE_FENCE',
-    'body = lambda s: (m := F.search(s)) and m.group(1)',
+    'body = record.acceptance_fence',
+    'first = record.first_fence_line',
     // A repeated heading, a fenced `## ` that is text, CRLF line breaks, and a
     // heading with trailing spaces — one document, every rule.
     'doc = "# T\\r\\n\\r\\n## A  \\r\\nfirst\\r\\n\\r\\n```\\r\\n## Fenced\\r\\n```\\r\\n## B\\r\\nb\\r\\n## A\\r\\nsecond\\r\\n"',
@@ -2043,6 +2043,24 @@ test('record.py: the opener is bash, sh or shell; a repeated heading is named; a
     'print(json.dumps({',
     '    "openers": {k: body(f"```{k}\\n  x\\n```") for k in ("bash", "sh", "shell", "bash  ", "python", "", "bashful")},',
     '    "crlf_opener": body("```sh\\r\\n  x\\r\\n```"),',
+    // ADR-045 T10: one fence grammar. The runnable opener is a LINE — backticks, a
+    // shell label, nothing else — and its body runs to the closer that matches it.
+    '    "edges": {',
+    '        "attribute": body("```bash title=x\\n  x\\n```"),',
+    '        "upper": body("```BASH\\n  x\\n```"),',
+    '        "tilde": body("~~~bash\\n  x\\n~~~"),',
+    '        "prose_before": body("see ```bash\\n  x\\n```"),',
+    '        "indented": body("  ```bash\\n  x\\n  ```"),',
+    '        "outer4_inner_bash": body("````\\n```bash\\n  x\\n```\\n````"),',
+    '        "four_bash": body("````bash\\n  x\\n```\\n  y\\n````"),',
+    '        "unterminated": body("```bash\\n  x\\n"),',
+    '        "fence_in_command": body("```bash\\necho \'```\'\\nexit 1\\n```"),',
+    '        "after_example": body("```text\\n```bash\\n  shown\\n```\\n```bash\\n  real\\n```"),',
+    '        "tilde_then_bash": body("~~~\\n## not a heading\\n~~~\\n```sh\\n  real\\n```"),',
+    '        "lines_in": body(["```shell", "  x", "```"]),',
+    '        "inline_code_line": list(record.sections_of("```a`b`\\n## H\\n```\\n")),',
+    '    },',
+    '    "first": {k: first(v) for k, v in {"attribute": "prose\\n  ```bash title=x  \\n", "tilde": "~~~bash\\n", "none": "prose only\\n"}.items()},',
     '    "repeated": record.repeated_headings(doc),',
     '    "clean": record.repeated_headings("## A\\n\\n```\\n## A\\n```\\n## B\\n"),',
     '    "sections": record.sections_of(doc),',
@@ -2057,9 +2075,24 @@ test('record.py: the opener is bash, sh or shell; a repeated heading is named; a
   // The three openers, with or without trailing whitespace, and nothing else:
   // `bashful` is not `bash`, a bare ``` is not runnable, and `python` never was.
   assert.deepEqual(got.openers,
-    { bash: '  x\n', sh: '  x\n', shell: '  x\n', 'bash  ': '  x\n', python: null, '': null, bashful: null },
+    { bash: '  x', sh: '  x', shell: '  x', 'bash  ': '  x', python: null, '': null, bashful: null },
     `the one opener grammar: ${JSON.stringify(got.openers)}`)
-  assert.equal(got.crlf_opener, '  x\r\n', 'a CRLF opener line is a fence too (CLAUDE.md §7)')
+  assert.equal(got.crlf_opener, '  x', 'a CRLF opener line is a fence too (CLAUDE.md §7)')
+  // The edges, each against the one grammar: an attribute, a capital or a tilde
+  // is not runnable; an opener is a line, not a substring; indentation is
+  // allowed as the walk has always allowed it; an inner ```bash inside a ````
+  // fence is text; a ````bash fence closes only on four; an open fence has no
+  // body; a ``` INSIDE the command is command, not the closer (the old regex
+  // ended the body there: `echo '```'` ran as `echo '`); an example fence before
+  // the real one is walked over; and a list of lines is read like text.
+  assert.deepEqual(got.edges, {
+    attribute: null, upper: null, tilde: null, prose_before: null,
+    indented: '  x', outer4_inner_bash: null, four_bash: '  x\n```\n  y', unterminated: null,
+    fence_in_command: "echo '```'\nexit 1", after_example: '  real', tilde_then_bash: '  real',
+    lines_in: '  x', inline_code_line: ['H'],
+  }, `the fence edges: ${JSON.stringify(got.edges)}`)
+  assert.deepEqual(got.first, { attribute: '```bash title=x', tilde: '~~~bash', none: null },
+    `the first fence line, whole and trimmed, for the gate that has to name it: ${JSON.stringify(got.first)}`)
   // A heading twice is named; the same heading once outside a fence and once inside is not.
   assert.deepEqual(got.repeated, ['A'], `only the real repeat: ${JSON.stringify(got.repeated)}`)
   assert.deepEqual(got.clean, [], 'a fenced `## A` is text, not a second A')

@@ -9,7 +9,7 @@ Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
 Extracts the runnable fence under ## Acceptance (```bash, ```sh or ```shell —
-`record.ACCEPTANCE_FENCE`, the one opener every gate reads) and runs it with bash
+`record.acceptance_fence`, the one opener every gate reads) and runs it with bash
 (cwd: --cwd, else git root of the task file, else the task file's directory).
 Appends one entry to ## Verification Log:
 
@@ -157,7 +157,7 @@ if os.path.realpath(getattr(_loaded, "__file__", None) or "") != os.path.realpat
 from fence import *  # noqa: E402,F401,F403
 
 # The record grammar — `sections_of`, `section_span`, `repeated_headings`,
-# `normalize_acceptance`, `acceptance_digest`, and the fence opener `ACCEPTANCE_FENCE`
+# `normalize_acceptance`, `acceptance_digest`, and the runnable fence `acceptance_fence`
 # — lives in plugin/lib/record.py beside fence.py and is loaded the same way
 # (ADR-045). This gate WRITES the digest adr-lint verifies and adr-next reads; until
 # 2026-09-11 each carried its own copy of these functions, and adr-next's had
@@ -174,7 +174,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
+from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest  # noqa: E402,E501
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -465,7 +465,7 @@ def collapse_repeats(lines):
     return [text if n == 1 else f"{text}  (x{n})" for text, n in folded]
 
 
-# `ACCEPTANCE_FENCE` — which opener makes a fence the runnable one — arrives from
+# `acceptance_fence` — which opener makes a fence the runnable one — arrives from
 # plugin/lib/record.py (ADR-045 T3). It was defined HERE as `bash|sh|shell` while
 # adr-lint's digest path read `bash` only, so a ```sh task this gate ran and
 # recorded was never digest-checked by the gate that accepts the `done` row.
@@ -2231,8 +2231,7 @@ def acceptance_of(text):
     section = acceptance_section(text)
     if section is None:
         return None
-    fence = ACCEPTANCE_FENCE.search(section)
-    return fence.group(1) if fence else None
+    return acceptance_fence(section)
 
 
 def acceptance_section(text):
@@ -2638,12 +2637,12 @@ def main():
     m = acceptance_section(text)
     if m is None:
         fail(f"{task.name}: no ## Acceptance section")
-    fm = ACCEPTANCE_FENCE.search(m)
-    if not fm:
+    fence_body = acceptance_fence(m)
+    if fence_body is None:
         fail(f"{task.name}: no non-empty ```bash fence under ## Acceptance "
              f'(```sh and ```shell are read too; human-observed task? '
              f'use --human "<sign-off>")')
-    cmd = normalize_acceptance(fm.group(1))
+    cmd = normalize_acceptance(fence_body)
     if not cmd:
         fail(f"{task.name}: no non-empty ```bash fence under ## Acceptance "
              f'(```sh and ```shell are read too; human-observed task? '

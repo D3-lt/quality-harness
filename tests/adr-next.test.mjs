@@ -1111,7 +1111,7 @@ test("a heading inside the Acceptance fence is not a heading: adr-next agrees wi
 // ADR-045 T3. adr-next matched a bare ```bash\n — no `sh`, no `shell`, not even a
 // space after the label — while adr-verify ran and recorded all three. A task
 // written with ```sh was verified by one tool and offered as READY by the other
-// (docs/BACKLOG.md §197). One opener now, `record.ACCEPTANCE_FENCE`, and this is
+// (docs/BACKLOG.md §197). One opener now, `record.acceptance_fence`, and this is
 // the outermost check of it: the writer's CLI records, the reader's CLI says done.
 test("a sh-labelled Acceptance fence adr-verify recorded is done to adr-next", () => {
   for (const opener of ['sh', 'shell', 'bash  ']) {
@@ -1137,4 +1137,33 @@ test("a sh-labelled Acceptance fence adr-verify recorded is done to adr-next", (
   assert.equal(refused.status, 2, `a python fence is refused: ${refused.stdout}${refused.stderr}`)
   const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
   assert.ok(!(parsed.done ?? []).some(t => t.id === 'T1'), `not done: ${JSON.stringify(parsed)}`)
+})
+
+// ADR-045 T8/T10. A fence that never closes hides every heading after it from the
+// shared walk, so this reader sees no Acceptance and no Verification Log — and a
+// bare READY would read as "never attempted". adr-verify refuses such a task and
+// adr-lint blocks it; adr-next says the same where it renders, as the task's
+// `unproven` note. Both the JSON and the human line carry it; a closed fence
+// carries no such note.
+test('a task whose code fence never closes is READY with a note saying its sections could not be read', () => {
+  const { tasksDir } = corpus([{ id: 'T1', fence: 'printf one' }])
+  const taskPath = join(tasksDir, 'T1-t.md')
+  const text = readFileSync(taskPath, 'utf8')
+  const openLine = text.split('\n').length + 1
+  writeFileSync(taskPath, `${text}\n\`\`\`text\nnever closed\n`)
+  const parsed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  const entry = (parsed.ready ?? []).find(t => t.id === 'T1')
+  assert.ok(entry, `an unreadable task is still offered, not silently dropped: ${JSON.stringify(parsed)}`)
+  assert.match(entry.unproven ?? '', new RegExp(`code fence opened at line ${openLine} \\(\`\`\`text\\) that never closes`),
+    `the note names the open fence by line: ${JSON.stringify(entry)}`)
+  const human = next([tasksDir], tasksDir)
+  assert.match(human.stdout, /⚠ this task has a code fence opened at line \d+ \(```text\) that never closes/,
+    `the human render carries the same note: ${human.stdout}`)
+
+  // CLEAN: the same task with the fence closed carries no note about fences.
+  writeFileSync(taskPath, `${text}\n\`\`\`text\nclosed\n\`\`\`\n`)
+  const closed = JSON.parse(next(['--all', '--json', tasksDir], tasksDir).stdout)
+  const clean = (closed.ready ?? []).find(t => t.id === 'T1')
+  assert.ok(clean, JSON.stringify(closed))
+  assert.doesNotMatch(clean.unproven ?? '', /never closes/, `a closed fence is not reported: ${JSON.stringify(clean)}`)
 })

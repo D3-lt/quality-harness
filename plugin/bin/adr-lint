@@ -12,7 +12,7 @@ Checks:
            Out of Scope entries carry a disposition: (permanent: boundary: <reason>),
            (permanent: fact: <claim>; citation: <typed receipt>), or (deferred: <pointer>)
   Tasks  : runnable fence under ## Acceptance — ```bash, ```sh or ```shell, the one
-           opener `record.ACCEPTANCE_FENCE` every gate reads (or explicit human-observed
+           opener `record.acceptance_fence` every gate reads (or explicit human-observed
            sentence) · no `## ` heading repeated (a second ## Acceptance blocks; any other
            repeat advises) ·
            required sections · Affected Files ≥1 row · Ordered Steps step 1 mentions a test ·
@@ -94,7 +94,7 @@ except Exception as _fence_error:  # lib/ is not beside bin/: a copied gate
         return None
 
 # The record grammar — `sections_of`, `repeated_headings`, `normalize_acceptance`,
-# `acceptance_digest`, and the fence opener `ACCEPTANCE_FENCE` — lives in
+# `acceptance_digest`, and the runnable fence `acceptance_fence` — lives in
 # plugin/lib/record.py and is loaded the way adr-verify loads fence.py (ADR-045).
 # Unlike the resolver above this is not a helper one check needs: every section
 # this gate reads goes through it, so a gate copied without lib/ says so in one
@@ -116,7 +116,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, repeated_headings, unterminated_fence, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
+from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest  # noqa: E402,E501
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
@@ -150,7 +150,7 @@ SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 # Tool-written mutation evidence. Same shape and same purpose as VLOG_RE: an entry
 # off this grammar was typed by a person, and a typed mutant is the thing the log
 # replaced. `killed` is the only verdict that is evidence — see adr-verify --mutant.
-# `ACCEPTANCE_FENCE` — what a runnable fence IS — arrives from plugin/lib/record.py
+# `acceptance_fence` — what a runnable fence IS — arrives from plugin/lib/record.py
 # (ADR-045 T3). It was "mirrored from adr-verify" here, by hand, and the digest
 # path below carried a THIRD spelling that read `bash` only: a ```sh task the
 # writer ran and recorded found no fence here, `acc_all` was "", and the `done`
@@ -1487,13 +1487,14 @@ def check_task(path, all_stems, errors, root, tracked):
     # blamed on the author as "no fence" — and a fence in a language no gate runs
     # (```python) is still refused, now by name, so an author is told which opener
     # is wrong rather than that a fence they can see is not there.
-    acc_match = ACCEPTANCE_FENCE.search(acc)
-    if not acc_match and "Acceptance is human-observed:" not in acc:
-        # The WHOLE opener line, trimmed: ```bash title=x was reported as "opens
-        # with ```bash", which names the part that is fine and hides the part
-        # that was rejected (ADR-045 T9).
-        opener = re.search(r"^[ \t]*```.*$", acc, re.M)
-        found = (f"its fence opens with {opener.group(0).strip()}, which is not a runnable "
+    acc_body = acceptance_fence(acc)
+    if acc_body is None and "Acceptance is human-observed:" not in acc:
+        # The WHOLE opener line, trimmed, from the grammar: ```bash title=x was
+        # reported as "opens with ```bash", which names the part that is fine and
+        # hides the part that was rejected (ADR-045 T9); ~~~bash and ```BASH are
+        # fences to the walk and never runnable, and are named the same way (T10).
+        opener = first_fence_line(acc)
+        found = (f"its fence opens with {opener}, which is not a runnable "
                  f"Acceptance fence — " if opener else "")
         errors.append(f"{path.name}: ## Acceptance has no runnable fence (```bash, ```sh or "
                       f"```shell) and no explicit 'Acceptance is human-observed:' sentence — "
@@ -1705,7 +1706,7 @@ def check_task(path, all_stems, errors, root, tracked):
     #
     # ADVICE, never a block (CLAUDE.md §3): a fence runnable in CI and not locally
     # is a real shape, and blocking it teaches people to route around the gate.
-    if any(MLOG_HUMAN_RE.match(b) for b in mlog) and ACCEPTANCE_FENCE.search(acc):
+    if any(MLOG_HUMAN_RE.match(b) for b in mlog) and acc_body is not None:
         errors.advise(
             f"{path.name}: a Mutation Log row records a mutation a PERSON performed, and this "
             f"task's Acceptance is a runnable ```bash fence. That lane is for a fence that "
@@ -1716,12 +1717,13 @@ def check_task(path, all_stems, errors, root, tracked):
             f"to re-derive it.")
     has_mlog_section = "Mutation Log" in secs
 
-    # `acc_match` is the shared opener's match from above: the fence this gate
-    # digests is the fence adr-verify ran, by construction rather than by a second
-    # regex that has to be kept equal (ADR-045 T3). An Acceptance that reaches here
-    # with no match has already been reported above, so `acc_all == ""` below is
-    # never a fence this gate could not see — it is a task with no runnable fence.
-    acc_all = normalize_acceptance(acc_match.group(1)) if acc_match else ""
+    # `acc_body` is the shared grammar's runnable body from above: the fence this
+    # gate digests is the fence adr-verify ran, by construction rather than by a
+    # second regex that has to be kept equal (ADR-045 T3, T10). An Acceptance that
+    # reaches here with none has already been reported above, so `acc_all == ""`
+    # below is never a fence this gate could not see — it is a task with no
+    # runnable fence.
+    acc_all = normalize_acceptance(acc_body) if acc_body is not None else ""
     acc_first = acc_all.splitlines()[0].strip() if acc_all else None
     # ADR-022 T4. Under-declaration is the record's residual risk and this is the
     # only hint available for it. SAYS WHAT IT COUNTED, never what that means:

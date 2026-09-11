@@ -80,7 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402
+from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -234,17 +234,17 @@ def status_stop(text):
 def acceptance(text):
     """The task's Acceptance fence body, its first command line, and its digest.
 
-    The fence is found with the shared `ACCEPTANCE_FENCE` (ADR-045 T3). This was a
+    The fence is found with the shared `acceptance_fence` (ADR-045 T3, T10). This was a
     private ```bash\\n match — no `sh`, no `shell`, not even a space after the
     label — so a task adr-verify had run and recorded was offered here as READY:
     the reader of the evidence could not see the fence the writer had hashed.
     """
     body = "\n".join(sections_of(text).get("Acceptance", []))
-    m = ACCEPTANCE_FENCE.search(body)
-    if not m:
+    raw = acceptance_fence(body)
+    if raw is None:
         human = "Acceptance is human-observed:" in body
         return None, ("human-observed" if human else None), None
-    fence = normalize_acceptance(m.group(1))
+    fence = normalize_acceptance(raw)
     # adr-verify's evidence entry shows line 1 by design; a human wants the line
     # that actually runs something, so skip shell preamble when choosing a hint.
     preamble = re.compile(r"^(?:set\s+[-+][A-Za-z]+|cd\s+\S+|export\s+\S+=|#)")
@@ -340,6 +340,24 @@ def unprovable_evidence(text, digest, fence, first):
     return None
 
 
+def unreadable_note(text):
+    """Why this reader could not see the task's sections, or None.
+
+    ADR-045 T8/T10. A code fence that never closes hides every heading after it
+    from the shared walk — the Acceptance this reader would hash, the log it would
+    read — so `acceptance` returns no fence and `is_done` says no, both correctly
+    and both for a reason the render would otherwise not carry: a bare READY that
+    reads as "never attempted". adr-verify refuses such a task and adr-lint
+    blocks it; this gate says the same thing where it renders.
+    """
+    unclosed = unterminated_fence(text)
+    if unclosed:
+        return (f"has a code fence opened at line {unclosed[0]} ({unclosed[1].strip()}) that "
+                f"never closes, so its Acceptance and Verification Log could not be read; "
+                f"close the fence")
+    return None
+
+
 def unproven_note(inf):
     """The parenthetical a READY line carries, or the empty string.
 
@@ -394,7 +412,7 @@ def load(tasks_dir):
             # Read whatever the answer above was, and rendered only when it is
             # `ready`: a done task's evidence is the evidence, and a blocked or
             # stopped task already prints a reason of its own.
-            "unproven": unprovable_evidence(text, digest, fence, first),
+            "unproven": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),
             # ADR-005 applied to routing. A sign-off that says STOP denies `done`
             # and used to fall straight through to `ready`, so the router offered
             # work the record forbids starting. Reported 2026-09-02 from another

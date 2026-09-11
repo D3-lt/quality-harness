@@ -2144,6 +2144,51 @@ test('record.py: an unclosed fence is named by line, a tilde fence is a fence, a
   assert.equal(got.safe_closes, null, 'a fence holding only fence_safe lines closes where the writer closed it')
 })
 
+// ADR-045 T11. Only CR, LF and CRLF break a line. `str.splitlines()` also breaks
+// on VT, FF, FS, GS, RS, NEL, LS and PS, so one heading holding one of them read
+// as two lines — the second of which could be a heading, manufacturing a
+// repeated-heading block (T5) out of one line — and a command holding one was
+// hashed with that byte turned into `\n`. The grammar now has one splitter, and
+// every reader is a view of it. Shown on each of the eight, beside the three that
+// DO break a line, with the digest taken over the bytes as written.
+test('record.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest', () => {
+  const probe = [
+    'import hashlib, importlib.util, json, sys',
+    'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
+    'record = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(record)',
+    'others = ["\\x0b", "\\x0c", "\\x1c", "\\x1d", "\\x1e", "\\x85", "\\u2028", "\\u2029"]',
+    'breaks = ["\\n", "\\r\\n", "\\r"]',
+    'body = record.acceptance_fence("```bash\\nprintf a\\x85b\\n```")',
+    'norm = record.normalize_acceptance(body)',
+    'print(json.dumps({',
+    '    "one_heading": [list(record.sections_of("## A" + sep + "B\\nbody\\n")) for sep in others],',
+    '    "no_repeat": [record.repeated_headings("## Acceptance\\n" + sep + "## Acceptance\\n") for sep in others],',
+    '    "breaks_do": [list(record.sections_of("## A" + sep + "## B" + sep)) for sep in breaks],',
+    '    "breaks_repeat": [record.repeated_headings("## A" + sep + "## A" + sep) for sep in breaks],',
+    '    "lines": [[l for l, _s, _e in record.split_lines("x" + sep + "y")] for sep in others + breaks],',
+    '    "norm": norm,',
+    '    "digest": record.acceptance_digest(norm),',
+    '    "sha": hashlib.sha256("printf a\\x85b".encode("utf-8")).hexdigest(),',
+    '}))',
+  ].join('\n')
+  const out = run('python3', ['-c', probe, join(root, 'lib', 'record.py')])
+  expectExit(out, 0, 'record.py probe')
+  const got = JSON.parse(out.stdout)
+  const others = ['\x0b', '\x0c', '\x1c', '\x1d', '\x1e', '\x85', '\u2028', '\u2029']
+  assert.deepEqual(got.one_heading, others.map(sep => [`A${sep}B`]),
+    `a heading holding any of the eight is ONE heading, with the byte in its name: ${JSON.stringify(got.one_heading)}`)
+  assert.deepEqual(got.no_repeat, others.map(() => []),
+    `a second "## Acceptance" that is really the tail of a line is not a repeat: ${JSON.stringify(got.no_repeat)}`)
+  // DIRTY for the splitter: the three real breaks DO split, and DO manufacture the repeat.
+  assert.deepEqual(got.breaks_do, [['A', 'B'], ['A', 'B'], ['A', 'B']], JSON.stringify(got.breaks_do))
+  assert.deepEqual(got.breaks_repeat, [['A'], ['A'], ['A']], JSON.stringify(got.breaks_repeat))
+  assert.deepEqual(got.lines, [...others.map(sep => [`x${sep}y`]), ['x', 'y'], ['x', 'y'], ['x', 'y']],
+    `split_lines breaks on exactly three separators: ${JSON.stringify(got.lines)}`)
+  assert.equal(got.norm, 'printf a\x85b', 'the NEL is a byte of the command, preserved')
+  assert.equal(got.digest, got.sha, 'and the digest is taken over exactly those bytes')
+})
+
 // ADR-045 F-3. adr-lint's listing includes untracked, non-ignored files (a
 // record and the files it governs land in one commit — ADR-011, ADR-017);
 // arch-lint's deliberately lists the index only. They carried ONE name and

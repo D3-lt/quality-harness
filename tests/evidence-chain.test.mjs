@@ -2838,7 +2838,7 @@ test("the UNPROVEN early return records the steps its run named", () => {
 // digest check was SKIPPED — a forged digest produced byte-identical output. A
 // verifier that cannot see the fence the writer hashed is a verifier that accepts
 // any row (CLAUDE.md §16: not recognised is not known-safe). One opener now,
-// `record.ACCEPTANCE_FENCE`, and this is the outermost check of it (§4): the
+// `record.acceptance_fence`, and this is the outermost check of it (§4): the
 // writer's CLI records, the verifier's CLI judges the row.
 const withOpener = (copy, opener) => {
   const body = readTask(copy).match(/```bash\n([\s\S]*?)\n```/)[1]
@@ -2893,6 +2893,12 @@ test('a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint
   assert.match(named.stdout, /opens with ```bash title=x, which is not a runnable Acceptance fence/,
     `the full opener is named, trimmed: ${named.stdout}`)
   assert.doesNotMatch(named.stdout, /opens with ```bash,/, 'not truncated at the first token')
+  // ADR-045 T10: a tilde fence is a fence to the walk and never runnable, named the same way.
+  const tilde = corpus()
+  writeTask(tilde, readTask(tilde).replace(/```bash\n([\s\S]*?)\n```/, '~~~bash\n$1\n~~~'))
+  const tilded = lint(tilde)
+  expectExit(tilded, 1, 'a ~~~bash fence is not a runnable Acceptance')
+  assert.match(tilded.stdout, /opens with ~~~bash, which is not a runnable Acceptance fence/, tilded.stdout)
 })
 
 // ADR-045 T5. `sections_of` keeps the LAST of a repeated `## ` heading, in every

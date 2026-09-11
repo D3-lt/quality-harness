@@ -2434,7 +2434,7 @@
       "tests": [
         "tests/sweep.test.mjs"
       ],
-      "from": "    fence = ACCEPTANCE_FENCE.search(section)\n    return fence.group(1) if fence else None",
+      "from": "    return acceptance_fence(section)",
       "to": "    fence = re.search(r'^```bash\\n(.*?)```', section, re.S)\n    return fence.group(1) if fence else None"
     },
     {
@@ -3066,8 +3066,8 @@
         "tests/adr-next.test.mjs",
         "tests/gates.test.mjs"
       ],
-      "from": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash|sh|shell)\\s*\\n(.*?)```\", re.S)",
-      "to": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash)\\s*\\n(.*?)```\", re.S)",
+      "from": "_RUNNABLE_INFO = re.compile(r\"(?:bash|sh|shell)[ \\t]*$\")",
+      "to": "_RUNNABLE_INFO = re.compile(r\"(?:bash)[ \\t]*$\")",
       "only": "^an Acceptance fence may be spelled sh or shell$|^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$|^a sh-labelled Acceptance fence adr-verify recorded is done to adr-next$|^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
     },
     {
@@ -3076,8 +3076,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    acc_match = ACCEPTANCE_FENCE.search(acc)\n    if not acc_match and \"Acceptance is human-observed:\" not in acc:",
-      "to": "    acc_match = re.search(r\"```bash\\s*\\n(.*?)```\", acc, re.S)\n    if not acc_match and \"Acceptance is human-observed:\" not in acc:",
+      "from": "    acc_body = acceptance_fence(acc)\n    if acc_body is None and \"Acceptance is human-observed:\" not in acc:",
+      "to": "    acc_match = re.search(r\"```bash\\s*\\n(.*?)```\", acc, re.S)\n    acc_body = acc_match.group(1) if acc_match else None\n    if acc_body is None and \"Acceptance is human-observed:\" not in acc:",
       "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
     },
     {
@@ -3096,8 +3096,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "    m = ACCEPTANCE_FENCE.search(body)\n    if not m:",
-      "to": "    m = re.search(r\"```bash\\n(.*?)```\", body, re.S)\n    if not m:",
+      "from": "    raw = acceptance_fence(body)\n    if raw is None:",
+      "to": "    m = re.search(r\"```bash\\n(.*?)```\", body, re.S)\n    raw = m.group(1) if m else None\n    if raw is None:",
       "only": "^a sh-labelled Acceptance fence adr-verify recorded is done to adr-next$"
     },
     {
@@ -3196,7 +3196,7 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    if any(MLOG_HUMAN_RE.match(b) for b in mlog) and ACCEPTANCE_FENCE.search(acc):",
+      "from": "    if any(MLOG_HUMAN_RE.match(b) for b in mlog) and acc_body is not None:",
       "to": "    if any(MLOG_HUMAN_RE.match(b) for b in mlog):"
     },
     {
@@ -6978,8 +6978,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "from record import sections_of, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402",
-      "to": "from record import normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+      "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest  # noqa: E402",
+      "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
       "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
     },
     {
@@ -7209,9 +7209,69 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        opener = re.search(r\"^[ \\t]*```.*$\", acc, re.M)",
-      "to": "        opener = re.search(r\"^[ \\t]*```\\S*\", acc, re.M)",
+      "from": "        opener = first_fence_line(acc)",
+      "to": "        opener = (lambda m: m and m.group(0).strip())(re.search(r\"^[ \\t]*```\\S*\", acc, re.M))",
       "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
+    },
+    {
+      "label": "record: a fence closes only at the opening length or longer, so an inner ``` is text inside a ```` fence (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and not m.group(\"rest\").strip())",
+      "to": "            and not m.group(\"rest\").strip())",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: a fence closes only on its own marker character (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return (m is not None and m.group(\"marker\")[0] == opened[0]",
+      "to": "    return (m is not None",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: a closer has nothing after the marker, so a labelled line inside an example is text (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and not m.group(\"rest\").strip())",
+      "to": "            and len(m.group(\"marker\")) >= opened[1])",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: only a backtick fence is runnable; a ~~~bash fence is text to the runner (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            if opened and opened[0] == \"`\" and _RUNNABLE_INFO.fullmatch(",
+      "to": "            if opened and _RUNNABLE_INFO.fullmatch(",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "record: a backtick line whose info string holds a backtick is inline code, not a fence (ADR-045 T10)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if marker[0] == \"`\" and \"`\" in rest:\n        return None\n    return marker[0], len(marker)",
+      "to": "    return marker[0], len(marker)",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "adr-next: a task whose fence never closes says so in its note rather than reading as never attempted (ADR-045 T10)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "            \"unproven\": unreadable_note(text) or unprovable_evidence(text, digest, fence, first),",
+      "to": "            \"unproven\": unprovable_evidence(text, digest, fence, first),",
+      "only": "^a task whose code fence never closes is READY with a note saying its sections could not be read$"
     },
     {
       "label": "record: section_span points at the section the reader returns (ADR-045 T6)",

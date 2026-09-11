@@ -49,6 +49,7 @@ node --test --test-name-pattern 'when adr-next could not run' tests/lifecycle.te
 | 4 — it is used | the SessionStart hook on stdin with `CLAUDE_PLUGIN_ROOT` at a copy without `lib/` |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · returned to continue, a no-lib adr-next leaves the orientation silent about docs/tasks and the SessionStart-stdin test finds no UNPROVEN line · acceptance-sha256:1d46368ee6fae51d533cb0d92948f67b829f58cf6f9f8ef5bd6c45037ad7886e
 
 ## Invariants
 
@@ -72,3 +73,5 @@ A green run while a non-0/3 adr-next status leaves the orientation silent about 
 Codes verified by execution 2026-09-11 (ADR-046 §Context). `CLAUDE_PLUGIN_ROOT` is the seam lifecycle.mjs already reads for `PLUGIN_ROOT`, so the no-lib copy is reachable from any platform.
 
 ## Verification Log
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'when adr-next could not run' tests/lifecycle.test.mjs` · acceptance-sha256:1d46368ee6fae51d533cb0d92948f67b829f58cf6f9f8ef5bd6c45037ad7886e · ms:629
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'when adr-next could not run' tests/lifecycle.test.mjs` · acceptance-sha256:1d46368ee6fae51d533cb0d92948f67b829f58cf6f9f8ef5bd6c45037ad7886e · ms:461

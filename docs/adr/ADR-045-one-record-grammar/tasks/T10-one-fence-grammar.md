@@ -60,6 +60,7 @@ node --test --test-name-pattern 'record.py: the opener is bash|the record gramma
 | 4 — it is used | the cross-gate probe: six inputs, three CLIs, identical answers |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/lib/record.py` · a closer that ignores the opening length lets an inner ``` close a ```` fence, so the inner ```bash runs and the four-backtick edges in the probe disagree · acceptance-sha256:8e7d56afeced567b36aec0eb428252a60deb1a3ecca5ce3fbb25de8c9d333432
 
 ## Invariants
 
@@ -97,3 +98,5 @@ Cross-gate probe, 2026-09-11, each input as the fixture task's Acceptance throug
 Class: every fence regex in the gates — `rg -n 'ACCEPTANCE_FENCE|\x60\x60\x60' plugin/bin plugin/lib` before and after; five call sites moved, one constant deleted. Found by the second Codex review of ADR-045 (M3).
 
 ## Verification Log
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'record.py: the opener is bash|the record grammar is one module' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes|sh-labelled Acceptance fence adr-verify recorded' tests/adr-next.test.mjs && node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` · acceptance-sha256:8e7d56afeced567b36aec0eb428252a60deb1a3ecca5ce3fbb25de8c9d333432 · ms:2609
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'record.py: the opener is bash|the record grammar is one module' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes|sh-labelled Acceptance fence adr-verify recorded' tests/adr-next.test.mjs && node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` · acceptance-sha256:8e7d56afeced567b36aec0eb428252a60deb1a3ecca5ce3fbb25de8c9d333432 · ms:2718

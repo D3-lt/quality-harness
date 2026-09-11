@@ -57,6 +57,7 @@ node --test --test-name-pattern 'cannot toggle the grammar' tests/evidence-chain
 | 4 — it is used | a recorded run that printed ``` is followed by an entry in the right section |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/lib/record.py` · fence_safe returning its input lets a printed ``` line into the excerpt unescaped; the walk goes out of phase and the probe sees the fence line unescaped · acceptance-sha256:7a723bee72483bb5b9c495dfb320e6d25fbe9b594d9a347e15181635958a5661
 
 ## Invariants
 
@@ -83,3 +84,5 @@ A green run while a run that prints ``` can move the next entry out of the Verif
 Class: every writer of a fence into a record — `rg -n '\x60\x60\x60' plugin/bin/adr-verify | rg 'block \+='` found two (the failure tail at the recording path and the mutant detail); both now go through `excerpt_fence`. Every reader of a fence marker — one, `_FENCE` in record.py, since T10. Two tests (`tests/gates.test.mjs` "legacy tilde-heading parity" and `tests/gate-regressions.py` `legacy_tilde_heading`) had frozen the one-marker reading as compatibility; ADR-018, which they cited, decided nothing about tildes, and the corpus measurement shows no record's exit changes. Found by the second Codex review of ADR-045 (A).
 
 ## Verification Log
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'cannot toggle the grammar' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'an unclosed fence is named by line' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes' tests/adr-next.test.mjs` · acceptance-sha256:7a723bee72483bb5b9c495dfb320e6d25fbe9b594d9a347e15181635958a5661 · ms:845
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'cannot toggle the grammar' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'an unclosed fence is named by line' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes' tests/adr-next.test.mjs` · acceptance-sha256:7a723bee72483bb5b9c495dfb320e6d25fbe9b594d9a347e15181635958a5661 · ms:711

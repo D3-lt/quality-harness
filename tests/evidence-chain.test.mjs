@@ -3008,6 +3008,56 @@ test('an entry appended under a heading that ends the file without a line break 
   assert.ok(!('Verification Log' in sections), `a glued heading is not a heading: ${Object.keys(sections)}`)
 })
 
+// ADR-045 T8. adr-verify quotes a failed run's last lines inside an indented ```
+// fence. A bound test that itself prints a ``` line put THREE fence lines into the
+// log; the section walk went out of phase, `## Mutation Log` became text, and the
+// next `--human` entry landed under it with exit 0 — reproduced 2026-09-11. The
+// writer now spells any such line with a backslash before the marker, so a
+// tool-written excerpt can never toggle the grammar of the record it is written
+// into; and a fence that never closes is refused by adr-verify and blocked by
+// adr-lint on a task, advised on an ADR, because every heading after it is text.
+test('a run that prints a fence line is quoted so the excerpt cannot toggle the grammar; an unclosed fence is refused and blocked', () => {
+  const copy = corpus()
+  // chr(96)*3 rather than a literal ``` in the Acceptance: the printed line is
+  // the subject, not the fence that prints it.
+  writeTask(copy, readTask(copy)
+    .replace(/```bash\n[\s\S]*?\n```/, '```bash\npython3 -c "print(chr(96)*3)"\nexit 1\n```')
+    .replace(/## Verification Log\n[\s\S]*$/, '## Verification Log\n\n## Mutation Log\n\n- 2026-09-01 · abc1234 · mutant killed · exit 1 · `x` · why · acceptance-sha256:' + '0'.repeat(64) + '\n'))
+  expectExit(verify(copy, ['--cwd', '.']), 1, 'the fence fails and the run is recorded')
+  assert.match(readTask(copy), /^ {2}\\```$/m, `the printed fence line is written escaped: ${readTask(copy)}`)
+  expectExit(verify(copy, ['--human', 'a person watched it pass']), 0, '--human after the excerpt')
+  const sections = sectionsOf(copy)
+  assert.match(sections['Verification Log'].join('\n'), /· human-observed · a person watched it pass$/m,
+    `the next entry is IN the Verification Log: ${JSON.stringify(sections['Verification Log'])}`)
+  assert.deepEqual(sections['Mutation Log'].filter(l => l.trim()).length, 1,
+    `## Mutation Log is still a heading and holds only its own row: ${JSON.stringify(sections['Mutation Log'])}`)
+  assert.doesNotMatch(sections['Mutation Log'].join('\n'), /human-observed/, 'nothing landed under the wrong heading')
+  const clean = lint(copy)
+  assert.doesNotMatch(clean.stdout, /never closed/, `a closed excerpt is clean of the fence finding: ${clean.stdout}`)
+
+  // DIRTY: a fence somebody left open by hand. The writer refuses before writing,
+  // naming the line; the verifier blocks a task on it and advises an ADR.
+  const before = readTask(copy)
+  writeTask(copy, `${before}\n\`\`\`\nstill open\n`)
+  const openLine = before.split('\n').length + 1
+  const refused = verify(copy, ['--human', 'x'])
+  expectExit(refused, 2, 'an unclosed fence is an authoring problem')
+  assert.match(`${refused.stdout}${refused.stderr}`, new RegExp(`code fence opened at line ${openLine} \\(\`\`\`\\) is never closed`),
+    `the refusal names the opener's line: ${refused.stdout}${refused.stderr}`)
+  assert.equal(readTask(copy), `${before}\n\`\`\`\nstill open\n`, 'and writes nothing')
+  const blocked = lint(copy)
+  expectExit(blocked, 1, 'adr-lint blocks a task whose fence never closes')
+  assert.match(blocked.stdout, new RegExp(`^ {2}T1-fixture\\.md: the code fence opened at line ${openLine} \\(\`\`\`\\) is never closed`, 'm'),
+    `blocking, not advice: ${blocked.stdout}`)
+  const adr = corpus()
+  const adrPath = join(adr, 'ADR-001-selftest.md')
+  writeFileSync(adrPath, `${readFileSync(adrPath, 'utf8')}\n~~~\nstill open\n`)
+  const advised = lint(adr)
+  expectExit(advised, 0, 'an ADR with an unclosed fence does not block')
+  assert.match(advised.stdout, /^ {2}advice: ADR-001-selftest\.md: the code fence opened at line \d+ \(~~~\) is never closed/m,
+    `advice on an ADR, with the tilde opener named: ${advised.stdout}`)
+})
+
 // ADR-045 T6. `declared_steps` read Ordered Steps with the same fence-blind regex,
 // so an `[S<n>]` written after a fenced `## ` line was undeclared to `--steps` and a
 // run naming it was refused. Now through the shared `sections_of`.

@@ -116,7 +116,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, repeated_headings, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
+from record import sections_of, repeated_headings, unterminated_fence, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
@@ -1025,6 +1025,7 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     # An ADR has no digest, so no repeat blocks here; every section below is read
     # last-wins, and the author is told so (ADR-045 T5).
     check_repeated_headings(Path(adr_path), text, errors)
+    check_unterminated_fence(Path(adr_path), text, errors, blocking=False)
     alts = [ln for ln in secs.get("Alternatives Considered", []) if ln.strip().startswith("-")]
     if not alts:
         errors.append(f"{adr_path.name}: Alternatives Considered has no entries")
@@ -1416,6 +1417,24 @@ def check_repeated_headings(path, text, errors, blocking=()):
             + f"A record has one of each section; merge them.")
 
 
+def check_unterminated_fence(path, text, errors, blocking):
+    """A code fence that never closes is reported, never closed for the author.
+
+    ADR-045 T8. Every heading after an open fence is text to `sections_of`, so a
+    task whose fence never closes has, as far as every gate can see, no Acceptance
+    and no Verification Log after that line — and the walk cannot tell that from a
+    record that ends inside a long example. In a TASK that BLOCKS, at the severity
+    of the no-fence check: the digest, the run and the log all hang on headings
+    the fence may be hiding. In an ADR it is advice, like a missing section.
+    """
+    unclosed = unterminated_fence(text)
+    if unclosed:
+        say = errors.append if blocking else errors.advise
+        say(f"{path.name}: the code fence opened at line {unclosed[0]} ({unclosed[1].strip()}) "
+            f"is never closed, so every heading after it reads as text to every gate. "
+            f"Close it with a matching fence line.")
+
+
 def check_task(path, all_stems, errors, root, tracked):
     text = path.read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
@@ -1425,6 +1444,7 @@ def check_task(path, all_stems, errors, root, tracked):
         if s not in secs:
             errors.advise(f"{path.name}: missing section ## {s}")
     check_repeated_headings(path, text, errors, blocking=("Acceptance",))
+    check_unterminated_fence(path, text, errors, blocking=True)
     for h in TASK_HEADERS:
         if header_val(text, h) is None:
             errors.advise(f"{path.name}: missing **{h}:** header")

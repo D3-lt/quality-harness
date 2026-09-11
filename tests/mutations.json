@@ -7134,6 +7134,16 @@
       "only": "^a claim written after a fenced ## line in the Verification Log is still a claim$"
     },
     {
+      "label": "adr-verify: a heading that ends the file without a line break gets one before the entry (ADR-045 T7)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if not head.endswith(\"\\n\"):\n        head += \"\\n\"",
+      "to": "    if not head.endswith(\"\\n\"):\n        pass",
+      "only": "^an entry appended under a heading that ends the file without a line break lands in the section, on its own line$"
+    },
+    {
       "label": "record: section_span points at the section the reader returns (ADR-045 T6)",
       "file": "plugin/lib/record.py",
       "tests": [

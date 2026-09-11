@@ -717,6 +717,35 @@ test('a corpus reached through a symlink is swept', () => {
   assert.equal(JSON.parse(sweep(link, ['--json']).stdout).claims, 1)
 })
 
+// ADR-045 T6. `claims_in` read the Verification Log with a regex that ended at the
+// next `^## ` line — and a failed run's fenced excerpt is where such a line lives,
+// when the test that failed printed a Markdown heading. Every claim written after
+// it left the denominator, which flatters the false-success rate in the direction
+// that matters. Now read through the shared, fence-aware `sections_of`.
+test('a claim written after a fenced ## line in the Verification Log is still a claim', () => {
+  const fence = 'exit 0'
+  const claim = `- 2026-08-28 · abc1234 · exit 0 · \`exit 0\` · acceptance-sha256:${digestOf(fence)}`
+  const excerpt = [
+    `- 2026-08-28 · abc1234 · exit 1 · \`exit 0\` · acceptance-sha256:${digestOf(fence)}`,
+    '```',
+    '## FAIL a heading the failing test printed',
+    '```',
+  ]
+  const dir = corpus()
+  rawTask(dir, 'T1', { fence, lines: [...excerpt, claim] })
+  const counted = JSON.parse(sweep(dir, ['--json']).stdout)
+  assert.equal(counted.claims, 1,
+    `the claim after the fenced heading is in the denominator: ${JSON.stringify(counted)}`)
+  assert.equal(counted.held, 1, 'and it is re-checked, not dropped')
+
+  // DIRTY: the same log without the claim reads as zero claims — the counter can
+  // answer 0, so the 1 above is the fenced line being read as text, not a floor.
+  const bare = corpus()
+  rawTask(bare, 'T1', { fence, lines: excerpt })
+  assert.equal(JSON.parse(sweep(bare, ['--json']).stdout).claims, 0,
+    'an exit-1 row and a fenced excerpt are not a claim')
+})
+
 // --- B. corpus structure ----------------------------------------------------
 
 test('a task ten directories down is still found', () => {

@@ -80,7 +80,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402
+from record import sections_of, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -232,9 +232,15 @@ def status_stop(text):
 
 
 def acceptance(text):
-    """The task's Acceptance fence body, its first command line, and its digest."""
+    """The task's Acceptance fence body, its first command line, and its digest.
+
+    The fence is found with the shared `ACCEPTANCE_FENCE` (ADR-045 T3). This was a
+    private ```bash\\n match — no `sh`, no `shell`, not even a space after the
+    label — so a task adr-verify had run and recorded was offered here as READY:
+    the reader of the evidence could not see the fence the writer had hashed.
+    """
     body = "\n".join(sections_of(text).get("Acceptance", []))
-    m = re.search(r"```bash\n(.*?)```", body, re.S)
+    m = ACCEPTANCE_FENCE.search(body)
     if not m:
         human = "Acceptance is human-observed:" in body
         return None, ("human-observed" if human else None), None

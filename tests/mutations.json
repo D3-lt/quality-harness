@@ -78,8 +78,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    write_source(task, text[:m.start()] + new + (\"\\n\" + tail if tail else \"\"), file_newline(task))",
-      "to": "    task.write_text(text[:m.start()] + new + (\"\\n\" + tail if tail else \"\"), encoding=\"utf-8\")"
+      "from": "    write_source(task, text[:start] + new + (\"\\n\" + tail if tail else \"\"), file_newline(task))",
+      "to": "    task.write_text(text[:start] + new + (\"\\n\" + tail if tail else \"\"), encoding=\"utf-8\")"
     },
     {
       "label": "evidence: a refused mutant restores byte-for-byte",
@@ -3059,13 +3059,46 @@
       "to": "        if False:"
     },
     {
-      "label": "verify: an Acceptance fence may be spelled sh or shell",
-      "file": "plugin/bin/adr-verify",
+      "label": "record: an Acceptance fence may be spelled sh or shell, and every gate reads that one opener (ADR-045 T3)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs",
+        "tests/adr-next.test.mjs",
+        "tests/gates.test.mjs"
+      ],
+      "from": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash|sh|shell)\\s*\\n(.*?)```\", re.S)",
+      "to": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash)\\s*\\n(.*?)```\", re.S)",
+      "only": "^an Acceptance fence may be spelled sh or shell$|^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$|^a sh-labelled Acceptance fence adr-verify recorded is done to adr-next$|^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "adr-lint: the digest path reads the shared opener, not a private bash-only regex that skips the check on a sh fence (ADR-045 T3)",
+      "file": "plugin/bin/adr-lint",
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash|sh|shell)\\s*\\n(.*?)```\", re.S)",
-      "to": "ACCEPTANCE_FENCE = re.compile(r\"```(?:bash)\\s*\\n(.*?)```\", re.S)"
+      "from": "    acc_match = ACCEPTANCE_FENCE.search(acc)\n    if not acc_match and \"Acceptance is human-observed:\" not in acc:",
+      "to": "    acc_match = re.search(r\"```bash\\s*\\n(.*?)```\", acc, re.S)\n    if not acc_match and \"Acceptance is human-observed:\" not in acc:",
+      "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
+    },
+    {
+      "label": "adr-lint: an Acceptance with no runnable fence is a finding, not an empty acc_all that skips the digest check (ADR-045 T3)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    if not acc_match and \"Acceptance is human-observed:\" not in acc:",
+      "to": "    if False:",
+      "only": "^a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped$"
+    },
+    {
+      "label": "adr-next: the fence is found with the shared opener, not a private ```bash-only match (ADR-045 T3)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/adr-next.test.mjs"
+      ],
+      "from": "    m = ACCEPTANCE_FENCE.search(body)\n    if not m:",
+      "to": "    m = re.search(r\"```bash\\n(.*?)```\", body, re.S)\n    if not m:",
+      "only": "^a sh-labelled Acceptance fence adr-verify recorded is done to adr-next$"
     },
     {
       "label": "verify: a mutant is judged only after its clean fence passes",
@@ -6945,8 +6978,8 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402",
-      "to": "from record import normalize_acceptance, acceptance_digest  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+      "from": "from record import sections_of, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402",
+      "to": "from record import normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
       "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
     },
     {
@@ -6967,7 +7000,7 @@
       ],
       "from": "if not os.path.isfile(_record_file):",
       "to": "if False:",
-      "only": "^a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs$"
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
     },
     {
       "label": "adr-lint: a gate copied without plugin/lib says so instead of dying in a traceback",
@@ -6977,7 +7010,138 @@
       ],
       "from": "if not os.path.isfile(_record_file):",
       "to": "if False:",
-      "only": "^a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs$"
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-verify: a gate with fence.py but no record.py says so instead of dying in a traceback (ADR-045 T4)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "spec-verify: a gate with fence.py but no record.py says so instead of dying in a traceback (ADR-045 T4)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "if not os.path.isfile(_record_file):",
+      "to": "if False:",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "adr-verify: a missing record.py exits with the could-not-run code, never a finding's code (ADR-045 T4)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     f\"or through a forwarder.\\n\")\n    sys.exit(4)\n_loaded_record = sys.modules.get(\"record\")",
+      "to": "                     f\"or through a forwarder.\\n\")\n    sys.exit(2)\n_loaded_record = sys.modules.get(\"record\")",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "spec-verify: a missing fence.py exits with the could-not-run code, never the bound-test-missing code (ADR-045 T4)",
+      "file": "plugin/bin/spec-verify",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     f\"or through a forwarder.\\n\")\n    sys.exit(4)\n# Loaded from its EXACT path",
+      "to": "                     f\"or through a forwarder.\\n\")\n    sys.exit(2)\n# Loaded from its EXACT path",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "qh-mcp: a missing fence.py exits with the could-not-run code, never the usage code (ADR-045 T4)",
+      "file": "plugin/bin/qh-mcp",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                     f\"or through a forwarder.\\n\")\n    sys.exit(4)",
+      "to": "                     f\"or through a forwarder.\\n\")\n    sys.exit(2)",
+      "only": "^a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs$"
+    },
+    {
+      "label": "record: a repeated heading is named, not swallowed (ADR-045 T5)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/evidence-chain.test.mjs",
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return dup",
+      "to": "    return []",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$|^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
+    },
+    {
+      "label": "adr-lint: a repeated ## Acceptance BLOCKS, at the severity of the no-fence check (ADR-045 T5)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_repeated_headings(path, text, errors, blocking=(\"Acceptance\",))",
+      "to": "    check_repeated_headings(path, text, errors)",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$"
+    },
+    {
+      "label": "adr-lint: an ADR's repeated heading is reported too (ADR-045 T5)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    check_repeated_headings(Path(adr_path), text, errors)",
+      "to": "    pass",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$"
+    },
+    {
+      "label": "adr-verify: an ambiguous record is refused before anything runs or is written (ADR-045 T5)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    duplicated = repeated_headings(text)",
+      "to": "    duplicated = []",
+      "only": "^a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice$"
+    },
+    {
+      "label": "adr-verify: the entry writer finds its section fence-aware, not at the next ^## line (ADR-045 T6)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    span = section_span(text, section)",
+      "to": "    _m = re.search(rf\"(^## {re.escape(section)}\\s*\\n)(.*?)(?=^## |\\Z)\", text, re.M | re.S)\n    span = None if not _m else (_m.start(), _m.start() + len(_m.group(1)), _m.end())",
+      "only": "^an entry is appended after a fenced ## line in the Verification Log, not inside the fence$"
+    },
+    {
+      "label": "adr-verify: declared steps are read fence-aware (ADR-045 T6)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/evidence-chain.test.mjs"
+      ],
+      "from": "    body = sections_of(text).get(\"Ordered Steps\")",
+      "to": "    _m = re.search(r\"^## Ordered Steps$(?P<body>.*?)(?=^## |\\Z)\", text, re.M | re.S)\n    body = None if _m is None else _m.group(\"body\").splitlines()",
+      "only": "^--steps sees a step declared after a fenced ## line in Ordered Steps$"
+    },
+    {
+      "label": "adr-verify: the sweep reads every claim in the log, through a fenced ## line (ADR-045 T6)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/sweep.test.mjs"
+      ],
+      "from": "    body = sections_of(task.read_text(errors=\"replace\", encoding=\"utf-8\")).get(\"Verification Log\")",
+      "to": "    _m = re.search(r\"^## Verification Log\\s*\\n(.*?)(?=^## |\\Z)\", task.read_text(errors=\"replace\", encoding=\"utf-8\"), re.M | re.S)\n    body = None if not _m else _m.group(1).splitlines()",
+      "only": "^a claim written after a fenced ## line in the Verification Log is still a claim$"
+    },
+    {
+      "label": "record: section_span points at the section the reader returns (ADR-045 T6)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if name == heading:\n            span = (start, body_start, end)",
+      "to": "        if name == heading and span is None:\n            span = (start, body_start, end)",
+      "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
     },
     {
       "label": "adr-lint: tracked_or_unignored_paths lists the unignored files on disk as well as the tracked ones (ADR-045)",

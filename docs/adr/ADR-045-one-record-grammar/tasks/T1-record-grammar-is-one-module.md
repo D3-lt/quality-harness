@@ -39,7 +39,7 @@
 ## Acceptance
 
 ```bash
-node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so and exits 2' tests/gates.test.mjs
+node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so' tests/gates.test.mjs
 ```
 
 ## Tests
@@ -49,7 +49,7 @@ node --test --test-name-pattern 'a heading inside the Acceptance fence is not a 
 | `a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest` | `tests/adr-next.test.mjs` | adr-verify records, adr-next lists done, digests equal; an edited fence is unproven | F-1, UC1-S1, UC1-S2 | S1, S3 |
 | `the record grammar is one module: every gate loads plugin/lib/record.py and none keeps a copy` | `tests/gates.test.mjs` | no `def` of the three names in any gate; seven gates load `lib/record.py` from `__file__`; `eol: lf` | F-2, UC2-S1 | S1, S2, S3 |
 | `record.py: a fenced ## is not a heading, blank edges are trimmed, and the digest is sha256 of exactly that` | `tests/gates.test.mjs` | the shared functions, clean and dirty | F-2, UC2-S3 | S1, S2 |
-| `a gate copied without plugin/lib says so and exits 2; with lib/ beside it, it runs` | `tests/gates.test.mjs` | exit 2, one sentence naming `record.py`, no traceback; runs with `lib/` | F-2, UC2-S2 | S1, S3 |
+| `a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs` | `tests/gates.test.mjs` | the gate's could-not-run code (T4 amended the "exit 2" this row first said; the code is per gate), one sentence naming `record.py`, no traceback; runs with `lib/` | F-2, UC2-S2 | S1, S3 |
 
 ## Reachability
 
@@ -89,6 +89,8 @@ A green run while any gate still defines one of the three names, or while adr-ne
 ## Notes
 
 Class: `rg -n 'def sections_of|def sections\(|def normalize_acceptance|def acceptance_digest' plugin/bin` (eleven on `ea12656`, zero after). Loader model: adr-verify's `fence.py` preamble. Outermost: the two CLIs.
+
+2026-09-11, after the Codex review: the no-lib test was renamed by T4 (the code is now the gate's own could-not-run code, not 2 everywhere), so the Acceptance filter and the Tests row above were updated to the new name and the fence re-run; the earlier Verification Log rows stand as the runs they were.
 
 ## Verification Log
 - 2026-09-11 · 1409897 · exit 0 · `node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs && node --test --test-name-pattern 'the record grammar is one module|record.py: a fenced ## is not a heading|a gate copied without plugin/lib says so and exits 2' tests/gates.test.mjs` · acceptance-sha256:089098d2c87a8affe5e9bc723ab696e75eb9d990c020280f5777df1dffffadec · ms:1039

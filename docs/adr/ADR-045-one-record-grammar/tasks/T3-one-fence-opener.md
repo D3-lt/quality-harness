@@ -61,6 +61,8 @@ node --test --test-name-pattern 'digest-checked by adr-lint, not skipped|an Acce
 
 ## Mutation Log
 
+- 2026-09-11 · 9942edb* · mutant killed · exit 1 · `plugin/lib/record.py` · with the opener narrowed to bash, adr-verify refuses the sh and shell fixtures it recorded a minute ago, adr-lint reports no runnable fence on the sh task, adr-next lists it ready, and the record.py probe sees sh and shell as None · acceptance-sha256:5e590bf0b0f3e86505751658e362bf057e5569e9edfd48d60565711ddc09d948
+
 ## Invariants
 
 - No gate under `plugin/bin` compiles or searches its own Acceptance opener; `rg -n '```\(\?:bash|```bash\\s\*\\n|```bash\\n' plugin/bin` matches only prose.
@@ -85,3 +87,5 @@ A green run while any gate defines an opener regex, or while a forged digest on 
 Class: `rg -n 'bash' plugin/bin/*` on `01cb598`. Regex hits: adr-verify:446 `ACCEPTANCE_FENCE` (moved), adr-lint:150 `ACCEPTANCE_FENCE` (moved), adr-lint:1433 `"```bash" not in acc` (now the shared constant), adr-lint:1654 `re.search(r"```bash\s*\n…")` (now the shared constant), adr-next:237 `re.search(r"```bash\n…")` (now the shared constant). Every other hit is prose, a comment-syntax table (`.bash: "#"`), `bash -n` / `bash -c` invocations, `resolve_bash`, or arch-lint's runner-name classifier — none decides which fence is the Acceptance. Reproduced before the fix: `python3 plugin/bin/adr-lint` on a ```sh task with README `done` printed "no ```bash fence" and the same lines with the digest forged; after: `[PASS]` clean, and "no exit-0 entry carries the current Acceptance digest" forged.
 
 ## Verification Log
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped|an Acceptance fence may be spelled sh or shell' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'sh-labelled Acceptance fence adr-verify recorded' tests/adr-next.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash|the record grammar is one module' tests/gates.test.mjs` · acceptance-sha256:5e590bf0b0f3e86505751658e362bf057e5569e9edfd48d60565711ddc09d948 · ms:2700
+- 2026-09-11 · 9942edb* · exit 0 · `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped|an Acceptance fence may be spelled sh or shell' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'sh-labelled Acceptance fence adr-verify recorded' tests/adr-next.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash|the record grammar is one module' tests/gates.test.mjs` · acceptance-sha256:5e590bf0b0f3e86505751658e362bf057e5569e9edfd48d60565711ddc09d948 · ms:2779

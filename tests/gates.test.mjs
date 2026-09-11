@@ -2059,6 +2059,7 @@ test('record.py: the opener is bash, sh or shell; a repeated heading is named; a
     '        "tilde_then_bash": body("~~~\\n## not a heading\\n~~~\\n```sh\\n  real\\n```"),',
     '        "lines_in": body(["```shell", "  x", "```"]),',
     '        "inline_code_line": list(record.sections_of("```a`b`\\n## H\\n```\\n")),',
+    '        "tilde_not_closed_by_backticks": body("~~~\\n```\\n```bash\\n  x\\n```"),',
     '    },',
     '    "first": {k: first(v) for k, v in {"attribute": "prose\\n  ```bash title=x  \\n", "tilde": "~~~bash\\n", "none": "prose only\\n"}.items()},',
     '    "repeated": record.repeated_headings(doc),',
@@ -2089,7 +2090,7 @@ test('record.py: the opener is bash, sh or shell; a repeated heading is named; a
     attribute: null, upper: null, tilde: null, prose_before: null,
     indented: '  x', outer4_inner_bash: null, four_bash: '  x\n```\n  y', unterminated: null,
     fence_in_command: "echo '```'\nexit 1", after_example: '  real', tilde_then_bash: '  real',
-    lines_in: '  x', inline_code_line: ['H'],
+    lines_in: '  x', inline_code_line: ['H'], tilde_not_closed_by_backticks: null,
   }, `the fence edges: ${JSON.stringify(got.edges)}`)
   assert.deepEqual(got.first, { attribute: '```bash title=x', tilde: '~~~bash', none: null },
     `the first fence line, whole and trimmed, for the gate that has to name it: ${JSON.stringify(got.first)}`)

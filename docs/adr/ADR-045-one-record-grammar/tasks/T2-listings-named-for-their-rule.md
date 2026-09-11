@@ -51,6 +51,8 @@ node --test --test-name-pattern "adr-lint's tracked_or_unignored_paths includes 
 
 ## Mutation Log
 
+- 2026-09-11 · d009b03* · mutant killed · exit 1 · `plugin/bin/adr-lint` · without the --others --exclude-standard call the listing is the index only and the file being added is no longer a member, so the two gates answer alike on the untracked file · acceptance-sha256:41c8f556e60ceeacf53e4c388ee677e8862c8ff39ef0fffe0ff6b112947d1485
+
 ## Invariants
 
 - adr-lint's listing still runs `ls-files` and `ls-files --others --exclude-standard`; arch-lint's still runs `ls-files --cached`.
@@ -74,3 +76,5 @@ A green run while `rg -n '\btracked_paths\(' plugin/bin/adr-lint` still matches,
 Class: `rg -n 'def tracked_paths' plugin/bin` — two on `ea12656`, one after. Records naming `tracked_paths()` for adr-lint (ADR-011, ADR-015, ADR-017; BACKLOG) are history and are not edited.
 
 ## Verification Log
+- 2026-09-11 · d009b03 · exit 0 · `node --test --test-name-pattern "adr-lint's tracked_or_unignored_paths includes an untracked file" tests/gates.test.mjs` · acceptance-sha256:41c8f556e60ceeacf53e4c388ee677e8862c8ff39ef0fffe0ff6b112947d1485 · ms:258
+- 2026-09-11 · d009b03* · exit 0 · `node --test --test-name-pattern "adr-lint's tracked_or_unignored_paths includes an untracked file" tests/gates.test.mjs` · acceptance-sha256:41c8f556e60ceeacf53e4c388ee677e8862c8ff39ef0fffe0ff6b112947d1485 · ms:161

@@ -1853,14 +1853,34 @@ function exitBlock(gate) {
   return doc.slice(at).split(/\n\s*\n/)[0]
 }
 
+/**
+ * The clauses of an Exit block that DEFINE `code`: each runs from a numeral that
+ * opens a clause (at the start, after `·`, after a line break, or after a full
+ * stop) to the next such numeral. A code's meaning has to be read from its own
+ * clause — a regex from "the numeral" to "could not run" anywhere later crossed
+ * clauses and lines, so a header saying `2 bound test missing · 4 could not run`
+ * satisfied it for 2 (ADR-045 T7 review, L1).
+ */
+function exitClauses(block, code) {
+  const opens = [...block.matchAll(/(?:^|·|\n|\. )\s*(\d+)(?![\w-])/g)]
+  return opens.flatMap((open, i) => open[1] === String(code)
+    ? [block.slice(open.index, opens[i + 1]?.index ?? block.length)] : [])
+}
+
 test('a gate copied without plugin/lib says so and exits with its could-not-run code; with lib/ beside it, it runs', () => {
+  // DIRTY for the clause reader: the header that fooled the old regex does not
+  // pass, and the same header read for 4 does.
+  const fooled = 'Exit codes: 0 pass · 2 bound test missing · 4 could not run: plugin/lib/fence.py'
+  assert.ok(!exitClauses(fooled, 2).some(c => /could not run/.test(c)), 'a 2 whose own clause is a finding is not could-not-run')
+  assert.ok(exitClauses(fooled, 4).some(c => /could not run/.test(c)), 'the 4 clause is')
   for (const [gate, { libs, code }] of Object.entries(LIB_ABSENT)) {
-    // The contract names the code AND the meaning: a numeral alone is what let
-    // three headers call this "usage" or "bound test missing" for a day.
+    // The contract names the code AND the meaning IN ONE CLAUSE: a numeral alone
+    // is what let three headers call this "usage" or "bound test missing" for a day.
     const contract = exitBlock(gate)
-    assert.match(contract, new RegExp(`(?<![\\w-])${code}(?![\\w-])[^\\n]*(?:\\n[^\\n]*)*?could not run`),
-      `${gate}'s Exit block must say ${code} is could-not-run:\n${contract}`)
-    assert.match(contract, /plugin\/lib\/(?:fence|record)\.py/, `${gate}'s Exit block names the lib: ${contract}`)
+    const clauses = exitClauses(contract, code)
+    assert.ok(clauses.length, `${gate}'s Exit block has a clause for ${code}:\n${contract}`)
+    assert.ok(clauses.some(clause => /could not run/.test(clause) && /plugin\/lib\/(?:fence|record)\.py/.test(clause)),
+      `${gate}'s Exit block must say, in the clause for ${code} itself, that it is could-not-run and name the lib:\n${clauses.join('\n---\n')}`)
 
     const temp = mkdtempSync(join(os.tmpdir(), 'qh-nolib-'))
     try {
@@ -1905,6 +1925,29 @@ test('a gate reached through a symlink loads the lib beside its real file, not b
       const linked = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
       assert.equal(linked.status, 0,
         `${gate} through a symlink resolves lib/ beside its real file: ${linked.stdout}${linked.stderr}`)
+      // A DECOY lib/ beside the link, holding every module the gate loads, each
+      // of which exits 97 the moment it is imported. "No lib beside the link"
+      // proves the loader can fall through to the real file; only a lib that IS
+      // there and is NOT chosen proves it never looks beside the link at all — a
+      // future "link-local first, real target as fallback" loader passes the arm
+      // above and fails this one (second Codex review of ADR-045).
+      mkdirSync(join(temp, 'lib'), { recursive: true })
+      for (const lib of ['fence', 'record']) {
+        writeFileSync(join(temp, 'lib', `${lib}.py`), 'import sys\nsys.stderr.write("DECOY LIB LOADED\\n")\nsys.exit(97)\n')
+      }
+      const decoyed = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(decoyed.status, 0,
+        `${gate} through a symlink with a decoy lib/ beside the LINK still loads the lib beside its REAL file: ${decoyed.stdout}${decoyed.stderr}`)
+      assert.doesNotMatch(decoyed.stderr, /DECOY LIB LOADED/, `${gate} looked beside the link`)
+      // And the decoy is a decoy: a COPY beside it loads it and exits 97.
+      rmSync(join(temp, 'bin', gate))
+      cpSync(join(bin, gate), join(temp, 'bin', gate))
+      const poisoned = spawnSync('python3', [join(temp, 'bin', gate), '--version'], { cwd: temp, env, encoding: 'utf8', timeout: 60_000 })
+      assert.equal(poisoned.status, 97, `a copy beside the decoy loads the decoy, so the arm above measured the loader: ${poisoned.stdout}${poisoned.stderr}`)
+      assert.match(poisoned.stderr, /DECOY LIB LOADED/)
+      rmSync(join(temp, 'lib'), { recursive: true, force: true })
+      rmSync(join(temp, 'bin', gate))
+      symlinkSync(join(bin, gate), join(temp, 'bin', gate))
       // DIRTY, same directory: a COPY there has no real file elsewhere to resolve
       // to, so the same invocation path refuses — the arm above is realpath at work.
       rmSync(join(temp, 'bin', gate))

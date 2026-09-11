@@ -11,7 +11,10 @@ Checks:
            Spec: header present; if it names a file, the file must exist ·
            Out of Scope entries carry a disposition: (permanent: boundary: <reason>),
            (permanent: fact: <claim>; citation: <typed receipt>), or (deferred: <pointer>)
-  Tasks  : bash fence under ## Acceptance (or explicit human-observed sentence) ·
+  Tasks  : runnable fence under ## Acceptance — ```bash, ```sh or ```shell, the one
+           opener `record.ACCEPTANCE_FENCE` every gate reads (or explicit human-observed
+           sentence) · no `## ` heading repeated (a second ## Acceptance blocks; any other
+           repeat advises) ·
            required sections · Affected Files ≥1 row · Ordered Steps step 1 mentions a test ·
            Depends-on/Covers/Produces/Consumes headers present · Depends-on targets exist ·
            every Proof map: v1 step resolves to a Tests row or exact non-test proof ·
@@ -32,8 +35,9 @@ Checks:
            whose displayed command matches (human-observed tasks: a human-observed entry)
   Covers : union of task Covers ⊇ spec's @spec/@implemented fact + scenario IDs
 
-Exit: 0 pass · 1 failures found · 2 usage — an unknown flag or no record named.
-      2 is NOT a finding about the record: nothing was checked.
+Exit: 0 pass · 1 failures found · 2 could not run — an unknown flag, no record named,
+      or plugin/lib/record.py not beside this gate's bin/ (a gate copied on its own;
+      ADR-045). 2 is NOT a finding about the record: nothing was checked.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -89,11 +93,13 @@ except Exception as _fence_error:  # lib/ is not beside bin/: a copied gate
     def resolve_bash(*_args, **_kwargs):
         return None
 
-# The record grammar — `sections_of`, `normalize_acceptance`, `acceptance_digest` —
-# lives in plugin/lib/record.py and is loaded the way adr-verify loads fence.py
-# (ADR-045). Unlike the resolver above this is not a helper one check needs: every
-# section this gate reads goes through it, so a gate copied without lib/ says so
-# in one sentence and exits 2 (could-not-run, ADR-005) rather than lint nothing.
+# The record grammar — `sections_of`, `repeated_headings`, `normalize_acceptance`,
+# `acceptance_digest`, and the fence opener `ACCEPTANCE_FENCE` — lives in
+# plugin/lib/record.py and is loaded the way adr-verify loads fence.py (ADR-045).
+# Unlike the resolver above this is not a helper one check needs: every section
+# this gate reads goes through it, so a gate copied without lib/ says so in one
+# sentence and exits 2 — this gate's "nothing was checked" code, which its Exit
+# block names so, never a finding's (could-not-run, ADR-005) — rather than lint nothing.
 # Same module NAME as the other gates load, deliberately — the digest adr-verify
 # writes and this gate verifies is one function object when both run in one
 # process, which is what the parity harness asserts.
@@ -110,7 +116,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402
+from record import sections_of, repeated_headings, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
@@ -144,10 +150,12 @@ SHA_FIELD = r"(?:[0-9a-f]{4,64}\*?|no-git)"
 # Tool-written mutation evidence. Same shape and same purpose as VLOG_RE: an entry
 # off this grammar was typed by a person, and a typed mutant is the thing the log
 # replaced. `killed` is the only verdict that is evidence — see adr-verify --mutant.
-# Mirrored from adr-verify::ACCEPTANCE_FENCE. The two gates must agree on what a
-# runnable fence IS, or the T2 advisory fires on tasks the writer accepted and
-# stays silent on ones it refused.
-ACCEPTANCE_FENCE = re.compile(r"```(?:bash|sh|shell)\s*\n(.*?)```", re.S)
+# `ACCEPTANCE_FENCE` — what a runnable fence IS — arrives from plugin/lib/record.py
+# (ADR-045 T3). It was "mirrored from adr-verify" here, by hand, and the digest
+# path below carried a THIRD spelling that read `bash` only: a ```sh task the
+# writer ran and recorded found no fence here, `acc_all` was "", and the `done`
+# row was accepted with no digest check at all — a mirror is a copy, and a copy
+# had drifted in the gate whose one job is to refuse a digest that does not match.
 MLOG_TOOL_ARM = (
     SHA_FIELD + r" · "
     r"mutant (?:(?:killed · exit [1-9]\d*)|(?:survived · exit 0)|"
@@ -1014,6 +1022,9 @@ def check_adr(adr_path, errors, root=_ROOT_UNSET):
     if not re.search(r"^\*\*Status:\*\*", text, re.M):
         errors.advise(f"{adr_path.name}: no **Status:** line")
     secs = sections_of(text)
+    # An ADR has no digest, so no repeat blocks here; every section below is read
+    # last-wins, and the author is told so (ADR-045 T5).
+    check_repeated_headings(Path(adr_path), text, errors)
     alts = [ln for ln in secs.get("Alternatives Considered", []) if ln.strip().startswith("-")]
     if not alts:
         errors.append(f"{adr_path.name}: Alternatives Considered has no entries")
@@ -1385,6 +1396,26 @@ def check_step_proof_map(path, text, secs, errors):
                     f"`adr-verify <task.md> --steps {step_id}`.")
 
 
+def check_repeated_headings(path, text, errors, blocking=()):
+    """A `## ` heading that appears twice is reported, never resolved.
+
+    ADR-045 T5. `sections_of` keeps the LAST of a repeated heading — identically
+    in every gate, which is what the shared grammar buys, but arbitrarily: the old
+    adr-verify regex kept the first, adr-next's private reader merged both, and
+    nothing said so. Two `## Acceptance` sections are two candidate fences for one
+    digest, so that one BLOCKS, at the severity of the no-fence check beside it.
+    Any other repeat is ADVICE, at the severity of a missing section: the record
+    is malformed and a reader is told which half the gates read.
+    """
+    for heading in repeated_headings(text):
+        say = errors.append if heading in blocking else errors.advise
+        say(f"{path.name}: ## {heading} appears more than once. Every gate reads the LAST "
+            f"one and ignores the rest — "
+            + (f"so the fence that was digested, run and recorded is whichever came last, "
+               f"and a reader cannot tell which. " if heading in blocking else "")
+            + f"A record has one of each section; merge them.")
+
+
 def check_task(path, all_stems, errors, root, tracked):
     text = path.read_text(errors="replace", encoding="utf-8")
     secs = sections_of(text)
@@ -1393,6 +1424,7 @@ def check_task(path, all_stems, errors, root, tracked):
     for s in TASK_SECTIONS:
         if s not in secs:
             errors.advise(f"{path.name}: missing section ## {s}")
+    check_repeated_headings(path, text, errors, blocking=("Acceptance",))
     for h in TASK_HEADERS:
         if header_val(text, h) is None:
             errors.advise(f"{path.name}: missing **{h}:** header")
@@ -1430,9 +1462,19 @@ def check_task(path, all_stems, errors, root, tracked):
             f"Declare what the fence's claim rests on (the task template emits the header) "
             f"and the next killed mutant can be bound to one of them")
     acc = "\n".join(secs.get("Acceptance", []))
-    if "```bash" not in acc and "Acceptance is human-observed:" not in acc:
-        errors.append(f"{path.name}: ## Acceptance has no ```bash fence and no explicit "
-                      f"'Acceptance is human-observed:' sentence — prose acceptance is rejected")
+    # ADR-045 T3: the SAME opener adr-verify runs and adr-next reads. This was the
+    # substring "```bash", so a ```sh fence adr-verify had just run and recorded was
+    # blamed on the author as "no fence" — and a fence in a language no gate runs
+    # (```python) is still refused, now by name, so an author is told which opener
+    # is wrong rather than that a fence they can see is not there.
+    acc_match = ACCEPTANCE_FENCE.search(acc)
+    if not acc_match and "Acceptance is human-observed:" not in acc:
+        opener = re.search(r"^[ \t]*```(\S*)", acc, re.M)
+        found = (f"its fence opens with ```{opener.group(1) or ''}, which is not a runnable "
+                 f"Acceptance fence — " if opener else "")
+        errors.append(f"{path.name}: ## Acceptance has no runnable fence (```bash, ```sh or "
+                      f"```shell) and no explicit 'Acceptance is human-observed:' sentence — "
+                      f"{found}prose acceptance is rejected")
     aff = [ln for ln in secs.get("Affected Files", [])
            if ln.strip().startswith("|") and "`" in ln]
     if not aff:
@@ -1651,7 +1693,11 @@ def check_task(path, all_stems, errors, root, tracked):
             f"to re-derive it.")
     has_mlog_section = "Mutation Log" in secs
 
-    acc_match = re.search(r"```bash\s*\n(.*?)```", acc, re.S)
+    # `acc_match` is the shared opener's match from above: the fence this gate
+    # digests is the fence adr-verify ran, by construction rather than by a second
+    # regex that has to be kept equal (ADR-045 T3). An Acceptance that reaches here
+    # with no match has already been reported above, so `acc_all == ""` below is
+    # never a fence this gate could not see — it is a task with no runnable fence.
     acc_all = normalize_acceptance(acc_match.group(1)) if acc_match else ""
     acc_first = acc_all.splitlines()[0].strip() if acc_all else None
     # ADR-022 T4. Under-declaration is the record's residual risk and this is the

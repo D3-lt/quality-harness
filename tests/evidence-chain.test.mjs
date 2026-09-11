@@ -2830,3 +2830,154 @@ test("the UNPROVEN early return records the steps its run named", () => {
     readTask(bare).split('## Verification Log')[1].split('## Mutation Log')[0],
     /steps:/, 'no field on the UNPROVEN path either unless it was asked for')
 })
+
+// ADR-045 T3. The fence OPENER was three regexes in three gates: adr-verify ran
+// `bash|sh|shell`, adr-lint's digest path read `bash` only, adr-next a bare
+// ```bash\n. Reproduced 2026-09-11 on a ```sh task: adr-verify ran it and wrote a
+// `done` row; adr-lint found "no ```bash fence", so `acc_all` was "" and the whole
+// digest check was SKIPPED — a forged digest produced byte-identical output. A
+// verifier that cannot see the fence the writer hashed is a verifier that accepts
+// any row (CLAUDE.md §16: not recognised is not known-safe). One opener now,
+// `record.ACCEPTANCE_FENCE`, and this is the outermost check of it (§4): the
+// writer's CLI records, the verifier's CLI judges the row.
+const withOpener = (copy, opener) => {
+  const body = readTask(copy).match(/```bash\n([\s\S]*?)\n```/)[1]
+  writeTask(copy, readTask(copy).replace(/```bash\n[\s\S]*?\n```/, `\`\`\`${opener}\n${body}\n\`\`\``))
+}
+// Every digest in the file, one hex digit off: the mutation pass records a clean
+// exit-0 row as well as the killed row, and a forger who left either standing
+// would leave the verifier a genuine row to accept.
+const forgeDigest = copy => writeTask(copy, readTask(copy).replace(
+  /acceptance-sha256:([0-9a-f]{63})([0-9a-f])/g,
+  (_m, head, last) => `acceptance-sha256:${head}${last === '0' ? '1' : '0'}`))
+
+test('a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped', () => {
+  for (const opener of ['sh', 'shell', 'bash   ']) {
+    const copy = corpus()
+    withOpener(copy, opener)
+    addMutationLog(copy)
+    expectExit(mutate(copy), 0, `adr-verify --mutant runs a \`\`\`${opener.trim()} fence and kills`)
+    expectExit(verify(copy, ['--cwd', '.']), 0, `adr-verify runs a \`\`\`${opener.trim()} fence`)
+    markDone(copy)
+    const clean = lint(copy)
+    expectExit(clean, 0, `adr-lint accepts the row adr-verify wrote for \`\`\`${opener.trim()}`)
+    assert.doesNotMatch(clean.stdout, /no runnable fence|no ```bash fence/,
+      `the fence the writer ran is a fence to the verifier: ${clean.stdout}`)
+
+    // DIRTY: the digest the writer wrote, one hex digit off. Before T3 this was
+    // invisible for sh and shell — the output below was identical to the clean run.
+    forgeDigest(copy)
+    const forged = lint(copy)
+    expectExit(forged, 1, `a forged digest on a \`\`\`${opener.trim()} task must be refused`)
+    assert.match(forged.stdout, /no exit-0 entry carries the current Acceptance digest/,
+      `and refused for the digest, not for the opener: ${forged.stdout}`)
+  }
+
+  // An Acceptance whose fence no gate runs is a FINDING, named by its opener — never
+  // an empty `acc_all` that skips the digest check in silence.
+  const other = corpus()
+  withOpener(other, 'python')
+  markDone(other)
+  const refused = lint(other)
+  expectExit(refused, 1, 'a python fence is not a runnable Acceptance')
+  assert.match(refused.stdout, /no runnable fence \(```bash, ```sh or ```shell\)/, refused.stdout)
+  assert.match(refused.stdout, /opens with ```python, which is not a runnable Acceptance fence/,
+    `the opener it found is named so the author knows what to change: ${refused.stdout}`)
+})
+
+// ADR-045 T5. `sections_of` keeps the LAST of a repeated `## ` heading, in every
+// gate alike — the old adr-verify regex kept the first, adr-next's private reader
+// merged both, and nothing said so. Two `## Acceptance` sections are two candidate
+// fences for one digest, so the writer refuses to record and the verifier blocks;
+// any other repeat is advice, at the severity of a missing section.
+test('a repeated ## Acceptance is refused by adr-verify and blocked by adr-lint; another repeat is advice', () => {
+  const twice = corpus()
+  writeTask(twice, readTask(twice).replace('## Tests\n',
+    '## Acceptance\n\n```bash\nexit 0\n```\n\n## Tests\n'))
+  const refused = verify(twice, ['--cwd', '.'])
+  expectExit(refused, 2, 'the writer refuses an ambiguous Acceptance as an authoring problem')
+  assert.match(`${refused.stdout}${refused.stderr}`, /## Acceptance appears more than once/,
+    `${refused.stdout}${refused.stderr}`)
+  assert.doesNotMatch(readTask(twice), /· exit \d+ ·/, 'and writes no evidence against either half')
+  const blocked = lint(twice)
+  expectExit(blocked, 1, 'adr-lint blocks a repeated ## Acceptance')
+  assert.match(blocked.stdout, /^ {2}T1-fixture\.md: ## Acceptance appears more than once/m,
+    `blocking, not advice: ${blocked.stdout}`)
+
+  // Another heading twice: the record is malformed and the reader is told which
+  // half the gates read, but no digest hangs on it — advice, like a missing section.
+  const risks = corpus()
+  writeTask(risks, `${readTask(risks).trimEnd()}\n\n## Risks\n\n- a second Risks section\n`)
+  const advised = lint(risks)
+  expectExit(advised, 0, 'a repeated ## Risks does not block')
+  assert.match(advised.stdout, /^ {2}advice: T1-fixture\.md: ## Risks appears more than once/m,
+    `advice, with the heading named: ${advised.stdout}`)
+  // And the ADR is read by the same rule: a second `## Context` is advice there too.
+  const adr = corpus()
+  const adrPath = join(adr, 'ADR-001-selftest.md')
+  writeFileSync(adrPath, `${readFileSync(adrPath, 'utf8').trimEnd()}\n\n## Context\n\nagain\n`)
+  const adrAdvised = lint(adr)
+  expectExit(adrAdvised, 0, 'a repeated ADR heading does not block')
+  assert.match(adrAdvised.stdout, /advice: ADR-001-selftest\.md: ## Context appears more than once/,
+    adrAdvised.stdout)
+
+  // CLEAN: the unmodified fixture says nothing about repeats, so the arms above are
+  // the check firing and not a message that is always printed.
+  const clean = lint(corpus())
+  expectExit(clean, 0, 'the fixture is clean')
+  assert.doesNotMatch(clean.stdout, /appears more than once/, clean.stdout)
+})
+
+// ADR-045 T6. `append_entry` found the section to REWRITE with a regex ending at
+// the next `^## ` line — the same fence-blind class T1 removed from the Acceptance
+// readers, in the one place a fenced excerpt is expected: a failed run's last
+// output lines, which a test that printed a Markdown heading fills with `## `.
+// The old writer ended the section at that line and appended the next entry INSIDE
+// the excerpt (docs/BACKLOG.md §197). Now through the shared `section_span`.
+test('an entry is appended after a fenced ## line in the Verification Log, not inside the fence', () => {
+  const copy = corpus()
+  const excerpt = [
+    '- 2026-09-01 · abc1234 · exit 1 · `adr-lint ADR-001-selftest.md tasks` · acceptance-sha256:' + '0'.repeat(64),
+    '```',
+    '## FAIL a heading the failing test printed',
+    'not ok 1',
+    '```',
+  ].join('\n')
+  writeTask(copy, readTask(copy).replace(/## Verification Log\n[\s\S]*$/, `## Verification Log\n${excerpt}\n`))
+  expectExit(verify(copy, ['--human', 'a person watched it pass']), 0, '--human appends an entry')
+  const log = readTask(copy).split('## Verification Log\n')[1]
+  const lines = log.trimEnd().split('\n')
+  assert.match(lines.at(-1), /^- \d{4}-\d{2}-\d{2} · human-observed · a person watched it pass$/,
+    `the new entry is the LAST line of the section, after the fence: ${log}`)
+  assert.equal(log.indexOf(excerpt), 0, `the excerpt is intact and first: ${log}`)
+  assert.equal((log.match(/^## /gm) ?? []).length, 1,
+    'the fenced heading is still the only `## ` line in the log, and still inside its fence')
+
+  // DIRTY: the writer can still refuse — a task with no ## Verification Log at all is
+  // told to add one, so the append above is the section being found, not a fallback.
+  const none = corpus()
+  writeTask(none, readTask(none).replace(/## Verification Log\n[\s\S]*$/, ''))
+  const refused = verify(none, ['--human', 'x'])
+  expectExit(refused, 2, 'no section, no append')
+  assert.match(`${refused.stdout}${refused.stderr}`, /no ## Verification Log section/)
+})
+
+// ADR-045 T6. `declared_steps` read Ordered Steps with the same fence-blind regex,
+// so an `[S<n>]` written after a fenced `## ` line was undeclared to `--steps` and a
+// run naming it was refused. Now through the shared `sections_of`.
+test('--steps sees a step declared after a fenced ## line in Ordered Steps', () => {
+  const copy = corpus()
+  addStepIdentities(copy)
+  writeTask(copy, readTask(copy).replace(/^2\. \[S2\]/m,
+    '```bash\n## a heading inside a fence is text\n```\n2. [S2]'))
+  expectExit(verify(copy, ['--cwd', '.', '--steps', 'S2']), 0,
+    'S2 is declared, one fenced heading later')
+  assert.match(readTask(copy), / · steps:S2$/m, 'and the run records it')
+
+  // DIRTY: an id the task never declares is still refused, naming both declared
+  // ids — so the acceptance above is S2 being READ, not every id being accepted.
+  const refused = verify(copy, ['--cwd', '.', '--steps', 'S9'])
+  assert.notEqual(refused.status, 0, 'S9 is not declared')
+  assert.match(`${refused.stdout}${refused.stderr}`, /declare[sd]? S1, S2/,
+    'the refusal lists both declared steps, so S2 was read through the fence')
+})

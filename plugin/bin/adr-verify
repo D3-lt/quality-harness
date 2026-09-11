@@ -8,7 +8,8 @@ Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> [--steps S1,S3]
        adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
-Extracts the ```bash fence under ## Acceptance and runs it with bash
+Extracts the runnable fence under ## Acceptance (```bash, ```sh or ```shell —
+`record.ACCEPTANCE_FENCE`, the one opener every gate reads) and runs it with bash
 (cwd: --cwd, else git root of the task file, else the task file's directory).
 Appends one entry to ## Verification Log:
 
@@ -16,8 +17,10 @@ Appends one entry to ## Verification Log:
 
 `*` marks a dirty working tree at run time; ` …` marks a multi-line command
 (the full command is the Acceptance fence — the entry shows line 1). The digest
-covers the entire normalized fence: CRLF/CR become LF and fence-adjacent blank
-lines are removed; command content is otherwise preserved.
+covers the entire normalized fence: the section is read line by line with
+`str.splitlines()`, so CRLF/CR and every other separator Python treats as a line
+break (VT, FF, FS, GS, RS, NEL, LS, PS) become LF; fence-adjacent blank lines are
+removed; indentation, internal blank lines and every other byte are preserved.
 Non-zero exits also append an indented fence with the last 10 output lines.
 --human appends `- YYYY-MM-DD · human-observed · <text>` for tasks whose
 Acceptance is declared human-observed.
@@ -88,7 +91,10 @@ Exit: the Acceptance command's exit code (0 for --human; 0 for --restore) · for
 --mutant the code is the VERDICT, not the fence: 0 `killed` · 1 `survived`, a
 finding about the test · 4 `inconclusive`, could-not-look — the fence failed for
 a machine reason and nothing was learned · 2 = usage, authoring, or transaction
-problem. 1 also reaches a caller from a fence that failed.
+problem. 1 also reaches a caller from a fence that failed. 4 is also could not run:
+plugin/lib/fence.py or plugin/lib/record.py is not beside this gate's bin/ (a gate
+copied on its own), nothing was read and nothing was written — the same
+could-not-look class as `inconclusive`, never a finding's code (ADR-005, ADR-045).
 
 ⚠ `survived` AND `inconclusive` SHARED 1 UNTIL 2026-09-07, so a caller reading only
 the code could not tell "the suite noticed nothing" from "nothing could be told"
@@ -127,11 +133,14 @@ _fence_file = os.path.join(_lib, "fence.py")
 if not os.path.isfile(_fence_file):
     # A gate COPIED somewhere without plugin/lib beside its bin/ — the stale-copy
     # shape the standalone forwarders exist to replace. Said in one sentence as
-    # could-not-run (exit 2, ADR-005), never as a traceback.
+    # could-not-run, never as a traceback. Exit 4, this gate's could-not-look code,
+    # and NOT 2: 2 is also "no ## Acceptance section", a finding about the task,
+    # and a caller reading 2 would go and edit a record this gate never opened
+    # (ADR-005; ADR-045 T4).
     sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/fence.py is not beside this gate's bin/ "
                      f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
                      f"or through a forwarder.\n")
-    sys.exit(2)
+    sys.exit(4)
 # Loaded from its EXACT path, and replaced if something else already answers to
 # the name. `sys.path.insert(0, lib)` beats an earlier search-path entry but not
 # the import cache: a sitecustomize or an embedding loader that had imported some
@@ -147,23 +156,25 @@ if os.path.realpath(getattr(_loaded, "__file__", None) or "") != os.path.realpat
     _spec.loader.exec_module(_loaded)
 from fence import *  # noqa: E402,F401,F403
 
-# The record grammar — `sections_of`, `normalize_acceptance`, `acceptance_digest` —
-# lives in plugin/lib/record.py beside fence.py and is loaded the same way (ADR-045).
-# This gate WRITES the digest adr-lint verifies and adr-next reads; until 2026-09-11
-# each carried its own copy of these functions, and adr-next's had drifted.
+# The record grammar — `sections_of`, `section_span`, `repeated_headings`,
+# `normalize_acceptance`, `acceptance_digest`, and the fence opener `ACCEPTANCE_FENCE`
+# — lives in plugin/lib/record.py beside fence.py and is loaded the same way
+# (ADR-045). This gate WRITES the digest adr-lint verifies and adr-next reads; until
+# 2026-09-11 each carried its own copy of these functions, and adr-next's had
+# drifted. Same exit as the fence above, for the same reason.
 _record_file = os.path.join(_lib, "record.py")
 if not os.path.isfile(_record_file):
     sys.stderr.write(f"[{os.path.basename(__file__)}] could not run: plugin/lib/record.py is not beside this gate's bin/ "
                      f"(looked in {_lib}). A gate copied without lib/ cannot run — run it from the plugin directory "
                      f"or through a forwarder.\n")
-    sys.exit(2)
+    sys.exit(4)
 _loaded_record = sys.modules.get("record")
 if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.realpath(_record_file):
     _record_spec = _ilu.spec_from_file_location("record", _record_file)
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, normalize_acceptance, acceptance_digest  # noqa: E402
+from record import sections_of, section_span, repeated_headings, normalize_acceptance, acceptance_digest, ACCEPTANCE_FENCE  # noqa: E402,E501
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -439,11 +450,10 @@ def collapse_repeats(lines):
     return [text if n == 1 else f"{text}  (x{n})" for text, n in folded]
 
 
-# The Acceptance fence, whatever the author spelled the language. `sh` and
-# `shell` are reasonable things to type and the fence runs through bash either
-# way; refusing them bought nothing and cost a reader a minute of guessing
-# (docs/BACKLOG.md §70). `bash` stays first because it is what the template says.
-ACCEPTANCE_FENCE = re.compile(r"```(?:bash|sh|shell)\s*\n(.*?)```", re.S)
+# `ACCEPTANCE_FENCE` — which opener makes a fence the runnable one — arrives from
+# plugin/lib/record.py (ADR-045 T3). It was defined HERE as `bash|sh|shell` while
+# adr-lint's digest path read `bash` only, so a ```sh task this gate ran and
+# recorded was never digest-checked by the gate that accepts the `done` row.
 
 
 def bash_or_exit():
@@ -663,9 +673,18 @@ def redact_home(block, home=None, platform=None):
 
 
 def append_entry(task, text, block, section="Verification Log"):
+    """Append `block` at the end of `## <section>`, found the way every reader finds it.
+
+    Through the shared `section_span` (ADR-045 T6). This was a regex ending at
+    the next `^## ` line — the fence-blind class ADR-045 T1 removed from the
+    Acceptance readers — and the Verification Log is exactly where a fenced
+    output excerpt lives: a failed run's last lines, which a test that printed a
+    Markdown heading fills with `## `. The old reader ended the section at that
+    line and appended the next entry INSIDE the excerpt (docs/BACKLOG.md §197).
+    """
     block = redact_home(block)
-    m = re.search(rf"(^## {re.escape(section)}\s*\n)(.*?)(?=^## |\Z)", text, re.M | re.S)
-    if not m:
+    span = section_span(text, section)
+    if span is None:
         # Say what to DO. "no ## Verification Log section" is accurate and left a
         # first-time reader guessing whether their file was malformed; the fix is
         # one empty heading, and the tool will not add it because writing a
@@ -674,13 +693,22 @@ def append_entry(task, text, block, section="Verification Log"):
         fail(f"{task.name}: no ## {section} section — add an empty `## {section}` heading to the "
              f"task file and re-run. This tool appends entries; it does not create the section, "
              f"because a task file's shape is the author's.")
-    sec = re.sub(r"^<Filled during execution:[^\n]*>\s*$", "", m.group(2), flags=re.M)
+    start, body_start, end = span
+    # The heading keeps the blank lines that follow it, byte for byte what the
+    # regex `^## <section>\s*\n` kept: its `\s*` ran through the whitespace after
+    # the heading and backtracked to the last line break in it. A writer that
+    # trimmed that run would rewrite every task file it touched by one blank line.
+    lead = re.match(r"\s*", text[body_start:end]).group()
+    cut = lead.rfind("\n")
+    if cut != -1:
+        body_start += cut + 1
+    sec = re.sub(r"^<Filled during execution:[^\n]*>\s*$", "", text[body_start:end], flags=re.M)
     # multi-line template placeholder: from '<Tool-written by' to the line ending in '>'
     sec = re.sub(r"^<Tool-written by.*?>\s*$", "", sec, flags=re.M | re.S)
     body = sec.strip("\n")
-    new = m.group(1) + (body + "\n" if body else "") + block + "\n"
-    tail = text[m.end():]
-    write_source(task, text[:m.start()] + new + ("\n" + tail if tail else ""), file_newline(task))
+    new = text[start:body_start] + (body + "\n" if body else "") + block + "\n"
+    tail = text[end:]
+    write_source(task, text[:start] + new + ("\n" + tail if tail else ""), file_newline(task))
 
 
 def git_sha(cwd):
@@ -1669,12 +1697,15 @@ def declared_steps(text):
     caller must treat as "cannot check" rather than "declares none": refusing a
     step against a section that could not be read would report an authoring error
     the author did not make.
+
+    Read through the shared, fence-aware `sections_of` (ADR-045 T6): a step
+    written after a fenced `## ` line was invisible to the regex this replaced,
+    and `--steps` refused an id the task declared.
     """
-    section = re.search(r"^## Ordered Steps$(?P<body>.*?)(?=^## |\Z)", text,
-                        re.M | re.S)
-    if section is None:
+    body = sections_of(text).get("Ordered Steps")
+    if body is None:
         return set()
-    return set(re.findall(r"\[S([1-9]\d*)\]", section.group("body")))
+    return set(re.findall(r"\[S([1-9]\d*)\]", "\n".join(body)))
 
 
 def rests_on(text):
@@ -1980,12 +2011,16 @@ def claims_in(task):
     nothing to re-check and nothing to be right or wrong about. A non-zero entry
     is not a claim either — it is TDD-red evidence, and this project keeps it on
     purpose.
+
+    Read through the shared, fence-aware `sections_of` (ADR-045 T6). The regex
+    this replaced ended the log at the first `^## ` line, and a failed run's
+    fenced excerpt is where such a line appears — every claim after it left the
+    denominator, which flatters the rate in the direction that matters.
     """
-    section = re.search(r"^## Verification Log\s*\n(.*?)(?=^## |\Z)",
-                        task.read_text(errors="replace", encoding="utf-8"), re.M | re.S)
-    if not section:
+    body = sections_of(task.read_text(errors="replace", encoding="utf-8")).get("Verification Log")
+    if body is None:
         return set()
-    return {m.group("digest") for m in CLAIM_RE.finditer(section.group(1))}
+    return {m.group("digest") for m in CLAIM_RE.finditer("\n".join(body))}
 
 
 def sweep_corpus(root, timeout=SWEEP_TIMEOUT_DEFAULT, as_json=False, shell=_UNSET):
@@ -2523,6 +2558,20 @@ def main():
         fail(f"task file not found: {task}")
     text = task.read_text(errors="replace", encoding="utf-8")
     today = datetime.date.today().isoformat()
+
+    # ADR-045 T5. Two `## Acceptance` sections are two candidate fences and one
+    # digest; two `## Verification Log`s are two places an entry could land. The
+    # shared grammar reads the LAST of a repeated heading, identically in every
+    # gate — so nothing disagrees, but the record is ambiguous and this gate would
+    # write evidence against whichever half the walk happened to keep. Refused
+    # before anything runs or is written, as the authoring problem it is (exit 2).
+    duplicated = repeated_headings(text)
+    if duplicated:
+        fail(f"{task.name}: the heading{'s' if len(duplicated) > 1 else ''} "
+             f"{', '.join(f'## {h}' for h in duplicated)} appear{'' if len(duplicated) > 1 else 's'} "
+             f"more than once. A task has one of each section; with two, the fence this "
+             f"gate would run and the log it would write into are whichever came last, and "
+             f"a reader cannot tell which that was. Merge them and re-run.")
 
     if human_mutant is not None:
         # The modes that RUN something are mutually exclusive with the one that

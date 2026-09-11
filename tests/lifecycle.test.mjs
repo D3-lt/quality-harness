@@ -3146,7 +3146,7 @@ test('a disk-only task dir is not in flight', async () => {
 // plugin copied WITHOUT lib/: the orientation must say UNPROVEN where the ready
 // line would be, with the gate's own sentence; the real plugin on the same
 // repository offers the task.
-test('SessionStart says UNPROVEN, with the gate\'s reason, when adr-next could not run', async () => {
+test("SessionStart says UNPROVEN, with the gate's reason, when adr-next could not run", async () => {
   const root = await mkdtemp(path.join(testTmp, 'ss-ready-unrun-'))
   await mkdir(path.join(root, 'docs', 'tasks'), { recursive: true })
   await cp(path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md'),

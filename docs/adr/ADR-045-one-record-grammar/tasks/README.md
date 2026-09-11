@@ -12,12 +12,17 @@ README must be regenerated.
 |------|------|------------|
 | 1 | T1, T2 | none |
 | 2 | T3, T4, T5, T6 | T1 |
+| 3 | T7, T8, T9, T11 | T6 (T7, T8); T3 (T9); T1 (T11) |
+| 4 | T10 | T3, T8 |
 
 ## Waves
 
 - **Wave 1** — T1 and T2 in parallel; the rename touches no grammar.
 - **Wave 2** — T3–T6, the Codex review's findings on wave 1, each on T1's module and on nothing
   else; they share files (`record.py`, `adr-verify`, `adr-lint`, the test files) but no function.
+- **Wave 3 / 4** — T7–T11, the second Codex review's findings on wave 2. T7 and T8 are on T6's writer;
+  T9 on T3's opener; T11 on T1's walk; T10 folds T8's marker and T9's naming into one grammar, so it
+  comes last.
 
 
 ## Task Index
@@ -30,6 +35,11 @@ README must be regenerated.
 | T4 | A gate that cannot load a shared module exits its own could-not-run code | done | F-5, UC5-S1, UC5-S2 | `node --test --test-name-pattern 'a gate copied without plugin/lib says so\|reached through a symlink loads the lib\|every exit code a gate can literally produce\|the record grammar is one module' tests/gates.test.mjs` |
 | T5 | A repeated `## ` heading is a finding, never resolved in silence | done | F-6, UC6-S1, UC6-S2 | `node --test --test-name-pattern 'a repeated ## Acceptance is refused' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash' tests/gates.test.mjs` |
 | T6 | adr-verify's remaining section readers are the shared grammar | done | F-7, UC7-S1, UC7-S2, UC7-S3 | `node --test --test-name-pattern 'appended after a fenced ## line\|sees a step declared after a fenced' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'fenced ## line in the Verification Log is still a claim' tests/sweep.test.mjs && node --test --test-name-pattern 'record.py: the opener is bash\|the record grammar is one module' tests/gates.test.mjs` |
+| T7 | An entry under a heading that ends the file gets its own line | pending | F-8, UC8-S1, UC8-S2 | `node --test --test-name-pattern 'ends the file without a line break' tests/evidence-chain.test.mjs` |
+| T8 | A quoted fence line cannot toggle the grammar, and an open fence is named | pending | F-9, UC9-S1, UC9-S2, UC9-S3 | `node --test --test-name-pattern 'cannot toggle the grammar' tests/evidence-chain.test.mjs && node --test --test-name-pattern 'an unclosed fence is named by line' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes' tests/adr-next.test.mjs` |
+| T9 | adr-lint names the whole unrunnable opener line | pending | F-10, UC10-S1, UC10-S2 | `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` |
+| T10 | One fence grammar — the walk and the runnable opener are one rule | pending | F-11, UC11-S1, UC11-S2 | `node --test --test-name-pattern 'record.py: the opener is bash\|the record grammar is one module' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes\|sh-labelled Acceptance fence adr-verify recorded' tests/adr-next.test.mjs && node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` |
+| T11 | Only CR, LF and CRLF break a line | pending | F-12, UC12-S1, UC12-S2 | `node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs` |
 
 
 Status: `pending` | `partial` | `blocked` | `done`.
@@ -43,3 +53,5 @@ None.
 - T1 and T2 are independent; the rename touches no grammar.
 - T3–T6 (2026-09-11) are the Codex review's findings on T1/T2, each depending on T1's module and on
   nothing else; they may run in any order.
+- T7–T11 (2026-09-11) are the second Codex review's findings on T3–T6; the three caller findings of the
+  same review are ADR-046.

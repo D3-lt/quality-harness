@@ -49,6 +49,7 @@ node --test --test-name-pattern 'the dispatcher relays a gate that could not run
 | 4 — it is used | the hook on stdin against a plugin without `lib/` |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · with the branch disabled a no-lib adr-lint falls through to "is not satisfied … Fix the artifact", which the hook-stdin test refuses · acceptance-sha256:d098c7bfa462a2e28173a71c948e9835d8f190269dfdf0968d7df837deb44f66
 
 ## Invariants
 
@@ -72,3 +73,5 @@ A green run while a gate's could-not-run exit produces "is not satisfied" or "Fi
 Codes verified by execution 2026-09-11 (ADR-046 §Context table). The adapter's main guard compares `import.meta.url` with `argv[1]`, so the test resolves the temp plugin through `realpathSync` — on macOS `os.tmpdir()` is under `/var` → `/private/var` (CLAUDE.md §7).
 
 ## Verification Log
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'the dispatcher relays a gate that could not run' tests/gates.test.mjs` · acceptance-sha256:d098c7bfa462a2e28173a71c948e9835d8f190269dfdf0968d7df837deb44f66 · ms:1362
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'the dispatcher relays a gate that could not run' tests/gates.test.mjs` · acceptance-sha256:d098c7bfa462a2e28173a71c948e9835d8f190269dfdf0968d7df837deb44f66 · ms:884

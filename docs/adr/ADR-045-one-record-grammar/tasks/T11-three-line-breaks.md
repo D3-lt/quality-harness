@@ -51,6 +51,7 @@ node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.
 | 4 — it is used | the probe's eleven separators through the module |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/lib/record.py` · with the eight separators back in the splitter a heading holding a form feed is two headings and the probe sees the manufactured repeat · acceptance-sha256:ebf1ed6ebc84addfa79b6ff99cb02252d24067af71f7fb42f32957d8932651e1
 
 ## Invariants
 
@@ -76,3 +77,5 @@ A green run while `sections_of("## A\x0cB\n")` yields two headings.
 Found by the second Codex review of ADR-045 (M1), which reproduced all eight manufacturing a repeated Acceptance heading. The first review's reading — "keep as non-goal" — was a session's, not the owner's; the spec's Non-Goal keeps the earlier line and adds the dated reversal.
 
 ## Verification Log
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs` · acceptance-sha256:ebf1ed6ebc84addfa79b6ff99cb02252d24067af71f7fb42f32957d8932651e1 · ms:95
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs` · acceptance-sha256:ebf1ed6ebc84addfa79b6ff99cb02252d24067af71f7fb42f32957d8932651e1 · ms:79

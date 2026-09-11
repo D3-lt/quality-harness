@@ -49,6 +49,7 @@ node --test --test-name-pattern 'could-not-run code reaches the client' tests/mc
 | 4 — it is used | the server on stdin against a copy without `record.py` |
 
 ## Mutation Log
+- 2026-09-11 · eb0fe36* · mutant killed · exit 1 · `plugin/bin/qh-mcp` · with the branch disabled adr-next exit 2 comes back as isError false content and the stdin test finds no error object · acceptance-sha256:ae15eb892b6fcfdefebb530c6fbeba900c605baef1c8cd9ce8054283fb7a2da4
 
 ## Invariants
 
@@ -72,3 +73,5 @@ A green run while a reading gate's could-not-run exit is returned as `isError: f
 The one-module test asserts qh-mcp's source never mentions `record.py` (it reads no records), so the table's comment names "the grammar module" rather than the file. Codes verified by execution 2026-09-11 (ADR-046 §Context).
 
 ## Verification Log
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'could-not-run code reaches the client' tests/mcp-server.test.mjs` · acceptance-sha256:ae15eb892b6fcfdefebb530c6fbeba900c605baef1c8cd9ce8054283fb7a2da4 · ms:257
+- 2026-09-11 · eb0fe36* · exit 0 · `node --test --test-name-pattern 'could-not-run code reaches the client' tests/mcp-server.test.mjs` · acceptance-sha256:ae15eb892b6fcfdefebb530c6fbeba900c605baef1c8cd9ce8054283fb7a2da4 · ms:240

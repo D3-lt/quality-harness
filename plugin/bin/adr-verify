@@ -17,10 +17,11 @@ Appends one entry to ## Verification Log:
 
 `*` marks a dirty working tree at run time; ` …` marks a multi-line command
 (the full command is the Acceptance fence — the entry shows line 1). The digest
-covers the entire normalized fence: the section is read line by line with
-`str.splitlines()`, so CRLF/CR and every other separator Python treats as a line
-break (VT, FF, FS, GS, RS, NEL, LS, PS) become LF; fence-adjacent blank lines are
-removed; indentation, internal blank lines and every other byte are preserved.
+covers the entire normalized fence: CRLF and CR become LF (`record.split_lines`
+knows those three breaks and no other — VT, FF, FS, GS, RS, NEL, LS and PS are
+bytes of the command, not line breaks, since ADR-045 T11); fence-adjacent blank
+lines are removed; indentation, internal blank lines and every other byte are
+preserved.
 Non-zero exits also append an indented fence with the last 10 output lines.
 --human appends `- YYYY-MM-DD · human-observed · <text>` for tasks whose
 Acceptance is declared human-observed.

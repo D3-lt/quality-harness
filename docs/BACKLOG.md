@@ -12610,3 +12610,27 @@ Enumerated 2026-09-11: `rg -n 'splitlines\(\)' plugin/bin/adr-lint plugin/bin/ad
 → 25 call sites. None decides a heading or a digest (those go through `record.split_lines`), so a
 stray FF in a header line can at most misread that header. Not fixed here: each is a different reader
 with a different regression, and the class is the whole set of them.
+
+## 200. adr-verify `file_newline` rewrites mixed terminators and does not name a lone CR
+
+Measured 2026-09-12 against `plugin/bin/adr-verify` `file_newline` / `source_bytes` (the pair
+`append_entry` uses). Not fixed in the ADR-045 T11/T12 delivery: not a one-function closer change,
+and a rewrite of every evidence append is not shown to have 0 corpus impact.
+
+```
+$ python3 - <<'PY'
+# file_newline / source_bytes copied from plugin/bin/adr-verify
+lone.write_bytes(b'a\rb\n'); print(repr(file_newline(lone)), source_bytes('a\rb\n', file_newline(lone)))
+mixed.write_bytes(b'a\r\nb\nc'); print(repr(file_newline(mixed)), source_bytes('a\r\nb\nc', file_newline(mixed)))
+PY
+```
+
+- lone CR (`a\rb\n`): `file_newline` is `'\n'` (no `\r\n` byte pair); rewrite is `b'a\rb\n'` — the
+  lone CR is kept as a byte, not named as a line break and not folded.
+- mixed CRLF/LF (`a\r\nb\nc`): `file_newline` is `'\r\n'` because any `\r\n` wins; rewrite is
+  `b'a\r\nb\r\nc'` — the LF line is converted to CRLF.
+
+`file_newline` answers "does this file contain a CRLF pair?" and `source_bytes` then spells every
+logical `\n` in that one terminator. A mixed file is rewritten as if it were only CRLF. A lone CR
+is invisible to the detector. Each needs its own regression on `append_entry` / `write_source`,
+and the class is the detector plus the rewriter, not T11's splitter.

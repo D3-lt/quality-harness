@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict'
 import {
+  chmodSync,
   cpSync,
   mkdirSync,
   mkdtempSync,
@@ -540,7 +541,7 @@ test('the dispatcher relays a gate that could not run as UNPROVEN, never as an u
         const payload = JSON.stringify({ tool_input: { file_path: join(fixture, file) }, hook_event_name: event })
         const out = run(process.execPath, [hook, 'facts-gate-dispatch.sh'], fixture, payload)
         expectExit(out, 0, `${gate} could not run (${event ?? 'completion'})`)
-        const said = event === 'PostToolUse' ? JSON.parse(out.stdout).hookSpecificOutput.additionalContext : out.stdout
+        const said = event === 'PostToolUse' ? JSON.parse(out.stdout).hookSpecificOutput.additionalContext : out.stderr
         assert.match(said, new RegExp(`^UNPROVEN: ${gate.replace(/[-.]/g, '\\$&')} could not run \\(exit ${code}\\): \\[${gate.split(' ')[0]}\\] could not run: plugin/lib/${lib}\\.py is not beside`),
           `${gate} (${event ?? 'completion'}): could-not-run reaches the caller as could-not-run, with the gate's own sentence: ${out.stdout}${out.stderr}`)
         assert.doesNotMatch(`${out.stdout}${out.stderr}`, /not satisfied|Fix the artifact/,
@@ -561,6 +562,69 @@ test('the dispatcher relays a gate that could not run as UNPROVEN, never as an u
     assert.match(said, /^spec-verify --draft is not satisfied yet for /, `a gate that RAN and found something says so: ${said}`)
     assert.doesNotMatch(said, /UNPROVEN: .* could not run/, 'and is not mistaken for one that could not run')
   } finally { rmSync(broken, { recursive: true, force: true }) }
+})
+
+test('ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit', () => {
+  const text = readFileSync(join(repoRoot, 'docs', 'adr', 'ADR-046-a-caller-relays-could-not-run.md'), 'utf8')
+  assert.match(text, /Amends ADR-012 §2 for the could-not-run case/)
+  assert.match(text, /every completed run returns its findings and the gate's exit code as ordinary content/)
+  assert.match(text, /Findings of a run that did run stay on the content channel/)
+  assert.doesNotMatch(text, /^\*\*Invalidates:\*\* none/m,
+    'the amendment is named; Invalidates is no longer "none"')
+})
+
+test("adr-lint's Exit block names the exits it actually produces", () => {
+  const contract = exitBlock('adr-lint')
+  const one = exitClauses(contract, 1)
+  const two = exitClauses(contract, 2)
+  assert.ok(one.some(c => /unknown flag/.test(c) && /no record named/.test(c) && /missing file/.test(c)),
+    `code 1's own clause names the measured usage exits:\n${one.join('\n---\n')}`)
+  assert.ok(!one.some(c => /could not run/.test(c)),
+    `code 1 is a finding or a usage miss, not could-not-run:\n${one.join('\n---\n')}`)
+  assert.ok(two.some(c => /could not run/.test(c) && /plugin\/lib\/record\.py/.test(c)),
+    `code 2's own clause is could-not-run and names the lib:\n${two.join('\n---\n')}`)
+  assert.ok(!two.some(c => /unknown flag/.test(c) || /no record named/.test(c)),
+    `unknown flag / no record named are not in the code-2 clause:\n${two.join('\n---\n')}`)
+  // Measured 2026-09-12: these three are 1; only lib-missing (LIB_ABSENT) is 2.
+  expectExit(run('adr-lint', ['--bogus']), 1, '--bogus')
+  expectExit(run('adr-lint', []), 1, 'no record named')
+  expectExit(run('adr-lint', [join(os.tmpdir(), 'no-such-ADR-001.md')]), 1, 'missing file')
+})
+
+test('postmortem-verify on a path it cannot read exits could-not-run, and the dispatcher relays it as UNPROVEN', () => {
+  const missing = join(os.tmpdir(), 'qh-no-such-postmortem.md')
+  const gone = run('postmortem-verify', [missing])
+  expectExit(gone, 2, 'missing path is could-not-run')
+  assert.match(gone.stderr, /^\[postmortem-verify\] could not run: /, gone.stderr)
+  assert.doesNotMatch(`${gone.stdout}${gone.stderr}`, /Traceback/, 'no traceback')
+  // DIRTY: a real postmortem is still 0; a non-postmortem is still 1.
+  expectExit(run('postmortem-verify', ['postmortem-selftest.md']), 0, 'valid postmortem')
+  expectExit(run('postmortem-verify', [join(root, 'templates', 'adr-template.md')]), 1, 'non-postmortem')
+
+  const sh = readFileSync(join(root, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
+  const table = sh.slice(sh.indexOf('unrun_exit()'), sh.indexOf('if [ -n "$(unrun_exit'))
+  assert.match(table, /postmortem-verify/, `every dispatched gate is in the table:\n${table}`)
+
+  const temp = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-pm-unrun-')))
+  try {
+    const file = join(temp, 'docs', 'postmortems', 'gone.md')
+    mkdirSync(join(temp, 'docs', 'postmortems'), { recursive: true })
+    writeFileSync(file, '---\ndate: 2026-09-12\ncategory: silent-failure\nseverity: low\n---\n')
+    chmodSync(file, 0o000)
+    let unread = false
+    try { readFileSync(file) } catch { unread = true }
+    if (!unread) {
+      chmodSync(file, 0o644)
+      return
+    }
+    const out = run(process.execPath, [join(root, 'scripts', 'run-shell-hook.mjs'), 'facts-gate-dispatch.sh'],
+      temp, JSON.stringify({ tool_input: { file_path: file } }))
+    expectExit(out, 0, 'dispatcher on an unreadable postmortem')
+    assert.match(out.stderr, /UNPROVEN: postmortem-verify could not run \(exit 2\)/,
+      `could-not-read is UNPROVEN, not an unsatisfied artifact: ${out.stdout}${out.stderr}`)
+    assert.doesNotMatch(`${out.stdout}${out.stderr}`, /not satisfied|Fix the artifact/)
+    chmodSync(file, 0o644)
+  } finally { rmSync(temp, { recursive: true, force: true }) }
 })
 
 test('a legacy record is not routed as a task and told its own ADR is missing', () => {
@@ -2278,6 +2342,75 @@ test('record.py: only CR, LF and CRLF break a line — a heading holding a form 
     `split_lines breaks on exactly three separators: ${JSON.stringify(got.lines)}`)
   assert.equal(got.norm, 'printf a\x85b', 'the NEL is a byte of the command, preserved')
   assert.equal(got.digest, got.sha, 'and the digest is taken over exactly those bytes')
+})
+
+// ADR-045 T12. `_fence_closes` used `.strip()`, so NEL / NBSP / the other
+// Unicode whitespace counted as "nothing after the marker" and closed a fence
+// T11 says is still one line. Closer rest is `[ \t]*` only, matching
+// `_RUNNABLE_INFO`. Dirty: ```\\x85 and ```\\xa0 do not close. Clean: ``` and
+// ```\\t do. Corpus digest-diff against the `.strip()` closer over tracked
+// docs/adr/**/*.md must be 0 — a tracked record with a Unicode closer suffix
+// would be a different reading, and this change must not invent one.
+test('record.py: a closer rest is only ASCII space and tab — NEL does not close a fence', () => {
+  const probe = [
+    'import importlib.util, json, subprocess, sys',
+    'spec = importlib.util.spec_from_file_location("record_probe", sys.argv[1])',
+    'record = importlib.util.module_from_spec(spec)',
+    'spec.loader.exec_module(record)',
+    'dirty = "## Acceptance\\n```bash\\necho SHOULD_NOT_BE_RUN\\n```\\x85\\n## hidden\\n"',
+    'nbsp = "## Acceptance\\n```bash\\necho SHOULD_NOT_BE_RUN\\n```\\xa0\\n## hidden\\n"',
+    'clean = "## Acceptance\\n```bash\\necho RUN\\n```\\n## hidden\\n"',
+    'tab = "## Acceptance\\n```bash\\necho RUN\\n```\\t\\n## hidden\\n"',
+    'listed = subprocess.check_output(["git", "-C", sys.argv[2], "ls-files", "-z", "docs/adr"], text=True, encoding="utf-8")',
+    'paths = [p for p in listed.split("\\0") if p.endswith(".md")]',
+    'def snapshot():',
+    '    out = []',
+    '    for rel in paths:',
+    '        text = open(sys.argv[2] + "/" + rel, encoding="utf-8").read()',
+    '        sect = record.sections_of(text)',
+    '        acc = sect.get("Acceptance")',
+    '        body = record.acceptance_fence("\\n".join(acc)) if acc is not None else None',
+    '        digest = record.acceptance_digest(record.normalize_acceptance(body)) if body is not None else None',
+    '        out.append((rel, list(sect), digest))',
+    '    return out',
+    'now = snapshot()',
+    'real = record._fence_closes',
+    'def strip_closes(line, opened):',
+    '    m = record._FENCE.match(line)',
+    '    return (m is not None and m.group("marker")[0] == opened[0]',
+    '            and len(m.group("marker")) >= opened[1] and not m.group("rest").strip())',
+    'record._fence_closes = strip_closes',
+    'old = snapshot()',
+    'record._fence_closes = real',
+    'dirty_sect = record.sections_of(dirty)',
+    'print(json.dumps({',
+    '    "dirty_body": record.acceptance_fence("\\n".join(dirty_sect["Acceptance"])) if "Acceptance" in dirty_sect else None,',
+    '    "dirty_keys": list(dirty_sect),',
+    '    "dirty_open": record.unterminated_fence(dirty) is not None,',
+    '    "nbsp_open": record.unterminated_fence(nbsp) is not None,',
+    '    "clean_body": record.acceptance_fence("\\n".join(record.sections_of(clean)["Acceptance"])),',
+    '    "clean_keys": list(record.sections_of(clean)),',
+    '    "tab_body": record.acceptance_fence("\\n".join(record.sections_of(tab)["Acceptance"])),',
+    '    "tab_keys": list(record.sections_of(tab)),',
+    '    "first": record.first_fence_line("```\\x85"),',
+    '    "digest_changed": [a[0] for a, b in zip(now, old) if a != b],',
+    '    "files": len(paths),',
+    '}))',
+  ].join('\n')
+  const out = run('python3', ['-c', probe, join(root, 'lib', 'record.py'), repoRoot])
+  expectExit(out, 0, 'record.py closer probe')
+  const got = JSON.parse(out.stdout)
+  assert.equal(got.dirty_body, null, `NEL after the marker is not a closer: ${JSON.stringify(got)}`)
+  assert.deepEqual(got.dirty_keys, ['Acceptance'], `the heading after an unclosed fence is text: ${JSON.stringify(got.dirty_keys)}`)
+  assert.equal(got.dirty_open, true, 'and the open fence is named')
+  assert.equal(got.nbsp_open, true, 'NBSP after the marker is not a closer')
+  assert.equal(got.clean_body, 'echo RUN', 'a bare closer still closes')
+  assert.deepEqual(got.clean_keys, ['Acceptance', 'hidden'], `clean keys: ${JSON.stringify(got.clean_keys)}`)
+  assert.equal(got.tab_body, 'echo RUN', 'a tab after the marker still closes')
+  assert.deepEqual(got.tab_keys, ['Acceptance', 'hidden'], JSON.stringify(got.tab_keys))
+  assert.equal(got.first, '```\x85', 'first_fence_line keeps a NEL; it does not strip Unicode whitespace')
+  assert.deepEqual(got.digest_changed, [],
+    `corpus digest-diff vs the .strip() closer must be 0 (files=${got.files}): ${JSON.stringify(got.digest_changed)}`)
 })
 
 // ADR-045 F-3. adr-lint's listing includes untracked, non-ignored files (a

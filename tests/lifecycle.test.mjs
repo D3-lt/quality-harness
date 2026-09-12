@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -39,7 +39,10 @@ import {
   isGitPublishCommand,
   isPotentialMutationCommand,
   isValidationCommand,
+  posixListed,
+  readyTaskLines,
   runArtifactGates,
+  surfaceReadyLines,
   shellSegments,
   ASSERTION_ARM_WITHDRAWN,
   completionClaim,
@@ -693,9 +696,11 @@ test('command hook advises on subagent completion without later evidence', async
 
 test('commit gate advises, never blocks, when this session has unverified edits', async () => {
   const dir = await checkedProject('quality-hook-')
+  const edited = path.join(dir, 'a.js')
+  await writeFile(edited, 'export {}\n')
   const file = path.join(dir, 'main.jsonl')
   await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }),
+    toolUse('e1', 'Edit', { file_path: edited }),
     toolResult('e1'),
   ]))
 
@@ -705,7 +710,7 @@ test('commit gate advises, never blocks, when this session has unverified edits'
   })
   assert.equal(run.status, 0)
   assert.match(run.stderr, /would publish unchecked/i)
-  assert.match(run.stderr, /Changed paths include: \/repo\/a\.js\./)
+  assert.match(run.stderr, /Changed paths include: .*a\.js/)
 })
 
 test('reported: finding the repository root does not disqualify the check that follows', () => {
@@ -995,6 +1000,7 @@ test('reported: a project that names no check hears nothing from the evidence ga
   // specific to say says nothing.
   const bare = await mkdtemp(path.join(testTmp, 'quality-unopted-'))
   const file = path.join(bare, 'agent.jsonl')
+  await writeFile(path.join(bare, 'redash_core.py'), 'print(0)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(bare, 'redash_core.py') }), toolResult('e1'),
   ]))
@@ -1464,6 +1470,7 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
   // boundary the reader is the agent (BACKLOG §131), and that arm is below.
   const repo = await checkedProject('quality-visible-')
   const file = path.join(repo, 'agent.jsonl')
+  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
   ]))
@@ -1508,6 +1515,7 @@ test('no finding is ever hidden: a completion advisory is a systemMessage, and a
 
   // A CHANGED finding in the same session is said in full again: one more
   // unverified edit changes the changed-path list, and the person hears of it.
+  await writeFile(path.join(repo, 'other.py'), 'print(1)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
     toolUse('e2', 'Write', { file_path: path.join(repo, 'other.py') }), toolResult('e2'),
@@ -1542,6 +1550,7 @@ test('compaction makes a once-per-session finding first again', async () => {
   // bumps the session's generation; the same finding is then news again.
   const repo = await checkedProject('quality-compact-')
   const file = path.join(repo, 'agent.jsonl')
+  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
   ]))
@@ -1581,6 +1590,7 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
   // adds one line on both channels — never instead of the finding.
   const repo = await checkedProject('quality-slow-')
   const file = path.join(repo, 'agent.jsonl')
+  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
   ]))
@@ -1611,6 +1621,8 @@ test('PreCompact records what the gates measured, and the compact SessionStart h
   // resume does not: that context is still there.
   const repo = await checkedProject('quality-precompact-')
   const file = path.join(repo, 'agent.jsonl')
+  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
+  await writeFile(path.join(repo, 'other.py'), 'print(1)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
     toolUse('e2', 'Write', { file_path: path.join(repo, 'other.py') }), toolResult('e2'),
@@ -1658,6 +1670,7 @@ test('SessionEnd records what was left unverified, and the next startup here say
   // same place; only ever spawned in a directory this test created (CLAUDE.md §9).
   assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 60_000 }).status, 0)
   const file = path.join(repo, 'agent.jsonl')
+  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
     toolUse('b1', 'Bash', { command: 'printf x > notes.txt' }), toolResult('b1'),
@@ -1819,6 +1832,7 @@ test('reported: cleaning up a scratch directory does not brick the session', asy
   const repo = await mkdtemp(path.join(testTmp, 'quality-scratch-'))
   const scratch = path.join(os.tmpdir(), 'quality-scratch-target')
   const file = path.join(repo, 'agent.jsonl')
+  await writeFile(path.join(repo, 'notes.md'), '# Notes\n')
   await writeFile(file, transcript([
     toolUse('b1', 'Bash', { command: `W=${scratch}\nrm -rf "$W"\nmkdir -p "$W"` }), toolResult('b1'),
     toolUse('e1', 'Write', { file_path: path.join(repo, 'notes.md') }), toolResult('e1'),
@@ -1886,6 +1900,7 @@ test('the gate names the check this project owns instead of asking for one', asy
   // host checkout — the trap that made this suite branch-sensitive before.
   spawnSync('git', ['init', '-q', '-b', 'task/work', node], { encoding: 'utf8', timeout: 60_000 })
   const file = path.join(node, 'main.jsonl')
+  await writeFile(path.join(node, 'a.ts'), 'export {}\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Edit', { file_path: path.join(node, 'a.ts') }), toolResult('e1'),
   ]))
@@ -2320,6 +2335,7 @@ test('Read or Grep is not Advise every turn', async () => {
   // Same fixture with a native write must still Advise — otherwise the silence
   // above is vacuous (CLAUDE.md §4).
   const dirtyFile = path.join(dir, 'native-write.jsonl')
+  await writeFile(path.join(dir, 'a.py'), 'print(0)\n')
   await writeFile(dirtyFile, transcript([
     toolUse('w1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('w1'),
   ]))
@@ -2389,6 +2405,7 @@ test('PreToolUse commit advice does not Advise on Read or Grep', async () => {
   // Same fixture with a native write must still Advise — otherwise the silence
   // above is vacuous (CLAUDE.md §4).
   const dirtyFile = path.join(dir, 'native-write.jsonl')
+  await writeFile(path.join(dir, 'a.py'), 'print(0)\n')
   await writeFile(dirtyFile, transcript([
     toolUse('w1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('w1'),
   ]))
@@ -2447,6 +2464,7 @@ test('PreToolUse commit advice Advises on mrw_write after a published native Wri
   // S5: native Write sets authorship 'native'; git commit does not demote it
   // to bash, so UNPROVEN can never be assigned afterwards.
   const dir = await checkedProject('quality-unproven-after-write-')
+  await writeFile(path.join(dir, 'a.py'), 'print(0)\n')
   const published = [
     toolUse('n1', 'Write', { file_path: path.join(dir, 'a.py') }), toolResult('n1'),
     toolUse('c1', 'Bash', { command: 'git commit -m published' }), toolResult('c1'),
@@ -2784,6 +2802,7 @@ test('EVIDENCE-LIMITED does not release a code change, however well explained', 
   // a bypass.
   const dir = await checkedProject('quality-escape-code-')
   const file = path.join(dir, 'agent.jsonl')
+  await writeFile(path.join(dir, 'service.py'), 'print(0)\n')
   await writeFile(file, transcript([
     toolUse('e1', 'Write', { file_path: path.join(dir, 'service.py') }), toolResult('e1'),
   ]))
@@ -3161,15 +3180,153 @@ test("SessionStart says UNPROVEN, with the gate's reason, when adr-next could no
     { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, CLAUDE_PLUGIN_ROOT: nolib } })
   assert.equal(unrun.status, 0, unrun.stderr)
   const said = orientation(unrun)
-  assert.match(said, /ADR tasks in flight:\n {2}docs\/tasks: UNPROVEN — adr-next could not run \(exit 2\): \[adr-next\] could not run: plugin\/lib\/record\.py is not beside/,
+  assert.match(said, /ADR tasks in flight:\n {2}docs[/\\]tasks: UNPROVEN — adr-next could not run \(exit 2\): \[adr-next\] could not run: plugin\/lib\/record\.py is not beside/,
     `could-not-run reaches the session as UNPROVEN, with the gate's sentence: ${said}`)
+  assert.match(said, /docs\/tasks: UNPROVEN/, `production lists the directory in posix form: ${said}`)
   assert.doesNotMatch(said, /is ready —|all \d+ task\(s\) carry|nothing ready/, `no verdict about tasks nobody read: ${said}`)
 
   // DIRTY: the same repository through the real plugin offers the task.
   const ran = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root })
   assert.equal(ran.status, 0, ran.stderr)
-  assert.match(orientation(ran), /docs\/tasks: T1 is ready —/, orientation(ran))
+  assert.match(orientation(ran), /docs[/\\]tasks: T1 is ready —/, orientation(ran))
+  assert.match(orientation(ran), /docs\/tasks: T1 is ready —/, `production lists the directory in posix form: ${orientation(ran)}`)
   assert.doesNotMatch(orientation(ran), /UNPROVEN — adr-next/)
+})
+
+function artifactGatesThrough(pluginRoot, paths, cwd) {
+  const code = 'const {runArtifactGates}=await import(' +
+    JSON.stringify(pathToFileURL(path.join(pluginRoot, 'scripts', 'lifecycle.mjs')).href) +
+    '); process.stdout.write(JSON.stringify(runArtifactGates(' +
+    JSON.stringify(paths) + ',' + JSON.stringify(cwd) + ')));'
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', code], {
+    cwd,
+    env: { ...process.env, CLAUDE_PLUGIN_ROOT: pluginRoot },
+    encoding: 'utf8',
+    timeout: 60_000,
+  })
+  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+  return JSON.parse(run.stdout)
+}
+
+test('runArtifactGates returns UNPROVEN when a dispatched gate could not run or could not classify', async () => {
+  const repo = await mkdtemp(path.join(testTmp, 'gates-unproven-'))
+  const fixtures = path.join(repoRoot, 'tests', 'fixtures', 'ok')
+  await mkdir(path.join(repo, 'docs'), { recursive: true })
+  await cp(path.join(fixtures, 'ADR-001-selftest.md'), path.join(repo, 'docs', 'ADR-001-selftest.md'))
+  await cp(path.join(fixtures, 'spec-selftest.md'), path.join(repo, 'docs', 'spec-selftest.md'))
+  await cp(path.join(fixtures, 'tasks'), path.join(repo, 'docs', 'tasks'), { recursive: true })
+  const task = path.join(repo, 'docs', 'tasks', 'T1-fixture.md')
+  const nolib = await mkdtemp(path.join(testTmp, 'plugin-nolib-gates-'))
+  await cp(path.join(pluginDir, 'bin'), path.join(nolib, 'bin'), { recursive: true })
+  await cp(path.join(pluginDir, 'scripts'), path.join(nolib, 'scripts'), { recursive: true })
+
+  const unrun = artifactGatesThrough(nolib, [task], repo)
+  assert.equal(typeof unrun, 'string', `nolib must not look like all-passed: ${unrun}`)
+  assert.match(unrun, /UNPROVEN/, `could-not-run reaches runArtifactGates, not null: ${unrun}`)
+
+  // DIRTY: the same file through the real plugin is clean.
+  assert.equal(artifactGatesThrough(pluginDir, [task], repo), null, 'healthy plugin, healthy record')
+
+  const missing = path.join(repo, 'docs', 'adr', 'ghost.md')
+  const classified = artifactGatesThrough(pluginDir, [missing], repo)
+  assert.match(classified, /UNPROVEN: could not classify/, `missing file is could-not-look: ${classified}`)
+
+  const unread = path.join(repo, 'notes.md')
+  writeFileSync(unread, 'not a record\n')
+  chmodSync(unread, 0o000)
+  let blocked = false
+  try { readFileSync(unread) } catch { blocked = true }
+  if (blocked) {
+    const said = artifactGatesThrough(pluginDir, [unread], repo)
+    assert.match(said, /UNPROVEN: could not classify/, `unreadable existing file is could-not-look: ${said}`)
+  }
+  try { chmodSync(unread, 0o644) } catch {}
+})
+
+test('SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones', async () => {
+  assert.equal(posixListed('docs\\tasks'), 'docs/tasks')
+  assert.equal(posixListed('docs/tasks'), 'docs/tasks')
+
+  const ordinary = ['  a/tasks: T1 is ready — a', '  b/tasks: T2 is ready — b',
+    '  c/tasks: T3 is ready — c', '  d/tasks: T4 is ready — d']
+  assert.deepEqual(surfaceReadyLines(ordinary), [
+    '  a/tasks: T1 is ready — a', '  b/tasks: T2 is ready — b',
+    '  c/tasks: T3 is ready — c', '  (+1 more record set(s))',
+  ])
+  assert.ok(!surfaceReadyLines(ordinary).some(line => line.includes('UNPROVEN')))
+
+  const mixed = [...ordinary.slice(0, 3), '  d/tasks: UNPROVEN — adr-next could not run (exit 2): missing lib']
+  const shown = surfaceReadyLines(mixed)
+  assert.ok(shown.some(line => line.includes('UNPROVEN')), `UNPROVEN is never hidden behind the cap: ${shown.join('\n')}`)
+  assert.ok(!shown.some(line => /\(\+\d+ more/.test(line)), `an UNPROVEN fourth line is not counted as hidden: ${shown.join('\n')}`)
+
+  const dirs = [
+    ['docs', 'tasks'],
+    ['docs', 'adr', 'A', 'tasks'],
+    ['docs', 'adr', 'B', 'tasks'],
+    ['docs', 'adr', 'C', 'tasks'],
+  ]
+  const root = await mkdtemp(path.join(testTmp, 'ss-ready-cap-'))
+  const fixture = path.join(repoRoot, 'tests', 'fixtures', 'ok', 'tasks', 'T1-fixture.md')
+  for (const parts of dirs) {
+    const directory = path.join(root, ...parts)
+    await mkdir(directory, { recursive: true })
+    await cp(fixture, path.join(directory, 'T1-fixture.md'))
+  }
+  gitInit(root)
+  const listing = dirs.map(parts => path.join(...parts, 'T1-fixture.md'))
+
+  const healthy = readyTaskLines(root, true, listing, () => ({
+    status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: path.join(root, 'docs', 'tasks', 'T1-fixture.md') }] }),
+    stderr: '', error: null, signal: null,
+  }))
+  assert.equal(healthy.lines.length, 4)
+  const capped = surfaceReadyLines(healthy.lines)
+  assert.equal(capped.filter(line => !/\(\+\d+ more/.test(line)).length, 3)
+  assert.match(capped.join('\n'), /\(\+1 more record set\(s\)\)/)
+  assert.ok(!capped.some(line => line.includes('UNPROVEN')))
+
+  let n = 0
+  const mixedSpawn = readyTaskLines(root, true, listing, () => {
+    n += 1
+    if (n === 4) {
+      return { status: 2, stdout: '', stderr: '[adr-next] could not run: plugin/lib/record.py', error: null, signal: null }
+    }
+    return {
+      status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: path.join(root, 'docs', 'tasks', 'T1-fixture.md') }] }),
+      stderr: '', error: null, signal: null,
+    }
+  })
+  assert.ok(mixedSpawn.lines.some(line => line.includes('UNPROVEN')))
+  assert.ok(surfaceReadyLines(mixedSpawn.lines).some(line => line.includes('UNPROVEN')))
+  assert.match(mixedSpawn.lines.join('\n'), /docs\/(?:adr\/C\/)?tasks/)
+
+  const vanished = readyTaskLines(root, true, listing, () => ({
+    status: null, stdout: '', stderr: '', error: new Error('quality-harness: no Python 3 on PATH answered a version probe'), signal: null,
+  }))
+  assert.ok(vanished.lines.every(line => /UNPROVEN — adr-next did not run/.test(line)),
+    `status null is did-not-run, not silence: ${vanished.lines.join('\n')}`)
+
+  const orientation = run => JSON.parse(run.stdout).hookSpecificOutput.additionalContext
+  const nolib = await mkdtemp(path.join(testTmp, 'plugin-nolib-cap-'))
+  await cp(path.join(pluginDir, 'bin'), path.join(nolib, 'bin'), { recursive: true })
+  await cp(path.join(pluginDir, 'scripts'), path.join(nolib, 'scripts'), { recursive: true })
+  const unrun = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root },
+    { env: { ...process.env, CLAUDE_PLUGIN_DATA: ledgerHome, CLAUDE_PLUGIN_ROOT: nolib } })
+  assert.equal(unrun.status, 0, unrun.stderr)
+  const said = orientation(unrun)
+  assert.match(said, /UNPROVEN/, said)
+  const unprovenLines = said.split('\n').filter(line => line.includes('UNPROVEN — adr-next'))
+  assert.ok(unprovenLines.length >= 4, `every directory's UNPROVEN surfaces: ${said}`)
+  assert.doesNotMatch(said, /\(\+\d+ more record set\(s\)\)/, `UNPROVEN is not hidden behind the cap: ${said}`)
+
+  const ran = runLifecycleHook({ hook_event_name: 'SessionStart', cwd: root })
+  assert.equal(ran.status, 0, ran.stderr)
+  const clean = orientation(ran)
+  assert.match(clean, /\(\+1 more record set\(s\)\)/, `four healthy directories still cap ordinary lines: ${clean}`)
+  assert.doesNotMatch(clean, /UNPROVEN — adr-next/)
+  const shownReady = clean.split('\n').filter(line => /is ready —/.test(line))
+  assert.equal(shownReady.length, 3, `cap keeps three ordinary ready lines: ${clean}`)
 })
 
 test('git cannot list is UNPROVEN, not no ready tasks', async () => {

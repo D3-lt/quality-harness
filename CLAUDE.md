@@ -42,10 +42,12 @@ node --expose-internals scripts/untimed-spawns.mjs   # every JS child carries a 
 ```
 
 - **Never pipe the gate.** `| tail` and `|| true` hide the exit code. Run it, read it, then commit.
+- **Never filter a gate's findings.** `grep -v advice` keeps exit 0 and hides the lines that were real. Run it, read every `advice:` line, then commit.
 - **Name the working-tree path for a gate** (`python3 plugin/bin/adr-lint`,
   `node plugin/scripts/…`). A bare name runs an INSTALLED copy, never your edit.
 - **Install the hooks once per clone:** `git config core.hooksPath .githooks`.
 - **Never run a mutation tool and edit the tree at the same time.**
+
 - **Never commit while a gate is red**, and never chain a commit after a test in one command.
 - **Commit messages go through `git commit -F -` with a quoted heredoc**, never `-m "..."`.
 
@@ -57,6 +59,7 @@ Why: `.claude/rules/02-running-the-checks.md`
   `errors.append(...)` is blocking; moving a finding between them is a behaviour change.
 - **A gate never reports an observation it did not make.** Could-not-look is `UNRUN`, `PARTIAL`,
   `UNPROVEN` — never the vocabulary of a verdict. (ADR-005)
+- **Unread always-on output is work we action.** Classify each advise line, unchanged branch-state brief, and host recalled-memory block this turn: act, or name it dangling only when the action needs a human decision (Accept a Proposed record; push a release). Treating a class as noise after one look, then never reading it again, is how a finding the gate did emit goes unnoticed across commits.
 
 Why: `.claude/rules/03-gates-advise.md`
 
@@ -203,9 +206,9 @@ Why: `.claude/rules/14-mrw-and-agentsmemory.md`
 - **A branch whose CI you have not read is UNKNOWN, not green.** So is one whose run is still
   running, and so is one you could not look at because `gh` is absent.
 - `plugin/scripts/branch-state.mjs` says it unprompted, the way the memory bootstrap does — **once at
-  `SessionStart` in full, and briefly on every `UserPromptSubmit`** (one line while the branch is
-  green; a red CI keeps its ⚠ and its failing job names on a second). A reader wired only to
-  It reads, blocks nothing, and exits 0 whatever it finds. Run it by hand any time.
+  `SessionStart` in full, and briefly on every `UserPromptSubmit` only when that brief line changed or
+  CI is in alarm** (a red CI keeps its ⚠ and its failing job names). An unchanged brief reprint is unread;
+  suppress it. It reads, blocks nothing, and exits 0 whatever it finds. Run it by hand any time.
 - It reports state, never permission. **`node scripts/release-evidence.mjs <sha>` remains the only
   answer to "may this be released"** (§13.4).
 
@@ -226,3 +229,16 @@ can be reasoned correct. Every member of it is a claim about the world.
   unaccounted costs a weaker finding, wrong costs a false refusal of correct work.
 
 Why: `.claude/rules/16-classifiers-are-empirical.md`
+
+## 17. Always-on unread output is work we action
+
+These classes are stated plainly. They are not noise. Classify each this turn and **act**. Name a leftover dangling only when the action needs a human decision this turn cannot invent (Accept a Proposed record; push a release, §13). Skipping them as already-seen is fail-open.
+
+- **Unread always-on dumps.** Advice, an unchanged `UserPromptSubmit` branch-state brief, and a host recalled-memory block this plugin does not emit. `hooks.json` SessionStart is lifecycle plus branch-state; it does not dump the palace. A host dump that did not change is the same reader class.
+- **Invented writes in Stop.** `Changed paths include` a command, a home path, a host scratchpad, or a `<Bash mutation:>` stand-in. Proven repository paths only. Empty or marker-only is could-not-look. Still Advise.
+- **An inferred `check` presented as the project's own.** Lead with undeclared. Declare the real command as `check` in `.quality-harness.json`.
+- **Proposed still governing when the code has moved on; unanswered Follow-ups.** Accept or name the leftover. Fill Follow-ups rather than leave an empty checkbox.
+- **Fence-segments leftover.** A Rests-on count that under-declares is advice with an edit: collapse the fence or add the missing name. Leaving it unread is fail-open.
+- **Accepted plugin work not released.** A green shipped change is released, not parked (§13). Do not bump or push unless asked; name the leftover.
+
+Why: `.claude/rules/17-always-on-unread-is-work.md`

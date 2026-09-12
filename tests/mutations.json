@@ -123,7 +123,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (docsOnly(state.mutationPaths) && evidenceLimited(input.last_assistant_message)) return",
+      "from": "  if (docsOnly(provenMutationPaths(state.mutationPaths, input.cwd)) && evidenceLimited(input.last_assistant_message)) return",
       "to": "  if (evidenceLimited(input.last_assistant_message)) return"
     },
     {
@@ -537,8 +537,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const distinct = [...new Set(paths)]",
-      "to": "  const distinct = [...paths]"
+      "from": "    if (seen.has(entry)) continue\n    seen.add(entry)",
+      "to": "    seen.add(entry)"
     },
     {
       "label": "advisory: no advisory calls itself a block",
@@ -3028,8 +3028,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const caveat = origin === 'declared'",
-      "to": "  const caveat = true"
+      "from": "  if (origin === 'declared') {\n    return `Run \\`${command}\\` (this project's own check)",
+      "to": "  if (false) {\n    return `Run \\`${command}\\` (this project's own check)"
     },
     {
       "label": "next: a record owning no tasks is answered, a missing path is refused",
@@ -5066,8 +5066,8 @@
       "tests": [
         "tests/statusline.test.mjs"
       ],
-      "from": "    kind: unprovenWrite ? 'unverified' : edited.length === 0 ? 'nothing' : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',",
-      "to": "    kind: unprovenWrite ? 'unverified' : edited.length === 0 ? 'nothing' : 'checked',"
+      "from": "    kind: unprovenWrite || markerOnly ? 'unverified'\n      : proven.length === 0 ? 'nothing'\n      : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',",
+      "to": "    kind: unprovenWrite || markerOnly ? 'unverified'\n      : proven.length === 0 ? 'nothing'\n      : 'checked',"
     },
     {
       "label": "statusline: a transcript over the cap is said, not read",
@@ -7510,6 +7510,26 @@
       "from": "            if lock_blocks_done(text, root):\n                return False\n            return True",
       "to": "            return True",
       "only": "is_done refuses when a locked hash moved"
+    },
+    {
+      "label": "lint: named-path OSError is could-not-run at check_adr (ADR-049 T1)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    text = read_named(adr_path)",
+      "to": "    text = Path(adr_path).read_text(errors=\"replace\", encoding=\"utf-8\")",
+      "only": "an unreadable named path is could-not-run, not failures-found"
+    },
+    {
+      "label": "facts-gate-dispatch: adr-lint mapped could-not-run is UNPROVEN (ADR-049 T2)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    adr-lint|arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
+      "to": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
+      "only": "UNPROVEN through the dispatcher, not not satisfied"
     }
   ]
 }

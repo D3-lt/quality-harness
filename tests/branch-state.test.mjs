@@ -514,6 +514,17 @@ test('the cached branch CLI reads a fresh answer without starting Git', t => {
   assert.match(warm.stdout, /read \d+s ago/)
   assert.equal(warm.stderr, '', 'a warm reader must not even try an unavailable Git')
   assert.equal(JSON.parse(readFileSync(trace, 'utf8').trim().split('\n').at(-1)).outcome, 'cache-hit')
+  const warmAgain = read()
+  assert.equal(warmAgain.stdout, '', 'an unchanged brief line is not reprinted')
+  writeFileSync(cache, JSON.stringify({
+    at: Date.now() - 1000,
+    state: { ...state, ci: { ...state.ci, conclusion: 'failure', failed: ['coverage'] } },
+  }))
+  const alarm = read()
+  assert.match(alarm.stdout, /⚠ CI/, alarm.stdout)
+  const alarmAgain = read()
+  assert.match(alarmAgain.stdout, /⚠ CI/, 'a red CI must not go silent on a second prompt')
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 1000, state }))
   const override = read({ GIT_DIR: path.join(project, 'missing-git') })
   assert.match(override.stdout, /COULD NOT LOOK/, 'Git environment overrides must bypass the filesystem hint')
   const unsafeTrace = path.join(project, 'must-not-be-created.jsonl')

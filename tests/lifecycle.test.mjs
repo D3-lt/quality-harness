@@ -19,6 +19,7 @@ import {
   checkCommandOrigin,
   projectCheckCommand,
   runTheCheckSentence,
+  provenMutationPaths,
   budgetExhausted,
   commandInsideWrappers,
   describeCommand,
@@ -775,18 +776,18 @@ test('reported: the changed-path list holds paths, and only ones that changed', 
   // And copying the other way lands in the repository.
   assert.equal(mutatesOnlyTempPaths(`cp ${scratch}/a.md ./docs/BACKLOG.md`, pluginDir), false)
 
-  // The list is five slots wide. Five copies of one marker report one thing —
-  // which is what the live session saw, with `cd <repo>` filling every slot.
+  // The list is five slots wide. Repeats of one proven path report one thing.
+  // Markers used to fill the slots; a marker is not a path (F-1).
   const project = await checkedProject('quality-repeats-')
   const file = path.join(project, 'agent.jsonl')
-  const same = `cd ${project}\nprintf x > note.txt`
+  const note = path.join(project, 'note.txt')
   await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: same }), toolResult('b1'),
-    toolUse('b2', 'Bash', { command: same }), toolResult('b2'),
-    toolUse('b3', 'Bash', { command: same }), toolResult('b3'),
+    toolUse('w1', 'Write', { file_path: note }), toolResult('w1'),
+    toolUse('w2', 'Write', { file_path: note }), toolResult('w2'),
+    toolUse('w3', 'Write', { file_path: note }), toolResult('w3'),
   ]))
   const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: project })
-  const listed = (`${run.stdout}`.match(/Changed paths include: ([^"]*?)\. Run/) ?? [])[1] ?? ''
+  const listed = (`${run.stdout}`.match(/Changed paths include: ([^"]*?)\./) ?? [])[1] ?? ''
   const entries = listed.split(', ').filter(Boolean)
   assert.ok(entries.length > 0, run.stdout)
   assert.deepEqual(entries, [...new Set(entries)], `repeated entries: ${listed}`)
@@ -913,6 +914,8 @@ test('a project that declares its check is asked for that check', async () => {
   const sentence = runTheCheckSentence(guessed)
   assert.match(sentence, /inferred from this repository/, sentence)
   assert.match(sentence, /about this machine and not about your change/, sentence)
+  assert.doesNotMatch(sentence, /\(this project's own check\)/, sentence)
+  assert.match(sentence, /No `check` is declared/, sentence)
   // The must-fail direction (CLAUDE.md §4): the caveat must not appear on every
   // message, or it says nothing — the declared case above is that assertion, and
   // this one keeps the word "environment" reserved for a run that actually
@@ -1818,11 +1821,12 @@ test('reported: the nag says what changed in a form a person can read', async ()
   ]))
   const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
   const message = `${run.stdout}${run.stderr}`
-  assert.match(message, /Changed paths include/)
-  // The reader must get one line per thing changed. A raw newline inside a
-  // marker is what made the report unreadable.
+  assert.match(message, /"systemMessage"/)
+  assert.match(message, /could not prove a repository path/)
+  assert.doesNotMatch(message, /Changed paths include/)
+  assert.doesNotMatch(message, /python3 - <</)
+  // A marker, if still printed, must be one line. F-1 no longer lists it as a path.
   const markers = message.match(/<Bash mutation: [^>]*>/g) ?? []
-  assert.ok(markers.length > 0, message)
   for (const marker of markers) assert.doesNotMatch(marker, /\n/, marker)
 })
 
@@ -1911,7 +1915,9 @@ test('the gate names the check this project owns instead of asking for one', asy
     tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: node,
   })
   assert.equal(run.status, 0)
-  assert.match(run.stderr, /Run `pnpm test` \(this project's own check\)/)
+  assert.match(run.stderr, /No `check` is declared/)
+  assert.match(run.stderr, /pnpm test/)
+  assert.doesNotMatch(run.stderr, /\(this project's own check\)/)
 })
 
 test('a bin/ gate is spawned in a way Windows can actually run', async () => {
@@ -2227,18 +2233,11 @@ test('Stop names the mutating remainder after a probe prefix', async () => {
   ]))
   const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
   const message = `${run.stdout}${run.stderr}`
-  assert.match(message, /Changed paths include/, message)
-  const markers = message.match(/<Bash mutation: [^>]*>/g) ?? []
-  for (const marker of markers) {
-    assert.doesNotMatch(marker, /echo "== cache versions"/, marker)
-    assert.doesNotMatch(marker, /\bls /, marker)
-  }
-  const buildPath = path.resolve(dir, 'build')
-  assert.ok(
-    markers.some(marker => marker.includes('rm -rf build')) || message.includes(buildPath),
-    message)
+  assert.match(message, /Changed paths include:.*build/, message)
+  assert.doesNotMatch(message, /<Bash mutation:/, message)
   // Non-Goal: which inferred check a go.mod repo is told to run stays `go test`.
   assert.match(message, /go test/, message)
+  assert.doesNotMatch(message, /\(this project's own check\)/, message)
 })
 
 test('probe-only Bash is not Session authorship', async () => {
@@ -2266,6 +2265,80 @@ test('probe-only Bash is not Session authorship', async () => {
   const dirty = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
   const dirtyMessage = `${dirty.stdout}${dirty.stderr}`
   assert.match(dirtyMessage, /Changed paths include/, dirtyMessage)
+})
+
+test('Stop does not invent writes from probes, markers, or paths outside the repo', async () => {
+  // docs/specs/2026-09-12-unproven-advise-does-not-invent-writes.md F-1-F-5.
+  const dir = await mkdtemp(path.join(testTmp, 'quality-proven-paths-'))
+  await writeFile(path.join(dir, 'notes.md'), 'x\n')
+  await writeFile(path.join(dir, 'Makefile'), 'test:\n\t@true\n')
+  const file = path.join(dir, 'agent.jsonl')
+  const stop = extra => runLifecycleHook({
+    hook_event_name: 'Stop', transcript_path: file, cwd: dir, ...extra,
+  })
+  const msg = run => `${run.stdout}${run.stderr}`
+
+  await writeFile(file, transcript([
+    toolUse('v1', 'Bash', { command: 'node --version' }), toolResult('v1'),
+  ]))
+  const probe = stop()
+  const probeMsg = msg(probe)
+  assert.match(probe.stdout, /"systemMessage"/, probeMsg)
+  assert.match(probeMsg, /could not prove a repository path/, probeMsg)
+  assert.doesNotMatch(probeMsg, /Changed paths include/, probeMsg)
+  assert.doesNotMatch(probeMsg, /<Bash mutation:/, probeMsg)
+  assert.doesNotMatch(probeMsg, /transcript contains file mutations/, probeMsg)
+  assert.doesNotMatch(probeMsg, /\(this project's own check\)/, probeMsg)
+  assert.match(probeMsg, /No `check` is declared/, probeMsg)
+  assert.equal(provenMutationPaths(analyzeTranscript(await readFile(file, 'utf8'), dir)
+    .mutationPaths, dir).length, 0)
+
+  await writeFile(file, transcript([
+    toolUse('p1', 'Bash', { command: 'ps aux' }), toolResult('p1'),
+  ]))
+  const psMsg = msg(stop())
+  assert.match(psMsg, /"systemMessage"/, psMsg)
+  assert.match(psMsg, /could not prove a repository path/, psMsg)
+  assert.doesNotMatch(psMsg, /transcript contains file mutations/, psMsg)
+
+  await writeFile(file, transcript([
+    toolUse('s1', 'Bash', { command: 'sed -i "s/x/y/" notes.md' }), toolResult('s1'),
+  ]))
+  const sed = msg(stop())
+  assert.match(sed, /Changed paths include:.*notes\.md/, sed)
+  assert.doesNotMatch(sed, /transcript contains file mutations/, sed)
+
+  await writeFile(file, transcript([
+    toolUse('s1', 'Bash', { command: 'sed -i "s/x/y/" notes.md' }), toolResult('s1'),
+    toolUse('v2', 'Bash', { command: 'node --version' }), toolResult('v2'),
+  ]))
+  const mixed = msg(stop())
+  assert.match(mixed, /Changed paths include:.*notes\.md/, mixed)
+  assert.doesNotMatch(mixed, /<Bash mutation:/, mixed)
+
+  const away = await mkdtemp(path.join(testTmp, 'quality-outside-write-'))
+  await writeFile(path.join(away, 'scratch.md'), 'x\n')
+  await writeFile(file, transcript([
+    toolUse('w1', 'Write', { file_path: path.join(away, 'scratch.md') }), toolResult('w1'),
+  ]))
+  const outside = msg(stop())
+  assert.match(outside, /"systemMessage"/, outside)
+  assert.doesNotMatch(outside, /Changed paths include/, outside)
+  assert.match(outside, /could not prove a repository path/, outside)
+
+  await writeFile(file, transcript([
+    toolUse('d1', 'Bash', { command: 'rm -rf "$UNSET"' }), toolResult('d1'),
+  ]))
+  const del = msg(stop())
+  assert.doesNotMatch(del, /Unresolved Bash deletion/, del)
+  assert.match(del, /could not prove a repository path/, del)
+
+  await writeFile(file, transcript([
+    toolUse('s1', 'Bash', { command: 'sed -i "s/x/y/" notes.md' }), toolResult('s1'),
+    toolUse('v3', 'Bash', { command: 'node --version' }), toolResult('v3'),
+  ]))
+  const docs = stop({ last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes' })
+  assert.equal(docs.stdout, '', docs.stdout)
 })
 
 test('an unknown non-Bash write is Advise, not nothing edited', async () => {
@@ -3143,10 +3216,20 @@ test('a Bash edit that names only Markdown files is a docs-only change', async (
   // Markdown only: the escape a docs change is entitled to.
   const docs = await stopAfter('sed -i "s/a/b/" notes.md')
   assert.equal(docs.stdout, '', docs.stdout)
-  // The control: a write that also reaches code keeps the marker and the gate.
-  const code = await stopAfter('sed -i "s/a/b/" notes.md service.py')
+  // The control: a proven non-document path keeps the gate. Bash sed that also
+  // names service.py still only resolves Markdown, so the marker is not a path
+  // (F-1) and cannot be why docsOnly is false.
+  await writeFile(file, transcript([
+    toolUse('b1', 'Bash', { command: 'sed -i "s/a/b/" notes.md' }), toolResult('b1'),
+    toolUse('w1', 'Write', { file_path: path.join(dir, 'service.py') }), toolResult('w1'),
+  ]))
+  const code = runLifecycleHook({
+    hook_event_name: 'Stop', transcript_path: file, cwd: dir,
+    last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes',
+  })
   assert.match(code.stdout, /"systemMessage"/)
-  assert.match(code.stdout, /<Bash mutation: /)
+  assert.match(code.stdout, /service.py/)
+  assert.doesNotMatch(code.stdout, /<Bash mutation:/)
 })
 
 test('a heredoc that only reads through a literal read-only subprocess is not a mutation', () => {

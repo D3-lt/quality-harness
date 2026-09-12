@@ -9,8 +9,8 @@ The rules whose cost of missing is not a wasted hour are repeated here:
 
 - **`plugin/` is the product; everything above it is the work that produces it and never ships.**
   In the tests, `repoRoot` is the repository and `root` is the plugin — different directories.
-- **Never commit while a gate is red, and never pipe a gate.** `bash scripts/selftest.sh` must exit
-  0 after your last edit. `| tail` and `|| true` hide the exit code. Never chain a commit after a
+- **Never commit while a gate is red, and never pipe or filter a gate.** `bash scripts/selftest.sh` must exit
+  0 after your last edit. `| tail` and `|| true` hide the exit code; `grep -v advice` hides the findings. Never chain a commit after a
   test in one command.
 - **Call a gate by its working-tree path, never its bare name.** `adr-lint` on `PATH` runs an
   installed release, not your edit. Use `python3 plugin/bin/adr-lint`, `node plugin/scripts/…`.
@@ -33,6 +33,7 @@ The rules whose cost of missing is not a wasted hour are repeated here:
   has not served you and reports a verdict for every hunk; a refusal is the tool working.
 - **Use agentsmemory.** `am_status` and `am_search` before touching unfamiliar code; file what you
   learned before you stop. Wing `wing_quality-harness`; craft to `wing_craft`.
+- **Always-on unread is actioned.** Advice, an unchanged brief, invented Stop paths, an inferred check called the project's own — classify and act (`CLAUDE.md` §17).
 
 Everything else — and the measurements behind all of the above — is in `CLAUDE.md` and
 `.claude/rules/`.

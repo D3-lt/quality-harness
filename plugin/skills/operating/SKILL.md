@@ -83,6 +83,12 @@ between releases — `qh-doctor` prints the current one. Never quote it from mem
 and never harden it in prose: instructing an agent that advice is a blocker trains
 it to stop on findings the gate deliberately softened.
 
+The other direction is the same defect: instructing an agent that advice is
+skippable trains it to filter `advice:` out of the output and then claim the gate
+was clean. That is a false statement about the gate (BACKLOG §152). Read every
+advise line. Act. Name it dangling only when a human decision is required this turn cannot invent. "The gate did not block" is not
+"I did not need to look."
+
 ## The template is authoritative, and any restatement of it is already losing
 
 Out of Scope dispositions, permanent bases, citation forms, the section list — all

@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -566,4 +566,55 @@ test('the cached branch CLI reads a fresh answer without starting Git', t => {
   assert.equal(stale.status, 0, stale.stderr)
   assert.match(stale.stdout, /COULD NOT LOOK/)
   assert.doesNotMatch(stale.stdout, /every job concluded success/, 'stale green cannot hide a failed refresh')
+})
+
+test('a refresh that still renders the same brief line is not reprinted', t => {
+  // ciAlarm is true when CI could not look, so an un-remoted fixture always
+  // reprints. This case needs a green CI answer on both sides of the TTL.
+  const project = mkdtempSync(path.join(os.tmpdir(), 'qh-brief-ttl-'))
+  const bin = mkdtempSync(path.join(os.tmpdir(), 'qh-brief-ttl-bin-'))
+  t.after(() => {
+    rmSync(project, { recursive: true, force: true })
+    rmSync(bin, { recursive: true, force: true })
+  })
+  const init = spawnSync('git', ['init', '-q', project], { encoding: 'utf8', timeout: 10_000 })
+  assert.equal(init.status, 0, init.stderr)
+  const commit = spawnSync('git', ['-C', project, '-c', 'user.name=Test',
+    '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'fixture'],
+  { encoding: 'utf8', timeout: 10_000 })
+  assert.equal(commit.status, 0, commit.stderr)
+  const remote = spawnSync('git', ['-C', project, 'remote', 'add', 'origin',
+    'git@github.com:example/qh-brief-ttl.git'], { encoding: 'utf8', timeout: 10_000 })
+  assert.equal(remote.status, 0, remote.stderr)
+  const ghJs = path.join(bin, 'gh.mjs')
+  writeFileSync(ghJs, [
+    'const args = process.argv.slice(2)',
+    "if (args[0] === 'run' && args[1] === 'list') {",
+    "  process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
+    '  process.exit(0)',
+    '}',
+    'process.exit(1)',
+    '',
+  ].join('\n'))
+  writeFileSync(path.join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghJs}" "$@"\n`)
+  writeFileSync(path.join(bin, 'gh.cmd'), `@echo off\r\n"${process.execPath}" "${ghJs}" %*\r\n`)
+  chmodSync(path.join(bin, 'gh'), 0o755)
+  const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
+  const run = () => spawnSync(process.execPath, [script, '--brief', '--cached', '120'], {
+    cwd: project,
+    env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` },
+    encoding: 'utf8', timeout: 15_000,
+  })
+  const first = run()
+  assert.equal(first.status, 0, first.stderr)
+  assert.match(first.stdout, /every job concluded success/, first.stdout)
+  const cache = path.join(project, '.git', 'qh-branch-state.json')
+  const stored = JSON.parse(readFileSync(cache, 'utf8'))
+  assert.equal(typeof stored.said, 'string')
+  writeFileSync(cache, JSON.stringify({ ...stored, at: Date.now() - 121_000 }))
+  const again = run()
+  assert.equal(again.stdout, '', again.stdout)
+  writeFileSync(cache, JSON.stringify({ at: Date.now() - 121_000, state: stored.state }))
+  const control = run()
+  assert.match(control.stdout, /every job concluded success/, 'without said, a refresh still prints')
 })

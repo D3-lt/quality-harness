@@ -3172,6 +3172,26 @@ test('EVIDENCE-LIMITED opens the completion gate only with a stated reason', asy
   assert.match(stop('EVIDENCE-LIMITED:').stdout, /"systemMessage"/)
 })
 
+test('EVIDENCE-LIMITED does not release an unproven write after a published docs change', async () => {
+  // Codex review of 12c22b8...c1e1f9e: docsOnly used the full-session path list, so
+  // a published Markdown write plus a later marker-only command looked docs-only
+  // and silenced Stop. The unverified bit is already scoped to lastPublish.
+  const dir = await checkedProject('quality-escape-published-docs-')
+  const file = path.join(dir, 'agent.jsonl')
+  await writeFile(path.join(dir, 'notes.md'), '# Notes\n')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Write', { file_path: path.join(dir, 'notes.md') }), toolResult('e1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m done' }), toolResult('c1'),
+    toolUse('v1', 'Bash', { command: 'node --version' }), toolResult('v1'),
+  ]))
+  const run = runLifecycleHook({
+    hook_event_name: 'Stop', transcript_path: file, cwd: dir,
+    last_assistant_message: 'EVIDENCE-LIMITED: prose only, nothing here executes',
+  })
+  assert.match(run.stdout, /"systemMessage"/, run.stdout)
+  assert.match(`${run.stdout}${run.stderr}`, /could not prove a repository path/)
+})
+
 test('EVIDENCE-LIMITED does not release a code change, however well explained', async () => {
   // The escape exists because prose cannot always be executed. Code can, so
   // docsOnly guards it — and that guard is the difference between an escape and

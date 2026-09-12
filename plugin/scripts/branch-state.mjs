@@ -422,11 +422,19 @@ function main(argv = process.argv.slice(2)) {
   const store = home ? join(home, 'qh-branch-state.json') : null
   const { state, fromCache, ageSeconds } = cached(maxAgeSeconds, {
     read: () => read(store),
-    write: payload => { if (!store) return; try { writeFileSync(store, JSON.stringify(payload)) } catch { /* a cache that cannot be written is not a failure */ } },
+    write: payload => {
+      if (!store) return
+      try {
+        const current = read(store)
+        // Keep `said` across a TTL refresh. Dropping it made every 120s reprint
+        // an unchanged green brief (CLAUDE.md §17).
+        writeFileSync(store, JSON.stringify({ ...payload, said: payload.said ?? current?.said }))
+      } catch { /* a cache that cannot be written is not a failure */ }
+    },
     gather: checkpoint => collect(run, checkpoint),
   })
   emitCachedBranchState(state, {
-    brief, age: fromCache ? ageSeconds : 0, previous: fromCache ? read(store) : null, store,
+    brief, age: fromCache ? ageSeconds : 0, previous: read(store) ?? previous, store,
   })
   finish(fromCache ? 'cache-hit' : state.looked ? 'refreshed' : 'unavailable', { status: 0 })
   return 0

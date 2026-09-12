@@ -4266,7 +4266,9 @@ export async function handleHook(input) {
     }
     return
   }
-  if (docsOnly(provenMutationPaths(state.mutationPaths, input.cwd)) && evidenceLimited(input.last_assistant_message)) return
+  // Same window as `unverified`: a Markdown path published earlier is not a
+  // reason to treat a later unproven write as docs-only.
+  if (docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)) && evidenceLimited(input.last_assistant_message)) return
   if (event === 'Stop' && interimResponse(input.last_assistant_message)) return
   // No check to name, nothing to ask for. This gate's whole question is "did you
   // run THE check", and in a project that declares none it degrades into "run the

@@ -2423,7 +2423,12 @@ function gitRepositoryRoot(directory) {
   const run = spawnSync('git', ['-C', directory, 'rev-parse', '--show-toplevel'], {
     encoding: 'utf8', timeout: 5_000,
   })
-  return run.status === 0 ? run.stdout.trim() : null
+  if (run.status !== 0) return null
+  // Git's spelling and Node's path.resolve of the same tree can disagree
+  // (C:/ vs C:\, 8.3 vs long, /tmp vs /private/tmp). An un-realpathed root
+  // made relativeWithinRoot filter every path as outside, so the hook
+  // delivered empty context (CLAUDE.md §7).
+  return canonical(run.stdout.trim())
 }
 
 // Names the project's own check when there is one, so the gate asks for
@@ -3928,12 +3933,12 @@ function decisionContextFor(input) {
   const cwd = typeof input.cwd === 'string' && path.isAbsolute(input.cwd) ? input.cwd : process.cwd()
   const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
   if (typeof target !== 'string' || !target) return ''
-  const resolved = path.resolve(cwd, target)
+  const resolved = canonical(path.resolve(cwd, target))
   // Only skip work for context already emitted. A miss or failed discovery must
   // remain eligible when a governing record is added later in the same session.
   if (alreadyMentionedThisSession(input.session_id, resolved)) return ''
   const directory = nearestExistingDirectory(path.resolve(cwd))
-  const root = directory ? gitRepositoryRoot(directory) ?? directory : null
+  const root = directory ? canonical(gitRepositoryRoot(directory) ?? directory) : null
   if (!root) return ''
   let context
   try { context = decisionContext([resolved], root) } catch { return '' }

@@ -572,7 +572,7 @@ test('PostToolUse names not-recognised once per file per session via firstMentio
   assert.match(`${always.stdout}${always.stderr}`, /not-recognised/)
   const dispatcher = readFileSync(path.join(pluginDir, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
   assert.match(dispatcher, /first-mention|firstMentionThisSession/)
-  assert.equal(firstMentionThisSession(session, `not-recognised:${file}`), false)
+  assert.equal(firstMentionThisSession(session, `not-recognised:${posix(file)}`), false)
 })
 
 test('post-edit-check still runs on unclassified files', () => {

@@ -771,8 +771,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  return path.relative(real(root), real(candidate))",
-      "to": "  return direct"
+      "from": "  const attempts = [path.relative(root, candidate), path.relative(real(root), real(candidate))]\n  const hit = attempts.find(inside)\n  if (hit !== undefined) return hit",
+      "to": "  return path.relative(root, candidate)"
     },
     {
       "label": "context: said once per path per session",

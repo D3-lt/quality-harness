@@ -791,6 +791,10 @@ test('reported: the changed-path list holds paths, and only ones that changed', 
   const entries = listed.split(', ').filter(Boolean)
   assert.ok(entries.length > 0, run.stdout)
   assert.deepEqual(entries, [...new Set(entries)], `repeated entries: ${listed}`)
+  assert.deepEqual(
+    provenMutationPaths(['a.js', 'a.js', 'b.js', 'a.js'], project),
+    ['a.js', 'b.js'],
+    'dedupe is provenMutationPaths itself, not a later unique()')
 })
 
 test('reported: no advisory claims to have blocked anything', async () => {
@@ -800,9 +804,14 @@ test('reported: no advisory claims to have blocked anything', async () => {
   // about the harness AND a false explanation of the success. Advisory text that
   // describes itself as a refusal is the same defect as refusing.
   const dir = await checkedProject('quality-wording-')
+  // The disclaimer lives after the artifact pass. An Edit of a missing file is
+  // UNPROVEN-unclassified and returns before that sentence, so a mutant that
+  // calls the commit a block would stay silent (CLAUDE.md §4).
+  const edited = path.join(dir, 'a.js')
+  await writeFile(edited, 'export {}\n')
   const file = path.join(dir, 'main.jsonl')
   await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(dir, 'a.js') }), toolResult('e1'),
+    toolUse('e1', 'Edit', { file_path: edited }), toolResult('e1'),
   ]))
   const missing = path.join(testTmp, 'quality-wording-absent.jsonl')
 
@@ -823,6 +832,10 @@ test('reported: no advisory claims to have blocked anything', async () => {
     const run = runLifecycleHook(payload)
     assert.equal(run.status, 0, JSON.stringify(payload))
     const message = `${run.stdout}${run.stderr}`
+    if (payload.tool_input?.command === 'git commit -m test' && payload.transcript_path === file) {
+      assert.match(message, /Nothing is blocked — this is what the gate sees/,
+        `the commit-gate disclaimer must be present, or a mutant that calls it a block is silent\n${message}`)
+    }
     // "nothing is blocked" is the disclaimer, not the offence.
     const claims = message.replace(/[Nn]othing (?:is|was) blocked/g, '')
       .match(/\b(?:blocked|blocking|refus\w*|denied|prevented|not allowed|disallowed)\b/gi) ?? []
@@ -3236,6 +3249,11 @@ test('a Bash edit that names only Markdown files is a docs-only change', async (
   // Markdown only: the escape a docs change is entitled to.
   const docs = await stopAfter('sed -i "s/a/b/" notes.md')
   assert.equal(docs.stdout, '', docs.stdout)
+  // Stop drops startsWith('<'), so always-recording the marker stays silent
+  // there. The mechanism is the record itself (CLAUDE.md §4).
+  const mdState = analyzeTranscript(await readFile(file, 'utf8'), dir)
+  assert.equal(mdState.mutationPaths.some(p => String(p).startsWith('<Bash mutation:')), false,
+    'the unresolved marker is not recorded for a Markdown-only Bash edit')
   // The control: a proven non-document path keeps the gate. Bash sed that also
   // names service.py still only resolves Markdown, so the marker is not a path
   // (F-1) and cannot be why docsOnly is false.
@@ -3989,6 +4007,13 @@ test('decisions reach the code: what governs a file, and what was killed there',
   assert.match(prose, /Decisions that govern/)
   assert.match(prose, /Already decided against here/)
   assert.match(prose, /not resolved by this tool: package:mongodb@>=6/)
+  // The hook payload carries an absolute path; relative-only assertions leave
+  // relativeWithinRoot unmeasured (Windows CI: empty hook stdout).
+  assert.match(decisionContext([path.join(root, 'src', 'orders', 'schema.ts')], root), /Decisions that govern/)
+  const gitTop = spawnSync('git', ['-C', root, 'rev-parse', '--show-toplevel'], { encoding: 'utf8', timeout: 5_000 })
+  assert.equal(gitTop.status, 0, gitTop.stderr)
+  assert.match(decisionContext([path.join(root, 'src', 'orders', 'schema.ts')], gitTop.stdout.trim()),
+    /Decisions that govern/)
   // Nothing to say is said as nothing.
   assert.equal(decisionContext(['README.md'], root), '')
 })
@@ -4050,9 +4075,12 @@ test('the decision context is delivered once per path per session, and never as 
     hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: root, session_id: session,
     tool_input: { file_path: path.join(root, 'src', 'orders', 'schema.ts') },
   })
+  const once = `once-${path.basename(root)}`
+  const two = `two-${path.basename(root)}`
 
-  const first = runLifecycleHook(payload('session-one'))
-  assert.equal(first.status, 0)
+  const first = runLifecycleHook(payload(once))
+  assert.equal(first.status, 0, first.stderr)
+  assert.ok(first.stdout.trim(), `empty stdout status=${first.status} stderr=${first.stderr}`)
   const emitted = JSON.parse(first.stdout)
   assert.equal(emitted.hookSpecificOutput.hookEventName, 'PreToolUse')
   assert.match(emitted.hookSpecificOutput.additionalContext, /ADR-001-postgres\.md/)
@@ -4061,13 +4089,13 @@ test('the decision context is delivered once per path per session, and never as 
   assert.equal(first.stderr, '')
 
   // Saying it again at every edit of a hot file is how a delivery becomes a nag.
-  assert.equal(runLifecycleHook(payload('session-one')).stdout.trim(), '')
+  assert.equal(runLifecycleHook(payload(once)).stdout.trim(), '')
   // A new session has not heard it.
-  assert.match(runLifecycleHook(payload('session-two')).stdout, /ADR-001-postgres\.md/)
+  assert.match(runLifecycleHook(payload(two)).stdout, /ADR-001-postgres\.md/)
 
   // An ungoverned file costs the edit nothing at all.
   const quiet = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: root, session_id: 'session-three',
+    hook_event_name: 'PreToolUse', tool_name: 'Write', cwd: root, session_id: `three-${path.basename(root)}`,
     tool_input: { file_path: path.join(repoRoot, 'README.md') },
   })
   assert.equal(quiet.status, 0)

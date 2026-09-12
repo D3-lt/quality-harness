@@ -27,6 +27,11 @@ test('the guard reads through a shell payload, a command substitution, and an ed
     const out = run(JSON.stringify(bash(command)))
     assert.equal(out.status, 2, `${command}: must be refused\n${out.stderr}`)
   }
+  for (const command of ['vim plugin/README.md', 'nano README.md', 'code plugin/README.md']) {
+    const out = run(JSON.stringify(bash(command)))
+    assert.match(out.stderr, /editor is not available/,
+      `${command}: EDITORS is the reason; unrecognised would still deny\n${out.stderr}`)
+  }
   // The same shapes with no write inside still pass.
   for (const command of ["bash -c 'git diff HEAD'", 'echo "$(git rev-parse HEAD)"', 'ls `git rev-parse --show-toplevel`']) {
     assert.equal(run(JSON.stringify(bash(command))).status, 0, `${command}: must pass`)

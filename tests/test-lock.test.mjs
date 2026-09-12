@@ -20,6 +20,8 @@ const { NODE_TEST_CONTEXT: _nestedRunner, ...envSansTestContext } = process.env
 const pyEnv = {
   ...envSansTestContext,
   PYTHONPATH: join(root, 'lib'),
+  PYTHONUTF8: '1',
+  PYTHONIOENCODING: 'utf-8',
   PYTHONWARNDEFAULTENCODING: '1',
   PYTHONWARNINGS: 'error::EncodingWarning',
 }

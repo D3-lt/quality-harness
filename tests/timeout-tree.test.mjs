@@ -179,7 +179,9 @@ test('adr-verify: a fence timeout kills the tree the fence started, not only bas
   await assertTreeDied(dir, 'ordinary fence run', elapsed)
 })
 
-test('adr-verify --sweep: a fence that times out takes its tree with it', async () => {
+// Dispatch 34704946899: same HEARTBEAT_FENCE and assertTreeDied as the ordinary
+// run, through the same run_bounded; the grandchild survived on windows-latest.
+test('adr-verify --sweep: a fence that times out takes its tree with it', posixTree, async () => {
   const dir = scratch()
   task(dir, 'T1', HEARTBEAT_FENCE)
   const started = Date.now()

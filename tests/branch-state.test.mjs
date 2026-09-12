@@ -599,10 +599,26 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
   writeFileSync(path.join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghJs}" "$@"\n`)
   writeFileSync(path.join(bin, 'gh.cmd'), `@echo off\r\n"${process.execPath}" "${ghJs}" %*\r\n`)
   chmodSync(path.join(bin, 'gh'), 0o755)
+  // Replace PATH rather than prepend. execFileSync('gh') on Windows walks
+  // PATHEXT (.EXE before .CMD), so a later gh.exe on PATH wins a leading
+  // gh.cmd stub and the fixture reads the runner's "set GH_TOKEN" prose as
+  // CI could-not-look (CLAUDE.md §7). spawn of this script uses execPath, so
+  // Node itself does not need to stay on PATH. Wrap git into the stub dir so
+  // a shared Git/GitHub-CLI directory cannot put gh.exe back on PATH.
+  const gitWhere = spawnSync(process.platform === 'win32' ? 'where.exe' : '/bin/sh',
+    process.platform === 'win32' ? ['git'] : ['-c', 'command -v git'],
+    { encoding: 'utf8', timeout: 5_000 })
+  const gitBin = (gitWhere.stdout ?? '').split(/\r?\n/).map(line => line.trim()).find(Boolean)
+  assert.ok(gitBin, `git must remain locatable on the isolated PATH\n${gitWhere.stderr}`)
+  writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nexec "${gitBin}" "$@"\n`)
+  writeFileSync(path.join(bin, 'git.cmd'), `@echo off\r\n"${gitBin}" %*\r\n`)
+  chmodSync(path.join(bin, 'git'), 0o755)
   const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
   const run = () => spawnSync(process.execPath, [script, '--brief', '--cached', '120'], {
     cwd: project,
-    env: { ...process.env, PATH: `${bin}${path.delimiter}${process.env.PATH ?? ''}` },
+    env: { ...process.env, PATH: process.platform === 'win32'
+      ? `${bin}${path.delimiter}${path.join(process.env.SystemRoot || process.env.SYSTEMROOT, 'System32')}`
+      : bin },
     encoding: 'utf8', timeout: 15_000,
   })
   const first = run()

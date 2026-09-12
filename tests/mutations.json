@@ -1678,6 +1678,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
+      "only": "importing the router does not end the process that imported it",
       "from": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    return 0",
       "to": "    for (const entry of STAGES) process.stdout.write(`  ${entry.entry.padEnd(36)} ${entry.when}\\n`)\n    process.exit(0)"
     },

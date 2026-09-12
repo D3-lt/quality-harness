@@ -123,7 +123,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (docsOnly(provenMutationPaths(state.mutationPaths, input.cwd)) && evidenceLimited(input.last_assistant_message)) return",
+      "from": "  if (docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)) && evidenceLimited(input.last_assistant_message)) return",
       "to": "  if (evidenceLimited(input.last_assistant_message)) return"
     },
     {
@@ -7567,9 +7567,19 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "docsOnly(provenMutationPaths(state.mutationPaths, input.cwd))",
+      "from": "docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd))",
       "to": "docsOnly(state.mutationPaths)",
       "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
+    },
+    {
+      "label": "hooks: docsOnly uses paths since lastPublish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)",
+      "to": "provenMutationPaths(state.mutationPaths, input.cwd)",
+      "only": "EVIDENCE-LIMITED does not release an unproven write after a published docs change"
     },
     {
       "label": "statusline: marker-only stays unverified, not nothing-edited (ADR-051 T2)",

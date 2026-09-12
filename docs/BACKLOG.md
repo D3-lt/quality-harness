@@ -12634,3 +12634,35 @@ PY
 logical `\n` in that one terminator. A mixed file is rewritten as if it were only CRLF. A lone CR
 is invisible to the detector. Each needs its own regression on `append_entry` / `write_source`,
 and the class is the detector plus the rewriter, not T11's splitter.
+
+## 201. `provenMutationPaths` treats cwd as the repository and only checks lexical containment
+
+Pre-tag Codex review of `12c22b8...c1e1f9e` (HEAD `c1e1f9e`), 2026-09-12. Not fixed in the
+v2.98.0 cut: the hook contract is cwd = project root, and the nested-cwd / symlink /
+unusual-filename members were not shown on an ordinary session.
+
+`plugin/scripts/lifecycle.mjs` `provenMutationPaths` resolves `root` from `cwd` and drops a
+candidate when `path.relative` is `''`, absolute, or `startsWith('..')`. Combined with
+`entry.startsWith('<')`:
+
+- a real write to a sibling repository file while cwd is a subdirectory is discarded
+- a physical target outside the checkout reached through an in-cwd symlink can be presented as
+  in-repository
+- a root filename beginning with two dots, or with `<`, is dropped
+
+The current class test keeps cwd equal to the fixture root and only covers a direct outside path.
+A fix is the existing repository-root lookup plus canonical containment, not a prefix on the
+relative string. Nested-cwd, symlink, unusual-filename, and a platform-parameterized regression
+each belong on that change; they are not this release.
+
+## 202. Two overlapping `--brief` refreshes can last-write-wins the branch-state cache
+
+Pre-tag Codex re-review of the v2.98.0 TTL-`said` preservation, 2026-09-12. Not fixed in that
+cut: it needs two `UserPromptSubmit` hook processes on the same `.git/qh-branch-state.json` at once,
+which the host does not show on an ordinary serial session.
+
+The cache write is last-write-wins on `state`. Preserving `said` across a TTL refresh (so an
+unchanged green brief is not reprinted) means a slower gather can overwrite a newer gather and then
+suppress against the older `said`, so the rollback is silent rather than reprinted. The sequential
+TTL test does not exercise competing writers. A fix is a single atomic write of `{at, state, said}`
+after emit, or a compare-and-swap on `at`, each with a two-process regression.

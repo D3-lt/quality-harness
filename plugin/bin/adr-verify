@@ -94,7 +94,7 @@ finding about the test · 4 `inconclusive`, could-not-look — the fence failed 
 a machine reason and nothing was learned · 2 = usage, authoring, or transaction
 problem. 1 also reaches a caller from a fence that failed. 4 is also could not run:
 plugin/lib/fence.py or plugin/lib/record.py is not beside this gate's bin/ (a gate
-copied on its own), nothing was read and nothing was written — the same
+copied on its own), or a named path that exists but could not be read; nothing was
 could-not-look class as `inconclusive`, never a finding's code (ADR-005, ADR-045).
 
 ⚠ `survived` AND `inconclusive` SHARED 1 UNTIL 2026-09-07, so a caller reading only
@@ -175,7 +175,8 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest  # noqa: E402,E501
+from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, first_red_lock_suffix, TEST_LOCK_FIELD_ANON  # noqa: E402,E501
+
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
 # Windows defaults stdout/stderr and open() to the ANSI codepage. These tools
@@ -1426,7 +1427,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
             for line in failure_tail(clean.stdout, clean.stderr):
                 print(f"  {line}")
             # No mutant ran on this path, so recording here cannot contaminate one.
-            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps)
+            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps, cwd=cwd)
+
             sys.exit(1)
 
         # The baseline itself may have materialized outputs. Re-establish the
@@ -1563,7 +1565,8 @@ def run_mutant(task, text, cmd, cwd, today, rel, frm, to, why, also_restore,
     # it. `text` is re-read because the Mutation Log row above already changed
     # the file, and appending from a stale copy would drop it.
     record_run(task, task.read_text(encoding="utf-8"), cmd, today, clean,
-               clean_elapsed_ms, entry_sha, steps)
+               clean_elapsed_ms, entry_sha, steps, cwd=cwd)
+
     sys.exit(tool_code)
 
 
@@ -1694,7 +1697,8 @@ ENTRY_RE = re.compile(
     # ADR-028 T1. The ordered steps a run exercised. TRAILING and optional, so
     # every row written before this record still parses under every reader —
     # which tests/gate-regressions.py asserts across every row git tracks.
-    r"(?: · steps:S[1-9]\d*(?:,S[1-9]\d*)*)?$")
+    r"(?: · steps:S[1-9]\d*(?:,S[1-9]\d*)*)?" + TEST_LOCK_FIELD_ANON + r"$")
+
 
 
 class _Unreadable:
@@ -2260,7 +2264,8 @@ def runs_nothing(fence):
     return not any(line.strip() and not line.strip().startswith("#")
                    for line in (fence or "").splitlines())
 
-def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None):
+def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=None):
+
     """Append the `## Verification Log` entry for a fence run that HAPPENED.
 
     ADR-025. Extracted from `main()` so the `--mutant` path can record the clean
@@ -2328,7 +2333,11 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None):
     # absence, and adr-lint reports an unnamed step rather than assuming one.
     if steps:
         entry += f" · steps:{steps}"
+    if code != 0:
+        # ADR-050. First TDD-red only; empty when a lock is already on the log.
+        entry += first_red_lock_suffix(text, cwd)
     refuse_unreadable(entry, sha)
+
     block = entry
     if code != 0:
         block += "\n" + excerpt_fence(failure_tail(stdout_text, stderr_text))
@@ -2579,7 +2588,11 @@ def main():
         fail(__doc__)
     if not task.exists():
         fail(f"task file not found: {task}")
-    text = task.read_text(errors="replace", encoding="utf-8")
+    try:
+        text = task.read_text(errors="replace", encoding="utf-8")
+    except OSError as exc:
+        print(f"[adr-verify] could not run: {task} — {exc}", file=sys.stderr)
+        sys.exit(4)
     today = datetime.date.today().isoformat()
 
     # ADR-045 T5. Two `## Acceptance` sections are two candidate fences and one
@@ -2750,7 +2763,8 @@ def main():
     sha = git_sha(cwd)
 
     code = record_run(task, text, cmd, today, r,
-                      round((time.monotonic() - started) * 1000), sha, steps)
+                      round((time.monotonic() - started) * 1000), sha, steps, cwd=cwd)
+
     sys.exit(code)
 
 

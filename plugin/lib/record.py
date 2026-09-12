@@ -32,8 +32,12 @@ writes that digest, and `adr-next` decides DONE by it (ADR-010, ADR-020). The
 bytes `normalize_acceptance` returns are unchanged from every copy, so no
 existing evidence row changes meaning.
 """
+import ast
+import base64
 import hashlib
+import json
 import re
+from pathlib import Path
 
 __all__ = [
     "sections_of",
@@ -46,7 +50,18 @@ __all__ = [
     "normalize_acceptance",
     "acceptance_digest",
     "split_lines",
+    "TEST_HASH_REQUIRED_FROM",
+    "TEST_LOCK_FIELD",
+    "TEST_LOCK_FIELD_ANON",
+    "tests_table_rows",
+    "vlog_has_test_lock",
+    "first_red_lock_suffix",
+    "lock_findings",
+    "lock_blocks_done",
+    "body_digest",
+    "declared_check",
 ]
+
 
 _HEADING = re.compile(r"^## (.+?)\s*$")
 
@@ -337,3 +352,362 @@ def normalize_acceptance(raw):
 def acceptance_digest(command):
     """SHA-256 of the complete normalized Acceptance fence."""
     return hashlib.sha256(command.encode("utf-8")).hexdigest()
+
+# First-red test-body lock (ADR-050). One hasher, one parse, three callers.
+# The calendar day is the day AFTER this repository's own 2026-09-12 evidence
+# rows: a same-day cutover would refuse those rows, and F-1 forbids a later red
+# from filling hashes the first red omitted.
+TEST_HASH_REQUIRED_FROM = "2026-09-13"
+TEST_LOCK_FIELD = (
+    r"(?: · test-lock-sha256:(?P<test_lock>[0-9a-f]{64}))?"
+    r"(?: · test-lock-b64:(?P<test_lock_b64>[A-Za-z0-9_-]+))?"
+)
+TEST_LOCK_FIELD_ANON = (
+    r"(?: · test-lock-sha256:[0-9a-f]{64})?"
+    r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?"
+)
+_LOCK_SHA = re.compile(r"test-lock-sha256:([0-9a-f]{64})")
+_LOCK_B64 = re.compile(r"test-lock-b64:([A-Za-z0-9_-]+)")
+_MACHINE = re.compile(
+    r"^- (?P<date>\d{4}-\d{2}-\d{2}) · (?:[0-9a-f]{4,64}\*?|no-git) · "
+    r"exit (?P<exit>\d+) · `"
+)
+_BDD_NAME = re.compile(
+    r"""(?:\b(?:it|test)\s*\()\s*(['"`])([^'"`\n]+)\1\s*,"""
+)
+CONFIG_NAME = ".quality-harness.json"
+
+
+def tests_table_rows(text):
+    """(name, file) pairs from the Tests table, or an empty list."""
+    rows = []
+    for line in sections_of(text).get("Tests", []):
+        stripped = line.strip()
+        if not stripped.startswith("|"):
+            continue
+        cells = [c.strip() for c in stripped.strip("|").split("|")]
+        if len(cells) < 2 or cells[0].lower().startswith("test name"):
+            continue
+        if cells and set(cells[0]) <= set("-: "):
+            continue
+        def untick(cell):
+            m = re.search(r"`([^`]+)`", cell)
+            return (m.group(1) if m else cell).strip()
+        name, rel = untick(cells[0]), untick(cells[1])
+        if name and rel and name not in ("—", "-"):
+            rows.append((name, rel.replace("\\", "/")))
+    return rows
+
+
+def vlog_has_test_lock(text):
+    """Whether any Verification Log line already carries the first-red lock."""
+    log = "\n".join(sections_of(text).get("Verification Log", []))
+    return bool(_LOCK_SHA.search(log))
+
+
+def declared_check(root):
+    """Trimmed `check` string, None when absent/ignored, or 'unproven'."""
+    if root is None:
+        return "unproven"
+    path = Path(root) / CONFIG_NAME
+    if not path.is_file():
+        return None
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+    except OSError:
+        return "unproven"
+    except (json.JSONDecodeError, UnicodeError, TypeError, ValueError):
+        return "unproven"
+    if not isinstance(data, dict):
+        return None
+    check = data.get("check")
+    if isinstance(check, str) and check.strip():
+        return check.strip()
+    return None
+
+
+def body_digest(body, python=False):
+    """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
+    text = body.replace("\r\n", "\n").replace("\r", "\n")
+    if python:
+        text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
+        text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
+    text = _strip_comments_keep_strings(text, python=python)
+    lines = []
+    for line in text.split("\n"):
+        collapsed = re.sub(r"[ \t]+", " ", line).strip()
+        if collapsed:
+            lines.append(collapsed)
+    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+
+
+def _strip_comments_keep_strings(text, python=False):
+    out, i, n, quote = [], 0, len(text), None
+    while i < n:
+        c = text[i]
+        if quote:
+            out.append(c)
+            if c == "\\" and i + 1 < n:
+                out.append(text[i + 1])
+                i += 2
+                continue
+            if c == quote:
+                quote = None
+            i += 1
+            continue
+        if c in "'\"`" and not (python and c == "`"):
+            quote = c
+            out.append(c)
+            i += 1
+            continue
+        if not python and c == "/" and i + 1 < n:
+            nxt = text[i + 1]
+            if nxt == "/":
+                i += 2
+                while i < n and text[i] != "\n":
+                    i += 1
+                continue
+            if nxt == "*":
+                i += 2
+                while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
+                    if text[i] == "\n":
+                        out.append("\n")
+                    i += 1
+                i = i + 2 if i + 1 < n else i + 1
+                continue
+        if python and c == "#":
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        out.append(c)
+        i += 1
+    return "".join(out)
+
+
+def extract_test_names(text, python=False):
+    """Names this hasher can see in `text`."""
+    if python:
+        try:
+            tree = ast.parse(text)
+        except (SyntaxError, ValueError):
+            tree = None
+        if tree is not None:
+            names = []
+            for node in ast.walk(tree):
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)) \
+                        and node.name.startswith("test"):
+                    names.append(node.name)
+            return names
+        return []
+    names, seen = [], set()
+    for match in _BDD_NAME.finditer(text):
+        start = text.rfind("\n", 0, match.start()) + 1
+        if re.match(r"\s*(?://|#)", text[start:match.start()]):
+            continue
+        name = match.group(2)
+        if name not in seen:
+            seen.add(name)
+            names.append(name)
+    return names
+
+
+def extract_test_body(text, name, python=False):
+    """Best-effort body of `name`, or None."""
+    if python:
+        try:
+            tree = ast.parse(text)
+        except (SyntaxError, ValueError):
+            return None
+        for node in ast.walk(tree):
+            if (isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
+                    and node.name == name and node.body):
+                start = node.body[0].lineno - 1
+                end = max(getattr(stmt, "end_lineno", stmt.lineno) for stmt in node.body)
+                return "".join(text.splitlines(keepends=True)[start:end])
+        return None
+    bdd = re.search(
+        r"""(?:\b(?:it|test)\s*\()\s*(['"`])""" + re.escape(name) + r"""\1\s*,""",
+        text)
+    if not bdd:
+        return None
+    start = text.rfind("\n", 0, bdd.start()) + 1
+    if re.match(r"\s*(?://|#)", text[start:bdd.start()]):
+        return None
+    brace = text.find("{", bdd.end())
+    if brace == -1:
+        return None
+    depth = 0
+    for j in range(brace, len(text)):
+        if text[j] == "{":
+            depth += 1
+        elif text[j] == "}":
+            depth -= 1
+            if depth == 0:
+                return text[brace:j + 1]
+    return text[brace:]
+
+
+def _read_file(path):
+    try:
+        return path.read_text(encoding="utf-8")
+    except OSError:
+        return None
+
+
+def snapshot_lock(root, tests_rows):
+    """Canonical lock map: check value plus every extractable name in Tests files."""
+    check = declared_check(root)
+    bodies = {}
+    unproven = set()
+    seen_files = []
+    for _name, rel in tests_rows:
+        if rel not in seen_files:
+            seen_files.append(rel)
+    named = {(rel, name) for name, rel in tests_rows}
+    for rel in seen_files:
+        path = None if root is None else Path(root, *rel.split("/"))
+        source = None if path is None else _read_file(path)
+        if source is None:
+            for n, r in tests_rows:
+                if r == rel:
+                    unproven.add((rel, n))
+            continue
+        python = path.suffix == ".py"
+        for name in extract_test_names(source, python=python):
+            body = extract_test_body(source, name, python=python)
+            if body is None:
+                if (rel, name) in named:
+                    unproven.add((rel, name))
+                continue
+            bodies[(rel, name)] = body_digest(body, python=python)
+        for n, r in tests_rows:
+            if r == rel and (rel, n) not in bodies:
+                unproven.add((rel, n))
+    return {"check": check, "bodies": bodies, "unproven": unproven}
+
+
+def encode_lock(snap):
+    """Canonical payload + sha256 of it."""
+    lines = []
+    check = snap["check"]
+    if check is None:
+        lines.append("check\tabsent")
+    elif check == "unproven":
+        lines.append("check\tunproven")
+    else:
+        lines.append("check\t" + hashlib.sha256(check.encode("utf-8")).hexdigest())
+    for (rel, name), digest in sorted(snap["bodies"].items()):
+        lines.append(f"body\t{rel}\t{name}\t{digest}")
+    for rel, name in sorted(snap["unproven"]):
+        lines.append(f"unproven\t{rel}\t{name}")
+    payload = "\n".join(lines).encode("utf-8")
+    digest = hashlib.sha256(payload).hexdigest()
+    token = base64.urlsafe_b64encode(payload).decode("ascii").rstrip("=")
+    return digest, token
+
+
+def decode_lock(token):
+    pad = "=" * ((4 - len(token) % 4) % 4)
+    try:
+        raw = base64.urlsafe_b64decode(token + pad)
+        text = raw.decode("utf-8")
+    except (ValueError, UnicodeError):
+        return None
+    check, bodies, unproven = None, {}, set()
+    for line in text.split("\n"):
+        parts = line.split("\t")
+        if not parts:
+            continue
+        if parts[0] == "check" and len(parts) == 2:
+            check = parts[1]
+        elif parts[0] == "body" and len(parts) == 4:
+            bodies[(parts[1], parts[2])] = parts[3]
+        elif parts[0] == "unproven" and len(parts) == 3:
+            unproven.add((parts[1], parts[2]))
+    return {"check": check, "bodies": bodies, "unproven": unproven}
+
+
+def first_red_lock_suffix(text, root):
+    """Suffix for the first TDD-red row, or empty when a lock already exists."""
+    if vlog_has_test_lock(text):
+        return ""
+    digest, token = encode_lock(snapshot_lock(root, tests_table_rows(text)))
+    return f" · test-lock-sha256:{digest} · test-lock-b64:{token}"
+
+
+def _recorded_lock(vlog):
+    """Lock parsed from the first TDD-red row, else (date, None)."""
+    first_date = None
+    first_red = None
+    for line in vlog:
+        line = line.strip()
+        m = _MACHINE.match(line)
+        if not m:
+            continue
+        if first_date is None:
+            first_date = m.group("date")
+        if m.group("exit") != "0" and first_red is None:
+            first_red = line
+            first_date = m.group("date")
+    if first_red is None:
+        return first_date, None
+    sha = _LOCK_SHA.search(first_red)
+    b64 = _LOCK_B64.search(first_red)
+    if not sha:
+        return first_date, None
+    parsed = decode_lock(b64.group(1)) if b64 else None
+    return first_date, {"digest": sha.group(1), "map": parsed}
+
+
+def lock_findings(vlog, *, root, tests, label=""):
+    """blocks and advice for a done claim against first-red hashes."""
+    prefix = f"{label}: " if label else ""
+    date, recorded = _recorded_lock(vlog)
+    if recorded is None:
+        missing = (
+            f"{prefix}marked done but has no first-red test-lock-sha256 — "
+            "UNPROVEN, not a skip of the lock"
+        )
+        if date is None or date < TEST_HASH_REQUIRED_FROM:
+            return [], [missing + f" (advisory until {TEST_HASH_REQUIRED_FROM})"]
+        return [missing + f" (required from {TEST_HASH_REQUIRED_FROM})"], []
+
+    if recorded["map"] is None:
+        return [f"{prefix}first-red test-lock-sha256 is present but the lock map "
+                "could not be read — UNPROVEN"], []
+    current = snapshot_lock(root, tests)
+    recorded_map = recorded["map"]
+    blocks = []
+    rec_check = recorded_map.get("check")
+    cur_check = current["check"]
+    if rec_check == "unproven" or cur_check == "unproven":
+        blocks.append(f"{prefix}.quality-harness.json check could not be read — UNPROVEN")
+    elif rec_check == "absent" and cur_check is not None:
+        blocks.append(f"{prefix}.quality-harness.json check was absent at first-red "
+                      "and is now declared — done is refused")
+    elif rec_check not in (None, "absent", "unproven") and cur_check is None:
+        blocks.append(f"{prefix}.quality-harness.json check was locked and is now "
+                      "absent — done is refused")
+    elif rec_check not in (None, "absent", "unproven") and cur_check is not None:
+        cur_hex = hashlib.sha256(cur_check.encode("utf-8")).hexdigest()
+        if rec_check != cur_hex:
+            blocks.append(f"{prefix}.quality-harness.json check string moved — done is refused")
+    for key in recorded_map.get("unproven", set()):
+        rel, name = key
+        blocks.append(f"{prefix}Tests-table `{rel}`::{name} could not be hashed — "
+                      "UNPROVEN, done is refused")
+    for (rel, name), digest in recorded_map.get("bodies", {}).items():
+        now = current["bodies"].get((rel, name))
+        if now is None:
+            blocks.append(f"{prefix}locked test `{rel}`::{name} vanished — done is refused")
+        elif now != digest:
+            blocks.append(f"{prefix}locked test `{rel}`::{name} hash moved — done is refused")
+    return blocks, []
+
+
+def lock_blocks_done(text, root):
+    """True when is_done must withhold done because the lock does not hold."""
+    log = sections_of(text).get("Verification Log", [])
+    blocks, _advice = lock_findings(
+        log, root=root, tests=tests_table_rows(text), label="")
+    return bool(blocks)

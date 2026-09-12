@@ -2382,6 +2382,191 @@ test('echo is not Advise, and a classify-only green is not this fact', async () 
   assert.match(`${dirtyStop.stdout}${dirtyStop.stderr}`, /systemMessage/)
 })
 
+test('a passing recognised check after an UNPROVEN write silences Advise', async () => {
+  const dir = await checkedProject('quality-unproven-validated-')
+  const writes = [
+    ['mcp', [toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1')]],
+    ['mrw', [toolUse('w1', 'Bash', { command: 'mrw write --plan-file p.txt' }), toolResult('w1')]],
+  ]
+  for (const [name, write] of writes) {
+    const file = path.join(dir, `${name}.jsonl`)
+    await writeFile(file, transcript([
+      ...write,
+      toolUse('t1', 'Bash', { command: 'pnpm test' }),
+      toolResult('t1', false, '12 passed'),
+    ]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    assert.equal(state.lastMutation, -1, name)
+    assert.ok(state.lastUnprovenWrite >= 0, name)
+    assert.ok(state.lastSuccessfulValidation > state.lastUnprovenWrite, name)
+    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+    const said = `${stop.stdout}${stop.stderr}`
+    assert.doesNotMatch(said, /systemMessage/, said)
+    const note = sessionStateNote(state, dir, dir, false)
+    assert.doesNotMatch(note.text, /no recognised check has proven it/)
+    assert.notEqual(note.status, 'unverified', name)
+    const value = reading({
+      session_id: `unproven-ok-${name}-${Date.now()}-${process.pid}`,
+      transcript_path: file,
+      workspace: { current_dir: dir },
+    })
+    assert.notEqual(value.kind, 'unverified', name)
+    const commit = runLifecycleHook({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+      session_id: `unproven-ok-commit-${name}-${Date.now()}-${process.pid}`,
+    })
+    assert.doesNotMatch(commit.stderr, /would publish unchecked/i)
+  }
+
+  const sed = path.join(dir, 'sed.jsonl')
+  await writeFile(sed, transcript([
+    toolUse('w1', 'Bash', { command: "sed -i '' notes.md" }), toolResult('w1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1', false, '12 passed'),
+  ]))
+  const sedState = analyzeTranscript(await readFile(sed, 'utf8'), dir)
+  assert.ok(sedState.lastMutation >= 0)
+  assert.equal(sedState.verifiedAfterLastMutation, true)
+  const sedStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: sed, cwd: dir })
+  assert.doesNotMatch(`${sedStop.stdout}${sedStop.stderr}`, /systemMessage/)
+  const sedCommit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: sed, cwd: dir,
+    session_id: `unproven-sed-${Date.now()}-${process.pid}`,
+  })
+  assert.doesNotMatch(sedCommit.stderr, /would publish unchecked/i)
+
+  const dirty = path.join(dir, 'dirty.jsonl')
+  await writeFile(dirty, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+  ]))
+  const dirtyState = analyzeTranscript(await readFile(dirty, 'utf8'), dir)
+  const dirtyStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: dirty, cwd: dir })
+  assert.match(`${dirtyStop.stdout}${dirtyStop.stderr}`, /systemMessage/)
+  const dirtyNote = sessionStateNote(dirtyState, dir, dir, false)
+  assert.match(dirtyNote.text, /no recognised check has proven it/)
+  const dirtyReading = reading({
+    session_id: `unproven-dirty-${Date.now()}-${process.pid}`,
+    transcript_path: dirty,
+    workspace: { current_dir: dir },
+  })
+  assert.equal(dirtyReading.kind, 'unverified')
+  const dirtyCommit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: dirty, cwd: dir,
+    session_id: `unproven-dirty-commit-${Date.now()}-${process.pid}`,
+  })
+  assert.match(dirtyCommit.stderr, /would publish unchecked/i)
+})
+
+test('a failing check after an UNPROVEN write still Advises, and Read does not flag', async () => {
+  const dir = await checkedProject('quality-unproven-failed-check-')
+  const file = path.join(dir, 'fail.jsonl')
+  await writeFile(file, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1', true, '1 failed'),
+  ]))
+  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+  assert.ok(state.lastUnprovenWrite >= 0)
+  assert.equal(state.lastVerdict, 'failed')
+  assert.ok(!(state.lastSuccessfulValidation > state.lastUnprovenWrite))
+  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  assert.match(`${stop.stdout}${stop.stderr}`, /systemMessage/)
+  const note = sessionStateNote(state, dir, dir, false)
+  assert.match(note.text, /no recognised check has proven it/)
+  const value = reading({
+    session_id: `unproven-fail-${Date.now()}-${process.pid}`,
+    transcript_path: file,
+    workspace: { current_dir: dir },
+  })
+  assert.equal(value.kind, 'unverified')
+  const commit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+    session_id: `unproven-fail-commit-${Date.now()}-${process.pid}`,
+  })
+  assert.match(commit.stderr, /would publish unchecked/i)
+
+  const readFilePath = path.join(dir, 'read.jsonl')
+  await writeFile(readFilePath, transcript([
+    toolUse('r1', 'Read', { file_path: 'docs/a.md' }), toolResult('r1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1', false, '12 passed'),
+  ]))
+  const readState = analyzeTranscript(await readFile(readFilePath, 'utf8'), dir)
+  assert.equal(readState.lastUnprovenWrite, -1)
+  const readStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: readFilePath, cwd: dir })
+  assert.doesNotMatch(`${readStop.stdout}${readStop.stderr}`, /systemMessage/)
+  const readNote = sessionStateNote(readState, dir, dir, false)
+  assert.equal(readNote.status, 'neutral')
+
+  const published = path.join(dir, 'publish.jsonl')
+  await writeFile(published, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+    toolUse('c1', 'Bash', { command: 'git commit -m probe' }), toolResult('c1'),
+  ]))
+  const publishedState = analyzeTranscript(await readFile(published, 'utf8'), dir)
+  assert.ok(publishedState.lastPublish >= publishedState.lastUnprovenWrite)
+  const publishedStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: published, cwd: dir })
+  assert.doesNotMatch(`${publishedStop.stdout}${publishedStop.stderr}`, /systemMessage/)
+  const publishedCommit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: published, cwd: dir,
+    session_id: `unproven-publish-${Date.now()}-${process.pid}`,
+  })
+  assert.doesNotMatch(publishedCommit.stderr, /would publish unchecked/i)
+})
+
+test('a failed UNPROVEN write does not advance lastUnprovenWrite', async () => {
+  const dir = await checkedProject('quality-unproven-failed-write-')
+  const writes = [
+    ['mcp', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }],
+    ['mrw', 'Bash', { command: 'mrw write --plan-file p.txt' }],
+  ]
+  for (const [name, tool, input] of writes) {
+    const file = path.join(dir, `${name}-fail.jsonl`)
+    await writeFile(file, transcript([
+      toolUse('w1', tool, input), toolResult('w1', true, 'write failed'),
+      toolUse('t1', 'Bash', { command: 'pnpm test' }),
+      toolResult('t1', false, '12 passed'),
+    ]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    assert.equal(state.lastUnprovenWrite, -1, name)
+    assert.notEqual(state.authorship, 'UNPROVEN', name)
+    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+    assert.doesNotMatch(`${stop.stdout}${stop.stderr}`, /systemMessage/, name)
+    const note = sessionStateNote(state, dir, dir, false)
+    assert.doesNotMatch(note.text, /no recognised check has proven it/)
+    const value = reading({
+      session_id: `unproven-failed-write-${name}-${Date.now()}-${process.pid}`,
+      transcript_path: file,
+      workspace: { current_dir: dir },
+    })
+    assert.notEqual(value.kind, 'unverified', name)
+  }
+
+  const ok = path.join(dir, 'ok-then-check.jsonl')
+  await writeFile(ok, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1', false, '12 passed'),
+  ]))
+  const okState = analyzeTranscript(await readFile(ok, 'utf8'), dir)
+  assert.ok(okState.lastUnprovenWrite >= 0)
+  assert.ok(okState.lastSuccessfulValidation > okState.lastUnprovenWrite)
+  const okStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: ok, cwd: dir })
+  assert.doesNotMatch(`${okStop.stdout}${okStop.stderr}`, /systemMessage/)
+
+  const inflight = path.join(dir, 'inflight.jsonl')
+  await writeFile(inflight, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }),
+  ]))
+  const inflightState = analyzeTranscript(await readFile(inflight, 'utf8'), dir)
+  assert.equal(inflightState.lastUnprovenWrite, -1)
+})
+
 test('a reviewer is denied Remove-Item and pwsh -Command rm', async () => {
   const repo = await checkedProject('quality-unrecognised-reviewer-')
   const deny = (command) => JSON.parse(runLifecycleHook({
@@ -3241,6 +3426,7 @@ function quietSessionState() {
     lastPublish: 0,
     mutationPathsSince: () => [],
     unverifiedSince: () => false,
+    unprovenWritePending: () => false,
     lastVerdictCommand: null,
     lastVerdict: null,
   }

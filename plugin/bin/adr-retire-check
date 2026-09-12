@@ -15,7 +15,7 @@ which on a box carrying both PATH mechanisms can be a different install from the
 one that just ran (ADR-031).
 
 Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py
-is not beside this gate's bin/ (a gate copied on its own; ADR-045).
+is not beside this gate's bin/ (a gate copied on its own; ADR-045), or a named path that exists but could not be read.
 """
 
 import hashlib
@@ -464,7 +464,11 @@ def main():
         # BACKLOG §143: the verdict names the binary that reached it.
         print(f"[FAIL] archive README not found: {archive_readme} · {gate_identity()}")
         raise SystemExit(1)
-    archive_text = archive_readme.read_text(errors="replace", encoding="utf-8")
+    try:
+        archive_text = archive_readme.read_text(errors="replace", encoding="utf-8")
+    except OSError as exc:
+        print(f"[adr-retire-check] could not run: {archive_readme} — {exc}", file=sys.stderr)
+        raise SystemExit(2)
     if not re.search(r"^\*\*Lifecycle:\*\* Frozen historical ADR records$", archive_text, re.M):
         errors.advise("archive README lacks the opt-in lifecycle marker")
     active_match = re.search(r"^\*\*Active corpus:\*\*\s*(.+?)\s*$", archive_text, re.M)

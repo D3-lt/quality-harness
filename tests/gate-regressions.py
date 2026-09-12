@@ -731,7 +731,9 @@ def main():
     # third implementation drifting would make it call verified tasks unverified
     # and hand a session work that is already finished.
     nxt = load_script("adr_next_regressions", bin_dir / "adr-next")
+    test_first_red_lock_grammar_and_identity(lint, verify, nxt)
     test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt)
+
     test_the_floor_runs_on_a_done_row(lint)
     test_a_digestless_row_cannot_hide_behind_a_duration(bin_dir, lint)
     test_a_committed_evidence_row_that_has_gone_missing_is_reported(bin_dir, lint)
@@ -3388,6 +3390,27 @@ def test_an_entry_records_how_long_the_run_took(bin_dir, lint, verify, nxt):
     # killed duration from this record's first draft.
     assert not lint.implausibly_fast(3, "printf ok"), \
         "a fence that really is instant must never be advised"
+
+def test_first_red_lock_grammar_and_identity(lint, verify, nxt):
+    """ADR-050: one hasher, one optional suffix, three readers."""
+    import record as rec
+    assert lint.TEST_HASH_REQUIRED_FROM == rec.TEST_HASH_REQUIRED_FROM
+    assert nxt.TEST_HASH_REQUIRED_FROM == rec.TEST_HASH_REQUIRED_FROM
+    assert lint.TEST_HASH_REQUIRED_FROM == "2026-09-13"
+    assert lint.lock_findings is rec.lock_findings
+    digest = "0" * 64
+    lock = " · test-lock-sha256:" + "a" * 64 + " · test-lock-b64:YWJj"
+    row = (f"- 2026-09-13 · no-git · exit 2 · `node --test x` · "
+           f"acceptance-sha256:{digest} · ms:12{lock}")
+    assert lint.VLOG_RE.match(row), "lint VLOG_RE must accept a lock-bearing red"
+    assert lint.VLOG_DIGEST_RE.match(row), "lint VLOG_DIGEST_RE must accept a lock-bearing red"
+    assert lint.VLOG_TIMED_RE.match(row), "lint VLOG_TIMED_RE must accept a lock-bearing red"
+    assert nxt.VLOG_DIGEST_RE.match(row), "next VLOG_DIGEST_RE must accept a lock-bearing red"
+    assert verify.ENTRY_RE.match(row), "verify ENTRY_RE must accept a lock-bearing red"
+    old = (f"- 2026-08-22 · abc1234 · exit 0 · `probe` · "
+            f"acceptance-sha256:{digest} · ms:12")
+    assert nxt.is_done(f"## Verification Log\n{old}\n", digest, False), \
+        "pre-cutover digest rows without a suffix stay done"
 
 
 # Reported on GitHub issue #6, 2026-09-01, verified on Windows against v2.47.0:

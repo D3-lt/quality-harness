@@ -2336,7 +2336,8 @@ const ENTRY_RE =
   // `no-git` is what git_sha() returns in a temp corpus that is not a repository,
   // and the entry grammar accepts it — a regex that only allowed hex made this
   // suite blind to every entry it was about to assert on.
-  /^- \d{4}-\d\d-\d\d · (?:[0-9a-f]{7,40}|no-git)\*? · exit \d+ · `[^`]+` · acceptance-sha256:[0-9a-f]{64} · ms:\d+$/m
+  /^- \d{4}-\d\d-\d\d · (?:[0-9a-f]{7,40}|no-git)\*? · exit \d+ · `[^`]+` · acceptance-sha256:[0-9a-f]{64} · ms:\d+(?: · steps:S[1-9]\d*(?:,S[1-9]\d*)*)?(?: · test-lock-sha256:[0-9a-f]{64} · test-lock-b64:[A-Za-z0-9_-]+)?$/m
+
 const sectionOf = (text, heading) => {
   const body = text.split(`## ${heading}`)[1] ?? ''
   return body.split(/^## /m)[0]
@@ -2813,7 +2814,8 @@ test("the UNPROVEN early return records the steps its run named", () => {
   const entries = readTask(copy).split('## Verification Log')[1].split('## Mutation Log')[0]
   const rows = entries.match(/^- \d{4}-.*$/gm) ?? []
   assert.equal(rows.length, 1, `one row, from the run that happened: ${JSON.stringify(rows)}`)
-  assert.match(rows[0], / · steps:S1$/,
+  assert.match(rows[0], / · steps:S1(?: · test-lock-sha256:[0-9a-f]{64} · test-lock-b64:[A-Za-z0-9_-]+)?$/,
+
     `the UNPROVEN row must carry the steps its run named: ${rows[0]}`)
 
   // Shown capable of the other answer, so this cannot pass by the field always

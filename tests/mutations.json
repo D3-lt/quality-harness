@@ -105,7 +105,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    const run = spawnGate(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })",
+      "from": "    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })",
       "to": "    const run = spawnSync(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })"
     },
     {
@@ -6918,7 +6918,7 @@
         "tests/staged-product.test.mjs"
       ],
       "only": "unreadable file is UNPROVEN",
-      "from": "  if [ ! -f \"$f\" ]; then\n    printf 'UNPROVEN: could not classify %s\\n' \"$f\"\n    exit 0\n  fi\n",
+      "from": "  if [ ! -f \"$f\" ]; then\n    say_unproven \"$(printf 'UNPROVEN: could not classify %s' \"$f\")\"\n    exit 0\n  fi\n",
       "to": "  if [ ! -f \"$f\" ]; then\n    exit 0\n  fi\n"
     },
     {
@@ -7219,8 +7219,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            and len(m.group(\"marker\")) >= opened[1] and not m.group(\"rest\").strip())",
-      "to": "            and not m.group(\"rest\").strip())",
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
+      "to": "            and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
       "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
     },
     {
@@ -7239,7 +7239,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            and len(m.group(\"marker\")) >= opened[1] and not m.group(\"rest\").strip())",
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
       "to": "            and len(m.group(\"marker\")) >= opened[1])",
       "only": "^record\\.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads$"
     },
@@ -7342,6 +7342,56 @@
       "from": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\"],",
       "to": "        r = subprocess.run([\"git\", \"-C\", str(root), \"ls-files\", \"--cached\", \"--others\", \"--exclude-standard\"],",
       "only": "^adr\\-lint's tracked_or_unignored_paths includes an untracked file; arch\\-lint's tracked_paths excludes it$"
+    },
+    {
+      "label": "record: a closer rest is ASCII space and tab only; NEL and NBSP do not close a fence (ADR-045 T12)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "            and len(m.group(\"marker\")) >= opened[1] and re.fullmatch(r\"[ \\t]*\", m.group(\"rest\")))",
+      "to": "            and len(m.group(\"marker\")) >= opened[1] and not m.group(\"rest\").strip())",
+      "only": "^record\\.py: a closer rest is only ASCII space and tab — NEL does not close a fence$"
+    },
+    {
+      "label": "facts-gate-dispatch: UNPROVEN at commit/completion is stderr, the stream runArtifactGates reads (ADR-046 T4)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    printf '%s\\n' \"$1\" >&2",
+      "to": "    printf '%s\\n' \"$1\"",
+      "only": "^runArtifactGates returns UNPROVEN when a dispatched gate could not run or could not classify$"
+    },
+    {
+      "label": "lifecycle: SessionStart always surfaces UNPROVEN ready lines; the cap is ordinary lines only (ADR-046 T5)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    const unproven = line.includes('UNPROVEN')\n    if (unproven || ordinary < cap) {\n      shown.push(line)\n      if (!unproven) ordinary += 1\n    }",
+      "only": "^SessionStart always surfaces an UNPROVEN ready line and still caps ordinary ones$",
+      "to": "    if (ordinary < cap) {\n      shown.push(line)\n      ordinary += 1\n    }"
+    },
+    {
+      "label": "facts-gate-dispatch: postmortem-verify's could-not-run code is in the table (ADR-046 T7)",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    adr-lint|arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
+      "to": "    adr-lint|arch-lint|adr-retire-check) printf '2' ;;",
+      "only": "^postmortem-verify on a path it cannot read exits could-not-run, and the dispatcher relays it as UNPROVEN$"
+    },
+    {
+      "label": "adr-lint: Exit block names unknown flag / no record / missing file as 1, not 2 (ADR-045 T13)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).",
+      "to": "Exit: 0 pass · 1 failures found · 2 unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).",
+      "only": "^adr-lint's Exit block names the exits it actually produces$"
     }
   ]
 }

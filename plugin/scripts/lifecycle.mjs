@@ -2620,8 +2620,26 @@ const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|cover
 // walking a directory that is not a repository once surfaced another project's
 // tasks from a shared temp directory, and a session must never be handed work
 // that belongs to a codebase it was not opened on.
-function posixListed(rel) {
+export function posixListed(rel) {
   return String(rel).replaceAll('\\', '/')
+}
+
+// SessionStart used to slice(0, 3) and hide a later directory's UNPROVEN
+// behind "(+N more)". A could-not-look is never an ordinary ready line: it
+// always surfaces; the cap still applies to ready/blocked/done lines (ADR-046 T5).
+export function surfaceReadyLines(lines, cap = 3) {
+  let ordinary = 0
+  const shown = []
+  for (const line of lines) {
+    const unproven = line.includes('UNPROVEN')
+    if (unproven || ordinary < cap) {
+      shown.push(line)
+      if (!unproven) ordinary += 1
+    }
+  }
+  const hidden = lines.length - shown.length
+  if (hidden > 0) shown.push(`  (+${hidden} more record set(s))`)
+  return shown
 }
 
 function listedAbsolute(root, rel) {
@@ -2750,7 +2768,7 @@ export function spawnGate(tool, args, options = {}, platform = process.platform,
   return spawnSync(command, [...prefix, tool, ...args], options)
 }
 
-function readyTaskLines(root, insideRepository, listing) {
+export function readyTaskLines(root, insideRepository, listing, spawn = spawnGate) {
   // Without a repository there is no "this project". Git-fail (listing null
   // while inside a repo) is UNPROVEN, not an empty ready list.
   if (!insideRepository) return { look: 'ok', lines: [] }
@@ -2759,8 +2777,10 @@ function readyTaskLines(root, insideRepository, listing) {
   if (!existsSync(tool)) return { look: 'ok', lines: [] }
   const lines = []
   for (const directory of taskDirectories(root, listing)) {
-    const run = spawnGate(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
-    const relative = path.relative(root, directory) || directory
+    const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
+    // posixListed: path.relative is native separators; SessionStart text and
+    // the Windows CI structural-path rule need a listed form (ADR-046 T5).
+    const relative = posixListed(path.relative(root, directory) || directory)
     // ADR-046 T3. adr-next answers 0 (a ready task) or 3 (nothing ready); any
     // other outcome is the gate NOT answering — its lib missing beside a copied
     // bin/ (exit 2, ADR-045 T4), an interpreter that never ran (status null), a
@@ -2786,7 +2806,7 @@ function readyTaskLines(root, insideRepository, listing) {
       const next = report.ready[0]
       lines.push(`  ${relative}: ${next.id} is ready — ${next.goal}`
         + (next.acceptance ? `; acceptance \`${next.acceptance}\`` : '')
-        + `. Prove it with \`adr-verify ${path.relative(root, next.path) || next.path}\`.`)
+        + `. Prove it with \`adr-verify ${posixListed(path.relative(root, next.path) || next.path)}\`.`)
     } else if (report.blocked?.length) {
       lines.push(`  ${relative}: nothing ready; ${report.blocked.length} task(s) blocked.`)
     } else if (report.done?.length) {
@@ -3420,7 +3440,8 @@ export function sessionStateNote(state, cwd, root, insideRepository, now = new D
     if (ready.look === 'UNPROVEN') {
       parts.push('ADR tasks in flight: UNPROVEN (git could not list the tree).')
     } else if (ready.lines.length) {
-      parts.push(`ADR task in flight: ${ready.lines[0].trim()}`)
+      const unproven = ready.lines.find(line => line.includes('UNPROVEN'))
+      parts.push(`ADR task in flight: ${(unproven ?? ready.lines[0]).trim()}`)
     }
   }
   return { at: now.toISOString(), status, unverified: pending, files, other, text: parts.join(' ') }
@@ -3833,8 +3854,7 @@ export function sessionOrientation(cwd) {
   }
 
   if (ready.lines.length) {
-    const shown = ready.lines.slice(0, 3)
-    if (ready.lines.length > shown.length) shown.push(`  (+${ready.lines.length - shown.length} more record set(s))`)
+    const shown = surfaceReadyLines(ready.lines)
     lines.push(['ADR tasks in flight:', ...shown].join('\n'))
   }
 

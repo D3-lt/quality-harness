@@ -179,6 +179,31 @@ Added 2026-09-11 after the second Codex review (MEDIUM), reversing the Non-Goal 
   - b. a digest of an existing fence changes → forbidden; recomputed over every tracked record: 0 differences (the corpus holds none of the eight).
 - **Postconditions:** adr-verify's `--help` and every docstring that described `splitlines()` describe this.
 
+### UC-13: a closer rest is ASCII space and tab only
+
+Added 2026-09-12 after the third Codex review (LOW): `_fence_closes` used `.strip()`, so NEL, NBSP and the other Unicode whitespace counted as "nothing after the marker" and closed a fence T11 says is still one line. `_RUNNABLE_INFO` already allowed only `[ \t]*` after a language label.
+
+- **Trigger:** a gate reads a fence closer · **Preconditions:** a fence is open
+- **Main flow:**
+  1. `_fence_closes` treats a line as a closer only when the rest is ASCII space and tab (`re.fullmatch(r"[ \t]*", rest)`).
+  2. ``` and ```\\t close; ```\\x85 and ```\\xa0 do not; `first_fence_line` trims only those same bytes.
+- **Failure paths:**
+  - a. `.strip()` returns → a NEL after the marker closes the fence and a following `## ` is a heading.
+  - b. a digest of an existing fence changes → forbidden; recomputed over every tracked record: 0 differences.
+- **Postconditions:** corpus digest-diff vs the `.strip()` closer is 0.
+
+### UC-14: adr-lint's Exit block names the exits it produces
+
+Added 2026-09-12 after the third Codex review (LOW): the header claimed exit 2 for "unknown flag, no record named"; measured `--bogus`, no args, and a missing file are 1; only lib-missing (and not-recognised) is 2.
+
+- **Trigger:** a reader of adr-lint's Exit block, or a caller that keys on the code · **Preconditions:** none
+- **Main flow:**
+  1. Code 1's own clause names an unknown flag, no record named, and a missing file.
+  2. Code 2's own clause is could-not-run and names `plugin/lib/record.py` (and not-recognised).
+- **Failure paths:**
+  - a. the header puts unknown flag / no record named on 2 → a caller that keys on 2 treats a usage miss as could-not-run.
+- **Postconditions:** `--bogus`, no args, and a missing file exit 1; lib-missing stays 2.
+
 ## Scenarios
 
 ### UC4-S1 [happy] a sh-labelled task the writer recorded is digest-checked by the verifier [@implemented] → `tests/evidence-chain.test.mjs::a sh-labelled Acceptance the writer recorded is digest-checked by adr-lint, not skipped` cmd:`node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs`
@@ -388,6 +413,41 @@ When sections_of and repeated_headings read each
 Then each is two lines and "A" is reported repeated — so the splitter is shown able to split
 ```
 
+### UC13-S1 [happy] a bare closer and a tab closer still close [@implemented] → `tests/gates.test.mjs::record.py: a closer rest is only ASCII space and tab — NEL does not close a fence` cmd:`node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs`
+
+```gherkin
+Given an Acceptance fence closed by ``` or by ``` then a tab
+When sections_of and acceptance_fence read it
+Then the body is the command and the next ## is a heading
+And every tracked docs/adr record has the same digest as under the .strip() closer
+```
+
+### UC13-S2 [failure] NEL or NBSP after the marker does not close [@implemented] → `tests/gates.test.mjs::record.py: a closer rest is only ASCII space and tab — NEL does not close a fence` cmd:`node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs`
+
+```gherkin
+Given an Acceptance fence whose closer rest is NEL or NBSP
+When sections_of and acceptance_fence read it
+Then the fence stays open, there is no runnable body, and the next ## is text
+```
+
+### UC14-S1 [happy] measured usage misses exit 1 and the header's code-1 clause names them [@implemented] → `tests/gates.test.mjs::adr-lint's Exit block names the exits it actually produces` cmd:`node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs`
+
+```gherkin
+Given the working-tree adr-lint
+When it is invoked with --bogus, with no record, and with a missing file
+Then each exits 1
+And the Exit block's code-1 clause names unknown flag, no record named, and a missing file
+```
+
+### UC14-S2 [failure] the header that put those misses on 2 is refused [@implemented] → `tests/gates.test.mjs::adr-lint's Exit block names the exits it actually produces` cmd:`node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs`
+
+```gherkin
+Given the Exit block
+When code 2's own clause is read
+Then it says could-not-run and names plugin/lib/record.py
+And it does not name unknown flag or no record named
+```
+
 ### UC1-S1 [happy] adr-next reports done what adr-verify recorded, with a `## ` line inside the fence [@implemented] → `tests/adr-next.test.mjs::a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest` cmd:`node --test --test-name-pattern 'a heading inside the Acceptance fence is not a heading' tests/adr-next.test.mjs`
 
 ```gherkin
@@ -473,6 +533,8 @@ And arch-lint has no tracked_or_unignored_paths
 | F-11 | Accepted 2026-09-11 (second Codex review, MEDIUM). Current at `1739425`: two fence grammars — the walk's line-start ``` toggle and `ACCEPTANCE_FENCE`, an unanchored regex over the section text: `prose ```bash` ran, ````bash matched from its second backtick, an inner ```bash inside a ```` fence ran, `echo '```'` ran as `echo '`, a ~~~-fenced heading was a heading. After: `record._FENCE` (three or more ``` or ~~~ after leading blanks; closer same marker, at least as long, nothing after; a backtick info string holding a backtick is not an opener) and every reader a view of it; `acceptance_fence(section)` walks fence to fence and returns the body of the first backtick opener labelled exactly bash/sh/shell; `first_fence_line`; `ACCEPTANCE_FENCE` deleted; three gates call the function. Digests recomputed over every tracked record: 222 files, 97 digests, 0 differences. Probed through three CLIs on six edges: identical. Why it can fail: a closer ignores length or marker or trailing text; a tilde fence runs; the inline-code rule is dropped; a gate grows a private regex. | `tests/gates.test.mjs::record.py: the opener is bash, sh or shell; a repeated heading is named; a span is where the reader reads` | @implemented | `node --test --test-name-pattern 'record.py: the opener is bash' tests/gates.test.mjs` |
 | F-12 | Accepted 2026-09-11 (second Codex review, MEDIUM; the Non-Goal below reversed — the owner said no edges). Current at `1739425`: `str.splitlines()` in the walk; a heading holding VT, FF, FS, GS, RS, NEL, LS or PS read as two lines and could manufacture a repeated heading (a T5 block) from one line; a command holding one was hashed with the byte turned to `\n`. After: `record.split_lines` on `\r\n`, `\r` and `\n` only, used by the walk and `acceptance_fence`; the eight are bytes; docstrings and adr-verify `--help` say so. Digests recomputed over every tracked record: 0 differences. Why it can fail: the eight return to the splitter. | `tests/gates.test.mjs::record.py: only CR, LF and CRLF break a line — a heading holding a form feed is one heading and a NEL reaches the digest` | @implemented | `node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs` |
 | F-3 | Accepted. Current: adr-lint:3445 `tracked_paths` = `git ls-files` ∪ `git ls-files --others --exclude-standard` (a file being added counts, ADR-011 / ADR-017); arch-lint:279 `tracked_paths` = `git ls-files --cached` only, refusing `--others` because it admits a file that exists only on this laptop. Same name, opposite membership, both citing CLAUDE.md §8. After: adr-lint's is `tracked_or_unignored_paths` — tracked, or on disk and not ignored, which is exactly what its two `ls-files` calls answer; arch-lint's keeps `tracked_paths`, because `--cached` is the index and the index is what "tracked" means to git (a staged file is tracked; `committed_paths` would be false for it). Both bodies unchanged; every call site and the comment at adr-lint:3715 renamed. Why it can fail: the rename alters membership; a call site keeps the old name; the two listings agree on an untracked file. | `tests/gates.test.mjs::adr-lint's tracked_or_unignored_paths includes an untracked file; arch-lint's tracked_paths excludes it` | @implemented | `node --test --test-name-pattern "adr-lint's tracked_or_unignored_paths includes an untracked file" tests/gates.test.mjs` |
+| F-13 | Accepted 2026-09-12 (third Codex review, LOW). Current: `_fence_closes` used `.strip()`, so NEL / NBSP / other Unicode whitespace closed a fence T11 says is one line. After: closer rest is `[ \\t]*` only, matching `_RUNNABLE_INFO`; ``` and ```\\t close; ```\\x85 and ```\\xa0 do not. Corpus digest-diff vs the `.strip()` closer over tracked `docs/adr/**/*.md` is 0. Why it can fail: `.strip()` returns. | `tests/gates.test.mjs::record.py: a closer rest is only ASCII space and tab — NEL does not close a fence` | @implemented | `node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs` |
+| F-14 | Accepted 2026-09-12 (third Codex review, LOW). Current: adr-lint's Exit header claimed 2 for "unknown flag, no record named"; measured `--bogus`, no args, missing file are 1; only lib-missing (and not-recognised) is 2. After: the header's code-1 clause names those three; code 2 stays could-not-run + `plugin/lib/record.py`. Measured exits unchanged. Why it can fail: the header puts a usage miss on 2 and a caller that keys on 2 treats it as could-not-run. | `tests/gates.test.mjs::adr-lint's Exit block names the exits it actually produces` | @implemented | `node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs` |
 
 ## Domain
 

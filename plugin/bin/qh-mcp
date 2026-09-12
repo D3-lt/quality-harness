@@ -212,12 +212,13 @@ class GateDidNotRun(Exception):
 # exit 2 · could not run …" wearing the shape of a gate that ran. ADR-012 §2
 # reserves the error channel for exactly this ("a gate that could not run must
 # not borrow the vocabulary of one that ran and found nothing"), so the code is
-# relayed there, with the gate's own sentence. adr-judge and postmortem-verify
-# reserve no such code (adr-judge's 2 is a broken invocation, refused above before
-# anything is spawned; postmortem-verify exits 0 or 1), so nothing is claimed for
-# them. Keyed on the CODE, never on the wording: a classifier over stderr text
+# relayed there, with the gate's own sentence. adr-judge's 2 is a broken
+# invocation, refused above before anything is spawned, so nothing is claimed
+# for it. postmortem-verify's 2 is a named path it could not read (ADR-046 T7).
+# Keyed on the CODE, never on the wording: a classifier over stderr text
 # is an empirical claim about every gate's prose (CLAUDE.md §16).
-UNRUN_EXIT = {"adr-lint": 2, "adr-next": 2, "adr-debt": 2, "arch-lint": 2, "adr-retire-check": 2}
+UNRUN_EXIT = {"adr-lint": 2, "adr-next": 2, "adr-debt": 2, "arch-lint": 2,
+              "adr-retire-check": 2, "postmortem-verify": 2}
 
 
 def _gate_result(gate, completed, paths):

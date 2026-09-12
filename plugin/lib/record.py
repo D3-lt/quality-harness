@@ -94,10 +94,16 @@ def _fence_opened(line):
 
 
 def _fence_closes(line, opened):
-    """Whether `line` closes a fence opened with `opened` = `(marker_char, length)`."""
+    """Whether `line` closes a fence opened with `opened` = `(marker_char, length)`.
+
+    The closer rest is ASCII space and tab only — the same bytes `_RUNNABLE_INFO`
+    allows after a language label. `.strip()` also treats NEL, NBSP and the
+    other Unicode whitespace as nothing, so a raw NEL after ``` closed a fence
+    that T11 says is still one line (ADR-045 T12).
+    """
     m = _FENCE.match(line)
     return (m is not None and m.group("marker")[0] == opened[0]
-            and len(m.group("marker")) >= opened[1] and not m.group("rest").strip())
+            and len(m.group("marker")) >= opened[1] and re.fullmatch(r"[ \t]*", m.group("rest")))
 
 
 def _sections(text):
@@ -260,7 +266,7 @@ def first_fence_line(section):
     """
     for line in _as_lines(section):
         if _FENCE.match(line):
-            return line.strip()
+            return line.strip(" \t")
     return None
 
 

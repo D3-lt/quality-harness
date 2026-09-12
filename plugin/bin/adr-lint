@@ -35,9 +35,10 @@ Checks:
            whose displayed command matches (human-observed tasks: a human-observed entry)
   Covers : union of task Covers ⊇ spec's @spec/@implemented fact + scenario IDs
 
-Exit: 0 pass · 1 failures found · 2 could not run — an unknown flag, no record named,
-      or plugin/lib/record.py not beside this gate's bin/ (a gate copied on its own;
-      ADR-045). 2 is NOT a finding about the record: nothing was checked.
+Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a missing file ·
+      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied
+      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).
+      2 is NOT a finding about the record: nothing was checked.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a

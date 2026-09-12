@@ -42,8 +42,8 @@ README must be regenerated.
 | T9 | adr-lint names the whole unrunnable opener line | done | F-10, UC10-S1, UC10-S2 | `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` |
 | T10 | One fence grammar — the walk and the runnable opener are one rule | done | F-11, UC11-S1, UC11-S2 | `node --test --test-name-pattern 'record.py: the opener is bash\|the record grammar is one module' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes\|sh-labelled Acceptance fence adr-verify recorded' tests/adr-next.test.mjs && node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` |
 | T11 | Only CR, LF and CRLF break a line | done | F-12, UC12-S1, UC12-S2 | `node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs` |
-| T12 | A closer rest is only ASCII space and tab | pending | F-13, UC13-S1, UC13-S2 | `node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs` |
-| T13 | adr-lint's Exit header names the exits it produces | pending | F-14, UC14-S1, UC14-S2 | `node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs` |
+| T12 | A closer rest is only ASCII space and tab | done | F-13, UC13-S1, UC13-S2 | `node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs` |
+| T13 | adr-lint's Exit header names the exits it produces | done | F-14, UC14-S1, UC14-S2 | `node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs` |
 
 
 Status: `pending` | `partial` | `blocked` | `done`.

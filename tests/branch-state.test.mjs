@@ -598,8 +598,9 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
   // match and also ENOENT. Copying Git\cmd\git.exe into the stub is the
   // trampoline miss (dispatch 34707640505): it looks for mingw64 next to
   // itself. So leave git.exe in its install directory on PATH, and put a real
-  // gh.exe in the stub — a copy of node, plus NODE_OPTIONS --require that only
-  // answers when argv[0] is gh.
+  // gh.exe in the stub — a copy of node, plus NODE_OPTIONS --require.
+  // Copied node treats `gh run list` as argv [gh.exe, <cwd>/run, 'list', …]
+  // (measured; 1a28dcf TAP then saw Command failed: gh run list). Match `list`.
   const gitWhere = spawnSync(process.platform === 'win32' ? 'where.exe' : '/bin/sh',
     process.platform === 'win32' ? ['git.exe'] : ['-c', 'command -v git'],
     { encoding: 'utf8', timeout: 5_000 })
@@ -612,7 +613,7 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
       "const path = require('node:path')",
       "if (!/^gh(\\.exe)?$/i.test(path.basename(process.argv[0]))) return",
       'const args = process.argv.slice(1)',
-      "if (args[0] === 'run' && args[1] === 'list') {",
+      "if (args.includes('list')) {",
       "  process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
       '  process.exit(0)',
       '}',

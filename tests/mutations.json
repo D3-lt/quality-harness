@@ -7530,6 +7530,56 @@
       "from": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    adr-lint|arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
       "to": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
       "only": "UNPROVEN through the dispatcher, not not satisfied"
+    },
+    {
+      "label": "advisory: provenMutationPaths drops stand-ins and paths outside cwd (ADR-051 T1)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (typeof entry !== 'string' || !entry || entry.startsWith('<')) continue",
+      "to": "    if (typeof entry !== 'string' || !entry) continue",
+      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
+    },
+    {
+      "label": "advisory: empty mutationPaths is could-not-look (ADR-051 T1)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    : 'I could not prove a repository path for those edits (could not classify the command, or could not resolve a path).'",
+      "to": "    : 'The transcript contains file mutations.'",
+      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
+    },
+    {
+      "label": "statusline: marker-only is unverified, not a numbered write (ADR-051 T2)",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "    count: proven.length,",
+      "to": "    count: edited.length,",
+      "only": "a marker-only transcript is unverified, not a numbered write"
+    },
+    {
+      "label": "hooks: docsOnly is over proven paths (ADR-051 T1)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "docsOnly(provenMutationPaths(state.mutationPaths, input.cwd))",
+      "to": "docsOnly(state.mutationPaths)",
+      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
+    },
+    {
+      "label": "statusline: marker-only stays unverified, not nothing-edited (ADR-051 T2)",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  const markerOnly = edited.length > 0 && proven.length === 0",
+      "to": "  const markerOnly = false",
+      "only": "a marker-only transcript is unverified, not a numbered write"
     }
   ]
 }

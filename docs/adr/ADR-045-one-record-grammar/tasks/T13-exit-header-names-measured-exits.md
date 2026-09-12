@@ -50,6 +50,7 @@ node --test --test-name-pattern "adr-lint's Exit block names the exits it actual
 | 4 — it is used | the three measured invocations |
 
 ## Mutation Log
+- 2026-09-12 · fa27ad5* · mutant killed · exit 1 · `plugin/bin/adr-lint` · with unknown flag on 2 the clause reader accepts a usage miss as could-not-run · acceptance-sha256:27b97c6b48714aefee9ff28623d18266eed926d888de7feae3dda48a62479613
 
 ## Invariants
 
@@ -73,3 +74,5 @@ A green run while the header puts unknown flag on 2.
 Found by the third Codex review (LOW). The header is the contract; the test executes the names before writing them (CLAUDE.md §16).
 
 ## Verification Log
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs` · acceptance-sha256:27b97c6b48714aefee9ff28623d18266eed926d888de7feae3dda48a62479613 · ms:232
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs` · acceptance-sha256:27b97c6b48714aefee9ff28623d18266eed926d888de7feae3dda48a62479613 · ms:203

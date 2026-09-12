@@ -51,6 +51,7 @@ node --test --test-name-pattern 'postmortem-verify on a path it cannot read' tes
 | 4 — it is used | the CLI on a missing path; the hook on an unreadable postmortem path |
 
 ## Mutation Log
+- 2026-09-12 · fa27ad5* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · dropping postmortem-verify from unrun_exit makes an unreadable postmortem "not satisfied" · acceptance-sha256:ce160d766f0d3f9d67195d264c8dae9233166c0b1519b98992b683b2552b13df
 
 ## Invariants
 
@@ -74,3 +75,4 @@ A green run while a missing path is exit 1 with a traceback, or while the table 
 Found by the third Codex review (LOW, then in-class). T1's Out of Scope left this deferred; the owner said no edges.
 
 ## Verification Log
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern 'postmortem-verify on a path it cannot read' tests/gates.test.mjs` · acceptance-sha256:ce160d766f0d3f9d67195d264c8dae9233166c0b1519b98992b683b2552b13df · ms:247

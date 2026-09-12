@@ -1291,7 +1291,13 @@ function isDirectory(candidate) {
 // outside. Falls back to the lexical path when it cannot be resolved.
 function canonical(candidate) {
   try {
-    return realpathSync(candidate)
+    // Native first: the JS realpath leaves Windows 8.3 names in place while
+    // Git answers with the long form (run-shell-hook.mjs; BACKLOG §188).
+    let resolved
+    try { resolved = realpathSync.native(candidate) } catch { resolved = realpathSync(candidate) }
+    if (resolved.startsWith('\\\\?\\UNC\\')) return '\\\\' + resolved.slice(8)
+    if (resolved.startsWith('\\\\?\\')) return resolved.slice(4)
+    return resolved
   } catch {
     return candidate
   }
@@ -3377,15 +3383,29 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
 // so on a symlinked checkout the corpus read as empty, silently. The same trap
 // underTempRoot already realpaths both sides for.
 function relativeWithinRoot(root, candidate) {
-  const direct = path.relative(root, candidate)
-  if (!direct.startsWith('..')) return direct
+  // Same `inside` as underDirectory (BACKLOG §188). `!startsWith('..')` is not
+  // enough: when git's spelling and Node's disagree, path.relative is an
+  // absolute path, which then survives the posix replace as `C:/…` and is
+  // kept as if it were in-repo (Windows CI: empty decision context).
+  const posix = value => value.replace(/\\/g, '/')
+  const inside = value => value === '' || (!value.startsWith('..') && !path.isAbsolute(value)
+    && !/^[A-Za-z]:/.test(posix(value)))
+  const fold = value => (process.platform === 'win32' || process.platform === 'darwin')
+    ? value.toLowerCase() : value
   const real = target => {
-    try { return realpathSync(target) } catch {}
+    if (existsSync(target)) return fold(canonical(target))
     const anchor = nearestExistingDirectory(target)
-    try { return anchor ? path.join(realpathSync(anchor), path.relative(anchor, target)) : target }
-    catch { return target }
+    try { return fold(anchor ? path.join(canonical(anchor), path.relative(anchor, target)) : target) }
+    catch { return fold(target) }
   }
-  return path.relative(real(root), real(candidate))
+  const attempts = [path.relative(root, candidate), path.relative(real(root), real(candidate))]
+  const hit = attempts.find(inside)
+  if (hit !== undefined) return hit
+  const rp = posix(real(root)).replace(/\/$/, '')
+  const cp = posix(real(candidate))
+  if (rp && cp.startsWith(rp + '/')) return cp.slice(rp.length + 1)
+  if (cp === rp) return ''
+  return attempts[attempts.length - 1]
 }
 
 /**
@@ -3399,7 +3419,8 @@ export function decisionsGoverning(paths, root, corpus = adrCorpus(root)) {
   const relative = paths
     .map(candidate => (path.isAbsolute(candidate) ? relativeWithinRoot(root, candidate) : candidate))
     .map(candidate => candidate?.replace(/\\/g, '/'))
-    .filter(candidate => candidate && !candidate.startsWith('..'))
+    .filter(candidate => candidate && !candidate.startsWith('..') && !path.isAbsolute(candidate)
+      && !/^[A-Za-z]:/.test(candidate))
   const hits = record => relative.some(candidate =>
     record.governs.some(declaration => pathMatchesDeclaration(candidate, declaration)))
   return {

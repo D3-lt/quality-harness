@@ -14,6 +14,7 @@ README must be regenerated.
 | 2 | T3, T4, T5, T6 | T1 |
 | 3 | T7, T8, T9, T11 | T6 (T7, T8); T3 (T9); T1 (T11) |
 | 4 | T10 | T3, T8 |
+| 5 | T12, T13 | T10, T11 (T12); T4 (T13) |
 
 ## Waves
 
@@ -23,6 +24,7 @@ README must be regenerated.
 - **Wave 3 / 4** — T7–T11, the second Codex review's findings on wave 2. T7 and T8 are on T6's writer;
   T9 on T3's opener; T11 on T1's walk; T10 folds T8's marker and T9's naming into one grammar, so it
   comes last.
+- **Wave 5** — T12–T13, the third Codex review's findings on the grammar and the Exit header.
 
 
 ## Task Index
@@ -40,6 +42,8 @@ README must be regenerated.
 | T9 | adr-lint names the whole unrunnable opener line | done | F-10, UC10-S1, UC10-S2 | `node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` |
 | T10 | One fence grammar — the walk and the runnable opener are one rule | done | F-11, UC11-S1, UC11-S2 | `node --test --test-name-pattern 'record.py: the opener is bash\|the record grammar is one module' tests/gates.test.mjs && node --test --test-name-pattern 'code fence never closes\|sh-labelled Acceptance fence adr-verify recorded' tests/adr-next.test.mjs && node --test --test-name-pattern 'digest-checked by adr-lint, not skipped' tests/evidence-chain.test.mjs` |
 | T11 | Only CR, LF and CRLF break a line | done | F-12, UC12-S1, UC12-S2 | `node --test --test-name-pattern 'only CR, LF and CRLF break a line' tests/gates.test.mjs` |
+| T12 | A closer rest is only ASCII space and tab | pending | F-13, UC13-S1, UC13-S2 | `node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs` |
+| T13 | adr-lint's Exit header names the exits it produces | pending | F-14, UC14-S1, UC14-S2 | `node --test --test-name-pattern "adr-lint's Exit block names the exits it actually produces" tests/gates.test.mjs` |
 
 
 Status: `pending` | `partial` | `blocked` | `done`.
@@ -55,3 +59,4 @@ None.
   nothing else; they may run in any order.
 - T7–T11 (2026-09-11) are the second Codex review's findings on T3–T6; the three caller findings of the
   same review are ADR-046.
+- T12–T13 (2026-09-12) are the third Codex review's findings on the closer rest and the Exit header.

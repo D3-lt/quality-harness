@@ -19,6 +19,20 @@ base=$(basename "$f")
 base_lc=$(printf '%s' "$base" | tr '[:upper:]' '[:lower:]')
 gate="" out="" rc=0
 
+# PostToolUse additionalContext is stdout (run-shell-hook wraps it).
+# Commit/completion — the path runArtifactGates consumes — reads stderr,
+# the same stream as the finding text at the bottom of this file. An
+# UNPROVEN that stays on stdout there is dropped: measured 2026-09-12,
+# runArtifactGates returned null for a plugin copied without lib/, the
+# same as all-passed (ADR-005 / ADR-046 T4).
+say_unproven() {
+  if [ "$boundary" = "PostToolUse" ]; then
+    printf '%s\n' "$1"
+  else
+    printf '%s\n' "$1" >&2
+  fi
+}
+
 # runArtifactGates supplies a private, disposable ledger for one sequential pass.
 # Keep ownership resolution here and key the full argv, not an ADR basename.
 # The caller retains the first finding; a repeated command need not report it again.
@@ -211,7 +225,7 @@ if [ -z "$archive_readme" ]; then
   # existing files still fall through: -f is true, ADR-*.md can match by name,
   # and the UNPROVEN arm below names a file that exists but cannot be read.
   if [ ! -f "$f" ]; then
-    printf 'UNPROVEN: could not classify %s\n' "$f"
+    say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0
   fi
   case "$f" in
@@ -296,7 +310,7 @@ if [ -z "$gate" ]; then
   # Corpus gates do not run. Session PostToolUse names the miss at most once
   # per file per session via lifecycle.mjs firstMentionThisSession.
   if [ ! -e "$f" ] || [ ! -r "$f" ]; then
-    printf 'UNPROVEN: could not classify %s\n' "$f"
+    say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0
   fi
   if [ "$boundary" = "PostToolUse" ] && [ -n "${QUALITY_HARNESS_SESSION_ID:-}" ]; then
@@ -317,16 +331,16 @@ fi
 # opened. The code is the GATE'S, read from its Exit block and verified by running
 # each gate with its lib removed (ADR-045 T4):
 #
-#   adr-lint 2 · arch-lint 2 · adr-retire-check 2 · spec-verify 4
+#   adr-lint 2 · arch-lint 2 · adr-retire-check 2 · spec-verify 4 ·
+#   postmortem-verify 2
 #
-# postmortem-verify declares no such code (0 valid · 1 violations), so nothing
-# of its can be told apart here, and nothing is claimed for it. The line is the
-# UNPROVEN vocabulary the rest of this file already uses, on stdout like the
-# other could-not-look lines, and it exits 0 like everything else here.
+# The line is the UNPROVEN vocabulary the rest of this file already uses, and
+# it exits 0 like everything else here. The stream is say_unproven's, so a
+# commit/completion consumer that reads stderr (runArtifactGates) sees it.
 unrun_exit() {
   case "$1" in
     "spec-verify --draft") printf '4' ;;
-    adr-lint|arch-lint|adr-retire-check) printf '2' ;;
+    adr-lint|arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;
     *) printf '' ;;
   esac
 }
@@ -335,7 +349,7 @@ if [ -n "$(unrun_exit "$gate")" ] && [ "$rc" -eq "$(unrun_exit "$gate")" ]; then
   # when it wrote none (stderr is merged into $out above, and on this path the
   # gates write nothing to stdout).
   reason=$(printf '%s\n' "$out" | grep -m1 'could not run' || printf '%s\n' "$out" | head -n1)
-  printf 'UNPROVEN: %s could not run (exit %s): %s\n' "$gate" "$rc" "$reason"
+  say_unproven "$(printf 'UNPROVEN: %s could not run (exit %s): %s' "$gate" "$rc" "$reason")"
   exit 0
 fi
 

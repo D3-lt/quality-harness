@@ -2,7 +2,8 @@
 """postmortem-verify — validate a postmortem against the /postmortem schema.
 
 Usage: postmortem-verify FILE.md [FILE.md ...]
-Exit: 0 all valid · 1 violations (a malformed doc silently poisons the fine-tuning corpus)
+Exit: 0 all valid · 1 violations (a malformed doc silently poisons the fine-tuning corpus) ·
+      2 could not run — a named path could not be read, so nothing was checked.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -55,7 +56,11 @@ class Findings(list):
 
 def check(path):
     errs = Findings()
-    text = Path(path).read_text(errors="replace", encoding="utf-8")
+    try:
+        text = Path(path).read_text(errors="replace", encoding="utf-8")
+    except OSError as exc:
+        print(f"[postmortem-verify] could not run: {path} — {exc}", file=sys.stderr)
+        sys.exit(2)
     fm = re.match(r"\A---\n(.*?)\n---\n", text, re.S)
     if not fm:
         # Identity, not form: a document with no frontmatter is not a

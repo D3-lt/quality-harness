@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -587,35 +587,50 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
     'git@github.com:example/qh-brief-ttl.git'], { encoding: 'utf8', timeout: 10_000 })
   assert.equal(remote.status, 0, remote.stderr)
   const ghJs = path.join(bin, 'gh.mjs')
-  writeFileSync(ghJs, [
-    'const args = process.argv.slice(2)',
-    "if (args[0] === 'run' && args[1] === 'list') {",
-    "  process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
-    '  process.exit(0)',
-    '}',
-    'process.exit(1)',
-    '',
-  ].join('\n'))
-  writeFileSync(path.join(bin, 'gh.cmd'), `@echo off\r\n"${process.execPath}" "${ghJs}" %*\r\n`)
   // Replace PATH rather than prepend. execFileSync('gh') on Windows walks
   // PATHEXT (.EXE before .CMD), so a later gh.exe on PATH wins a leading
   // gh.cmd stub and the fixture reads the runner's "set GH_TOKEN" prose as
   // CI could-not-look (CLAUDE.md §7). spawn of this script uses execPath, so
   // Node itself does not need to stay on PATH.
-  // An extensionless `git`/`gh` is an exact-name match: execFileSync reports
-  // ENOENT instead of walking PATHEXT to git.cmd (same class as the gate
-  // shims). Copying git.exe into the stub is the other miss: Git\cmd\git.exe
-  // is a trampoline that looks for mingw64 next to itself, so rev-parse then
-  // fails (dispatch 34707640505). On Windows write git.cmd that calls the
-  // original binary; do not write git.exe or an extensionless file.
+  //
+  // execFileSync does not run .cmd/.bat (Node docs; a9ce33b TAP: git.cmd on
+  // PATH → `spawnSync git ENOENT`). An extensionless `git` is an exact-name
+  // match and also ENOENT. Copying Git\cmd\git.exe into the stub is the
+  // trampoline miss (dispatch 34707640505): it looks for mingw64 next to
+  // itself. So leave git.exe in its install directory on PATH, and put a real
+  // gh.exe in the stub — a copy of node, plus NODE_OPTIONS --require that only
+  // answers when argv[0] is gh.
   const gitWhere = spawnSync(process.platform === 'win32' ? 'where.exe' : '/bin/sh',
     process.platform === 'win32' ? ['git.exe'] : ['-c', 'command -v git'],
     { encoding: 'utf8', timeout: 5_000 })
   const gitBin = (gitWhere.stdout ?? '').split(/\r?\n/).map(line => line.trim()).find(Boolean)
   assert.ok(gitBin, `git must remain locatable on the isolated PATH\n${gitWhere.stderr}`)
+  const extraEnv = {}
   if (process.platform === 'win32') {
-    writeFileSync(path.join(bin, 'git.cmd'), `@echo off\r\n"${gitBin}" %*\r\n`)
+    const preload = path.join(bin, 'gh-preload.cjs')
+    writeFileSync(preload, [
+      "const path = require('node:path')",
+      "if (!/^gh(\\.exe)?$/i.test(path.basename(process.argv[0]))) return",
+      'const args = process.argv.slice(1)',
+      "if (args[0] === 'run' && args[1] === 'list') {",
+      "  process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
+      '  process.exit(0)',
+      '}',
+      'process.exit(1)',
+      '',
+    ].join('\n'))
+    copyFileSync(process.execPath, path.join(bin, 'gh.exe'))
+    extraEnv.NODE_OPTIONS = [`--require=${preload.split(path.sep).join('/')}`, process.env.NODE_OPTIONS].filter(Boolean).join(' ')
   } else {
+    writeFileSync(ghJs, [
+      'const args = process.argv.slice(2)',
+      "if (args[0] === 'run' && args[1] === 'list') {",
+      "  process.stdout.write(JSON.stringify([{ headSha: 'aaaaaaaa', status: 'completed', conclusion: 'success', databaseId: 1 }]))",
+      '  process.exit(0)',
+      '}',
+      'process.exit(1)',
+      '',
+    ].join('\n'))
     writeFileSync(path.join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghJs}" "$@"\n`)
     chmodSync(path.join(bin, 'gh'), 0o755)
     writeFileSync(path.join(bin, 'git'), `#!/bin/sh\nexec "${gitBin}" "$@"\n`)
@@ -624,8 +639,8 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
   const script = fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))
   const run = () => spawnSync(process.execPath, [script, '--brief', '--cached', '120'], {
     cwd: project,
-    env: { ...process.env, PATH: process.platform === 'win32'
-      ? `${bin}${path.delimiter}${path.join(process.env.SystemRoot || process.env.SYSTEMROOT, 'System32')}`
+    env: { ...process.env, ...extraEnv, PATH: process.platform === 'win32'
+      ? `${bin}${path.delimiter}${path.dirname(gitBin)}${path.delimiter}${path.join(process.env.SystemRoot || process.env.SYSTEMROOT, 'System32')}`
       : bin },
     encoding: 'utf8', timeout: 15_000,
   })

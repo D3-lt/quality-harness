@@ -59,6 +59,7 @@ node --test --test-name-pattern 'an unreadable named path is could-not-run, not 
 | 4 — it is used | CLI `python3 plugin/bin/<gate> <path>` is the served path |
 
 ## Mutation Log
+- 2026-09-12 · 022e9ce* · mutant killed · exit 1 · `plugin/bin/adr-lint` · unwraps check_adr so ADR-named chmod 000 tracebacks again · acceptance-sha256:026d8d6f334612c08953c01ed3d18f05b3f4f33f52eacba0a54c194088a4d7ef · covers:except OSError on named-path open
 
 ## Invariants
 
@@ -85,3 +86,4 @@ A listed member still tracebacks, or unreadable is reported as missing-file / fa
 - Changing `_Unreadable`
 
 ## Verification Log
+- 2026-09-12 · 022e9ce* · exit 0 · `node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found|postmortem-verify on chmod 000 is could-not-run|missing file, directory, and not-recognised stay their current exits' tests/gates.test.mjs` · acceptance-sha256:026d8d6f334612c08953c01ed3d18f05b3f4f33f52eacba0a54c194088a4d7ef · ms:965

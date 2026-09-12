@@ -85,6 +85,23 @@ test('unverified edits render ✗ with the count; a passed check renders ✓; no
   }
 })
 
+test('a marker-only transcript is unverified, not a numbered write', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-marker-'))
+  try {
+    writeFileSync(join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'node --test' } }))
+    const transcript = join(dir, 'agent.jsonl')
+    writeFileSync(transcript, line('v1', 'Bash', { command: 'node --version' }, 'v24\n'))
+    const input = {
+      session_id: `sl-marker-${Date.now()}-${process.pid}`,
+      transcript_path: transcript,
+      workspace: { current_dir: dir },
+    }
+    assert.equal(render(reading(input)), 'QH ✗ unverified')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('an unchanged transcript is not analysed twice; a changed one is', () => {
   const dir = mkdtempSync(join(tmpdir(), 'qh-statusline-cache-'))
   try {

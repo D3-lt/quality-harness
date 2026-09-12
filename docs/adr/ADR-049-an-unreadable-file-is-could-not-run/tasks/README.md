@@ -17,8 +17,8 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | Named-path OSError is could-not-run | pending | F-1, UC1-S1, UC1-S2, UC2-S1, UC2-S2 | `node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found\|postmortem-verify on chmod 000 is could-not-run\|missing file, directory, and not-recognised stay their current exits' tests/gates.test.mjs` |
-| T2 | Dispatcher UNPROVEN at mapped could-not-run, not not satisfied | pending | F-2, UC3-S1, UC3-S2 | `node --test --test-name-pattern 'chmod-000 ADR-\\*\\.md is UNPROVEN through the dispatcher\|postmortem-verify on a path it cannot read' tests/gates.test.mjs` |
+| T1 | Named-path OSError is could-not-run | done | F-1, UC1-S1, UC1-S2, UC2-S1, UC2-S2 | `node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found\|postmortem-verify on chmod 000 is could-not-run\|missing file, directory, and not-recognised stay their current exits' tests/gates.test.mjs` |
+| T2 | Dispatcher UNPROVEN at mapped could-not-run, not not satisfied | done | F-2, UC3-S1, UC3-S2 | `node --test --test-name-pattern 'chmod-000 ADR-\\*\\.md is UNPROVEN through the dispatcher\|postmortem-verify on a path it cannot read' tests/gates.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

@@ -1751,6 +1751,8 @@ def check_task(path, all_stems, errors, root, tracked):
                 f"declares {len(declared)} name(s) in **Rests-on:**. A segment is not a "
                 f"mechanism — several can rest on one, and one can rest on several — so "
                 f"this is a count of places worth looking, not a finding about the fence. "
+                f"If they are the same mechanism, collapse the fence so the counts match; "
+                f"if not, add the missing Rests-on name. Leaving this unread is fail-open. "
                 f"If its claim rests on more than what is declared, naming the rest is what "
                 f"lets the gate say which of them nothing has proved")
     # docs/BACKLOG.md §78. Reported by a peer session that measured 50 of these

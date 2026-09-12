@@ -15,6 +15,20 @@ moving something between them is a real behavioural change, not a formatting cho
 The reason is not politeness. A blocked agent produces a user who cannot tell what to do next, which
 is worse than not having the plugin at all. Say what is wrong and let the work proceed.
 
+The other failure from the same split: because advice does not block, a reader
+decides the class is skippable and stops reading it. That is not the gate
+instructing. It is the finding going unread. Field 2026-09-12: always-on advise
+and a repeated pre-commit warning were treated as noise; a lineage rule in that
+stream went unnoticed across a run of commits. Classify each line, or name it
+dangling. Do not grep it away. Moving a finding from advise to append remains a
+behaviour change (this section's first paragraph); this corollary does not move
+any finding.
+
+The same class includes always-on dumps a reader skips after one look: an unchanged
+branch-state brief, a host recalled-memory block, invented Stop paths, an inferred
+check called the project's own. Those are work we action (`CLAUDE.md` §17), not
+noise. Dangling is only for a leftover that needs a human decision.
+
 The corollary — a gate must never report an observation it did not make — is ADR-005. A filter that
 matched nothing is "I could not look", not "the thing is absent"; a subprocess that failed to start
 is not a failing check; a parse failure is not a content finding. Several instances of this shipped

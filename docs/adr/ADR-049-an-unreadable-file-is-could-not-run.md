@@ -1,6 +1,6 @@
 # ADR-049: An unreadable file is could-not-run
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-12
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-12-unreadable-file-is-could-not-run.md`
@@ -117,4 +117,4 @@ Remove the `except OSError` wraps and the Exit-header named-path sentences. Disp
 
 ## Follow-ups
 
-- [ ]
+- [ ] Dispatcher mapping for adr-judge remains ADR-046 Follow-ups — not this record.

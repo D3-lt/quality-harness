@@ -364,6 +364,28 @@ export function cached(maxAgeSeconds, { read, write, now = Date.now, gather = co
   return { state, ageSeconds: 0, fromCache: false }
 }
 
+export function ciAlarm(state) {
+  if (!state || typeof state !== 'object' || !state.looked) return false
+  if (!state.ci || typeof state.ci !== 'object' || !state.ci.looked) return true
+  return state.ci.status === 'completed' && state.ci.conclusion !== 'success'
+}
+
+function stampBriefSaid(store, said) {
+  if (!store) return
+  try {
+    const current = JSON.parse(readFileSync(store, 'utf8'))
+    writeFileSync(store, JSON.stringify({ ...current, said }))
+  } catch { /* a cache that cannot be written is not a failure */ }
+}
+
+function emitCachedBranchState(state, { brief, age, previous, store }) {
+  const text = render(state, { brief })
+  if (brief && !ciAlarm(state) && previous && previous.said === text) return false
+  const suffix = age ? ` (read ${age}s ago)` : ''
+  process.stdout.write(`${text}${suffix}\n`)
+  if (brief) stampBriefSaid(store, text)
+  return true
+}
 function main(argv = process.argv.slice(2)) {
   const brief = argv.includes('--brief')
   const at = argv.indexOf('--cached')
@@ -391,7 +413,8 @@ function main(argv = process.argv.slice(2)) {
   const now = Date.now()
   if (usableCache(previous, now) && (now - previous.at) / 1000 < maxAgeSeconds) {
     const age = Math.max(1, Math.round((now - previous.at) / 1000))
-    process.stdout.write(`${render(previous.state, { brief })} (read ${age}s ago)\n`)
+    const store = hint ? join(hint, 'qh-branch-state.json') : null
+    emitCachedBranchState(previous.state, { brief, age, previous, store })
     finish('cache-hit', { status: 0 })
     return 0
   }
@@ -402,7 +425,9 @@ function main(argv = process.argv.slice(2)) {
     write: payload => { if (!store) return; try { writeFileSync(store, JSON.stringify(payload)) } catch { /* a cache that cannot be written is not a failure */ } },
     gather: checkpoint => collect(run, checkpoint),
   })
-  process.stdout.write(`${render(state, { brief })}${fromCache ? ` (read ${ageSeconds}s ago)` : ''}\n`)
+  emitCachedBranchState(state, {
+    brief, age: fromCache ? ageSeconds : 0, previous: fromCache ? read(store) : null, store,
+  })
   finish(fromCache ? 'cache-hit' : state.looked ? 'refreshed' : 'unavailable', { status: 0 })
   return 0
 }

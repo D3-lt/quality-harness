@@ -116,4 +116,6 @@ Remove the suffix from `record_run`, `check_test_lock`, and the `is_done` lock r
 
 ## Follow-ups
 
-- [ ]
+- [ ] T1–T3 first-reds predate the writer; do not edit Verification Logs. Cutover
+      `TEST_HASH_REQUIRED_FROM` is `2026-09-13`. Filling hashes on a later red is a
+      spec change (F-1).

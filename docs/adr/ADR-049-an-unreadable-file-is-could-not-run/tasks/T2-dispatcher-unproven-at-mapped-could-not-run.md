@@ -50,6 +50,7 @@ node --test --test-name-pattern 'chmod-000 ADR-\*\.md is UNPROVEN through the di
 | 4 — it is used | PostToolUse / commit additionalContext is the served path |
 
 ## Mutation Log
+- 2026-09-12 · 022e9ce* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · drops adr-lint from unrun_exit so chmod-000 ADR-*.md is not satisfied at traceback-1 again · acceptance-sha256:60278f014341921539863d3e9e9e40970f7ef7f6d81ab5276f5e3bb1d04fd224 · covers:unrun_exit maps adr-lint
 
 ## Invariants
 
@@ -73,3 +74,4 @@ chmod-000 ADR-*.md still prints "not satisfied … Fix the artifact", or a real 
 - Dispatcher mapping for adr-judge
 
 ## Verification Log
+- 2026-09-12 · 022e9ce* · exit 0 · `node --test --test-name-pattern 'chmod-000 ADR-\*\.md is UNPROVEN through the dispatcher|postmortem-verify on a path it cannot read' tests/gates.test.mjs` · acceptance-sha256:60278f014341921539863d3e9e9e40970f7ef7f6d81ab5276f5e3bb1d04fd224 · ms:393

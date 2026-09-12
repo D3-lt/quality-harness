@@ -31,6 +31,11 @@ node plugin/scripts/branch-state.mjs      # branch, dirt, ahead, CI verdict, unr
   (`--brief`; an alarm adds a second line rather than dropping the failing job names) and reads a
   a `.git/`-local cache (`--cached 120`) so it does not spawn `gh` on every prompt — a stale
   answer says how old it is, and an unreadable cache is refreshed rather than trusted.
+- **An unchanged `--brief` line is unread.** Reprint it only when the line changed or
+  CI is in alarm. SessionStart still prints the full form once. Field 2026-09-12:
+  a session skipped the same brief for most of a turn because the content had not
+  moved; under the reader rule that skip had to be said and then the reprint itself
+  had to stop.
 - **The release line NAMES its anchor and points at the check; it does not conclude** (BACKLOG §157).
   `git describe` reads LOCAL refs and `gh release create` tags the remote, so the machine that cuts
   the releases is the one whose anchor goes stale — it printed "a green shipped change is released,

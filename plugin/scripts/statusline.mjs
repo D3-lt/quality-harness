@@ -3,7 +3,8 @@
 // already looks, with no prompt text spent on it (BACKLOG §134).
 //
 //   QH ✓ checked            a recognised check passed after the last edit
-//   QH ✗ 3 unverified       edits since the last publish, nothing has checked them
+//   QH ✗ 3 unverified       proven edits since the last publish, nothing has checked them
+//   QH ✗ unverified         a mutation or UNPROVEN write with no proven path (not "nothing edited")
 //   QH · nothing edited     (only when the project names a check)
 //   QH ? transcript 61MB    too large to read per render; not a verdict
 //   QH CI ✓                 CI of this branch is green (no session token)
@@ -31,7 +32,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { analyzeTranscript, projectCheckCommand } from './lifecycle.mjs'
+import { analyzeTranscript, projectCheckCommand, provenMutationPaths } from './lifecycle.mjs'
 import { usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
 export { findGitDir } from './git-directory.mjs'
@@ -64,10 +65,14 @@ export function reading(input, { analyze = analyzeTranscript, now = Date.now() }
   try { raw = readFileSync(transcript, 'utf8') } catch { return null }
   const state = analyze(raw, cwd)
   const edited = state.mutationPathsSince(state.lastPublish)
+  const proven = provenMutationPaths(edited, cwd)
   const unprovenWrite = state.unprovenWritePending()
+  const markerOnly = edited.length > 0 && proven.length === 0
   const value = {
-    kind: unprovenWrite ? 'unverified' : edited.length === 0 ? 'nothing' : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',
-    count: edited.length > 0 ? edited.length : unprovenWrite ? 1 : 0,
+    kind: unprovenWrite || markerOnly ? 'unverified'
+      : proven.length === 0 ? 'nothing'
+      : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',
+    count: proven.length,
     check: projectCheckCommand(cwd) ?? null,
     at: now,
   }
@@ -110,7 +115,7 @@ export function render(value, ci = null) {
   const parts = []
   if (value) {
     if (value.kind === 'too-large') parts.push(`QH ? transcript ${Math.round(value.bytes / 1024 / 1024)}MB`)
-    else if (value.kind === 'unverified') parts.push(`QH ✗ ${value.count} unverified`)
+    else if (value.kind === 'unverified') parts.push(value.count > 0 ? `QH ✗ ${value.count} unverified` : 'QH ✗ unverified')
     else if (value.kind === 'checked') parts.push('QH ✓ checked')
     else if (value.check) parts.push('QH · nothing edited')
   }

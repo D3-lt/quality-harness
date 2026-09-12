@@ -2128,6 +2128,33 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
   return failures.length ? `Artifact validation failed:\n${failures.join('\n')}` : null
 }
 
+// A proven path is a repository path under cwd, not a `<…>` stand-in and not a
+// path outside the project. Advise that lists a command, a home file, or a host
+// scratchpad as a changed path is inventing a write
+// (docs/specs/2026-09-12-unproven-advise-does-not-invent-writes.md).
+export function provenMutationPaths(paths, cwd) {
+  if (!Array.isArray(paths)) return []
+  const root = path.resolve(cwd ?? process.cwd())
+  const seen = new Set()
+  const out = []
+  for (const entry of paths) {
+    if (typeof entry !== 'string' || !entry || entry.startsWith('<')) continue
+    const resolved = path.resolve(root, entry)
+    const rel = path.relative(root, resolved)
+    if (rel === '' || path.isAbsolute(rel) || rel.startsWith('..')) continue
+    if (seen.has(entry)) continue
+    seen.add(entry)
+    out.push(entry)
+  }
+  return out
+}
+
+function displayProvenPath(entry, cwd) {
+  const root = path.resolve(cwd ?? process.cwd())
+  const rel = path.relative(root, path.resolve(root, entry))
+  return rel || entry
+}
+
 function docsOnly(paths) {
   return paths.length > 0 && paths.every(file => DOC_EXTENSIONS.has(path.extname(file).toLowerCase()))
 }
@@ -2415,18 +2442,22 @@ export function runTheCheckSentence(cwd) {
   // same exit code whether or not it had broken anything — and a red it did not
   // cause teaches distrust of the gate, which is what let an earlier wrong
   // command survive so long (docs/BACKLOG.md §59).
-  const caveat = origin === 'declared'
-    ? ''
-    // The word "environment" is deliberately NOT used here. It is reserved for a
-    // run that actually failed that way, and a standing note carrying it in every
-    // message would make the word stop meaning anything — which
-    // tests/lifecycle.test.mjs::a check that could not run is not a finding about
-    // the change asserts, and caught when the first version of this said it.
-    : ' That command was inferred from this repository rather than declared by it, so if it is '
-      + 'red on an unmodified tree the finding is about this machine and not about your change — '
-      + 'say which, and declare the real command as `check` in `.quality-harness.json`.'
-  return `Run \`${command}\` (this project's own check) after the final edit and report the exact `
-    + `command and result.${caveat}`
+  if (origin === 'declared') {
+    return `Run \`${command}\` (this project's own check) after the final edit and report the exact `
+      + 'command and result.'
+  }
+  // The word "environment" is deliberately NOT used here. It is reserved for a
+  // run that actually failed that way, and a standing note carrying it in every
+  // message would make the word stop meaning anything — which
+  // tests/lifecycle.test.mjs::a check that could not run is not a finding about
+  // the change asserts, and caught when the first version of this said it.
+  // Lead with undeclared: burying the caveat after "this project's own check" is
+  // how a Makefile `make test` was read as the project's check (2026-09-12).
+  return `No \`check\` is declared in \`.quality-harness.json\`. I inferred from this `
+    + `repository rather than from a declaration: \`${command}\`, so that is not this `
+    + 'project\'s own check. If it is red on an unmodified tree the finding is about this '
+    + 'machine and not about your change — say which, and declare the real command as `check`. '
+    + `Run \`${command}\` after the final edit and report the exact command and result.`
 }
 
 // What the last attempt was, when it was not a pass. An environment that could
@@ -2446,13 +2477,13 @@ function environmentExcuse(state) {
 }
 
 function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
-  // Distinct paths, because the list is five slots wide and repeats spend them
-  // saying the same thing. A live session filled all five with one identical
+  // Distinct proven paths, because the list is five slots wide and repeats spend
+  // them saying the same thing. A live session filled all five with one identical
   // marker and the sentence that exists to say WHAT CHANGED said nothing.
-  const distinct = [...new Set(paths)]
-  const changed = distinct.length
-    ? `Changed paths include: ${distinct.slice(-5).join(', ')}.`
-    : 'The transcript contains file mutations.'
+  const proven = provenMutationPaths(paths, cwd)
+  const changed = proven.length
+    ? `Changed paths include: ${proven.slice(-5).map(entry => displayProvenPath(entry, cwd)).join(', ')}.`
+    : 'I could not prove a repository path for those edits (could not classify the command, or could not resolve a path).'
   const excuse = environmentExcuse(state)
   if (excuse) return `${changed} ${excuse}`
   return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
@@ -3437,7 +3468,7 @@ export function bumpSessionGeneration(sessionId) {
 // starts knowing what the last one left unverified.
 export function sessionStateNote(state, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
   const edited = state.mutationPathsSince(state.lastPublish)
-  const files = edited.filter(entry => !entry.startsWith('<'))
+  const files = provenMutationPaths(edited, cwd)
   const other = edited.length - files.length
   const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
   if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
@@ -3841,9 +3872,12 @@ export function sessionOrientation(cwd) {
   const root = repositoryRoot ?? directory
   const lines = []
 
-  const check = projectCheckCommand(root)
+  const { command: check, origin } = checkCommandOrigin(root)
   if (check) {
-    lines.push(`Verification: this project's own check is \`${check}\`. `
+    const named = origin === 'declared'
+      ? `this project's own check is \`${check}\``
+      : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check`
+    lines.push(`Verification: ${named}. `
       + 'The completion and commit gates accept it as evidence when it runs after your last edit; '
       + 'a piped or `|| true` run does not count, because it hides the exit code.')
   }
@@ -4232,7 +4266,7 @@ export async function handleHook(input) {
     }
     return
   }
-  if (docsOnly(state.mutationPaths) && evidenceLimited(input.last_assistant_message)) return
+  if (docsOnly(provenMutationPaths(state.mutationPaths, input.cwd)) && evidenceLimited(input.last_assistant_message)) return
   if (event === 'Stop' && interimResponse(input.last_assistant_message)) return
   // No check to name, nothing to ask for. This gate's whole question is "did you
   // run THE check", and in a project that declares none it degrades into "run the

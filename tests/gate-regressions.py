@@ -4118,6 +4118,8 @@ def test_a_declaration_smaller_than_the_segment_count_is_reported(bin_dir, lint,
         assert not re.search(wrong, said), f"the advisory must not claim {wrong!r}: {said}"
     assert "not a mechanism" in said or "is not a mechanism" in said, (
         f"and it must say so in the message, where the reader is: {said}")
+    assert "collapse the fence" in said, f"the leftover must name the edit: {said}"
+    assert "add the missing" in said, f"or name the missing Rests-on: {said}"
 
     # ADVISORY, never blocking.
     reported = [ln for ln in said.splitlines() if MARK in ln]

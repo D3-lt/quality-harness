@@ -73,7 +73,7 @@ A named-path open that raises `OSError` is could-not-run: one could-not-run line
 
 ## Scenarios
 
-### UC1-S1 [happy] postmortem-verify on chmod 000 is exit 2, one could-not-run line, no traceback [@spec] → `tests/gates.test.mjs::postmortem-verify on chmod 000 is could-not-run` cmd:`node --test --test-name-pattern 'postmortem-verify on chmod 000 is could-not-run' tests/gates.test.mjs`
+### UC1-S1 [happy] postmortem-verify on chmod 000 is exit 2, one could-not-run line, no traceback [@implemented] → `tests/gates.test.mjs::postmortem-verify on chmod 000 is could-not-run` cmd:`node --test --test-name-pattern 'postmortem-verify on chmod 000 is could-not-run' tests/gates.test.mjs`
 
 ```gherkin
 Given a temp copy of a real postmortem whose open is refused (chmod 000, PermissionError)
@@ -84,7 +84,7 @@ And there is no Traceback
 And a readable postmortem is still exit 0
 ```
 
-### UC1-S2 [failure] an unreadable named path is not failures-found at exit 1 [@spec] → `tests/gates.test.mjs::an unreadable named path is could-not-run, not failures-found` cmd:`node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found' tests/gates.test.mjs`
+### UC1-S2 [failure] an unreadable named path is not failures-found at exit 1 [@implemented] → `tests/gates.test.mjs::an unreadable named path is could-not-run, not failures-found` cmd:`node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found' tests/gates.test.mjs`
 
 ```gherkin
 Given the class of named-path opens that raise OSError
@@ -99,7 +99,7 @@ And wrapping only main() of adr-lint does not satisfy the ADR-named, adr-debt, o
 And when chmod 000 still reads, the case is skip: after the log shows it, not a Windows-only branch with no seam
 ```
 
-### UC2-S1 [happy] missing file, directory, and not-recognised stay their current exits [@spec] → `tests/gates.test.mjs::missing file, directory, and not-recognised stay their current exits` cmd:`node --test --test-name-pattern 'missing file, directory, and not-recognised stay their current exits' tests/gates.test.mjs`
+### UC2-S1 [happy] missing file, directory, and not-recognised stay their current exits [@implemented] → `tests/gates.test.mjs::missing file, directory, and not-recognised stay their current exits` cmd:`node --test --test-name-pattern 'missing file, directory, and not-recognised stay their current exits' tests/gates.test.mjs`
 
 ```gherkin
 Given adr-lint, arch-lint, adr-verify, adr-judge, adr-retire-check, adr-debt
@@ -109,7 +109,7 @@ And a directory is still expected a record FILE, not could-not-run
 And not-recognised stays exit 2 with the not-recognised sentence
 ```
 
-### UC2-S2 [failure] OSError on open is not the missing-file arm and is not _Unreadable [@spec] → `tests/gates.test.mjs::an unreadable named path is could-not-run, not failures-found` cmd:`node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found' tests/gates.test.mjs`
+### UC2-S2 [failure] OSError on open is not the missing-file arm and is not _Unreadable [@implemented] → `tests/gates.test.mjs::an unreadable named path is could-not-run, not failures-found` cmd:`node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found' tests/gates.test.mjs`
 
 ```gherkin
 Given an unreadable named file that exists, and a missing path, and a Rests-on header
@@ -119,7 +119,7 @@ And _Unreadable remains the Rests-on sentinel in adr-lint and adr-verify
 And a test that only asserts "no traceback" while exiting 1 does not satisfy F-1
 ```
 
-### UC3-S1 [happy] an unreadable postmortem is UNPROVEN at mapped 2, not "not satisfied" [@spec] → `tests/gates.test.mjs::postmortem-verify on a path it cannot read exits could-not-run, and the dispatcher relays it as UNPROVEN` cmd:`node --test --test-name-pattern 'postmortem-verify on a path it cannot read' tests/gates.test.mjs`
+### UC3-S1 [happy] an unreadable postmortem is UNPROVEN at mapped 2, not "not satisfied" [@implemented] → `tests/gates.test.mjs::postmortem-verify on a path it cannot read exits could-not-run, and the dispatcher relays it as UNPROVEN` cmd:`node --test --test-name-pattern 'postmortem-verify on a path it cannot read' tests/gates.test.mjs`
 
 ```gherkin
 Given a temp copy of a real postmortem under docs/postmortems whose open is refused
@@ -128,7 +128,7 @@ Then the dispatcher says UNPROVEN: postmortem-verify could not run (exit 2)
 And there is no "not satisfied" and no "Fix the artifact"
 ```
 
-### UC3-S2 [failure] chmod-000 ADR-*.md is not "not satisfied" at traceback-1 [@spec] → `tests/gates.test.mjs::chmod-000 ADR-*.md is UNPROVEN through the dispatcher, not not satisfied` cmd:`node --test --test-name-pattern 'chmod-000 ADR-\\*\\.md is UNPROVEN through the dispatcher' tests/gates.test.mjs`
+### UC3-S2 [failure] chmod-000 ADR-*.md is not "not satisfied" at traceback-1 [@implemented] → `tests/gates.test.mjs::chmod-000 ADR-*.md is UNPROVEN through the dispatcher, not not satisfied` cmd:`node --test --test-name-pattern 'chmod-000 ADR-\\*\\.md is UNPROVEN through the dispatcher' tests/gates.test.mjs`
 
 ```gherkin
 Given a temp copy of a real ADR-*.md whose open is refused (chmod 000)
@@ -143,8 +143,8 @@ And treating traceback-at-1 as UNPROVEN does not satisfy this fact
 
 | ID | Assertion (invariant / behavior) | Test (`path::name`) | Tag | Cmd (optional) |
 |----|----------------------------------|---------------------|-----|----------------|
-| F-1 | Accepted. Class: any named path a listed gate opens whose `read_text` (or equivalent open) raises `OSError`. Not "a missing file". Members enumerated 2026-09-12 from `plugin/bin` source and a chmod-000 spawn: adr-lint ADR-named `check_adr` read_text; adr-lint non-ADR name `main` Status discriminator read_text; adr-verify after `exists()` then read_text; adr-judge after `exists()`; adr-retire-check after `is_file()`; spec-verify `check_spec` (no exists arm — FileNotFoundError is OSError today too); arch-lint after `exists()`; adr-debt `rglob` of a parent dir (a lone file is `not a directory` exit 1 and does not open); adr-next `load` of an unreadable `*.md` in the tasks dir and `owning_record_status` sibling ADR read_text (a lone ADR is exit 0 owns no tasks directory). Control: postmortem-verify:57-63 `except OSError` → exit 2, one could-not-run line. qh-mcp / qh-root do not read a named record. Current: those members traceback, exit 1, PermissionError. After: wrap the named-path open in `except OSError` (after existing exists / is_dir / not-recognised checks). Each gate uses its own could-not-run code from its Exit header: adr-lint / arch-lint / adr-retire-check / adr-debt / adr-judge → 2; spec-verify → 4; adr-verify → 4 (not 1); adr-next → 1 (header already says could not be read); postmortem-verify → 2 (already). One could-not-run line, no traceback. Keep missing-file / directory / not-recognised. `_Unreadable` / `RESTS_ON_UNREADABLE` stays decode-only. Test method: `skip:` when chmod 000 still reads, after the log shows it (CLAUDE.md §7; tests/adr-next.test.mjs), not a silent `return` and not a Windows-only product branch with no seam. Why it can fail: wrap only `main()` of adr-lint (ADR-named still crashes in `check_adr`); analogize to missing-file so adr-lint stays 1 and adr-verify uses 1 (`survived`); catch `Exception` and swallow a real finding; reuse `_Unreadable` for OSError. | `tests/gates.test.mjs::an unreadable named path is could-not-run, not failures-found` | @spec | `node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found' tests/gates.test.mjs` |
-| F-2 | Accepted. Class: a file the hook dispatcher selects a gate for by name or title before `[ ! -r ]`, then spawns that gate. Not "a missing file" and not the miss-path `[ ! -r ]` (facts-gate-dispatch.sh:312). Members: `ADR-*.md` / `is_adr` / `# ADR-` title → adr-lint (line ~250); spec (path or Facts+Grill Log) → spec-verify --draft; architecture.md → arch-lint; archive README → adr-retire-check. Control: unreadable `*/docs/postmortems/*.md` is already UNPROVEN (`tests/gates.test.mjs::postmortem-verify on a path it cannot read`; `unrun_exit` maps 2). Current: chmod-000 ADR-*.md name-matches, adr-lint traceback exit 1, `unrun_exit` maps adr-lint to 2 so 1 does not match, dispatcher prints "adr-lint is not satisfied … Fix the artifact". After: when the spawned gate returns its mapped could-not-run code, the dispatcher says UNPROVEN, not "not satisfied". Traceback-at-1 is F-1, not this fact. Why it can fail: F-1 tested only via CLI `python3 plugin/bin/<gate>`; dispatcher still "not satisfied" at exit 1. Treating traceback-at-1 as UNPROVEN swallows a real finding. A green nolib / unreadable-postmortem test while chmod-000 ADR-*.md stays "not satisfied". | `tests/gates.test.mjs::chmod-000 ADR-*.md is UNPROVEN through the dispatcher, not not satisfied` | @spec | `node --test --test-name-pattern 'chmod-000 ADR-*.md is UNPROVEN through the dispatcher' tests/gates.test.mjs` |
+| F-1 | Accepted. Class: any named path a listed gate opens whose `read_text` (or equivalent open) raises `OSError`. Not "a missing file". Members enumerated 2026-09-12 from `plugin/bin` source and a chmod-000 spawn: adr-lint ADR-named `check_adr` read_text; adr-lint non-ADR name `main` Status discriminator read_text; adr-verify after `exists()` then read_text; adr-judge after `exists()`; adr-retire-check after `is_file()`; spec-verify `check_spec` (no exists arm — FileNotFoundError is OSError today too); arch-lint after `exists()`; adr-debt `rglob` of a parent dir (a lone file is `not a directory` exit 1 and does not open); adr-next `load` of an unreadable `*.md` in the tasks dir and `owning_record_status` sibling ADR read_text (a lone ADR is exit 0 owns no tasks directory). Control: postmortem-verify:57-63 `except OSError` → exit 2, one could-not-run line. qh-mcp / qh-root do not read a named record. Current: those members traceback, exit 1, PermissionError. After: wrap the named-path open in `except OSError` (after existing exists / is_dir / not-recognised checks). Each gate uses its own could-not-run code from its Exit header: adr-lint / arch-lint / adr-retire-check / adr-debt / adr-judge → 2; spec-verify → 4; adr-verify → 4 (not 1); adr-next → 1 (header already says could not be read); postmortem-verify → 2 (already). One could-not-run line, no traceback. Keep missing-file / directory / not-recognised. `_Unreadable` / `RESTS_ON_UNREADABLE` stays decode-only. Test method: `skip:` when chmod 000 still reads, after the log shows it (CLAUDE.md §7; tests/adr-next.test.mjs), not a silent `return` and not a Windows-only product branch with no seam. Why it can fail: wrap only `main()` of adr-lint (ADR-named still crashes in `check_adr`); analogize to missing-file so adr-lint stays 1 and adr-verify uses 1 (`survived`); catch `Exception` and swallow a real finding; reuse `_Unreadable` for OSError. | `tests/gates.test.mjs::an unreadable named path is could-not-run, not failures-found` | @implemented | `node --test --test-name-pattern 'an unreadable named path is could-not-run, not failures-found' tests/gates.test.mjs` |
+| F-2 | Accepted. Class: a file the hook dispatcher selects a gate for by name or title before `[ ! -r ]`, then spawns that gate. Not "a missing file" and not the miss-path `[ ! -r ]` (facts-gate-dispatch.sh:312). Members: `ADR-*.md` / `is_adr` / `# ADR-` title → adr-lint (line ~250); spec (path or Facts+Grill Log) → spec-verify --draft; architecture.md → arch-lint; archive README → adr-retire-check. Control: unreadable `*/docs/postmortems/*.md` is already UNPROVEN (`tests/gates.test.mjs::postmortem-verify on a path it cannot read`; `unrun_exit` maps 2). Current: chmod-000 ADR-*.md name-matches, adr-lint traceback exit 1, `unrun_exit` maps adr-lint to 2 so 1 does not match, dispatcher prints "adr-lint is not satisfied … Fix the artifact". After: when the spawned gate returns its mapped could-not-run code, the dispatcher says UNPROVEN, not "not satisfied". Traceback-at-1 is F-1, not this fact. Why it can fail: F-1 tested only via CLI `python3 plugin/bin/<gate>`; dispatcher still "not satisfied" at exit 1. Treating traceback-at-1 as UNPROVEN swallows a real finding. A green nolib / unreadable-postmortem test while chmod-000 ADR-*.md stays "not satisfied". | `tests/gates.test.mjs::chmod-000 ADR-*.md is UNPROVEN through the dispatcher, not not satisfied` | @implemented | `node --test --test-name-pattern 'chmod-000 ADR-*.md is UNPROVEN through the dispatcher' tests/gates.test.mjs` |
 
 ## Domain
 

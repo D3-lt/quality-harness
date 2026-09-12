@@ -63,7 +63,19 @@ not doing it is the first.
 A `for` loop's exit status is its last iteration's `echo`, so a printed FAIL sails into a commit.
 This has happened here more than once. Run the gate, read it, then commit.
 
+## Why a gate's findings are never filtered
+
+`| tail` and `|| true` hide the exit code. `grep -v advice` does not: the gate still
+exits 0, and the reader then tells a reviewer the lint was clean. That false statement
+is BACKLOG §152. Field 2026-09-12: an adopting session filtered every `advice:` line
+from nearly every command. Two classes in that stream were real — no first-red
+test-lock, and "no failure call was recognised" — and a lineage rule in the same
+unread pile went unnoticed across a run of commits. ADR-037 already decided the
+emitter side (acted on or removed). This rule is the reader side: filtering is how
+the leftover trains the next false PASS.
+
 ## Why commit messages use `-F -` and a quoted heredoc
+
 
 A backtick in a double-quoted `-m "..."` is command substitution: on 2026-08-28 a shell silently
 deleted the phrase `def enforcement_pointers(` from a commit message explaining a defect, and the

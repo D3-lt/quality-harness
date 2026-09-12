@@ -50,6 +50,7 @@ node --test --test-name-pattern 'runArtifactGates returns UNPROVEN' tests/lifecy
 | 4 — it is used | a child import of `lifecycle.mjs` with `CLAUDE_PLUGIN_ROOT` at a copy without `lib/` |
 
 ## Mutation Log
+- 2026-09-12 · fa27ad5* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · without >&2 UNPROVEN stays on stdout and runArtifactGates returns null for a no-lib plugin · acceptance-sha256:5ffb8c62ed807c1bb06e64203e61933eb1837a9f46f87407196d549eae3beae5
 
 ## Invariants
 
@@ -73,3 +74,5 @@ A green run while a no-lib plugin makes `runArtifactGates` return `null`.
 Found by the third Codex review (HIGH). The outermost consumer is `runArtifactGates`, not only the hook adapter. Every `UNPROVEN:` print was audited with `rg -n 'UNPROVEN:' plugin/scripts/facts-gate-dispatch.sh`.
 
 ## Verification Log
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern 'runArtifactGates returns UNPROVEN' tests/lifecycle.test.mjs` · acceptance-sha256:5ffb8c62ed807c1bb06e64203e61933eb1837a9f46f87407196d549eae3beae5 · ms:807
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern 'runArtifactGates returns UNPROVEN' tests/lifecycle.test.mjs` · acceptance-sha256:5ffb8c62ed807c1bb06e64203e61933eb1837a9f46f87407196d549eae3beae5 · ms:792

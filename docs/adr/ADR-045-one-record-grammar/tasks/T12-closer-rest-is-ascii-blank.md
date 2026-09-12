@@ -50,6 +50,7 @@ node --test --test-name-pattern 'a closer rest is only ASCII space and tab' test
 | 4 — it is used | the probe's four closers and the corpus snapshot |
 
 ## Mutation Log
+- 2026-09-12 · fa27ad5* · mutant killed · exit 1 · `plugin/lib/record.py` · with .strip() back a NEL after the marker closes the fence and the probe sees a runnable body · acceptance-sha256:a9dc4e14545527d351fbb160ee9800ffe5eb865bd3c680f73549417ac7fd035d
 
 ## Invariants
 
@@ -73,3 +74,5 @@ A green run while ```\x85 closes a fence.
 Found by the third Codex review of ADR-045 (LOW). T11 made the eight Unicode separators bytes of a line; this is the same class on the closer rest.
 
 ## Verification Log
+- 2026-09-12 · fa27ad5 · exit 0 · `node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs` · acceptance-sha256:a9dc4e14545527d351fbb160ee9800ffe5eb865bd3c680f73549417ac7fd035d · ms:262
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern 'a closer rest is only ASCII space and tab' tests/gates.test.mjs` · acceptance-sha256:a9dc4e14545527d351fbb160ee9800ffe5eb865bd3c680f73549417ac7fd035d · ms:133

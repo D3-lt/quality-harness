@@ -49,6 +49,7 @@ node --test --test-name-pattern 'SessionStart always surfaces an UNPROVEN ready 
 | 4 — it is used | 4-directory fixtures through the hook and the injected spawn |
 
 ## Mutation Log
+- 2026-09-12 · fa27ad5* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a slice cap hides a fourth directory UNPROVEN behind (+N more) · acceptance-sha256:023f40d9a33621cc728cec40c641bcdf39c0c19f5d343250ff18b62e6ad2798d
 
 ## Invariants
 
@@ -72,3 +73,5 @@ A green run while a fourth directory's UNPROVEN is hidden behind `(+N more)`.
 Found by the third Codex review (MEDIUM path + LOW truncation). `posixListed` already existed for listing membership; this reuses it for emitted relatives.
 
 ## Verification Log
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern 'SessionStart always surfaces an UNPROVEN ready line' tests/lifecycle.test.mjs` · acceptance-sha256:023f40d9a33621cc728cec40c641bcdf39c0c19f5d343250ff18b62e6ad2798d · ms:647
+- 2026-09-12 · fa27ad5* · exit 0 · `node --test --test-name-pattern 'SessionStart always surfaces an UNPROVEN ready line' tests/lifecycle.test.mjs` · acceptance-sha256:023f40d9a33621cc728cec40c641bcdf39c0c19f5d343250ff18b62e6ad2798d · ms:623

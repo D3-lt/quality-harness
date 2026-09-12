@@ -7392,6 +7392,16 @@
       "from": "Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).",
       "to": "Exit: 0 pass · 1 failures found · 2 unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).",
       "only": "^adr-lint's Exit block names the exits it actually produces$"
+    },
+    {
+      "label": "ADR-046 names the ADR-012 §2 amendment rather than Invalidates none (ADR-046 T6)",
+      "file": "docs/adr/ADR-046-a-caller-relays-could-not-run.md",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "**Invalidates:** Amends ADR-012 §2 for the could-not-run case.",
+      "to": "**Invalidates:** none",
+      "only": "^ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit$"
     }
   ]
 }

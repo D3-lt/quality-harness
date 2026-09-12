@@ -14,7 +14,7 @@ Modes (cumulative):
 Exit codes: 0 pass · 1 structural failure · 2 bound test missing · 3 @implemented test failing
             4 could not run — a bound test could not be started, or plugin/lib/fence.py or
             plugin/lib/record.py is not beside this gate's bin/ (a gate copied on its own;
-            ADR-045). Nothing was observed, so nothing is claimed — never a finding's code.
+            ADR-045), or a named path that exists but could not be read. Nothing was observed, so nothing is claimed — never a finding's code.
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -673,7 +673,11 @@ class Findings(list):
 
 def check_spec(path, mode, root_override, collect):
     errors, missing, failing, unrun = Findings(), [], [], []
-    text = Path(path).read_text(errors="replace", encoding="utf-8")
+    try:
+        text = Path(path).read_text(errors="replace", encoding="utf-8")
+    except OSError as exc:
+        print(f"[spec-verify] could not run: {path} — {exc}", file=sys.stderr)
+        sys.exit(4)
     secs = sections_of(text)
 
     for s in SECTIONS:

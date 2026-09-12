@@ -34,7 +34,7 @@ word was unknown and unknown meant ready (BACKLOG §166).
 
 Exit: 0 = a ready task was printed (or --all rendered)
       3 = nothing ready: everything is done, or the rest is blocked or stopped
-      1 = the ADR or tasks directory could not be read
+      1 = the ADR or tasks directory could not be read, or a named path that exists but could not be read
       2 = could not run: plugin/lib/record.py is not beside this gate's bin/
           (a gate copied on its own; ADR-045)
 
@@ -48,8 +48,10 @@ import importlib.util as _ilu
 import json
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
+
 
 import sys as _sys
 for _s in (_sys.stdout, _sys.stderr):
@@ -80,7 +82,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest  # noqa: E402
+from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -91,7 +93,7 @@ VLOG_DIGEST_RE = re.compile(
     # that is already finished.
     r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})(?: · ms:\d+)?"
     # ADR-028 T1: the steps a run exercised. FOUR gates read this grammar now.
-    r"(?: · steps:S[1-9]\d*(?:,S[1-9]\d*)*)?$")
+    r"(?: · steps:S[1-9]\d*(?:,S[1-9]\d*)*)?" + TEST_LOCK_FIELD_ANON + r"$")
 VLOG_HUMAN_RE = re.compile(r"^- \d{4}-\d{2}-\d{2} · human-observed · (?P<note>.+)$")
 # An entry written before acceptance digests existed. `adr-lint` has always
 # accepted these under a narrow allowance its own help text documents, and
@@ -254,7 +256,20 @@ def acceptance(text):
     return fence, first, digest
 
 
-def is_done(text, digest, human, fence=None, first=None):
+def git_root(d):
+    try:
+        r = subprocess.run(["git", "-C", str(d), "rev-parse", "--show-toplevel"],
+                           capture_output=True, text=True, timeout=10,
+                           encoding="utf-8", errors="replace")
+        if r.returncode == 0:
+            return Path(r.stdout.strip())
+    except Exception:
+        pass
+    return None
+
+
+def is_done(text, digest, human, fence=None, first=None, root=None):
+
     """Tool-written evidence only: a typed 'done' is not evidence.
 
     THREE READERS, ONE GRAMMAR. `adr-lint` accepts a pre-digest row under a
@@ -295,7 +310,10 @@ def is_done(text, digest, human, fence=None, first=None):
                 return True
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0" and digest and m.group("digest") == digest:
+            if lock_blocks_done(text, root):
+                return False
             return True
+
         if want_legacy is not None and (m := VLOG_LEGACY_RE.match(line)) \
                 and m.group("exit") == "0" \
                 and not m.group("command").rstrip().endswith(" …") \
@@ -387,12 +405,23 @@ def human_stop(text):
             return f"a human sign-off says stop: {m.group('note')}"
     return None
 
+def read_named(path):
+    """Open a named path, or could-not-run at exit 1."""
+    try:
+        return path.read_text(encoding="utf-8", errors="replace")
+    except OSError as exc:
+        print(f"[adr-next] could not run: {path} — {exc}", file=sys.stderr)
+        sys.exit(1)
+
+
 def load(tasks_dir):
     infos = {}
+    root = git_root(tasks_dir)
+
     for path in sorted(tasks_dir.glob("*.md")):
         if path.name.lower() == "readme.md":
             continue
-        text = path.read_text(encoding="utf-8", errors="replace")
+        text = read_named(path)
         m = re.match(r"^#\s+(?:Task\s+)?\S*?(T\d+)\b", text) or TID_RE.search(path.name)
         if not m:
             continue
@@ -408,7 +437,8 @@ def load(tasks_dir):
             "produces": header_val(text, "Produces") or "",
             "acceptance": None if human else first,
             "human_observed": human,
-            "done": is_done(text, digest, human, fence, first),
+            "done": is_done(text, digest, human, fence, first, root),
+
             # Read whatever the answer above was, and rendered only when it is
             # `ready`: a done task's evidence is the evidence, and a blocked or
             # stopped task already prints a reason of its own.
@@ -476,14 +506,15 @@ def foreign_state(pointer, corpus_dir):
             if f.name.lower() == "readme.md":
                 continue
             if TID_RE.search(f.stem.upper()) and TID_RE.search(f.stem.upper()).group(0) == want:
-                text = f.read_text(encoding="utf-8", errors="replace")
+                text = read_named(f)
                 # The SAME reader `load` uses, so a foreign task is judged done
                 # by exactly the evidence a local one needs — a matching fence
                 # digest, or an affirmative human sign-off. A second definition
                 # of "done" is how two tools come to disagree about one corpus.
                 fence, first, digest = acceptance(text)
                 return ("done" if is_done(text, digest, first == "human-observed",
-                                          fence, first)
+                                          fence, first, git_root(tasks))
+
                         else "pending")
         return "unknown"
     return "unknown"
@@ -678,7 +709,7 @@ def owning_record_status(tasks_dir, record_dir=None):
             theirs = RECORD_NUMBER.match(candidate.name)
             if not (mine and theirs and int(mine.group(1)) == int(theirs.group(1))):
                 continue
-        text = candidate.read_text(errors="replace", encoding="utf-8")
+        text = read_named(candidate)
         found = re.search(r"^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*(.+)$", text, re.M | re.I)
         if found:
             return found.group(1).strip().strip("*").strip()

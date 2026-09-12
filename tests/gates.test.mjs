@@ -626,6 +626,177 @@ test('postmortem-verify on a path it cannot read exits could-not-run, and the di
     chmodSync(file, 0o644)
   } finally { rmSync(temp, { recursive: true, force: true }) }
 })
+test('postmortem-verify on chmod 000 is could-not-run', (t) => {
+  const temp = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-pm-chmod-')))
+  const file = join(temp, 'postmortem.md')
+  try {
+    cpSync(join(fixture, 'postmortem-selftest.md'), file)
+    chmodSync(file, 0o000)
+    let unread = false
+    try { readFileSync(file) } catch { unread = true }
+    if (!unread) {
+      chmodSync(file, 0o644)
+      t.skip('chmod 000 still reads — Git for Windows has no POSIX permission bits')
+      return
+    }
+    const out = run('postmortem-verify', [file])
+    expectExit(out, 2, 'chmod 000 postmortem')
+    assert.match(out.stderr, /^\[postmortem-verify\] could not run: /, out.stderr)
+    assert.equal(out.stderr.trim().split('\n').length, 1, `one line: ${out.stderr}`)
+    assert.doesNotMatch(`${out.stdout}${out.stderr}`, /Traceback/)
+    chmodSync(file, 0o644)
+    expectExit(run('postmortem-verify', [file]), 0, 'readable postmortem still passes')
+  } finally {
+    try { chmodSync(file, 0o644) } catch { /* restored or never locked */ }
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
+
+test('an unreadable named path is could-not-run, not failures-found', (t) => {
+  const temp = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-unreadable-')))
+
+  const locked = []
+  const taskBody = '# Task T1: probe\n\n**Depends-on:** none\n**Covers:** none\n'
+    + '**Produces:** none\n**Consumes:** none\n\n## Acceptance\n\n```bash\ntrue\n```\n\n## Verification Log\n'
+  try {
+    const copy = (src, dest) => {
+      mkdirSync(dirname(dest), { recursive: true })
+      cpSync(src, dest)
+      return dest
+    }
+    const members = [
+      { gate: 'adr-lint', args: [copy(join(fixture, 'ADR-001-selftest.md'), join(temp, 'ADR-099-locked.md'))],
+        file: join(temp, 'ADR-099-locked.md'), code: 2 },
+      { gate: 'adr-lint', args: [copy(join(fixture, 'ADR-001-selftest.md'), join(temp, 'record.md'))],
+        file: join(temp, 'record.md'), code: 2 },
+      { gate: 'adr-verify', args: [copy(join(fixture, 'tasks', 'T1-fixture.md'), join(temp, 'T1-locked.md'))],
+        file: join(temp, 'T1-locked.md'), code: 4 },
+      { gate: 'adr-judge', args: [copy(join(fixture, 'ADR-001-selftest.md'), join(temp, 'ADR-judge.md'))],
+        file: join(temp, 'ADR-judge.md'), code: 2 },
+      { gate: 'adr-retire-check', args: [copy(join(fixture, 'adr-archive', 'README.md'), join(temp, 'archive-README.md'))],
+        file: join(temp, 'archive-README.md'), code: 2 },
+      { gate: 'spec-verify', args: ['--draft', copy(join(fixture, 'spec-selftest.md'), join(temp, 'spec-locked.md'))],
+        file: join(temp, 'spec-locked.md'), code: 4 },
+      { gate: 'arch-lint', args: [copy(join(fixture, 'architecture.md'), join(temp, 'architecture.md'))],
+        file: join(temp, 'architecture.md'), code: 2 },
+    ]
+    const debtDir = join(temp, 'debt-corpus')
+    mkdirSync(debtDir)
+    const debtMd = copy(join(fixture, 'ADR-001-selftest.md'), join(debtDir, 'ADR-001.md'))
+    members.push({ gate: 'adr-debt', args: [debtDir], file: debtMd, code: 2 })
+
+    const nextLoad = join(temp, 'ADR-008-next')
+    mkdirSync(join(nextLoad, 'tasks'), { recursive: true })
+    writeFileSync(join(temp, 'ADR-008-next.md'), '# ADR-008: next\n\n**Status:** Accepted\n')
+    const nextTask = join(nextLoad, 'tasks', 'T1-t.md')
+    writeFileSync(nextTask, taskBody)
+    members.push({ gate: 'adr-next', args: [join(temp, 'ADR-008-next.md')], file: nextTask, code: 1 })
+
+    const nextOwn = join(temp, 'ADR-010-own')
+    mkdirSync(join(nextOwn, 'tasks'), { recursive: true })
+    const ownAdr = join(temp, 'ADR-010-own.md')
+    writeFileSync(ownAdr, '# ADR-010: own\n\n**Status:** Accepted\n')
+    writeFileSync(join(nextOwn, 'tasks', 'T1-t.md'), taskBody)
+    members.push({ gate: 'adr-next', args: [join(nextOwn, 'tasks')], file: ownAdr, code: 1 })
+
+    for (const m of members) {
+      chmodSync(m.file, 0o000)
+      locked.push(m.file)
+    }
+    let unread = false
+    try { readFileSync(members[0].file) } catch { unread = true }
+    if (!unread) {
+      for (const f of locked) chmodSync(f, 0o644)
+      t.skip('chmod 000 still reads — Git for Windows has no POSIX permission bits')
+      return
+    }
+    for (const m of members) {
+      const out = run(m.gate, m.args, temp)
+      const said = `${out.stdout}${out.stderr}`
+      const label = `${m.gate} ${m.file}`
+      assert.equal(out.status, m.code, `${label}: expected could-not-run ${m.code}, got ${out.status}\n${said}`)
+      assert.doesNotMatch(said, /Traceback/, `${label}: no traceback`)
+      assert.match(said, /could not run:/, `${label}: one could-not-run line`)
+      assert.doesNotMatch(said, /ADR not found|task file not found|failures found|could not be read as a declaration/,
+        `${label}: not a missing-file or Rests-on miss`)
+    }
+    chmodSync(members[0].file, 0o644)
+    const restored = run('adr-lint', [members[0].file], temp)
+    const restoredOut = `${restored.stdout}${restored.stderr}`
+    assert.notEqual(restored.status, 2, `readable sibling is not could-not-run\n${restoredOut}`)
+    assert.doesNotMatch(restoredOut, /could not run:/, restoredOut)
+  } finally {
+    for (const f of locked) {
+      try { chmodSync(f, 0o644) } catch { /* restore so rmSync can delete */ }
+    }
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
+
+test('missing file, directory, and not-recognised stay their current exits', () => {
+  const missing = join(os.tmpdir(), 'qh-no-such-named.md')
+  const goneLint = run('adr-lint', [missing])
+  expectExit(goneLint, 1, 'adr-lint missing')
+  assert.match(`${goneLint.stdout}${goneLint.stderr}`, /ADR not found/)
+  const goneArch = run('arch-lint', [missing])
+  expectExit(goneArch, 1, 'arch-lint missing')
+  assert.match(`${goneArch.stdout}${goneArch.stderr}`, /file not found/)
+  const goneVerify = run('adr-verify', [missing])
+  expectExit(goneVerify, 2, 'adr-verify missing')
+  assert.match(`${goneVerify.stdout}${goneVerify.stderr}`, /task file not found/)
+  const goneJudge = run('adr-judge', [missing])
+  expectExit(goneJudge, 2, 'adr-judge missing')
+  assert.match(`${goneJudge.stdout}${goneJudge.stderr}`, /record not found/)
+  const goneRetire = run('adr-retire-check', [missing])
+  expectExit(goneRetire, 1, 'adr-retire-check missing')
+  assert.match(`${goneRetire.stdout}${goneRetire.stderr}`, /archive README not found/)
+  const goneDebt = run('adr-debt', [missing])
+  expectExit(goneDebt, 1, 'adr-debt missing')
+  assert.match(`${goneDebt.stdout}${goneDebt.stderr}`, /not a directory/)
+
+  const dir = mkdtempSync(join(os.tmpdir(), 'qh-lint-dir-'))
+  try {
+    const asDir = run('adr-lint', [dir])
+    expectExit(asDir, 1, 'adr-lint directory')
+    assert.match(`${asDir.stdout}${asDir.stderr}`, /expected a record FILE/)
+    assert.doesNotMatch(`${asDir.stdout}${asDir.stderr}`, /could not run:/)
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+
+  const backlog = join(os.tmpdir(), 'qh-backlog-not-a-record.md')
+  writeFileSync(backlog, '# Backlog — what is not yet an ADR\n\nprose\n')
+  try {
+    const odd = run('adr-lint', [backlog])
+    expectExit(odd, 2, 'adr-lint not-recognised')
+    assert.match(`${odd.stdout}${odd.stderr}`, /not-recognised/)
+    assert.doesNotMatch(`${odd.stdout}${odd.stderr}`, /could not run:/)
+  } finally { rmSync(backlog, { force: true }) }
+})
+
+test('chmod-000 ADR-*.md is UNPROVEN through the dispatcher, not not satisfied', (t) => {
+  const temp = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-dispatch-unreadable-')))
+  const file = join(temp, 'ADR-001-locked.md')
+  try {
+    cpSync(join(fixture, 'ADR-001-selftest.md'), file)
+    chmodSync(file, 0o000)
+    let unread = false
+    try { readFileSync(file) } catch { unread = true }
+    if (!unread) {
+      chmodSync(file, 0o644)
+      t.skip('chmod 000 still reads — Git for Windows has no POSIX permission bits')
+      return
+    }
+    const out = run(process.execPath, [join(root, 'scripts', 'run-shell-hook.mjs'), 'facts-gate-dispatch.sh'],
+      temp, JSON.stringify({ tool_input: { file_path: file } }))
+    expectExit(out, 0, 'dispatcher on an unreadable ADR')
+    assert.match(out.stderr, /UNPROVEN: adr-lint could not run \(exit 2\)/,
+      `mapped 2 is UNPROVEN, not an unsatisfied artifact: ${out.stdout}${out.stderr}`)
+    assert.doesNotMatch(`${out.stdout}${out.stderr}`, /not satisfied|Fix the artifact/)
+    chmodSync(file, 0o644)
+  } finally {
+    try { chmodSync(file, 0o644) } catch { /* restore */ }
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
 
 test('a legacy record is not routed as a task and told its own ADR is missing', () => {
   // docs/BACKLOG.md §185, reported 2026-09-08 from a 77-record corpus where this

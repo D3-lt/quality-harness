@@ -24,7 +24,7 @@ Checks:
              pass). A check whose path doesn't exist yet is tagged (deferred: <pointer>).
 
 Exit: 0 pass · 1 failures found · 2 could not run: plugin/lib/record.py is not
-beside this gate's bin/ (a gate copied on its own; ADR-045)
+beside this gate's bin/ (a gate copied on its own; ADR-045), or a named path that exists but could not be read
 
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root. Ask the gate whose output you are questioning rather than a
@@ -517,7 +517,11 @@ def main():
     if not path.exists():
         print(f"file not found: {path}")
         sys.exit(1)
-    text = path.read_text(errors="replace", encoding="utf-8")
+    try:
+        text = path.read_text(errors="replace", encoding="utf-8")
+    except OSError as exc:
+        print(f"[arch-lint] could not run: {path} — {exc}", file=sys.stderr)
+        sys.exit(2)
     errors = Findings()
 
     if not re.search(r"^\*\*Status:\*\*", text, re.M):

@@ -37,7 +37,7 @@ Checks:
 
 Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a missing file ·
       2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied
-      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).
+      on its own; ADR-045), a named path that exists but could not be read, or a file that never claimed to be a record (not-recognised).
       2 is NOT a finding about the record: nothing was checked.
 
 `--version` prints this gate's name, the version read from the manifest beside
@@ -117,7 +117,8 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest  # noqa: E402,E501
+from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM  # noqa: E402,E501
+
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
                  "Invariants", "Risks", "Stop Condition", "Out of Scope", "Verification Log"]
@@ -295,10 +296,10 @@ STEPS_FIELD = r"(?: · steps:(?P<steps>S[1-9]\d*(?:,S[1-9]\d*)*))?"
 VLOG_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · (?:" + SHA_FIELD + r" · exit \d+ · `[^`]+`|"
     r"human-observed · .+)(?: · acceptance-sha256:[0-9a-f]{64})?" + MS_FIELD
-    + STEPS_FIELD.replace("?P<steps>", "") + r"$")
+    + STEPS_FIELD.replace("?P<steps>", "") + TEST_LOCK_FIELD_ANON + r"$")
 VLOG_DIGEST_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
-    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})" + MS_FIELD + STEPS_FIELD + r"$")
+    r"`(?P<command>[^`]+)` · acceptance-sha256:(?P<digest>[0-9a-f]{64})" + MS_FIELD + STEPS_FIELD + TEST_LOCK_FIELD + r"$")
 
 # EVERY row that claims a MACHINE RAN SOMETHING — an exit code and a command —
 # whether or not it carries the acceptance digest. The floor and the digest-less
@@ -314,7 +315,8 @@ VLOG_DIGEST_RE = re.compile(
 VLOG_TIMED_RE = re.compile(
     r"^- \d{4}-\d{2}-\d{2} · " + SHA_FIELD + r" · exit (?P<exit>\d+) · "
     r"`(?P<command>[^`]+)`(?: · acceptance-sha256:(?P<digest>[0-9a-f]{64}))?"
-    + MS_FIELD + STEPS_FIELD.replace("?P<steps>", "") + r"$")
+    + MS_FIELD + STEPS_FIELD.replace("?P<steps>", "") + TEST_LOCK_FIELD_ANON + r"$")
+
 def committed_lines(path, run=None):
     """The lines HEAD holds for `path`, or None when git could not answer.
 
@@ -1008,8 +1010,19 @@ def check_permanent_disposition(inner, adr_path, errors, root, candidates):
 _ROOT_UNSET = object()
 
 
+def read_named(path):
+    """Open a named path, or could-not-run. FileNotFoundError is OSError, so
+    callers that have an exists()/is_dir() arm must run those first.
+    """
+    try:
+        return Path(path).read_text(errors="replace", encoding="utf-8")
+    except OSError as exc:
+        print(f"[adr-lint] could not run: {path} — {exc}", file=sys.stderr)
+        sys.exit(2)
+
+
 def check_adr(adr_path, errors, root=_ROOT_UNSET):
-    text = Path(adr_path).read_text(errors="replace", encoding="utf-8")
+    text = read_named(adr_path)
     if root is _ROOT_UNSET:
         root = git_root(Path(adr_path).parent)
     permanent_paths = _ROOT_UNSET
@@ -2462,6 +2475,27 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                               f"fence no longer passes here — usually an environment it does not "
                               f"set up for itself — fix the fence FIRST, or the log gains a failed "
                               f"run on a task that was done")
+
+def check_test_lock(infos, readme_text, errors, root):
+    """Refuse done when a first-red test-body lock no longer holds (ADR-050)."""
+    if not readme_text:
+        return
+    for tid in done_task_ids(readme_text):
+        inf = infos.get(tid)
+        if inf is None or inf.get("human"):
+            continue
+        label = f"{inf['path'].name}: {tid}"
+        blocks, advice = lock_findings(
+            inf.get("vlog") or [],
+            root=root,
+            tests=inf.get("tests") or [],
+            label=label,
+        )
+        for msg in advice:
+            errors.advise(msg)
+        for msg in blocks:
+            errors.append(msg, evidence=True)
+
 
 
 def check_status_allows_execution(adr_path, readme_text, errors):
@@ -5450,7 +5484,7 @@ def main():
     # it contains — a record missing its Status line is a real finding, and this
     # must not become the way to silence one.
     if not re.match(r"(?:adr|spec)[-_]?\d", adr.name, re.I) and not re.search(
-            r"(?m)^\*\*Status:\*\*", adr.read_text(errors="replace", encoding="utf-8")):
+            r"(?m)^\*\*Status:\*\*", read_named(adr)):
         print(f"not-recognised: {adr} has no **Status:** line and is not named ADR-…, "
               f"so nothing here was checked. This is not a finding about that file — "
               f"`adr-lint` reads one record at a time, and a backlog, a README or a "
@@ -5591,7 +5625,9 @@ def main():
         check_produced_symbols(infos, readme_text, errors, tracked_text(root, tracked))
         with errors.protected():
             check_verification(infos, readme_text, errors)
+            check_test_lock(infos, readme_text, errors, root)
             check_task_status_vocabulary(infos, readme_text, errors)
+
             check_status_allows_execution(adr, readme_text, errors)
             check_tests_exist(infos, readme_text, errors, root)
             check_tests_can_fail(infos, readme_text, errors, root)

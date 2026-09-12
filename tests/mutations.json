@@ -555,8 +555,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {",
-      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {"
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {",
+      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {"
     },
     {
       "label": "advisory: a project that names no check hears nothing",
@@ -627,7 +627,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  const unverified = state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish",
+      "from": "  const unverified = state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()",
       "to": "  const unverified = state.hasMutations && !state.verifiedAfterLastMutation"
     },
     {
@@ -636,7 +636,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {",
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {",
       "to": "    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {"
     },
     {
@@ -645,7 +645,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || (state.lastUnprovenWrite ?? -1) > state.lastPublish) && projectCheckCommand(input.cwd)) {",
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {",
       "to": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {"
     },
     {
@@ -4078,7 +4078,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_elapsed_ms, entry_sha, steps)",
+      "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
+
       "to": "    pass"
     },
     {
@@ -4096,8 +4097,9 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "               clean_elapsed_ms, entry_sha, steps)",
-      "to": "               round((time.monotonic() - clean_started) * 1000), entry_sha, steps)"
+      "from": "               clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
+      "to": "               round((time.monotonic() - clean_started) * 1000), entry_sha, steps, cwd=cwd)"
+
     },
     {
       "label": "verify: an empty unittest or cargo run is not counted as evidence",
@@ -4214,7 +4216,8 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    r\"(?: · steps:S[1-9]\\d*(?:,S[1-9]\\d*)*)?$\")",
+      "from": "    r\"(?: · steps:S[1-9]\\d*(?:,S[1-9]\\d*)*)?\" + TEST_LOCK_FIELD_ANON + r\"$\")",
+
       "to": "    r\"$\")"
     },
     {
@@ -4385,8 +4388,9 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps)",
-      "to": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha)"
+      "from": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
+      "to": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, cwd=cwd)"
+
     },
     {
       "label": "steps: --restore names no run, so the flag is refused there",
@@ -5440,8 +5444,9 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        sys.exit(2)",
-      "to": "        pass"
+      "from": "              f\"reads a whole directory.\")\n        sys.exit(2)",
+      "to": "              f\"reads a whole directory.\")\n        pass"
+
     },
     {
       "label": "lint: a file NAMED ADR- keeps its findings even with no Status line",
@@ -6106,7 +6111,8 @@
         "tests/gates.test.mjs"
       ],
       "only": "declared in its own docstring",
-      "from": "Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py\nis not beside this gate's bin/ (a gate copied on its own; ADR-045).",
+      "from": "Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py\nis not beside this gate's bin/ (a gate copied on its own; ADR-045), or a named path that exists but could not be read.",
+
       "to": "The contract either holds or it does not."
     },
     {
@@ -6978,8 +6984,9 @@
       "tests": [
         "tests/adr-next.test.mjs"
       ],
-      "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest  # noqa: E402",
-      "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+      "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402",
+      "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
+
       "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
     },
     {
@@ -7389,7 +7396,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).",
+      "from": "Exit: 0 pass · 1 failures found — an unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), a named path that exists but could not be read, or a file that never claimed to be a record (not-recognised).",
       "to": "Exit: 0 pass · 1 failures found · 2 unknown flag, no record named, or a missing file ·\n      2 could not run — plugin/lib/record.py not beside this gate's bin/ (a gate copied\n      on its own; ADR-045), or a file that never claimed to be a record (not-recognised).",
       "only": "^adr-lint's Exit block names the exits it actually produces$"
     },
@@ -7429,7 +7436,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (kind === 'unrecognised') {",
+      "from": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))) {",
       "to": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (false) {",
       "only": "unrecognised Bash is Advise the same way an MCP write is|echo is not Advise, and a classify-only green is not this fact"
     },
@@ -7443,6 +7450,66 @@
       "from": "  const kind = classifyCommand(command)\n  if (kind === 'unrecognised') {",
       "to": "  const kind = classifyCommand(command)\n  if (false) {",
       "only": "a reviewer is denied Remove-Item and pwsh -Command rm|echo and selftest are not denied as unrecognised"
+    },
+    {
+      "label": "lifecycle: UNPROVEN Advise has a validation term (ADR-048 T1)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    unprovenWritePending: () => lastUnprovenWrite > lastPublish\n      && !(lastSuccessfulValidation > lastUnprovenWrite && lastSuccessfulValidation === lastValidation),",
+      "to": "    unprovenWritePending: () => lastUnprovenWrite > lastPublish,",
+      "only": "a passing recognised check after an UNPROVEN write silences Advise|a failing check after an UNPROVEN write still Advises, and Read does not flag"
+    },
+    {
+      "label": "lifecycle: lastUnprovenWrite only on success, unrecognised arm (ADR-048 T2)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))) {",
+      "to": "      if (kind === 'unrecognised') {",
+      "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
+    },
+    {
+      "label": "lifecycle: lastUnprovenWrite only on success, MCP arm (ADR-048 T2)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
+      "to": "    if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
+      "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
+    },
+    {
+      "label": "lock: first-red suffix is written (ADR-050 T1)",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        entry += first_red_lock_suffix(text, cwd)",
+      "to": "        entry += \"\"",
+      "only": "first TDD-red row carries a tool-written hash for each named test"
+    },
+    {
+      "label": "lock: check_test_lock is called (ADR-050 T2)",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            check_test_lock(infos, readme_text, errors, root)",
+      "to": "            pass",
+      "only": "rewriting a locked assertion refuses done"
+    },
+    {
+      "label": "lock: is_done consults lock_blocks_done (ADR-050 T3)",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if lock_blocks_done(text, root):\n                return False\n            return True",
+      "to": "            return True",
+      "only": "is_done refuses when a locked hash moved"
     }
   ]
 }

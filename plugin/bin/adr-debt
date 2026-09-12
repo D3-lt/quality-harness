@@ -19,7 +19,7 @@ Exit: 0 = report printed, every path/ADR pointer resolves
       1 = malformed pointer (deferred with nothing after the colon) or
           a path/ADR pointer that resolves to nothing
       2 = could not run: plugin/lib/record.py is not beside this gate's bin/
-          (a gate copied on its own; ADR-045)
+          (a gate copied on its own; ADR-045), or a named path that exists but could not be read.
 
 The loop: run this at /adr-write time. Every reported item is either pulled
 into the new ADR's Context, re-deferred with a fresh pointer, or classified as
@@ -469,7 +469,11 @@ def main():
     waiting = []
     for scan_dir in dirs:
         for md in sorted(scan_dir.rglob("*.md")):
-            text = md.read_text(errors="replace", encoding="utf-8")
+            try:
+                text = md.read_text(errors="replace", encoding="utf-8")
+            except OSError as exc:
+                print(f"[adr-debt] could not run: {md} — {exc}", file=sys.stderr)
+                sys.exit(2)
             secs = sections_of(text)
             rel = md.relative_to(scan_dir)
             if md.name == "architecture.md":

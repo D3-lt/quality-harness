@@ -56,6 +56,28 @@ test('the guard passes reads, diffs, checks, and scratch writes under the temp r
   assert.equal(run(JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Read', tool_input: { file_path: 'x' } })).status, 0)
 })
 
+test('a reviewer is denied Remove-Item and pwsh -Command rm', () => {
+  for (const command of [
+    'Remove-Item -Recurse build',
+    'pwsh -Command rm -rf build',
+    'cmd /c rmdir /s /q build',
+    'rm -rf build',
+  ]) {
+    const out = run(JSON.stringify(bash(command)))
+    assert.equal(out.status, 2, `${command}: must be refused\n${out.stderr}`)
+    assert.match(out.stderr, /read-only/, command)
+  }
+})
+
+test('echo and selftest are not denied as unrecognised', () => {
+  for (const command of ['echo hi', 'bash scripts/selftest.sh', 'ls -la']) {
+    const out = run(JSON.stringify(bash(command)))
+    assert.equal(out.status, 0, `${command}: must pass\n${out.stderr}`)
+  }
+  const dirty = run(JSON.stringify(bash('Remove-Item -Recurse build')))
+  assert.equal(dirty.status, 2, dirty.stderr)
+})
+
 test('a payload the guard cannot read passes: a guard broken on its own bug must not stop a reviewer reading', () => {
   assert.equal(run('not json').status, 0)
   assert.equal(run('').status, 0)

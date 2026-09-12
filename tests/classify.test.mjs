@@ -1,4 +1,6 @@
-import { isPotentialMutationCommand, isValidationCommand }
+import assert from 'node:assert/strict'
+import test from 'node:test'
+import { classifyCommand, isPotentialMutationCommand, isValidationCommand }
   from '../plugin/scripts/lifecycle.mjs'
 
 const RO_HEREDOC = `python3 - <<'PYEOF'
@@ -84,16 +86,75 @@ const cases = [
   // ...and a real edit in the same chain is still a mutation.
   ['python -m unittest discover -s kit | tail -4 ; rm -rf build', 'mutation'],
   ['python -m unittest discover -s kit && python rewrite.py', 'mutation'],
+  ['rm -rf build', 'mutation'],
+  ['bash scripts/selftest.sh', 'validation'],
+  ['echo "== cache versions"', 'neither'],
+  ['ls -la', 'neither'],
+  ['Remove-Item -Recurse build', 'unrecognised'],
+  ['cmd.exe /c del x.md', 'unrecognised'],
+  ['pwsh -Command Set-Content x.md hi', 'unrecognised'],
+  ['powershell.exe -Command Remove-Item -Recurse build', 'unrecognised'],
+  ['pwsh -Command rm -rf build', 'unrecognised'],
+  ['cmd /c rmdir /s /q build', 'unrecognised'],
+  ['cmd.exe /c rmdir /s /q build', 'unrecognised'],
+  ['pwsh -Command Remove-Item -Recurse build', 'unrecognised'],
+  ['zsh -c "echo ${#files}"', 'neither'],
+  ['zsh -c "rm -rf ${(s: :)files}"', 'mutation'],
 ]
 
-let bad = 0
-for (const [command, want] of cases) {
-  const validation = isValidationCommand(command)
-  const mutation = isPotentialMutationCommand(command)
-  const got = validation ? 'validation' : (mutation ? 'mutation' : 'neither')
-  const ok = got === want
-  if (!ok) bad += 1
-  console.log(`${ok ? 'ok  ' : 'FAIL'}  got=${got.padEnd(10)} want=${want.padEnd(10)} ${command.split('\n')[0].slice(0, 60)}`)
-}
-console.log(bad ? `\n${bad} case(s) wrong` : '\nall cases correct')
-process.exitCode = bad ? 1 : 0
+test('the historical classify table still holds under four-way classify', () => {
+  for (const [command, want] of cases) {
+    assert.equal(classifyCommand(command), want, command.split('\n')[0])
+  }
+})
+
+test('recognised POSIX rm is mutation and selftest is validation', () => {
+  assert.equal(classifyCommand('rm -rf build'), 'mutation')
+  assert.equal(classifyCommand('bash scripts/selftest.sh'), 'validation')
+  assert.notEqual(classifyCommand('rm -rf build'), 'unrecognised')
+  assert.notEqual(classifyCommand('bash scripts/selftest.sh'), 'unrecognised')
+  // Dirty: false+false is not the four-way result (CLAUDE.md §4).
+  assert.equal(classifyCommand('Remove-Item -Recurse build'), 'unrecognised')
+})
+
+test('an unrecognised PowerShell or cmd write is not neither', () => {
+  for (const command of [
+    'Remove-Item -Recurse build',
+    'cmd.exe /c del x.md',
+    'pwsh -Command Set-Content x.md hi',
+  ]) {
+    assert.equal(classifyCommand(command), 'unrecognised', command)
+    assert.notEqual(classifyCommand(command), 'neither', command)
+    const collapsed = isValidationCommand(command)
+      ? 'validation'
+      : (isPotentialMutationCommand(command) ? 'mutation' : 'neither')
+    assert.equal(collapsed, 'neither', `${command}: the booleans still miss it`)
+  }
+  assert.equal(classifyCommand('rm -rf build'), 'mutation')
+  assert.equal(classifyCommand('bash scripts/selftest.sh'), 'validation')
+})
+
+test('POSIX rm as the executable stays mutation', () => {
+  assert.equal(classifyCommand('rm -rf build'), 'mutation')
+  assert.notEqual(classifyCommand('rm -rf build'), 'unrecognised')
+  assert.equal(classifyCommand('pwsh -Command rm -rf build'), 'unrecognised')
+})
+
+test('pwsh or cmd with POSIX letters in the payload is unrecognised, not mutation', () => {
+  for (const command of [
+    'pwsh -Command rm -rf build',
+    'cmd /c rmdir /s /q build',
+    'cmd.exe /c rmdir /s /q build',
+    'pwsh -Command Remove-Item -Recurse build',
+  ]) {
+    assert.equal(classifyCommand(command), 'unrecognised', command)
+    assert.notEqual(classifyCommand(command), 'mutation', command)
+    assert.equal(isPotentialMutationCommand(command) || command.includes('Remove-Item'),
+      true, `${command}: substring still matches or is the Remove-Item sibling`)
+  }
+  assert.equal(isPotentialMutationCommand('pwsh -Command rm -rf build'), true,
+    'the boolean still sees letters rm — classify must not')
+  assert.equal(isPotentialMutationCommand('cmd /c rmdir /s /q build'), true)
+  assert.equal(classifyCommand('zsh -c "echo ${#files}"'), 'neither')
+  assert.notEqual(classifyCommand('zsh -c "echo ${#files}"'), 'mutation')
+})

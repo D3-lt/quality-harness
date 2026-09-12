@@ -99,6 +99,7 @@ for file in "$ROOT"/scripts/*.sh; do
 done
 
 node --check "$ROOT/scripts/lifecycle.mjs"
+node --check "$ROOT/scripts/classify-command.mjs"
 node --check "$ROOT/scripts/run-shell-hook.mjs"
 node --check "$ROOT/scripts/verify.mjs"
 # §2: NOT `node --check` — a Workflow script is neither ESM nor CJS and node's two

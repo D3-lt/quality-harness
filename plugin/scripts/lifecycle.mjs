@@ -16,6 +16,10 @@ import {
 } from './standalone-link.mjs'
 
 import { ARTIFACT_OUTPUT_LIMIT } from './run-shell-hook.mjs'
+import {
+  classifyCommand as classifyCommandWithHooks,
+  POSIX_NESTED_SHELLS,
+} from './classify-command.mjs'
 const PLUGIN_ROOT = process.env.CLAUDE_PLUGIN_ROOT
   || path.dirname(path.dirname(fileURLToPath(import.meta.url)))
 
@@ -597,7 +601,7 @@ function nestedShellScript(command) {
   const invocation = commandInvocation(command)
   if (!invocation) return null
   const { index, words } = invocation
-  if (!new Set(['bash', 'dash', 'ksh', 'sh', 'zsh']).has(executableName(words[index]))) return null
+  if (!POSIX_NESTED_SHELLS.has(executableName(words[index]))) return null
   const shellValueOptions = new Set(['-o', '-O', '--init-file', '--rcfile'])
   for (let optionIndex = index + 1; optionIndex < words.length; optionIndex += 1) {
     const option = words[optionIndex]
@@ -1115,6 +1119,18 @@ export function isPotentialMutationCommand(command) {
     || /\bprettier\b[^\n]*\s--write\b/.test(executable)
     || /\bfind\b[^\n]*\s-delete\b/.test(executable)
     || isGitMutationCommand(executable)
+}
+
+export function classifyCommand(command) {
+  return classifyCommandWithHooks(command, {
+    shellSegments,
+    nestedShellScript,
+    commandInvocation,
+    executableName,
+    isValidationCommand,
+    isPotentialMutationCommand,
+    withoutHeredocBodies,
+  })
 }
 
 function globComponentPattern(component) {
@@ -1762,6 +1778,7 @@ export function bashNavigationImpact(command, cwd) {
 // Python subprocess argv.
 function isKnownProbePrefix(segment) {
   if (typeof segment !== 'string' || !segment.trim()) return false
+  if (classifyCommand(segment) === 'unrecognised') return false
   if (isPotentialMutationCommand(segment)) return false
   if (isValidationCommand(segment)) return true
   const invocation = commandInvocation(segment)
@@ -1888,6 +1905,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       if (typeof filePath === 'string') record(use.position, filePath)
     }
     if (use.name === 'Bash' && executed(use)) {
+      const kind = classifyCommand(use.input.command)
       const navigation = bashNavigationImpact(use.input.command, cwd)
       if (navigation === 'refresh') {
         // Navigation is not authorship, but it does change which tree the
@@ -1895,7 +1913,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
         // evidence of its own. 'inert' (creating a branch in place) does
         // neither.
         lastTreeRefresh = Math.max(lastTreeRefresh, use.position)
-      } else if (navigation !== 'inert' && isPotentialMutationCommand(use.input.command)
+      } else if (navigation !== 'inert' && kind === 'mutation'
           && !mutatesOnlyTempPaths(use.input.command, cwd)
           && !writesOutsideProject(use.input.command, cwd)) {
         if (authorship !== 'native') authorship = 'bash'
@@ -1916,6 +1934,12 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
         if (markdown.length === 0 || !namesOnlyMarkdownFiles(use.input.command, cwd)) {
           record(use.position, `<Bash mutation: ${describeCommand(use.input.command)}>`)
         }
+      }
+      // Unrecognised Bash is UNPROVEN, not authorship none. Same scalar
+      // mcp__mrw__mrw_write already sets (ADR-047 F-2).
+      if (kind === 'unrecognised') {
+        lastUnprovenWrite = Math.max(lastUnprovenWrite, use.position)
+        if (authorship === 'none') authorship = 'UNPROVEN'
       }
       // Did this project get published? executed() is true for an is_error
       // result unless a hook blocked it, so a failed commit used to move the
@@ -3913,7 +3937,11 @@ function bashVerdict(command, cwd, depth = 0) {
   if (EDITORS.test(command)) {
     return 'This role is read-only: an editor is not available to it. Read the file and report the change you would make.'
   }
-  if (isPotentialMutationCommand(command) && !mutatesOnlyTempPaths(command, cwd)) {
+  const kind = classifyCommand(command)
+  if (kind === 'unrecognised') {
+    return 'This role is read-only: that command\'s executable family is unrecognised, so it is not known not to write. Read, grep, diff and run checks; report the edit rather than making it.'
+  }
+  if (kind === 'mutation' && !mutatesOnlyTempPaths(command, cwd)) {
     return 'This role is read-only: that command writes outside the temp roots. Read, grep, diff and run checks; report the edit rather than making it.'
   }
   if (depth < 3) {

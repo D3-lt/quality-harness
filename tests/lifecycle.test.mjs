@@ -37,8 +37,10 @@ import {
   pathMatchesDeclaration,
   bashMarkdownMutationPaths,
   isGitPublishCommand,
+  classifyCommand,
   isPotentialMutationCommand,
   isValidationCommand,
+  readOnlyVerdict,
   posixListed,
   readyTaskLines,
   runArtifactGates,
@@ -2296,6 +2298,122 @@ test('an unknown non-Bash write is Advise, not nothing edited', async () => {
 
   const hooks = readFileSync(path.join(pluginDir, 'hooks', 'hooks.json'), 'utf8')
   assert.doesNotMatch(hooks, /statusLine/)
+})
+
+test('unrecognised Bash is Advise the same way an MCP write is', async () => {
+  const dir = await checkedProject('quality-unrecognised-bash-')
+  const surfaces = async (name, input) => {
+    const file = path.join(dir, `${name.replaceAll(/[^A-Za-z0-9]+/g, '_')}.jsonl`)
+    await writeFile(file, transcript([toolUse('t1', name, input), toolResult('t1')]))
+    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+    const note = sessionStateNote(state, dir, dir, false)
+    const value = reading({
+      session_id: `unrecognised-bash-${name}-${Date.now()}-${process.pid}`,
+      transcript_path: file,
+      workspace: { current_dir: dir },
+    })
+    const commit = runLifecycleHook({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash',
+      tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+      session_id: `unrecognised-commit-${name}-${Date.now()}-${process.pid}`,
+    })
+    return { file, state, stop: `${stop.stdout}${stop.stderr}`, note, reading: value, commit }
+  }
+
+  const bash = await surfaces('Bash', { command: 'Remove-Item -Recurse build' })
+  assert.equal(classifyCommand('Remove-Item -Recurse build'), 'unrecognised')
+  assert.equal(bash.state.authorship, 'UNPROVEN')
+  assert.equal(bash.state.lastMutation, -1)
+  assert.ok(bash.state.lastUnprovenWrite >= 0, 'unrecognised Bash advances lastUnprovenWrite')
+  assert.match(bash.stop, /systemMessage/, bash.stop)
+  assert.doesNotMatch(bash.stop, /nothing edited since the last publish/)
+  assert.notEqual(bash.note.status, 'neutral')
+  assert.doesNotMatch(bash.note.text, /nothing edited since the last publish/)
+  assert.notEqual(bash.reading.kind, 'nothing')
+  assert.equal(bash.commit.status, 0, bash.commit.stderr)
+  assert.match(bash.commit.stderr, /would publish unchecked/i)
+
+  const mcp = await surfaces('mcp__mrw__mrw_write', { plan: 'docs/a.md' })
+  assert.equal(mcp.state.authorship, 'UNPROVEN')
+  assert.ok(mcp.state.lastUnprovenWrite >= 0)
+  assert.match(mcp.stop, /systemMessage/, mcp.stop)
+  assert.notEqual(mcp.reading.kind, 'nothing')
+})
+
+test('echo is not Advise, and a classify-only green is not this fact', async () => {
+  const dir = await checkedProject('quality-echo-not-unproven-')
+  const file = path.join(dir, 'echo.jsonl')
+  await writeFile(file, transcript([
+    toolUse('t1', 'Bash', { command: 'echo hi' }), toolResult('t1'),
+  ]))
+  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+  assert.equal(classifyCommand('echo hi'), 'neither')
+  assert.equal(state.lastUnprovenWrite, -1)
+  assert.notEqual(state.authorship, 'UNPROVEN')
+  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  const said = `${stop.stdout}${stop.stderr}`
+  assert.doesNotMatch(said, /systemMessage/, said)
+  const note = sessionStateNote(state, dir, dir, false)
+  assert.equal(note.status, 'neutral')
+  assert.match(note.text, /nothing edited since the last publish/)
+  const value = reading({
+    session_id: `echo-not-unproven-${Date.now()}-${process.pid}`,
+    transcript_path: file,
+    workspace: { current_dir: dir },
+  })
+  assert.equal(value.kind, 'nothing')
+  const commit = runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash',
+    tool_input: { command: 'git commit -m test' }, transcript_path: file, cwd: dir,
+    session_id: `echo-commit-${Date.now()}-${process.pid}`,
+  })
+  assert.doesNotMatch(commit.stderr, /would publish unchecked/i)
+
+  // Dirty: executed unrecognised Bash still Advises (CLAUDE.md §4). A classify
+  // unit test is not this fact.
+  const dirtyFile = path.join(dir, 'remove-item.jsonl')
+  await writeFile(dirtyFile, transcript([
+    toolUse('w1', 'Bash', { command: 'Remove-Item -Recurse build' }), toolResult('w1'),
+  ]))
+  const dirtyState = analyzeTranscript(await readFile(dirtyFile, 'utf8'), dir)
+  assert.ok(dirtyState.lastUnprovenWrite >= 0)
+  const dirtyStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: dirtyFile, cwd: dir })
+  assert.match(`${dirtyStop.stdout}${dirtyStop.stderr}`, /systemMessage/)
+})
+
+test('a reviewer is denied Remove-Item and pwsh -Command rm', async () => {
+  const repo = await checkedProject('quality-unrecognised-reviewer-')
+  const deny = (command) => JSON.parse(runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+    agent_type: 'qh-correctness-reviewer', agent_id: 'a1',
+    tool_input: { command },
+  }).stdout || '{}')
+  for (const command of [
+    'Remove-Item -Recurse build',
+    'pwsh -Command rm -rf build',
+    'rm -rf build',
+  ]) {
+    const said = deny(command)
+    assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', command)
+    assert.match(said.hookSpecificOutput.permissionDecisionReason, /read-only/, command)
+    assert.ok(readOnlyVerdict({ tool_name: 'Bash', tool_input: { command }, cwd: repo }))
+  }
+})
+
+test('echo and selftest are not denied as unrecognised', async () => {
+  const repo = await checkedProject('quality-reviewer-allows-probe-')
+  const verdict = (command) => JSON.parse(runLifecycleHook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
+    agent_type: 'qh-correctness-reviewer', agent_id: 'a1',
+    tool_input: { command },
+  }).stdout || '{}')
+  for (const command of ['echo hi', 'bash scripts/selftest.sh', 'ls']) {
+    assert.notEqual(verdict(command).hookSpecificOutput?.permissionDecision, 'deny', command)
+    assert.equal(readOnlyVerdict({ tool_name: 'Bash', tool_input: { command }, cwd: repo }), null, command)
+  }
+  const dirty = verdict('Remove-Item -Recurse build')
+  assert.equal(dirty.hookSpecificOutput?.permissionDecision, 'deny')
 })
 
 test('Read or Grep is not Advise every turn', async () => {

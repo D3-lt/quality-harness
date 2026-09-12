@@ -5080,7 +5080,7 @@
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
-      "from": "  if (isPotentialMutationCommand(command) && !mutatesOnlyTempPaths(command, cwd)) {",
+      "from": "  if (kind === 'mutation' && !mutatesOnlyTempPaths(command, cwd)) {",
       "to": "  if (false) {"
     },
     {
@@ -7402,6 +7402,47 @@
       "from": "**Invalidates:** Amends ADR-012 §2 for the could-not-run case.",
       "to": "**Invalidates:** none",
       "only": "^ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit$"
+    },
+    {
+      "label": "classify: an unmeasured family is unrecognised, not neither (ADR-047 T1)",
+      "file": "plugin/scripts/classify-command.mjs",
+      "tests": [
+        "tests/classify.test.mjs"
+      ],
+      "from": "    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'",
+      "to": "    if (false) return 'unrecognised'",
+      "only": "recognised POSIX rm is mutation and selftest is validation|an unrecognised PowerShell or cmd write is not neither"
+    },
+    {
+      "label": "classify: foreign family is unrecognised before POSIX letters (ADR-047 T2)",
+      "file": "plugin/scripts/classify-command.mjs",
+      "tests": [
+        "tests/classify.test.mjs"
+      ],
+      "from": "    if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'",
+      "to": "    if (false) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (false) return 'unrecognised'",
+      "only": "POSIX rm as the executable stays mutation|pwsh or cmd with POSIX letters in the payload is unrecognised, not mutation"
+    },
+    {
+      "label": "lifecycle: unrecognised Bash advances lastUnprovenWrite (ADR-047 T3)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (kind === 'unrecognised') {",
+      "to": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (false) {",
+      "only": "unrecognised Bash is Advise the same way an MCP write is|echo is not Advise, and a classify-only green is not this fact"
+    },
+    {
+      "label": "lifecycle: bashVerdict denies unrecognised (ADR-047 T4)",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/reviewer-guard.test.mjs",
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const kind = classifyCommand(command)\n  if (kind === 'unrecognised') {",
+      "to": "  const kind = classifyCommand(command)\n  if (false) {",
+      "only": "a reviewer is denied Remove-Item and pwsh -Command rm|echo and selftest are not denied as unrecognised"
     }
   ]
 }

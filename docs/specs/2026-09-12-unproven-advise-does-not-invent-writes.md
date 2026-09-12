@@ -1,7 +1,7 @@
 # Spec: Unproven Advise does not invent a write
 
 > **Date:** 2026-09-12 · **Status:** Ready-for-ADR
-> **Owner:** zy · **Becomes:** standalone until an ADR
+> **Owner:** zy · **Becomes:** ADR-051 (`docs/adr/ADR-051-unproven-advise-does-not-invent-writes.md`)
 > **Gate:** Status may become Ready-for-ADR only after `spec-verify --spec <this file>` exits 0.
 > **Cross-references:** plugin/scripts/lifecycle.mjs (`missingEvidenceReason` :2445, `record` `<Bash mutation:` :1935, `hasInterpreterCommand` :929, INTERPRETER_WORD :920), plugin/scripts/classify-command.mjs (`MEASURED_FAMILIES` includes `node`), docs/adr/ADR-005-a-gate-reports-what-it-observed.md, docs/adr/ADR-047-an-unrecognised-command-is-unproven.md, docs/specs/2026-09-12-unproven-write-has-a-validation-term.md (Non-Goal: Cost 2), CLAUDE.md §3 §16, tests/lifecycle.test.mjs
 

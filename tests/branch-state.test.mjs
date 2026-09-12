@@ -9,7 +9,7 @@ import assert from 'node:assert/strict'
 import test from 'node:test'
 
 import { spawnSync } from 'node:child_process'
-import { chmodSync, copyFileSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
@@ -604,14 +604,17 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
   // Node itself does not need to stay on PATH.
   // An extensionless `git`/`gh` is an exact-name match: execFileSync reports
   // ENOENT instead of walking PATHEXT to git.cmd (same class as the gate
-  // shims). On Windows copy git.exe into the stub; do not write a shebang file.
+  // shims). Copying git.exe into the stub is the other miss: Git\cmd\git.exe
+  // is a trampoline that looks for mingw64 next to itself, so rev-parse then
+  // fails (dispatch 34707640505). On Windows write git.cmd that calls the
+  // original binary; do not write git.exe or an extensionless file.
   const gitWhere = spawnSync(process.platform === 'win32' ? 'where.exe' : '/bin/sh',
     process.platform === 'win32' ? ['git.exe'] : ['-c', 'command -v git'],
     { encoding: 'utf8', timeout: 5_000 })
   const gitBin = (gitWhere.stdout ?? '').split(/\r?\n/).map(line => line.trim()).find(Boolean)
   assert.ok(gitBin, `git must remain locatable on the isolated PATH\n${gitWhere.stderr}`)
   if (process.platform === 'win32') {
-    copyFileSync(gitBin, path.join(bin, 'git.exe'))
+    writeFileSync(path.join(bin, 'git.cmd'), `@echo off\r\n"${gitBin}" %*\r\n`)
   } else {
     writeFileSync(path.join(bin, 'gh'), `#!/bin/sh\nexec "${process.execPath}" "${ghJs}" "$@"\n`)
     chmodSync(path.join(bin, 'gh'), 0o755)

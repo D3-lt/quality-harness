@@ -1774,3 +1774,53 @@ test('rewording a Swift comment inside a locked test does not move its hash', ()
   const moved = swiftLock('Tests/LockCommentOnly.swift', 'lockDirty', body('first wording'), body('second wording'))
   assert.deepEqual(moved.blocks, [], moved.blocks.join('\n'))
 })
+
+// Codex review of 4678b63 (2026-09-13): each of these kept the first-red hash
+// after the assertion moved, or left a declared test unnamed.
+function swiftMoved(rel, before, after, name = 'probe') {
+  const moved = swiftLock(rel, name, before, after)
+  assert.ok(moved.blocks.some(b => b.includes(name) && b.includes('hash moved')),
+    moved.blocks.join('\n'))
+}
+
+test('a brace inside a bare Swift regex literal does not keep the first-red hash after the assertion moves', () => {
+  const body = expect => '@Test func probe() {\n  let r = /[}]/\n  let ratio = total / count / 2\n'
+    + `  #expect(${expect})\n}\n`
+  swiftMoved('Tests/LockBareRegex.swift', body('2 == 2'), body('2 == 1'))
+})
+
+test('an escaped delimiter inside an extended Swift regex does not end it early', () => {
+  const body = expect => '@Test func probe() {\n  let r = #/a\\/#\\}b/#\n'
+    + `  #expect(${expect})\n}\n`
+  swiftMoved('Tests/LockExtendedRegex.swift', body('2 == 2'), body('2 == 1'))
+})
+
+test('a Swift regex literal holding // does not strip a same-line assertion from the digest', () => {
+  const body = expect => '@Test func probe() {\n'
+    + `  let r = #/https?://example.com/#; #expect(${expect})\n}\n`
+  swiftMoved('Tests/LockRegexDigest.swift', body('2 == 2'), body('2 == 1'))
+})
+
+test('a comment inside a Swift interpolation does not end the interpolation', () => {
+  const body = expect => '@Test func probe() {\n  let s = "\\(/* ) */ "}")"\n'
+    + `  #expect(${expect})\n}\n`
+  swiftMoved('Tests/LockInterpolationComment.swift', body('2 == 2'), body('2 == 1'))
+})
+
+test('a Swift test name declared in two suites locks every declaration', () => {
+  const body = expect => 'import Testing\n'
+    + 'struct A { @Test func probe() { #expect(1 == 1) } }\n'
+    + `struct B { @Test func probe() { #expect(${expect}) } }\n`
+  swiftMoved('Tests/LockDuplicateNames.swift', body('2 == 2'), body('2 == 1'))
+})
+
+test('a Swift test with a backticked name is hashed', () => {
+  const body = expect => `@Test func \`default\`() {\n  #expect(${expect})\n}\n`
+  swiftMoved('Tests/LockBacktickName.swift', body('2 == 2'), body('2 == 1'), 'default')
+})
+
+test('rewording a comment inside a Swift interpolation does not move the hash', () => {
+  const body = note => `@Test func probe() {\n  let s = "\\(1 /* ${note} */)"\n  #expect(2 == 2)\n}\n`
+  const moved = swiftLock('Tests/LockInterpolationCommentOnly.swift', 'probe', body('first wording'), body('second wording'))
+  assert.deepEqual(moved.blocks, [], moved.blocks.join('\n'))
+})

@@ -5374,9 +5374,12 @@ def strict_from_number(start, errors):
 def adr_numbers(path, text):
     """Filename number and title number; either is None when that spelling is absent."""
     title = re.search(r"^#\s+ADR[-_ ]?(\d{1,4})\b", text, re.M | re.I)
-    name = re.search(r"(?:adr[-_]?)?(\d{3,4})[-._]", path.name, re.I)
-    return (int(name.group(1)) if name else None,
-            int(title.group(1)) if title else None)
+    title_n = int(title.group(1)) if title else None
+    if DATE_SHAPED_RE.match(path.name):
+        return (None, title_n)
+    found = RECORD_FILE_RE.match(path.name)
+    name_n = int(found.group(1)) if found else None
+    return (name_n, title_n)
 
 
 def adr_number(path, text):

@@ -66,6 +66,8 @@ SHELL_LINES = [
     ("  x=$(( 1 + 2 )); cat <<EOF\n{T}\nEOF", False),
     ("  p='((' ; cat <<EOF\n}\n{T}\nEOF", False),
     ("  cat <<EOF\n((\nEOF\n  cat <<EOF\n}\n{T}\nEOF", False),
+    ("  n=$(( $(if false; then cat <<EOF\n}\nEOF\nfi; echo 1) + 0 )); echo {T}", False),
+    ('  p="first\n(( \\""; if false; then cat <<EOF\n}\nEOF\nfi; echo {T}', False),
     ("  [ 2 -eq 2 ] && echo {T}", False),
 ]
 

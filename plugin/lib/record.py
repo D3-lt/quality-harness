@@ -418,6 +418,21 @@ _SH_TEST_FN = re.compile(
     r"(test\w*)\s*\(\s*\))\s*\{",
 )
 CONFIG_NAME = ".quality-harness.json"
+# Swift Testing `@Test` (any arguments) / XCTest `func test*()` with no
+# parameters. Matched on the masked text, so a commented-out or quoted
+# declaration is not a test.
+_SWIFT_TEST_ATTR = re.compile(r"@Test\b")
+_SWIFT_MODIFIER = re.compile(
+    r"(?:public|package|internal|private|fileprivate|open|static|class|final|"
+    r"nonisolated|override|mutating|dynamic|required)\b"
+)
+_SWIFT_XCTEST_FN = re.compile(
+    r"(?m)^[ \t]*(?:(?:@\w+(?:\([^)\n]*\))?|public|package|internal|private|"
+    r"fileprivate|open|final|nonisolated|override)[ \t]+)*"
+    r"func[ \t]+(test\w*)[ \t]*(\()[ \t]*\)"
+)
+_SWIFT_LITERAL_OPEN = re.compile(r'(#*)("""|")')
+_SWIFT_REGEX_OPEN = re.compile(r"(#+)/")
 
 
 def tests_table_rows(text):
@@ -468,14 +483,15 @@ def declared_check(root):
     return None
 
 
-def body_digest(body, python=False, php=False, shell=False, rust=False):
+def body_digest(body, python=False, php=False, shell=False, rust=False,
+                swift=False):
     """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
     text = body.replace("\r\n", "\n").replace("\r", "\n")
     if python:
         text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
     text = _strip_comments_keep_strings(
-        text, python=python, php=php, shell=shell, rust=rust)
+        text, python=python, php=php, shell=shell, rust=rust, swift=swift)
     lines = []
     for line in text.split("\n"):
         collapsed = re.sub(r"[ \t]+", " ", line).strip()
@@ -494,7 +510,7 @@ def _char_is_escaped(text, i):
     return slashes % 2 == 1
 
 def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
-                                rust=False):
+                                rust=False, swift=False):
     out, i, n, quote = [], 0, len(text), None
     pending = None
     while i < n:
@@ -513,6 +529,15 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
                 quote = None
             i += 1
             continue
+        if swift:
+            # A Swift literal is kept verbatim as ONE span: `"""` bodies, raw
+            # `#"…"#` and interpolations with nested quotes would otherwise flip
+            # the quote state and let a `//` inside the literal strip code.
+            end = _swift_literal_end(text, i)
+            if end is not None:
+                out.append(text[i:end])
+                i = end
+                continue
         if rust:
             prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")
             raw = re.match(r'(?:b|c)?r(#*)"', text[i:]) if prev_ok else None
@@ -547,7 +572,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
                     i += 1
                 continue
             if nxt == "*":
-                if rust:
+                if rust or swift:
                     depth, j = 1, i + 2
                     while j < n and depth:
                         if text.startswith("/*", j):
@@ -588,7 +613,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
 
 
 def extract_test_names(text, python=False, go=False, php=False, rust=False,
-                       shell=False):
+                       shell=False, swift=False):
     """Names this hasher can see in `text`."""
     if python:
         try:
@@ -620,6 +645,8 @@ def extract_test_names(text, python=False, go=False, php=False, rust=False,
         return names
     if rust:
         return [name for name, _after in _iter_rust_fn_tests(text)]
+    if swift:
+        return [name for name, _after in _iter_swift_tests(text)]
     if shell:
         return [name for name, _after in _iter_sh_tests(text)]
     names, seen = [], set()
@@ -843,12 +870,16 @@ def _in_arithmetic(text, i):
 
 
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
-                       shell_heredocs=False):
+                       shell_heredocs=False, swift=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
 
     spec-verify imports this module, so the masker cannot be imported from there.
     PHP needs hash comments and heredocs; Rust uses C-like comments and quotes.
     rust_raw blanks r#"..."# and nested /* */; shell_heredocs blanks << after PHP <<<.
+    swift blanks every Swift literal WHOLE (quotes included, so the brace matcher
+    sees no quote to re-open), `#/…/#` regex literals, backtick identifiers and
+    nested /* */. A bare `/…/` regex literal is not recognised: a brace inside
+    one can widen a span, never shorten it to a prefix.
     """
     out = list(text)
     i, n = 0, len(text)
@@ -859,6 +890,18 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
                 out[j] = " "
 
     while i < n:
+        if swift:
+            end = _swift_literal_end(text, i)
+            if end is None:
+                end = _swift_regex_end(text, i)
+            if end is None and text[i] == "`":
+                close = text.find("`", i + 1)
+                if close != -1 and "\n" not in text[i:close]:
+                    end = close + 1
+            if end is not None:
+                blank(i, end)
+                i = end
+                continue
         if rust_raw:
             prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")
             raw = re.match(r'(?:b|c)?r(#*)"', text[i:]) if prev_ok else None
@@ -881,7 +924,7 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
             blank(i, end)
             i = end
         elif text.startswith("/*", i):
-            if rust_raw:
+            if rust_raw or swift:
                 depth, j = 1, i + 2
                 while j < n and depth:
                     if text.startswith("/*", j):
@@ -1056,8 +1099,117 @@ def _iter_sh_tests(text):
         seen.add(name)
         yield name, match.end() - 1
 
+
+def _swift_literal_end(text, i):
+    """Index just past the Swift string literal opening at `text[i]`, or None.
+
+    Raw strings (`#"…"#`, and triple-quoted ones behind `##`) close on the
+    quote plus the same number of `#`, and escape with a backslash plus that
+    many `#`. An interpolation (backslash, then `(`) is skipped with its own
+    nested literals, so a `"}"` inside it does not end the outer literal. A
+    triple quote not followed by a line break is an empty literal then a quote,
+    as in the grammar. An unterminated single-line literal stops at the line
+    break; a multi-line one runs to the end.
+    """
+    opening = _SWIFT_LITERAL_OPEN.match(text, i)
+    if not opening:
+        return None
+    n = len(text)
+    hashes, delim = opening.group(1), opening.group(2)
+    j = opening.end()
+    if delim == '"""' and not re.match(r"[ \t]*(?:\n|$)", text[j:j + 256]):
+        delim, j = '"', i + len(hashes) + 1
+    closer, escape = delim + hashes, "\\" + hashes
+    while j < n:
+        if text.startswith(escape, j):
+            k = j + len(escape)
+            if k < n and text[k] == "(":
+                depth, k = 1, k + 1
+                while k < n and depth:
+                    nested = _swift_literal_end(text, k)
+                    if nested is not None:
+                        k = nested
+                        continue
+                    if text[k] == "(":
+                        depth += 1
+                    elif text[k] == ")":
+                        depth -= 1
+                    k += 1
+                j = k
+                continue
+            j = k + 1
+            continue
+        if text.startswith(closer, j):
+            return j + len(closer)
+        if delim == '"' and text[j] == "\n":
+            return j
+        j += 1
+    return n
+
+
+def _swift_regex_end(text, i):
+    """Index just past an extended `#/…/#` regex literal at `text[i]`, or None."""
+    opening = _SWIFT_REGEX_OPEN.match(text, i)
+    if not opening:
+        return None
+    close = text.find("/" + opening.group(1), opening.end())
+    return len(text) if close == -1 else close + 1 + len(opening.group(1))
+
+
+def _swift_balanced_parens_end(masked, i):
+    """Index just past the `)` matching `masked[i] == '('`, or None."""
+    depth, n = 0, len(masked)
+    while i < n:
+        if masked[i] == "(":
+            depth += 1
+        elif masked[i] == ")":
+            depth -= 1
+            if depth == 0:
+                return i + 1
+        i += 1
+    return None
+
+
+def _iter_swift_tests(text):
+    """Swift Testing `@Test` funcs and XCTest `func test*()`. Yields (name, after `(`)."""
+    masked = _mask_lock_noncode(text, swift=True)
+    found = []
+    for attr in _SWIFT_TEST_ATTR.finditer(masked):
+        i = attr.end()
+        while True:
+            while i < len(masked) and masked[i] in " \t\r\n":
+                i += 1
+            if masked.startswith("(", i):
+                i = _swift_balanced_parens_end(masked, i)
+                if i is None:
+                    break
+                continue
+            other = re.match(r"@\w+", masked[i:])
+            if other:
+                i += other.end()
+                continue
+            modifier = _SWIFT_MODIFIER.match(masked, i)
+            if modifier:
+                i = modifier.end()
+                continue
+            break
+        if i is None:
+            continue
+        fn = re.match(r"func[ \t\r\n]+(\w+)[ \t\r\n]*(?:<[^>{]*>)?[ \t\r\n]*\(",
+                      masked[i:])
+        if fn:
+            found.append((attr.start(), fn.group(1), i + fn.end()))
+    for fn in _SWIFT_XCTEST_FN.finditer(masked):
+        found.append((fn.start(), fn.group(1), fn.end(2)))
+    seen = set()
+    for _at, name, after_paren in sorted(found):
+        if name in seen:
+            continue
+        seen.add(name)
+        yield name, after_paren
+
 def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
-                      shell=False):
+                      shell=False, swift=False):
     """Best-effort body of `name`, or None."""
     if python:
         try:
@@ -1089,6 +1241,13 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
     if rust:
         masked = _mask_lock_noncode(text, rust_raw=True)
         for found, after_paren in _iter_rust_fn_tests(text):
+            if found != name:
+                continue
+            return _span_from_paren(text, masked, after_paren)
+        return None
+    if swift:
+        masked = _mask_lock_noncode(text, swift=True)
+        for found, after_paren in _iter_swift_tests(text):
             if found != name:
                 continue
             return _span_from_paren(text, masked, after_paren)
@@ -1208,17 +1367,20 @@ def snapshot_lock(root, tests_rows):
         php = path.suffix.lower() == ".php"
         rust = path.suffix.lower() == ".rs"
         shell = path.suffix.lower() in (".sh", ".bash")
+        swift = path.suffix.lower() == ".swift"
         for name in extract_test_names(
-                source, python=python, go=go, php=php, rust=rust, shell=shell):
+                source, python=python, go=go, php=php, rust=rust, shell=shell,
+                swift=swift):
             body = extract_test_body(
                 source, name, python=python, go=go, php=php, rust=rust,
-                shell=shell)
+                shell=shell, swift=swift)
             if body is None:
                 if (rel, name) in named:
                     unproven.add((rel, name))
                 continue
             bodies[(rel, name)] = body_digest(
-                body, python=python, php=php, shell=shell, rust=rust)
+                body, python=python, php=php, shell=shell, rust=rust,
+                swift=swift)
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))

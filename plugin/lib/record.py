@@ -388,6 +388,31 @@ _RUST_TEST_FN = re.compile(
     r"(?:async\s+)?fn\s+(\w+)\s*\(",
     re.S,
 )
+# spec-verify: PHP 8 #[Test] / PHPUnit\\Framework\\Attributes\\Test, then function.
+_PHP_ATTR_TEST = re.compile(
+    r"#\s*\[\s*(?:\\?PHPUnit\\Framework\\Attributes\\)?Test\s*\]"
+    r"[^{;}]{0,300}\bfunction\s+&?\s*(\w+)\s*\(",
+    re.S,
+)
+# PHPUnit 8.5 @test annotation lives in a comment; the masker blanks it.
+_PHP_DOCBLOCK_TEST = re.compile(
+    r"@test\b.*?\*/\s*(?:(?:public|protected|private|static|final|abstract)\s+)*"
+    r"function\s+&?\s*(\w+)\s*\(",
+    re.I | re.S,
+)
+# Same isTest name as package-level, with a receiver.
+_GO_METHOD_TEST = re.compile(
+    r"(?m)^[ \t]*func[ \t]+\([^)]+\)[ \t]+(Test(?:[^a-z]\w*)?)[ \t]*\("
+)
+# adr-lint test_body: t.Run("name",
+_GO_T_RUN = re.compile(
+    r"""\bt\.Run\s*\(\s*(['"`])([^'"`\n]+)\1\s*,""",
+)
+# spec-verify: function test_* or test_*() { at line start.
+_SH_TEST_FN = re.compile(
+    r"(?m)^[ \t]*(?:function[ \t]+(test\w*)(?:\s*\(\s*\))?|"
+    r"(test\w*)\s*\(\s*\))\s*\{",
+)
 CONFIG_NAME = ".quality-harness.json"
 
 
@@ -439,13 +464,14 @@ def declared_check(root):
     return None
 
 
-def body_digest(body, python=False, php=False):
+def body_digest(body, python=False, php=False, shell=False):
     """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
     text = body.replace("\r\n", "\n").replace("\r", "\n")
     if python:
         text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
-    text = _strip_comments_keep_strings(text, python=python, php=php)
+    text = _strip_comments_keep_strings(
+        text, python=python, php=php, shell=shell)
     lines = []
     for line in text.split("\n"):
         collapsed = re.sub(r"[ \t]+", " ", line).strip()
@@ -454,7 +480,7 @@ def body_digest(body, python=False, php=False):
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
 
 
-def _strip_comments_keep_strings(text, python=False, php=False):
+def _strip_comments_keep_strings(text, python=False, php=False, shell=False):
     out, i, n, quote = [], 0, len(text), None
     while i < n:
         c = text[i]
@@ -492,7 +518,7 @@ def _strip_comments_keep_strings(text, python=False, php=False):
             while i < n and text[i] != "\n":
                 i += 1
             continue
-        if php and c == "#" and not text.startswith("#[", i):
+        if (php or shell) and c == "#" and not text.startswith("#[", i):
             while i < n and text[i] != "\n":
                 i += 1
             continue
@@ -501,7 +527,8 @@ def _strip_comments_keep_strings(text, python=False, php=False):
     return "".join(out)
 
 
-def extract_test_names(text, python=False, go=False, php=False, rust=False):
+def extract_test_names(text, python=False, go=False, php=False, rust=False,
+                       shell=False):
     """Names this hasher can see in `text`."""
     if python:
         try:
@@ -517,9 +544,24 @@ def extract_test_names(text, python=False, go=False, php=False, rust=False):
             return names
         return []
     if go:
-        return [name for name, _after in _iter_go_func_tests(text)]
+        names, seen = [], set()
+        for name, _after in _iter_go_func_tests(text):
+            if name not in seen:
+                seen.add(name)
+                names.append(name)
+        for name, _after in _iter_go_method_tests(text):
+            if name not in seen:
+                seen.add(name)
+                names.append(name)
+        for name, _after in _iter_go_t_runs(text):
+            if name not in seen:
+                seen.add(name)
+                names.append(name)
+        return names
     if rust:
         return [name for name, _after in _iter_rust_fn_tests(text)]
+    if shell:
+        return [name for name, _after in _iter_sh_tests(text)]
     names, seen = [], set()
     if php:
         for name, _after in _iter_php_function_tests(text):
@@ -650,12 +692,39 @@ def _iter_go_func_tests(text):
         seen.add(name)
         yield name, match.end()
 
+def _iter_go_method_tests(text):
+    """`func (recv) TestXxx` in code. Yields (name, after_open_paren)."""
+    seen = set()
+    for match in _GO_METHOD_TEST.finditer(text):
+        func_at = text.find("func", match.start(), match.end())
+        if func_at < 0 or not _js_like_in_code(text, func_at):
+            continue
+        name = match.group(1)
+        if name in seen:
+            continue
+        seen.add(name)
+        yield name, match.end()
 
-def _mask_lock_noncode(text, hash_comments=False, heredocs=False):
+
+def _iter_go_t_runs(text):
+    """Quoted names in t.Run("name",. Yields (name, after the comma)."""
+    seen = set()
+    for match in _GO_T_RUN.finditer(text):
+        if not _js_like_in_code(text, match.start()):
+            continue
+        name = match.group(2)
+        if name in seen:
+            continue
+        seen.add(name)
+        yield name, match.end()
+
+
+def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
 
     spec-verify imports this module, so the masker cannot be imported from there.
     PHP needs hash comments and heredocs; Rust uses C-like comments and quotes.
+    rust_raw blanks r#"..."# so a brace inside does not close a hashed body.
     """
     out = list(text)
     i, n = 0, len(text)
@@ -666,6 +735,18 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False):
                 out[j] = " "
 
     while i < n:
+        if rust_raw:
+            prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")
+            raw = re.match(r'(?:b|c)?r(#*)"', text[i:]) if prev_ok else None
+            if raw:
+                hashes = raw.group(1)
+                closer = '"' + hashes
+                start = i + raw.end()
+                found = text.find(closer, start)
+                end = n if found < 0 else found + len(closer)
+                blank(i, end)
+                i = end
+                continue
         if heredocs and text.startswith("<<<", i):
             start = re.match(r"<<<[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n", text[i:])
             if not start:
@@ -755,7 +836,7 @@ def _iter_bdd_names(text):
 
 
 def _iter_php_function_tests(text):
-    """PHPUnit `function test*` inside a class body. Yields (name, after `(`)."""
+    """PHPUnit class methods: test*, #[Test], @test docblock. Yields (name, after `(`)."""
     masked = _mask_lock_noncode(text, hash_comments=True, heredocs=True)
     seen = set()
     for class_match in _PHP_CLASS_OPEN.finditer(masked):
@@ -764,7 +845,20 @@ def _iter_php_function_tests(text):
         if end is None:
             continue
         body = masked[start:end + 1]
+        orig = text[start:end + 1]
         for fn in _PHP_FUNC_TEST.finditer(body):
+            name = fn.group(1)
+            if name in seen:
+                continue
+            seen.add(name)
+            yield name, start + fn.end()
+        for fn in _PHP_ATTR_TEST.finditer(body):
+            name = fn.group(1)
+            if name in seen:
+                continue
+            seen.add(name)
+            yield name, start + fn.end()
+        for fn in _PHP_DOCBLOCK_TEST.finditer(orig):
             name = fn.group(1)
             if name in seen:
                 continue
@@ -774,7 +868,7 @@ def _iter_php_function_tests(text):
 
 def _iter_rust_fn_tests(text):
     """`#[test]` / `#[tokio::test]` fn. Yields (name, after `(`)."""
-    masked = _mask_lock_noncode(text)
+    masked = _mask_lock_noncode(text, rust_raw=True)
     seen = set()
     for match in _RUST_TEST_FN.finditer(masked):
         name = match.group(1)
@@ -784,7 +878,19 @@ def _iter_rust_fn_tests(text):
         yield name, match.end()
 
 
-def extract_test_body(text, name, python=False, go=False, php=False, rust=False):
+def _iter_sh_tests(text):
+    """Shell `test_*` / `function test_*` at line start. Yields (name, brace)."""
+    masked = _mask_lock_noncode(text, hash_comments=True)
+    seen = set()
+    for match in _SH_TEST_FN.finditer(masked):
+        name = match.group(1) or match.group(2)
+        if name in seen:
+            continue
+        seen.add(name)
+        yield name, match.end() - 1
+
+def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
+                      shell=False):
     """Best-effort body of `name`, or None."""
     if python:
         try:
@@ -809,13 +915,43 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False)
             if end is None:
                 return None
             return text[brace:end + 1]
+        for found, after_paren in _iter_go_method_tests(text):
+            if found != name:
+                continue
+            brace = text.find("{", after_paren)
+            if brace == -1:
+                return None
+            end = _matching_js_brace(text, brace)
+            if end is None:
+                return None
+            return text[brace:end + 1]
+        for found, after_paren in _iter_go_t_runs(text):
+            if found != name:
+                continue
+            brace = text.find("{", after_paren)
+            if brace == -1:
+                return None
+            end = _matching_js_brace(text, brace)
+            if end is None:
+                return None
+            return text[brace:end + 1]
         return None
     if rust:
-        masked = _mask_lock_noncode(text)
+        masked = _mask_lock_noncode(text, rust_raw=True)
         for found, after_paren in _iter_rust_fn_tests(text):
             if found != name:
                 continue
             return _span_from_paren(text, masked, after_paren)
+        return None
+    if shell:
+        masked = _mask_lock_noncode(text, hash_comments=True)
+        for found, brace in _iter_sh_tests(text):
+            if found != name:
+                continue
+            end = _matching_js_brace(masked, brace)
+            if end is None:
+                return None
+            return text[brace:end + 1]
         return None
     if php:
         masked = _mask_lock_noncode(text, hash_comments=True, heredocs=True)
@@ -869,15 +1005,18 @@ def snapshot_lock(root, tests_rows):
         go = path.suffix.lower() == ".go"
         php = path.suffix.lower() == ".php"
         rust = path.suffix.lower() == ".rs"
+        shell = path.suffix.lower() in (".sh", ".bash")
         for name in extract_test_names(
-                source, python=python, go=go, php=php, rust=rust):
+                source, python=python, go=go, php=php, rust=rust, shell=shell):
             body = extract_test_body(
-                source, name, python=python, go=go, php=php, rust=rust)
+                source, name, python=python, go=go, php=php, rust=rust,
+                shell=shell)
             if body is None:
                 if (rel, name) in named:
                     unproven.add((rel, name))
                 continue
-            bodies[(rel, name)] = body_digest(body, python=python, php=php)
+            bodies[(rel, name)] = body_digest(
+                body, python=python, php=php, shell=shell)
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))

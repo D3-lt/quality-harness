@@ -719,12 +719,13 @@ def _iter_go_t_runs(text):
         yield name, match.end()
 
 
-def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False):
+def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
+                       shell_heredocs=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
 
     spec-verify imports this module, so the masker cannot be imported from there.
     PHP needs hash comments and heredocs; Rust uses C-like comments and quotes.
-    rust_raw blanks r#"..."# so a brace inside does not close a hashed body.
+    rust_raw blanks r#"..."# and nested /* */; shell_heredocs blanks << after PHP <<<.
     """
     out = list(text)
     i, n = 0, len(text)
@@ -759,16 +760,44 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
             end = n if close is None else tail + close.end()
             blank(i, end)
             i = end
+        elif shell_heredocs and text.startswith("<<", i):
+            start = re.match(
+                r"<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n", text[i:])
+            if not start:
+                i += 1
+                continue
+            marker = start.group(2)
+            tail = i + start.end()
+            close = re.search(
+                rf"(?m)^[ \t]*{re.escape(marker)}[ \t]*(?:\n|$)", text[tail:])
+            end = n if close is None else tail + close.end()
+            blank(i, end)
+            i = end
         elif text.startswith("//", i):
             end = text.find("\n", i + 2)
             end = n if end < 0 else end
             blank(i, end)
             i = end
         elif text.startswith("/*", i):
-            end = text.find("*/", i + 2)
-            end = n if end < 0 else end + 2
-            blank(i, end)
-            i = end
+            if rust_raw:
+                depth, j = 1, i + 2
+                while j < n and depth:
+                    if text.startswith("/*", j):
+                        depth += 1
+                        j += 2
+                        continue
+                    if text.startswith("*/", j):
+                        depth -= 1
+                        j += 2
+                        continue
+                    j += 1
+                blank(i, j)
+                i = j
+            else:
+                end = text.find("*/", i + 2)
+                end = n if end < 0 else end + 2
+                blank(i, end)
+                i = end
         elif hash_comments and text[i] == "#" and not text.startswith("#[", i):
             end = text.find("\n", i + 1)
             end = n if end < 0 else end
@@ -814,6 +843,22 @@ def _span_from_paren(text, masked, after_paren):
     """Original `{...}` after a function `(`, or None."""
     brace = _body_brace_after(masked, after_paren)
     if brace is None:
+        return None
+    end = _matching_js_brace(masked, brace)
+    if end is None:
+        return None
+    return text[brace:end + 1]
+
+def _span_from_first_brace(text, masked, after):
+    """Original `{...}` from the first code `{` after `after`, or None.
+
+    A column-0 `func` between the match and that brace is another function's
+    body — t.Run("name", helper) must stay UNPROVEN rather than hash helper.
+    """
+    brace = masked.find("{", after)
+    if brace == -1:
+        return None
+    if re.search(r"(?m)^func\s", masked[after:brace]):
         return None
     end = _matching_js_brace(masked, brace)
     if end is None:
@@ -905,36 +950,19 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
                 return "".join(text.splitlines(keepends=True)[start:end])
         return None
     if go:
+        masked = _mask_lock_noncode(text)
         for found, after_paren in _iter_go_func_tests(text):
             if found != name:
                 continue
-            brace = text.find("{", after_paren)
-            if brace == -1:
-                return None
-            end = _matching_js_brace(text, brace)
-            if end is None:
-                return None
-            return text[brace:end + 1]
+            return _span_from_paren(text, masked, after_paren)
         for found, after_paren in _iter_go_method_tests(text):
             if found != name:
                 continue
-            brace = text.find("{", after_paren)
-            if brace == -1:
-                return None
-            end = _matching_js_brace(text, brace)
-            if end is None:
-                return None
-            return text[brace:end + 1]
+            return _span_from_paren(text, masked, after_paren)
         for found, after_paren in _iter_go_t_runs(text):
             if found != name:
                 continue
-            brace = text.find("{", after_paren)
-            if brace == -1:
-                return None
-            end = _matching_js_brace(text, brace)
-            if end is None:
-                return None
-            return text[brace:end + 1]
+            return _span_from_first_brace(text, masked, after_paren)
         return None
     if rust:
         masked = _mask_lock_noncode(text, rust_raw=True)
@@ -944,7 +972,7 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
             return _span_from_paren(text, masked, after_paren)
         return None
     if shell:
-        masked = _mask_lock_noncode(text, hash_comments=True)
+        masked = _mask_lock_noncode(text, hash_comments=True, shell_heredocs=True)
         for found, brace in _iter_sh_tests(text):
             if found != name:
                 continue

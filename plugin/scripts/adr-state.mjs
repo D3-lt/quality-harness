@@ -73,7 +73,9 @@ export function main(argv) {
   const dangling = corpus.filter(record => record.supersededBy && !byNumber.has(record.supersededBy))
 
   if (json) {
+    const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')
   process.stdout.write(`${JSON.stringify({
+    look,
     read: corpus.length,
     governing: governing.length,
     touchedPaths: touched.size,

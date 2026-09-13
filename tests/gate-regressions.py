@@ -2306,6 +2306,13 @@ def main():
         clash_numbers = {p.name: n for p, n in lint.record_files(amb_root, amb_dir, clash_tracked)}
         assert "003-T2.md" not in clash_numbers, clash_numbers
         assert lint.adr_number(clash, clash.read_text(encoding="utf-8")) is None
+        dated = amb_dir / "2026-08-17-decision.md"
+        dated.write_text("# ADR-47: not a year\n", encoding="utf-8")
+        assert lint.adr_numbers(dated, dated.read_text(encoding="utf-8")) == (None, 47)
+        short = amb_dir / "ADR-3-short.md"
+        short.write_text("# ADR-4: clash\n", encoding="utf-8")
+        assert lint.adr_numbers(short, short.read_text(encoding="utf-8")) == (3, 4)
+        assert lint.adr_number(short, short.read_text(encoding="utf-8")) is None
 
     # A cycle ACROSS records. Per-record DAG checks cannot see one by
     # construction: each record's graph is acyclic on its own, and the cycle

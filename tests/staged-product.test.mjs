@@ -323,6 +323,11 @@ test('a listed ADR that cannot be read is PARTIAL, not an empty corpus', (t) => 
     const json = JSON.parse(workNext(root, ['--json']).stdout)
     assert.notEqual(json.look, 'ok')
     assert.notEqual(json.layer, 'core')
+    const state = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-state.mjs'), '--json', root], {
+      encoding: 'utf8', timeout: 30_000,
+    })
+    assert.equal(state.status, 0, state.stderr)
+    assert.equal(JSON.parse(state.stdout).look, 'PARTIAL')
   } finally {
     try { chmodSync(file, 0o644) } catch { /* restore */ }
   }

@@ -861,6 +861,67 @@ test('a file whose name and title disagree on the ADR number is refused', () => 
     rmSync(temp, { recursive: true, force: true })
   }
 })
+test('a date-shaped filename is not an ADR year', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-adr-date-shaped-'))
+  try {
+    spawnSync('git', ['init', '-q', temp], { encoding: 'utf8', timeout: 15_000 })
+    const file = join(temp, '2026-08-17-decision.md')
+    writeFileSync(file, [
+      '# ADR-47: dated note',
+      '',
+      '**Status:** Accepted',
+      '',
+      '## Decision',
+      '',
+      'Not year 2026.',
+      '',
+      '## Alternatives Considered',
+      '',
+      '- Treating the date as ADR-2026 — rejected, DATE_SHAPED_RE.',
+      '',
+      '## Consequences',
+      '',
+      'The title number stands.',
+      '',
+    ].join('\n'))
+    const out = run('adr-lint', [file], temp)
+    assert.doesNotMatch(`${out.stdout}${out.stderr}`,
+      /filename names ADR-2026 and the title names ADR-47/)
+  } finally {
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
+test('a one-digit filename and a different title number is refused', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-adr-one-digit-'))
+  try {
+    spawnSync('git', ['init', '-q', temp], { encoding: 'utf8', timeout: 15_000 })
+    const file = join(temp, 'ADR-3-short.md')
+    writeFileSync(file, [
+      '# ADR-4: clash',
+      '',
+      '**Status:** Accepted',
+      '',
+      '## Decision',
+      '',
+      'One identity.',
+      '',
+      '## Alternatives Considered',
+      '',
+      '- Doing nothing — rejected, two numbers cannot stand.',
+      '',
+      '## Consequences',
+      '',
+      'Refused.',
+      '',
+    ].join('\n'))
+    const out = run('adr-lint', [file], temp)
+    expectExit(out, 1, 'one-digit filename/title mismatch must block')
+    assert.match(`${out.stdout}${out.stderr}`,
+      /filename names ADR-3 and the title names ADR-4/)
+  } finally {
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
 test('a legacy record is not routed as a task and told its own ADR is missing', () => {
   // docs/BACKLOG.md §185, reported 2026-09-08 from a 77-record corpus where this
   // produced 34 false failures in ONE commit — every record predating the

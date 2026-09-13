@@ -641,6 +641,15 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
             pending = (heredoc[1], heredoc[2])
             i = heredoc[0]
             continue
+        if not (python or php or shell or rust or swift):
+            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/"/`
+            # must not start string state or `//` inside the next string is
+            # stripped as a comment (Codex high on 6e0fe99).
+            regex_end = _swift_bare_regex_end(text, i)
+            if regex_end is not None:
+                out.append(text[i:regex_end])
+                i = regex_end
+                continue
         if c in "'\"`" and not (python and c == "`"):
             quote = c
             out.append(c)

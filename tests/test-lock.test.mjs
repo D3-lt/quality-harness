@@ -1253,7 +1253,7 @@ test('a comment on a heredoc opener line is still a comment', () => {
   }
 })
 
-test('the hasher survives seeded stress against bash and a generator oracle', () => {
+test('the hasher survives seeded stress against bash and a generator oracle', (t) => {
   // stress-testing skill, adapted: arm 1 generates shell test bodies from pools
   // that mix data and comment shapes (heredocs, URL fragments, escaped
   // separators) and asks BASH whether the edit is observable — an observable
@@ -1266,9 +1266,18 @@ test('the hasher survives seeded stress against bash and a generator oracle', ()
     { cwd: repoRoot, env: pyEnv, encoding: 'utf8', timeout: 120_000 })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
   // Selection is evidence: an arm that ran zero iterations exits 0 too.
+  assert.match(run.stdout, /^arm2 iterations=[1-9]\d* php=[1-9]\d* js=[1-9]\d*$/m, run.stdout)
+  const unrun = run.stdout.match(/^arm1 UNRUN .*$/m)
+  if (unrun) {
+    // The bash the Windows runner hands Python is not the one the fence runs
+    // under, and the arm said so (CI 34764859969: observable=0). Elsewhere bash
+    // is what selftest.sh itself runs in, so UNRUN there is a real failure.
+    assert.equal(process.platform, 'win32', `the bash oracle is required here:\n${run.stdout}`)
+    t.skip(unrun[0])
+    return
+  }
   assert.match(run.stdout, /^arm1 iterations=[1-9]\d* observable=[1-9]\d* comment_only=[1-9]\d*$/m,
     run.stdout)
-  assert.match(run.stdout, /^arm2 iterations=[1-9]\d* php=[1-9]\d* js=[1-9]\d*$/m, run.stdout)
 })
 
 

@@ -7523,6 +7523,16 @@
       "only": "a later red carrying a different lock hash"
     },
     {
+      "label": "lock: the lock field is read from the end of the row, not the command",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return re.search(r\" · test-lock-sha256:([0-9a-f]{64})\"\n                     r\"(?: · test-lock-b64:[A-Za-z0-9_-]+)?[ \\t]*$\", line)",
+      "to": "    return _LOCK_SHA.search(line)",
+      "only": "a later red carrying a different lock hash"
+    },
+    {
       "label": "lock: a PHPUnit function test is hashed, not left unproven",
       "file": "plugin/lib/record.py",
       "tests": [

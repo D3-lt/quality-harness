@@ -1618,6 +1618,17 @@ def first_red_lock_suffix(text, root):
     return f" · test-lock-sha256:{digest} · test-lock-b64:{token}"
 
 
+def _row_lock_sha(line):
+    """The row's TRAILING test-lock-sha256 field, or None.
+
+    Anchored, because `_LOCK_SHA.search` also matched the RECORDED COMMAND: a
+    fence whose text happens to contain `test-lock-sha256:<64 hex>` was read as
+    a lock, which since the later-red rule could refuse a task whose tests never
+    moved. The writer appends the field last (`first_red_lock_suffix`), so the
+    end of the line is where a real one is.
+    """
+    return re.search(r" · test-lock-sha256:([0-9a-f]{64})"
+                     r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?[ \t]*$", line)
 def _recorded_lock(vlog):
     """Lock parsed from the first TDD-red row, else (date, None)."""
     first_date = None
@@ -1635,13 +1646,13 @@ def _recorded_lock(vlog):
                 first_red = line
                 first_date = m.group("date")
             else:
-                other = _LOCK_SHA.search(line)
+                other = _row_lock_sha(line)
                 if other:
                     later_red_locks.append(other.group(1))
     if first_red is None:
         return first_date, None
-    sha = _LOCK_SHA.search(first_red)
-    b64 = _LOCK_B64.search(first_red)
+    sha = _row_lock_sha(first_red)
+    b64 = _LOCK_B64.search(first_red) if sha else None
     if not sha:
         return first_date, None
     parsed = decode_lock(b64.group(1)) if b64 else None

@@ -2557,7 +2557,7 @@ test('a passing never-measured *selftest* after an UNPROVEN write does not silen
   assert.equal(classifyCommand('qh-never-measured-selftest'), 'unrecognised')
   const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
   assert.ok(state.lastUnprovenWrite >= 0)
-  assert.ok(!(state.lastSuccessfulValidation > state.lastUnprovenWrite),
+  assert.equal(state.lastSuccessfulValidation, -1,
     'an unpublished family must not become lastSuccessfulValidation')
   const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
   assert.match(`${stop.stdout}${stop.stderr}`, /systemMessage/)

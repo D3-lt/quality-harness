@@ -7419,7 +7419,7 @@
       ],
       "from": "    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'",
       "to": "    if (false) return 'unrecognised'",
-      "only": "recognised POSIX rm is mutation and selftest is validation|an unrecognised PowerShell or cmd write is not neither"
+      "only": "a path-shaped unmeasured family is unrecognised"
     },
     {
       "label": "classify: foreign family is unrecognised before POSIX letters (ADR-047 T2)",
@@ -7759,8 +7759,8 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    text = read_named(adr_path)",
-      "to": "    text = Path(adr_path).read_text(errors=\"replace\", encoding=\"utf-8\")",
+      "from": "    text = read_named(adr)",
+      "to": "    text = adr.read_text(errors=\"replace\", encoding=\"utf-8\")",
       "only": "an unreadable named path is could-not-run, not failures-found"
     },
     {

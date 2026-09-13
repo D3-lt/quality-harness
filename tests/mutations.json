@@ -7500,7 +7500,7 @@
       ],
       "from": "        rust = path.suffix.lower() == \".rs\"\n        shell = path.suffix.lower() in (\".sh\", \".bash\")",
       "to": "        rust = False\n        shell = path.suffix.lower() in (\".sh\", \".bash\")",
-      "only": "a Rust #[test] fn is hashed"
+      "only": "a Rust #\\[test\\] fn is hashed"
     },
     {
       "label": "lock: a PHPUnit #[Test] method is hashed, not left unproven",
@@ -7510,7 +7510,7 @@
       ],
       "from": "        for fn in _PHP_ATTR_TEST.finditer(body):",
       "to": "        for fn in _PHP_ATTR_TEST.finditer(\"\"):",
-      "only": "a PHPUnit #[Test] method is hashed"
+      "only": "a PHPUnit #\\[Test\\] method is hashed"
     },
     {
       "label": "lock: a PHPUnit @test docblock method is hashed, not left unproven",
@@ -7528,8 +7528,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if rust_raw:",
-      "to": "        if False:",
+      "from": "        if rust_raw:\n            prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == \"_\")",
+      "to": "        if False:\n            prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == \"_\")",
       "only": "a brace inside a Rust raw string"
     },
     {
@@ -7560,7 +7560,77 @@
       ],
       "from": "        shell = path.suffix.lower() in (\".sh\", \".bash\")\n        for name in extract_test_names(",
       "to": "        shell = False\n        for name in extract_test_names(",
-      "only": "a shell test_* function is hashed"
+      "only": "a shell test_\\* function is hashed"
+    },
+    {
+      "label": "lock: a Go signature comment does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        masked = _mask_lock_noncode(text)",
+      "to": "        masked = text",
+      "only": "a Go signature comment does not keep"
+    },
+    {
+      "label": "lock: a Go t.Run helper is not hashed as the named subtest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if re.search(r\"(?m)^func\\s\", masked[after:brace]):\n        return None",
+      "to": "    if False:\n        return None",
+      "only": "a Go t.Run that names a helper stays unproven"
+    },
+    {
+      "label": "lock: a Rust nested comment does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if rust_raw:\n                depth, j = 1, i + 2",
+      "to": "            if False:\n                depth, j = 1, i + 2",
+      "only": "a Rust nested comment does not keep"
+    },
+    {
+      "label": "lock: a shell heredoc does not close the hashed function",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        masked = _mask_lock_noncode(text, hash_comments=True, shell_heredocs=True)",
+      "to": "        masked = _mask_lock_noncode(text, hash_comments=True)",
+      "only": "a shell heredoc does not keep"
+    },
+    {
+      "label": "adr-state --json names PARTIAL when a listed record cannot be read",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/staged-product.test.mjs"
+      ],
+      "from": "    const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')",
+      "to": "    const look = 'ok'",
+      "only": "a listed ADR that cannot be read is PARTIAL"
+    },
+    {
+      "label": "adr-lint: a date-shaped filename is not ADR-year",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if DATE_SHAPED_RE.match(path.name):\n        return (None, title_n)",
+      "to": "    if False:\n        return (None, title_n)",
+      "only": "a date-shaped filename is not an ADR year"
+    },
+    {
+      "label": "adr-lint: a one-digit filename number is the same identity as the title",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    found = RECORD_FILE_RE.match(path.name)",
+      "to": "    found = re.search(r\"(?:adr[-_]?)?(\\d{3,4})[-._]\", path.name, re.I)",
+      "only": "a one-digit filename and a different title"
     },
     {
       "label": "adr-lint: filename and title ADR numbers must be the same identity",

@@ -7542,6 +7542,26 @@
       "only": "a later red carrying a different lock hash"
     },
     {
+      "label": "lock: JS string interiors stay in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust).encode(\"utf-8\")).hexdigest()",
+      "to": "    collapsed = []\n    for line in text.split(\"\\n\"):\n        collapsed.append(re.sub(r\"[ \\t]+\", \" \", line).strip())\n    return hashlib.sha256(\"\\n\".join(collapsed).strip().encode(\"utf-8\")).hexdigest()",
+      "only": "whitespace inside a JS string literal"
+    },
+    {
+      "label": "lock: a fenced excerpt is not a later red",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if fence is None:\n            opened = _fence_opened(raw)\n            if opened:\n                fence = opened\n                continue\n        else:\n            if _fence_closes(raw, fence):\n                fence = None\n            continue\n        line = raw.strip()",
+      "to": "        line = raw.strip()",
+      "only": "later-red lock printed inside a fenced excerpt"
+    },
+    {
       "label": "lock: a PHPUnit function test is hashed, not left unproven",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -7817,8 +7837,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if swift:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()",
-      "to": "    if False:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()",
+      "from": "    if swift:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()\n    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust).encode(\"utf-8\")).hexdigest()",
+      "to": "    collapsed = []\n    for line in text.split(\"\\n\"):\n        collapsed.append(re.sub(r\"[ \\t]+\", \" \", line).strip())\n    return hashlib.sha256(\"\\n\".join(collapsed).strip().encode(\"utf-8\")).hexdigest()",
       "only": "whitespace inside a Swift string literal"
     },
     {
@@ -8027,8 +8047,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        heredoc = _heredoc_span(text, i, php=php, shell=shell)",
-      "to": "        heredoc = None",
+      "from": "        heredoc = _heredoc_span(text, i, php=php, shell=shell)\n        if heredoc is not None:\n            # The opener token is code and the rest of its line is stripped like",
+      "to": "        heredoc = None\n        if heredoc is not None:\n            # The opener token is code and the rest of its line is stripped like",
       "only": "a PHP heredoc URL does not keep|a shell heredoc line beginning with #"
     },
     {

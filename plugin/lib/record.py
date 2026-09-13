@@ -484,6 +484,66 @@ def declared_check(root):
     return None
 
 
+def _quoted_span_end(text, i, python=False):
+    """Index past the quoted literal at `text[i]`, or None if none opens there."""
+    quote = text[i:i + 1]
+    if quote not in "'\"`" or (python and quote == "`"):
+        return None
+    j, n = i + 1, len(text)
+    while j < n:
+        if text[j] == "\\" and j + 1 < n:
+            j += 2
+            continue
+        if text[j] == quote:
+            return j + 1
+        if text[j] == "\n" and quote != "`":
+            return None
+        j += 1
+    return n
+
+
+def _code_normalize(text, python=False, php=False, shell=False, rust=False):
+    """Whitespace-collapsed digest text with every literal kept byte-for-byte.
+
+    The shared per-line collapse turned `"a  b"` into `"a b"`, so an assertion
+    string could change without moving the hash. Same shape as `_swift_normalize`.
+    """
+    out, i, n, start = [], 0, len(text), 0
+
+    def code(chunk):
+        chunk = re.sub(r"[ \t]+", " ", chunk)
+        return re.sub(r" ?\n[ \n]*", "\n", chunk)
+
+    while i < n:
+        if rust:
+            prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")
+            raw = re.match(r'(?:b|c)?r(#*)"', text[i:]) if prev_ok else None
+            if raw:
+                hashes = raw.group(1)
+                closer = '"' + hashes
+                found = text.find(closer, i + raw.end())
+                end = n if found < 0 else found + len(closer)
+                out.append(code(text[start:i]))
+                out.append(text[i:end])
+                i = start = end
+                continue
+        heredoc = _heredoc_span(text, i, php=php, shell=shell)
+        if heredoc is not None:
+            head_end, payload_start, end = heredoc
+            out.append(code(text[start:head_end]))
+            out.append(text[payload_start:end])
+            i = start = end
+            continue
+        end = _quoted_span_end(text, i, python=python)
+        if end is not None:
+            out.append(code(text[start:i]))
+            out.append(text[i:end])
+            i = start = end
+            continue
+        i += 1
+    out.append(code(text[start:]))
+    return "".join(out).strip()
+
 def body_digest(body, python=False, php=False, shell=False, rust=False,
                 swift=False):
     """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
@@ -495,12 +555,8 @@ def body_digest(body, python=False, php=False, shell=False, rust=False,
         text, python=python, php=php, shell=shell, rust=rust, swift=swift)
     if swift:
         return hashlib.sha256(_swift_normalize(text).encode("utf-8")).hexdigest()
-    lines = []
-    for line in text.split("\n"):
-        collapsed = re.sub(r"[ \t]+", " ", line).strip()
-        if collapsed:
-            lines.append(collapsed)
-    return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
+    return hashlib.sha256(_code_normalize(
+        text, python=python, php=php, shell=shell, rust=rust).encode("utf-8")).hexdigest()
 
 
 def _char_is_escaped(text, i):
@@ -1634,8 +1690,20 @@ def _recorded_lock(vlog):
     first_date = None
     first_red = None
     later_red_locks = []
-    for line in vlog:
-        line = line.strip()
+    fence = None
+    for raw in vlog:
+        # A fenced excerpt can hold a printed example row. That is output, not
+        # a later red (Codex xhigh on 0fad183). Same fence grammar as the walk.
+        if fence is None:
+            opened = _fence_opened(raw)
+            if opened:
+                fence = opened
+                continue
+        else:
+            if _fence_closes(raw, fence):
+                fence = None
+            continue
+        line = raw.strip()
         m = _MACHINE.match(line)
         if not m:
             continue

@@ -24,6 +24,11 @@ const pyEnv = {
   PYTHONIOENCODING: 'utf-8',
   PYTHONWARNDEFAULTENCODING: '1',
   PYTHONWARNINGS: 'error::EncodingWarning',
+  // A same-size edit inside one second leaves `__pycache__` looking valid, so a
+  // spawned gate can import the PREVIOUS record.py — which is how a mutation
+  // campaign reported a live defect as unnoticed (scripts/mutate.mjs childEnv).
+  PYTHONDONTWRITEBYTECODE: '1',
+  PYTHONPYCACHEPREFIX: mkdtempSync(join(os.tmpdir(), 'qh-pyc-')),
 }
 
 function python(src, input) {
@@ -1262,8 +1267,13 @@ test('the hasher survives seeded stress against bash and a generator oracle', (t
   // that, never a neighbour's. The oracles come from the promise, not the code.
   // Replay a failure with QH_STRESS_SEED=<seed> PYTHONPATH=plugin/lib python3
   // tests/test-lock-stress.py.
-  const run = spawnSync('python3', [join(testDir, 'test-lock-stress.py')],
-    { cwd: repoRoot, env: pyEnv, encoding: 'utf8', timeout: 120_000 })
+  // `-B` and a per-run cache prefix, because a stale `.pyc` decided a whole
+  // measurement once: an edit inside the same second that left the file the
+  // same SIZE produced bytecode Python still considered valid, so twelve seeds
+  // measured the previous `record.py` and reported the fixed defect as open.
+  const run = spawnSync('python3', ['-B', join(testDir, 'test-lock-stress.py')],
+    { cwd: repoRoot, env: { ...pyEnv, PYTHONPYCACHEPREFIX: mkdtempSync(join(os.tmpdir(), 'qh-pyc-')) },
+      encoding: 'utf8', timeout: 120_000 })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
   // Selection is evidence: an arm that ran zero iterations exits 0 too.
   assert.match(run.stdout, /^arm2 iterations=[1-9]\d* php=[1-9]\d* js=[1-9]\d*$/m, run.stdout)
@@ -1310,6 +1320,15 @@ test('a later red carrying a different lock hash refuses done', () => {
     // A later red that carries NO lock is the writer's own shape and is fine.
     const ordinary = findings(dir, [`${row('0')}${first}`, row('1')], named)
     assert.deepEqual(ordinary.blocks, [], ordinary.blocks.join('\n'))
+    // And a sha-shaped string in the COMMAND is not a lock: the field is read
+    // from the end of the row, or a fence whose text mentions one would refuse
+    // a task whose tests never moved (Codex, pass 7).
+    const shaInCommand = `- 2026-09-13 · no-git · exit 2 · \`grep test-lock-sha256:${'c'.repeat(64)} log\` · acceptance-sha256:${'1'.repeat(64)} · ms:12`
+    const commandOnly = findings(dir, [`${row('0')}${first}`, shaInCommand], named)
+    assert.deepEqual(commandOnly.blocks, [],
+      `a sha in the command text must not read as a later lock:\n${commandOnly.blocks.join('\n')}`)
+    const asFirst = findings(dir, [shaInCommand], named)
+    assert.ok(asFirst.blocks.some(b => /no first-red test-lock-sha256/.test(b)), asFirst.blocks.join('\n'))
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

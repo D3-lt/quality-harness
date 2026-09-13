@@ -31,7 +31,8 @@
 //       1 = a mutation left its suite GREEN, or no longer describes the code
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 
@@ -263,7 +264,20 @@ export function childEnv(base = process.env) {
   const tokens = (rest.NODE_OPTIONS ?? '').split(/\s+/).filter(Boolean)
   const kept = tokens.filter((token, i, all) => !/^--test-reporter(?:-destination)?(?:=|$)/.test(token)
     && !(i > 0 && /^--test-reporter(?:-destination)?$/.test(all[i - 1])))
-  return { ...rest, NODE_OPTIONS: kept.join(' '), QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1' }
+  // ⚠ A PYTHON MUTANT OF THE SAME SIZE READ STALE BYTECODE AND THE CAMPAIGN
+  // CALLED IT GREEN. `if other:` → `if False:` is byte-for-byte the same length,
+  // and this runner rewrites the file in the same second it measured the last
+  // one, so CPython's mtime+size check considered `__pycache__` valid and the
+  // child imported the UNMUTATED module. The suite noticed nothing because
+  // nothing had changed in the code it ran. Measured 2026-09-13: the same mutant
+  // is RED with the cache cleared. Every child gets its own cache directory.
+  return {
+    ...rest,
+    NODE_OPTIONS: kept.join(' '),
+    QUALITY_HARNESS_MUTATION_IN_FLIGHT: '1',
+    PYTHONDONTWRITEBYTECODE: '1',
+    PYTHONPYCACHEPREFIX: mkdtempSync(path.join(tmpdir(), 'qh-mutate-pyc-')),
+  }
 }
 /**
  * The test names that failed in a mutated run, read from the reporter's own

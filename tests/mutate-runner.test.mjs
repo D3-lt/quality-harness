@@ -487,6 +487,19 @@ test('end to end: a nonsense pattern under an inherited dot reporter is unrun, a
   assert.doesNotMatch(env.NODE_OPTIONS, /test-reporter/, 'the inherited reporter is stripped')
   assert.ok(!('NODE_TEST_CONTEXT' in childEnv({ ...process.env, NODE_TEST_CONTEXT: 'child-v8' })),
     'the test runner\'s own child marker is dropped, or an inner node --test prints nothing to stdout')
+  // A Python mutant the same SIZE as the line it replaces (`if other:` →
+  // `if False:`) left `__pycache__` looking valid, because this runner rewrites
+  // the file in the same second it measured the last one — so the child
+  // imported the UNMUTATED module and the campaign called a live defect
+  // unnoticed. Measured 2026-09-13; the same mutant is RED with the cache
+  // cleared, so the verdict turned on the cache rather than on the code.
+  assert.equal(env.PYTHONDONTWRITEBYTECODE, '1', 'a mutated gate must not leave bytecode behind')
+  assert.ok(env.PYTHONPYCACHEPREFIX, 'each child needs its own bytecode cache')
+  assert.notEqual(env.PYTHONPYCACHEPREFIX,
+    childEnv({ ...process.env }).PYTHONPYCACHEPREFIX,
+    'a shared prefix is the same trap one directory over')
+  assert.ok(!env.PYTHONPYCACHEPREFIX.startsWith(repoRoot),
+    'the cache belongs outside the tree the runner is rewriting')
   // NOT named `spawn`: scripts/untimed-spawns.mjs matches callee NAMES, so a
   // helper called `spawn` reads as an untimed child at every call site while the
   // real spawnSync inside it carries a timeout (BACKLOG §130).

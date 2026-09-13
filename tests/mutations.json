@@ -3939,13 +3939,22 @@
       "to": "    reference = re.match(r\"\\bADR-\\d{1,4}\\b\", value, re.I)"
     },
     {
-      "label": "ci: the shard count agrees in the three places it appears",
+      "label": "ci: the shard count agrees in the places it appears",
       "file": ".github/workflows/selftest.yml",
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "    name: mutations ${{ matrix.shard }}/16",
+      "from": "    name: mutations ${{ matrix.shard }}/24",
       "to": "    name: mutations ${{ matrix.shard }}/8"
+    },
+    {
+      "label": "ci: the merge expects as many shard reports as the matrix names",
+      "file": ".github/workflows/selftest.yml",
+      "tests": [
+        "tests/package.test.mjs"
+      ],
+      "from": "          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 24 \\",
+      "to": "          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 8 \\"
     },
     {
       "label": "mutate: a reused verdict is refused when its subject or its tests changed",

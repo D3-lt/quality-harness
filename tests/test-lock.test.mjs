@@ -484,6 +484,242 @@ test('a Rust #[test] fn is hashed, and rewriting the assertion refuses done', ()
     rmSync(dir, { recursive: true, force: true })
   }
 })
+test('a PHPUnit #[Test] method is hashed, and rewriting the assertion refuses done', () => {
+  // spec-verify hashes PHP 8 #[Test] methods that do not start with test.
+  // The hasher reads this fixture; it does not execute PHP.
+  const dir = tmpRepo()
+  const rel = 'tests/LockAttrTest.php'
+  const named = [['it_attr_locks', rel]]
+  const rowLine = '| `it_attr_locks` | `tests/LockAttrTest.php` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      '<?php\n'
+      + 'final class LockAttrTest extends TestCase\n'
+      + '{\n'
+      + '    #[Test]\n'
+      + '    public function it_attr_locks(): void\n'
+      + '    {\n'
+      + "        $token = '}';\n"
+      + '        $this->assertSame(2, 2);\n'
+      + '    }\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`vendor/bin/phpunit\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      '<?php\n'
+      + 'final class LockAttrTest extends TestCase\n'
+      + '{\n'
+      + '    #[Test]\n'
+      + '    public function it_attr_locks(): void\n'
+      + '    {\n'
+      + "        $token = '}';\n"
+      + '        $this->assertSame(2, 1);\n'
+      + '    }\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('it_attr_locks') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a PHPUnit @test docblock method is hashed, and rewriting the assertion refuses done', () => {
+  // PHPUnit 8.5 @test annotation. Docblocks are comments, so the masker
+  // cannot be the only view.
+  const dir = tmpRepo()
+  const rel = 'tests/LockDocTest.php'
+  const named = [['it_docblock_locks', rel]]
+  const rowLine = '| `it_docblock_locks` | `tests/LockDocTest.php` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      '<?php\n'
+      + 'final class LockDocTest extends TestCase\n'
+      + '{\n'
+      + '    /**\n'
+      + '     * @test\n'
+      + '     */\n'
+      + '    public function it_docblock_locks()\n'
+      + '    {\n'
+      + "        $token = '}';\n"
+      + '        $this->assertSame(2, 2);\n'
+      + '    }\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`vendor/bin/phpunit\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      '<?php\n'
+      + 'final class LockDocTest extends TestCase\n'
+      + '{\n'
+      + '    /**\n'
+      + '     * @test\n'
+      + '     */\n'
+      + '    public function it_docblock_locks()\n'
+      + '    {\n'
+      + "        $token = '}';\n"
+      + '        $this->assertSame(2, 1);\n'
+      + '    }\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('it_docblock_locks') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a brace inside a Rust raw string does not keep the first-red hash after the assertion moves', () => {
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.rs'
+  const named = [['lock_dirty', rel]]
+  const rowLine = '| `lock_dirty` | `tests/lock_subject.rs` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      '#[test]\n'
+      + 'fn lock_dirty() {\n'
+      + '    let token = r#" foo " } bar "#;\n'
+      + '    assert_eq!(2, 2);\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`cargo test\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      '#[test]\n'
+      + 'fn lock_dirty() {\n'
+      + '    let token = r#" foo " } bar "#;\n'
+      + '    assert_eq!(2, 1);\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('lock_dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a Go t.Run name is hashed, and rewriting the assertion refuses done', () => {
+  // adr-lint test_body already paid for t.Run("name". The lock hasher's .go
+  // path was func Test only, so a Tests-table subtest name stayed unproven.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject_test.go'
+  const named = [['locked dirty', rel]]
+  const rowLine = '| `locked dirty` | `tests/lock_subject_test.go` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'func TestLockDirty(t *testing.T) {\n'
+      + '\tt.Run("locked dirty", func(t *testing.T) {\n'
+      + '\t\ttoken := `}`\n'
+      + '\t\tif got, want := 2, 2; got != want {\n'
+      + '\t\t\tt.Fatalf("got %d want %d", got, want)\n'
+      + '\t\t}\n'
+      + '\t})\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`go test .\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'func TestLockDirty(t *testing.T) {\n'
+      + '\tt.Run("locked dirty", func(t *testing.T) {\n'
+      + '\t\ttoken := `}`\n'
+      + '\t\tif got, want := 2, 1; got != want {\n'
+      + '\t\t\tt.Fatalf("got %d want %d", got, want)\n'
+      + '\t\t}\n'
+      + '\t})\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a Go method Test is hashed, and rewriting the assertion refuses done', () => {
+  // Package-level `func Test` does not match `func (s *T) TestXxx`.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject_test.go'
+  const named = [['TestLockDirty', rel]]
+  const rowLine = '| `TestLockDirty` | `tests/lock_subject_test.go` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'type S struct{}\n\n'
+      + 'func (s *S) TestLockDirty(t *testing.T) {\n'
+      + '\ttoken := `}`\n'
+      + '\tif got, want := 2, 2; got != want {\n'
+      + '\t\tt.Fatalf("got %d want %d", got, want)\n'
+      + '\t}\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`go test .\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'type S struct{}\n\n'
+      + 'func (s *S) TestLockDirty(t *testing.T) {\n'
+      + '\ttoken := `}`\n'
+      + '\tif got, want := 2, 1; got != want {\n'
+      + '\t\tt.Fatalf("got %d want %d", got, want)\n'
+      + '\t}\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('TestLockDirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a shell test_* function is hashed, and rewriting the assertion refuses done', () => {
+  // spec-verify already paid for shell functions whose leaf starts with test.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'test_lock_dirty() {\n'
+      + "  token='}'\n"
+      + '  [ 2 -eq 2 ]\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      'test_lock_dirty() {\n'
+      + "  token='}'\n"
+      + '  [ 2 -eq 1 ]\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 
 
 

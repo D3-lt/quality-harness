@@ -19,7 +19,13 @@ import random
 import subprocess
 import sys
 
-from record import body_digest, extract_test_body
+from record import (
+    TEST_HASH_REQUIRED_FROM,
+    body_digest,
+    extract_test_body,
+    first_red_lock_suffix,
+    lock_findings,
+)
 
 SEED = int(os.environ.get("QH_STRESS_SEED", "54"))
 ITERATIONS = int(os.environ.get("QH_STRESS_ITERATIONS", "300"))
@@ -215,6 +221,232 @@ def arm2(rng):
     print(f"arm2 iterations={ITERATIONS} php={counts['php']} js={counts['js']}")
 
 
+
+# --- arm 3: the verdict layer against ADR-050's Decision -------------------
+#
+# Arms 1 and 2 measure extraction and digests. This one measures what the GATE
+# DECIDES, which is where R2/R3 of the memory-runtime handoff live and where
+# nothing randomised had ever looked.
+#
+# The oracle is ADR-050 §Decision, transcribed once and quoted here, expressed
+# over what the GENERATOR DID rather than over any hash — so it cannot inherit
+# the hasher's bugs:
+#
+#   "The first TDD-red Verification Log row is the contract for every test body
+#    the hasher can extract from each Tests-table File, and for a declared
+#    `check` string or its absence. `done` is refused when any of those hashes
+#    moved or vanished, when a named Tests-table body could not be hashed, when
+#    a later red presents a different hash, or when `check` appears after
+#    recorded absence. New names are allowed. Comment/whitespace-only edits do
+#    not refuse."
+#   "Cutover TEST_HASH_REQUIRED_FROM: missing lock advises before that day,
+#    refuses from it."
+#
+# Everything below is the real writer (`first_red_lock_suffix`) and the real
+# reader (`lock_findings`) over a real temporary tree.
+CUTOVER = TEST_HASH_REQUIRED_FROM
+
+# (extension, hashable) — an extension the hasher does not know records
+# bodies={} and unproven={…}, which is R2's state and must refuse by Decision.
+LOCK_LANGS = [
+    (".py", True), (".go", True), (".sh", True),
+    (".php", True), (".rs", True), (".mjs", True),
+    (".rb", False), (".txt", False),
+]
+
+
+def _subject(ext, names, token, comment):
+    """A test file in `ext` defining `names`, each asserting `token`."""
+    if ext == ".py":
+        return "".join(f"def {n}():\n    # {comment}\n    assert 2 == {token}\n\n" for n in names)
+    if ext == ".go":
+        body = "".join(f"func {n}(t *testing.T) {{\n\t// {comment}\n"
+                        f"\tif 2 != {token} {{\n\t\tt.Fatal(\"x\")\n\t}}\n}}\n\n" for n in names)
+        return 'package lock\n\nimport "testing"\n\n' + body
+    if ext == ".sh":
+        return "".join(f"{n}() {{\n  # {comment}\n  [ 2 -eq {token} ]\n}}\n\n" for n in names)
+    if ext == ".php":
+        methods = "".join(f"    public function {n}(): void\n    {{\n        # {comment}\n"
+                          f"        $this->assertSame(2, {token});\n    }}\n\n" for n in names)
+        return "<?php\n\nfinal class LockSubjectTest extends TestCase\n{\n" + methods + "}\n"
+    if ext == ".rs":
+        return "".join(f"#[test]\nfn {n}() {{\n    // {comment}\n    assert_eq!(2, {token});\n}}\n\n"
+                       for n in names)
+    if ext == ".mjs":
+        return "".join(f"test('{n}', () => {{\n  // {comment}\n  assert.equal(2, {token})\n}})\n\n"
+                       for n in names)
+    # Not a language the hasher knows: still a plausible test file.
+    return "".join(f"def {n}\n  # {comment}\n  assert_equal 2, {token}\nend\n\n" for n in names)
+
+
+def _task_text(rows, vlog=()):
+    table = "\n".join(f"| `{n}` | `{r}` | lock | F-1 |" for n, r in rows)
+    log = "\n".join(vlog)
+    return ("## Tests\n\n| Test name | File | Kind | Covers |\n|---|---|---|---|\n"
+            f"{table}\n\n## Verification Log\n\n{log}\n")
+
+
+def _row(date, exit_code, digest, suffix=""):
+    return (f"- {date} · no-git · exit {exit_code} · `run` · "
+            f"acceptance-sha256:{digest * 64} · ms:12{suffix}")
+
+
+# Each edit says what the Decision does with it. `None` means the Decision does
+# not speak to this case, so the arm asserts nothing about it.
+EDITS = {
+    "none": False,
+    "comment_only": False,          # "Comment/whitespace-only edits do not refuse"
+    "assertion": True,              # "any of those hashes moved"
+    "delete_locked": True,          # "or vanished"
+    "add_new_test": False,          # "New names are allowed"
+    "check_appears": True,          # "when `check` appears after recorded absence"
+    "check_removed": True,          # a locked hash vanished
+    "check_moved": True,            # a locked hash moved
+}
+
+
+def arm3(rng):
+    import json as _json
+    import shutil
+    import tempfile
+
+    refused = allowed = no_lock_block = no_lock_advice = later_red = 0
+    for iteration in range(ITERATIONS):
+        ext, hashable = rng.choice(LOCK_LANGS)
+        names = [f"test_lock_{rng.choice(WORDS)}_{k}" for k in range(rng.randint(1, 3))]
+        if ext == ".go":
+            names = [f"Test{n.title().replace('_', '')}" for n in names]
+        rel = f"tests/lock_subject{ext}"
+        listed = names[:rng.randint(1, len(names))]
+        rows = [(n, rel) for n in listed]
+        edit = rng.choice(list(EDITS))
+        date = rng.choice([CUTOVER, "2026-09-12", "2026-09-14"])
+        # Three ways a log can fail to carry a lock, all seen in the field.
+        lock_shape = rng.choice(["locked", "locked", "locked", "no_suffix", "green_only"])
+        check_at_lock = rng.choice([None, "bash scripts/selftest.sh", "npm test"])
+
+        root = tempfile.mkdtemp(prefix="qh-arm3-")
+        try:
+            os.mkdir(os.path.join(root, "tests"))
+            subject = os.path.join(root, rel)
+            with open(subject, "w", encoding="utf-8") as handle:
+                handle.write(_subject(ext, names, 2, "before"))
+            config = os.path.join(root, ".quality-harness.json")
+            if check_at_lock is not None:
+                with open(config, "w", encoding="utf-8") as handle:
+                    handle.write(_json.dumps({"check": check_at_lock}))
+
+            suffix = first_red_lock_suffix(_task_text(rows), root)
+            label = (f"iteration={iteration} ext={ext} edit={edit} date={date} "
+                     f"shape={lock_shape} check={check_at_lock!r} listed={listed}")
+            if lock_shape == "locked" and not suffix:
+                fail("arm3", label + " the writer recorded no lock at all")
+
+            # The edit. Only `assertion`, `delete_locked`, `check_*` change what
+            # the Decision is about; the rest are the controls that must not refuse.
+            if edit == "assertion":
+                with open(subject, "w", encoding="utf-8") as handle:
+                    handle.write(_subject(ext, names, 1, "before"))
+            elif edit == "comment_only":
+                with open(subject, "w", encoding="utf-8") as handle:
+                    handle.write(_subject(ext, names, 2, "after — only this line moved"))
+            elif edit == "delete_locked":
+                with open(subject, "w", encoding="utf-8") as handle:
+                    handle.write(_subject(ext, names[1:], 2, "before"))
+            elif edit == "add_new_test":
+                with open(subject, "w", encoding="utf-8") as handle:
+                    handle.write(_subject(ext, names + ["test_lock_added_9"], 2, "before"))
+            # ONLY when none was declared at lock time: writing a different
+            # string over an existing one is a check_moved, which the Decision
+            # refuses — the generator was staging that and calling it allowed.
+            elif edit == "check_appears" and check_at_lock is None:
+                with open(config, "w", encoding="utf-8") as handle:
+                    handle.write(_json.dumps({"check": "bash scripts/selftest.sh"}))
+            elif edit == "check_removed" and check_at_lock is not None:
+                os.remove(config)
+            elif edit == "check_moved" and check_at_lock is not None:
+                with open(config, "w", encoding="utf-8") as handle:
+                    handle.write(_json.dumps({"check": check_at_lock + " --verbose"}))
+
+            if lock_shape == "green_only":
+                vlog = [_row(date, 0, "a")]
+            elif lock_shape == "no_suffix":
+                vlog = [_row(date, 2, "a")]
+            else:
+                vlog = [_row(date, 2, "a", suffix)]
+            if rng.random() < 0.3:
+                vlog.insert(0, _row(date, 0, "a"))
+            # "when a later red presents a different hash": a second red whose
+            # lock was taken from a DIFFERENT body. The writer never emits two,
+            # so this is the hand-written or tool-confused log the clause is for.
+            second_red = lock_shape == "locked" and hashable and rng.random() < 0.25
+            if second_red:
+                with open(subject + ".tmp", "w", encoding="utf-8") as handle:
+                    handle.write(_subject(ext, names, 7, "before"))
+                shutil.move(subject + ".tmp", subject + ".keep")
+                current = open(subject, encoding="utf-8").read()
+                shutil.move(subject + ".keep", subject)
+                other = first_red_lock_suffix(_task_text(rows), root)
+                with open(subject, "w", encoding="utf-8") as handle:
+                    handle.write(current)
+                if other and other != suffix:
+                    vlog.append(_row(date, 3, "b", other))
+                    later_red += 1
+                else:
+                    second_red = False
+
+            blocks, advice = lock_findings(vlog, root=root, tests=rows, label="T1")
+
+            # --- the oracle, from the Decision -------------------------------
+            if lock_shape in ("no_suffix", "green_only"):
+                # "missing lock advises before that day, refuses from it"
+                if date < CUTOVER:
+                    no_lock_advice += 1
+                    if blocks or not advice:
+                        fail("arm3", label + " a missing lock before the cutover must advise, not block",
+                             blocks=blocks, advice=advice)
+                else:
+                    no_lock_block += 1
+                    if not blocks or advice:
+                        fail("arm3", label + " a missing lock from the cutover must refuse",
+                             blocks=blocks, advice=advice)
+                continue
+
+            must_refuse = second_red
+            if not hashable:
+                # "when a named Tests-table body could not be hashed"
+                must_refuse = True
+            elif EDITS[edit]:
+                touched_locked = edit in ("check_appears", "check_removed", "check_moved")
+                if edit == "check_appears":
+                    touched_locked = check_at_lock is None
+                elif edit in ("check_removed", "check_moved"):
+                    touched_locked = check_at_lock is not None
+                else:
+                    # An edit to a body only matters when that body was LISTED,
+                    # because only listed names are locked.
+                    touched_locked = edit != "delete_locked" or names[0] in listed
+                must_refuse = must_refuse or touched_locked
+
+            if must_refuse:
+                refused += 1
+                if not blocks:
+                    fail("arm3", label + " the Decision refuses this and the gate did not",
+                         blocks=blocks, advice=advice, vlog="\n".join(vlog))
+            else:
+                allowed += 1
+                if blocks:
+                    fail("arm3", label + " the Decision allows this and the gate refused",
+                         blocks=blocks, advice=advice, vlog="\n".join(vlog))
+        finally:
+            shutil.rmtree(root, ignore_errors=True)
+
+    if not (refused and allowed and no_lock_block and no_lock_advice and later_red):
+        fail("arm3", f"nothing to observe: refused={refused} allowed={allowed} "
+                     f"no_lock_block={no_lock_block} no_lock_advice={no_lock_advice} "
+                     f"later_red={later_red}")
+    print(f"arm3 iterations={ITERATIONS} refused={refused} allowed={allowed} "
+          f"no_lock_block={no_lock_block} no_lock_advice={no_lock_advice} later_red={later_red}")
 if __name__ == "__main__":
     rng = random.Random(SEED)
     arm1_rng, arm2_rng = random.Random(rng.random()), random.Random(rng.random())
@@ -224,3 +456,4 @@ if __name__ == "__main__":
     else:
         print(f"arm1 UNRUN bash oracle unavailable: {why}")
     arm2(arm2_rng)
+    arm3(random.Random(rng.random()))

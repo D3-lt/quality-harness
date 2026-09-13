@@ -8087,7 +8087,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            regex_end = _swift_bare_regex_end(text, i)\n            if regex_end is not None:\n                out.append(code(text[start:i]))",
+      "from": "            regex_end = _js_regex_span_end(text, i)\n            if regex_end is not None:\n                out.append(code(text[start:i]))",
       "to": "            regex_end = None\n            if regex_end is not None:\n                out.append(code(text[start:i]))",
       "only": "a quote inside a JS regex does not keep"
     },
@@ -8097,8 +8097,18 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            regex_end = _swift_bare_regex_end(text, i)\n            if regex_end is not None:\n                out.append(text[i:regex_end])",
+      "from": "            regex_end = _js_regex_span_end(text, i)\n            if regex_end is not None:\n                out.append(text[i:regex_end])",
       "to": "            regex_end = None\n            if regex_end is not None:\n                out.append(text[i:regex_end])",
+      "only": "a quote inside a JS regex does not keep"
+    },
+    {
+      "label": "lock: a JS regex candidate with a leftover quote is not trusted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if inner.startswith(\"[\") and \"]\" in inner:\n        return end\n    return None",
+      "to": "    if inner.startswith(\"[\") and \"]\" in inner:\n        return end\n    return end",
       "only": "a quote inside a JS regex does not keep"
     },
     {

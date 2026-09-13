@@ -484,6 +484,27 @@ def declared_check(root):
     return None
 
 
+def _js_regex_span_end(text, i):
+    """Index past a JS `/…/` we will keep, or None.
+
+    `_swift_bare_regex_end` also matches division such as `8/"1/2"`. Trusting
+    that candidate leaves a leftover quote that inverts stripper state (Codex
+    high on 437f79d). Keep a candidate only when its interior has no quote, or
+    the quote is the whole interior (`/"/`), an escape, or a character class.
+    """
+    end = _swift_bare_regex_end(text, i)
+    if end is None or end - i < 3:
+        return None
+    inner = text[i + 1:end - 1]
+    if not any(q in inner for q in '"\'`'):
+        return end
+    if inner in ('"', "'", "`", '\\"', "\\'", "\\`"):
+        return end
+    if inner.startswith("[") and "]" in inner:
+        return end
+    return None
+
+
 def _quoted_span_end(text, i, python=False):
     """Index past the quoted literal at `text[i]`, or None if none opens there."""
     quote = text[i:i + 1]
@@ -538,7 +559,7 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False):
             # JS `/…/` can hold a quote; treating that quote as a string
             # opener collapses the assertion (Codex on 6074117). Same
             # candidate rule as `_swift_bare_regex_end`.
-            regex_end = _swift_bare_regex_end(text, i)
+            regex_end = _js_regex_span_end(text, i)
             if regex_end is not None:
                 out.append(code(text[start:i]))
                 out.append(text[i:regex_end])
@@ -645,7 +666,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
             # Same JS `/…/` keep as `_code_normalize`: a quote inside `/"/`
             # must not start string state or `//` inside the next string is
             # stripped as a comment (Codex high on 6e0fe99).
-            regex_end = _swift_bare_regex_end(text, i)
+            regex_end = _js_regex_span_end(text, i)
             if regex_end is not None:
                 out.append(text[i:regex_end])
                 i = regex_end

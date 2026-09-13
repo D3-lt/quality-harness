@@ -904,17 +904,23 @@ test('continuous integration runs the checks this repository owns', () => {
   // check in this repository that could silently stop being run.
   assert.match(workflow, /node scripts\/mutate\.mjs/)
   assert.match(workflow, /^ {2}mutations:$/m)
-  // ADR-023 T1. The shard count appears in THREE places — the job name, the
-  // matrix list, and the `--shard i/n` argument — and a job named `x/8` running
-  // `--shard x/4` silently skips half the catalogue while reporting success.
+  // ADR-023 T1. The shard count appears in the job name, the matrix list, every
+  // `--shard i/n` argument, and `--expect n` on the merge. A job named `x/8`
+  // running `--shard x/4` silently skips half the catalogue while reporting
+  // success; a merge `--expect` that lags the matrix accepts an incomplete cache.
   // Derived from the file rather than hardcoded, so raising the count again is
-  // one edit and this still checks that the three agree.
+  // one edit and this still checks that they agree.
   const shardName = workflow.match(/^ {4}name: mutations \$\{\{ matrix\.shard \}\}\/(\d+)$/m)
-  const shardArg = workflow.match(/--shard \$\{\{ matrix\.shard \}\}\/(\d+)/)
+  const shardArgs = [...workflow.matchAll(/--shard \$\{\{ matrix\.shard \}\}\/(\d+)/g)]
   const shardList = workflow.match(/^ {8}shard: \[([\d, ]+)\]$/m)
-  assert.ok(shardName && shardArg && shardList, 'the mutation job must name its shard count in all three places')
+  const shardExpect = workflow.match(/mutation-cache-merge\.mjs --out \.mutation-cache\.json --expect (\d+)/)
+  assert.ok(shardName && shardArgs.length && shardList && shardExpect,
+    'the mutation job must name its shard count in the job name, every --shard, the matrix, and --expect')
   const declared = Number(shardName[1])
-  assert.equal(Number(shardArg[1]), declared, 'the --shard argument disagrees with the job name')
+  for (const m of shardArgs) {
+    assert.equal(Number(m[1]), declared, 'a --shard argument disagrees with the job name')
+  }
+  assert.equal(Number(shardExpect[1]), declared, 'the merge --expect disagrees with the job name')
   assert.equal(shardList[1].split(',').length, declared, 'the matrix has a different number of shards than the job name claims')
   assert.deepEqual(shardList[1].split(',').map(s => Number(s.trim())),
     Array.from({ length: declared }, (_, i) => i + 1),

@@ -7493,6 +7493,16 @@
       "only": "a Go func Test is hashed"
     },
     {
+      "label": "lock: a Go func Fuzz target is hashed like a func Test",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"(?m)^[ \\t]*func[ \\t]+((?:Test|Fuzz)(?:[^a-z]\\w*)?)[ \\t]*\\(\"",
+      "to": "    r\"(?m)^[ \\t]*func[ \\t]+(Test(?:[^a-z]\\w*)?)[ \\t]*\\(\"",
+      "only": "a Go func Fuzz target is hashed"
+    },
+    {
       "label": "lock: a PHPUnit function test is hashed, not left unproven",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -7758,8 +7768,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        elif text.startswith(\"((\", j):\n            opened = j",
-      "to": "        elif text.startswith(\"((\", j):\n            opened = None",
+      "from": "    opened = text.rfind(\"((\", line_start, i)\n    if opened < 0:\n        return False",
+      "to": "    opened = text.rfind(\"((\", line_start, i)\n    if True:\n        return False",
       "only": "the hasher survives seeded stress"
     },
     {
@@ -7768,9 +7778,9 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        elif c in \"'\\\"\":\n            quote = c",
-      "to": "        elif False:\n            quote = c",
-      "only": "inside a string does not stop a later heredoc|the hasher survives seeded stress"
+      "from": "    return _ARITHMETIC_BETWEEN.fullmatch(between) is not None",
+      "to": "    return True",
+      "only": "inside a string does not stop a later heredoc|inside a command substitution inside arithmetic|the hasher survives seeded stress"
     },
     {
       "label": "lock: the arithmetic scan is bounded to the heredoc's own line",

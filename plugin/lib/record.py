@@ -376,8 +376,12 @@ _BDD_NAME = re.compile(
     r"""(?:\b(?:it|test)\s*\()\s*(['"`])([^'"`\n]+)\1\s*,"""
 )
 # adr-lint `_go_direct_test_definitions` plus go/testing isTest: Test + not-lowercase.
+# `Fuzz` beside `Test`: a fuzz target is ordinary Go testing (`go test` runs its
+# seed corpus) and rewriting its body is the same risk the lock exists for. A
+# fuzz target is package-level and takes no receiver, so the method matcher
+# and t.Run stay as they are. memory-runtime measured FuzzBeta invisible, 2026-09-13.
 _GO_FUNC_TEST = re.compile(
-    r"(?m)^[ \t]*func[ \t]+(Test(?:[^a-z]\w*)?)[ \t]*\("
+    r"(?m)^[ \t]*func[ \t]+((?:Test|Fuzz)(?:[^a-z]\w*)?)[ \t]*\("
 )
 # spec-verify test_definition_exists: PHPUnit class method test* / Rust #[test] fn.
 _PHP_FUNC_TEST = re.compile(r"\bfunction\s+&?\s*(test\w*)\s*\(", re.I)
@@ -814,34 +818,28 @@ def _heredoc_span(text, i, php=False, shell=False):
     return start.end(2) + len(start.group(1)), tail, end
 
 
-def _in_arithmetic(text, i):
-    """True when `text[i]` sits inside a shell `((…))` on its own line, where `<<` is a shift.
+_ARITHMETIC_BETWEEN = re.compile(r"[\w\s+\-*/%&|^~!<>=?:,$#]*")
 
-    Same line, and quote-aware: a raw `rfind("((")` over the whole file saw
-    `pattern='(('` two lines up, refused every later heredoc, and the unmasked
-    payload's `}` then closed the function early — a PROVEN hash of a prefix.
-    A `((` inside quotes is text; an arithmetic expansion does not span the
-    newline a heredoc operator must reach before its payload.
+
+def _in_arithmetic(text, i):
+    """True only when `text[i]` is unmistakably a shift inside a same-line `((…))`.
+
+    The two errors are not symmetric. Calling a real heredoc a shift leaves its
+    payload unmasked, a `}` in it closes the function early, and the lock holds a
+    PROVEN hash of a prefix (Codex, 2026-09-13: `$(( $(if …; then cat <<EOF` and a
+    multi-line string carrying `((`). Calling a shift a heredoc costs UNPROVEN or
+    a comment that moves the digest. So the text between the last `((` on this
+    line and the `<<` must be purely arithmetic: no quote, no paren, no `;`, no
+    `{`. `$(( (a+b) << c ))` is refused and reads as a heredoc — fail-closed.
     """
     line_start = text.rfind("\n", 0, i) + 1
-    quote = None
-    opened = None
-    j = line_start
-    while j < i:
-        c = text[j]
-        if quote:
-            if c == "\\":
-                j += 1
-            elif c == quote:
-                quote = None
-        elif c in "'\"":
-            quote = c
-        elif text.startswith("((", j):
-            opened = j
-        elif opened is not None and text.startswith("))", j):
-            opened = None
-        j += 1
-    return opened is not None
+    opened = text.rfind("((", line_start, i)
+    if opened < 0:
+        return False
+    between = text[opened + 2:i]
+    if "))" in between:
+        return False
+    return _ARITHMETIC_BETWEEN.fullmatch(between) is not None
 
 
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,

@@ -323,6 +323,43 @@ test('a Go func Test is hashed, and rewriting the assertion refuses done', () =>
   }
 })
 
+test('a Go func Fuzz target is hashed, and rewriting its body refuses done', () => {
+  // memory-runtime, 2026-09-13: a Tests-table row naming `FuzzX` locked as
+  // unproven because the matcher was anchored to the literal `Test`. `go test`
+  // runs a fuzz target's seed corpus like any test, so its body is the same
+  // risk. The file also holds a Test so both names are seen side by side.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject_test.go'
+  const named = [['FuzzLockDirty', rel]]
+  const rowLine = '| `FuzzLockDirty` | `tests/lock_subject_test.go` | lock | F-1 |'
+  const source = want => 'package lock\n\nimport "testing"\n\n'
+    + 'func TestAlpha(t *testing.T) {\n'
+    + '\tif 1 != 1 {\n\t\tt.Fatal("alpha")\n\t}\n'
+    + '}\n\n'
+    + 'func FuzzLockDirty(f *testing.F) {\n'
+    + '\tf.Add(2)\n'
+    + '\tf.Fuzz(func(t *testing.T, n int) {\n'
+    + `\t\tif n%1 != 0 || 2 != ${want} {\n`
+    + '\t\t\tt.Fatalf("got %d", n)\n'
+    + '\t\t}\n'
+    + '\t})\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source(2))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`go test .\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], `a fuzz target must lock with a body, not as unproven:\n${locked.blocks.join('\n')}`)
+    writeFileSync(join(dir, rel), source(1))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('FuzzLockDirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
 test('a Go Testfoo (lowercase after Test) stays unproven', () => {
   // go/testing isTest: next rune after Test must not be lowercase. Matching
   // Testfoo would hash a function go test does not run.
@@ -1104,6 +1141,47 @@ test('a regex literal that closes the call is UNPROVEN, not a truncated hash', (
     const escaped = findings(dir, [escapedRow], named)
     assert.ok(escaped.blocks.some(b => b.includes('locked dirty') && /could not be hashed/.test(b)),
       `an escaped paren in a regex must be UNPROVEN, not locked:\n${escaped.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a heredoc inside a command substitution inside arithmetic is still a heredoc', () => {
+  // Codex 2026-09-13, fifth pass: `n=$(( $(if false; then cat <<EOF` put a real
+  // heredoc between `((` and `))`. Calling that `<<` a shift left the payload
+  // unmasked, its `}` closed the function early, and the lock held a PROVEN
+  // hash of a prefix that no assertion edit could move. Only purely arithmetic
+  // text between `((` and `<<` makes a shift; a `$(`, quote or `;` makes it a
+  // heredoc. Same for a `((` carried by a multi-line string on the opener line.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  const shapes = {
+    substitution: rhs => 'test_lock_dirty() {\n'
+      + '  n=$(( $(if false; then cat <<EOF\n}\nEOF\nfi; echo 1) + 0 ))\n'
+      + `  [ 1 -eq ${rhs} ]\n`
+      + '}\n',
+    multilineString: rhs => 'test_lock_dirty() {\n'
+      + '  p="first\n'
+      + '(( \\""; if false; then cat <<EOF\n}\nEOF\nfi\n'
+      + `  [ 1 -eq ${rhs} ]\n`
+      + '}\n',
+  }
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    for (const [label, source] of Object.entries(shapes)) {
+      writeFileSync(join(dir, rel), source(2))
+      const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+      assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/, label)
+      const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+      const locked = findings(dir, [row], named)
+      assert.deepEqual(locked.blocks, [], `${label}:\n${locked.blocks.join('\n')}`)
+      writeFileSync(join(dir, rel), source(1))
+      const moved = findings(dir, [row], named)
+      assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+        `${label}: the assertion after the heredoc must be in the hash:\n${moved.blocks.join('\n')}`)
+    }
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

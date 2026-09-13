@@ -7422,6 +7422,16 @@
       "only": "a path-shaped unmeasured family is unrecognised"
     },
     {
+      "label": "classify: nested validation does not certify a later succeeding segment",
+      "file": "plugin/scripts/classify-command.mjs",
+      "tests": [
+        "tests/classify.test.mjs"
+      ],
+      "from": "      if (inner === 'unrecognised' || inner === 'mutation') {",
+      "to": "      if (inner === 'unrecognised' || inner === 'mutation' || inner === 'validation') {",
+      "only": "a nested validation does not certify"
+    },
+    {
       "label": "classify: foreign family is unrecognised before POSIX letters (ADR-047 T2)",
       "file": "plugin/scripts/classify-command.mjs",
       "tests": [
@@ -7621,6 +7631,26 @@
       "from": "        if not python and not shell and c == \"/\" and i + 1 < n:",
       "to": "        if not python and c == \"/\" and i + 1 < n:",
       "only": "a shell URL does not keep"
+    },
+    {
+      "label": "lock: a shell URL fragment is not a hash comment in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if shell and c == \"#\" and (i == 0 or (text[i - 1] in \" \\t\\n;|&\" and not _char_is_escaped(text, i - 1))):",
+      "to": "        if shell and c == \"#\":",
+      "only": "a shell URL does not keep"
+    },
+    {
+      "label": "lock: an escaped shell separator is not a hash comment in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if shell and c == \"#\" and (i == 0 or (text[i - 1] in \" \\t\\n;|&\" and not _char_is_escaped(text, i - 1))):",
+      "to": "        if shell and c == \"#\" and (i == 0 or text[i - 1] in \" \\t\\n;|&\"):",
+      "only": "an escaped shell separator does not keep"
     },
     {
       "label": "adr-state --json names PARTIAL when a listed record cannot be read",

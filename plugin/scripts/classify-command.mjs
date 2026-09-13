@@ -59,7 +59,7 @@ export function classifyCommand(command, hooks, depth = 0) {
     const nested = hooks.nestedShellScript(segment)
     if (nested) {
       const inner = classifyCommand(nested, hooks, depth + 1)
-      if (inner === 'unrecognised' || inner === 'mutation' || inner === 'validation') {
+      if (inner === 'unrecognised' || inner === 'mutation') {
         return inner
       }
       continue

@@ -2575,6 +2575,21 @@ test('a passing never-measured *selftest* after an UNPROVEN write does not silen
   assert.doesNotMatch(`${okStop.stdout}${okStop.stderr}`, /systemMessage/)
 })
 
+test('a nested validation with a later succeeding segment does not silence Advise', async () => {
+  const dir = await checkedProject('quality-nested-true-')
+  const file = path.join(dir, 'nested-true.jsonl')
+  const command = "bash -c 'bash -n'; true"
+  await writeFile(file, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+    toolUse('t1', 'Bash', { command }),
+    toolResult('t1', false, 'ok'),
+  ]))
+  assert.notEqual(classifyCommand(command), 'validation')
+  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+  assert.equal(state.lastSuccessfulValidation, -1,
+    'a succeeding ; true must not become lastSuccessfulValidation')
+})
+
 test('a failing check after an UNPROVEN write still Advises, and Read does not flag', async () => {
   const dir = await checkedProject('quality-unproven-failed-check-')
   const file = path.join(dir, 'fail.jsonl')

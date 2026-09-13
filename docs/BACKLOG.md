@@ -12686,3 +12686,13 @@ The Swift masker's bare `/…/` regex recognition is a heuristic (SE-0354 operan
 leading or trailing whitespace); a regex literal in a position it does not recognise can widen or,
 with a brace in it, shorten a hashed span. Each item above belongs on its own change with a
 dirty-shown regression.
+
+## 204. The PHP `@test` docblock lock mutant is GREEN in a `lock:` group campaign and RED alone
+
+Measured 2026-09-13 at 8004f95 in a clean detached worktree: `node scripts/mutate.mjs --case 'lock: '
+--no-cache` twice, both `20/21` with `lock: a PHPUnit @test docblock method is hashed, not left
+unproven` GREEN. The same mutant run alone (`--case 'PHPUnit @test docblock'`) is RED every time
+(3/3 on the Swift branch). One catalogue entry, no cached GREEN, so the verdict depends on what else
+the campaign ran first. Not investigated further; a GREEN mutant is an open finding about
+`tests/test-lock.test.mjs` 'a PHPUnit @test docblock method is hashed…' or about the runner's
+ordering, and belongs on its own change.

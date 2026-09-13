@@ -83,6 +83,25 @@ def bash_observes(source):
     return run.returncode, run.stdout, run.stderr
 
 
+def bash_oracle_available():
+    """(ok, why): can the `bash` this process resolves run a probe and print it?
+
+    On a Windows runner `bash` from Python resolved to something that printed
+    the same thing for every input, so 300 pairs observed nothing and the arm
+    refused to call that a pass (CI 34764859969). An oracle that cannot answer
+    is UNRUN, said by name, not a failing arm and not a silent pass.
+    """
+    try:
+        run = subprocess.run(
+            ["bash", "-c", "echo probe-$((1+1))"],
+            capture_output=True, encoding="utf-8", errors="replace", timeout=10)
+    except (OSError, subprocess.TimeoutExpired) as exc:
+        return False, f"{type(exc).__name__}: {exc}"
+    if run.stdout.strip() == "probe-2":
+        return True, ""
+    return False, (f"exit={run.returncode} stdout={run.stdout.strip()[:80]!r} "
+                   f"stderr={run.stderr.strip()[:160]!r}")
+
 def shell_digest(source):
     body = extract_test_body(source, "test_lock_dirty", shell=True)
     return body, (None if body is None else body_digest(body, shell=True))
@@ -198,5 +217,10 @@ def arm2(rng):
 
 if __name__ == "__main__":
     rng = random.Random(SEED)
-    arm1(random.Random(rng.random()))
-    arm2(random.Random(rng.random()))
+    arm1_rng, arm2_rng = random.Random(rng.random()), random.Random(rng.random())
+    available, why = bash_oracle_available()
+    if available:
+        arm1(arm1_rng)
+    else:
+        print(f"arm1 UNRUN bash oracle unavailable: {why}")
+    arm2(arm2_rng)

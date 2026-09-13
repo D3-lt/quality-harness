@@ -12666,3 +12666,23 @@ unchanged green brief is not reprinted) means a slower gather can overwrite a ne
 suppress against the older `said`, so the rollback is silent rather than reprinted. The sequential
 TTL test does not exercise competing writers. A fix is a single atomic write of `{at, state, said}`
 after emit, or a compare-and-swap on `at`, each with a two-process regression.
+
+## 203. Swift reaches the first-red lock but not spec-verify, adr-verify's comment and syntax checks, or a Tests-row path check
+
+Found while adding Swift to the ADR-050 lock (branch `swift-test-lock-extraction`, 4678b63 and
+1d517b9, 2026-09-13), from an iOS repository whose ADR names Swift Testing and XCTest functions.
+Class: per-language dispatch by file suffix. Enumerated with
+`grep -rn 'suffix.lower()\|"\.rs"' plugin/bin plugin/lib`:
+
+- `plugin/bin/spec-verify:401` `test_definition_exists` has no `.swift` branch, so a spec fact
+  covered by a Swift test reads as having no test.
+- `plugin/bin/adr-verify:341` `LINE_COMMENT` has no `.swift`, so a comment-only `--mutant` against a
+  Swift file is not refused; `syntax_ok` (`adr-verify:550`) does not syntax-check Swift.
+- The lock resolves each Tests-row file repository-relative. A bare filename (`GoNoGoTests.swift`)
+  locks `unproven` for every language; nothing advises at `adr-lint` time, before the first red makes
+  it permanent. The consuming repository hit this on 60 rows.
+
+The Swift masker's bare `/…/` regex recognition is a heuristic (SE-0354 operand positions, no
+leading or trailing whitespace); a regex literal in a position it does not recognise can widen or,
+with a brace in it, shorten a hashed span. Each item above belongs on its own change with a
+dirty-shown regression.

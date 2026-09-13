@@ -464,14 +464,14 @@ def declared_check(root):
     return None
 
 
-def body_digest(body, python=False, php=False, shell=False):
+def body_digest(body, python=False, php=False, shell=False, rust=False):
     """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
     text = body.replace("\r\n", "\n").replace("\r", "\n")
     if python:
         text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
     text = _strip_comments_keep_strings(
-        text, python=python, php=php, shell=shell)
+        text, python=python, php=php, shell=shell, rust=rust)
     lines = []
     for line in text.split("\n"):
         collapsed = re.sub(r"[ \t]+", " ", line).strip()
@@ -480,7 +480,8 @@ def body_digest(body, python=False, php=False, shell=False):
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
 
 
-def _strip_comments_keep_strings(text, python=False, php=False, shell=False):
+def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
+                                rust=False):
     out, i, n, quote = [], 0, len(text), None
     while i < n:
         c = text[i]
@@ -494,12 +495,24 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False):
                 quote = None
             i += 1
             continue
+        if rust:
+            prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")
+            raw = re.match(r'(?:b|c)?r(#*)"', text[i:]) if prev_ok else None
+            if raw:
+                hashes = raw.group(1)
+                closer = '"' + hashes
+                start = i + raw.end()
+                found = text.find(closer, start)
+                end = n if found < 0 else found + len(closer)
+                out.append(text[i:end])
+                i = end
+                continue
         if c in "'\"`" and not (python and c == "`"):
             quote = c
             out.append(c)
             i += 1
             continue
-        if not python and c == "/" and i + 1 < n:
+        if not python and not shell and c == "/" and i + 1 < n:
             nxt = text[i + 1]
             if nxt == "/":
                 i += 2
@@ -507,6 +520,22 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False):
                     i += 1
                 continue
             if nxt == "*":
+                if rust:
+                    depth, j = 1, i + 2
+                    while j < n and depth:
+                        if text.startswith("/*", j):
+                            depth += 1
+                            j += 2
+                            continue
+                        if text.startswith("*/", j):
+                            depth -= 1
+                            j += 2
+                            continue
+                        if text[j] == "\n":
+                            out.append("\n")
+                        j += 1
+                    i = j
+                    continue
                 i += 2
                 while i + 1 < n and not (text[i] == "*" and text[i + 1] == "/"):
                     if text[i] == "\n":
@@ -850,15 +879,20 @@ def _span_from_paren(text, masked, after_paren):
     return text[brace:end + 1]
 
 def _span_from_first_brace(text, masked, after):
-    """Original `{...}` from the first code `{` after `after`, or None.
+    """Original `{...}` of an inline t.Run func, or None.
 
-    A column-0 `func` between the match and that brace is another function's
-    body — t.Run("name", helper) must stay UNPROVEN rather than hash helper.
+    t.Run("name", helper) has no inline func. The first `{` after the comma
+    is then a sibling callback or helper's body — both the wrong body.
+    Require the next code token to be `func`.
     """
-    brace = masked.find("{", after)
-    if brace == -1:
+    i, n = after, len(masked)
+    while i < n and masked[i] in " \t\r\n":
+        i += 1
+    if not (masked.startswith("func", i)
+            and (i + 4 >= n or not (masked[i + 4].isalnum() or masked[i + 4] == "_"))):
         return None
-    if re.search(r"(?m)^func\s", masked[after:brace]):
+    brace = masked.find("{", i + 4)
+    if brace == -1:
         return None
     end = _matching_js_brace(masked, brace)
     if end is None:
@@ -1044,7 +1078,7 @@ def snapshot_lock(root, tests_rows):
                     unproven.add((rel, name))
                 continue
             bodies[(rel, name)] = body_digest(
-                body, python=python, php=php, shell=shell)
+                body, python=python, php=php, shell=shell, rust=rust)
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))

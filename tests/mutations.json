@@ -7468,7 +7468,7 @@
       "tests": [
         "tests/staged-product.test.mjs"
       ],
-      "from": "    } catch {\n      unreadable.push({ file, status: null, taskFiles: [] })\n      records.look = 'PARTIAL'\n      continue\n    }",
+      "from": "    } catch (error) {\n      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })\n      records.look = 'PARTIAL'\n      continue\n    }",
       "to": "    } catch { continue }",
       "only": "a listed ADR that cannot be read is PARTIAL"
     },
@@ -7478,8 +7478,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    end = _matching_js_brace(text, brace)\n    if end is None:\n        return None\n    return text[brace:end + 1]",
-      "to": "    depth, index = 0, brace\n    end = None\n    while index < len(text):\n        if text[index] == \"{\":\n            depth += 1\n        elif text[index] == \"}\":\n            depth -= 1\n            if depth == 0:\n                end = index\n                break\n        index += 1\n    if end is None:\n        return None\n    return text[brace:end + 1]",
+      "from": "        i += 1\n    if brace is None:\n        return None\n    end = _matching_js_brace(masked, brace)\n    if end is None:\n        return None\n    return text[brace:end + 1]",
+      "to": "        i += 1\n    if brace is None:\n        return None\n    depth, index = 0, brace\n    end = None\n    while index < len(text):\n        if text[index] == \"{\":\n            depth += 1\n        elif text[index] == \"}\":\n            depth -= 1\n            if depth == 0:\n                end = index\n                break\n        index += 1\n    if end is None:\n        return None\n    return text[brace:end + 1]",
       "only": "a brace inside a string does not keep the first-red hash after the assertion moves"
     },
     {
@@ -7653,6 +7653,136 @@
       "only": "an escaped shell separator does not keep"
     },
     {
+      "label": "lock: a Pest arrow body is bounded to its own test() call",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                close = _closing_paren(masked, i)",
+      "to": "                close = len(masked) - 1",
+      "only": "a Pest arrow test does not borrow|the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: an escaped separator does not open a shell comment (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return slashes % 2 == 1",
+      "to": "    return False",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: an arrow callback is an expression body, not the next brace (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif depth == 0 and masked.startswith(\"=>\", i):",
+      "to": "        elif False:",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: shell heredoc text stays in the digest (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    elif (shell and text.startswith(\"<<\", i) and (i == 0 or text[i - 1] != \"<\")\n          and not _in_arithmetic(text, i)):",
+      "to": "    elif (shell and text.startswith(\"<<\", i)\n          and not _in_arithmetic(text, i)):",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: a mid-word # is not a shell comment (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if shell and c == \"#\" and (i == 0 or (text[i - 1] in \" \\t\\n;|&\" and not _char_is_escaped(text, i - 1))):",
+      "to": "        if shell and c == \"#\" and not _char_is_escaped(text, i - 1):",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: heredoc text stays in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        heredoc = _heredoc_span(text, i, php=php, shell=shell)",
+      "to": "        heredoc = None",
+      "only": "a PHP heredoc URL does not keep|a shell heredoc line beginning with #"
+    },
+    {
+      "label": "adr-lint: an arrow-bodied BDD test does not borrow its neighbour's body",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        body = bdd_callback_body(text, bdd.end(), php=php)",
+      "to": "        body = text[text.find(\"{\", bdd.end()):]",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "adr-lint: a PHP test body is masked as PHP, so `# )` is a comment",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        body = bdd_callback_body(text, bdd.end(), php=php)",
+      "to": "        body = bdd_callback_body(text, bdd.end())",
+      "only": "focused false-green regressions remain closed"
+    },
+    {
+      "label": "lock: a regex literal that closes the call is UNPROVEN, not a truncated hash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                if \"/\" in masked[i:close]:",
+      "to": "                if False:",
+      "only": "a regex literal that closes the call is UNPROVEN"
+    },
+    {
+      "label": "lock: a comment on a heredoc opener line is still a comment",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            pending = (heredoc[1], heredoc[2])",
+      "to": "            pending = (heredoc[0], heredoc[2])",
+      "only": "a comment on a heredoc opener line is still a comment|the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: a `<<` inside ((…)) is a shift, whatever follows the operand (stress)",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif text.startswith(\"((\", j):\n            opened = j",
+      "to": "        elif text.startswith(\"((\", j):\n            opened = None",
+      "only": "the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: a `((` inside quotes is text, not an arithmetic context",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif c in \"'\\\"\":\n            quote = c",
+      "to": "        elif False:\n            quote = c",
+      "only": "inside a string does not stop a later heredoc|the hasher survives seeded stress"
+    },
+    {
+      "label": "lock: the arithmetic scan is bounded to the heredoc's own line",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    line_start = text.rfind(\"\\n\", 0, i) + 1",
+      "to": "    line_start = 0",
+      "only": "inside a string does not stop a later heredoc|the hasher survives seeded stress"
+    },
+    {
       "label": "adr-state --json names PARTIAL when a listed record cannot be read",
       "file": "plugin/scripts/adr-state.mjs",
       "tests": [
@@ -7661,6 +7791,26 @@
       "from": "    const look = corpus.look ?? ((corpus.unreadable ?? []).length ? 'PARTIAL' : 'ok')",
       "to": "    const look = 'ok'",
       "only": "a listed ADR that cannot be read is PARTIAL"
+    },
+    {
+      "label": "adr-state: a file never read carries a reason, not a missing Status line",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })",
+      "to": "      unreadable.push({ file, status: null, taskFiles: [] })",
+      "only": "adr-state names a file it could not open"
+    },
+    {
+      "label": "adr-state: never-read files are reported as could-not-open, not as nameless",
+      "file": "plugin/scripts/adr-state.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  const unopened = unreadable.filter(entry => entry.reason)",
+      "to": "  const unopened = []",
+      "only": "adr-state names a file it could not open"
     },
     {
       "label": "adr-lint: a date-shaped filename is not ADR-year",

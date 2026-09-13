@@ -974,6 +974,226 @@ test('a shell heredoc does not keep the first-red hash after the assertion moves
   }
 })
 
+test('a Pest arrow test does not borrow the next test body', () => {
+  // `fn () => expect(...)` has no `{`. An unbounded search for one lands in the
+  // NEXT test's block, so the lock followed that body and ignored its own.
+  const dir = tmpRepo()
+  const rel = 'tests/LockArrowPest.php'
+  const named = [['locked dirty', rel]]
+  const rowLine = '| `locked dirty` | `tests/LockArrowPest.php` | lock | F-1 |'
+  const source = (own, other) => '<?php\n'
+    + `test('locked dirty', fn () => expect(2)->toBe(${own}));\n`
+    + "test('other', function () {\n"
+    + `    expect(1)->toBe(${other});\n`
+    + '});\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source(2, 1))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`vendor/bin/pest\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source(2, 9))
+    const otherMoved = findings(dir, [row], named)
+    assert.equal(otherMoved.blocks.some(b => b.includes('locked dirty')), false,
+      `the other test's body moved this lock:\n${otherMoved.blocks.join('\n')}`)
+    writeFileSync(join(dir, rel), source(1, 1))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a PHP heredoc URL does not keep the first-red hash after its content moves', () => {
+  // `//` inside <<<'EOT' is text, not a C comment. Stripping it ate the rest of
+  // the heredoc line, so `/ok` → `/bad` left the digest unchanged.
+  const dir = tmpRepo()
+  const rel = 'tests/LockHeredocTest.php'
+  const named = [['testLockedDirty', rel]]
+  const rowLine = '| `testLockedDirty` | `tests/LockHeredocTest.php` | lock | F-1 |'
+  const source = tail => '<?php\n'
+    + 'final class LockHeredocTest extends TestCase\n'
+    + '{\n'
+    + '    public function testLockedDirty(): void\n'
+    + '    {\n'
+    + "        $expected = <<<'EOT'\n"
+    + `        https://example.invalid/${tail}\n`
+    + '        EOT;\n'
+    + "        $this->assertSame($expected, route('x'));\n"
+    + '    }\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('ok'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`vendor/bin/phpunit\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('bad'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('testLockedDirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a shell heredoc line beginning with # is not a comment in the digest', () => {
+  // Inside <<EOF a `#` line is data. The shell comment rule saw a newline before
+  // it and stripped the line, so `# ok` → `# bad` left the digest unchanged.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  const source = word => 'test_lock_dirty() {\n'
+    + '  expected=$(cat <<EOF\n'
+    + `# ${word}\n`
+    + 'EOF\n'
+    + ')\n'
+    + '  [ "$expected" = "# ok" ]\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('ok'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('bad'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a regex literal that closes the call is UNPROVEN, not a truncated hash', () => {
+  // Codex 2026-09-13: `/[)]/` closes the apparent call, so the expression body
+  // was `/[` — a PROVEN hash of a prefix, and moving the assertion after it
+  // did not move the lock. The masker does not know regex literals; the
+  // extractor must refuse an unbalanced slice rather than hash it (ADR-005).
+  const dir = tmpRepo()
+  const rel = 'tests/lock-subject.test.mjs'
+  const named = [['locked dirty', rel]]
+  const rowLine = '| `locked dirty` | `tests/lock-subject.test.mjs` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      "test('locked dirty', () => /[)]/.test(')') && assert.fail('bad'))\n")
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    const row = `- 2026-09-13 · no-git · exit 2 · \`node --test\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const got = findings(dir, [row], named)
+    assert.ok(got.blocks.some(b => b.includes('locked dirty') && /could not be hashed/.test(b)),
+      `a truncated expression must be UNPROVEN, not locked:\n${got.blocks.join('\n')}`)
+    // Codex, second pass: `/\)/` has no bracket to unbalance, so a balance test
+    // alone still hashed `/\`. A `/` outside a string is a regex or a division
+    // and the masker knows neither — the expression is refused, not parsed.
+    // Its OWN lock row: reusing the first row would report the first fixture's
+    // UNPROVEN entry and prove nothing about this file (a vacuous pass, found
+    // when the mutant that drops the refusal survived it).
+    writeFileSync(join(dir, rel),
+      "test('locked dirty', () => /\\)/.test(')') && assert.equal(1, 2))\n")
+    const escapedSuffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    const escapedRow = `- 2026-09-13 · no-git · exit 2 · \`node --test\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${escapedSuffix}`
+    const escaped = findings(dir, [escapedRow], named)
+    assert.ok(escaped.blocks.some(b => b.includes('locked dirty') && /could not be hashed/.test(b)),
+      `an escaped paren in a regex must be UNPROVEN, not locked:\n${escaped.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a "((" inside a string does not stop a later heredoc from being seen', () => {
+  // Codex 2026-09-13, fourth pass: `_in_arithmetic` searched raw text, so a
+  // `pattern='(('` two lines up made every later `<<` a shift. The heredoc was
+  // then not masked, its `}` payload closed the function early, and the lock
+  // held a PROVEN hash of a prefix that no later assertion edit could move.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  const source = rhs => 'test_lock_dirty() {\n'
+    + "  pattern='(('\n"
+    + '  cat <<EOF\n'
+    + '}\n'
+    + 'EOF\n'
+    + `  [ 1 -eq ${rhs} ]\n`
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source(2))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source(1))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+      `the assertion after the heredoc must be in the hash:\n${moved.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a comment on a heredoc opener line is still a comment', () => {
+  // Codex 2026-09-13: `cat <<EOF # one` copied the whole opener line into the
+  // digest, so editing the comment refused done. The opener token is code, the
+  // rest of its line is code, only the payload is data.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  const source = (comment, payload) => 'test_lock_dirty() {\n'
+    + `  cat <<EOF # ${comment}\n`
+    + `${payload}\n`
+    + 'EOF\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('one', 'payload'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('two', 'payload'))
+    const commentOnly = findings(dir, [row], named)
+    assert.deepEqual(commentOnly.blocks, [], `a comment-only edit moved the lock:\n${commentOnly.blocks.join('\n')}`)
+    writeFileSync(join(dir, rel), source('one', 'changed'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('the hasher survives seeded stress against bash and a generator oracle', () => {
+  // stress-testing skill, adapted: arm 1 generates shell test bodies from pools
+  // that mix data and comment shapes (heredocs, URL fragments, escaped
+  // separators) and asks BASH whether the edit is observable — an observable
+  // edit must move the digest, a comment-only one must not. Arm 2 writes BDD
+  // files and remembers each callback; the extractor must hand back exactly
+  // that, never a neighbour's. The oracles come from the promise, not the code.
+  // Replay a failure with QH_STRESS_SEED=<seed> PYTHONPATH=plugin/lib python3
+  // tests/test-lock-stress.py.
+  const run = spawnSync('python3', [join(testDir, 'test-lock-stress.py')],
+    { cwd: repoRoot, env: pyEnv, encoding: 'utf8', timeout: 120_000 })
+  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
+  // Selection is evidence: an arm that ran zero iterations exits 0 too.
+  assert.match(run.stdout, /^arm1 iterations=[1-9]\d* observable=[1-9]\d* comment_only=[1-9]\d*$/m,
+    run.stdout)
+  assert.match(run.stdout, /^arm2 iterations=[1-9]\d* php=[1-9]\d* js=[1-9]\d*$/m, run.stdout)
+})
+
+
 
 
 

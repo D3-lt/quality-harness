@@ -3262,14 +3262,18 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   for (const file of files) {
     let text
     try {
+      // `reason` marks a file this reader NEVER READ, so a consumer can keep it
+      // apart from the entries below, which were read and carry a status this
+      // reader cannot apply. Without it adr-state said the file "was opened"
+      // and had "[no **Status:** line]" — an observation it never made (ADR-005).
       if (statSync(file).size > 512 * 1024) {
-        unreadable.push({ file, status: null, taskFiles: [] })
+        unreadable.push({ file, status: null, taskFiles: [], reason: 'over 512 KiB' })
         records.look = 'PARTIAL'
         continue
       }
       text = reader.text(file)
-    } catch {
-      unreadable.push({ file, status: null, taskFiles: [] })
+    } catch (error) {
+      unreadable.push({ file, status: null, taskFiles: [], reason: error?.code ?? 'unreadable' })
       records.look = 'PARTIAL'
       continue
     }

@@ -534,6 +534,16 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False):
             out.append(text[payload_start:end])
             i = start = end
             continue
+        if not (python or php or shell or rust):
+            # JS `/…/` can hold a quote; treating that quote as a string
+            # opener collapses the assertion (Codex on 6074117). Same
+            # candidate rule as `_swift_bare_regex_end`.
+            regex_end = _swift_bare_regex_end(text, i)
+            if regex_end is not None:
+                out.append(code(text[start:i]))
+                out.append(text[i:regex_end])
+                i = start = regex_end
+                continue
         end = _quoted_span_end(text, i, python=python)
         if end is not None:
             out.append(code(text[start:i]))

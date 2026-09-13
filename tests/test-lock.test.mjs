@@ -1783,10 +1783,25 @@ function swiftMoved(rel, before, after, name = 'probe') {
     moved.blocks.join('\n'))
 }
 
-test('a brace inside a bare Swift regex literal does not keep the first-red hash after the assertion moves', () => {
-  const body = expect => '@Test func probe() {\n  let r = /[}]/\n  let ratio = total / count / 2\n'
+test('a Swift body that might hold a bare regex literal is UNPROVEN, not a possibly truncated hash', () => {
+  // Codex re-review of d6e736d: telling `/…/` from division needs the type
+  // checker, so a code slash with a brace, slash, star or backslash after it on
+  // its line refuses the body instead of hashing what may be a prefix.
+  for (const [rel, line] of [
+    ['Tests/LockBareRegex.swift', 'let r = /[}]/'],
+    ['Tests/LockRegexAfterComment.swift', 'let r = /* note */ /[}]/'],
+    ['Tests/LockRegexCondition.swift', 'if /[}]/ ~= "}" {}'],
+    ['Tests/LockRegexEscapedSpace.swift', 'let r = /[}]\\ /'],
+    ['Tests/LockForceUnwrapDivision.swift', 'let r = total!/f("x/}")'],
+  ]) {
+    swiftUnproven(rel, `@Test func probe() {\n  ${line}\n  #expect(2 == 2)\n}\n`)
+  }
+})
+
+test('spaced and compact Swift division keep a proven hash that moves with the assertion', () => {
+  const body = expect => '@Test func probe() {\n  let ratio = total / count / 2\n  let avg = sum/count\n'
     + `  #expect(${expect})\n}\n`
-  swiftMoved('Tests/LockBareRegex.swift', body('2 == 2'), body('2 == 1'))
+  swiftMoved('Tests/LockDivision.swift', body('2 == 2'), body('2 == 1'))
 })
 
 test('an escaped delimiter inside an extended Swift regex does not end it early', () => {
@@ -1823,4 +1838,25 @@ test('rewording a comment inside a Swift interpolation does not move the hash', 
   const body = note => `@Test func probe() {\n  let s = "\\(1 /* ${note} */)"\n  #expect(2 == 2)\n}\n`
   const moved = swiftLock('Tests/LockInterpolationCommentOnly.swift', 'probe', body('first wording'), body('second wording'))
   assert.deepEqual(moved.blocks, [], moved.blocks.join('\n'))
+})
+
+function swiftUnproven(rel, source, name = 'probe') {
+  const dir = tmpRepo()
+  const rowLine = `| \`${name}\` | \`${rel}\` | lock | F-1 |`
+  try {
+    mkdirSync(join(dir, dirname(rel)), { recursive: true })
+    writeFileSync(join(dir, rel), source)
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    const payload = Buffer.from(suffix.split('test-lock-b64:')[1], 'base64url').toString('utf8')
+    assert.ok(payload.includes(`unproven\t${rel}\t${name}`), `expected UNPROVEN for ${rel}:\n${payload}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+test('a backticked XCTest method sharing a name with a plain one locks both bodies', () => {
+  const body = expected => 'import XCTest\n'
+    + 'final class A: XCTestCase {\n  func testProbe() { XCTAssertEqual(2, 2) }\n}\n'
+    + `final class B: XCTestCase {\n  func \`testProbe\`() { XCTAssertEqual(2, ${expected}) }\n}\n`
+  swiftMoved('UITests/LockBacktickXCTest.swift', body('2'), body('1'), 'testProbe')
 })

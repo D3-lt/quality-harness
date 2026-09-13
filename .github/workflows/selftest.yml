@@ -29,7 +29,7 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest]
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
         # proves the sweep can FAIL by running it over the two commits that
         # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
@@ -40,10 +40,10 @@ jobs:
         # clone was asking.
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       # The gates are `#!/usr/bin/env python3` scripts invoked by name through
@@ -69,7 +69,7 @@ jobs:
     name: coverage floor
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
         # proves the sweep can FAIL by running it over the two commits that
         # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
@@ -80,10 +80,10 @@ jobs:
         # clone was asking.
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Install coverage.py
@@ -110,7 +110,7 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
         # proves the sweep can FAIL by running it over the two commits that
         # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
@@ -121,10 +121,10 @@ jobs:
         # clone was asking.
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Run the project's own check under Git Bash
@@ -136,7 +136,7 @@ jobs:
         run: bash scripts/selftest.sh
       - name: Keep the TAP transcript when the run failed
         if: failure()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: windows-selftest-tap
           path: selftest.tap
@@ -151,7 +151,7 @@ jobs:
     # download has no zero-artifact arm to get wrong and a first-ever run behaves
     # exactly like a run whose cache expired.
     steps:
-      - uses: actions/cache/restore@v4
+      - uses: actions/cache/restore@v6
         with:
           path: .mutation-cache.json
           key: mutation-cache-${{ github.ref_name }}-${{ github.sha }}
@@ -162,11 +162,11 @@ jobs:
         run: |
           test -f .mutation-cache.json || echo '{"version":1,"entries":{}}' > .mutation-cache.json
           node -e 'JSON.parse(require("fs").readFileSync(".mutation-cache.json","utf8"))'
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: mutation-cache-seed
           path: .mutation-cache.json
-          # ⚠ REQUIRED, AND ITS ABSENCE IS SILENT. upload-artifact@v4 excludes
+          # ⚠ REQUIRED, AND ITS ABSENCE IS SILENT. upload-artifact excludes
           # DOTFILES by default even when the path names one explicitly, and
           # `if-no-files-found` then reports the empty upload as a success. So
           # without this line no shard ever receives a snapshot, no shard ever
@@ -229,7 +229,7 @@ jobs:
     # needs Windows is resolution and process spawning, and the windows job runs
     # those — through cmd.exe and, since 2026-08-26, PowerShell.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
         # proves the sweep can FAIL by running it over the two commits that
         # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
@@ -240,10 +240,10 @@ jobs:
         # clone was asking.
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
       - name: Take the shard plan from ONE snapshot, not twelve prefix restores
@@ -263,7 +263,7 @@ jobs:
         #
         # So the snapshot is resolved ONCE, in `mutation-cache-seed`, and handed
         # to every shard as an immutable artifact.
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v8
         with:
           name: mutation-cache-seed
       - name: Break each mechanism and check the tests notice
@@ -290,7 +290,7 @@ jobs:
         # exactly the case that must be visible rather than absent. A shard that
         # was KILLED still writes nothing, which is the case the merge refuses.
         if: always() && github.event_name != 'workflow_dispatch'
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: mutation-cache-shard-${{ matrix.shard }}
           path: .mutation-cache.json
@@ -316,13 +316,13 @@ jobs:
     # and nothing else. It reports loudly and exits 0 (CLAUDE.md §3).
     if: always()
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         if: github.event_name != 'workflow_dispatch'
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         if: github.event_name != 'workflow_dispatch'
         with:
           node-version: '24'
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         if: github.event_name != 'workflow_dispatch'
         with:
           pattern: mutation-cache-shard-*
@@ -340,7 +340,7 @@ jobs:
         id: merge
       - name: Save the merged cache for the next run
         if: github.event_name != 'workflow_dispatch' && steps.merge.outputs.merged == '0'
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: .mutation-cache.json
           key: mutation-cache-${{ github.ref_name }}-${{ github.sha }}
@@ -353,7 +353,7 @@ jobs:
     # blocking job now, and selftest.sh runs with QUALITY_HARNESS_REQUIRE_CLI=1
     # above, so an absent CLI fails instead of quietly downgrading to PARTIAL.
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
         # FULL HISTORY, not the default shallow clone. tests/orphan-sweep.test.mjs
         # proves the sweep can FAIL by running it over the two commits that
         # actually shipped an orphan (dcb7df4, cb45a39^). A depth-1 checkout does
@@ -364,7 +364,7 @@ jobs:
         # clone was asking.
         with:
           fetch-depth: 0
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: '24'
       - name: Install the Claude Code CLI

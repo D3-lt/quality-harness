@@ -1023,7 +1023,7 @@ test('a plugin validate that dies saying nothing is UNRUN, not a finding about t
 })
 
 test('an artifact upload of a dotfile asks for hidden files, or it uploads nothing and says success', () => {
-  // `actions/upload-artifact@v4` excludes HIDDEN files by default — even when the
+  // upload-artifact excludes HIDDEN files by default — even when the
   // path names one explicitly — and `if-no-files-found` then reports the empty
   // upload as a success. `.mutation-cache.json` is a dotfile, so without
   // `include-hidden-files: true` no shard report ever reaches the merge, the
@@ -1088,7 +1088,7 @@ test('every mutation shard computes its slice from one snapshot, not its own cac
   // the file (CLAUDE.md §7). `.gitattributes` now pins `*.yml` to LF as well, and
   // the attribute is asserted below; this makes the check right either way.
   const takesTheSeed = job =>
-    /uses: actions\/download-artifact@v4\r?\n\s+with:\r?\n\s+name: mutation-cache-seed/.test(job)
+    /uses: actions\/download-artifact@v\d+\r?\n\s+with:\r?\n\s+name: mutation-cache-seed/.test(job)
 
   const mutations = jobOf(workflow, 'mutations')
   assert.ok(mutations.includes('--shard ${{ matrix.shard }}'), 'the matrix job must be the one found')

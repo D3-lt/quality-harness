@@ -95,9 +95,21 @@ const writeTask = (copy, text) => writeFileSync(taskPath(copy), text)
 // The README is a derived index, and adr-lint will not accept a `done` row
 // without tool-written evidence for it. Flipping it AFTER the verify run is what
 // makes the reader judge what the writer actually wrote.
+//
+// ADR-050 cutover: a Verification Log dated on/after TEST_HASH_REQUIRED_FROM
+// without a first-red lock refuses `done`. These tests are the writer/reader
+// contract, not the lock; the last advisory day is the date ADR-050 named so
+// this fixture's unhashable Tests row (`selftest.sh`) would not brick. Do not
+// bump the product constant.
 function markDone(copy) {
   const readme = join(copy, 'tasks', 'README.md')
   writeFileSync(readme, readFileSync(readme, 'utf8').replace('| pending |', '| done |'))
+  const text = readTask(copy)
+  const [head, after] = text.split('## Verification Log')
+  if (after === undefined) return
+  const [vlog, ...tail] = after.split('## Mutation Log')
+  const aged = vlog.replace(/^- \d{4}-\d{2}-\d{2} · /gm, '- 2026-09-12 · ')
+  writeTask(copy, [head + '## Verification Log' + aged, ...tail].join('## Mutation Log'))
 }
 
 const lint = copy => run('adr-lint', ['ADR-001-selftest.md', 'tasks'], copy)

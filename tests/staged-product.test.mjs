@@ -292,6 +292,42 @@ test('leftover adrCorpus callers use the listing, not the disk', async () => {
   assert.equal(adrCorpus(failed).length, 0)
 })
 
+test('a listed ADR that cannot be read is PARTIAL, not an empty corpus', (t) => {
+  const root = mkdtempSync(path.join(testTmp, 'unreadable-listed-'))
+  plantAccepted(root, 'docs/adr/ADR-999-unreadable.md', '999', 'Unreadable')
+  gitInit(root)
+  const file = path.join(root, 'docs', 'adr', 'ADR-999-unreadable.md')
+  chmodSync(file, 0o000)
+  let unread = false
+  try { readFileSync(file) } catch { unread = true }
+  if (!unread) {
+    chmodSync(file, 0o644)
+    t.skip('chmod 000 still reads — Git for Windows has no POSIX permission bits')
+    return
+  }
+  try {
+    const corpus = adrCorpus(root)
+    assert.notEqual(corpus.look, 'ok', 'listing succeeded; the file did not')
+    assert.ok((corpus.unreadable ?? []).some(entry => /ADR-999-unreadable/.test(entry.file)),
+      JSON.stringify(corpus.unreadable))
+    assert.doesNotMatch(JSON.stringify({ look: corpus.look, length: corpus.length }),
+      /"look":"ok".*"length":0/)
+    const ctx = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-context.mjs'),
+      'docs/adr/ADR-999-unreadable.md'], { encoding: 'utf8', timeout: 30_000, cwd: root })
+    assert.equal(ctx.status, 0, ctx.stderr)
+    assert.doesNotMatch(ctx.stdout, /No decision records found/)
+    const next = workNext(root)
+    assert.equal(next.status, 0, next.stderr)
+    assert.doesNotMatch(next.stdout, /No decision records found/)
+    assert.doesNotMatch(next.stdout, /no QH corpus is in use/i)
+    const json = JSON.parse(workNext(root, ['--json']).stdout)
+    assert.notEqual(json.look, 'ok')
+    assert.notEqual(json.layer, 'core')
+  } finally {
+    try { chmodSync(file, 0o644) } catch { /* restore */ }
+  }
+})
+
 test('null-stage leftover is not spec-write', async () => {
   const { observe, nextStage } = await import('../plugin/scripts/work-next.mjs')
   const root = mkdtempSync(path.join(testTmp, 'settled-'))

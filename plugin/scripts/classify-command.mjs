@@ -68,6 +68,18 @@ export function classifyCommand(command, hooks, depth = 0) {
     if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'
   }
 
+  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing
+  // selftest/check, which certified an unpublished name. A path-shaped executable
+  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.
+  for (const segment of segments) {
+    if (hooks.nestedShellScript(segment)) continue
+    const invocation = hooks.commandInvocation(segment)
+    if (!invocation) continue
+    const word = invocation.words[invocation.index] ?? ''
+    const family = familyOf(segment, hooks)
+    if (family && !/[/\\]/.test(word) && !MEASURED_FAMILIES.has(family)) return 'unrecognised'
+  }
+
   if (hooks.isValidationCommand(command)) return 'validation'
 
   for (const segment of segments) {

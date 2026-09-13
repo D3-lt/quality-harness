@@ -250,6 +250,41 @@ test('rewriting a locked assertion refuses done', () => {
   }
 })
 
+test('a brace inside a string does not keep the first-red hash after the assertion moves', () => {
+  // arch-lint already paid for this class: raw `{`/`}` counting treats `}` in a
+  // string as the closer and hashes a prefix. Changing the omitted assertion
+  // must refuse done. Do not hash with code_only — ADR-050 keeps string bytes.
+  const dir = tmpRepo()
+  try {
+    writeFileSync(join(dir, 'prod.mjs'), 'export const code = 1\n')
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "import { code } from '../prod.mjs'\n"
+      + "test('locked dirty', () => {\n"
+      + "  const token = '}'\n"
+      + '  assert.equal(code, 1)\n'
+      + '})\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "import { code } from '../prod.mjs'\n"
+      + "test('locked dirty', () => {\n"
+      + "  const token = '}'\n"
+      + '  assert.equal(code, 2)\n'
+      + '})\n')
+    const got = findings(dir, [row])
+    assert.ok(got.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
+      got.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('first TDD-red row carries a tool-written hash for each named test', () => {
   const dir = tmpRepo()
   try {

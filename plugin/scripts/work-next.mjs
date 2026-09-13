@@ -152,8 +152,8 @@ function coveredIds(corpus) {
 /** Observations, each carrying the evidence that produced it. */
 export function observe(directory) {
   const listing = trackedPaths(directory)
-  const look = listing == null ? 'UNPROVEN' : 'ok'
   const corpus = adrCorpus(directory, { tracked: listing })
+  const look = listing == null ? 'UNPROVEN' : (corpus.look ?? 'ok')
   const tasks = taskFiles(directory, listing) ?? []
   const specPaths = specFiles(directory, listing) ?? []
 
@@ -272,7 +272,7 @@ export function observe(directory) {
 }
 
 export function nextStage(state) {
-  if (state.look === 'UNPROVEN') return null
+  if (state.look === 'UNPROVEN' || state.look === 'PARTIAL') return null
   // Both of these read the Verification Log grammar. A corpus that never writes
   // it is not behind on evidence; it keeps its records somewhere this tool
   // cannot see, and saying so is the honest answer.
@@ -290,7 +290,7 @@ export function nextStage(state) {
 }
 
 export function productLayer(look, nextId) {
-  if (look === 'UNPROVEN') return undefined
+  if (look === 'UNPROVEN' || look === 'PARTIAL') return undefined
   if (nextId == null) return 'corpus'
   return nextId === 'core' ? 'core' : 'corpus'
 }
@@ -342,6 +342,11 @@ export function main(argv = process.argv.slice(2)) {
 
   if (state.look === 'UNPROVEN') {
     process.stdout.write('could-not-look: git could not list the tree (UNPROVEN). '
+      + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
+    return 0
+  }
+  if (state.look === 'PARTIAL') {
+    process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
       + 'This is not an empty corpus and not a reason to begin at spec-write.\n')
     return 0
   }

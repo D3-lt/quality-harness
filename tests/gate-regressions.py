@@ -2492,6 +2492,31 @@ def main():
         found = lint.test_body(source, "t_name", python=False) is not None
         assert found is present, f"test_body on {label}: found={found}, expected={present}"
 
+    # A Pest/JS arrow test has NO `{`: `test('x', fn () => run());`. The
+    # unbounded find("{") after the name landed in the NEXT test's block, so the
+    # can-fail check read the neighbour's assertions as this test's and went
+    # quiet on an arrow test that asserts nothing. Found 2026-09-13 as a sibling
+    # of the same line in the first-red hasher (CLAUDE.md §5).
+    arrow = ("<?php\n"
+             "test('t_arrow', fn () => run());\n"
+             "test('t_other', function () {\n    expect(1)->toBe(1);\n});\n")
+    body = lint.test_body(arrow, "t_arrow", python=False) or ""
+    assert "run()" in body, body
+    assert "toBe(1)" not in body, \
+        f"the arrow test borrowed its neighbour's body: {body!r}"
+
+    # And the PHP flag has to travel: a `# )` comment inside a multi-line Pest
+    # arrow expression is a comment only when the extractor masks the file as
+    # PHP. Without it that `)` closes `run(` early, the slice is unbalanced and
+    # the test reads as UNPROVEN — a mutant that drops the flag went GREEN
+    # against a block-bodied fixture, because a block never needed it.
+    pest = ("<?php\n"
+            "test('t_pest', fn () => run(\n    # ) harmless comment\n"
+            "    1,\n));\n")
+    body = lint.test_body(pest, "t_pest", python=False, php=True) or ""
+    assert body == "run(\n    # ) harmless comment\n    1,\n)", \
+        f"PHP masking was dropped on the way in, the body lost its closing paren: {body!r}"
+
 
     # ⚠ A MULTI-LINE `def` SIGNATURE MADE THIS GATE ACCUSE CORRECT TESTS. The
     # closing `):` sits at the def's OWN indent, so the indentation scan that found

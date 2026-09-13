@@ -492,7 +492,12 @@ def _char_is_escaped(text, i):
 def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
                                 rust=False):
     out, i, n, quote = [], 0, len(text), None
+    pending = None
     while i < n:
+        if pending is not None and i >= pending[0]:
+            out.append(text[pending[0]:pending[1]])
+            i, pending, quote = pending[1], None, None
+            continue
         c = text[i]
         if quote:
             out.append(c)
@@ -516,6 +521,15 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
                 out.append(text[i:end])
                 i = end
                 continue
+        heredoc = _heredoc_span(text, i, php=php, shell=shell)
+        if heredoc is not None:
+            # The opener token is code and the rest of its line is stripped like
+            # any other code; the payload, from the next line to the closer, is
+            # data and is copied verbatim when the scan reaches it.
+            out.append(text[i:heredoc[0]])
+            pending = (heredoc[1], heredoc[2])
+            i = heredoc[0]
+            continue
         if c in "'\"`" and not (python and c == "`"):
             quote = c
             out.append(c)
@@ -761,6 +775,75 @@ def _iter_go_t_runs(text):
         yield name, match.end()
 
 
+# No arithmetic guard here: `_in_arithmetic` refuses every `<<` inside `((…))`
+# before this regex is consulted. A lookahead on what follows the marker was
+# tried first and was stepped around by backtracking (`true` → `tru`), then
+# made unreachable by that refusal — a guard nothing can fail is not kept.
+_PHP_HEREDOC_OPEN = re.compile(r"<<<[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n")
+_SH_HEREDOC_OPEN = re.compile(r"<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n")
+
+
+def _heredoc_span(text, i, php=False, shell=False):
+    """(head_end, payload_start, end) of the heredoc opening at `text[i]`, or None.
+
+    PHP `<<<MARKER` closes at `MARKER;?` alone on a line; shell `<<[-]MARKER`
+    at `MARKER`. `head_end` is just past the marker, `payload_start` the line
+    after the opener, `end` past the closer line. Shared by the masker, which
+    blanks the whole span, and the digest stripper, which keeps the PAYLOAD
+    verbatim while the rest of the opener line is still code — so a `# comment`
+    after `<<EOF` stays a comment, and a `//` URL or a `#` line INSIDE the
+    heredoc is data. Not a heredoc: `<<<word` (a here-string; its second `<`
+    must not open one) and a `<<` inside `((…))`, which is a shift whatever
+    follows its right operand (`$((1 << true))`, `$((1 << true + 0))`). An
+    unterminated heredoc runs to the end.
+    """
+    if php and text.startswith("<<<", i):
+        opener, closer = _PHP_HEREDOC_OPEN, ";?"
+    elif (shell and text.startswith("<<", i) and (i == 0 or text[i - 1] != "<")
+          and not _in_arithmetic(text, i)):
+        opener, closer = _SH_HEREDOC_OPEN, ""
+    else:
+        return None
+    start = opener.match(text, i)
+    if not start:
+        return None
+    tail = start.end()
+    close = re.search(
+        rf"(?m)^[ \t]*{re.escape(start.group(2))}{closer}[ \t]*(?:\n|$)", text[tail:])
+    end = len(text) if close is None else tail + close.end()
+    return start.end(2) + len(start.group(1)), tail, end
+
+
+def _in_arithmetic(text, i):
+    """True when `text[i]` sits inside a shell `((…))` on its own line, where `<<` is a shift.
+
+    Same line, and quote-aware: a raw `rfind("((")` over the whole file saw
+    `pattern='(('` two lines up, refused every later heredoc, and the unmasked
+    payload's `}` then closed the function early — a PROVEN hash of a prefix.
+    A `((` inside quotes is text; an arithmetic expansion does not span the
+    newline a heredoc operator must reach before its payload.
+    """
+    line_start = text.rfind("\n", 0, i) + 1
+    quote = None
+    opened = None
+    j = line_start
+    while j < i:
+        c = text[j]
+        if quote:
+            if c == "\\":
+                j += 1
+            elif c == quote:
+                quote = None
+        elif c in "'\"":
+            quote = c
+        elif text.startswith("((", j):
+            opened = j
+        elif opened is not None and text.startswith("))", j):
+            opened = None
+        j += 1
+    return opened is not None
+
+
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
                        shell_heredocs=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
@@ -790,31 +873,10 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
                 blank(i, end)
                 i = end
                 continue
-        if heredocs and text.startswith("<<<", i):
-            start = re.match(r"<<<[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n", text[i:])
-            if not start:
-                i += 1
-                continue
-            marker = start.group(2)
-            tail = i + start.end()
-            close = re.search(
-                rf"(?m)^[ \t]*{re.escape(marker)};?[ \t]*(?:\n|$)", text[tail:])
-            end = n if close is None else tail + close.end()
-            blank(i, end)
-            i = end
-        elif shell_heredocs and text.startswith("<<", i):
-            start = re.match(
-                r"<<-?[ \t]*(['\"]?)([A-Za-z_]\w*)\1[^\n]*\n", text[i:])
-            if not start:
-                i += 1
-                continue
-            marker = start.group(2)
-            tail = i + start.end()
-            close = re.search(
-                rf"(?m)^[ \t]*{re.escape(marker)}[ \t]*(?:\n|$)", text[tail:])
-            end = n if close is None else tail + close.end()
-            blank(i, end)
-            i = end
+        heredoc = _heredoc_span(text, i, php=heredocs, shell=shell_heredocs)
+        if heredoc is not None:
+            blank(i, heredoc[2])
+            i = heredoc[2]
         elif text.startswith("//", i):
             end = text.find("\n", i + 2)
             end = n if end < 0 else end
@@ -877,6 +939,21 @@ def _body_brace_after(masked, after_paren):
                 return i
             if char == ";":
                 return None
+        i += 1
+    return None
+
+
+def _closing_paren(masked, after):
+    """Index of the `)` closing the call whose arguments start at `after`, or None."""
+    depth, i, n = 1, after, len(masked)
+    while i < n:
+        char = masked[i]
+        if char == "(":
+            depth += 1
+        elif char == ")":
+            depth -= 1
+            if depth == 0:
+                return i
         i += 1
     return None
 
@@ -1042,10 +1119,62 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
     start = text.rfind("\n", 0, bdd.start()) + 1
     if re.match(r"\s*(?://|#)", text[start:bdd.start()]):
         return None
-    brace = text.find("{", bdd.end())
-    if brace == -1:
+    return bdd_callback_body(text, bdd.end(), php=php)
+
+
+def bdd_callback_body(text, after, php=False):
+    """Body of the callback that follows a BDD test's `name,` at `after`, or None.
+
+    Bounded to that call. An unbounded find("{") lands in the NEXT test's block
+    when the callback is an arrow with an expression body (Pest `fn () =>`, JS
+    `() => expect(...)`), and whoever asked then reads the wrong body — the
+    lock followed it, and adr-lint's can-fail check read the neighbour's
+    assertions as this test's. Scanning at paren depth 0 from the callback's
+    head, the first of `{` or `=>` decides: `=> {` and a bare `{` open a block
+    body; `=> expr` is an expression body running to the call's `)`. A `)` at
+    depth 0 before either means the call closed with no body (`test('x',
+    helper)`). Both are the ORIGINAL slice (ADR-050).
+
+    A `)` inside a regex literal closes the call early (`/[)]/.test(')')`);
+    the masker does not know regex literals. A truncated expression must not
+    get a proven hash, so an unbalanced slice is refused — UNPROVEN, never a
+    prefix.
+    """
+    masked = _mask_lock_noncode(text, hash_comments=php, heredocs=php)
+    n = len(masked)
+    depth, i, brace = 0, after, None
+    while i < n and brace is None:
+        c = masked[i]
+        if c == "(":
+            depth += 1
+        elif c == ")":
+            if depth == 0:
+                return None
+            depth -= 1
+        elif depth == 0 and c == "{":
+            brace = i
+        elif depth == 0 and masked.startswith("=>", i):
+            i += 2
+            while i < n and masked[i] in " \t\r\n":
+                i += 1
+            if i < n and masked[i] == "{":
+                brace = i
+            else:
+                close = _closing_paren(masked, i)
+                if close is None:
+                    return None
+                # A `/` outside a string is a regex literal or a division, and
+                # the masker knows neither: `/[)]/` and `/\)/` both close the
+                # call early, and `/\)/` leaves nothing unbalanced to notice.
+                # No boundary can be established, so refuse — UNPROVEN.
+                if "/" in masked[i:close]:
+                    return None
+                return text[i:close].strip()
+            continue
+        i += 1
+    if brace is None:
         return None
-    end = _matching_js_brace(text, brace)
+    end = _matching_js_brace(masked, brace)
     if end is None:
         return None
     return text[brace:end + 1]

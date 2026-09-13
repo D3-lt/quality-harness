@@ -175,3 +175,16 @@ test('a never-measured bare *selftest* or *check* is unrecognised, not validatio
   assert.equal(classifyCommand('./vendor/bin/phpunit'), 'validation')
   assert.equal(classifyCommand('/c/Users/dev/.claude/bin/adr-lint docs/adr/A.md'), 'validation')
 })
+
+test('a path-shaped unmeasured family is unrecognised, not neither', () => {
+  // The last MEASURED_FAMILIES loop is the only unrecognised arm a slash-shaped
+  // unpublished executable reaches. Foreign shells and bare PATH names are
+  // earlier. ./vendor/unpublished-bin must not collapse to neither.
+  const command = './vendor/unpublished-bin'
+  assert.equal(classifyCommand(command), 'unrecognised', command)
+  assert.notEqual(classifyCommand(command), 'neither', command)
+  assert.equal(isValidationCommand(command), false, command)
+  assert.equal(isPotentialMutationCommand(command), false, command)
+  assert.equal(classifyCommand('./scripts/selftest.sh'), 'validation')
+})
+

@@ -7818,9 +7818,19 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"`\"):",
-      "to": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\`\"):",
+      "from": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"'`\"):",
+      "to": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\'`\"):",
       "only": "division with no closing slash on its line"
+    },
+    {
+      "label": "lock: an apostrophe inside a possible Swift regex refuses the file",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"'`\"):",
+      "to": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"`\"):",
+      "only": "an apostrophe inside a possible Swift regex"
     },
     {
       "label": "lock: a possible bare Swift regex is kept verbatim in the digest",

@@ -7498,9 +7498,69 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        rust = path.suffix.lower() == \".rs\"\n        for name in extract_test_names(",
-      "to": "        rust = False\n        for name in extract_test_names(",
+      "from": "        rust = path.suffix.lower() == \".rs\"\n        shell = path.suffix.lower() in (\".sh\", \".bash\")",
+      "to": "        rust = False\n        shell = path.suffix.lower() in (\".sh\", \".bash\")",
       "only": "a Rust #[test] fn is hashed"
+    },
+    {
+      "label": "lock: a PHPUnit #[Test] method is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for fn in _PHP_ATTR_TEST.finditer(body):",
+      "to": "        for fn in _PHP_ATTR_TEST.finditer(\"\"):",
+      "only": "a PHPUnit #[Test] method is hashed"
+    },
+    {
+      "label": "lock: a PHPUnit @test docblock method is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for fn in _PHP_DOCBLOCK_TEST.finditer(orig):",
+      "to": "        for fn in _PHP_DOCBLOCK_TEST.finditer(\"\"):",
+      "only": "a PHPUnit @test docblock"
+    },
+    {
+      "label": "lock: a brace inside a Rust raw string is hashed, not a prefix",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if rust_raw:",
+      "to": "        if False:",
+      "only": "a brace inside a Rust raw string"
+    },
+    {
+      "label": "lock: a Go t.Run name is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for name, _after in _iter_go_t_runs(text):",
+      "to": "        for name, _after in []:",
+      "only": "a Go t.Run name is hashed"
+    },
+    {
+      "label": "lock: a Go method Test is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        for name, _after in _iter_go_method_tests(text):",
+      "to": "        for name, _after in []:",
+      "only": "a Go method Test is hashed"
+    },
+    {
+      "label": "lock: a shell test_* function is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        shell = path.suffix.lower() in (\".sh\", \".bash\")\n        for name in extract_test_names(",
+      "to": "        shell = False\n        for name in extract_test_names(",
+      "only": "a shell test_* function is hashed"
     },
     {
       "label": "adr-lint: filename and title ADR numbers must be the same identity",

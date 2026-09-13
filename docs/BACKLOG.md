@@ -12687,7 +12687,15 @@ leading or trailing whitespace); a regex literal in a position it does not recog
 with a brace in it, shorten a hashed span. Each item above belongs on its own change with a
 dirty-shown regression.
 
-## 204. The PHP `@test` docblock lock mutant is GREEN in a `lock:` group campaign and RED alone
+## 204. CLOSED — the PHP `@test` docblock lock mutant is GREEN in a `lock:` group campaign and RED alone
+
+**Done — the runner gave every python child its own bytecode cache.** The verdict depended on
+what ran first because it depended on `__pycache__`: a mutant whose replacement is the same
+number of bytes (`if other:` → `if False:`) leaves `record.py` with the same size, and the
+runner rewrites it in the same second it measured the last one, so CPython's mtime-and-size
+check considers a cache written by an earlier mutant valid and the child imports the
+UNMUTATED module. Measured after the fix: `--case 'lock: ' --no-cache` is 63/63, this mutant
+among them. Found independently while its own later-red mutant reported the same false GREEN.
 
 Measured 2026-09-13 at 8004f95 in a clean detached worktree: `node scripts/mutate.mjs --case 'lock: '
 --no-cache` twice, both `20/21` with `lock: a PHPUnit @test docblock method is hashed, not left

@@ -1309,7 +1309,7 @@ def _swift_ambiguous_slash(text):
     masker would misread. A code `/` — seen through `_swift_code_view`, so one
     inside an interpolation counts — that opens a `_swift_bare_regex_end`
     candidate is ambiguous when the candidate's content holds a brace, a
-    backslash, a quote or a backtick. The whole file is then refused (UNPROVEN)
+    backslash, a quote of either kind or a backtick. The whole file is then refused (UNPROVEN)
     rather than hashed on a boundary nobody can vouch for. `a / b`, `8/2*3`,
     `8/2; }`, `8/2/2` and `8/2 } // note` never refuse; candidates that do not
     refuse are kept verbatim in the digest (`_swift_normalize`).
@@ -1319,7 +1319,7 @@ def _swift_ambiguous_slash(text):
         if char != "/":
             continue
         end = _swift_bare_regex_end(text, i)
-        if end is not None and any(mark in text[i + 1:end - 1] for mark in "{}\\\"`"):
+        if end is not None and any(mark in text[i + 1:end - 1] for mark in "{}\\\"'`"):
             return True
     return False
 

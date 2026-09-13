@@ -1334,6 +1334,30 @@ test('a later red carrying a different lock hash refuses done', () => {
   }
 })
 
+test('a later-red lock printed inside a fenced excerpt does not refuse done', () => {
+  // Codex xhigh on 0fad183: excerpt_fence quotes failure output, and a printed
+  // example row with a different trailing lock was read as a later red.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), 'test_lock_dirty() {\n  [ 2 -eq 2 ]\n}\n')
+    const first = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    const firstRow = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${first}`
+    const fake = `- 2026-09-13 · no-git · exit 2 · \`example\` · acceptance-sha256:${'1'.repeat(64)} · ms:12 · test-lock-sha256:${'c'.repeat(64)}`
+    const excerpted = findings(dir, [firstRow, '  ```', `  ${fake}`, '  ```'], named)
+    assert.deepEqual(excerpted.blocks, [],
+      `a lock only inside an excerpt must not refuse:\n${excerpted.blocks.join('\n')}`)
+    const outside = findings(dir, [firstRow, fake], named)
+    assert.ok(outside.blocks.some(b => /later red row carries a different/.test(b)),
+      `the same row outside a fence must still refuse:\n${outside.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 
 
 
@@ -1567,6 +1591,37 @@ test('an assertion edit still refuses done', () => {
     const got = findings(dir, [row])
     assert.ok(got.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
       got.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('whitespace inside a JS string literal is part of the locked body', () => {
+  // Codex xhigh on 0fad183: body_digest collapsed spaces inside strings, so
+  // `'a  b'` → `'a b'` kept the hash. Expression arrows now lock those bodies.
+  const dir = tmpRepo()
+  const header = "import test from 'node:test'\nimport assert from 'node:assert/strict'\n"
+  const arrow = expected => `${header}test('locked dirty', () => assert.equal('${expected}', 'a b'))\n`
+  const block = expected => `${header}test('locked dirty', () => {\n  assert.equal('${expected}', 'a b')\n})\n`
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'), arrow('a  b'))
+    const arrowRow = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix}`
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      `${header}test('locked dirty', () => assert.equal('a  b',  'a b'))\n`)
+    const formatOnly = findings(dir, [arrowRow])
+    assert.deepEqual(formatOnly.blocks, [],
+      `code whitespace around an unchanged string must not refuse:\n${formatOnly.blocks.join('\n')}`)
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'), arrow('a b'))
+    const arrowMoved = findings(dir, [arrowRow])
+    assert.ok(arrowMoved.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
+      `an expression-arrow string edit must refuse:\n${arrowMoved.blocks.join('\n')}`)
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'), block('a  b'))
+    const blockRow = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix}`
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'), block('a b'))
+    const blockMoved = findings(dir, [blockRow])
+    assert.ok(blockMoved.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
+      `a block-body string edit must refuse:\n${blockMoved.blocks.join('\n')}`)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

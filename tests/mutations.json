@@ -7598,9 +7598,79 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        shell = path.suffix.lower() in (\".sh\", \".bash\")\n        for name in extract_test_names(",
-      "to": "        shell = False\n        for name in extract_test_names(",
+      "from": "        shell = path.suffix.lower() in (\".sh\", \".bash\")\n        swift = path.suffix.lower() == \".swift\"",
+      "to": "        shell = False\n        swift = path.suffix.lower() == \".swift\"",
       "only": "a shell test_\\* function is hashed"
+    },
+    {
+      "label": "lock: a Swift Testing @Test func is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        swift = path.suffix.lower() == \".swift\"\n        for name in extract_test_names(",
+      "to": "        swift = False\n        for name in extract_test_names(",
+      "only": "a Swift Testing @Test func is hashed"
+    },
+    {
+      "label": "lock: an XCTest test method is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    for fn in _SWIFT_XCTEST_FN.finditer(masked):",
+      "to": "    for fn in _SWIFT_XCTEST_FN.finditer(\"\"):",
+      "only": "an XCTest test method is hashed"
+    },
+    {
+      "label": "lock: a Swift @Test with arguments before its attributes is still found",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if masked.startswith(\"(\", i):\n                i = _swift_balanced_parens_end(masked, i)",
+      "to": "            if False:\n                i = _swift_balanced_parens_end(masked, i)",
+      "only": "a Swift Testing @Test func is hashed"
+    },
+    {
+      "label": "lock: a brace inside a Swift literal is hashed, not a prefix",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if swift:\n            end = _swift_literal_end(text, i)\n            if end is None:",
+      "to": "        if swift:\n            end = None\n            if end is None:",
+      "only": "a brace inside a Swift multi-line"
+    },
+    {
+      "label": "lock: a Swift raw string closes on its hashes, not the first quote",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    closer, escape = delim + hashes, \"\\\\\" + hashes",
+      "to": "    closer, escape = delim, \"\\\\\" + hashes",
+      "only": "a brace inside a Swift multi-line"
+    },
+    {
+      "label": "lock: a literal nested in a Swift interpolation does not end the interpolation",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                    nested = _swift_literal_end(text, k)",
+      "to": "                    nested = None",
+      "only": "a brace inside a Swift multi-line"
+    },
+    {
+      "label": "lock: a Swift nested comment does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if rust_raw or swift:\n                depth, j = 1, i + 2",
+      "to": "            if rust_raw:\n                depth, j = 1, i + 2",
+      "only": "a Swift nested block comment does not keep"
     },
     {
       "label": "lock: a Go signature comment does not close the hashed body",
@@ -7628,8 +7698,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            if rust_raw:\n                depth, j = 1, i + 2",
-      "to": "            if False:\n                depth, j = 1, i + 2",
+      "from": "            if rust_raw or swift:\n                depth, j = 1, i + 2",
+      "to": "            if swift:\n                depth, j = 1, i + 2",
       "only": "a Rust nested comment does not keep"
     },
     {
@@ -7648,8 +7718,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust)",
-      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell)",
+      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust,\n                swift=swift)",
+      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell,\n                swift=swift)",
       "only": "a Rust raw string does not swallow a same-line assertion"
     },
     {

@@ -255,28 +255,35 @@ LOCK_LANGS = [
 ]
 
 
-def _subject(ext, names, token, comment):
-    """A test file in `ext` defining `names`, each asserting `token`."""
+def _subject(ext, names, token, comment, changed=None):
+    """A test file in `ext` defining `names`, each asserting `token`.
+
+    `changed` names the ONE test that asserts something else, so a case can move
+    an unlisted sibling's body while every listed body stays byte-identical —
+    the only shape that can tell a snapshot of all extractable names from one
+    of the Tests table's own rows (ADR-050 locks the former).
+    """
+    tok = lambda n: (token + 5) if n == changed else token
     if ext == ".py":
-        return "".join(f"def {n}():\n    # {comment}\n    assert 2 == {token}\n\n" for n in names)
+        return "".join(f"def {n}():\n    # {comment}\n    assert 2 == {tok(n)}\n\n" for n in names)
     if ext == ".go":
         body = "".join(f"func {n}(t *testing.T) {{\n\t// {comment}\n"
-                        f"\tif 2 != {token} {{\n\t\tt.Fatal(\"x\")\n\t}}\n}}\n\n" for n in names)
+                        f"\tif 2 != {tok(n)} {{\n\t\tt.Fatal(\"x\")\n\t}}\n}}\n\n" for n in names)
         return 'package lock\n\nimport "testing"\n\n' + body
     if ext == ".sh":
-        return "".join(f"{n}() {{\n  # {comment}\n  [ 2 -eq {token} ]\n}}\n\n" for n in names)
+        return "".join(f"{n}() {{\n  # {comment}\n  [ 2 -eq {tok(n)} ]\n}}\n\n" for n in names)
     if ext == ".php":
         methods = "".join(f"    public function {n}(): void\n    {{\n        # {comment}\n"
-                          f"        $this->assertSame(2, {token});\n    }}\n\n" for n in names)
+                          f"        $this->assertSame(2, {tok(n)});\n    }}\n\n" for n in names)
         return "<?php\n\nfinal class LockSubjectTest extends TestCase\n{\n" + methods + "}\n"
     if ext == ".rs":
-        return "".join(f"#[test]\nfn {n}() {{\n    // {comment}\n    assert_eq!(2, {token});\n}}\n\n"
+        return "".join(f"#[test]\nfn {n}() {{\n    // {comment}\n    assert_eq!(2, {tok(n)});\n}}\n\n"
                        for n in names)
     if ext == ".mjs":
-        return "".join(f"test('{n}', () => {{\n  // {comment}\n  assert.equal(2, {token})\n}})\n\n"
+        return "".join(f"test('{n}', () => {{\n  // {comment}\n  assert.equal(2, {tok(n)})\n}})\n\n"
                        for n in names)
     # Not a language the hasher knows: still a plausible test file.
-    return "".join(f"def {n}\n  # {comment}\n  assert_equal 2, {token}\nend\n\n" for n in names)
+    return "".join(f"def {n}\n  # {comment}\n  assert_equal 2, {tok(n)}\nend\n\n" for n in names)
 
 
 def _task_text(rows, vlog=()):
@@ -303,6 +310,7 @@ EDITS = {
     "assertion": True,              # "any of those hashes moved"
     "delete_locked": True,          # "or vanished"
     "add_new_test": False,          # "New names are allowed"
+    "assertion_unlisted": True,     # an unlisted sibling is locked too
     "check_appears": True,          # "when `check` appears after recorded absence"
     "check_removed": True,          # a locked hash vanished
     "check_moved": True,            # a locked hash moved
@@ -324,6 +332,13 @@ def arm3(rng):
         listed = names[:rng.randint(1, len(names))]
         rows = [(n, rel) for n in listed]
         edit = rng.choice(list(EDITS))
+        if edit == "assertion_unlisted":
+            # This edit only exists when something is NOT in the table, so the
+            # generator makes that true rather than quietly becoming a no-op.
+            if len(names) < 2:
+                names.append(f"{'Test' if ext == '.go' else 'test_lock_'}Spare9")
+            listed = names[:-1]
+        unlisted = [n for n in names if n not in listed]
         date = rng.choice([CUTOVER, "2026-09-12", "2026-09-14"])
         # Three ways a log can fail to carry a lock, all seen in the field.
         lock_shape = rng.choice(["locked", "locked", "locked", "no_suffix", "green_only"])
@@ -357,6 +372,9 @@ def arm3(rng):
             elif edit == "delete_locked":
                 with open(subject, "w", encoding="utf-8") as handle:
                     handle.write(_subject(ext, names[1:], 2, "before"))
+            elif edit == "assertion_unlisted":
+                with open(subject, "w", encoding="utf-8") as handle:
+                    handle.write(_subject(ext, names, 2, "before", changed=unlisted[0]))
             elif edit == "add_new_test":
                 with open(subject, "w", encoding="utf-8") as handle:
                     handle.write(_subject(ext, names + ["test_lock_added_9"], 2, "before"))

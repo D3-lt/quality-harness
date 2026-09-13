@@ -188,3 +188,14 @@ test('a path-shaped unmeasured family is unrecognised, not neither', () => {
   assert.equal(classifyCommand('./scripts/selftest.sh'), 'validation')
 })
 
+test('a nested validation does not certify a later succeeding segment', () => {
+  // Nested peel of bash -c 'bash -n' is validation; `; true` makes the process
+  // succeed. Whole-command isValidationCommand already rejects `;`. Nested
+  // classification must not override that.
+  const command = "bash -c 'bash -n'; true"
+  assert.notEqual(classifyCommand(command), 'validation', command)
+  assert.equal(isValidationCommand(command), false, command)
+  assert.equal(classifyCommand("bash -c 'bash -n'"), 'validation')
+  assert.equal(classifyCommand("bash -c 'npm test'"), 'validation')
+})
+

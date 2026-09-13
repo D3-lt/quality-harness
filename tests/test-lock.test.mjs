@@ -859,7 +859,7 @@ test('a shell URL does not keep the first-red hash after the assertion moves', (
     mkdirSync(join(dir, 'tests'), { recursive: true })
     writeFileSync(join(dir, rel),
       'test_lock_dirty() {\n'
-      + '  : https://example.invalid; [ 2 -eq 2 ]\n'
+      + '  : https://example.invalid/#fragment; [ 2 -eq 2 ]\n'
       + '}\n')
     const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
     assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
@@ -868,7 +868,37 @@ test('a shell URL does not keep the first-red hash after the assertion moves', (
     assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
     writeFileSync(join(dir, rel),
       'test_lock_dirty() {\n'
-      + '  : https://example.invalid; [ 2 -eq 1 ]\n'
+      + '  : https://example.invalid/#fragment; [ 2 -eq 1 ]\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('an escaped shell separator does not keep the first-red hash after the assertion moves', () => {
+  // `\;#` is not a comment start. Treating an escaped `;` as a boundary
+  // swallows the assertion; invert must still move the hash.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'test_lock_dirty() {\n'
+      + '  : word\\;#fragment; [ 2 -eq 2 ]\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      'test_lock_dirty() {\n'
+      + '  : word\\;#fragment; [ 2 -eq 1 ]\n'
       + '}\n')
     const moved = findings(dir, [row], named)
     assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),

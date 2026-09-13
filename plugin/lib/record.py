@@ -433,6 +433,10 @@ _SWIFT_XCTEST_FN = re.compile(
 )
 _SWIFT_LITERAL_OPEN = re.compile(r'(#*)("""|")')
 _SWIFT_REGEX_OPEN = re.compile(r"(#+)/")
+# A bare `/…/` regex literal (SE-0354) can only follow a token that cannot end
+# an operand; after an identifier, number or closer the `/` is division.
+_SWIFT_BARE_REGEX_PREV = frozenset("=(,[{:;!&|?^~+-*%<>\n")
+_SWIFT_BARE_REGEX_KEYWORD = re.compile(r"(?<!\w)(?:return|try|await|case|in|throw)\Z")
 
 
 def tests_table_rows(text):
@@ -530,10 +534,23 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
             i += 1
             continue
         if swift:
-            # A Swift literal is kept verbatim as ONE span: `"""` bodies, raw
-            # `#"…"#` and interpolations with nested quotes would otherwise flip
-            # the quote state and let a `//` inside the literal strip code.
-            end = _swift_literal_end(text, i)
+            # A Swift literal is kept as ONE span: `"""` bodies, raw `#"…"#`
+            # and interpolations with nested quotes would otherwise flip the
+            # quote state and let a `//` inside the literal strip code. Only
+            # the comments inside an interpolation's expression are stripped,
+            # and a regex literal is kept verbatim for the same reason.
+            literal = _swift_literal_scan(text, i)
+            if literal is not None:
+                end, interpolations = literal
+                cursor = i
+                for start, stop in interpolations:
+                    out.append(text[cursor:start])
+                    out.append(_strip_comments_keep_strings(text[start:stop], swift=True))
+                    cursor = stop
+                out.append(text[cursor:end])
+                i = end
+                continue
+            end = _swift_regex_end(text, i)
             if end is not None:
                 out.append(text[i:end])
                 i = end
@@ -891,17 +908,19 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
 
     while i < n:
         if swift:
-            end = _swift_literal_end(text, i)
-            if end is None:
-                end = _swift_regex_end(text, i)
-            if end is None and text[i] == "`":
-                close = text.find("`", i + 1)
-                if close != -1 and "\n" not in text[i:close]:
-                    end = close + 1
+            literal = _swift_literal_scan(text, i)
+            end = literal[0] if literal is not None else _swift_regex_end(text, i)
             if end is not None:
                 blank(i, end)
                 i = end
                 continue
+            if text[i] == "`":
+                # An escaped identifier (`default`) is code: kept, so a test
+                # declared with one has a name, and not read as a JS template.
+                close = text.find("`", i + 1)
+                if close != -1 and "\n" not in text[i:close]:
+                    i = close + 1
+                    continue
         if rust_raw:
             prev_ok = i == 0 or not (text[i - 1].isalnum() or text[i - 1] == "_")
             raw = re.match(r'(?:b|c)?r(#*)"', text[i:]) if prev_ok else None
@@ -1100,16 +1119,18 @@ def _iter_sh_tests(text):
         yield name, match.end() - 1
 
 
-def _swift_literal_end(text, i):
-    """Index just past the Swift string literal opening at `text[i]`, or None.
+def _swift_literal_scan(text, i):
+    """(end, interpolations) for the Swift string literal opening at `text[i]`, or None.
 
     Raw strings (`#"…"#`, and triple-quoted ones behind `##`) close on the
     quote plus the same number of `#`, and escape with a backslash plus that
-    many `#`. An interpolation (backslash, then `(`) is skipped with its own
-    nested literals, so a `"}"` inside it does not end the outer literal. A
-    triple quote not followed by a line break is an empty literal then a quote,
-    as in the grammar. An unterminated single-line literal stops at the line
-    break; a multi-line one runs to the end.
+    many `#`. An interpolation (backslash, then `(`) is an expression: its
+    nested literals, regex literals and comments are skipped before its
+    parentheses are counted, so neither a `"}"` nor a `/* ) */` inside it ends
+    the outer literal. `interpolations` holds the (start, end) of each
+    expression's text. A triple quote not followed by a line break is an empty
+    literal then a quote, as in the grammar. An unterminated single-line
+    literal stops at the line break; a multi-line one runs to the end.
     """
     opening = _SWIFT_LITERAL_OPEN.match(text, i)
     if not opening:
@@ -1120,40 +1141,94 @@ def _swift_literal_end(text, i):
     if delim == '"""' and not re.match(r"[ \t]*(?:\n|$)", text[j:j + 256]):
         delim, j = '"', i + len(hashes) + 1
     closer, escape = delim + hashes, "\\" + hashes
+    interpolations = []
     while j < n:
         if text.startswith(escape, j):
             k = j + len(escape)
             if k < n and text[k] == "(":
-                depth, k = 1, k + 1
+                start, depth, k = k + 1, 1, k + 1
                 while k < n and depth:
-                    nested = _swift_literal_end(text, k)
-                    if nested is not None:
-                        k = nested
+                    skipped = _swift_expression_skip(text, k)
+                    if skipped is not None:
+                        k = skipped
                         continue
                     if text[k] == "(":
                         depth += 1
                     elif text[k] == ")":
                         depth -= 1
                     k += 1
+                interpolations.append((start, k - 1 if depth == 0 else k))
                 j = k
                 continue
             j = k + 1
             continue
         if text.startswith(closer, j):
-            return j + len(closer)
+            return j + len(closer), interpolations
         if delim == '"' and text[j] == "\n":
-            return j
+            return j, interpolations
         j += 1
-    return n
+    return n, interpolations
+
+
+def _swift_expression_skip(text, k):
+    """Index past a literal, regex literal or comment at `text[k]` in Swift code, or None."""
+    literal = _swift_literal_scan(text, k)
+    if literal is not None:
+        return literal[0]
+    if text.startswith("//", k):
+        end = text.find("\n", k)
+        return len(text) if end == -1 else end
+    if text.startswith("/*", k):
+        depth, j = 1, k + 2
+        while j < len(text) and depth:
+            if text.startswith("/*", j):
+                depth, j = depth + 1, j + 2
+            elif text.startswith("*/", j):
+                depth, j = depth - 1, j + 2
+            else:
+                j += 1
+        return j
+    return _swift_regex_end(text, k)
 
 
 def _swift_regex_end(text, i):
-    """Index just past an extended `#/…/#` regex literal at `text[i]`, or None."""
+    """Index just past a Swift regex literal at `text[i]`, or None.
+
+    Extended `#/…/#` closes on an unescaped `/` plus the same number of `#`,
+    and may span lines; unterminated, it runs to the end, so the brace matcher
+    fails closed. A bare `/…/` (SE-0354) is recognised only where an operand
+    cannot end — after an operator, an opener, a separator, a line start or
+    `return`/`try`/`await`/`case`/`in`/`throw` — must not start with whitespace,
+    and closes on an unescaped `/` on the same line that does not follow
+    whitespace; anything else is division and stays code.
+    """
+    n = len(text)
     opening = _SWIFT_REGEX_OPEN.match(text, i)
-    if not opening:
+    if opening:
+        hashes, j = opening.group(1), opening.end()
+        while j < n:
+            if text[j] == "\\":
+                j += 2
+                continue
+            if text.startswith("/" + hashes, j):
+                return j + 1 + len(hashes)
+            j += 1
+        return n
+    if text[i:i + 1] != "/" or text[i + 1:i + 2] in ("/", "*", " ", "\t", "\n", ""):
         return None
-    close = text.find("/" + opening.group(1), opening.end())
-    return len(text) if close == -1 else close + 1 + len(opening.group(1))
+    before = text[:i].rstrip(" \t")
+    if before and before[-1] not in _SWIFT_BARE_REGEX_PREV \
+            and not _SWIFT_BARE_REGEX_KEYWORD.search(before):
+        return None
+    j = i + 1
+    while j < n and text[j] != "\n":
+        if text[j] == "\\":
+            j += 2
+            continue
+        if text[j] == "/":
+            return None if text[j - 1] in " \t" else j + 1
+        j += 1
+    return None
 
 
 def _swift_balanced_parens_end(masked, i):
@@ -1171,7 +1246,13 @@ def _swift_balanced_parens_end(masked, i):
 
 
 def _iter_swift_tests(text):
-    """Swift Testing `@Test` funcs and XCTest `func test*()`. Yields (name, after `(`)."""
+    """Swift Testing `@Test` funcs and XCTest `func test*()`, every occurrence.
+
+    Yields (name, after `(`) in source order, a name once per declaration: two
+    suites in one file may both declare `probe`, and the body is then the
+    join of every declaration's body. A backticked name is yielded without
+    its backticks.
+    """
     masked = _mask_lock_noncode(text, swift=True)
     found = []
     for attr in _SWIFT_TEST_ATTR.finditer(masked):
@@ -1195,17 +1276,18 @@ def _iter_swift_tests(text):
             break
         if i is None:
             continue
-        fn = re.match(r"func[ \t\r\n]+(\w+)[ \t\r\n]*(?:<[^>{]*>)?[ \t\r\n]*\(",
-                      masked[i:])
+        fn = re.match(
+            r"func[ \t\r\n]+(`?)(\w+)\1[ \t\r\n]*(?:<[^>{]*>)?[ \t\r\n]*\(",
+            masked[i:])
         if fn:
-            found.append((attr.start(), fn.group(1), i + fn.end()))
+            found.append((attr.start(), fn.group(2), i + fn.end()))
     for fn in _SWIFT_XCTEST_FN.finditer(masked):
         found.append((fn.start(), fn.group(1), fn.end(2)))
-    seen = set()
-    for _at, name, after_paren in sorted(found):
-        if name in seen:
+    declared = set()
+    for at, name, after_paren in sorted(found):
+        if after_paren in declared:
             continue
-        seen.add(name)
+        declared.add(after_paren)
         yield name, after_paren
 
 def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
@@ -1247,11 +1329,11 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
         return None
     if swift:
         masked = _mask_lock_noncode(text, swift=True)
-        for found, after_paren in _iter_swift_tests(text):
-            if found != name:
-                continue
-            return _span_from_paren(text, masked, after_paren)
-        return None
+        spans = [_span_from_paren(text, masked, after_paren)
+                 for found, after_paren in _iter_swift_tests(text) if found == name]
+        if not spans or any(span is None for span in spans):
+            return None
+        return "\n".join(spans)
     if shell:
         masked = _mask_lock_noncode(text, hash_comments=True, shell_heredocs=True)
         for found, brace in _iter_sh_tests(text):

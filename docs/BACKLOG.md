@@ -12696,3 +12696,17 @@ unproven` GREEN. The same mutant run alone (`--case 'PHPUnit @test docblock'`) i
 the campaign ran first. Not investigated further; a GREEN mutant is an open finding about
 `tests/test-lock.test.mjs` 'a PHPUnit @test docblock method is hashed…' or about the runner's
 ordering, and belongs on its own change.
+
+## 205. The Swift first-red lock refuses two valid Swift shapes it could prove
+
+Found by the sixth Codex review of the Swift lock (2026-09-13, `swift-frontend -parse` exit 0 on
+Apple Swift 6.3.3). Both fail CLOSED — the row reads UNPROVEN, no moved assertion keeps its hash —
+so they cost a proven lock, not correctness.
+
+- `_swift_ambiguous_slash` refuses ordinary division between closures:
+  `[2, 4].map { 8/$0 }.map { $0/2 }` spans `/$0 }.map { $0/` as a candidate holding braces. Telling
+  division from a bare regex needs the operand before the `/`; a keyword such as `return` also ends in
+  an identifier character, so a naive "operand before" rule would treat `return /[}]/` as division
+  and reopen the bypass the refusal exists for.
+- `_iter_swift_tests` reads names with Python `\w`, so `@Test func 🧪()` is not discovered and its
+  Tests row is UNPROVEN. Swift identifier rules (operator-free Unicode ranges) would admit it.

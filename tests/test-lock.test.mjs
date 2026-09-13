@@ -1934,3 +1934,9 @@ test('a trailing comment after inline Swift division keeps a proven hash', () =>
     '@Test func probe() { let x = 8/2; #expect(x == 4) } // comment\n',
     '@Test func probe() { let x = 8/2; #expect(x == 5) } // comment\n')
 })
+
+// Sixth Codex pass (2026-09-13).
+test('an apostrophe inside a possible Swift regex refuses the file', () => {
+  swiftUnproven('Tests/LockApostropheRegex.swift',
+    'import Testing\n@Test func probe() {\n let r = /\'/; let s = "\'//"; #expect(2 == 2)\n}\n')
+})

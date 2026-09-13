@@ -7578,9 +7578,9 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if re.search(r\"(?m)^func\\s\", masked[after:brace]):\n        return None",
+      "from": "    if not (masked.startswith(\"func\", i)\n            and (i + 4 >= n or not (masked[i + 4].isalnum() or masked[i + 4] == \"_\"))):\n        return None",
       "to": "    if False:\n        return None",
-      "only": "a Go t.Run that names a helper stays unproven"
+      "only": "a Go t.Run that names a helper"
     },
     {
       "label": "lock: a Rust nested comment does not close the hashed body",
@@ -7601,6 +7601,26 @@
       "from": "        masked = _mask_lock_noncode(text, hash_comments=True, shell_heredocs=True)",
       "to": "        masked = _mask_lock_noncode(text, hash_comments=True)",
       "only": "a shell heredoc does not keep"
+    },
+    {
+      "label": "lock: a Rust raw string does not swallow a same-line assertion",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust)",
+      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell)",
+      "only": "a Rust raw string does not swallow a same-line assertion"
+    },
+    {
+      "label": "lock: a shell URL is not a C comment in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not python and not shell and c == \"/\" and i + 1 < n:",
+      "to": "        if not python and c == \"/\" and i + 1 < n:",
+      "only": "a shell URL does not keep"
     },
     {
       "label": "adr-state --json names PARTIAL when a listed record cannot be read",

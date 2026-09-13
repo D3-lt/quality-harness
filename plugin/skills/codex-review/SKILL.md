@@ -1,7 +1,7 @@
 ---
 name: codex-review
 description: >-
-  Run a fresh-context, read-only Codex GPT-5.6 Sol review in any project. Use for an independent
+  Run a fresh-context, read-only Codex GPT-6 Astra review in any project. Use for an independent
   review of uncommitted changes, a commit, a branch/base diff, an ADR, a plan, or explicitly named
   artifacts; use when the user asks for codex-review, an external Codex pass, or a verdict-bearing
   review. Routes high, xhigh, or ultra effort from task risk and breadth. Do not use for open-ended
@@ -26,7 +26,7 @@ delegate the review, or restart a lifecycle. Without the marker, follow the disp
 
 ## Non-negotiable contract
 
-- Pin model `gpt-5.6-sol` and explicitly pass the selected effort on every run. Never inherit either
+- Pin model `gpt-6-astra` and explicitly pass the selected effort on every run. Never inherit either
   from ambient config and never silently downgrade.
 - Enforce a read-only sandbox. Codex may inspect and run safe checks but must not edit, stage, commit,
   push, deploy, or message anyone.
@@ -91,7 +91,7 @@ honestly fits, state it before running, and pass it explicitly:
 
 Do not promote merely because the user says “review thoroughly”; route on actual breadth, risk, and
 ambiguity. Do not accept another effort string. On a new or upgraded Codex installation, verify that
-the bundled `gpt-5.6-sol` catalog exposes the chosen level with
+the bundled `gpt-6-astra` catalog exposes the chosen level with
 `"<absolute-codex>" debug models --bundled`. If the level is unavailable, fail clearly instead of
 substituting another model or effort.
 
@@ -136,7 +136,7 @@ Git target and its read-only inspection commands in the contract instead:
 ```bash
 "<absolute-codex>" exec <optional-ignore-user-config> \
   -C "<repo-root>" -s read-only \
-  -m gpt-5.6-sol -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
+  -m gpt-6-astra -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
   -c 'sandbox_mode="read-only"' --ephemeral \
   -o "<absolute-unique-output>" \
   "CODEX-REVIEW-LEAF: <review contract; inspect uncommitted changes, one commit SHA, or base...HEAD>"
@@ -159,7 +159,7 @@ source paths to verify.
 ```bash
 "<absolute-codex>" exec <optional-ignore-user-config> \
   -C "<working-directory>" -s read-only \
-  -m gpt-5.6-sol -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
+  -m gpt-6-astra -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
   -c 'sandbox_mode="read-only"' --ephemeral \
   -o "<absolute-unique-output>" \
   "<artifact review contract and exact paths>"

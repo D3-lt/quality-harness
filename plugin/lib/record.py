@@ -480,6 +480,15 @@ def body_digest(body, python=False, php=False, shell=False, rust=False):
     return hashlib.sha256("\n".join(lines).encode("utf-8")).hexdigest()
 
 
+def _char_is_escaped(text, i):
+    """True when text[i] is preceded by an odd run of backslashes."""
+    slashes = 0
+    j = i - 1
+    while j >= 0 and text[j] == "\\":
+        slashes += 1
+        j -= 1
+    return slashes % 2 == 1
+
 def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
                                 rust=False):
     out, i, n, quote = [], 0, len(text), None
@@ -547,7 +556,11 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
             while i < n and text[i] != "\n":
                 i += 1
             continue
-        if (php or shell) and c == "#" and not text.startswith("#[", i):
+        if php and c == "#" and not text.startswith("#[", i):
+            while i < n and text[i] != "\n":
+                i += 1
+            continue
+        if shell and c == "#" and (i == 0 or (text[i - 1] in " \t\n;|&" and not _char_is_escaped(text, i - 1))):
             while i < n and text[i] != "\n":
                 i += 1
             continue

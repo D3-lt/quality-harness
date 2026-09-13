@@ -1627,6 +1627,31 @@ test('whitespace inside a JS string literal is part of the locked body', () => {
   }
 })
 
+test('a quote inside a JS regex does not keep the first-red hash after the assertion moves', () => {
+  // Codex gpt-5.6-sol xhigh on 6074117: `_quoted_span_end` treated `/"/` as a
+  // string opener, so `"a  b"` → `"a b"` kept the digest. `_code_normalize`
+  // keeps a JS `/…/` span before it looks for quotes, so the assertion still moves.
+  const dir = tmpRepo()
+  const rel = 'tests/lock-subject.test.mjs'
+  const named = [['locked dirty', rel]]
+  const rowLine = '| `locked dirty` | `tests/lock-subject.test.mjs` | lock | F-1 |'
+  const header = "import test from 'node:test'\nimport assert from 'node:assert/strict'\n"
+  const body = expected => `${header}test('locked dirty', () => { const left = /"/; assert.equal("${expected}", "a b"); const right = /"/; })\n`
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), body('a  b'))
+    const first = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    const firstRow = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${first}`
+    writeFileSync(join(dir, rel), body('a b'))
+    const moved = findings(dir, [firstRow], named)
+    assert.ok(moved.blocks.some(b => b.includes('locked dirty') && (/hash moved|could not be hashed/.test(b))),
+      `a quote-bearing regex must not keep a proven hash after the assertion moves:\n${moved.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+
 test('writer, done, and is_done agree on the same hashes', () => {
   const dir = tmpRepo()
   try {

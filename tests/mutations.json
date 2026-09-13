@@ -3944,7 +3944,7 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "    name: mutations ${{ matrix.shard }}/24",
+      "from": "    name: mutations ${{ matrix.shard }}/48",
       "to": "    name: mutations ${{ matrix.shard }}/8"
     },
     {
@@ -3953,7 +3953,7 @@
       "tests": [
         "tests/package.test.mjs"
       ],
-      "from": "          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 24 \\",
+      "from": "          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 48 \\",
       "to": "          node scripts/mutation-cache-merge.mjs --out .mutation-cache.json --expect 8 \\"
     },
     {
@@ -8119,7 +8119,17 @@
       ],
       "from": "            pending = (heredoc[1], heredoc[2])",
       "to": "            pending = (heredoc[0], heredoc[2])",
-      "only": "a comment on a heredoc opener line is still a comment|the hasher survives seeded stress"
+      "only": "a comment on a heredoc opener line is still a comment"
+    },
+    {
+      "label": "lock: the opener-line remainder after a heredoc marker stays in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            out.append(code(text[start:head_end]))\n            out.append(code(text[head_end:payload_start]))\n            out.append(text[payload_start:end])",
+      "to": "            out.append(code(text[start:head_end]))\n            out.append(text[payload_start:end])",
+      "only": "code after a heredoc marker on its opener line stays"
     },
     {
       "label": "lock: a `<<` inside ((…)) is a shift, whatever follows the operand (stress)",

@@ -1258,6 +1258,36 @@ test('a comment on a heredoc opener line is still a comment', () => {
   }
 })
 
+test('code after a heredoc marker on its opener line stays in the digest', () => {
+  // `_code_normalize` skipped head_end:payload_start, so `<<EOF | wc` and
+  // `<<EOF | cat` hashed the same. That also hid the stripper mutant that
+  // stuffed the remainder into the payload — normalize dropped it anyway.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  const source = (pipe) => 'test_lock_dirty() {\n'
+    + `  cat <<EOF ${pipe}\n`
+    + 'payload\n'
+    + 'EOF\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('| wc'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('| cat'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+      `code after the marker must be in the hash:\n${moved.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('the hasher survives seeded stress against bash and a generator oracle', (t) => {
   // stress-testing skill, adapted: arm 1 generates shell test bodies from pools
   // that mix data and comment shapes (heredocs, URL fragments, escaped

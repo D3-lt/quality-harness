@@ -1,7 +1,7 @@
 ---
 name: codex-advise
 description: >-
-  Ask a fresh-context, read-only Codex GPT-5.6 Sol session for grounded advice in any project. Use for
+  Ask a fresh-context, read-only Codex GPT-6 Astra session for grounded advice in any project. Use for
   an independent second opinion on architecture, ADR shaping, design tradeoffs, debugging hypotheses,
   incident reasoning, or a difficult technical decision. Routes high, xhigh, or ultra effort from
   task risk and breadth. Do not use for a verdict-bearing change review (use codex-review), routine
@@ -27,7 +27,7 @@ steps below.
 
 ## Non-negotiable contract
 
-- Pin `gpt-5.6-sol` and explicitly pass exactly one of `high`, `xhigh`, or `ultra`.
+- Pin `gpt-6-astra` and explicitly pass exactly one of `high`, `xhigh`, or `ultra`.
 - Run in a read-only sandbox and ephemeral session. Codex must not edit, stage, commit, push, deploy,
   or contact anyone.
 - Ask a concrete question, name the relevant repository/artifacts, and separate observed facts from
@@ -57,7 +57,7 @@ An explicit valid choice wins. Otherwise select and state the lowest honest tier
 | `ultra` | Broad high-impact architecture, migration/incident strategy, irreversible choice, or an explicitly exhaustive question where automatic delegation materially helps. |
 
 Never silently downgrade. Reject other effort strings. On a new or upgraded installation, use
-`"<absolute-codex>" debug models --bundled` to confirm the chosen level under `gpt-5.6-sol`; fail
+`"<absolute-codex>" debug models --bundled` to confirm the chosen level under `gpt-6-astra`; fail
 clearly if that exact combination is unavailable.
 
 ## Resolve and run Codex
@@ -73,7 +73,7 @@ all options explicit:
 ```bash
 "<absolute-codex>" exec <optional-ignore-user-config> \
   -C "<working-directory>" -s read-only \
-  -m gpt-5.6-sol -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
+  -m gpt-6-astra -c 'model_reasoning_effort="<high|xhigh|ultra>"' \
   -c 'sandbox_mode="read-only"' --ephemeral \
   -o "<absolute-unique-output>" \
   <optional-skip-git-repo-check> \

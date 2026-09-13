@@ -551,7 +551,9 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False):
         heredoc = _heredoc_span(text, i, php=php, shell=shell)
         if heredoc is not None:
             head_end, payload_start, end = heredoc
+            # The rest of the opener line is still code (`<<EOF | wc`).
             out.append(code(text[start:head_end]))
+            out.append(code(text[head_end:payload_start]))
             out.append(text[payload_start:end])
             i = start = end
             continue

@@ -1630,13 +1630,16 @@ test('whitespace inside a JS string literal is part of the locked body', () => {
 test('a quote inside a JS regex does not keep the first-red hash after the assertion moves', () => {
   // Codex gpt-5.6-sol xhigh on 6074117: `_quoted_span_end` treated `/"/` as a
   // string opener, so `"a  b"` → `"a b"` kept the digest. `_code_normalize`
-  // keeps a JS `/…/` span before it looks for quotes, so the assertion still moves.
+  // keeps a JS `/…/` span before it looks for quotes. The stripper must too:
+  // after `/"/` it treated `//` inside `"https://a  b"` as a comment (Codex high
+  // on 6e0fe99) and both spellings hashed the same truncated prefix.
   const dir = tmpRepo()
   const rel = 'tests/lock-subject.test.mjs'
   const named = [['locked dirty', rel]]
   const rowLine = '| `locked dirty` | `tests/lock-subject.test.mjs` | lock | F-1 |'
   const header = "import test from 'node:test'\nimport assert from 'node:assert/strict'\n"
   const body = expected => `${header}test('locked dirty', () => { const left = /"/; assert.equal("${expected}", "a b"); const right = /"/; })\n`
+  const urlBody = expected => `${header}test('locked dirty', () => {\n  const left = /"/;\n  assert.equal("${expected}", "a b");\n})\n`
   try {
     mkdirSync(join(dir, 'tests'), { recursive: true })
     writeFileSync(join(dir, rel), body('a  b'))
@@ -1646,6 +1649,13 @@ test('a quote inside a JS regex does not keep the first-red hash after the asser
     const moved = findings(dir, [firstRow], named)
     assert.ok(moved.blocks.some(b => b.includes('locked dirty') && (/hash moved|could not be hashed/.test(b))),
       `a quote-bearing regex must not keep a proven hash after the assertion moves:\n${moved.blocks.join('\n')}`)
+    writeFileSync(join(dir, rel), urlBody('https://a  b'))
+    const urlFirst = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    const urlRow = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${urlFirst}`
+    writeFileSync(join(dir, rel), urlBody('https://a b'))
+    const urlMoved = findings(dir, [urlRow], named)
+    assert.ok(urlMoved.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
+      `a // inside a string after a quote-bearing regex must still move the hash:\n${urlMoved.blocks.join('\n')}`)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

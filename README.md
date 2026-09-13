@@ -392,8 +392,8 @@ clear, the rest of this page reads normally.
 - `review` — evidence-backed code review with risk routing.
 - `mutation-audit` — break a mechanism on purpose and measure whether anything notices.
 - `postmortem` — structured learning from material failures.
-- `codex-review` — fresh-context GPT-5.6 Sol verdict review.
-- `codex-advise` — fresh-context GPT-5.6 Sol technical advice.
+- `codex-review` — fresh-context GPT-6 Astra verdict review.
+- `codex-advise` — fresh-context GPT-6 Astra technical advice.
 - `quality-policy` — the shared simplicity, evidence, and leaf-agent contract.
 
 Plugin skills are namespaced by Claude Code, for example

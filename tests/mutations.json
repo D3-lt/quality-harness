@@ -7673,14 +7673,14 @@
       "only": "a Swift nested block comment does not keep"
     },
     {
-      "label": "lock: a bare Swift regex literal is masked, not read as braces",
+      "label": "lock: a Swift body that might hold a bare regex literal is UNPROVEN",
       "file": "plugin/lib/record.py",
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if text[i:i + 1] != \"/\" or text[i + 1:i + 2] in (\"/\", \"*\", \" \", \"\\t\", \"\\n\", \"\"):\n        return None",
-      "to": "    if True:\n        return None",
-      "only": "a brace inside a bare Swift regex literal"
+      "from": "        if not spans or any(span is None or _swift_ambiguous_slash(span) for span in spans):",
+      "to": "        if not spans or any(span is None for span in spans):",
+      "only": "a Swift body that might hold a bare regex literal is UNPROVEN"
     },
     {
       "label": "lock: an escaped slash does not close an extended Swift regex",
@@ -7688,8 +7688,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            if text[j] == \"\\\\\":\n                j += 2\n                continue\n            if text.startswith(\"/\" + hashes, j):",
-      "to": "            if False:\n                j += 2\n                continue\n            if text.startswith(\"/\" + hashes, j):",
+      "from": "        if text[j] == \"\\\\\":\n            j += 2\n            continue\n        if text.startswith(\"/\" + hashes, j):",
+      "to": "        if False:\n            j += 2\n            continue\n        if text.startswith(\"/\" + hashes, j):",
       "only": "an escaped delimiter inside an extended Swift regex"
     },
     {
@@ -7741,6 +7741,16 @@
       "from": "                    out.append(_strip_comments_keep_strings(text[start:stop], swift=True))",
       "to": "                    out.append(text[start:stop])",
       "only": "rewording a comment inside a Swift interpolation"
+    },
+    {
+      "label": "lock: a backticked XCTest method name is extracted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"func[ \\t]+(`?)(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
+      "to": "    r\"func[ \\t]+()(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
+      "only": "a backticked XCTest method sharing a name"
     },
     {
       "label": "lock: a Go signature comment does not close the hashed body",

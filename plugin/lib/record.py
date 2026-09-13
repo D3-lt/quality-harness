@@ -429,14 +429,10 @@ _SWIFT_MODIFIER = re.compile(
 _SWIFT_XCTEST_FN = re.compile(
     r"(?m)^[ \t]*(?:(?:@\w+(?:\([^)\n]*\))?|public|package|internal|private|"
     r"fileprivate|open|final|nonisolated|override)[ \t]+)*"
-    r"func[ \t]+(test\w*)[ \t]*(\()[ \t]*\)"
+    r"func[ \t]+(`?)(test\w*)\1[ \t]*(\()[ \t]*\)"
 )
 _SWIFT_LITERAL_OPEN = re.compile(r'(#*)("""|")')
 _SWIFT_REGEX_OPEN = re.compile(r"(#+)/")
-# A bare `/…/` regex literal (SE-0354) can only follow a token that cannot end
-# an operand; after an identifier, number or closer the `/` is division.
-_SWIFT_BARE_REGEX_PREV = frozenset("=(,[{:;!&|?^~+-*%<>\n")
-_SWIFT_BARE_REGEX_KEYWORD = re.compile(r"(?<!\w)(?:return|try|await|case|in|throw)\Z")
 
 
 def tests_table_rows(text):
@@ -894,9 +890,9 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
     PHP needs hash comments and heredocs; Rust uses C-like comments and quotes.
     rust_raw blanks r#"..."# and nested /* */; shell_heredocs blanks << after PHP <<<.
     swift blanks every Swift literal WHOLE (quotes included, so the brace matcher
-    sees no quote to re-open), `#/…/#` regex literals, backtick identifiers and
-    nested /* */. A bare `/…/` regex literal is not recognised: a brace inside
-    one can widen a span, never shorten it to a prefix.
+    sees no quote to re-open), `#/…/#` regex literals and nested /* */, and keeps
+    backtick identifiers as code. A bare `/…/` regex literal is not masked; a body
+    that might hold one is refused by `_swift_ambiguous_slash`.
     """
     out = list(text)
     i, n = 0, len(text)
@@ -1192,43 +1188,49 @@ def _swift_expression_skip(text, k):
 
 
 def _swift_regex_end(text, i):
-    """Index just past a Swift regex literal at `text[i]`, or None.
+    """Index just past an extended `#/…/#` regex literal at `text[i]`, or None.
 
-    Extended `#/…/#` closes on an unescaped `/` plus the same number of `#`,
-    and may span lines; unterminated, it runs to the end, so the brace matcher
-    fails closed. A bare `/…/` (SE-0354) is recognised only where an operand
-    cannot end — after an operator, an opener, a separator, a line start or
-    `return`/`try`/`await`/`case`/`in`/`throw` — must not start with whitespace,
-    and closes on an unescaped `/` on the same line that does not follow
-    whitespace; anything else is division and stays code.
+    It closes on an unescaped `/` plus the same number of `#` and may span lines;
+    unterminated, it runs to the end, so the brace matcher fails closed. A bare
+    `/…/` is NOT recognised here: telling it from division needs the type
+    checker (`total!/f(x)` is division, `if /[}]/ ~= s` is a regex), so the
+    extractor refuses a body that might hold one (`_swift_ambiguous_slash`).
     """
-    n = len(text)
     opening = _SWIFT_REGEX_OPEN.match(text, i)
-    if opening:
-        hashes, j = opening.group(1), opening.end()
-        while j < n:
-            if text[j] == "\\":
-                j += 2
-                continue
-            if text.startswith("/" + hashes, j):
-                return j + 1 + len(hashes)
-            j += 1
-        return n
-    if text[i:i + 1] != "/" or text[i + 1:i + 2] in ("/", "*", " ", "\t", "\n", ""):
+    if not opening:
         return None
-    before = text[:i].rstrip(" \t")
-    if before and before[-1] not in _SWIFT_BARE_REGEX_PREV \
-            and not _SWIFT_BARE_REGEX_KEYWORD.search(before):
-        return None
-    j = i + 1
-    while j < n and text[j] != "\n":
+    n = len(text)
+    hashes, j = opening.group(1), opening.end()
+    while j < n:
         if text[j] == "\\":
             j += 2
             continue
-        if text[j] == "/":
-            return None if text[j - 1] in " \t" else j + 1
+        if text.startswith("/" + hashes, j):
+            return j + 1 + len(hashes)
         j += 1
-    return None
+    return n
+
+
+def _swift_ambiguous_slash(body):
+    """True when a code `/` in `body` might open a bare regex literal.
+
+    A code `/` (not in a literal, extended regex or comment) followed by a
+    non-space character can open `/…/` in expression position, and a reader
+    without a type checker cannot always tell that position from division. When
+    the rest of its line holds a brace, a slash, a star or a backslash — anything
+    that could end the body early or hide an assertion from the digest — the
+    body is refused (UNPROVEN) rather than hashed as a possible prefix. Spaced
+    division (`a / b`) cannot open a regex and never refuses.
+    """
+    masked = _mask_lock_noncode(body, swift=True)
+    for i, char in enumerate(masked):
+        if char != "/" or body[i + 1:i + 2] in ("", " ", "\t", "\n"):
+            continue
+        end = body.find("\n", i)
+        rest = body[i + 1:] if end == -1 else body[i + 1:end]
+        if any(mark in rest for mark in "{}/*\\"):
+            return True
+    return False
 
 
 def _swift_balanced_parens_end(masked, i):
@@ -1282,7 +1284,7 @@ def _iter_swift_tests(text):
         if fn:
             found.append((attr.start(), fn.group(2), i + fn.end()))
     for fn in _SWIFT_XCTEST_FN.finditer(masked):
-        found.append((fn.start(), fn.group(1), fn.end(2)))
+        found.append((fn.start(), fn.group(2), fn.end(3)))
     declared = set()
     for at, name, after_paren in sorted(found):
         if after_paren in declared:
@@ -1331,7 +1333,7 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
         masked = _mask_lock_noncode(text, swift=True)
         spans = [_span_from_paren(text, masked, after_paren)
                  for found, after_paren in _iter_swift_tests(text) if found == name]
-        if not spans or any(span is None for span in spans):
+        if not spans or any(span is None or _swift_ambiguous_slash(span) for span in spans):
             return None
         return "\n".join(spans)
     if shell:

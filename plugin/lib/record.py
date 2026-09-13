@@ -1278,6 +1278,7 @@ def _recorded_lock(vlog):
     """Lock parsed from the first TDD-red row, else (date, None)."""
     first_date = None
     first_red = None
+    later_red_locks = []
     for line in vlog:
         line = line.strip()
         m = _MACHINE.match(line)
@@ -1285,9 +1286,14 @@ def _recorded_lock(vlog):
             continue
         if first_date is None:
             first_date = m.group("date")
-        if m.group("exit") != "0" and first_red is None:
-            first_red = line
-            first_date = m.group("date")
+        if m.group("exit") != "0":
+            if first_red is None:
+                first_red = line
+                first_date = m.group("date")
+            else:
+                other = _LOCK_SHA.search(line)
+                if other:
+                    later_red_locks.append(other.group(1))
     if first_red is None:
         return first_date, None
     sha = _LOCK_SHA.search(first_red)
@@ -1295,7 +1301,15 @@ def _recorded_lock(vlog):
     if not sha:
         return first_date, None
     parsed = decode_lock(b64.group(1)) if b64 else None
-    return first_date, {"digest": sha.group(1), "map": parsed}
+    # ADR-050: "done is refused … when a later red presents a different hash."
+    # The writer emits one lock per log (first_red_lock_suffix returns "" once a
+    # lock exists), so a second, different one is a log that was assembled by
+    # hand or by a tool that could not see the first — and the bodies it pins
+    # are not the bodies the contract pins. Measured unimplemented by the
+    # verdict-layer stress arm, 2026-09-13.
+    conflict = next((other for other in later_red_locks
+                     if other != sha.group(1)), None)
+    return first_date, {"digest": sha.group(1), "map": parsed, "conflict": conflict}
 
 
 def lock_findings(vlog, *, root, tests, label=""):
@@ -1310,6 +1324,11 @@ def lock_findings(vlog, *, root, tests, label=""):
         if date is None or date < TEST_HASH_REQUIRED_FROM:
             return [], [missing + f" (advisory until {TEST_HASH_REQUIRED_FROM})"]
         return [missing + f" (required from {TEST_HASH_REQUIRED_FROM})"], []
+
+    if recorded.get("conflict"):
+        return [f"{prefix}a later red row carries a different first-red "
+                f"test-lock-sha256 ({recorded['conflict'][:12]}… vs "
+                f"{recorded['digest'][:12]}…) — done is refused"], []
 
     if recorded["map"] is None:
         return [f"{prefix}first-red test-lock-sha256 is present but the lock map "

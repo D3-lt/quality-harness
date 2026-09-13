@@ -1267,6 +1267,8 @@ test('the hasher survives seeded stress against bash and a generator oracle', (t
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
   // Selection is evidence: an arm that ran zero iterations exits 0 too.
   assert.match(run.stdout, /^arm2 iterations=[1-9]\d* php=[1-9]\d* js=[1-9]\d*$/m, run.stdout)
+  assert.match(run.stdout, /^arm3 iterations=[1-9]\d* refused=[1-9]\d* allowed=[1-9]\d* no_lock_block=[1-9]\d* no_lock_advice=[1-9]\d* later_red=[1-9]\d*$/m,
+    run.stdout)
   const unrun = run.stdout.match(/^arm1 UNRUN .*$/m)
   if (unrun) {
     // The bash the Windows runner hands Python is not the one the fence runs
@@ -1278,6 +1280,39 @@ test('the hasher survives seeded stress against bash and a generator oracle', (t
   }
   assert.match(run.stdout, /^arm1 iterations=[1-9]\d* observable=[1-9]\d* comment_only=[1-9]\d*$/m,
     run.stdout)
+})
+
+test('a later red carrying a different lock hash refuses done', () => {
+  // ADR-050 §Decision: "done is refused … when a later red presents a different
+  // hash." The reader took only the FIRST red and never looked at a second, so
+  // a log holding two different locks passed whenever the tree still matched the
+  // first one. Found by the verdict-layer stress arm, 2026-09-13, iteration 54.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  const source = rhs => `test_lock_dirty() {\n  [ 2 -eq ${rhs} ]\n}\n`
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source(2))
+    const first = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    writeFileSync(join(dir, rel), source(1))
+    const second = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.notEqual(first, second, 'the two reds must pin different bodies')
+    writeFileSync(join(dir, rel), source(2))
+    const row = digest => `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${digest.repeat(64)} · ms:12`
+    // The tree matches the FIRST lock, so nothing has moved by the old reading.
+    const agreeing = findings(dir, [`${row('0')}${first}`], named)
+    assert.deepEqual(agreeing.blocks, [], agreeing.blocks.join('\n'))
+    const conflicting = findings(dir, [`${row('0')}${first}`, `${row('1')}${second}`], named)
+    assert.ok(conflicting.blocks.some(b => /later red row carries a different/.test(b)),
+      `a second red pinning other bodies must refuse:\n${conflicting.blocks.join('\n')}`)
+    // A later red that carries NO lock is the writer's own shape and is fine.
+    const ordinary = findings(dir, [`${row('0')}${first}`, row('1')], named)
+    assert.deepEqual(ordinary.blocks, [], ordinary.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
 })
 
 

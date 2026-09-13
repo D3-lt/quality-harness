@@ -5595,6 +5595,40 @@ test('adr-state reports the three kinds of record it did not read, separately', 
     'a clean corpus gets no warning at all')
 })
 
+test('adr-state names a file it could not open as PARTIAL, not as a record without a Status line', async (t) => {
+  // Codex 2026-09-13: one readable record beside one chmod-000 record. The JSON
+  // said PARTIAL; the prose said the file "was opened" and had "[no **Status:**
+  // line]" — an observation the reader never made (ADR-005).
+  const root = await mkdtemp(path.join(testTmp, 'quality-state-unopened-'))
+  const adr = path.join(root, 'docs', 'adr')
+  await mkdir(adr, { recursive: true })
+  await writeFile(path.join(adr, 'ADR-001-accepted.md'), '# ADR-001: Fine\n\n**Status:** Accepted\n')
+  const locked = path.join(adr, 'ADR-002-locked.md')
+  await writeFile(locked, '# ADR-002: Locked\n\n**Status:** Accepted\n')
+  gitInit(root)
+  chmodSync(locked, 0o000)
+  let unread = false
+  try { readFileSync(locked) } catch { unread = true }
+  if (!unread) {
+    chmodSync(locked, 0o644)
+    t.skip('chmod 000 still reads — Git for Windows has no POSIX permission bits')
+    return
+  }
+  try {
+    const run = spawnSync(process.execPath, [path.join(pluginDir, 'scripts', 'adr-state.mjs'), root],
+      { encoding: 'utf8', timeout: 30_000 })
+    assert.equal(run.status ?? 0, 0, run.stderr)
+    assert.match(run.stdout, /1 record\(s\) read/)
+    assert.match(run.stdout, /1 listed file\(s\) could NOT be opened[^\n]*PARTIAL/)
+    assert.match(run.stdout, /ADR-002-locked\.md\s+\[\w+\]/, 'the reason it could not be opened travels with it')
+    assert.doesNotMatch(run.stdout, /were opened and could NOT be read/,
+      'a file that was never read must not be reported as read-and-rejected')
+    assert.doesNotMatch(run.stdout, /no \*\*Status:\*\* line/)
+  } finally {
+    chmodSync(locked, 0o644)
+  }
+})
+
 test('a signed-off human-observed task is finished, not ready forever', async () => {
   // Found 2026-08-30 by finishing ADR-012 T4, whose acceptance is human-observed
   // by design: the observation is a person watching another program on their own

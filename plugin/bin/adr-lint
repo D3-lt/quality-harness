@@ -117,7 +117,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM  # noqa: E402,E501
+from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
 
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
@@ -3442,7 +3442,8 @@ def resolve_enforcement(pointer, root):
             # resolves. `lifecycle.mjs::shellWords` did.
             javascript = f.suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx")
             if wanted and not javascript and looks_like_a_test(f) and test_body(
-                    source, wanted, python=f.suffix == ".py") is not None:
+                    source, wanted, python=f.suffix == ".py",
+                    php=f.suffix == ".php") is not None:
                 return "test"
             # A `node:test` name is a STRING ARGUMENT, not a function name, so
             # test_body cannot see it — and code_only blanks string contents, so
@@ -4210,7 +4211,8 @@ def check_tests_exist(infos, readme_text, errors, root):
             # is a string literal and stripping strings here deleted the thing
             # being searched for (docs/BACKLOG.md §57).
             source = f.read_text(errors="replace", encoding="utf-8")
-            if test_body(source, name, python=f.suffix == ".py") is None:
+            if test_body(source, name, python=f.suffix == ".py",
+                         php=f.suffix == ".php") is None:
                 # NO CLAIM ABOUT THE FILTER. This used to end "the acceptance
                 # filter passed without it", which is an inference the check never
                 # makes: measured 2026-08-29 on a 77-record corpus where four of
@@ -4284,7 +4286,7 @@ def commented_out(text, index):
     return re.match(r"\s*(?://|#|\*|--)", text[start:index]) is not None
 
 
-def test_body(text, name, python=False):
+def test_body(text, name, python=False, php=False):
     """The source of the named test function, best-effort across languages.
 
     The opening brace may sit on the declaration line (Go, JS) or on the NEXT one
@@ -4400,17 +4402,12 @@ def test_body(text, name, python=False):
         r"""(['"`])""" + re.escape(name) + r"""\1\s*,""",
         text)
     if bdd and not commented_out(text, bdd.start()):
-        brace = text.find("{", bdd.end())
-        if brace != -1:
-            depth = 0
-            for j in range(brace, len(text)):
-                if text[j] == "{":
-                    depth += 1
-                elif text[j] == "}":
-                    depth -= 1
-                    if depth == 0:
-                        return text[brace:j + 1]
-            return text[brace:]
+        # Bounded to the call (record.bdd_callback_body): the unbounded `{`
+        # search this had read the NEXT test's block for an arrow-bodied test,
+        # so the neighbour's assertions answered for it.
+        body = bdd_callback_body(text, bdd.end(), php=php)
+        if body is not None:
+            return body
     # Ruby and other `do`/`end` block forms, which have no brace to match.
     ruby = re.search(r"\b(?:it|specify|scenario|context|describe)\s+(['\"])"
                      + re.escape(name) + r"\1\s+do\b", text)
@@ -4875,7 +4872,7 @@ def check_tests_can_fail(infos, readme_text, errors, root):
             # one can be mistaken for an assertion the test makes.
             raw = f.read_text(errors="replace", encoding="utf-8")
             text = code_only(raw, python=True) if f.suffix == ".py" else raw
-            body = test_body(text, name, python=f.suffix == ".py")
+            body = test_body(text, name, python=f.suffix == ".py", php=f.suffix == ".php")
             if body is None:
                 continue
             # A no-op on the text above, which was already stripped; kept because
@@ -4886,7 +4883,8 @@ def check_tests_can_fail(infos, readme_text, errors, root):
             # that takes the testing handle counts as part of it.
             if not FAIL_CALLS.search(body):
                 for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
-                    h = test_body(text, callee, python=f.suffix == ".py")
+                    h = test_body(text, callee, python=f.suffix == ".py",
+                                  php=f.suffix == ".php")
                     if h and FAIL_CALLS.search(h):
                         body += h
                         break

@@ -117,10 +117,20 @@ export function main(argv) {
   // Most are proposals, which govern nothing BY DESIGN. Measured against a real
   // 171-record corpus 2026-08-27: 11 Proposed, 7 `Implemented…`, 1 `Amended by
   // ADR-050`, 1 with no status line.
-  const pending = unreadable.filter(entry => /^(?:proposed|draft)\b/i.test(entry.status ?? ''))
-  const nameless = unreadable.filter(entry => !entry.status)
-  const strange = unreadable.filter(entry => entry.status && !pending.includes(entry))
+  const unopened = unreadable.filter(entry => entry.reason)
+  const read = unreadable.filter(entry => !entry.reason)
+  const pending = read.filter(entry => /^(?:proposed|draft)\b/i.test(entry.status ?? ''))
+  const nameless = read.filter(entry => !entry.status)
+  const strange = read.filter(entry => entry.status && !pending.includes(entry))
 
+  // Never read at all, so nothing here can say what they decide (PARTIAL).
+  if (unopened.length) {
+    process.stdout.write(`\n${unopened.length} listed file(s) could NOT be opened, so this is PARTIAL — `
+      + 'nothing below says what they decide:\n')
+    for (const entry of unopened.slice(0, SHOWN)) {
+      process.stdout.write(`  ${relative(entry)}  [${entry.reason}]\n`)
+    }
+  }
   if (pending.length) {
     process.stdout.write(`\n${pending.length} record(s) are Proposed or Draft and govern nothing yet, `
       + 'which is correct — they are not counted above.\n')

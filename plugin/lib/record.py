@@ -511,6 +511,65 @@ def extract_test_names(text, python=False):
     return names
 
 
+def _matching_js_brace(text, start):
+    """Index of the `}` matching `text[start] == '{'`, skipping strings/comments.
+
+    Same class as arch-lint `scan_code_only`: raw `{`/`}` counting treats a
+    brace inside a string as the closer and hashes a prefix. If the span cannot
+    be established, return None — do not hash a prefix (ADR-005). Hash the
+    ORIGINAL slice, not code_only (ADR-050).
+    """
+    if start >= len(text) or text[start] != "{":
+        return None
+    state = "code"
+    escaped = False
+    depth = 0
+    index = start
+    while index < len(text):
+        char = text[index]
+        pair = text[index:index + 2]
+        if state == "code":
+            if pair == "//":
+                state = "line-comment"
+                index += 2
+                continue
+            if pair == "/*":
+                state = "block-comment"
+                index += 2
+                continue
+            if char in ('"', "'"):
+                state = char
+                escaped = False
+            elif char == "`":
+                state = "raw-string"
+            elif char == "{":
+                depth += 1
+            elif char == "}":
+                depth -= 1
+                if depth == 0:
+                    return index
+        elif state == "line-comment":
+            if char == "\n":
+                state = "code"
+        elif state == "block-comment":
+            if pair == "*/":
+                state = "code"
+                index += 2
+                continue
+        elif state == "raw-string":
+            if char == "`":
+                state = "code"
+        else:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == state:
+                state = "code"
+        index += 1
+    return None
+
+
 def extract_test_body(text, name, python=False):
     """Best-effort body of `name`, or None."""
     if python:
@@ -536,15 +595,10 @@ def extract_test_body(text, name, python=False):
     brace = text.find("{", bdd.end())
     if brace == -1:
         return None
-    depth = 0
-    for j in range(brace, len(text)):
-        if text[j] == "{":
-            depth += 1
-        elif text[j] == "}":
-            depth -= 1
-            if depth == 0:
-                return text[brace:j + 1]
-    return text[brace:]
+    end = _matching_js_brace(text, brace)
+    if end is None:
+        return None
+    return text[brace:end + 1]
 
 
 def _read_file(path):

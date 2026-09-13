@@ -41,6 +41,18 @@ function next(args, cwd) {
 // this digest is the one all three tools compute. The shared normalizer is
 // asserted directly in tests/gate-regressions.py; here it only has to match.
 const digestOf = fence => createHash('sha256').update(fence, 'utf8').digest('hex')
+// ADR-050 cutover is today. A verify row dated on/after TEST_HASH_REQUIRED_FROM
+// without a first-red lock makes is_done withhold `done` and then
+// unprovable_evidence misnames that as "different Acceptance". These two tests
+// are the writer/reader digest contract, not the lock. Same last advisory day
+// as tests/evidence-chain.test.mjs. Do not bump the product constant.
+function ageVerificationLog(taskPath) {
+  const text = readFileSync(taskPath, 'utf8')
+  const [head, after] = text.split('## Verification Log')
+  if (after === undefined) return
+  writeFileSync(taskPath, head + '## Verification Log'
+    + after.replace(/^- \d{4}-\d{2}-\d{2} · /gm, '- 2026-09-12 · '))
+}
 
 /**
  * One task file. `evidence` marks it done the only way that counts — a
@@ -1089,6 +1101,7 @@ test("a heading inside the Acceptance fence is not a heading: adr-next agrees wi
   // The fence adr-verify hashed is the WHOLE fence: its digest is the digest of
   // both commands with the comment between them, not of `printf one` alone.
   assert.equal(row[1], digestOf(fence), 'adr-verify hashed the whole fence, through the fenced heading')
+  ageVerificationLog(taskPath)
 
   const route = out => ['done', 'ready', 'blocked', 'stopped']
     .find(bucket => (out[bucket] ?? []).some(t => t.id === 'T1')) ?? 'nowhere'
@@ -1121,6 +1134,7 @@ test("a sh-labelled Acceptance fence adr-verify recorded is done to adr-next", (
     const verify = spawnSync('python3', [join(bin, 'adr-verify'), taskPath],
       { cwd: tasksDir, env, encoding: 'utf8', timeout: 60_000 })
     assert.equal(verify.status, 0, `adr-verify runs a \`\`\`${opener.trim()} fence: ${verify.stdout}${verify.stderr}`)
+    ageVerificationLog(taskPath)
     const route = out => ['done', 'ready', 'blocked', 'stopped']
       .find(bucket => (out[bucket] ?? []).some(t => t.id === 'T1')) ?? 'nowhere'
     const after = next(['--all', '--json', tasksDir], tasksDir)

@@ -2300,6 +2300,12 @@ def main():
         # enumeration unproven rather than quietly dropping that one file.
         assert lint.record_files(amb_root, amb_dir,
                                  amb_tracked | {"docs/adr/2027-1-1-gone.md"}) is None
+        clash = amb_dir / "003-T2.md"
+        clash.write_text("# ADR-4: filename and title disagree\n", encoding="utf-8")
+        clash_tracked = amb_tracked | {"docs/adr/003-T2.md"}
+        clash_numbers = {p.name: n for p, n in lint.record_files(amb_root, amb_dir, clash_tracked)}
+        assert "003-T2.md" not in clash_numbers, clash_numbers
+        assert lint.adr_number(clash, clash.read_text(encoding="utf-8")) is None
 
     # A cycle ACROSS records. Per-record DAG checks cannot see one by
     # construction: each record's graph is acyclic on its own, and the cycle

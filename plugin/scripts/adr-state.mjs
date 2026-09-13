@@ -93,8 +93,13 @@ export function main(argv) {
   }
 
   if (!corpus.length) {
-  process.stdout.write('No decision records found under this repository.\n')
-  return 0
+    if (corpus.look === 'PARTIAL' || (corpus.unreadable ?? []).length) {
+      process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
+        + 'This is not "no decision records found".\n')
+      return 0
+    }
+    process.stdout.write('No decision records found under this repository.\n')
+    return 0
   }
 
   const unreadable = corpus.unreadable ?? []

@@ -2546,6 +2546,35 @@ test('a passing recognised check after an UNPROVEN write silences Advise', async
   assert.match(dirtyCommit.stderr, /would publish unchecked/i)
 })
 
+test('a passing never-measured *selftest* after an UNPROVEN write does not silence Advise', async () => {
+  const dir = await checkedProject('quality-unproven-unknown-selftest-')
+  const file = path.join(dir, 'unknown-selftest.jsonl')
+  await writeFile(file, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+    toolUse('t1', 'Bash', { command: 'qh-never-measured-selftest' }),
+    toolResult('t1', false, 'ok'),
+  ]))
+  assert.equal(classifyCommand('qh-never-measured-selftest'), 'unrecognised')
+  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+  assert.ok(state.lastUnprovenWrite >= 0)
+  assert.ok(!(state.lastSuccessfulValidation > state.lastUnprovenWrite),
+    'an unpublished family must not become lastSuccessfulValidation')
+  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
+  assert.match(`${stop.stdout}${stop.stderr}`, /systemMessage/)
+  const note = sessionStateNote(state, dir, dir, false)
+  assert.match(note.text, /no recognised check has proven it/)
+  const recognised = path.join(dir, 'recognised.jsonl')
+  await writeFile(recognised, transcript([
+    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
+    toolUse('t1', 'Bash', { command: 'pnpm test' }),
+    toolResult('t1', false, '12 passed'),
+  ]))
+  const ok = analyzeTranscript(await readFile(recognised, 'utf8'), dir)
+  assert.ok(ok.lastSuccessfulValidation > ok.lastUnprovenWrite)
+  const okStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: recognised, cwd: dir })
+  assert.doesNotMatch(`${okStop.stdout}${okStop.stderr}`, /systemMessage/)
+})
+
 test('a failing check after an UNPROVEN write still Advises, and Read does not flag', async () => {
   const dir = await checkedProject('quality-unproven-failed-check-')
   const file = path.join(dir, 'fail.jsonl')

@@ -1957,7 +1957,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       }
 
     }
-    if (use.name === 'Bash' && isValidationCommand(use.input.command)
+    if (use.name === 'Bash' && classifyCommand(use.input.command) === 'validation'
         && use.input.run_in_background !== true) {
       lastValidation = Math.max(lastValidation, use.position)
       if (results.has(use.id)) {
@@ -3186,7 +3186,7 @@ function looksLikeRecord(file, directory, reader) {
   if (!/(^|[\\/])adr([\\/]|$)/i.test(directory)) return false
   if (/(^|[\\/])tasks([\\/]|$)/i.test(directory)) return false
   let text
-  try { text = reader.text(file) } catch { return false }
+  try { text = reader.text(file) } catch { return 'unreadable' }
   return /^[ \t]*\*{0,2}Status:?\*{0,2}[ \t]*:?[ \t]*\S/im.test(text)
     && /^##\s+(Context|Decision)\b/im.test(text)
 }
@@ -3202,7 +3202,7 @@ function recordFilesFromListing(root, tracked, reader) {
     const base = slash < 0 ? norm : norm.slice(slash + 1)
     const dirNorm = slash < 0 ? '' : norm.slice(0, slash)
     const absolute = listedAbsolute(root, rel)
-    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader)) files.push(absolute)
+    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader) !== false) files.push(absolute)
   }
   return files
 }
@@ -3248,7 +3248,9 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   const records = []
   const unreadable = []
   Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
-  Object.defineProperty(records, 'look', { value: tracked == null ? 'UNPROVEN' : 'ok', enumerable: false })
+  Object.defineProperty(records, 'look', {
+    value: tracked == null ? 'UNPROVEN' : 'ok', enumerable: false, writable: true,
+  })
   if (tracked == null) return records
   const reader = corpusReader()
   const files = recordFilesFromListing(root, tracked, reader)
@@ -3260,9 +3262,17 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   for (const file of files) {
     let text
     try {
-      if (statSync(file).size > 512 * 1024) continue
+      if (statSync(file).size > 512 * 1024) {
+        unreadable.push({ file, status: null, taskFiles: [] })
+        records.look = 'PARTIAL'
+        continue
+      }
       text = reader.text(file)
-    } catch { continue }
+    } catch {
+      unreadable.push({ file, status: null, taskFiles: [] })
+      records.look = 'PARTIAL'
+      continue
+    }
     const status = recordStatus(text)
     const kind = statusKind(status)
     if (!kind) {

@@ -1860,3 +1860,25 @@ test('a backticked XCTest method sharing a name with a plain one locks both bodi
     + `final class B: XCTestCase {\n  func \`testProbe\`() { XCTAssertEqual(2, ${expected}) }\n}\n`
   swiftMoved('UITests/LockBacktickXCTest.swift', body('2'), body('1'), 'testProbe')
 })
+
+// Third Codex pass on the refusal (2026-09-13): parser-valid Swift that still
+// kept the hash, and ordinary division it refused.
+test('a bare regex inside an interpolation, or outside the test, makes the Swift file UNPROVEN', () => {
+  swiftUnproven('Tests/LockRegexInTripleInterpolation.swift',
+    '@Test func probe() {\n let s = """\n \\({\n  let r = /[\\/*]/\n  #expect(2 == 2)\n  // */\n  return 0\n }())\n """\n}\n')
+  swiftUnproven('Tests/LockRegexInInterpolation.swift',
+    '@Test func probe() {\n let s = "\\({ let r = /[\\/*]/; #expect(2 == 2); let t = #""*/""#; return 0 }())"\n}\n')
+  swiftUnproven('Tests/LockRegexOutsideTest.swift',
+    'let helper = /[}/*]/\n@Test func probe() { #expect(3 == 3) }\n')
+})
+
+test('compact division, a trailing comment after division and a URL string keep a proven Swift hash', () => {
+  const body = expect => '@Test func probe() {\n  let x = 8/2*3\n  let y = 8/2 // divide\n'
+    + `  let u = "https://example.com/a/b"\n  #expect(${expect})\n}\n`
+  swiftMoved('Tests/LockDivisionControls.swift', body('2 == 2'), body('2 == 1'))
+})
+
+test('an XCTest method declared inline on its class line is hashed', () => {
+  const body = expected => `final class C: XCTestCase { func testInline() { XCTAssertEqual(1, ${expected}) } }\n`
+  swiftMoved('UITests/LockInlineXCTest.swift', body('1'), body('2'), 'testInline')
+})

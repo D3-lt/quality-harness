@@ -7678,8 +7678,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if not spans or any(span is None or _swift_ambiguous_slash(span) for span in spans):",
-      "to": "        if not spans or any(span is None for span in spans):",
+      "from": "        if _swift_ambiguous_slash(text):\n            return None",
+      "to": "        if False:\n            return None",
       "only": "a Swift body that might hold a bare regex literal is UNPROVEN"
     },
     {
@@ -7751,6 +7751,36 @@
       "from": "    r\"func[ \\t]+(`?)(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
       "to": "    r\"func[ \\t]+()(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
       "only": "a backticked XCTest method sharing a name"
+    },
+    {
+      "label": "lock: a regex inside a Swift interpolation is seen by the refusal",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                out[start:stop] = _swift_code_view(text[start:stop])",
+      "to": "                blank(start, stop)",
+      "only": "a bare regex inside an interpolation, or outside the test"
+    },
+    {
+      "label": "lock: a spaced // after Swift division is a comment, not a refusal",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if comment:\n            rest = rest[:comment.start()]",
+      "to": "        if False:\n            rest = rest[:comment.start()]",
+      "only": "compact division, a trailing comment after division"
+    },
+    {
+      "label": "lock: an inline XCTest method declaration is extracted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"(?<![\\w`.])(?:(?:@",
+      "to": "    r\"(?m)^[ \\t]*(?:(?:@",
+      "only": "an XCTest method declared inline"
     },
     {
       "label": "lock: a Go signature comment does not close the hashed body",

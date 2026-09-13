@@ -284,6 +284,71 @@ test('a brace inside a string does not keep the first-red hash after the asserti
     rmSync(dir, { recursive: true, force: true })
   }
 })
+test('a Go func Test is hashed, and rewriting the assertion refuses done', () => {
+  // 2.98.0 ran .go through the BDD it(/test( extractors, so every func Test was
+  // unproven and done was refused. Same outer boundary as the JS lock: suffix
+  // then lock_findings. A `}` in a raw string must not close the body.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject_test.go'
+  const named = [['TestLockDirty', rel]]
+  const rowLine = '| `TestLockDirty` | `tests/lock_subject_test.go` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'func TestLockDirty(t *testing.T) {\n'
+      + '\ttoken := `}`\n'
+      + '\tif got, want := 2, 2; got != want {\n'
+      + '\t\tt.Fatalf("got %d want %d", got, want)\n'
+      + '\t}\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`go test .\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'func TestLockDirty(t *testing.T) {\n'
+      + '\ttoken := `}`\n'
+      + '\tif got, want := 2, 1; got != want {\n'
+      + '\t\tt.Fatalf("got %d want %d", got, want)\n'
+      + '\t}\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('TestLockDirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a Go Testfoo (lowercase after Test) stays unproven', () => {
+  // go/testing isTest: next rune after Test must not be lowercase. Matching
+  // Testfoo would hash a function go test does not run.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject_test.go'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'func Testfoo(t *testing.T) {\n'
+      + '\tt.Fatal("not a test")\n'
+      + '}\n')
+    const suffix = recordOp({
+      op: 'suffix',
+      root: dir,
+      text: taskMarkdown(['| `Testfoo` | `tests/lock_subject_test.go` | lock | F-1 |']),
+    }).suffix
+    const row = `- 2026-09-13 · no-git · exit 2 · \`go test .\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const got = findings(dir, [row], [['Testfoo', rel]])
+    assert.ok(got.blocks.some(b => b.includes('Testfoo') && /could not be hashed/.test(b)),
+      got.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 
 test('first TDD-red row carries a tool-written hash for each named test', () => {
   const dir = tmpRepo()

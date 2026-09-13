@@ -375,6 +375,10 @@ _MACHINE = re.compile(
 _BDD_NAME = re.compile(
     r"""(?:\b(?:it|test)\s*\()\s*(['"`])([^'"`\n]+)\1\s*,"""
 )
+# adr-lint `_go_direct_test_definitions` plus go/testing isTest: Test + not-lowercase.
+_GO_FUNC_TEST = re.compile(
+    r"(?m)^[ \t]*func[ \t]+(Test(?:[^a-z]\w*)?)[ \t]*\("
+)
 CONFIG_NAME = ".quality-harness.json"
 
 
@@ -484,7 +488,7 @@ def _strip_comments_keep_strings(text, python=False):
     return "".join(out)
 
 
-def extract_test_names(text, python=False):
+def extract_test_names(text, python=False, go=False):
     """Names this hasher can see in `text`."""
     if python:
         try:
@@ -499,6 +503,8 @@ def extract_test_names(text, python=False):
                     names.append(node.name)
             return names
         return []
+    if go:
+        return [name for name, _after in _iter_go_func_tests(text)]
     names, seen = [], set()
     for match in _BDD_NAME.finditer(text):
         start = text.rfind("\n", 0, match.start()) + 1
@@ -569,8 +575,67 @@ def _matching_js_brace(text, start):
         index += 1
     return None
 
+def _js_like_in_code(text, pos):
+    """True when pos is in code, same machine as `_matching_js_brace`."""
+    if pos < 0 or pos >= len(text):
+        return False
+    state = "code"
+    escaped = False
+    index = 0
+    while index < pos:
+        char = text[index]
+        pair = text[index:index + 2]
+        if state == "code":
+            if pair == "//":
+                state = "line-comment"
+                index += 2
+                continue
+            if pair == "/*":
+                state = "block-comment"
+                index += 2
+                continue
+            if char in ("'", '"'):
+                state = char
+                escaped = False
+            elif char == "`":
+                state = "raw-string"
+        elif state == "line-comment":
+            if char == "\n":
+                state = "code"
+        elif state == "block-comment":
+            if pair == "*/":
+                state = "code"
+                index += 2
+                continue
+        elif state == "raw-string":
+            if char == "`":
+                state = "code"
+        else:
+            if escaped:
+                escaped = False
+            elif char == "\\":
+                escaped = True
+            elif char == state:
+                state = "code"
+        index += 1
+    return state == "code"
 
-def extract_test_body(text, name, python=False):
+
+def _iter_go_func_tests(text):
+    """Package-level `func TestXxx` in code. Yields (name, after_open_paren)."""
+    seen = set()
+    for match in _GO_FUNC_TEST.finditer(text):
+        func_at = text.find("func", match.start(), match.end())
+        if func_at < 0 or not _js_like_in_code(text, func_at):
+            continue
+        name = match.group(1)
+        if name in seen:
+            continue
+        seen.add(name)
+        yield name, match.end()
+
+
+def extract_test_body(text, name, python=False, go=False):
     """Best-effort body of `name`, or None."""
     if python:
         try:
@@ -583,6 +648,18 @@ def extract_test_body(text, name, python=False):
                 start = node.body[0].lineno - 1
                 end = max(getattr(stmt, "end_lineno", stmt.lineno) for stmt in node.body)
                 return "".join(text.splitlines(keepends=True)[start:end])
+        return None
+    if go:
+        for found, after_paren in _iter_go_func_tests(text):
+            if found != name:
+                continue
+            brace = text.find("{", after_paren)
+            if brace == -1:
+                return None
+            end = _matching_js_brace(text, brace)
+            if end is None:
+                return None
+            return text[brace:end + 1]
         return None
     bdd = re.search(
         r"""(?:\b(?:it|test)\s*\()\s*(['"`])""" + re.escape(name) + r"""\1\s*,""",
@@ -626,9 +703,10 @@ def snapshot_lock(root, tests_rows):
                 if r == rel:
                     unproven.add((rel, n))
             continue
-        python = path.suffix == ".py"
-        for name in extract_test_names(source, python=python):
-            body = extract_test_body(source, name, python=python)
+        python = path.suffix.lower() == ".py"
+        go = path.suffix.lower() == ".go"
+        for name in extract_test_names(source, python=python, go=go):
+            body = extract_test_body(source, name, python=python, go=go)
             if body is None:
                 if (rel, name) in named:
                     unproven.add((rel, name))

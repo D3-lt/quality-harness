@@ -1640,6 +1640,7 @@ test('a quote inside a JS regex does not keep the first-red hash after the asser
   const header = "import test from 'node:test'\nimport assert from 'node:assert/strict'\n"
   const body = expected => `${header}test('locked dirty', () => { const left = /"/; assert.equal("${expected}", "a b"); const right = /"/; })\n`
   const urlBody = expected => `${header}test('locked dirty', () => {\n  const left = /"/;\n  assert.equal("${expected}", "a b");\n})\n`
+  const divBody = expected => `${header}test('locked dirty', () => {\n  const ratio = 8/"1/2".length;\n  assert.equal("${expected}", "https://a b");\n})\n`
   try {
     mkdirSync(join(dir, 'tests'), { recursive: true })
     writeFileSync(join(dir, rel), body('a  b'))
@@ -1656,6 +1657,13 @@ test('a quote inside a JS regex does not keep the first-red hash after the asser
     const urlMoved = findings(dir, [urlRow], named)
     assert.ok(urlMoved.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
       `a // inside a string after a quote-bearing regex must still move the hash:\n${urlMoved.blocks.join('\n')}`)
+    writeFileSync(join(dir, rel), divBody('https://a  b'))
+    const divFirst = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    const divRow = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${divFirst}`
+    writeFileSync(join(dir, rel), divBody('https://a b'))
+    const divMoved = findings(dir, [divRow], named)
+    assert.ok(divMoved.blocks.some(b => b.includes('locked dirty') && b.includes('hash moved')),
+      `division that looks like /"/ must not collapse the next string:\n${divMoved.blocks.join('\n')}`)
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

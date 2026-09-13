@@ -7748,8 +7748,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    r\"func[ \\t]+(`?)(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
-      "to": "    r\"func[ \\t]+()(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
+      "from": "    r\"func\\s+(`?)(test\\w*)\\1\\s*(\\()\\s*\\)\"",
+      "to": "    r\"func\\s+()(test\\w*)\\1\\s*(\\()\\s*\\)\"",
       "only": "a backticked XCTest method sharing a name"
     },
     {
@@ -7763,16 +7763,6 @@
       "only": "a bare regex inside an interpolation, or outside the test"
     },
     {
-      "label": "lock: a spaced // after Swift division is a comment, not a refusal",
-      "file": "plugin/lib/record.py",
-      "tests": [
-        "tests/test-lock.test.mjs"
-      ],
-      "from": "        if comment:\n            rest = rest[:comment.start()]",
-      "to": "        if False:\n            rest = rest[:comment.start()]",
-      "only": "compact division, a trailing comment after division"
-    },
-    {
       "label": "lock: an inline XCTest method declaration is extracted",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -7781,6 +7771,56 @@
       "from": "    r\"(?<![\\w`.])(?:(?:@",
       "to": "    r\"(?m)^[ \\t]*(?:(?:@",
       "only": "an XCTest method declared inline"
+    },
+    {
+      "label": "lock: a multi-line XCTest signature is extracted",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    r\"func\\s+(`?)(test\\w*)\\1\\s*(\\()\\s*\\)\"",
+      "to": "    r\"func[ \\t]+(`?)(test\\w*)\\1[ \\t]*(\\()[ \\t]*\\)\"",
+      "only": "a multi-line XCTest signature and a qualified"
+    },
+    {
+      "label": "lock: a qualified @Testing.Test is a test attribute",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "_SWIFT_TEST_ATTR = re.compile(r\"@(?:Testing\\.)?Test\\b\")",
+      "to": "_SWIFT_TEST_ATTR = re.compile(r\"@Test\\b\")",
+      "only": "a multi-line XCTest signature and a qualified"
+    },
+    {
+      "label": "lock: Swift literal whitespace is kept in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if swift:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()",
+      "to": "    if False:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()",
+      "only": "whitespace inside a Swift string literal"
+    },
+    {
+      "label": "lock: a slash with no closer on its line is division, not a refusal",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if closer is None:\n            continue",
+      "to": "        if False:\n            continue",
+      "only": "division with no closing slash on its line"
+    },
+    {
+      "label": "lock: a quote inside a possible Swift regex refuses the file",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if any(mark in rest[:closer] for mark in \"{}\\\\\\\"`\"):",
+      "to": "        if any(mark in rest[:closer] for mark in \"{}\\\\`\"):",
+      "only": "division with no closing slash on its line"
     },
     {
       "label": "lock: a Go signature comment does not close the hashed body",

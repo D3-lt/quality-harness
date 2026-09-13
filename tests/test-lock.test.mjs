@@ -1882,3 +1882,33 @@ test('an XCTest method declared inline on its class line is hashed', () => {
   const body = expected => `final class C: XCTestCase { func testInline() { XCTAssertEqual(1, ${expected}) } }\n`
   swiftMoved('UITests/LockInlineXCTest.swift', body('1'), body('2'), 'testInline')
 })
+
+// Fourth Codex pass (2026-09-13).
+test('a multi-line XCTest signature and a qualified @Testing.Test are locked beside a same-named test', () => {
+  const xctest = expected => 'import XCTest\nfinal class A: XCTestCase {\n  func testProbe() { XCTAssertEqual(1, 1) }\n}\n'
+    + `final class B: XCTestCase {\n  func testProbe(\n  ) { XCTAssertEqual(2, ${expected}) }\n}\n`
+  swiftMoved('UITests/LockMultilineXCTest.swift', xctest('2'), xctest('1'), 'testProbe')
+  const qualified = expect => 'import Testing\nstruct A { @Test func probe() { #expect(1 == 1) } }\n'
+    + `struct B { @Testing.Test func probe() { #expect(${expect}) } }\n`
+  swiftMoved('Tests/LockQualifiedTest.swift', qualified('2 == 2'), qualified('2 == 1'))
+})
+
+test('whitespace inside a Swift string literal is part of the locked body', () => {
+  swiftMoved('Tests/LockStringWhitespace.swift',
+    '@Test func probe() { #expect("a  b" == "a b") }\n',
+    '@Test func probe() { #expect("a b" == "a b") }\n')
+  swiftMoved('Tests/LockMultilineStringWhitespace.swift',
+    '@Test func probe() {\n  let s = """\n    a  b\n    """\n  #expect(s == "a b")\n}\n',
+    '@Test func probe() {\n  let s = """\n    a b\n    """\n  #expect(s == "a b")\n}\n')
+})
+
+test('division with no closing slash on its line keeps a proven Swift hash, a quote inside a possible regex refuses', () => {
+  swiftMoved('Tests/LockInlineDivision.swift',
+    '@Test func probe() { let x = 8/2; #expect(x == 4) }\n',
+    '@Test func probe() { let x = 8/2; #expect(x == 5) }\n')
+  swiftMoved('Tests/LockChainedDivision.swift',
+    '@Test func probe() {\n  let x = 8/2/2\n  #expect(x == 2)\n}\n',
+    '@Test func probe() {\n  let x = 8/2/2\n  #expect(x == 3)\n}\n')
+  swiftUnproven('Tests/LockQuoteRegex.swift',
+    '@Test func probe() { let r = /"/; let s = "}"; #expect(2 == 2) }\n')
+})

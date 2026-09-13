@@ -421,15 +421,15 @@ CONFIG_NAME = ".quality-harness.json"
 # Swift Testing `@Test` (any arguments) / XCTest `func test*()` with no
 # parameters. Matched on the masked text, so a commented-out or quoted
 # declaration is not a test.
-_SWIFT_TEST_ATTR = re.compile(r"@Test\b")
+_SWIFT_TEST_ATTR = re.compile(r"@(?:Testing\.)?Test\b")
 _SWIFT_MODIFIER = re.compile(
     r"(?:public|package|internal|private|fileprivate|open|static|class|final|"
     r"nonisolated|override|mutating|dynamic|required)\b"
 )
 _SWIFT_XCTEST_FN = re.compile(
     r"(?<![\w`.])(?:(?:@\w+(?:\([^)\n]*\))?|public|package|internal|private|"
-    r"fileprivate|open|final|nonisolated|override)[ \t]+)*"
-    r"func[ \t]+(`?)(test\w*)\1[ \t]*(\()[ \t]*\)"
+    r"fileprivate|open|final|nonisolated|override)\s+)*"
+    r"func\s+(`?)(test\w*)\1\s*(\()\s*\)"
 )
 _SWIFT_LITERAL_OPEN = re.compile(r'(#*)("""|")')
 _SWIFT_REGEX_OPEN = re.compile(r"(#+)/")
@@ -492,6 +492,8 @@ def body_digest(body, python=False, php=False, shell=False, rust=False,
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
     text = _strip_comments_keep_strings(
         text, python=python, php=php, shell=shell, rust=rust, swift=swift)
+    if swift:
+        return hashlib.sha256(_swift_normalize(text).encode("utf-8")).hexdigest()
     lines = []
     for line in text.split("\n"):
         collapsed = re.sub(r"[ \t]+", " ", line).strip()
@@ -1246,18 +1248,46 @@ def _swift_code_view(text):
     return "".join(out)
 
 
+def _swift_normalize(text):
+    """Whitespace-collapsed Swift for the digest, with every literal kept byte-for-byte.
+
+    The shared per-line collapse would turn `"a  b"` into `"a b"`, so an
+    assertion's expected string could change without moving the hash. Outside
+    literals, runs of spaces and tabs become one space and blank lines and line
+    edges are dropped, as for every other language.
+    """
+    out, i, n, start = [], 0, len(text), 0
+
+    def code(chunk):
+        chunk = re.sub(r"[ \t]+", " ", chunk)
+        return re.sub(r" ?\n[ \n]*", "\n", chunk)
+
+    while i < n:
+        literal = _swift_literal_scan(text, i)
+        end = literal[0] if literal is not None else _swift_regex_end(text, i)
+        if end is None:
+            i += 1
+            continue
+        out.append(code(text[start:i]))
+        out.append(text[i:end])
+        i = start = end
+    out.append(code(text[start:]))
+    return "".join(out).strip()
+
+
 def _swift_ambiguous_slash(text):
     """True when a code `/` in a Swift source might open a bare regex literal.
 
     Telling `/…/` from division needs the type checker (`total!/f(x)` is
-    division, `if /[}]/ ~= s` is a regex), and a regex can hold `{`, `}`, `//`
-    or `/*` that the masker and the digest would then misread. A code `/` —
-    seen through `_swift_code_view`, so one inside an interpolation counts —
-    followed by a non-space character is ambiguous when the rest of its line,
-    up to a spaced ` //` comment (a bare regex cannot contain one), holds a
-    brace, a slash or a backslash. The whole file is then refused (UNPROVEN)
-    rather than hashed on a boundary nobody can vouch for. Spaced division
-    (`a / b`) and `8/2*3` never refuse.
+    division, `if /[}]/ ~= s` is a regex), and a regex can hold characters the
+    masker and the digest would misread. A code `/` — seen through
+    `_swift_code_view`, so one inside an interpolation counts — followed by a
+    non-space character opens a possible regex only if an unescaped `/` closes
+    it later on the same line (a bare regex cannot span lines; the scan stops
+    at the first slash of a trailing `//`). It is ambiguous when that possible content holds a brace, a
+    backslash, a quote or a backtick. The whole file is then refused (UNPROVEN)
+    rather than hashed on a boundary nobody can vouch for. `a / b`, `8/2*3`,
+    `8/2; }` and `8/2/2` never refuse.
     """
     view = _swift_code_view(text)
     for i, char in enumerate(view):
@@ -1265,10 +1295,18 @@ def _swift_ambiguous_slash(text):
             continue
         end = text.find("\n", i)
         rest = text[i + 1:] if end == -1 else text[i + 1:end]
-        comment = re.search(r"[ \t]//", rest)
-        if comment:
-            rest = rest[:comment.start()]
-        if any(mark in rest for mark in "{}/\\"):
+        closer, j = None, 0
+        while j < len(rest):
+            if rest[j] == "\\":
+                j += 2
+                continue
+            if rest[j] == "/":
+                closer = j
+                break
+            j += 1
+        if closer is None:
+            continue
+        if any(mark in rest[:closer] for mark in "{}\\\"`"):
             return True
     return False
 

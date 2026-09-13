@@ -7638,8 +7638,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if swift:\n            end = _swift_literal_end(text, i)\n            if end is None:",
-      "to": "        if swift:\n            end = None\n            if end is None:",
+      "from": "            literal = _swift_literal_scan(text, i)\n            end = literal[0] if literal is not None else _swift_regex_end(text, i)",
+      "to": "            literal = None\n            end = literal[0] if literal is not None else _swift_regex_end(text, i)",
       "only": "a brace inside a Swift multi-line"
     },
     {
@@ -7658,8 +7658,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "                    nested = _swift_literal_end(text, k)",
-      "to": "                    nested = None",
+      "from": "    literal = _swift_literal_scan(text, k)\n    if literal is not None:\n        return literal[0]",
+      "to": "    literal = None\n    if literal is not None:\n        return literal[0]",
       "only": "a brace inside a Swift multi-line"
     },
     {
@@ -7671,6 +7671,76 @@
       "from": "            if rust_raw or swift:\n                depth, j = 1, i + 2",
       "to": "            if rust_raw:\n                depth, j = 1, i + 2",
       "only": "a Swift nested block comment does not keep"
+    },
+    {
+      "label": "lock: a bare Swift regex literal is masked, not read as braces",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if text[i:i + 1] != \"/\" or text[i + 1:i + 2] in (\"/\", \"*\", \" \", \"\\t\", \"\\n\", \"\"):\n        return None",
+      "to": "    if True:\n        return None",
+      "only": "a brace inside a bare Swift regex literal"
+    },
+    {
+      "label": "lock: an escaped slash does not close an extended Swift regex",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text[j] == \"\\\\\":\n                j += 2\n                continue\n            if text.startswith(\"/\" + hashes, j):",
+      "to": "            if False:\n                j += 2\n                continue\n            if text.startswith(\"/\" + hashes, j):",
+      "only": "an escaped delimiter inside an extended Swift regex"
+    },
+    {
+      "label": "lock: a Swift regex literal is kept verbatim in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            end = _swift_regex_end(text, i)\n            if end is not None:\n                out.append(text[i:end])",
+      "to": "            end = None\n            if end is not None:\n                out.append(text[i:end])",
+      "only": "a Swift regex literal holding"
+    },
+    {
+      "label": "lock: a comment inside a Swift interpolation is skipped before counting parens",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if text.startswith(\"/*\", k):\n        depth, j = 1, k + 2",
+      "to": "    if False:\n        depth, j = 1, k + 2",
+      "only": "a comment inside a Swift interpolation does not end"
+    },
+    {
+      "label": "lock: every declaration of a duplicated Swift test name is hashed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            return None\n        return \"\\n\".join(spans)",
+      "to": "            return None\n        return spans[0]",
+      "only": "declared in two suites"
+    },
+    {
+      "label": "lock: a backticked Swift test name is kept as code",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if text[i] == \"`\":\n                # An escaped identifier",
+      "to": "            if False:\n                # An escaped identifier",
+      "only": "a Swift test with a backticked name"
+    },
+    {
+      "label": "lock: comments inside a Swift interpolation are stripped from the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                    out.append(_strip_comments_keep_strings(text[start:stop], swift=True))",
+      "to": "                    out.append(text[start:stop])",
+      "only": "rewording a comment inside a Swift interpolation"
     },
     {
       "label": "lock: a Go signature comment does not close the hashed body",

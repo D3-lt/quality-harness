@@ -88,10 +88,14 @@ export function main(argv, root = process.cwd()) {
 
   if (json) {
     process.stdout.write(`${JSON.stringify({
+      look: corpus.look ?? 'ok',
       read: corpus.length,
       governing: governing.map(shape),
       graveyard: graveyard.map(shape),
     }, null, 2)}\n`)
+  } else if (corpus.look === 'PARTIAL' || ((corpus.unreadable ?? []).length && !corpus.length)) {
+    process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
+      + 'This is not "no decision records found".\n')
   } else if (!corpus.length) {
     process.stdout.write('No decision records found under this repository.\n')
   } else if (!governing.length && !graveyard.length) {

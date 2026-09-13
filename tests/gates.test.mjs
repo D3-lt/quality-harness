@@ -798,6 +798,69 @@ test('chmod-000 ADR-*.md is UNPROVEN through the dispatcher, not not satisfied',
   }
 })
 
+test('chmod-000 named ADR with strictFrom is UNPROVEN exit 2, not a traceback', (t) => {
+  const temp = realpathSync(mkdtempSync(join(os.tmpdir(), 'qh-strict-unreadable-')))
+  const file = join(temp, 'ADR-001-locked.md')
+  try {
+    spawnSync('git', ['init', '-q', temp], { encoding: 'utf8', timeout: 15_000 })
+    cpSync(join(fixture, 'ADR-001-selftest.md'), file)
+    writeFileSync(join(temp, '.quality-harness.json'), '{"strictFrom":"ADR-0001"}\n')
+    chmodSync(file, 0o000)
+    let unread = false
+    try { readFileSync(file) } catch { unread = true }
+    if (!unread) {
+      chmodSync(file, 0o644)
+      t.skip('chmod 000 still reads — Git for Windows has no POSIX permission bits')
+      return
+    }
+    const direct = run('adr-lint', [file], temp)
+    expectExit(direct, 2, 'named ADR + strictFrom must could-not-run, not crash')
+    assert.doesNotMatch(`${direct.stdout}${direct.stderr}`, /Traceback/)
+    assert.match(`${direct.stdout}${direct.stderr}`, /could not run/)
+    const out = run(process.execPath, [join(root, 'scripts', 'run-shell-hook.mjs'), 'facts-gate-dispatch.sh'],
+      temp, JSON.stringify({ tool_input: { file_path: file } }))
+    expectExit(out, 0, 'dispatcher on an unreadable ADR with strictFrom')
+    assert.match(out.stderr, /UNPROVEN: adr-lint could not run \(exit 2\)/,
+      `mapped 2 is UNPROVEN: ${out.stdout}${out.stderr}`)
+    chmodSync(file, 0o644)
+  } finally {
+    try { chmodSync(file, 0o644) } catch { /* restore */ }
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
+
+
+test('a file whose name and title disagree on the ADR number is refused', () => {
+  const temp = mkdtempSync(join(os.tmpdir(), 'qh-adr-identity-'))
+  try {
+    spawnSync('git', ['init', '-q', temp], { encoding: 'utf8', timeout: 15_000 })
+    const file = join(temp, '003-T2.md')
+    writeFileSync(file, [
+      '# ADR-4: clash',
+      '',
+      '**Status:** Accepted',
+      '',
+      '## Decision',
+      '',
+      'One identity.',
+      '',
+      '## Alternatives Considered',
+      '',
+      '- Doing nothing — rejected, two numbers cannot stand.',
+      '',
+      '## Consequences',
+      '',
+      'Refused.',
+      '',
+    ].join('\n'))
+    const out = run('adr-lint', [file], temp)
+    expectExit(out, 1, 'filename/title mismatch must block')
+    assert.match(`${out.stdout}${out.stderr}`,
+      /filename names ADR-3 and the title names ADR-4/)
+  } finally {
+    rmSync(temp, { recursive: true, force: true })
+  }
+})
 test('a legacy record is not routed as a task and told its own ADR is missing', () => {
   // docs/BACKLOG.md §185, reported 2026-09-08 from a 77-record corpus where this
   // produced 34 false failures in ONE commit — every record predating the

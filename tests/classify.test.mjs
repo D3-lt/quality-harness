@@ -158,3 +158,20 @@ test('pwsh or cmd with POSIX letters in the payload is unrecognised, not mutatio
   assert.equal(classifyCommand('zsh -c "echo ${#files}"'), 'neither')
   assert.notEqual(classifyCommand('zsh -c "echo ${#files}"'), 'mutation')
 })
+
+test('a never-measured bare *selftest* or *check* is unrecognised, not validation', () => {
+  // VALIDATION_PATTERNS admits any first word containing selftest/check. That
+  // certified an unpublished family. A bare PATH name absent from MEASURED_FAMILIES
+  // is unrecognised; a path-shaped gate still counts (CLAUDE.md §16).
+  for (const command of ['qh-never-measured-selftest', 'qh-never-measured-check']) {
+    assert.equal(classifyCommand(command), 'unrecognised', command)
+    assert.notEqual(classifyCommand(command), 'validation', command)
+    assert.equal(isValidationCommand(command), true,
+      `${command}: the boolean still matches the name — classify must not`)
+  }
+  assert.equal(classifyCommand('bash scripts/selftest.sh'), 'validation')
+  assert.equal(classifyCommand('pnpm test'), 'validation')
+  assert.equal(classifyCommand('./scripts/selftest.sh'), 'validation')
+  assert.equal(classifyCommand('./vendor/bin/phpunit'), 'validation')
+  assert.equal(classifyCommand('/c/Users/dev/.claude/bin/adr-lint docs/adr/A.md'), 'validation')
+})

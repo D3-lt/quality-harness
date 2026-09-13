@@ -1023,6 +1023,11 @@ def read_named(path):
 
 def check_adr(adr_path, errors, root=_ROOT_UNSET):
     text = read_named(adr_path)
+    name_n, title_n = adr_numbers(Path(adr_path), text)
+    if name_n is not None and title_n is not None and name_n != title_n:
+        errors.append(
+            f"{adr_path.name}: filename names ADR-{name_n} and the title names ADR-{title_n}; "
+            f"one record cannot be both")
     if root is _ROOT_UNSET:
         root = git_root(Path(adr_path).parent)
     permanent_paths = _ROOT_UNSET
@@ -3853,6 +3858,14 @@ def record_files(root, corpus_dir, tracked):
                 return None
             if not says:
                 continue
+            try:
+                title_text = (corpus_dir / name).read_text(encoding="utf-8", errors="replace")
+            except OSError:
+                return None
+            _, title_n = adr_numbers(corpus_dir / name, title_text)
+            file_n = int(found.group(1))
+            if title_n is not None and title_n != file_n:
+                continue
         out.append((corpus_dir / name, int(found.group(1))))
     return sorted(out)
 
@@ -5358,13 +5371,20 @@ def strict_from_number(start, errors):
     return int(match.group(1))
 
 
-def adr_number(path, text):
-    """ADR-014, 014-thing.md, `# ADR-14: ...` — the number, however it is spelled."""
+def adr_numbers(path, text):
+    """Filename number and title number; either is None when that spelling is absent."""
     title = re.search(r"^#\s+ADR[-_ ]?(\d{1,4})\b", text, re.M | re.I)
-    if title:
-        return int(title.group(1))
     name = re.search(r"(?:adr[-_]?)?(\d{3,4})[-._]", path.name, re.I)
-    return int(name.group(1)) if name else None
+    return (int(name.group(1)) if name else None,
+            int(title.group(1)) if title else None)
+
+
+def adr_number(path, text):
+    """ADR-014, 014-thing.md, `# ADR-14: ...` — one number, or None on mismatch."""
+    name_n, title_n = adr_numbers(path, text)
+    if name_n is not None and title_n is not None and name_n != title_n:
+        return None
+    return title_n if title_n is not None else name_n
 
 
 # ADR-031. Every gate answers for ITSELF, and the answer is read from the
@@ -5485,8 +5505,9 @@ def main():
     # those five documents does. A file NAMED `ADR-…` keeps its findings whatever
     # it contains — a record missing its Status line is a real finding, and this
     # must not become the way to silence one.
+    text = read_named(adr)
     if not re.match(r"(?:adr|spec)[-_]?\d", adr.name, re.I) and not re.search(
-            r"(?m)^\*\*Status:\*\*", read_named(adr)):
+            r"(?m)^\*\*Status:\*\*", text):
         print(f"not-recognised: {adr} has no **Status:** line and is not named ADR-…, "
               f"so nothing here was checked. This is not a finding about that file — "
               f"`adr-lint` reads one record at a time, and a backlog, a README or a "
@@ -5503,7 +5524,7 @@ def main():
     # is checked exactly as it was before this existed.
     cutoff = strict_from_number(adr.parent, errors)
     if cutoff is not None:
-        number = adr_number(adr, adr.read_text(errors="replace", encoding="utf-8"))
+        number = adr_number(adr, text)
         if number is None:
             errors.advise(f"strictFrom is ADR-{cutoff:04d} but this record's number could not be "
                           f"read from its filename or title, so it is checked in full")
@@ -5544,7 +5565,7 @@ def main():
         # this gate can see, and refusing an ADR for its layout is the behaviour
         # that teaches people to stop running the gate. But saying nothing is how
         # the hole stayed open, and skills/adr-write no longer recommends it.
-        body = adr.read_text(errors="replace", encoding="utf-8")
+        body = text
         inline_done = [ln.strip() for ln in body.splitlines()
                        if re.search(r"(?<!\w)T\d+(?!\w)", ln) and re.search(r"\bdone\b", ln, re.I)]
         if inline_done:
@@ -5641,15 +5662,15 @@ def main():
     # Deliberately OUTSIDE `protected()` and outside the tasks branch: it applies
     # to every record whether or not it has tasks, and it is advice — a pointer
     # to nothing is worth saying and is never worth blocking a record over.
-    check_enforcement(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
+    check_enforcement(text, adr, errors,
                       root)
-    check_pointers(adr.read_text(errors="replace", encoding="utf-8"), adr, errors,
+    check_pointers(text, adr, errors,
                    root, adr.parent, tracked)
     check_cross_record_cycles(root, adr.parent, tracked, errors)
 
     if spec_file is not None:
         # inline-task ADRs carry **Covers:** lines in the ADR body itself
-        adr_text = adr.read_text(errors="replace", encoding="utf-8")
+        adr_text = text
         inline = " ".join(re.findall(r"^\*\*Covers:\*\*\s*(.+)$", adr_text, re.M))
         all_covers |= set(re.findall(r"(F-\d+|UC\d+-S\d+)", inline))
         uncovered = spec_ids(spec_file) - all_covers

@@ -2876,7 +2876,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader)) files.push(absolute)",
+      "from": "    if (ADR_FILE.test(base) || looksLikeRecord(absolute, dirNorm, reader) !== false) files.push(absolute)",
       "to": "    if (ADR_FILE.test(base)) files.push(absolute)"
     },
     {
@@ -7427,9 +7427,70 @@
       "tests": [
         "tests/classify.test.mjs"
       ],
-      "from": "    if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'",
+      "from": "    if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'\n  }\n\n  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'",
       "to": "    if (false) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (false) return 'unrecognised'",
       "only": "POSIX rm as the executable stays mutation|pwsh or cmd with POSIX letters in the payload is unrecognised, not mutation"
+    },
+    {
+      "label": "classify: a never-measured bare *selftest* is unrecognised, not validation",
+      "file": "plugin/scripts/classify-command.mjs",
+      "tests": [
+        "tests/classify.test.mjs",
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)) return 'unrecognised'\n  }\n\n",
+      "to": "\n",
+      "only": "a never-measured bare \\*selftest\\* or \\*check\\* is unrecognised|a passing never-measured \\*selftest\\* after an UNPROVEN write"
+    },
+    {
+      "label": "lifecycle: analyzeTranscript certifies only classifyCommand validation",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "    if (use.name === 'Bash' && classifyCommand(use.input.command) === 'validation'",
+      "to": "    if (use.name === 'Bash' && isValidationCommand(use.input.command)",
+      "only": "a passing never-measured \\*selftest\\* after an UNPROVEN write"
+    },
+    {
+      "label": "corpus: an unreadable listed ADR is PARTIAL, not dropped as not-a-record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/staged-product.test.mjs"
+      ],
+      "from": "    } catch {\n      unreadable.push({ file, status: null, taskFiles: [] })\n      records.look = 'PARTIAL'\n      continue\n    }",
+      "to": "    } catch { continue }",
+      "only": "a listed ADR that cannot be read is PARTIAL"
+    },
+    {
+      "label": "lock: a brace inside a JS string does not close the hashed body",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    end = _matching_js_brace(text, brace)\n    if end is None:\n        return None\n    return text[brace:end + 1]",
+      "to": "    depth, index = 0, brace\n    end = None\n    while index < len(text):\n        if text[index] == \"{\":\n            depth += 1\n        elif text[index] == \"}\":\n            depth -= 1\n            if depth == 0:\n                end = index\n                break\n        index += 1\n    if end is None:\n        return None\n    return text[brace:end + 1]",
+      "only": "a brace inside a string does not keep the first-red hash after the assertion moves"
+    },
+    {
+      "label": "adr-lint: filename and title ADR numbers must be the same identity",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if name_n is not None and title_n is not None and name_n != title_n:\n        errors.append(",
+      "to": "    if False:\n        errors.append(",
+      "only": "a file whose name and title disagree on the ADR number is refused"
+    },
+    {
+      "label": "adr-lint: named path plus strictFrom reads through read_named, not a second open",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    text = read_named(adr)\n    if not re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I) and not re.search(\n            r\"(?m)^\\*\\*Status:\\*\\*\", text):",
+      "to": "    text = adr.read_text(errors=\"replace\", encoding=\"utf-8\")\n    if not re.match(r\"(?:adr|spec)[-_]?\\d\", adr.name, re.I) and not re.search(\n            r\"(?m)^\\*\\*Status:\\*\\*\", text):",
+      "only": "chmod-000 named ADR with strictFrom is UNPROVEN exit 2, not a traceback"
     },
     {
       "label": "lifecycle: unrecognised Bash advances lastUnprovenWrite (ADR-047 T3)",

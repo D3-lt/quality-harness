@@ -1912,3 +1912,25 @@ test('division with no closing slash on its line keeps a proven Swift hash, a qu
   swiftUnproven('Tests/LockQuoteRegex.swift',
     '@Test func probe() { let r = /"/; let s = "}"; #expect(2 == 2) }\n')
 })
+
+// Fifth Codex pass (2026-09-13).
+test('whitespace inside a possible bare Swift regex literal is part of the locked body', () => {
+  swiftMoved('Tests/LockRegexWhitespace.swift',
+    '@Test func probe() {\n  #expect("a b".wholeMatch(of: /a  b/) == nil)\n}\n',
+    '@Test func probe() {\n  #expect("a b".wholeMatch(of: /a b/) == nil)\n}\n')
+})
+
+test('spaced and intervening qualified attributes lock a same-named Swift test, an unrecognised one refuses', () => {
+  const pair = (attr, expect) => 'import Testing\nstruct A { @Test func probe() { #expect(1 == 1) } }\n'
+    + `struct B { ${attr} func probe() { #expect(${expect}) } }\n`
+  swiftMoved('Tests/LockSpacedQualified.swift', pair('@Testing . Test', '2 == 2'), pair('@Testing . Test', '2 == 1'))
+  swiftMoved('Tests/LockInterveningQualified.swift',
+    pair('@Test @_Concurrency.MainActor', '2 == 2'), pair('@Test @_Concurrency.MainActor', '2 == 1'))
+  swiftUnproven('Tests/LockUnrecognisedAttribute.swift', pair('@MyMacro', '2 == 2'))
+})
+
+test('a trailing comment after inline Swift division keeps a proven hash', () => {
+  swiftMoved('Tests/LockDivisionTrailingComment.swift',
+    '@Test func probe() { let x = 8/2; #expect(x == 4) } // comment\n',
+    '@Test func probe() { let x = 8/2; #expect(x == 5) } // comment\n')
+})

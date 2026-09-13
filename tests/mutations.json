@@ -7788,9 +7788,9 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "_SWIFT_TEST_ATTR = re.compile(r\"@(?:Testing\\.)?Test\\b\")",
-      "to": "_SWIFT_TEST_ATTR = re.compile(r\"@Test\\b\")",
-      "only": "a multi-line XCTest signature and a qualified"
+      "from": "    r\"@[ \\t]*(?:`?Testing`?[ \\t\\r\\n]*\\.[ \\t\\r\\n]*)?`?Test`?(?![\\w`])\")",
+      "to": "    r\"@Test\\b\")",
+      "only": "spaced and intervening qualified attributes"
     },
     {
       "label": "lock: Swift literal whitespace is kept in the digest",
@@ -7808,8 +7808,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if closer is None:\n            continue",
-      "to": "        if False:\n            continue",
+      "from": "            return j + 1\n        j += 1\n    return None\n\n\ndef _swift_ambiguous_slash",
+      "to": "            return j + 1\n        j += 1\n    return n\n\n\ndef _swift_ambiguous_slash",
       "only": "division with no closing slash on its line"
     },
     {
@@ -7818,9 +7818,49 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if any(mark in rest[:closer] for mark in \"{}\\\\\\\"`\"):",
-      "to": "        if any(mark in rest[:closer] for mark in \"{}\\\\`\"):",
+      "from": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\\\\"`\"):",
+      "to": "        if end is not None and any(mark in text[i + 1:end - 1] for mark in \"{}\\\\`\"):",
       "only": "division with no closing slash on its line"
+    },
+    {
+      "label": "lock: a possible bare Swift regex is kept verbatim in the digest",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            _swift_regex_end(text, i) or _swift_bare_regex_end(text, i))",
+      "to": "            _swift_regex_end(text, i))",
+      "only": "whitespace inside a possible bare Swift regex literal"
+    },
+    {
+      "label": "lock: a Swift regex candidate stops at a comment",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if text.startswith(\"//\", j) or text.startswith(\"/*\", j):\n            return None",
+      "to": "        if False:\n            return None",
+      "only": "a trailing comment after inline Swift division"
+    },
+    {
+      "label": "lock: a qualified attribute between @Test and func is consumed",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "                r\"@[ \\t]*`?\\w+`?(?:[ \\t\\r\\n]*\\.[ \\t\\r\\n]*`?\\w+`?)*\", masked[i:])",
+      "to": "                r\"@\\w+\", masked[i:])",
+      "only": "spaced and intervening qualified attributes"
+    },
+    {
+      "label": "lock: an unrecognised same-named Swift declaration refuses the row",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not spans or len(spans) != declared or any(span is None for span in spans):",
+      "to": "        if not spans or any(span is None for span in spans):",
+      "only": "spaced and intervening qualified attributes"
     },
     {
       "label": "lock: a Go signature comment does not close the hashed body",

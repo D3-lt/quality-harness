@@ -8082,6 +8082,16 @@
       "only": "a regex literal that closes the call is UNPROVEN"
     },
     {
+      "label": "lock: a quote inside a JS regex does not keep a proven hash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            regex_end = _swift_bare_regex_end(text, i)",
+      "to": "            regex_end = None",
+      "only": "a quote inside a JS regex does not keep"
+    },
+    {
       "label": "lock: a comment on a heredoc opener line is still a comment",
       "file": "plugin/lib/record.py",
       "tests": [

@@ -787,6 +787,97 @@ test('a Go t.Run that names a helper stays unproven', () => {
   }
 })
 
+test('a Go t.Run that names a helper is not the next callback', () => {
+  // t.Run("name", helper) then a sibling t.Run with a func. The first `{`
+  // after the helper comma is the sibling's body — UNPROVEN, not that hash.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject_test.go'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'package lock\n\nimport "testing"\n\n'
+      + 'func TestLockDirty(t *testing.T) {\n'
+      + '\tt.Run("locked dirty", helper)\n'
+      + '\tt.Run("other", func(t *testing.T) {\n'
+      + '\t\tif 1 != 1 { t.Fatal("other") }\n'
+      + '\t})\n'
+      + '}\n')
+    const suffix = recordOp({
+      op: 'suffix',
+      root: dir,
+      text: taskMarkdown(['| `locked dirty` | `tests/lock_subject_test.go` | lock | F-1 |']),
+    }).suffix
+    const row = `- 2026-09-13 · no-git · exit 2 · \`go test .\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const got = findings(dir, [row], [['locked dirty', rel]])
+    assert.ok(got.blocks.some(b => b.includes('locked dirty') && /could not be hashed/.test(b)),
+      got.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a Rust raw string does not swallow a same-line assertion', () => {
+  // r#""//"# then assert_eq on the same line. C-style // in the digest
+  // eats the assertion; invert must still move the hash.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.rs'
+  const named = [['lock_dirty', rel]]
+  const rowLine = '| `lock_dirty` | `tests/lock_subject.rs` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      '#[test]\n'
+      + 'fn lock_dirty() {\n'
+      + '    let _ = r#""//"#; assert_eq!(2, 2);\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`cargo test\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      '#[test]\n'
+      + 'fn lock_dirty() {\n'
+      + '    let _ = r#""//"#; assert_eq!(2, 1);\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('lock_dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a shell URL does not keep the first-red hash after the assertion moves', () => {
+  // https:// on the same line as the assertion. C-style // in the digest
+  // eats from the URL through the test; invert must still move the hash.
+  const dir = tmpRepo()
+  const rel = 'tests/lock_subject.sh'
+  const named = [['test_lock_dirty', rel]]
+  const rowLine = '| `test_lock_dirty` | `tests/lock_subject.sh` | lock | F-1 |'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel),
+      'test_lock_dirty() {\n'
+      + '  : https://example.invalid; [ 2 -eq 2 ]\n'
+      + '}\n')
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`bash tests/lock_subject.sh\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel),
+      'test_lock_dirty() {\n'
+      + '  : https://example.invalid; [ 2 -eq 1 ]\n'
+      + '}\n')
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('test_lock_dirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('a Rust nested comment does not keep the first-red hash after the assertion moves', () => {
   const dir = tmpRepo()
   const rel = 'tests/lock_subject.rs'

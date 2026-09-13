@@ -1660,3 +1660,117 @@ test('unknown keys in quality-harness json are not a lock', () => {
     rmSync(dir, { recursive: true, force: true })
   }
 })
+
+// Swift: a first red on a Swift task used to lock every row `unproven` because
+// `.swift` fell through to the BDD reader (measured 2026-09-13 on 2.98.1 from
+// an iOS repository whose ADR names Swift Testing and XCTest functions).
+function swiftLock(rel, rowName, before, after, runner = 'swift test') {
+  const dir = tmpRepo()
+  const named = [[rowName, rel]]
+  const rowLine = `| \`${rowName}\` | \`${rel}\` | lock | F-1 |`
+  try {
+    mkdirSync(join(dir, dirname(rel)), { recursive: true })
+    writeFileSync(join(dir, rel), before)
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const payload = Buffer.from(suffix.split('test-lock-b64:')[1], 'base64url').toString('utf8')
+    assert.ok(!payload.includes('unproven'), `first red locked an unproven row:\n${payload}`)
+    const row = `- 2026-09-13 · no-git · exit 1 · \`${runner}\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), after)
+    return findings(dir, [row], named)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+}
+
+function swiftNames(source) {
+  const r = python(
+    'import json, sys\nfrom record import extract_test_names\n'
+    + 'print(json.dumps(extract_test_names(sys.stdin.read(), swift=True)))',
+    source)
+  assert.equal(r.status, 0, r.stderr)
+  return JSON.parse(r.stdout)
+}
+
+test('a Swift Testing @Test func is hashed, and rewriting the assertion refuses done', () => {
+  const body = expect => 'import Testing\n'
+    + '@Suite struct LockSubjectTests {\n'
+    + '  @Test(.disabled("}")) func skippedOne() {}\n'
+    + '  @Test("display {name}", arguments: [1, 2])\n'
+    + '  @MainActor func lockDirty(value: Int) async throws {\n'
+    + '    let token = "}"\n'
+    + `    #expect(${expect})\n`
+    + '  }\n'
+    + '}\n'
+  const moved = swiftLock('Tests/LockSubjectTests.swift', 'lockDirty',
+    body('value == value'), body('value != value'))
+  assert.ok(moved.blocks.some(b => b.includes('lockDirty') && b.includes('hash moved')),
+    moved.blocks.join('\n'))
+})
+
+test('an XCTest test method is hashed, and rewriting the assertion refuses done', () => {
+  const body = expected => 'import XCTest\n'
+    + 'final class LockSubjectTests: XCTestCase {\n'
+    + '  override func setUp() { super.setUp() }\n'
+    + '  func testLockDirty() throws {\n'
+    + '    let token = "}"\n'
+    + `    XCTAssertEqual(2, ${expected})\n`
+    + '  }\n'
+    + '}\n'
+  const moved = swiftLock('UITests/LockSubjectTests.swift', 'testLockDirty', body('2'), body('1'),
+    'xcodebuild test')
+  assert.ok(moved.blocks.some(b => b.includes('testLockDirty') && b.includes('hash moved')),
+    moved.blocks.join('\n'))
+})
+
+test('Swift test names are the @Test funcs and argument-less XCTest methods only', () => {
+  const names = swiftNames('import Testing\nimport XCTest\n'
+    + '// @Test func commentedOut() {}\n'
+    + 'let text = "@Test func inAString() {}"\n'
+    + '@Test func plain() {}\n'
+    + '@Test(arguments: [1]) static func withArgs(x: Int) {}\n'
+    + 'final class C: XCTestCase {\n'
+    + '  func testNoArgs() {}\n'
+    + '  func testTakesAnArgument(_ x: Int) {}\n'
+    + '  func helperNotATest() {}\n'
+    + '}\n')
+  assert.deepEqual(names.sort(), ['plain', 'testNoArgs', 'withArgs'])
+})
+
+test('a brace inside a Swift multi-line, raw or interpolated string does not keep the first-red hash after the assertion moves', () => {
+  const body = expect => 'import Testing\n'
+    + '@Test func lockDirty() {\n'
+    + '  let doc = """\n'
+    + '    } // not a comment\n'
+    + '    """\n'
+    + '  let raw = #"a"}\\(not interpolated)"#; #expect(' + expect + ')\n'
+    + '  let interp = "a \\(label("}")) b \\(label("(")) c"\n'
+    + '}\n'
+    + 'func label(_ s: String) -> String { s }\n'
+  const moved = swiftLock('Tests/LockStrings.swift', 'lockDirty', body('2 == 2'), body('2 == 1'))
+  assert.ok(moved.blocks.some(b => b.includes('lockDirty') && b.includes('hash moved')),
+    moved.blocks.join('\n'))
+})
+
+test('a Swift nested block comment does not keep the first-red hash after the assertion moves', () => {
+  const body = expect => 'import Testing\n'
+    + '@Test func lockDirty() {\n'
+    + '  let token = "x" /* outer /* inner */ } */\n'
+    + `  #expect(${expect})\n`
+    + '}\n'
+  const moved = swiftLock('Tests/LockComments.swift', 'lockDirty', body('2 == 2'), body('2 == 1'))
+  assert.ok(moved.blocks.some(b => b.includes('lockDirty') && b.includes('hash moved')),
+    moved.blocks.join('\n'))
+})
+
+test('rewording a Swift comment inside a locked test does not move its hash', () => {
+  const body = note => 'import Testing\n'
+    + '@Test func lockDirty() {\n'
+    + `  // ${note}\n`
+    + '  #expect(2 == 2)\n'
+    + '}\n'
+  const moved = swiftLock('Tests/LockCommentOnly.swift', 'lockDirty', body('first wording'), body('second wording'))
+  assert.deepEqual(moved.blocks, [], moved.blocks.join('\n'))
+})

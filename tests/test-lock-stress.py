@@ -286,10 +286,14 @@ def _task_text(rows, vlog=()):
             f"{table}\n\n## Verification Log\n\n{log}\n")
 
 
-def _row(date, exit_code, digest, suffix=""):
-    return (f"- {date} · no-git · exit {exit_code} · `run` · "
+def _row(date, exit_code, digest, suffix="", command="run"):
+    return (f"- {date} · no-git · exit {exit_code} · `{command}` · "
             f"acceptance-sha256:{digest * 64} · ms:12{suffix}")
 
+
+# A fence whose own text carries a lock-shaped string. Only the TRAILING field
+# is the lock, so this row has none whatever it mentions.
+SHA_SHAPED_COMMAND = f"grep test-lock-sha256:{'c' * 64} build.log"
 
 # Each edit says what the Decision does with it. `None` means the Decision does
 # not speak to this case, so the arm asserts nothing about it.
@@ -376,6 +380,9 @@ def arm3(rng):
                 vlog = [_row(date, 2, "a", suffix)]
             if rng.random() < 0.3:
                 vlog.insert(0, _row(date, 0, "a"))
+            if rng.random() < 0.3:
+                # A later red whose COMMAND mentions a lock; the row has none.
+                vlog.append(_row(date, 4, "c", command=SHA_SHAPED_COMMAND))
             # "when a later red presents a different hash": a second red whose
             # lock was taken from a DIFFERENT body. The writer never emits two,
             # so this is the hand-written or tool-confused log the clause is for.
@@ -389,11 +396,16 @@ def arm3(rng):
                 other = first_red_lock_suffix(_task_text(rows), root)
                 with open(subject, "w", encoding="utf-8") as handle:
                     handle.write(current)
-                if other and other != suffix:
-                    vlog.append(_row(date, 3, "b", other))
-                    later_red += 1
-                else:
-                    second_red = False
+                # The generator changed a hashable body, so the writer MUST pin
+                # something else. Clearing `second_red` here instead trusted the
+                # implementation's output to decide what the oracle expects, and
+                # a hashing fault that ignored the change passed 300 iterations
+                # with every counter positive (Codex, pass 7).
+                if not other or other == suffix:
+                    fail("arm3", label + " a changed hashable body produced no new lock",
+                         suffix=suffix, other=other)
+                vlog.append(_row(date, 3, "b", other))
+                later_red += 1
 
             blocks, advice = lock_findings(vlog, root=root, tests=rows, label="T1")
 
@@ -423,9 +435,12 @@ def arm3(rng):
                 elif edit in ("check_removed", "check_moved"):
                     touched_locked = check_at_lock is not None
                 else:
-                    # An edit to a body only matters when that body was LISTED,
-                    # because only listed names are locked.
-                    touched_locked = edit != "delete_locked" or names[0] in listed
+                    # ADR-050 locks "every test body the hasher can extract from
+                    # each Tests-table File" — snapshot_lock records a body for
+                    # EVERY extractable name in a listed file, so an unlisted
+                    # sibling is locked too. Keying this on `listed` let a
+                    # snapshot that locked only listed names pass (Codex, pass 7).
+                    touched_locked = True
                 must_refuse = must_refuse or touched_locked
 
             if must_refuse:

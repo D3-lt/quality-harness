@@ -427,7 +427,7 @@ _SWIFT_MODIFIER = re.compile(
     r"nonisolated|override|mutating|dynamic|required)\b"
 )
 _SWIFT_XCTEST_FN = re.compile(
-    r"(?m)^[ \t]*(?:(?:@\w+(?:\([^)\n]*\))?|public|package|internal|private|"
+    r"(?<![\w`.])(?:(?:@\w+(?:\([^)\n]*\))?|public|package|internal|private|"
     r"fileprivate|open|final|nonisolated|override)[ \t]+)*"
     r"func[ \t]+(`?)(test\w*)\1[ \t]*(\()[ \t]*\)"
 )
@@ -1211,27 +1211,66 @@ def _swift_regex_end(text, i):
     return n
 
 
-def _swift_ambiguous_slash(body):
-    """True when a code `/` in `body` might open a bare regex literal.
+def _swift_code_view(text):
+    """`text` with Swift comments, literal text and `#/…/#` regexes blanked, offsets kept.
 
-    A code `/` (not in a literal, extended regex or comment) followed by a
-    non-space character can open `/…/` in expression position, and a reader
-    without a type checker cannot always tell that position from division. When
-    the rest of its line holds a brace, a slash, a star or a backslash — anything
-    that could end the body early or hide an assertion from the digest — the
-    body is refused (UNPROVEN) rather than hashed as a possible prefix. Spaced
-    division (`a / b`) cannot open a regex and never refuses.
+    Unlike `_mask_lock_noncode`, an interpolation's expression inside a literal
+    stays visible (recursively viewed), because a regex literal or a comment
+    can sit inside `\\(…)` and must be seen by `_swift_ambiguous_slash`.
     """
-    masked = _mask_lock_noncode(body, swift=True)
-    for i, char in enumerate(masked):
-        if char != "/" or body[i + 1:i + 2] in ("", " ", "\t", "\n"):
+    out, i, n = list(text), 0, len(text)
+
+    def blank(start, end):
+        for j in range(start, end):
+            if out[j] != "\n":
+                out[j] = " "
+
+    while i < n:
+        literal = _swift_literal_scan(text, i)
+        if literal is not None:
+            end, interpolations = literal
+            cursor = i
+            for start, stop in interpolations:
+                blank(cursor, start)
+                out[start:stop] = _swift_code_view(text[start:stop])
+                cursor = stop
+            blank(cursor, end)
+            i = end
             continue
-        end = body.find("\n", i)
-        rest = body[i + 1:] if end == -1 else body[i + 1:end]
-        if any(mark in rest for mark in "{}/*\\"):
+        skipped = _swift_expression_skip(text, i)
+        if skipped is not None:
+            blank(i, skipped)
+            i = skipped
+            continue
+        i += 1
+    return "".join(out)
+
+
+def _swift_ambiguous_slash(text):
+    """True when a code `/` in a Swift source might open a bare regex literal.
+
+    Telling `/…/` from division needs the type checker (`total!/f(x)` is
+    division, `if /[}]/ ~= s` is a regex), and a regex can hold `{`, `}`, `//`
+    or `/*` that the masker and the digest would then misread. A code `/` —
+    seen through `_swift_code_view`, so one inside an interpolation counts —
+    followed by a non-space character is ambiguous when the rest of its line,
+    up to a spaced ` //` comment (a bare regex cannot contain one), holds a
+    brace, a slash or a backslash. The whole file is then refused (UNPROVEN)
+    rather than hashed on a boundary nobody can vouch for. Spaced division
+    (`a / b`) and `8/2*3` never refuse.
+    """
+    view = _swift_code_view(text)
+    for i, char in enumerate(view):
+        if char != "/" or text[i + 1:i + 2] in ("", " ", "\t", "\n"):
+            continue
+        end = text.find("\n", i)
+        rest = text[i + 1:] if end == -1 else text[i + 1:end]
+        comment = re.search(r"[ \t]//", rest)
+        if comment:
+            rest = rest[:comment.start()]
+        if any(mark in rest for mark in "{}/\\"):
             return True
     return False
-
 
 def _swift_balanced_parens_end(masked, i):
     """Index just past the `)` matching `masked[i] == '('`, or None."""
@@ -1330,10 +1369,12 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
             return _span_from_paren(text, masked, after_paren)
         return None
     if swift:
+        if _swift_ambiguous_slash(text):
+            return None
         masked = _mask_lock_noncode(text, swift=True)
         spans = [_span_from_paren(text, masked, after_paren)
                  for found, after_paren in _iter_swift_tests(text) if found == name]
-        if not spans or any(span is None or _swift_ambiguous_slash(span) for span in spans):
+        if not spans or any(span is None for span in spans):
             return None
         return "\n".join(spans)
     if shell:

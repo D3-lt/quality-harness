@@ -7473,6 +7473,16 @@
       "only": "a brace inside a string does not keep the first-red hash after the assertion moves"
     },
     {
+      "label": "lock: a Go func Test is hashed, not left unproven",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        go = path.suffix.lower() == \".go\"\n        for name in extract_test_names(source, python=python, go=go):",
+      "to": "        go = False\n        for name in extract_test_names(source, python=python, go=go):",
+      "only": "a Go func Test is hashed"
+    },
+    {
       "label": "adr-lint: filename and title ADR numbers must be the same identity",
       "file": "plugin/bin/adr-lint",
       "tests": [

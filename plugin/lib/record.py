@@ -421,7 +421,8 @@ CONFIG_NAME = ".quality-harness.json"
 # Swift Testing `@Test` (any arguments) / XCTest `func test*()` with no
 # parameters. Matched on the masked text, so a commented-out or quoted
 # declaration is not a test.
-_SWIFT_TEST_ATTR = re.compile(r"@(?:Testing\.)?Test\b")
+_SWIFT_TEST_ATTR = re.compile(
+    r"@[ \t]*(?:`?Testing`?[ \t\r\n]*\.[ \t\r\n]*)?`?Test`?(?![\w`])")
 _SWIFT_MODIFIER = re.compile(
     r"(?:public|package|internal|private|fileprivate|open|static|class|final|"
     r"nonisolated|override|mutating|dynamic|required)\b"
@@ -1264,7 +1265,8 @@ def _swift_normalize(text):
 
     while i < n:
         literal = _swift_literal_scan(text, i)
-        end = literal[0] if literal is not None else _swift_regex_end(text, i)
+        end = literal[0] if literal is not None else (
+            _swift_regex_end(text, i) or _swift_bare_regex_end(text, i))
         if end is None:
             i += 1
             continue
@@ -1275,38 +1277,49 @@ def _swift_normalize(text):
     return "".join(out).strip()
 
 
+def _swift_bare_regex_end(text, i):
+    """Index past a same-line `/…/` at `text[i]` that COULD be a bare regex, or None.
+
+    A candidate opens on `/` followed by a character that is neither whitespace
+    nor the second character of a comment opener, and closes on the next
+    unescaped `/` on the same line; the scan gives up at `//` or `/*`, which a
+    bare regex cannot hold unescaped. Division such as `8/2/2` is a candidate
+    too: callers keep a candidate verbatim or inspect it, never trust it.
+    """
+    if text[i:i + 1] != "/" or text[i + 1:i + 2] in ("", " ", "\t", "\n", "/", "*"):
+        return None
+    j, n = i + 1, len(text)
+    while j < n and text[j] != "\n":
+        if text[j] == "\\":
+            j += 2
+            continue
+        if text.startswith("//", j) or text.startswith("/*", j):
+            return None
+        if text[j] == "/":
+            return j + 1
+        j += 1
+    return None
+
+
 def _swift_ambiguous_slash(text):
     """True when a code `/` in a Swift source might open a bare regex literal.
 
     Telling `/…/` from division needs the type checker (`total!/f(x)` is
     division, `if /[}]/ ~= s` is a regex), and a regex can hold characters the
-    masker and the digest would misread. A code `/` — seen through
-    `_swift_code_view`, so one inside an interpolation counts — followed by a
-    non-space character opens a possible regex only if an unescaped `/` closes
-    it later on the same line (a bare regex cannot span lines; the scan stops
-    at the first slash of a trailing `//`). It is ambiguous when that possible content holds a brace, a
+    masker would misread. A code `/` — seen through `_swift_code_view`, so one
+    inside an interpolation counts — that opens a `_swift_bare_regex_end`
+    candidate is ambiguous when the candidate's content holds a brace, a
     backslash, a quote or a backtick. The whole file is then refused (UNPROVEN)
     rather than hashed on a boundary nobody can vouch for. `a / b`, `8/2*3`,
-    `8/2; }` and `8/2/2` never refuse.
+    `8/2; }`, `8/2/2` and `8/2 } // note` never refuse; candidates that do not
+    refuse are kept verbatim in the digest (`_swift_normalize`).
     """
     view = _swift_code_view(text)
     for i, char in enumerate(view):
-        if char != "/" or text[i + 1:i + 2] in ("", " ", "\t", "\n"):
+        if char != "/":
             continue
-        end = text.find("\n", i)
-        rest = text[i + 1:] if end == -1 else text[i + 1:end]
-        closer, j = None, 0
-        while j < len(rest):
-            if rest[j] == "\\":
-                j += 2
-                continue
-            if rest[j] == "/":
-                closer = j
-                break
-            j += 1
-        if closer is None:
-            continue
-        if any(mark in rest[:closer] for mark in "{}\\\"`"):
+        end = _swift_bare_regex_end(text, i)
+        if end is not None and any(mark in text[i + 1:end - 1] for mark in "{}\\\"`"):
             return True
     return False
 
@@ -1344,7 +1357,8 @@ def _iter_swift_tests(text):
                 if i is None:
                     break
                 continue
-            other = re.match(r"@\w+", masked[i:])
+            other = re.match(
+                r"@[ \t]*`?\w+`?(?:[ \t\r\n]*\.[ \t\r\n]*`?\w+`?)*", masked[i:])
             if other:
                 i += other.end()
                 continue
@@ -1412,7 +1426,12 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
         masked = _mask_lock_noncode(text, swift=True)
         spans = [_span_from_paren(text, masked, after_paren)
                  for found, after_paren in _iter_swift_tests(text) if found == name]
-        if not spans or any(span is None for span in spans):
+        # A declaration of the name that discovery did not recognise as a test
+        # (an attribute spelling not modelled here) must not leave a partial
+        # lock that looks complete.
+        declared = len(re.findall(
+            r"\bfunc\s+`?" + re.escape(name) + r"`?\s*[<(]", masked))
+        if not spans or len(spans) != declared or any(span is None for span in spans):
             return None
         return "\n".join(spans)
     if shell:

@@ -8391,6 +8391,16 @@
       "from": "  const markerOnly = edited.length > 0 && proven.length === 0",
       "to": "  const markerOnly = false",
       "only": "a marker-only transcript is unverified, not a numbered write"
+    },
+    {
+      "label": "lock: a UTF-8 lock map with no check record is unreadable",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if check is None:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven}",
+      "to": "    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven}",
+      "only": "a lock map with no check record is unreadable"
     }
   ]
 }

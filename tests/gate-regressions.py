@@ -4643,6 +4643,24 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
         assert len(named_but_empty) == 1, ("a file named by the row that holds no test at all is "
                                            f"still a finding: {named_but_empty}")
 
+        # Fuzz-only Go: the file-holds-a-test heuristic was `func Test`, so a
+        # Tests row naming the file itself reported "no executable definition"
+        # even though `go test` runs the seed corpus. Same Test|Fuzz class as
+        # `_GO_FUNC_TEST`. Empty-file arm above must keep failing.
+        (root / "tests" / "fuzz_only.go").write_text(
+            "package t\n\nfunc FuzzAlpha(f *testing.F) {\n"
+            "    f.Fuzz(func(t *testing.T, n int) {})\n}\n",
+            encoding="utf-8")
+        probe.write_text(_probe_task("true", log=row,
+                                      tests="| `fuzz_only` | `tests/fuzz_only.go` | v | — |"),
+                         encoding="utf-8")
+        errs = lint.Findings()
+        _, fuzz_info = lint.check_task(probe, set(), errs, None, None)
+        out = lint.Findings()
+        lint.check_tests_exist({"T1": fuzz_info}, "| 1 | T1 | done |", out, root)
+        fuzz_named = [e for e in out if "Tests table names" in e]
+        assert fuzz_named == [], f"a Fuzz-only file still holds a test: {fuzz_named}"
+
         # ⚠ A ROW POINTING AT A FILE THAT WAS NEVER CREATED IS NOT EVIDENCE THAT
         # THE BEHAVIOUR IS UNFENCED. Reported 2026-09-08 by a corpus that acted on
         # the old wording: the row named a file its author had planned, and the
@@ -4667,6 +4685,7 @@ def test_a_tests_row_naming_its_own_file_is_not_a_missing_test(lint):
         # and the report now asks the discriminating question rather than suggesting a name.
         missing = findings("test_omega")
         assert len(missing) == 1 and "sibling IN THAT SAME FILE" in missing[0], missing
+        print("PASS — a Tests row naming its own file is not a missing test")
 
 
 def test_a_test_that_expects_an_exception_is_not_a_dead_test(lint):
@@ -4692,7 +4711,6 @@ def test_a_test_that_expects_an_exception_is_not_a_dead_test(lint):
     print("PASS — a test that expects an exception is not a dead test")
 
 
-    print("PASS — a Tests row naming its own file is not a missing test")
 
 
 def test_a_done_task_producing_a_symbol_nobody_has_is_reported(lint):

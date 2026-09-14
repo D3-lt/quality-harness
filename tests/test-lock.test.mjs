@@ -47,6 +47,7 @@ import json, sys
 from pathlib import Path
 from record import (
     first_red_lock_suffix, lock_findings, lock_blocks_done, TEST_HASH_REQUIRED_FROM,
+    snapshot_lock, encode_lock, lock_suffix_for_run,
 )
 req = json.load(sys.stdin)
 root = Path(req["root"]) if req.get("root") else None
@@ -63,6 +64,20 @@ elif op == "blocks_done":
     print(json.dumps({"blocks": lock_blocks_done(req["text"], root)}))
 elif op == "cutover":
     print(json.dumps({"from": TEST_HASH_REQUIRED_FROM}))
+elif op == "unproven_lock":
+    tests = [tuple(t) for t in req["tests"]]
+    snap = snapshot_lock(root, tests)
+    fake = {
+        "check": snap["check"],
+        "bodies": {},
+        "unproven": set(snap["bodies"]) | set(snap["unproven"]),
+    }
+    digest, token = encode_lock(fake)
+    print(json.dumps({
+        "suffix": f" · test-lock-sha256:{digest} · test-lock-b64:{token}",
+    }))
+elif op == "attach":
+    print(json.dumps({"suffix": lock_suffix_for_run(req["text"], root, req["code"])}))
 else:
     raise SystemExit("unknown op")
 `
@@ -1098,6 +1113,40 @@ test('a PHP heredoc URL does not keep the first-red hash after its content moves
   }
 })
 
+test('a PHP preg_match quote is a string, and rewriting the assertion refuses done', () => {
+  // PHP has no regex literals; preg patterns are strings, and string interiors
+  // stay in the digest. A leftover leftover from the JS `/…/` keep: do not
+  // teach the PHP path a regex-literal scanner (8/"1/2" inverted stripper state).
+  const dir = tmpRepo()
+  const rel = 'tests/LockPregTest.php'
+  const named = [['testQuotedPattern', rel]]
+  const rowLine = '| `testQuotedPattern` | `tests/LockPregTest.php` | lock | F-1 |'
+  const source = want => '<?php\n'
+    + 'final class LockPregTest extends TestCase\n'
+    + '{\n'
+    + '    public function testQuotedPattern(): void\n'
+    + '    {\n'
+    + "        preg_match('/\"/', $s);\n"
+    + `        $this->assertSame(${want}, $s);\n`
+    + '    }\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('"a  b"'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`vendor/bin/phpunit\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('"a b"'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('testQuotedPattern') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('a shell heredoc line beginning with # is not a comment in the digest', () => {
   // Inside <<EOF a `#` line is data. The shell comment rule saw a newline before
   // it and stripped the line, so `# ok` → `# bad` left the digest unchanged.
@@ -1521,10 +1570,105 @@ test('post-cutover done without first-red hashes is refused', () => {
     writeSubject(dir)
     const row = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
     const got = findings(dir, [row])
-    assert.ok(got.blocks.some(b => /no first-red test-lock-sha256/.test(b) && /UNPROVEN/.test(b)),
+    assert.ok(got.blocks.some(b => /no first-red test-lock-sha256/.test(b) && /UNPROVEN/.test(b)
+      && /frozen at the first red/.test(b) && /adr-verify/.test(b)),
       got.blocks.join('\n'))
     const cutover = recordOp({ op: 'cutover' })
     assert.equal(got.blocks.some(b => b.includes(cutover.from)), true)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a lock that hashed no bodies is advice when the hasher can now see them', () => {
+  // R2: ADR-012. bodies={} + unproven is a pre-hasher artifact, not tampering.
+  // Advising on names the hasher STILL cannot read would treat an ADR-005
+  // refusal (ghost, truncated regex, Testfoo) as the same thing — those stay blocks.
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const fake = recordOp({ op: 'unproven_lock', root: dir, tests: NAMED }).suffix
+    assert.match(fake, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${fake}`
+    const got = findings(dir, [row])
+    assert.deepEqual(got.blocks, [], `pre-hasher empty lock must not refuse:\n${got.blocks.join('\n')}`)
+    assert.ok(got.advice.some(a => /locked dirty/.test(a) && /could not be hashed/.test(a)
+      && /not evidence of tampering/.test(a)), got.advice.join('\n'))
+    const mixedRows = [NAMED_ROW, '| `ghost` | `tests/lock-subject.test.mjs` | lock | F-2 |']
+    const mixedNamed = [...NAMED, ['ghost', 'tests/lock-subject.test.mjs']]
+    const mixedSuffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown(mixedRows) }).suffix
+    const mixedRow = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${mixedSuffix}`
+    const mixed = findings(dir, [mixedRow], mixedNamed)
+    assert.ok(mixed.blocks.some(b => /ghost/.test(b) && /could not be hashed/.test(b)),
+      mixed.blocks.join('\n'))
+    assert.ok(!mixed.blocks.some(b => /locked dirty/.test(b)), mixed.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a later row can recover a lock the first red never carried', () => {
+  // R3: ADR-011. A lockless first red is not rehabilitated by silence; a later
+  // tool-written lock is weaker than first-red and still pins current bodies.
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const lockless = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
+    const recoveredSuffix = suffixFor(dir).suffix
+    const green = `- 2026-09-13 · no-git · exit 0 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${recoveredSuffix}`
+    const got = findings(dir, [lockless, green])
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    assert.ok(got.advice.some(a => /recovered/.test(a) && /later row/.test(a)),
+      got.advice.join('\n'))
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(2, 1)\n'
+      + '})\n')
+    const moved = findings(dir, [lockless, green])
+    assert.ok(moved.blocks.some(b => /locked dirty/.test(b) && /hash moved/.test(b)),
+      moved.blocks.join('\n'))
+    const otherSuffix = recordOp({
+      op: 'suffix',
+      root: dir,
+      text: taskMarkdown([NAMED_ROW]),
+    }).suffix
+    writeSubject(dir)
+    const laterRed = `- 2026-09-14 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'1'.repeat(64)} · ms:12${otherSuffix}`
+    const conflict = findings(dir, [lockless, green, laterRed])
+    assert.ok(conflict.blocks.some(b => /later red row carries a different/.test(b)),
+      conflict.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a later green attaches a recovery lock when the log still has none', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const text = taskMarkdown([NAMED_ROW])
+    const firstGreen = recordOp({ op: 'attach', root: dir, text, code: 0 }).suffix
+    assert.equal(firstGreen, '', 'first-ever green must not lock')
+    const lockless = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
+    const recovery = recordOp({
+      op: 'attach', root: dir, text: taskMarkdown([NAMED_ROW], [lockless]), code: 0,
+    }).suffix
+    assert.match(recovery, /test-lock-sha256:[0-9a-f]{64}/)
+    const already = recordOp({
+      op: 'attach',
+      root: dir,
+      text: taskMarkdown([NAMED_ROW], [lockless + recovery]),
+      code: 0,
+    }).suffix
+    assert.equal(already, '')
+    const commandSha = `- 2026-09-13 · no-git · exit 2 · \`grep test-lock-sha256:${'c'.repeat(64)} log\` · acceptance-sha256:${'0'.repeat(64)} · ms:12`
+    const notFooled = recordOp({
+      op: 'attach', root: dir, text: taskMarkdown([NAMED_ROW], [commandSha]), code: 0,
+    }).suffix
+    assert.match(notFooled, /test-lock-sha256:[0-9a-f]{64}/,
+      'a command that names the field is not a trailing lock')
   } finally {
     rmSync(dir, { recursive: true, force: true })
   }

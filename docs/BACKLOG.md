@@ -12733,3 +12733,17 @@ teach the lock a new Swift assertion form. Filed from ADR-052 Out of Scope, 2026
 
 Landed 2026-09-14 as ADR-053 T5 (`docs/adr/ADR-053-a-false-advisory-is-not-a-finding.md`). Hasher `_mask_lock_noncode(..., swift=True)` already kept `#expect`; lint `scan_code_only` was the defect. ADR-052 Out of Scope stays as written.
 
+## 208. Codex P2 leftovers on ADR-053 (2026-09-14)
+
+Independent review of unpushed ADR-053 (`gpt-6-astra`, not killed). P1s closed
+in `plugin/scripts/lifecycle.mjs` on this change. Named leftovers:
+
+- T5 Decision is "For Swift". `code_only` always calls `scan_code_only(..., hash_comments=True)`
+  for non-Python, so the `#expect` / `#require` keep applies to PHP/JS/shell too.
+  `tests/swift-expect.test.mjs` is first-red locked and calls `code_only` without a
+  language flag; threading Swift-only would retarget that lock. PHP `#expect a result here`
+  can look like a fail word.
+- T1 wrappers are bare words `command|env|sudo|exec|time`. `sudo -n`, `env FOO=bar`,
+  `command --`, `time -p` still advise (`publishPrecededByValidation` false). Expanding
+  the regex without a task is a widening.
+

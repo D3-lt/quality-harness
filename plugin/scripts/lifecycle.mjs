@@ -668,7 +668,10 @@ export function isGitPublishCommand(command) {
   }
   return false
 }
-const PUBLISH_SUFFIX = /(?:&&|\r?\n)\s*(?:(?:command|env|sudo|exec|time)\s+)*(?:git\s+(?:commit|push)\b[\s\S]*)$/
+// Bound to the matched git invocation. `[\s\S]*$` ate a later `|| git push`
+// / `; git push` as if they were still the `&&` suffix (Codex P1, 2026-09-14).
+// Quote-blind: `git commit -m "x;y"` stops at `;`.
+const PUBLISH_SUFFIX = /(?:&&|\r?\n)\s*(?:(?:command|env|sudo|exec|time)\s+)*(?:git\s+(?:commit|push)\b[^|;\n]*)$/
 
 export function publishPrecededByValidation(command) {
   if (typeof command !== 'string' || !isGitPublishCommand(command)) return false
@@ -935,10 +938,43 @@ export function isValidationCommand(command) {
 }
 const MRW_CHECK_FLAG = /(?:^|\s)--check(?:\s|$)/
 
+function isMrwWriteCheckSegment(segment) {
+  if (UNSAFE_SEGMENT.test(segment)) return false
+  const invocation = commandInvocation(segment)
+  if (!invocation) return false
+  const { index, words } = invocation
+  // commandInvocation skips `!`; a failed check then becomes exit 0 (Codex P1).
+  if (words.slice(0, index).includes('!')) return false
+  if (executableName(words[index]) !== 'mrw') return false
+  const rest = words.slice(index + 1)
+  return rest.includes('write') && rest.some(word => word === '--check')
+}
+
 function isMrwWriteCheckCommand(command) {
   if (typeof command !== 'string') return false
   const inner = commandInsideWrappers(command)
-  return /\bmrw\b/.test(inner) && /\bwrite\b/.test(inner) && MRW_CHECK_FLAG.test(inner)
+  if (inner && inner !== command.trim()) return isMrwWriteCheckCommand(inner)
+  // A word match anywhere counted `printf mrw write --check` and
+  // `mrw write --check || true` as a completed check (Codex P1, 2026-09-14).
+  // T2 is an mrw write --check invocation whose result is that check's:
+  // `||` / `;` / `|` hide the exit, and a later newline command supplies it
+  // the same way (Codex P1). Every remaining segment must be the check.
+  const lines = inner.split(/\r?\n/)
+    .map(line => line.trim())
+    .filter(line => Boolean(line) && !ASSIGNMENT_ONLY.test(line) && !inertNavigation(line))
+  if (lines.length === 0) return false
+  let found = false
+  for (const line of lines) {
+    const segments = line.split(/\s*&&\s*/)
+      .map(segment => segment.trim())
+      .filter(segment => segment && !inertNavigation(segment))
+    if (segments.length === 0) continue
+    for (const segment of segments) {
+      if (UNSAFE_SEGMENT.test(segment) || !isMrwWriteCheckSegment(segment)) return false
+      found = true
+    }
+  }
+  return found
 }
 
 function isMrwWriteCheck(use) {
@@ -2007,7 +2043,8 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
         }
       }
     }
-    if (executed(use) && commandSucceeded(results.get(use.id)) && isMrwWriteCheck(use)) {
+    if (executed(use) && commandSucceeded(results.get(use.id)) && isMrwWriteCheck(use)
+        && use.input.run_in_background !== true) {
       lastValidation = Math.max(lastValidation, use.position)
       lastSuccessfulValidation = Math.max(lastSuccessfulValidation, use.position)
       lastVerdict = 'passed'

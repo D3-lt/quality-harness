@@ -217,6 +217,20 @@ test('first-red hashes still match at done', () => {
   }
 })
 
+test('a lock map with no check record is unreadable, not an empty lock', () => {
+  // Codex high on 6e0fe99: decode_lock("eA") is UTF-8 "x" and returned
+  // {check: None, bodies: {}, unproven: empty}, so lock_findings stayed clean.
+  const dir = tmpRepo()
+  try {
+    const row = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12 · test-lock-sha256:${'a'.repeat(64)} · test-lock-b64:eA`
+    const got = findings(dir, [row])
+    assert.ok(got.blocks.some(b => b.includes('could not be read') && b.includes('UNPROVEN')),
+      `an empty-looking map must refuse done:\n${got.blocks.join('\n')}`)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 test('rewriting a locked assertion refuses done', () => {
   const dir = tmpRepo()
   try {

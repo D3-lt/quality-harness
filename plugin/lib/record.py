@@ -1705,6 +1705,9 @@ def decode_lock(token):
             bodies[(parts[1], parts[2])] = parts[3]
         elif parts[0] == "unproven" and len(parts) == 3:
             unproven.add((parts[1], parts[2]))
+    # A UTF-8 payload with no check record is not a lock (Codex: `eA` → `x`).
+    if check is None:
+        return None
     return {"check": check, "bodies": bodies, "unproven": unproven}
 
 

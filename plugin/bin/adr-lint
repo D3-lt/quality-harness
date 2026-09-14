@@ -4204,7 +4204,7 @@ def check_tests_exist(infos, readme_text, errors, root):
             # still the identity finding below.
             if name in (f.stem, f.name):
                 source = f.read_text(errors="replace", encoding="utf-8")
-                if re.search(r"^\s*(?:async\s+)?def\s+test_\w+\s*\(|^\s*func\s+Test\w*\s*\(|"
+                if re.search(r"^\s*(?:async\s+)?def\s+test_\w+\s*\(|^\s*func\s+(?:Test|Fuzz)\w*\s*\(|"
                              r"^\s*(?:it|test)\s*\(", source, re.M):
                     continue
             # RAW source: `test_body` strips per branch, because a BDD test's name

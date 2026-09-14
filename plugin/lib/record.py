@@ -55,7 +55,9 @@ __all__ = [
     "TEST_LOCK_FIELD_ANON",
     "tests_table_rows",
     "vlog_has_test_lock",
+    "vlog_has_red",
     "first_red_lock_suffix",
+    "lock_suffix_for_run",
     "lock_findings",
     "lock_blocks_done",
     "body_digest",
@@ -458,9 +460,17 @@ def tests_table_rows(text):
 
 
 def vlog_has_test_lock(text):
-    """Whether any Verification Log line already carries the first-red lock."""
-    log = "\n".join(sections_of(text).get("Verification Log", []))
-    return bool(_LOCK_SHA.search(log))
+    """Whether any Verification Log machine row already carries a trailing lock."""
+    return any(_row_lock_sha(line)
+               for line, _m in _vlog_machine_rows(
+                   sections_of(text).get("Verification Log", [])))
+
+
+def vlog_has_red(text):
+    """Whether any Verification Log machine row has a non-zero exit."""
+    return any(m.group("exit") != "0"
+               for _line, m in _vlog_machine_rows(
+                   sections_of(text).get("Verification Log", [])))
 
 
 def declared_check(root):
@@ -1719,22 +1729,18 @@ def first_red_lock_suffix(text, root):
     return f" · test-lock-sha256:{digest} · test-lock-b64:{token}"
 
 
-def _row_lock_sha(line):
-    """The row's TRAILING test-lock-sha256 field, or None.
+def lock_suffix_for_run(text, root, code):
+    """First-red lock, or a recovery lock on a later row when the log still has none.
 
-    Anchored, because `_LOCK_SHA.search` also matched the RECORDED COMMAND: a
-    fence whose text happens to contain `test-lock-sha256:<64 hex>` was read as
-    a lock, which since the later-red rule could refuse a task whose tests never
-    moved. The writer appends the field last (`first_red_lock_suffix`), so the
-    end of the line is where a real one is.
+    A first-ever green (empty log, exit 0) is not first-red and must not lock.
     """
-    return re.search(r" · test-lock-sha256:([0-9a-f]{64})"
-                     r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?[ \t]*$", line)
-def _recorded_lock(vlog):
-    """Lock parsed from the first TDD-red row, else (date, None)."""
-    first_date = None
-    first_red = None
-    later_red_locks = []
+    if code != 0 or vlog_has_red(text):
+        return first_red_lock_suffix(text, root)
+    return ""
+
+
+def _vlog_machine_rows(vlog):
+    """Yield (line, match) for each machine row outside a fenced excerpt."""
     fence = None
     for raw in vlog:
         # A fenced excerpt can hold a printed example row. That is output, not
@@ -1750,8 +1756,29 @@ def _recorded_lock(vlog):
             continue
         line = raw.strip()
         m = _MACHINE.match(line)
-        if not m:
-            continue
+        if m:
+            yield line, m
+
+
+def _row_lock_sha(line):
+    """The row's TRAILING test-lock-sha256 field, or None.
+
+    Anchored, because `_LOCK_SHA.search` also matched the RECORDED COMMAND: a
+    fence whose text happens to contain `test-lock-sha256:<64 hex>` was read as
+    a lock, which since the later-red rule could refuse a task whose tests never
+    moved. The writer appends the field last (`first_red_lock_suffix`), so the
+    end of the line is where a real one is.
+    """
+    return re.search(r" · test-lock-sha256:([0-9a-f]{64})"
+                     r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?[ \t]*$", line)
+
+
+def _recorded_lock(vlog):
+    """Lock parsed from the first TDD-red row, else a later recovery lock."""
+    first_date = None
+    first_red = None
+    later_red_locks = []
+    for line, m in _vlog_machine_rows(vlog):
         if first_date is None:
             first_date = m.group("date")
         if m.group("exit") != "0":
@@ -1765,9 +1792,27 @@ def _recorded_lock(vlog):
     if first_red is None:
         return first_date, None
     sha = _row_lock_sha(first_red)
-    b64 = _LOCK_B64.search(first_red) if sha else None
+    lock_line = first_red
+    recovered = False
     if not sha:
-        return first_date, None
+        # R3: the first red predates the lock writer. Take the first later
+        # machine row that carries a trailing lock (any exit). Weaker than
+        # first-red; later reds after that with a different sha still conflict.
+        past = False
+        for line, _m in _vlog_machine_rows(vlog):
+            if not past:
+                if line == first_red:
+                    past = True
+                continue
+            other = _row_lock_sha(line)
+            if other:
+                sha = other
+                lock_line = line
+                recovered = True
+                break
+        if not sha:
+            return first_date, None
+    b64 = _LOCK_B64.search(lock_line) if sha else None
     parsed = decode_lock(b64.group(1)) if b64 else None
     # ADR-050: "done is refused … when a later red presents a different hash."
     # The writer emits one lock per log (first_red_lock_suffix returns "" once a
@@ -1777,7 +1822,12 @@ def _recorded_lock(vlog):
     # verdict-layer stress arm, 2026-09-13.
     conflict = next((other for other in later_red_locks
                      if other != sha.group(1)), None)
-    return first_date, {"digest": sha.group(1), "map": parsed, "conflict": conflict}
+    return first_date, {
+        "digest": sha.group(1),
+        "map": parsed,
+        "conflict": conflict,
+        "recovered": recovered,
+    }
 
 
 def lock_findings(vlog, *, root, tests, label=""):
@@ -1787,7 +1837,9 @@ def lock_findings(vlog, *, root, tests, label=""):
     if recorded is None:
         missing = (
             f"{prefix}marked done but has no first-red test-lock-sha256 — "
-            "UNPROVEN, not a skip of the lock"
+            "UNPROVEN, not a skip of the lock; frozen at the first red — run "
+            "adr-verify again so a later row can carry a recovery lock "
+            "(weaker than first-red)"
         )
         if date is None or date < TEST_HASH_REQUIRED_FROM:
             return [], [missing + f" (advisory until {TEST_HASH_REQUIRED_FROM})"]
@@ -1804,6 +1856,11 @@ def lock_findings(vlog, *, root, tests, label=""):
     current = snapshot_lock(root, tests)
     recorded_map = recorded["map"]
     blocks = []
+    advice = []
+    if recorded.get("recovered"):
+        advice.append(
+            f"{prefix}first-red lock is recovered from a later row, not the "
+            "first TDD-red — weaker than first-red evidence")
     rec_check = recorded_map.get("check")
     cur_check = current["check"]
     if rec_check == "unproven" or cur_check == "unproven":
@@ -1818,17 +1875,30 @@ def lock_findings(vlog, *, root, tests, label=""):
         cur_hex = hashlib.sha256(cur_check.encode("utf-8")).hexdigest()
         if rec_check != cur_hex:
             blocks.append(f"{prefix}.quality-harness.json check string moved — done is refused")
-    for key in recorded_map.get("unproven", set()):
+    recorded_bodies = recorded_map.get("bodies") or {}
+    recorded_unproven = recorded_map.get("unproven") or set()
+    # R2: empty bodies + unproven is a pre-hasher artifact only for names the
+    # hasher can now see. Still-unhashable names stay UNPROVEN (ADR-005: a
+    # truncated regex / helper / ghost is not "the tool could not see the language").
+    tool_blind = not recorded_bodies and recorded_unproven
+    for key in recorded_unproven:
         rel, name = key
-        blocks.append(f"{prefix}Tests-table `{rel}`::{name} could not be hashed — "
-                      "UNPROVEN, done is refused")
-    for (rel, name), digest in recorded_map.get("bodies", {}).items():
+        if tool_blind and (rel, name) in current["bodies"]:
+            advice.append(
+                f"{prefix}Tests-table `{rel}`::{name} could not be hashed at "
+                "first red — UNPROVEN; the lock hashed no bodies, so this is "
+                "not evidence of tampering")
+        else:
+            blocks.append(
+                f"{prefix}Tests-table `{rel}`::{name} could not be hashed — "
+                "UNPROVEN, done is refused; frozen at the first red")
+    for (rel, name), digest in recorded_bodies.items():
         now = current["bodies"].get((rel, name))
         if now is None:
             blocks.append(f"{prefix}locked test `{rel}`::{name} vanished — done is refused")
         elif now != digest:
             blocks.append(f"{prefix}locked test `{rel}`::{name} hash moved — done is refused")
-    return blocks, []
+    return blocks, advice
 
 
 def lock_blocks_done(text, root):

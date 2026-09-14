@@ -175,7 +175,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, first_red_lock_suffix, TEST_LOCK_FIELD_ANON  # noqa: E402,E501
+from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, TEST_LOCK_FIELD_ANON  # noqa: E402,E501
 
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
@@ -2333,9 +2333,8 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
     # absence, and adr-lint reports an unnamed step rather than assuming one.
     if steps:
         entry += f" · steps:{steps}"
-    if code != 0:
-        # ADR-050. First TDD-red only; empty when a lock is already on the log.
-        entry += first_red_lock_suffix(text, cwd)
+    # ADR-050. First TDD-red, or a recovery lock when the log still has none.
+    entry += lock_suffix_for_run(text, cwd, code)
     refuse_unreadable(entry, sha)
 
     block = entry

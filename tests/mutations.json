@@ -6519,7 +6519,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "            if name in (f.stem, f.name):\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n                    continue\n",
+      "from": "            if name in (f.stem, f.name):\n                source = f.read_text(errors=\"replace\", encoding=\"utf-8\")\n                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n                    continue\n",
       "to": "            if name in (f.stem, f.name):\n                continue\n"
     },
     {
@@ -8288,8 +8288,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        entry += first_red_lock_suffix(text, cwd)",
-      "to": "        entry += \"\"",
+      "from": "    entry += lock_suffix_for_run(text, cwd, code)",
+      "to": "    entry += \"\"",
       "only": "first TDD-red row carries a tool-written hash for each named test"
     },
     {
@@ -8401,6 +8401,76 @@
       "from": "    if check is None:\n        return None\n    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven}",
       "to": "    return {\"check\": check, \"bodies\": bodies, \"unproven\": unproven}",
       "only": "a lock map with no check record is unreadable"
+    },
+    {
+      "label": "lock: empty bodies unproven that the hasher can now see is advice",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if tool_blind and (rel, name) in current[\"bodies\"]:",
+      "to": "        if False and (rel, name) in current[\"bodies\"]:",
+      "only": "lock that hashed no bodies"
+    },
+    {
+      "label": "lock: a later row recovers a lock the first red never carried",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    recovered = False\n    if not sha:\n        # R3: the first red predates the lock writer. Take the first later\n        # machine row that carries a trailing lock (any exit). Weaker than\n        # first-red; later reds after that with a different sha still conflict.\n        past = False\n",
+      "to": "    recovered = False\n    if not sha:\n        return first_date, None\n        past = False\n",
+      "only": "later row can recover"
+    },
+    {
+      "label": "lock: recovered lock from a later row is named as weaker",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if recorded.get(\"recovered\"):",
+      "to": "    if False:",
+      "only": "later row can recover"
+    },
+    {
+      "label": "lock: missing lock names frozen first-red and adr-verify recovery",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            \"UNPROVEN, not a skip of the lock; frozen at the first red — run \"\n            \"adr-verify again so a later row can carry a recovery lock \"\n            \"(weaker than first-red)\"\n",
+      "to": "            \"UNPROVEN, not a skip of the lock\"\n",
+      "only": "post-cutover done without"
+    },
+    {
+      "label": "lock: recovery lock attaches on a later row when the log still has none",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if code != 0 or vlog_has_red(text):",
+      "to": "    if code != 0:",
+      "only": "later green attaches a recovery lock"
+    },
+    {
+      "label": "lock: a command naming test-lock-sha256 is not a trailing lock",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    return any(_row_lock_sha(line)\n               for line, _m in _vlog_machine_rows(\n                   sections_of(text).get(\"Verification Log\", [])))",
+      "to": "    return bool(_LOCK_SHA.search(text))",
+      "only": "later green attaches a recovery lock"
+    },
+    {
+      "label": "lint: a Tests row naming a Fuzz-only Go file is not a missing test",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n",
+      "to": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n",
+      "only": "focused false-green"
     }
   ]
 }

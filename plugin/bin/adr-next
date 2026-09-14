@@ -83,6 +83,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402
+from record import vlog_row_is_lock_snapshot  # noqa: E402
 
 TID_RE = re.compile(r"(?<!\w)T\d+(?!\w)")
 VLOG_DIGEST_RE = re.compile(
@@ -310,6 +311,8 @@ def is_done(text, digest, human, fence=None, first=None, root=None):
                 return True
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0" and digest and m.group("digest") == digest:
+            if vlog_row_is_lock_snapshot(line):
+                continue
             if lock_blocks_done(text, root):
                 return False
             return True
@@ -347,6 +350,8 @@ def unprovable_evidence(text, digest, fence, first):
         # specific of the two states: someone edited the Acceptance after the run.
         m = VLOG_DIGEST_RE.match(line)
         if m and m.group("exit") == "0":
+            if vlog_row_is_lock_snapshot(line):
+                continue
             return ("carries exit-0 evidence recorded against a different Acceptance "
                     "— the fence changed after that run; re-run `adr-verify`")
         m = VLOG_LEGACY_RE.match(line)

@@ -12718,3 +12718,16 @@ so they cost a proven lock, not correctness.
   and reopen the bypass the refusal exists for.
 - `_iter_swift_tests` reads names with Python `\w`, so `@Test func 🧪()` is not discovered and its
   Tests row is UNPROVEN. Swift identifier rules (operator-free Unicode ranges) would admit it.
+
+## 206. Never-hashable Tests rows stay UNPROVEN after --relock (ADR-052)
+
+ADR-052 `--relock` fills names the hasher can now see. A Tests row that cannot produce a function
+the extractor could emit — a contract section `§NN`, a ghost name, a truncated regex, PHP
+file-level — stays UNPROVEN and still blocks `done`. Skipping those rows so a task can `done` is a
+different decision. Filed from ADR-052 Out of Scope, 2026-09-14.
+
+## 207. Swift Testing `#expect` is not a first-red hasher dialect (ADR-052)
+
+Inbox leftover: Swift Testing `#expect` macros are not a hasher keep-path. ADR-052 does not
+teach the lock a new Swift assertion form. Filed from ADR-052 Out of Scope, 2026-09-14.
+

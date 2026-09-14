@@ -4,7 +4,9 @@ import {
   mkdtempSync,
   rmSync,
   writeFileSync,
+  readFileSync,
 } from 'node:fs'
+
 
 import os from 'node:os'
 import { dirname, join, resolve } from 'node:path'
@@ -220,6 +222,50 @@ function redRow(dir, extras = '', date = '2026-09-13') {
 function findings(dir, vlog, tests = NAMED) {
   return recordOp({ op: 'findings', root: dir, vlog, tests, label: 'T1' })
 }
+function writeRelockTask(dir, vlogRows, testsRows = [NAMED_ROW]) {
+  const task = join(dir, 'T1.md')
+  writeFileSync(task, [
+    '# Task ADR-052-T1: relock probe',
+    '',
+    '## Acceptance',
+    '',
+    '```bash',
+    'node --test tests/lock-subject.test.mjs',
+    '```',
+    '',
+    '## Tests',
+    '',
+    '| Test name | File | Verifies | Covers |',
+    '|-----------|------|----------|--------|',
+    ...testsRows,
+    '',
+    '## Verification Log',
+    '',
+    ...vlogRows,
+    '',
+  ].join('\n'))
+  return task
+}
+
+function verifyRelock(dir, task, flags = ['--relock']) {
+  return spawnSync('python3', [join(bin, 'adr-verify'), ...flags, task, '--cwd', dir], {
+    cwd: dir,
+    env: pyEnv,
+    encoding: 'utf8',
+    timeout: 30_000,
+  })
+}
+
+function lastLockB64(text) {
+  const matches = [...text.matchAll(/test-lock-b64:([A-Za-z0-9_-]+)/g)]
+  assert.ok(matches.length, `expected a lock token\n${text}`)
+  return matches[matches.length - 1][1]
+}
+
+function decodeLock(token) {
+  return Buffer.from(token, 'base64url').toString('utf8')
+}
+
 
 test('first-red hashes still match at done', () => {
   const dir = tmpRepo()
@@ -1146,6 +1192,73 @@ test('a PHP preg_match quote is a string, and rewriting the assertion refuses do
     rmSync(dir, { recursive: true, force: true })
   }
 })
+test('a PHP 8/"1/2" quote does not keep the first-red hash after the assertion moves', () => {
+  // PHP has no regex literals. Teaching the PHP stripper `_swift_bare_regex_end`
+  // (or leftover-quote keep) collapses `8/"1/2".strlen` so `"https://a  b"` →
+  // `"https://a b"` keeps the digest. Do not enable the JS `/…/` keep on php=True.
+  const dir = tmpRepo()
+  const rel = 'tests/LockDivTest.php'
+  const named = [['testLockedDirty', rel]]
+  const rowLine = '| `testLockedDirty` | `tests/LockDivTest.php` | lock | F-1 |'
+  const source = want => '<?php\n'
+    + 'final class LockDivTest extends TestCase\n'
+    + '{\n'
+    + '    public function testLockedDirty(): void\n'
+    + '    {\n'
+    + '        $ratio = 8/"1/2".strlen;\n'
+    + `        $this->assertSame("${want}", $s);\n`
+    + '    }\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('https://a  b'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`vendor/bin/phpunit\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('https://a b'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('testLockedDirty') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a PHP preg_match pattern string does not keep the first-red hash after the pattern moves', () => {
+  // The leftover is the pattern string, not a regex literal. `/a  b/` → `/a b/`
+  // must move the hash the same way an assertion string does.
+  const dir = tmpRepo()
+  const rel = 'tests/LockPregPatternTest.php'
+  const named = [['testQuotedPattern', rel]]
+  const rowLine = '| `testQuotedPattern` | `tests/LockPregPatternTest.php` | lock | F-1 |'
+  const source = pat => '<?php\n'
+    + 'final class LockPregPatternTest extends TestCase\n'
+    + '{\n'
+    + '    public function testQuotedPattern(): void\n'
+    + '    {\n'
+    + `        preg_match('${pat}', $s);\n`
+    + "        $this->assertSame('x', $s);\n"
+    + '    }\n'
+    + '}\n'
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, rel), source('/a  b/'))
+    const suffix = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([rowLine]) }).suffix
+    assert.match(suffix, /test-lock-sha256:[0-9a-f]{64}/)
+    const row = `- 2026-09-13 · no-git · exit 2 · \`vendor/bin/phpunit\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${suffix}`
+    const locked = findings(dir, [row], named)
+    assert.deepEqual(locked.blocks, [], locked.blocks.join('\n'))
+    writeFileSync(join(dir, rel), source('/a b/'))
+    const moved = findings(dir, [row], named)
+    assert.ok(moved.blocks.some(b => b.includes('testQuotedPattern') && b.includes('hash moved')),
+      moved.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 
 test('a shell heredoc line beginning with # is not a comment in the digest', () => {
   // Inside <<EOF a `#` line is data. The shell comment rule saw a newline before
@@ -1673,6 +1786,317 @@ test('a later green attaches a recovery lock when the log still has none', () =>
     rmSync(dir, { recursive: true, force: true })
   }
 })
+test('adr-verify --relock fills unproven the hasher can now see', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const fake = recordOp({ op: 'unproven_lock', root: dir, tests: NAMED }).suffix
+    const first = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${fake}`
+    const task = writeRelockTask(dir, [first])
+    const before = readFileSync(task, 'utf8')
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 0, `writer must exit 0\n${run.stdout}\n${run.stderr}`)
+    const logged = readFileSync(task, 'utf8')
+    assert.match(logged, /exit 0 · `adr-verify --relock`/)
+    assert.match(logged, /test-lock-kind:relock/)
+    assert.ok(before.includes(fake))
+    assert.ok(logged.includes(fake), 'first-red row must stay')
+
+    const payload = decodeLock(lastLockB64(logged))
+    assert.match(payload, /body\ttests\/lock-subject\.test\.mjs\tlocked dirty/)
+    assert.doesNotMatch(payload, /unproven\ttests\/lock-subject\.test\.mjs\tlocked dirty/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('adr-verify --relock refuses when a hashed body moved', () => {
+  const dir = tmpRepo()
+  try {
+    const first = redRow(dir)
+    const task = writeRelockTask(dir, [first])
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(2, 1)\n'
+      + '})\n')
+    const before = readFileSync(task, 'utf8')
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 2, `default --relock must refuse a moved body\n${run.stdout}\n${run.stderr}`)
+    const said = run.stdout + run.stderr
+    assert.match(said, /locked dirty/)
+    assert.match(said, /--replace-hashes/)
+    assert.equal(readFileSync(task, 'utf8'), before, 'first-red must not be edited')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('adr-verify --replace-hashes without --relock is refused', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const task = writeRelockTask(dir, [])
+    const run = verifyRelock(dir, task, ['--replace-hashes'])
+    assert.equal(run.status, 2, run.stdout + run.stderr)
+    const said = run.stdout + run.stderr
+    assert.match(said, /--replace-hashes/)
+    assert.match(said, /--relock/)
+    assert.doesNotMatch(said, /unknown option/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('adr-verify --relock cannot combine with --mutant', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    writeFileSync(join(dir, 'prod.mjs'), 'export const code = 0\n')
+    const task = writeRelockTask(dir, [])
+    const mutant = verifyRelock(dir, task, ['--relock', '--mutant', 'prod.mjs'])
+    assert.equal(mutant.status, 2, mutant.stdout + mutant.stderr)
+    assert.match(mutant.stdout + mutant.stderr, /--relock/)
+    assert.match(mutant.stdout + mutant.stderr, /--mutant/)
+    const human = verifyRelock(dir, task, ['--relock', '--human-mutant', 'who'])
+    assert.equal(human.status, 2, human.stdout + human.stderr)
+    assert.match(human.stdout + human.stderr, /--relock/)
+    assert.match(human.stdout + human.stderr, /--human-mutant/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+test('adr-verify --relock cannot combine with --sweep', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const task = writeRelockTask(dir, [])
+    const sweep = spawnSync('python3', [join(bin, 'adr-verify'), '--relock', '--sweep', dir, task], {
+      cwd: dir,
+      env: pyEnv,
+      encoding: 'utf8',
+      timeout: 30_000,
+    })
+    const sweepOut = sweep.stdout + sweep.stderr
+    assert.equal(sweep.status, 2, sweepOut)
+    assert.match(sweepOut, /--relock/)
+    assert.match(sweepOut, /--sweep/)
+    assert.doesNotMatch(sweepOut, /unknown option/)
+    const restore = verifyRelock(dir, task, ['--relock', '--restore'])
+    const restoreOut = restore.stdout + restore.stderr
+    assert.equal(restore.status, 2, restoreOut)
+    assert.match(restoreOut, /--relock/)
+    assert.match(restoreOut, /--restore/)
+    assert.doesNotMatch(restoreOut, /unknown option/)
+    const human = verifyRelock(dir, task, ['--relock', '--human', 'signed off'])
+    const humanOut = human.stdout + human.stderr
+    assert.equal(human.status, 2, humanOut)
+    assert.match(humanOut, /--relock/)
+    assert.match(humanOut, /--human/)
+    assert.doesNotMatch(humanOut, /unknown option/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+
+test('adr-verify --relock with an empty log is refused', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const task = writeRelockTask(dir, [])
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 2, run.stdout + run.stderr)
+    const said = run.stdout + run.stderr
+    assert.match(said, /adr-verify --relock|no trailing lock|empty/)
+    assert.match(said, /ordinary `adr-verify`|ordinary adr-verify/)
+    assert.doesNotMatch(readFileSync(task, 'utf8'), /test-lock-kind:/)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a relock row is the done map and is weaker than first-red', () => {
+  const dir = tmpRepo()
+  try {
+    const first = redRow(dir)
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(2, 1)\n'
+      + '})\n')
+    const now = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix
+    assert.match(now, /test-lock-sha256:[0-9a-f]{64}/)
+    const relock = `- 2026-09-14 · no-git · exit 2 · \`adr-verify --relock\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${now} · test-lock-kind:relock`
+    const got = findings(dir, [first, relock])
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    assert.ok(got.advice.some(a => /weaker than first-red/.test(a) && /relock/.test(a)),
+      got.advice.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('adr-verify --relock --replace-hashes lets a stub-red become done with weaker advice', () => {
+  const dir = tmpRepo()
+  try {
+    mkdirSync(join(dir, 'tests'), { recursive: true })
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(0, 1)\n'
+      + '})\n')
+    const stub = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix
+    const first = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${stub}`
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(2, 2)\n'
+      + '})\n')
+    const task = writeRelockTask(dir, [first])
+    const refused = verifyRelock(dir, task)
+    assert.equal(refused.status, 2, refused.stdout + refused.stderr)
+    const run = verifyRelock(dir, task, ['--relock', '--replace-hashes'])
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    const logged = readFileSync(task, 'utf8')
+    assert.match(logged, /exit 0 · `adr-verify --relock --replace-hashes`/)
+    assert.match(logged, /test-lock-kind:replace/)
+    const got = findings(dir, logged.split('\n').filter(l => l.startsWith('- ')))
+    assert.deepEqual(got.blocks, [], got.blocks.join('\n'))
+    assert.ok(got.advice.some(a => /weaker than first-red/.test(a) && /replace/.test(a)),
+      got.advice.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('a later red with a different sha and no kind still conflicts after relock', () => {
+  const dir = tmpRepo()
+  try {
+    const first = redRow(dir)
+    writeFileSync(join(dir, 'tests', 'lock-subject.test.mjs'),
+      "import test from 'node:test'\n"
+      + "import assert from 'node:assert/strict'\n"
+      + "test('locked dirty', () => {\n"
+      + '  assert.equal(2, 1)\n'
+      + '})\n')
+    const now = recordOp({ op: 'suffix', root: dir, text: taskMarkdown([NAMED_ROW]) }).suffix
+    const relock = `- 2026-09-14 · no-git · exit 0 · \`adr-verify --relock\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${now} · test-lock-kind:relock`
+    const later = `- 2026-09-15 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'1'.repeat(64)} · ms:12 · test-lock-sha256:${'c'.repeat(64)} · test-lock-b64:YWJj`
+    const got = findings(dir, [first, relock, later])
+    assert.ok(got.blocks.some(b => /later red row carries a different/.test(b)),
+      got.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
+test('still-unhashable names stay UNPROVEN after --relock', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const ghostRow = '| `ghost` | `tests/lock-subject.test.mjs` | lock | F-2 |'
+    const mixedRows = [NAMED_ROW, ghostRow]
+    const mixedNamed = [...NAMED, ['ghost', 'tests/lock-subject.test.mjs']]
+    const fake = recordOp({ op: 'unproven_lock', root: dir, tests: mixedNamed }).suffix
+    const first = `- 2026-09-13 · no-git · exit 2 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${'0'.repeat(64)} · ms:12${fake}`
+    const task = writeRelockTask(dir, [first], mixedRows)
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    const logged = readFileSync(task, 'utf8')
+    const payload = decodeLock(lastLockB64(logged))
+    assert.match(payload, /body\ttests\/lock-subject\.test\.mjs\tlocked dirty/)
+    assert.match(payload, /unproven\ttests\/lock-subject\.test\.mjs\tghost/)
+    const got = findings(dir, logged.split('\n').filter(l => l.startsWith('- ')), mixedNamed)
+    assert.ok(got.blocks.some(b => /ghost/.test(b) && /UNPROVEN/.test(b)),
+      got.blocks.join('\n'))
+    assert.ok(!got.blocks.some(b => /locked dirty/.test(b)), got.blocks.join('\n'))
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+test('a relock row does not make is_done without a passing Acceptance run', () => {
+  const dir = tmpRepo()
+  try {
+    writeSubject(dir)
+    const first = redRow(dir)
+    const task = writeRelockTask(dir, [first])
+    const run = verifyRelock(dir, task)
+    assert.equal(run.status, 0, run.stdout + run.stderr)
+    const logged = readFileSync(task, 'utf8')
+    const digestMatch = logged.match(
+      /exit 0 · `adr-verify --relock` · acceptance-sha256:([0-9a-f]{64})/)
+    assert.ok(digestMatch, logged)
+    const digest = digestMatch[1]
+    const beforeGreen = nextIsDone({ text: logged, digest, root: dir })
+    assert.equal(beforeGreen.status, 0, beforeGreen.stderr)
+    assert.equal(JSON.parse(beforeGreen.stdout).done, false, beforeGreen.stdout)
+    const green = `- 2026-09-14 · no-git · exit 0 · \`node --test tests/lock-subject.test.mjs\` · acceptance-sha256:${digest} · ms:12`
+    const withGreen = logged.replace(first, `${first}\n${green}`)
+    const afterGreen = nextIsDone({ text: withGreen, digest, root: dir })
+    assert.equal(afterGreen.status, 0, afterGreen.stderr)
+    assert.equal(JSON.parse(afterGreen.stdout).done, true, afterGreen.stdout)
+    const vlogRows = logged.split('\n').filter(l => l.startsWith('- '))
+    const adr = join(dir, 'ADR-001-probe.md')
+    mkdirSync(join(dir, 'ADR-001-probe', 'tasks'), { recursive: true })
+    writeFileSync(adr, [
+      '# ADR-001: Probe', '',
+      '**Status:** Accepted',
+      '**Spec:** None — no spec stage',
+      '**Served-path change:** None — this decision changes no served path.', '',
+      '## Existing Primitives Audit', '', 'Nothing existing covers it.', '',
+      '## Decision', '', 'Lock.', '',
+      '## Alternatives Considered', '', '- Doing nothing — rejected, the bug persists.', '',
+      '## Consequences', '', 'Locked.', '',
+      '## Wiring & Contract Changes', '', 'None.', '',
+      '## Out of Scope', '', '- The other thing (deferred: ADR-002)', '',
+    ].join('\n'))
+    writeFileSync(join(dir, 'ADR-001-probe', 'tasks', 'README.md'), [
+      '# Tasks', '',
+      '| ID | Goal | Status | Depends-on | Notes |',
+      '|----|------|--------|------------|-------|',
+      '| T1 | lock | done | | |',
+      '',
+    ].join('\n'))
+    writeFileSync(join(dir, 'ADR-001-probe', 'tasks', 'T1-lock.md'), [
+      '# Task ADR-001-T1: lock',
+      '',
+      '## Acceptance',
+      '',
+      '```bash',
+      'node --test tests/lock-subject.test.mjs',
+      '```',
+      '',
+      '## Tests',
+      '',
+      '| Test name | File | Verifies | Covers |',
+      '|-----------|------|----------|--------|',
+      NAMED_ROW,
+      '',
+      '## Verification Log',
+      '',
+      ...vlogRows,
+      '',
+    ].join('\n'))
+    const git = spawnSync('git', ['init', '-q'], { cwd: dir, encoding: 'utf8', timeout: 10_000 })
+    assert.equal(git.status, 0, git.stderr)
+    const cli = spawnSync('python3', [join(bin, 'adr-lint'), adr], {
+      cwd: dir,
+      env: pyEnv,
+      encoding: 'utf8',
+      timeout: 30_000,
+    })
+    const cliOut = `${cli.stdout}\n${cli.stderr}`
+    assert.match(cliOut, /no exit-0 entry/, cliOut)
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})
+
 
 test('a new test name in the same file does not refuse done', () => {
   const dir = tmpRepo()

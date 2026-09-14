@@ -5,8 +5,9 @@ Usage: adr-verify <task.md> [--cwd DIR]
        adr-verify <task.md> --human "<who observed what>"
        adr-verify <task.md> --mutant <file> [--also-restore <file> ...]
                   --from <text> --to <text> --why <text> [--covers <mechanism>]
-       adr-verify <task.md> [--steps S1,S3]
-       adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
+        adr-verify <task.md> [--steps S1,S3]
+        adr-verify <task.md> --relock [--replace-hashes] [--cwd DIR]
+        adr-verify --sweep <corpus-dir> [--timeout <seconds>] [--json]
 
 Extracts the runnable fence under ## Acceptance (```bash, ```sh or ```shell —
 `record.acceptance_fence`, the one opener every gate reads) and runs it with bash
@@ -78,6 +79,12 @@ so the restore is journalled to disk before the mutation lands. The next run
 recovers it, and `adr-verify --restore [--cwd <repo>]` does it on demand. If the
 file has changed since, nothing is overwritten and the original is written out
 beside the journal instead.
+
+
+--relock appends a new lock snapshot without running the Acceptance fence. It fills
+names the hasher can now see. A recorded body that moved is refused unless
+--replace-hashes is also given. An empty log has no lock to replace: use ordinary
+adr-verify.
 
 --also-restore is repeatable and names repository-relative generated outputs the
 Acceptance fence itself may materialize from the mutated source. Those explicit
@@ -175,7 +182,8 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     _loaded_record = _ilu.module_from_spec(_record_spec)
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
-from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, TEST_LOCK_FIELD_ANON  # noqa: E402,E501
+from record import sections_of, section_span, repeated_headings, unterminated_fence, fence_safe, acceptance_fence, normalize_acceptance, acceptance_digest, lock_suffix_for_run, lock_snapshot_suffix, moved_lock_bodies, vlog_has_test_lock, tests_table_rows, TEST_LOCK_FIELD_ANON  # noqa: E402,E501
+from record import vlog_row_is_lock_snapshot, snapshot_lock  # noqa: E402
 
 
 # --- win32 utf-8 io (D1 fix) -------------------------------------------------
@@ -2354,6 +2362,40 @@ def record_run(task, text, cmd, today, result, elapsed_ms, sha, steps=None, cwd=
 
 
 
+def record_relock(task, text, cmd, cwd, today, replace_hashes):
+    """Append a current lock snapshot. Does not run the Acceptance fence (ADR-052)."""
+    if not vlog_has_test_lock(text):
+        fail("--relock needs a trailing lock already on the Verification Log; "
+             "an empty log has none. Record first-red with ordinary adr-verify.")
+    tests = tests_table_rows(text)
+    vlog = sections_of(text).get("Verification Log", [])
+    snap = snapshot_lock(cwd, tests)
+    if not replace_hashes:
+        moved = moved_lock_bodies(vlog, current=snap)
+        if moved:
+            names = ", ".join(f"`{rel}`::{name}" for rel, name in moved)
+            fail(f"hashed body moved ({names}) — default --relock will not replace "
+                 "a recorded hash; pass --replace-hashes to replace recorded hashes")
+    kind = "replace" if replace_hashes else "relock"
+    first = ("adr-verify --relock --replace-hashes" if replace_hashes
+             else "adr-verify --relock")
+    digest = acceptance_digest(cmd)
+    started = time.monotonic()
+    suffix = lock_snapshot_suffix(snap, kind)
+    elapsed_ms = max(0, int((time.monotonic() - started) * 1000))
+    sha = git_sha(cwd)
+    entry = (f"- {today} · {sha} · exit 0 · `{first}` · "
+             f"acceptance-sha256:{digest} · ms:{elapsed_ms}{suffix}")
+    refuse_unreadable(entry, sha)
+    append_entry(task, text, entry)
+    print(f"[adr-verify] WROTE this entry into {task}'s ## Verification Log — "
+          f"recording the run IS this tool's job, so the file is now modified; "
+          f"commit it with the work it evidences.")
+    print(entry)
+
+
+
+
 # ADR-031. Every gate answers for ITSELF, and the answer is read from the
 # manifest beside the gate rather than from a resolver. A central answer —
 # `qh-root`, `qh-doctor`, a `qh-version` gate — reports whichever copy of
@@ -2422,6 +2464,8 @@ def main():
 
     mutant = frm = to = why = None
     restore = False
+    relock = False
+    replace_hashes = False
     sweep = None
     human_mutant = None
     test_name = None
@@ -2502,6 +2546,10 @@ def main():
             as_json = True
         elif args[i] == "--restore":
             restore = True
+        elif args[i] == "--relock":
+            relock = True
+        elif args[i] == "--replace-hashes":
+            replace_hashes = True
         elif args[i].startswith("--"):
             # Without this an unknown flag becomes the task path, and its VALUE
             # becomes the next one: `--why probe` with --why renamed reported
@@ -2511,6 +2559,18 @@ def main():
         else:
             task = Path(args[i])
         i += 1
+    if replace_hashes and not relock:
+        fail("--replace-hashes is valid only with --relock")
+    if relock and mutant is not None:
+        fail("--relock cannot be combined with --mutant")
+    if relock and human_mutant is not None:
+        fail("--relock cannot be combined with --human-mutant")
+    if relock and sweep is not None:
+        fail("--relock cannot be combined with --sweep")
+    if relock and restore:
+        fail("--relock cannot be combined with --restore")
+    if relock and human is not None:
+        fail("--relock cannot be combined with --human")
     # Recovery needs no task file: the run that needs recovering is the one that
     # did not get far enough to finish, and asking for its paperwork first would
     # make the repair harder than the damage.
@@ -2673,6 +2733,9 @@ def main():
     # would otherwise be measured as if it were the code under test, and every
     # verdict after it would be about the defect rather than the change.
     recover_mutant(cwd)
+    if relock:
+        record_relock(task, text, cmd, cwd, today, replace_hashes)
+        sys.exit(0)
 
     # ADR-028 T1, corrected by T3. PREFLIGHT, before the fence runs and before the
     # clock starts — the same ordering `--covers` uses (ADR-016). A refusal that
@@ -2722,7 +2785,8 @@ def main():
     # (CLAUDE.md §4). What was missing is being told BEFORE the run what a failure
     # here will read as, while there is still time to fix the fence first.
     prior = sum(1 for ln in text.splitlines()
-                if re.match(r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · ", ln.strip()))
+                if re.match(r"^- \d{4}-\d{2}-\d{2} · (?:[0-9a-f]{7,40}\*?|no-git) · exit 0 · ", ln.strip())
+                and not vlog_row_is_lock_snapshot(ln))
     if prior:
         print(f"[adr-verify] {task.name} already carries {prior} exit-0 "
               f"{'entry' if prior == 1 else 'entries'}. This run is appended whatever it exits: "

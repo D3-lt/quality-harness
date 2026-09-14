@@ -58,8 +58,11 @@ __all__ = [
     "vlog_has_red",
     "first_red_lock_suffix",
     "lock_suffix_for_run",
+    "lock_snapshot_suffix",
+    "moved_lock_bodies",
     "lock_findings",
     "lock_blocks_done",
+    "vlog_row_is_lock_snapshot",
     "body_digest",
     "declared_check",
 ]
@@ -363,10 +366,12 @@ TEST_HASH_REQUIRED_FROM = "2026-09-13"
 TEST_LOCK_FIELD = (
     r"(?: · test-lock-sha256:(?P<test_lock>[0-9a-f]{64}))?"
     r"(?: · test-lock-b64:(?P<test_lock_b64>[A-Za-z0-9_-]+))?"
+    r"(?: · test-lock-kind:(?P<test_lock_kind>relock|replace))?"
 )
 TEST_LOCK_FIELD_ANON = (
     r"(?: · test-lock-sha256:[0-9a-f]{64})?"
     r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?"
+    r"(?: · test-lock-kind:(?:relock|replace))?"
 )
 _LOCK_SHA = re.compile(r"test-lock-sha256:([0-9a-f]{64})")
 _LOCK_B64 = re.compile(r"test-lock-b64:([A-Za-z0-9_-]+)")
@@ -1739,6 +1744,25 @@ def lock_suffix_for_run(text, root, code):
     return ""
 
 
+def lock_snapshot_suffix(snap, kind):
+    """Current snapshot plus a trailing test-lock-kind (ADR-052)."""
+    digest, token = encode_lock(snap)
+    return f" · test-lock-sha256:{digest} · test-lock-b64:{token} · test-lock-kind:{kind}"
+
+
+def moved_lock_bodies(vlog, *, current):
+    """Recorded hashed bodies that vanished or whose digest moved."""
+    _date, recorded = _recorded_lock(vlog)
+    if not recorded or not recorded.get("map"):
+        return []
+    moved = []
+    for (rel, name), digest in (recorded["map"].get("bodies") or {}).items():
+        now = current["bodies"].get((rel, name))
+        if now is None or now != digest:
+            moved.append((rel, name))
+    return moved
+
+
 def _vlog_machine_rows(vlog):
     """Yield (line, match) for each machine row outside a fenced excerpt."""
     fence = None
@@ -1767,59 +1791,71 @@ def _row_lock_sha(line):
     fence whose text happens to contain `test-lock-sha256:<64 hex>` was read as
     a lock, which since the later-red rule could refuse a task whose tests never
     moved. The writer appends the field last (`first_red_lock_suffix`), so the
-    end of the line is where a real one is.
+    end of the line is where a real one is. Optional `test-lock-kind` may
+    follow the b64 (ADR-052).
     """
     return re.search(r" · test-lock-sha256:([0-9a-f]{64})"
-                     r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?[ \t]*$", line)
+                     r"(?: · test-lock-b64:[A-Za-z0-9_-]+)?"
+                     r"(?: · test-lock-kind:(relock|replace))?"
+                     r"[ \t]*$", line)
+
+def vlog_row_is_lock_snapshot(line):
+    """True when the row is a --relock/--replace-hashes snapshot, not an Acceptance run."""
+    sha = _row_lock_sha(line.strip())
+    return bool(sha and sha.group(2))
 
 
 def _recorded_lock(vlog):
-    """Lock parsed from the first TDD-red row, else a later recovery lock."""
+    """Lock parsed from the first TDD-red row, a recovery lock, or a later relock."""
     first_date = None
     first_red = None
     later_red_locks = []
+    kind_rows = []
     for line, m in _vlog_machine_rows(vlog):
         if first_date is None:
             first_date = m.group("date")
+        sha = _row_lock_sha(line)
+        kind = sha.group(2) if sha else None
+        if sha and kind:
+            kind_rows.append((sha, line, kind))
         if m.group("exit") != "0":
             if first_red is None:
                 first_red = line
                 first_date = m.group("date")
-            else:
-                other = _row_lock_sha(line)
-                if other:
-                    later_red_locks.append(other.group(1))
+            elif sha and not kind:
+                later_red_locks.append(sha.group(1))
     if first_red is None:
         return first_date, None
-    sha = _row_lock_sha(first_red)
-    lock_line = first_red
     recovered = False
-    if not sha:
-        # R3: the first red predates the lock writer. Take the first later
-        # machine row that carries a trailing lock (any exit). Weaker than
-        # first-red; later reds after that with a different sha still conflict.
-        past = False
-        for line, _m in _vlog_machine_rows(vlog):
-            if not past:
-                if line == first_red:
-                    past = True
-                continue
-            other = _row_lock_sha(line)
-            if other:
-                sha = other
-                lock_line = line
-                recovered = True
-                break
+    kind = None
+    if kind_rows:
+        sha, lock_line, kind = kind_rows[-1]
+    else:
+        sha = _row_lock_sha(first_red)
+        lock_line = first_red
         if not sha:
-            return first_date, None
+            # R3: the first red predates the lock writer. Take the first later
+            # machine row that carries a trailing lock (any exit). Weaker than
+            # first-red; later reds after that with a different sha still conflict.
+            past = False
+            for line, _m in _vlog_machine_rows(vlog):
+                if not past:
+                    if line == first_red:
+                        past = True
+                    continue
+                other = _row_lock_sha(line)
+                if other:
+                    sha = other
+                    lock_line = line
+                    recovered = True
+                    break
+            if not sha:
+                return first_date, None
     b64 = _LOCK_B64.search(lock_line) if sha else None
     parsed = decode_lock(b64.group(1)) if b64 else None
     # ADR-050: "done is refused … when a later red presents a different hash."
-    # The writer emits one lock per log (first_red_lock_suffix returns "" once a
-    # lock exists), so a second, different one is a log that was assembled by
-    # hand or by a tool that could not see the first — and the bodies it pins
-    # are not the bodies the contract pins. Measured unimplemented by the
-    # verdict-layer stress arm, 2026-09-13.
+    # Kind rows are the done map (ADR-052), not a later-red conflict. A later
+    # red with a different sha and no kind still conflicts.
     conflict = next((other for other in later_red_locks
                      if other != sha.group(1)), None)
     return first_date, {
@@ -1827,7 +1863,9 @@ def _recorded_lock(vlog):
         "map": parsed,
         "conflict": conflict,
         "recovered": recovered,
+        "kind": kind,
     }
+
 
 
 def lock_findings(vlog, *, root, tests, label=""):
@@ -1857,7 +1895,12 @@ def lock_findings(vlog, *, root, tests, label=""):
     recorded_map = recorded["map"]
     blocks = []
     advice = []
-    if recorded.get("recovered"):
+    if recorded.get("kind"):
+        cmd = ("adr-verify --relock --replace-hashes"
+               if recorded["kind"] == "replace" else "adr-verify --relock")
+        advice.append(
+            f"{prefix}lock map was taken by `{cmd}` — weaker than first-red")
+    elif recorded.get("recovered"):
         advice.append(
             f"{prefix}first-red lock is recovered from a later row, not the "
             "first TDD-red — weaker than first-red evidence")

@@ -3445,6 +3445,19 @@ def test_first_red_lock_grammar_and_identity(lint, verify, nxt):
     assert lint.VLOG_TIMED_RE.match(row), "lint VLOG_TIMED_RE must accept a lock-bearing red"
     assert nxt.VLOG_DIGEST_RE.match(row), "next VLOG_DIGEST_RE must accept a lock-bearing red"
     assert verify.ENTRY_RE.match(row), "verify ENTRY_RE must accept a lock-bearing red"
+    kind = lock + " · test-lock-kind:relock"
+    kind_row = (f"- 2026-09-14 · no-git · exit 0 · `adr-verify --relock` · "
+                f"acceptance-sha256:{digest} · ms:12{kind}")
+    assert lint.VLOG_RE.match(kind_row), "lint VLOG_RE must accept a kind-bearing lock"
+    assert lint.VLOG_DIGEST_RE.match(kind_row), "lint VLOG_DIGEST_RE must accept a kind-bearing lock"
+    assert lint.VLOG_TIMED_RE.match(kind_row), "lint VLOG_TIMED_RE must accept a kind-bearing lock"
+    assert nxt.VLOG_DIGEST_RE.match(kind_row), "next VLOG_DIGEST_RE must accept a kind-bearing lock"
+    assert verify.ENTRY_RE.match(kind_row), "verify ENTRY_RE must accept a kind-bearing lock"
+    replace = lock + " · test-lock-kind:replace"
+    replace_row = (f"- 2026-09-14 · no-git · exit 0 · `adr-verify --relock --replace-hashes` · "
+                   f"acceptance-sha256:{digest} · ms:12{replace}")
+    assert verify.ENTRY_RE.match(replace_row), "verify ENTRY_RE must accept a replace kind"
+
     old = (f"- 2026-08-22 · abc1234 · exit 0 · `probe` · "
             f"acceptance-sha256:{digest} · ms:12")
     assert nxt.is_done(f"## Verification Log\n{old}\n", digest, False), \

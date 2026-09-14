@@ -118,6 +118,7 @@ if os.path.realpath(getattr(_loaded_record, "__file__", None) or "") != os.path.
     sys.modules["record"] = _loaded_record
     _record_spec.loader.exec_module(_loaded_record)
 from record import sections_of, repeated_headings, unterminated_fence, acceptance_fence, first_fence_line, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD, TEST_LOCK_FIELD_ANON, lock_findings, TEST_HASH_REQUIRED_FROM, bdd_callback_body  # noqa: E402,E501
+from record import vlog_row_is_lock_snapshot  # noqa: E402
 
 
 TASK_SECTIONS = ["Goal", "Affected Files", "Ordered Steps", "Acceptance", "Tests",
@@ -1403,7 +1404,7 @@ def check_step_proof_map(path, text, secs, errors):
         if not match or not match.group("steps"):
             continue
         saw_field = True
-        if match.group("exit") == "0":
+        if match.group("exit") == "0" and not vlog_row_is_lock_snapshot(line):
             named.update(token.strip() for token in match.group("steps").split(","))
     if saw_field:
         for step_id in sorted(covered, key=lambda s: int(s[1:])):
@@ -1486,7 +1487,7 @@ def check_task(path, all_stems, errors, root, tracked):
                 f"would be wrong in the direction that flatters it")
     elif declared is None and any(ln.strip().startswith("- ")
                                   for ln in secs.get("Mutation Log", [])) \
-            and not any("· exit 0 ·" in ln for ln in secs.get("Verification Log", [])):
+            and not any("· exit 0 ·" in ln and not vlog_row_is_lock_snapshot(ln) for ln in secs.get("Verification Log", [])):
         # Reported 2026-09-08 from an 18-record corpus (BACKLOG §174): `--covers` was
         # refused for want of a header that ZERO of its ~90 task files carried. The
         # task template has emitted one since v2.51.0, but a corpus authored before
@@ -1539,7 +1540,8 @@ def check_task(path, all_stems, errors, root, tracked):
     # and this one did not, so relabelling a task to human-observed silently
     # bought exemption from one check and not the others (docs/BACKLOG.md §69).
     if any(ln.strip().startswith("- ")
-           and (("· exit 0 ·" in ln and VLOG_RE.match(ln.strip()))
+           and (("· exit 0 ·" in ln and VLOG_RE.match(ln.strip())
+                 and not vlog_row_is_lock_snapshot(ln))
                 or "· human-observed ·" in ln)
            for ln in secs.get("Verification Log", [])):
         named = set()
@@ -1778,7 +1780,7 @@ def check_task(path, all_stems, errors, root, tracked):
         # `sh -c '…'` wrapper, where the closing quote must stay after `fi`.
         cost = (" ⚠ This task carries exit-0 evidence: editing the fence changes its digest, "
                 "and `done` is refused until `adr-verify` re-runs it against the new text."
-                if any("· exit 0 ·" in b for b in vlog) else "")
+                if any("· exit 0 ·" in b and not vlog_row_is_lock_snapshot(b) for b in vlog) else "")
         wrapper = (" Inside an `sh -c '…'` wrapper the closing quote must stay AFTER `fi`."
                    if re.search(r"\b(?:sh|bash)\s+-c\s+'", acc_all) else "")
         fix = "`if grep -qE \"no tests to run|^FAIL|^--- FAIL\" out; then exit 1; fi`"
@@ -2424,7 +2426,7 @@ def check_verification(infos, readme_text, errors, committed=committed_lines):
                     f"acceptance-sha256 that is not in the committed file — a row with no "
                     f"digest is legacy evidence, and legacy means already recorded. Re-run "
                     f"`adr-verify <task.md>`, which writes the entry and its digest itself")
-        passing = [b for b in entries if "· exit 0 ·" in b]
+        passing = [b for b in entries if "· exit 0 ·" in b and not vlog_row_is_lock_snapshot(b)]
         # TRAJECTORY, not just outcome. Everything else here asks whether the
         # check PASSED; this asks whether the sequence that produced the pass was
         # the one the task claimed. Ordered Steps step 1 is required to say
@@ -2688,7 +2690,7 @@ def evidenced_task_ids(infos, readme_text):
     for tid, inf in infos.items():
         if inf.get("human"):
             continue
-        if any(VLOG_RE.match(b) and "· exit 0 ·" in b for b in inf.get("vlog", [])):
+        if any(VLOG_RE.match(b) and "· exit 0 ·" in b and not vlog_row_is_lock_snapshot(b) for b in inf.get("vlog", [])):
             ids.add(tid)
     return sorted(ids)
 

@@ -195,7 +195,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "        passing = [b for b in entries if \"· exit 0 ·\" in b]",
+      "from": "        passing = [b for b in entries if \"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b)]",
       "to": "        passing = list(entries)"
     },
     {
@@ -1093,8 +1093,9 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "    recover_mutant(cwd)\n\n    # ADR-028 T1, corrected by T3.",
-      "to": "    # ADR-028 T1, corrected by T3."
+      "from": "    recover_mutant(cwd)\n    if relock:\n        record_relock(task, text, cmd, cwd, today, replace_hashes)\n        sys.exit(0)\n\n    # ADR-028 T1, corrected by T3.",
+      "to": "    if relock:\n        record_relock(task, text, cmd, cwd, today, replace_hashes)\n        sys.exit(0)\n\n    # ADR-028 T1, corrected by T3."
+
     },
     {
       "label": "sync: a forwarder is not reported as drifted",
@@ -3224,7 +3225,7 @@
       "tests": [
         "tests/evidence-chain.test.mjs"
       ],
-      "from": "        if any(VLOG_RE.match(b) and \"· exit 0 ·\" in b for b in inf.get(\"vlog\", [])):\n            ids.add(tid)",
+      "from": "        if any(VLOG_RE.match(b) and \"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b) for b in inf.get(\"vlog\", [])):\n            ids.add(tid)",
       "to": "        if False:\n            ids.add(tid)"
     },
     {
@@ -6501,7 +6502,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "                if any(\"· exit 0 ·\" in b for b in vlog) else \"\")\n",
+      "from": "                if any(\"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b) for b in vlog) else \"\")\n",
       "to": "                if False else \"\")\n"
     },
     {
@@ -7527,8 +7528,9 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "                if other:\n                    later_red_locks.append(other.group(1))",
-      "to": "                if False:\n                    later_red_locks.append(other.group(1))",
+      "from": "            elif sha and not kind:\n                later_red_locks.append(sha.group(1))\n",
+      "to": "            elif sha and not kind:\n                pass\n",
+
       "only": "a later red carrying a different lock hash"
     },
     {
@@ -7537,7 +7539,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    return re.search(r\" · test-lock-sha256:([0-9a-f]{64})\"\n                     r\"(?: · test-lock-b64:[A-Za-z0-9_-]+)?[ \\t]*$\", line)",
+      "from": "    return re.search(r\" · test-lock-sha256:([0-9a-f]{64})\"\n                     r\"(?: · test-lock-b64:[A-Za-z0-9_-]+)?\"\n                     r\"(?: · test-lock-kind:(relock|replace))?\"\n                     r\"[ \\t]*$\", line)",
       "to": "    return _LOCK_SHA.search(line)",
       "only": "a later red carrying a different lock hash"
     },
@@ -8418,8 +8420,9 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    recovered = False\n    if not sha:\n        # R3: the first red predates the lock writer. Take the first later\n        # machine row that carries a trailing lock (any exit). Weaker than\n        # first-red; later reds after that with a different sha still conflict.\n        past = False\n",
-      "to": "    recovered = False\n    if not sha:\n        return first_date, None\n        past = False\n",
+      "from": "        if not sha:\n            # R3: the first red predates the lock writer. Take the first later\n            # machine row that carries a trailing lock (any exit). Weaker than\n            # first-red; later reds after that with a different sha still conflict.\n            past = False\n",
+      "to": "        if not sha:\n            return first_date, None\n            past = False\n",
+
       "only": "later row can recover"
     },
     {
@@ -8428,8 +8431,9 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if recorded.get(\"recovered\"):",
-      "to": "    if False:",
+      "from": "    elif recorded.get(\"recovered\"):",
+      "to": "    elif False:",
+
       "only": "later row can recover"
     },
     {
@@ -8471,6 +8475,107 @@
       "from": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+(?:Test|Fuzz)\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n",
       "to": "                if re.search(r\"^\\s*(?:async\\s+)?def\\s+test_\\w+\\s*\\(|^\\s*func\\s+Test\\w*\\s*\\(|\"\n                             r\"^\\s*(?:it|test)\\s*\\(\", source, re.M):\n",
       "only": "focused false-green"
+    },
+    {
+      "label": "lock: a PHP 8/\"1/2\" quote is not a regex literal in the stripper",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        if not (python or php or shell or rust or swift):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _js_regex_span_end(text, i)\n",
+      "to": "        if not (python or shell or rust or swift):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _swift_bare_regex_end(text, i)\n",
+      "only": "a PHP 8/\"1/2\" quote does not keep"
+    },
+    {
+      "label": "lock: default --relock refuses a moved hashed body",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if not replace_hashes:\n        moved = moved_lock_bodies(vlog, current=snap)\n",
+      "to": "    if False:\n        moved = moved_lock_bodies(vlog, current=snap)\n",
+      "only": "refuses when a hashed body moved"
+    },
+    {
+      "label": "lock: --relock is parsed before unknown-option",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        elif args[i] == \"--relock\":\n            relock = True\n",
+      "to": "        elif args[i] == \"--relock-off\":\n            relock = True\n",
+      "only": "fills unproven the hasher can now see"
+    },
+    {
+      "label": "lock: a relock row is weaker than first-red",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if recorded.get(\"kind\"):",
+      "to": "    if False:",
+      "only": "a relock row is the done map"
+    },
+    {
+      "label": "lock: later-red conflict skips kind rows only",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            elif sha and not kind:\n                later_red_locks.append(sha.group(1))\n",
+      "to": "            elif False:\n                later_red_locks.append(sha.group(1))\n",
+      "only": "later red with a different sha and no kind"
+    },
+    {
+      "label": "lock: a relock row is not a passing Acceptance run",
+      "file": "plugin/bin/adr-next",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "            if vlog_row_is_lock_snapshot(line):\n                continue\n            if lock_blocks_done(text, root):\n",
+      "to": "            if False:\n                continue\n            if lock_blocks_done(text, root):\n",
+      "only": "does not make is_done without a passing"
+    },
+    {
+      "label": "lock: lint passing ignores a relock snapshot",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "        passing = [b for b in entries if \"· exit 0 ·\" in b and not vlog_row_is_lock_snapshot(b)]\n",
+      "to": "        passing = [b for b in entries if \"· exit 0 ·\" in b]\n",
+      "only": "does not make is_done without a passing"
+    },
+    {
+      "label": "lock: --relock cannot combine with --sweep",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if relock and sweep is not None:\n        fail(\"--relock cannot be combined with --sweep\")\n",
+      "to": "    if False:\n        fail(\"--relock cannot be combined with --sweep\")\n",
+      "only": "cannot combine with --sweep"
+    },
+    {
+      "label": "lock: --relock cannot combine with --restore",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if relock and restore:\n        fail(\"--relock cannot be combined with --restore\")\n",
+      "to": "    if False:\n        fail(\"--relock cannot be combined with --restore\")\n",
+      "only": "cannot combine with --sweep"
+    },
+    {
+      "label": "lock: --relock cannot combine with --human",
+      "file": "plugin/bin/adr-verify",
+      "tests": [
+        "tests/test-lock.test.mjs"
+      ],
+      "from": "    if relock and human is not None:\n        fail(\"--relock cannot be combined with --human\")\n",
+      "to": "    if False:\n        fail(\"--relock cannot be combined with --human\")\n",
+      "only": "cannot combine with --sweep"
     }
   ]
 }
+

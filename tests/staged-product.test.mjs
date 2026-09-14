@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
-  chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync,
+  chmodSync, cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync,
+
 } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
@@ -612,6 +613,43 @@ test('PostToolUse names not-recognised once per file per session via firstMentio
   const always = adrLint(file)
   assert.match(`${always.stdout}${always.stderr}`, /not-recognised/)
 })
+
+test('session_id from the payload reaches the facts-gate dispatcher', () => {
+  const root = mkdtempSync(path.join(testTmp, 'session-relay-'))
+  const scripts = path.join(root, 'plugin', 'scripts')
+  mkdirSync(scripts, { recursive: true })
+  cpSync(path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
+  cpSync(path.join(pluginDir, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
+    '#!/bin/bash',
+    'printf "session=%s\\n" "${QUALITY_HARNESS_SESSION_ID-UNSET}"',
+    '',
+  ].join('\n'))
+  const file = path.join(root, 'notes.md')
+  writeFileSync(file, '# Notes\n')
+  const session = `relay-${process.pid}`
+  const env = { ...process.env }
+  delete env.QUALITY_HARNESS_SESSION_ID
+  const run = payload => spawnSync(process.execPath, [
+    path.join(scripts, 'run-shell-hook.mjs'),
+    'facts-gate-dispatch.sh',
+  ], {
+    encoding: 'utf8', timeout: 60_000, env,
+    input: JSON.stringify({
+      hook_event_name: 'PostToolUse',
+      tool_name: 'Edit',
+      tool_input: { file_path: file },
+      ...payload,
+    }),
+  })
+  const forwarded = run({ session_id: session })
+  assert.equal(forwarded.status, 0, forwarded.stderr)
+  assert.match(`${forwarded.stdout}${forwarded.stderr}`, new RegExp(`session=${session}`))
+  const absent = run({})
+  assert.equal(absent.status, 0, absent.stderr)
+  assert.match(`${absent.stdout}${absent.stderr}`, /session=UNSET/)
+})
+
 
 test('post-edit-check still runs on unclassified files', () => {
   const hooks = readFileSync(path.join(pluginDir, 'hooks', 'hooks.json'), 'utf8')

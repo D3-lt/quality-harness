@@ -6944,7 +6944,7 @@
       "tests": [
         "tests/staged-product.test.mjs"
       ],
-      "only": "once per file per session",
+      "only": "session_id from the payload reaches the facts-gate dispatcher",
       "from": "    env: sessionId\n      ? { ...process.env, QUALITY_HARNESS_SESSION_ID: sessionId }\n      : process.env,",
       "to": "    env: process.env,"
     },

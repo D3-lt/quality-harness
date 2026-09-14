@@ -4703,7 +4703,8 @@ def scan_code_only(text, hash_comments=False):
     and can make neither mistake, which is what "by construction" means, and it
     is why the fix is this function rather than a third ordering.
 
-    `hash_comments` adds `#` to end of line, except `#[`, a Rust attribute.
+    `hash_comments` adds `#` to end of line, except `#[` (a Rust attribute) and
+    Swift Testing macros `#expect` / `#require`.
     """
     output = []
     state = "code"
@@ -4724,10 +4725,17 @@ def scan_code_only(text, hash_comments=False):
                 index += 2
                 continue
             if hash_comments and char == "#" and pair != "#[":
-                output.append(" ")
-                state = "line-comment"
-                index += 1
-                continue
+                rest = text[index + 1:]
+                if not any(
+                    rest.startswith(name)
+                    and (len(rest) == len(name)
+                         or not (rest[len(name)].isalnum() or rest[len(name)] == "_"))
+                    for name in ("expect", "require")
+                ):
+                    output.append(" ")
+                    state = "line-comment"
+                    index += 1
+                    continue
             if char in ('"', "'"):
                 output.append(" ")
                 state = char

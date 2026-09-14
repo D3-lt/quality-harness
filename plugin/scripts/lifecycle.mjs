@@ -668,6 +668,23 @@ export function isGitPublishCommand(command) {
   }
   return false
 }
+const PUBLISH_SUFFIX = /(?:&&|\r?\n)\s*(?:(?:command|env|sudo|exec|time)\s+)*(?:git\s+(?:commit|push)\b[\s\S]*)$/
+
+export function publishPrecededByValidation(command) {
+  if (typeof command !== 'string' || !isGitPublishCommand(command)) return false
+  let rest = command.trim()
+  let stripped = false
+  while (PUBLISH_SUFFIX.test(rest)) {
+    rest = rest.replace(PUBLISH_SUFFIX, '').trim()
+    stripped = true
+  }
+  if (!stripped || !rest) return false
+  if (isValidationCommand(rest)) return true
+  const lastLine = rest.split(/\r?\n/).filter(Boolean).at(-1) ?? ''
+  const lastAnd = lastLine.split(/\s*&&\s*/).filter(Boolean).at(-1) ?? ''
+  return isValidationCommand(lastAnd)
+}
+
 
 function commandSucceeded(result) {
   if (result === undefined) return false
@@ -916,6 +933,25 @@ export function isValidationCommand(command) {
         && VALIDATION_PATTERNS.some(pattern => pattern.test(segment.replace(ASSIGNMENT_PREFIX, ''))))
   })
 }
+const MRW_CHECK_FLAG = /(?:^|\s)--check(?:\s|$)/
+
+function isMrwWriteCheckCommand(command) {
+  if (typeof command !== 'string') return false
+  const inner = commandInsideWrappers(command)
+  return /\bmrw\b/.test(inner) && /\bwrite\b/.test(inner) && MRW_CHECK_FLAG.test(inner)
+}
+
+function isMrwWriteCheck(use) {
+  if (use.name === 'mcp__mrw__mrw_write') {
+    if (use.input?.check === true) return true
+    const command = typeof use.input?.command === 'string' ? use.input.command : ''
+    const args = Array.isArray(use.input?.args) ? use.input.args.join(' ') : ''
+    return MRW_CHECK_FLAG.test(`${command} ${args}`)
+  }
+  if (use.name === 'Bash') return isMrwWriteCheckCommand(use.input?.command)
+  return false
+}
+
 
 const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/
 
@@ -1906,10 +1942,12 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
 
   for (const use of uses) {
     if (MUTATION_TOOLS.has(use.name) && executed(use)) {
-      authorship = 'native'
-      lastMutation = Math.max(lastMutation, use.position)
       const filePath = use.input.file_path ?? use.input.notebook_path
-      if (typeof filePath === 'string') record(use.position, filePath)
+      if (!(typeof filePath === 'string' && isGitignoredUntracked(filePath, cwd))) {
+        authorship = 'native'
+        lastMutation = Math.max(lastMutation, use.position)
+        if (typeof filePath === 'string') record(use.position, filePath)
+      }
     }
     if (use.name === 'Bash' && executed(use)) {
       const kind = classifyCommand(use.input.command)
@@ -1944,7 +1982,8 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       }
       // Unrecognised Bash is UNPROVEN, not authorship none. Same scalar
       // mcp__mrw__mrw_write already sets (ADR-047 F-2).
-      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))) {
+      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))
+          && !isMrwWriteCheckCommand(use.input.command)) {
         lastUnprovenWrite = Math.max(lastUnprovenWrite, use.position)
         if (authorship === 'none') authorship = 'UNPROVEN'
       }
@@ -1968,7 +2007,14 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
         }
       }
     }
-    if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)
+    if (executed(use) && commandSucceeded(results.get(use.id)) && isMrwWriteCheck(use)) {
+      lastValidation = Math.max(lastValidation, use.position)
+      lastSuccessfulValidation = Math.max(lastSuccessfulValidation, use.position)
+      lastVerdict = 'passed'
+      lastVerdictCommand = use.name === 'Bash'
+        ? describeCommand(use.input.command)
+        : 'mrw --check'
+    } else if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)
         && !KNOWN_NON_WRITE_TOOLS.has(use.name)) {
       lastUnprovenWrite = Math.max(lastUnprovenWrite, use.position)
       if (authorship === 'none') authorship = 'UNPROVEN'
@@ -2435,6 +2481,17 @@ function gitRepositoryRoot(directory) {
   // made relativeWithinRoot filter every path as outside, so the hook
   // delivered empty context (CLAUDE.md §7).
   return canonical(run.stdout.trim())
+}
+
+function isGitignoredUntracked(filePath, cwd) {
+  if (typeof filePath !== 'string' || !filePath) return false
+  const root = gitRepositoryRoot(cwd)
+  if (!root) return false
+  const gitOpts = { encoding: 'utf8', timeout: 5_000 }
+  const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', filePath], gitOpts)
+  if (ignored.status !== 0) return false
+  const tracked = spawnSync('git', ['-C', root, 'ls-files', '--error-unmatch', '--', filePath], gitOpts)
+  return tracked.status !== 0
 }
 
 // Names the project's own check when there is one, so the gate asks for
@@ -4249,7 +4306,9 @@ export async function handleHook(input) {
     // live 2.3.0 session on 2026-08-26.
     // Same rule as the completion gates: with no check to name, this has nothing
     // to ask for.
-    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {
+    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())
+        && projectCheckCommand(input.cwd)
+        && !publishPrecededByValidation(command)) {
       advise('Nothing has verified the work since your last change, so this commit would publish '
         + `unchecked. ${missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))} `
         + 'Nothing is blocked — this is what the gate sees before you commit.', input)

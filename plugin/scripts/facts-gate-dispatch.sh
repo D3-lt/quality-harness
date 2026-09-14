@@ -305,18 +305,15 @@ elif [[ "$base_lc" == "architecture.md" ]] \
 fi
 
 if [ -z "$gate" ]; then
-  # A miss is a named state (not-recognised / UNPROVEN), never a clean skip and
-  # never "not a decision record" for a file that holds some other ADR shape.
-  # Corpus gates do not run. Session PostToolUse names the miss at most once
-  # per file per session via lifecycle.mjs firstMentionThisSession.
+  # A miss is a named state (not-recognised / UNPROVEN) at commit and Core, never
+  # a PostToolUse finding for a file that is not a QH record (ADR-053 T4).
+  # Corpus gates do not run.
   if [ ! -e "$f" ] || [ ! -r "$f" ]; then
     say_unproven "$(printf 'UNPROVEN: could not classify %s' "$f")"
     exit 0
   fi
-  if [ "$boundary" = "PostToolUse" ] && [ -n "${QUALITY_HARNESS_SESSION_ID:-}" ]; then
-    if ! node "$SCRIPT_DIR/lifecycle.mjs" --first-mention "$QUALITY_HARNESS_SESSION_ID" "not-recognised:$f"; then
-      exit 0
-    fi
+  if [ "$boundary" = "PostToolUse" ]; then
+    exit 0
   fi
   printf 'not-recognised: %s is not a QH record or task\n' "$f"
   exit 0

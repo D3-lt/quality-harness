@@ -555,8 +555,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {",
-      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {"
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {",
+      "to": "    if (((state.hasMutations && !state.verifiedAfterLastMutation) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {"
     },
     {
       "label": "advisory: a project that names no check hears nothing",
@@ -636,8 +636,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {",
-      "to": "    if (state.unverifiedSince(state.lastPublish) && projectCheckCommand(input.cwd)) {"
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {",
+      "to": "    if (state.unverifiedSince(state.lastPublish)\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {"
     },
     {
       "label": "advisory: PreToolUse commit advice Advises on UNPROVEN write after a published mutation",
@@ -645,8 +645,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()) && projectCheckCommand(input.cwd)) {",
-      "to": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN') && projectCheckCommand(input.cwd)) {"
+      "from": "    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {",
+      "to": "    if ((state.unverifiedSince(state.lastPublish) || state.authorship === 'UNPROVEN')\n        && projectCheckCommand(input.cwd)\n        && !publishPrecededByValidation(command)) {"
     },
     {
       "label": "advisory: a verify script is the project's named check",
@@ -8239,7 +8239,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))) {",
+      "from": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))\n          && !isMrwWriteCheckCommand(use.input.command)) {",
       "to": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (false) {",
       "only": "unrecognised Bash is Advise the same way an MCP write is|echo is not Advise, and a classify-only green is not this fact"
     },
@@ -8270,8 +8270,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))) {",
-      "to": "      if (kind === 'unrecognised') {",
+      "from": "      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))\n          && !isMrwWriteCheckCommand(use.input.command)) {",
+      "to": "      if (kind === 'unrecognised'\n          && !isMrwWriteCheckCommand(use.input.command)) {",
       "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
     },
     {
@@ -8280,8 +8280,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "    if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
-      "to": "    if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
+      "from": "    } else if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
+      "to": "    } else if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
       "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
     },
     {

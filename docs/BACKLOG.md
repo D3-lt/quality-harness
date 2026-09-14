@@ -12731,3 +12731,5 @@ different decision. Filed from ADR-052 Out of Scope, 2026-09-14.
 Inbox leftover: Swift Testing `#expect` macros are not a hasher keep-path. ADR-052 does not
 teach the lock a new Swift assertion form. Filed from ADR-052 Out of Scope, 2026-09-14.
 
+Landed 2026-09-14 as ADR-053 T5 (`docs/adr/ADR-053-a-false-advisory-is-not-a-finding.md`). Hasher `_mask_lock_noncode(..., swift=True)` already kept `#expect`; lint `scan_code_only` was the defect. ADR-052 Out of Scope stays as written.
+

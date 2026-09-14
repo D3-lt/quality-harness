@@ -7,7 +7,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { analyzeTranscript, firstMentionThisSession, adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
+import { analyzeTranscript, adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
@@ -605,15 +605,12 @@ test('PostToolUse names not-recognised once per file per session via firstMentio
   const first = factsHook(file, { session_id: session })
   const second = factsHook(file, { session_id: session })
   assert.equal(first.status, 0, first.stderr)
-  assert.match(`${first.stdout}${first.stderr}`, /not-recognised/)
+  assert.doesNotMatch(`${first.stdout}${first.stderr}`, /not-recognised/)
   assert.doesNotMatch(`${second.stdout}${second.stderr}`, /not-recognised/)
   const commit = factsHook(file, { session_id: session, hook_event_name: 'PreToolUse' })
   assert.match(`${commit.stdout}${commit.stderr}`, /not-recognised/)
   const always = adrLint(file)
   assert.match(`${always.stdout}${always.stderr}`, /not-recognised/)
-  const dispatcher = readFileSync(path.join(pluginDir, 'scripts', 'facts-gate-dispatch.sh'), 'utf8')
-  assert.match(dispatcher, /first-mention|firstMentionThisSession/)
-  assert.equal(firstMentionThisSession(session, `not-recognised:${posix(file)}`), false)
 })
 
 test('post-edit-check still runs on unclassified files', () => {

@@ -49,6 +49,8 @@ node --test --test-name-pattern 'a PHP #expect comment is not a fail word' tests
 | 4 — it is used | leftovers PHP test + locked Swift test |
 
 ## Mutation Log
+- 2026-09-15 · bd4daaa* · mutant killed · exit 1 · `plugin/bin/adr-lint` · global #expect keep leaves PHP #expect as a fail word · acceptance-sha256:03378b1cb4ebb74413279d788f78ae221dfdab888623a4c276db7fdbc184a806 · covers:the Swift-only #expect keep
+- 2026-09-15 · bd4daaa* · mutant killed · exit 1 · `plugin/bin/adr-lint` · dropping hash comments leaves PHP #expect as a fail word · acceptance-sha256:03378b1cb4ebb74413279d788f78ae221dfdab888623a4c276db7fdbc184a806 · covers:the PHP hash-comment strip
 
 ## Invariants
 
@@ -71,3 +73,19 @@ PHP `#expect` still counts as a fail word, or Swift `#expect`-only blocks again.
 - Enabling JS `_js_regex_span_end` on `php=True`
 
 ## Verification Log
+- 2026-09-15 · bd4daaa* · exit 1 · `node --test --test-name-pattern 'a PHP #expect comment is not a fail word' tests/leftovers-after-adr053.test.mjs && node --test --test-name-pattern 'Swift #expect is a failure call so an expect-only test is not dead' tests/swift-expect.test.mjs` · acceptance-sha256:03378b1cb4ebb74413279d788f78ae221dfdab888623a4c276db7fdbc184a806 · ms:121 · test-lock-sha256:e409dd63c258a0ad1afcc71002d92ee66d5cd9fc4fb1594fe8be88d33b13efc9 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2xlZnRvdmVycy1hZnRlci1hZHIwNTMudGVzdC5tanMJQy1lc2NhcGluZyBHbyBiYWNrdGlja3MgbGVhdmVzIGxhdGVyIHRlc3RzIFVOUFJPVkVOOyBKUyB0ZW1wbGF0ZXMgc3RpbGwgZXNjYXBlCWFjYTU1OTMxYTMzNDAxMWFlNWI0MzZiZDE2YWFkYjgyZTJiYTgxNmI1MTcyMWY5NGZiNzc2YTQ3ZGIxMmI0MzEKYm9keQl0ZXN0cy9sZWZ0b3ZlcnMtYWZ0ZXItYWRyMDUzLnRlc3QubWpzCWEgR28gcmF3IHN0cmluZyBlbmRpbmcgaW4gYmFja3NsYXNoIHN0aWxsIGhhc2hlcyBsYXRlciB0ZXN0cwk0YWJjZmJjMGNlYTAwNTgxOGE0MTNkMTk2ZDNlMzY4NTFkMzZhNDcxNWQ3YzhkOTlhNWZkZThmYWRlNGRhODZmCmJvZHkJdGVzdHMvbGVmdG92ZXJzLWFmdGVyLWFkcjA1My50ZXN0Lm1qcwlhIFBIUCAjZXhwZWN0IGNvbW1lbnQgaXMgbm90IGEgZmFpbCB3b3JkCTViNzQ4MGI3MzlkOWYyMWNiYzkyMTliNmUwZDI0NWZiZTFmNGQxMTZmZGZmNmNjODczZWU5ODc4YThlMDdiYTAKYm9keQl0ZXN0cy9sZWZ0b3ZlcnMtYWZ0ZXItYWRyMDUzLnRlc3QubWpzCWNvbW1hbmQgLXYgaXMgbm90IGEgcHVibGlzaDsgbG91ZCBqb2luZXJzIHN0aWxsIGFkdmlzZQkzNDBjZjIwOTc1NDM4M2Q2NGFjMjZjNWYwZGRkNTJkODkyNDZlYWU0NGE0NjNiMWYyNzVhNGJmMmZhODBhZTJiCmJvZHkJdGVzdHMvbGVmdG92ZXJzLWFmdGVyLWFkcjA1My50ZXN0Lm1qcwlzdWRvIC1uIGFmdGVyIGEgY2hlY2sgc3RpbGwgc3RyaXBzCTEyNGFmZWZkMmM0YjFmMTY2M2FmYzdmYzg1ZWQwZTg2YTdmZmVmZWIwMjNkNGU0YTY3NDBhZmEzZTcxMDY0MjMKYm9keQl0ZXN0cy9zd2lmdC1leHBlY3QudGVzdC5tanMJU3dpZnQgI2V4cGVjdCBpcyBhIGZhaWx1cmUgY2FsbCBzbyBhbiBleHBlY3Qtb25seSB0ZXN0IGlzIG5vdCBkZWFkCTk3NWE0ZGY3OWNlOGE3ZTBmYjQzZWFkNDQ0ZGI4MGYwMDNjNTJjOTczZWUwNDY1OWRmZTZkZDFhNDZjY2NiMjY
+  ```
+  --- last 10 line(s) of stdout (of 27 after folding 27 raw)
+        at Test.run (node:internal/test_runner/test:1106:25)
+        at Test.start (node:internal/test_runner/test:1003:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17) {
+      generatedMessage: false,
+      code: 'ERR_ASSERTION',
+      actual: false,
+      expected: true,
+      operator: '==',
+      diff: 'simple'
+    }
+  ```
+- 2026-09-15 · bd4daaa* · exit 0 · `node --test --test-name-pattern 'a PHP #expect comment is not a fail word' tests/leftovers-after-adr053.test.mjs && node --test --test-name-pattern 'Swift #expect is a failure call so an expect-only test is not dead' tests/swift-expect.test.mjs` · acceptance-sha256:03378b1cb4ebb74413279d788f78ae221dfdab888623a4c276db7fdbc184a806 · ms:256
+- 2026-09-15 · bd4daaa* · exit 0 · `node --test --test-name-pattern 'a PHP #expect comment is not a fail word' tests/leftovers-after-adr053.test.mjs && node --test --test-name-pattern 'Swift #expect is a failure call so an expect-only test is not dead' tests/swift-expect.test.mjs` · acceptance-sha256:03378b1cb4ebb74413279d788f78ae221dfdab888623a4c276db7fdbc184a806 · ms:314

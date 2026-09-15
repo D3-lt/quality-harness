@@ -127,13 +127,9 @@ print(json.dumps({"block": list(errors), "advice": errors.advice}))
   return JSON.parse(run.stdout)
 }
 
-test('a PHP #expect comment is not a fail word', (t) => {
+test('a PHP #expect comment is not a fail word', () => {
   const php = '<?php\nit("x", function () {\n    #expect a result here\n});\n'
   const verdict = canFail(php, 'x', 'ExpectCommentTest.php')
-  if (verdict.block.length === 0) {
-    t.skip('T2 keys #expect keep on Swift')
-    return
-  }
   assert.ok(verdict.block.length > 0, 'PHP #expect comment must not count as a fail call')
   assert.match(verdict.block.join('\n'), /calls nothing and asserts nothing/)
 })

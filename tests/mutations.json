@@ -5401,7 +5401,7 @@
       "tests": [
         "tests/gates.test.mjs"
       ],
-      "from": "    return scan_code_only(text, hash_comments=True)",
+      "from": "    return scan_code_only(text, hash_comments=True, swift=swift)",
       "to": "    text = re.sub(r\"`(?:[^`])*`\", \"``\", text)\n    text = re.sub(r'\"(?:[^\"\\\\\\n]|\\\\.)*\"', '\"\"', text)\n    text = re.sub(r\"(?m)(^|[^:])//.*$\", r\"\\1 \", text)\n    return text"
     },
     {

@@ -7549,7 +7549,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust).encode(\"utf-8\")).hexdigest()",
+      "from": "    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust, go=go).encode(\"utf-8\")).hexdigest()",
       "to": "    collapsed = []\n    for line in text.split(\"\\n\"):\n        collapsed.append(re.sub(r\"[ \\t]+\", \" \", line).strip())\n    return hashlib.sha256(\"\\n\".join(collapsed).strip().encode(\"utf-8\")).hexdigest()",
       "only": "whitespace inside a JS string literal"
     },
@@ -7839,7 +7839,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "    if swift:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()\n    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust).encode(\"utf-8\")).hexdigest()",
+      "from": "    if swift:\n        return hashlib.sha256(_swift_normalize(text).encode(\"utf-8\")).hexdigest()\n    return hashlib.sha256(_code_normalize(\n        text, python=python, php=php, shell=shell, rust=rust, go=go).encode(\"utf-8\")).hexdigest()",
       "to": "    collapsed = []\n    for line in text.split(\"\\n\"):\n        collapsed.append(re.sub(r\"[ \\t]+\", \" \", line).strip())\n    return hashlib.sha256(\"\\n\".join(collapsed).strip().encode(\"utf-8\")).hexdigest()",
       "only": "whitespace inside a Swift string literal"
     },
@@ -7959,9 +7959,39 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust,\n                swift=swift)",
-      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell,\n                swift=swift)",
+      "from": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell, rust=rust,\n                swift=swift, go=go)",
+      "to": "            bodies[(rel, name)] = body_digest(\n                body, python=python, php=php, shell=shell,\n                swift=swift, go=go)",
       "only": "a Rust raw string does not swallow a same-line assertion"
+    },
+    {
+      "label": "lock: a Go raw string ending in backslash does not swallow a later assertion",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "                swift=swift, go=go)",
+      "to": "                swift=swift)",
+      "only": "does not keep the hash after the assertion moves"
+    },
+    {
+      "label": "lock: Go raw backticks do not C-escape in the digest stripper",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if c == \"\\\\\" and i + 1 < n and not (go and quote == \"`\"):",
+      "to": "            if c == \"\\\\\" and i + 1 < n:",
+      "only": "does not keep the hash after the assertion moves"
+    },
+    {
+      "label": "lifecycle: wrapper operands stop at attached || and ;",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/",
+      "to": "const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/",
+      "only": "loud joiners still advise"
     },
     {
       "label": "lock: a shell URL is not a C comment in the digest",
@@ -8482,8 +8512,8 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        if not (python or php or shell or rust or swift):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _js_regex_span_end(text, i)\n",
-      "to": "        if not (python or shell or rust or swift):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _swift_bare_regex_end(text, i)\n",
+      "from": "        if not (python or php or shell or rust or swift or go):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _js_regex_span_end(text, i)\n",
+      "to": "        if not (python or shell or rust or swift or go):\n            # Same JS `/…/` keep as `_code_normalize`: a quote inside `/\"/`\n            # must not start string state or `//` inside the next string is\n            # stripped as a comment (Codex high on 6e0fe99).\n            regex_end = _swift_bare_regex_end(text, i)\n",
       "only": "a PHP 8/\"1/2\" quote does not keep"
     },
     {

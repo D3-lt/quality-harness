@@ -49,6 +49,12 @@ node --test --test-name-pattern 'sudo -n after a check still strips' tests/lefto
 | 4 — it is used | leftovers wrapper tests |
 
 ## Mutation Log
+- 2026-09-15 · 140d87f* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · dropping wrapper-arg consumption leaves sudo -n advising after a check · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · covers:the wrapper-arg publish suffix
+- 2026-09-15 · 140d87f* · mutant survived · exit 0 · `plugin/scripts/lifecycle.mjs` · treating command -v as wrapped publish silences the non-invocation case · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · covers:the command -v non-invocation
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-15 · 140d87f* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · treating command -v as wrapped publish silences a check joined to git push · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · covers:the command -v non-invocation
 
 ## Invariants
 
@@ -71,3 +77,21 @@ node --test --test-name-pattern 'sudo -n after a check still strips' tests/lefto
 - Quote-aware `PUBLISH_SUFFIX`
 
 ## Verification Log
+- 2026-09-15 · 140d87f* · exit 1 · `node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs && node --test --test-name-pattern 'command -v is not a publish; loud joiners still advise' tests/leftovers-after-adr053.test.mjs` · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · ms:87 · test-lock-sha256:b0cb59f886b8ff78fad76b3eeea8e37bb15ffe5617455d2279ac9595c85ee70d · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2xlZnRvdmVycy1hZnRlci1hZHIwNTMudGVzdC5tanMJQy1lc2NhcGluZyBHbyBiYWNrdGlja3MgbGVhdmVzIGxhdGVyIHRlc3RzIFVOUFJPVkVOOyBKUyB0ZW1wbGF0ZXMgc3RpbGwgZXNjYXBlCWFjYTU1OTMxYTMzNDAxMWFlNWI0MzZiZDE2YWFkYjgyZTJiYTgxNmI1MTcyMWY5NGZiNzc2YTQ3ZGIxMmI0MzEKYm9keQl0ZXN0cy9sZWZ0b3ZlcnMtYWZ0ZXItYWRyMDUzLnRlc3QubWpzCWEgR28gcmF3IHN0cmluZyBlbmRpbmcgaW4gYmFja3NsYXNoIHN0aWxsIGhhc2hlcyBsYXRlciB0ZXN0cwk0YWJjZmJjMGNlYTAwNTgxOGE0MTNkMTk2ZDNlMzY4NTFkMzZhNDcxNWQ3YzhkOTlhNWZkZThmYWRlNGRhODZmCmJvZHkJdGVzdHMvbGVmdG92ZXJzLWFmdGVyLWFkcjA1My50ZXN0Lm1qcwlhIFBIUCAjZXhwZWN0IGNvbW1lbnQgaXMgbm90IGEgZmFpbCB3b3JkCTViNzQ4MGI3MzlkOWYyMWNiYzkyMTliNmUwZDI0NWZiZTFmNGQxMTZmZGZmNmNjODczZWU5ODc4YThlMDdiYTAKYm9keQl0ZXN0cy9sZWZ0b3ZlcnMtYWZ0ZXItYWRyMDUzLnRlc3QubWpzCWNvbW1hbmQgLXYgaXMgbm90IGEgcHVibGlzaDsgbG91ZCBqb2luZXJzIHN0aWxsIGFkdmlzZQkzNDBjZjIwOTc1NDM4M2Q2NGFjMjZjNWYwZGRkNTJkODkyNDZlYWU0NGE0NjNiMWYyNzVhNGJmMmZhODBhZTJiCmJvZHkJdGVzdHMvbGVmdG92ZXJzLWFmdGVyLWFkcjA1My50ZXN0Lm1qcwlzdWRvIC1uIGFmdGVyIGEgY2hlY2sgc3RpbGwgc3RyaXBzCTMwZTZiNTM2YjIyM2UwMmVjMDkzMDY3YmNhOTc4NDU3ZjE4N2EzZGE4ODYyNDVmYjcyYTlhYjUyMTg3MWQ5ZjY
+  ```
+  --- last 10 line(s) of stdout (of 30 after folding 30 raw)
+        at Test.run (node:internal/test_runner/test:1106:25)
+        at Test.start (node:internal/test_runner/test:1003:17)
+        at startSubtestAfterBootstrap (node:internal/test_runner/harness:358:17) {
+      generatedMessage: true,
+      code: 'ERR_ASSERTION',
+      actual: false,
+      expected: true,
+      operator: 'strictEqual',
+      diff: 'simple'
+    }
+  ```
+- 2026-09-15 · 140d87f* · exit 0 · `node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs && node --test --test-name-pattern 'command -v is not a publish; loud joiners still advise' tests/leftovers-after-adr053.test.mjs` · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · ms:201
+- 2026-09-15 · 140d87f* · exit 0 · `node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs && node --test --test-name-pattern 'command -v is not a publish; loud joiners still advise' tests/leftovers-after-adr053.test.mjs` · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · ms:133
+- 2026-09-15 · 140d87f* · exit 0 · `adr-verify --relock --replace-hashes` · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · ms:0 · test-lock-sha256:72a98bc5a55461ebbf5aaba18c34cb92703cafe007c6a3bf4fc01086d0a530a9 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2xlZnRvdmVycy1hZnRlci1hZHIwNTMudGVzdC5tanMJQy1lc2NhcGluZyBHbyBiYWNrdGlja3MgbGVhdmVzIGxhdGVyIHRlc3RzIFVOUFJPVkVOOyBKUyB0ZW1wbGF0ZXMgc3RpbGwgZXNjYXBlCWFjYTU1OTMxYTMzNDAxMWFlNWI0MzZiZDE2YWFkYjgyZTJiYTgxNmI1MTcyMWY5NGZiNzc2YTQ3ZGIxMmI0MzEKYm9keQl0ZXN0cy9sZWZ0b3ZlcnMtYWZ0ZXItYWRyMDUzLnRlc3QubWpzCWEgR28gcmF3IHN0cmluZyBlbmRpbmcgaW4gYmFja3NsYXNoIHN0aWxsIGhhc2hlcyBsYXRlciB0ZXN0cwk0YWJjZmJjMGNlYTAwNTgxOGE0MTNkMTk2ZDNlMzY4NTFkMzZhNDcxNWQ3YzhkOTlhNWZkZThmYWRlNGRhODZmCmJvZHkJdGVzdHMvbGVmdG92ZXJzLWFmdGVyLWFkcjA1My50ZXN0Lm1qcwlhIFBIUCAjZXhwZWN0IGNvbW1lbnQgaXMgbm90IGEgZmFpbCB3b3JkCTViNzQ4MGI3MzlkOWYyMWNiYzkyMTliNmUwZDI0NWZiZTFmNGQxMTZmZGZmNmNjODczZWU5ODc4YThlMDdiYTAKYm9keQl0ZXN0cy9sZWZ0b3ZlcnMtYWZ0ZXItYWRyMDUzLnRlc3QubWpzCWNvbW1hbmQgLXYgaXMgbm90IGEgcHVibGlzaDsgbG91ZCBqb2luZXJzIHN0aWxsIGFkdmlzZQk2OTkxOWY4YWY4ZWUzYmUyNWEzODI0ZDU5OWUyNTBkOGUzODBjOTRhN2UzMjkwMTc0NjYyNGM4ZGI0MTVjYzc1CmJvZHkJdGVzdHMvbGVmdG92ZXJzLWFmdGVyLWFkcjA1My50ZXN0Lm1qcwlzdWRvIC1uIGFmdGVyIGEgY2hlY2sgc3RpbGwgc3RyaXBzCTMwZTZiNTM2YjIyM2UwMmVjMDkzMDY3YmNhOTc4NDU3ZjE4N2EzZGE4ODYyNDVmYjcyYTlhYjUyMTg3MWQ5ZjY · test-lock-kind:replace
+- 2026-09-15 · 140d87f* · exit 0 · `node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs && node --test --test-name-pattern 'command -v is not a publish; loud joiners still advise' tests/leftovers-after-adr053.test.mjs` · acceptance-sha256:c1c0dac0d8b782e3f895fa8c6c971e71f4b7bdec4be8ba849ab094b8f2466a47 · ms:384

@@ -134,13 +134,11 @@ test('a PHP #expect comment is not a fail word', () => {
   assert.match(verdict.block.join('\n'), /calls nothing and asserts nothing/)
 })
 
-test('sudo -n after a check still strips', (t) => {
-  if (publishPrecededByValidation('pnpm check && sudo -n git commit -m x') !== true) {
-    t.skip('T3 wrapper-arg PUBLISH_SUFFIX')
-    return
-  }
+test('sudo -n after a check still strips', () => {
   assert.equal(publishPrecededByValidation('pnpm check && sudo -n git commit -m x'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && sudo -n -u ci git commit -m x'), true)
   assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar git push'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && env -u HOME FOO=bar git push'), true)
   assert.equal(publishPrecededByValidation('pnpm check && command -- git commit -m x'), true)
   assert.equal(publishPrecededByValidation('pnpm check && time -p git commit -m x'), true)
   assert.equal(publishPrecededByValidation('pnpm check && sudo git commit -m x'), true)
@@ -148,6 +146,7 @@ test('sudo -n after a check still strips', (t) => {
 
 test('command -v is not a publish; loud joiners still advise', () => {
   assert.equal(publishPrecededByValidation('pnpm check && command -v git commit -m x'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && command -v git commit -m x && git push'), false)
   assert.equal(publishPrecededByValidation('pnpm check && nice git commit -m x'), false)
   assert.equal(publishPrecededByValidation('pnpm check || git commit -m x'), false)
 })

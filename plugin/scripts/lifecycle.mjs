@@ -671,7 +671,9 @@ export function isGitPublishCommand(command) {
 // Bound to the matched git invocation. `[\s\S]*$` ate a later `|| git push`
 // / `; git push` as if they were still the `&&` suffix (Codex P1, 2026-09-14).
 // Quote-blind: `git commit -m "x;y"` stops at `;`.
-const PUBLISH_SUFFIX = /(?:&&|\r?\n)\s*(?:(?:command|env|sudo|exec|time)\s+)*(?:git\s+(?:commit|push)\b[^|;\n]*)$/
+// Wrapper flags/assignments that still invoke git (`sudo -n`, `env FOO=bar`,
+// `command --`, `time -p`). `command -v` is not an invocation.
+const PUBLISH_SUFFIX = /(?:&&|\r?\n)\s*(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+\S+|[A-Za-z_][\w]*=\S+))*|sudo(?:\s+(?:-n|-u\s+\S+))*|exec|time(?:\s+-p)?)\s+)*(?:git\s+(?:commit|push)\b[^|;\n]*)$/
 
 export function publishPrecededByValidation(command) {
   if (typeof command !== 'string' || !isGitPublishCommand(command)) return false

@@ -127,7 +127,7 @@ Then FAIL_CALLS does not treat that comment as a failure call
 And the body is "calls nothing and asserts nothing" (or equivalent block)
 ```
 
-### UC3-S1 [happy] sudo -n after a check still strips [@spec] → `tests/leftovers-after-adr053.test.mjs::sudo -n after a check still strips` cmd:`node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs`
+### UC3-S1 [happy] sudo -n after a check still strips [@implemented] → `tests/leftovers-after-adr053.test.mjs::sudo -n after a check still strips` cmd:`node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs`
 
 ```gherkin
 Given `isValidationCommand('pnpm check')` is true
@@ -139,7 +139,7 @@ Then each is true
 And `pnpm check && sudo git commit -m x` stays true
 ```
 
-### UC3-S2 [failure] command -v is not a publish; loud joiners still advise [@spec] → `tests/leftovers-after-adr053.test.mjs::command -v is not a publish; loud joiners still advise` cmd:`node --test --test-name-pattern 'command -v is not a publish; loud joiners still advise' tests/leftovers-after-adr053.test.mjs`
+### UC3-S2 [failure] command -v is not a publish; loud joiners still advise [@implemented] → `tests/leftovers-after-adr053.test.mjs::command -v is not a publish; loud joiners still advise` cmd:`node --test --test-name-pattern 'command -v is not a publish; loud joiners still advise' tests/leftovers-after-adr053.test.mjs`
 
 ```gherkin
 Given `isValidationCommand('pnpm check')` is true
@@ -194,7 +194,7 @@ And it is not treated as an unknown option that becomes the task path
 |----|----------------------------------|---------------------|-----|----------------|
 | F-1 | When hashing a `.go` Tests file, a backtick string is raw: `\` is content and the next backtick closes. A later comment backtick is not a closer. Later `func Test*` bodies stay extractable. JS templates hashed without `go=True` still C-escape. | `tests/leftovers-after-adr053.test.mjs::a Go raw string ending in backslash still hashes later tests` | @implemented | `node --test --test-name-pattern 'a Go raw string ending in backslash still hashes later tests' tests/leftovers-after-adr053.test.mjs` |
 | F-2 | `#expect` / `#require` stay code only for Swift. On other `hash_comments` languages they are comments. PHP `#expect a result here` is not a fail word. An empty Swift body still blocks. | `tests/leftovers-after-adr053.test.mjs::a PHP #expect comment is not a fail word` | @implemented | `node --test --test-name-pattern 'a PHP #expect comment is not a fail word' tests/leftovers-after-adr053.test.mjs` |
-| F-3 | After a recognised check, `&&` / newline plus T1 wrapper words `command\|env\|sudo\|exec\|time` and those words' flags/assignments that still invoke `git commit`/`git push` strip. `command -v git commit` still advises. `nice`/`nohup`/`stdbuf` stay out of the word list. `\|\|` `;` `\|` still advise. The whole compound is not `validation`. | `tests/leftovers-after-adr053.test.mjs::sudo -n after a check still strips` | @spec | `node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs` |
+| F-3 | After a recognised check, `&&` / newline plus T1 wrapper words `command\|env\|sudo\|exec\|time` and those words' flags/assignments that still invoke `git commit`/`git push` strip. `command -v git commit` still advises. `nice`/`nohup`/`stdbuf` stay out of the word list. `\|\|` `;` `\|` still advise. The whole compound is not `validation`. | `tests/leftovers-after-adr053.test.mjs::sudo -n after a check still strips` | @implemented | `node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs` |
 | F-4 | A shipped stress driver (oracle from this spec and ADR-053 T1, not from current code) has source-enumerated pools that can generate F-1, F-2, and F-3 members. Unmutated it is green; hand mutants against those members go red; a non-parsing mutant is INCONCLUSIVE. The 2026-09-14 untracked `tests/adr053-stress.mjs` is not the suite. | `tests/leftovers-after-adr053.test.mjs::unmutated leftover stress is green and leftover pools are generable` | @spec | `node --test --test-name-pattern 'unmutated leftover stress is green and leftover pools are generable' tests/leftovers-after-adr053.test.mjs` |
 | F-5 | A hasher that can now extract a previously UNPROVEN Go body does not rewrite a committed first-red map. Recovery is `python3 plugin/bin/adr-verify --relock`. `--replace-hashes` is a different path (ADR-050 F-1, ADR-052). | `tests/test-lock.test.mjs::adr-verify --relock fills unproven the hasher can now see` | @implemented | `node --test --test-name-pattern 'adr-verify --relock fills unproven the hasher can now see' tests/test-lock.test.mjs` |
 

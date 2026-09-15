@@ -149,7 +149,7 @@ And about `pnpm check || git commit -m x`
 Then each is false
 ```
 
-### UC4-S1 [happy] unmutated leftover stress is green and leftover pools are generable [@spec] → `tests/leftovers-after-adr053.test.mjs::unmutated leftover stress is green and leftover pools are generable` cmd:`node --test --test-name-pattern 'unmutated leftover stress is green and leftover pools are generable' tests/leftovers-after-adr053.test.mjs`
+### UC4-S1 [happy] unmutated leftover stress is green and leftover pools are generable [@implemented] → `tests/leftovers-after-adr053.test.mjs::unmutated leftover stress is green and leftover pools are generable` cmd:`node --test --test-name-pattern 'unmutated leftover stress is green and leftover pools are generable' tests/leftovers-after-adr053.test.mjs`
 
 ```gherkin
 Given the shipped stress driver
@@ -159,7 +159,7 @@ Then it exits 0
 And the pools include T1 wrapper-with-args, command -v as non-invocation, Go raw `\`, and PHP vs Swift #expect
 ```
 
-### UC4-S2 [failure] a mutant that restores today's holes survives only if the suite is blind [@spec] → `tests/leftovers-after-adr053.test.mjs::a mutant that restores today's holes survives only if the suite is blind` cmd:`node --test --test-name-pattern "a mutant that restores today's holes survives only if the suite is blind" tests/leftovers-after-adr053.test.mjs`
+### UC4-S2 [failure] a mutant that restores today's holes survives only if the suite is blind [@implemented] → `tests/leftovers-after-adr053.test.mjs::a mutant that restores today's holes survives only if the suite is blind` cmd:`node --test --test-name-pattern "a mutant that restores today's holes survives only if the suite is blind" tests/leftovers-after-adr053.test.mjs`
 
 ```gherkin
 Given the unmutated driver is green
@@ -195,7 +195,7 @@ And it is not treated as an unknown option that becomes the task path
 | F-1 | When hashing a `.go` Tests file, a backtick string is raw: `\` is content and the next backtick closes. A later comment backtick is not a closer. Later `func Test*` bodies stay extractable. JS templates hashed without `go=True` still C-escape. | `tests/leftovers-after-adr053.test.mjs::a Go raw string ending in backslash still hashes later tests` | @implemented | `node --test --test-name-pattern 'a Go raw string ending in backslash still hashes later tests' tests/leftovers-after-adr053.test.mjs` |
 | F-2 | `#expect` / `#require` stay code only for Swift. On other `hash_comments` languages they are comments. PHP `#expect a result here` is not a fail word. An empty Swift body still blocks. | `tests/leftovers-after-adr053.test.mjs::a PHP #expect comment is not a fail word` | @implemented | `node --test --test-name-pattern 'a PHP #expect comment is not a fail word' tests/leftovers-after-adr053.test.mjs` |
 | F-3 | After a recognised check, `&&` / newline plus T1 wrapper words `command\|env\|sudo\|exec\|time` and those words' flags/assignments that still invoke `git commit`/`git push` strip. `command -v git commit` still advises. `nice`/`nohup`/`stdbuf` stay out of the word list. `\|\|` `;` `\|` still advise. The whole compound is not `validation`. | `tests/leftovers-after-adr053.test.mjs::sudo -n after a check still strips` | @implemented | `node --test --test-name-pattern 'sudo -n after a check still strips' tests/leftovers-after-adr053.test.mjs` |
-| F-4 | A shipped stress driver (oracle from this spec and ADR-053 T1, not from current code) has source-enumerated pools that can generate F-1, F-2, and F-3 members. Unmutated it is green; hand mutants against those members go red; a non-parsing mutant is INCONCLUSIVE. The 2026-09-14 untracked `tests/adr053-stress.mjs` is not the suite. | `tests/leftovers-after-adr053.test.mjs::unmutated leftover stress is green and leftover pools are generable` | @spec | `node --test --test-name-pattern 'unmutated leftover stress is green and leftover pools are generable' tests/leftovers-after-adr053.test.mjs` |
+| F-4 | A shipped stress driver (oracle from this spec and ADR-053 T1, not from current code) has source-enumerated pools that can generate F-1, F-2, and F-3 members. Unmutated it is green; hand mutants against those members go red; a non-parsing mutant is INCONCLUSIVE. The 2026-09-14 untracked `tests/adr053-stress.mjs` is not the suite. | `tests/leftovers-after-adr053.test.mjs::unmutated leftover stress is green and leftover pools are generable` | @implemented | `node --test --test-name-pattern 'unmutated leftover stress is green and leftover pools are generable' tests/leftovers-after-adr053.test.mjs` |
 | F-5 | A hasher that can now extract a previously UNPROVEN Go body does not rewrite a committed first-red map. Recovery is `python3 plugin/bin/adr-verify --relock`. `--replace-hashes` is a different path (ADR-050 F-1, ADR-052). | `tests/test-lock.test.mjs::adr-verify --relock fills unproven the hasher can now see` | @implemented | `node --test --test-name-pattern 'adr-verify --relock fills unproven the hasher can now see' tests/test-lock.test.mjs` |
 
 ## Domain

@@ -167,14 +167,10 @@ function runLeftoverStress(extraEnv = {}) {
   })
 }
 
-test('unmutated leftover stress is green and leftover pools are generable', (t) => {
+test('unmutated leftover stress is green and leftover pools are generable', () => {
   const src = readFileSync(stressPath, 'utf8')
-  if (!src.includes('sudo -n')) {
-    t.skip('T4 ships leftover-class pools in tests/adr053-stress.mjs')
-    return
-  }
   assert.match(src, /sudo -n/, 'pool must include wrapper-with-args')
-  assert.match(src, /dir\\\\`|raw string whose last content byte/, 'pool must include Go raw \\')
+  assert.match(src, /raw string whose last content byte/, 'pool must include Go raw \\')
   assert.match(src, /#expect a result here/, 'pool must include PHP #expect comment')
   assert.match(src, /command -v/, 'pool must include command -v as non-invocation')
   assert.match(src, /\.swift|#expect\(/, 'pool must include Swift #expect keep')
@@ -182,12 +178,17 @@ test('unmutated leftover stress is green and leftover pools are generable', (t) 
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
 })
 
-test('a mutant that restores today\'s holes survives only if the suite is blind', (t) => {
+test("a mutant that restores today's holes survives only if the suite is blind", () => {
   const src = readFileSync(stressPath, 'utf8')
-  if (!src.includes('sudo -n')) {
-    t.skip('T4 ships leftover-class hand mutants in tests/adr053-stress.mjs')
-    return
-  }
+  const leftoverSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8')
+  const namesRun = python(
+    'import json, sys\nfrom record import extract_test_names\nprint(json.dumps(extract_test_names(sys.stdin.read())))',
+    leftoverSrc)
+  assert.equal(namesRun.status, 0, namesRun.stderr)
+  assert.ok(
+    JSON.parse(namesRun.stdout).includes(
+      "a mutant that restores today's holes survives only if the suite is blind"),
+    'hasher must discover a double-quoted BDD name that contains an apostrophe')
   assert.doesNotMatch(src, /\[\\\\s\\\\S\]\*/, 'wrapper mutant FROM must not be the retired suffix')
   assert.match(src, /HAND_MUTANTS/, 'driver must prove itself with hand mutants')
   assert.match(src, /end \+= 2|go=True/, 'a leftover mutant re-enables Go backtick C-escape')

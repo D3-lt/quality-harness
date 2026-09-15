@@ -999,7 +999,7 @@ def _in_arithmetic(text, i):
 
 
 def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False,
-                       shell_heredocs=False, swift=False):
+                       shell_heredocs=False, swift=False, go=False):
     """Blank comments/strings/heredocs; keep offsets. spec-verify mask_noncode subset.
 
     spec-verify imports this module, so the masker cannot be imported from there.
@@ -1009,6 +1009,7 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
     sees no quote to re-open), `#/…/#` regex literals and nested /* */, and keeps
     backtick identifiers as code. A bare `/…/` regex literal is not masked; a body
     that might hold one is refused by `_swift_ambiguous_slash`.
+    go treats backtick strings as raw (backslash is content). Interpreted quotes still C-escape.
     """
     out = list(text)
     i, n = 0, len(text)
@@ -1081,8 +1082,9 @@ def _mask_lock_noncode(text, hash_comments=False, heredocs=False, rust_raw=False
             i = end
         elif text[i] in ("'", '"', "`"):
             quote, end = text[i], i + 1
+            raw_backtick = go and quote == "`"
             while end < n:
-                if text[end] == "\\":
+                if not raw_backtick and text[end] == "\\":
                     end += 2
                     continue
                 if text[end] == quote:
@@ -1512,7 +1514,7 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
                 return "".join(text.splitlines(keepends=True)[start:end])
         return None
     if go:
-        masked = _mask_lock_noncode(text)
+        masked = _mask_lock_noncode(text, go=True)
         for found, after_paren in _iter_go_func_tests(text):
             if found != name:
                 continue

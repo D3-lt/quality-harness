@@ -521,14 +521,14 @@ def _js_regex_span_end(text, i):
     return None
 
 
-def _quoted_span_end(text, i, python=False):
+def _quoted_span_end(text, i, python=False, go=False):
     """Index past the quoted literal at `text[i]`, or None if none opens there."""
     quote = text[i:i + 1]
     if quote not in "'\"`" or (python and quote == "`"):
         return None
     j, n = i + 1, len(text)
     while j < n:
-        if text[j] == "\\" and j + 1 < n:
+        if text[j] == "\\" and j + 1 < n and not (go and quote == "`"):
             j += 2
             continue
         if text[j] == quote:
@@ -539,7 +539,8 @@ def _quoted_span_end(text, i, python=False):
     return n
 
 
-def _code_normalize(text, python=False, php=False, shell=False, rust=False):
+def _code_normalize(text, python=False, php=False, shell=False, rust=False,
+                    go=False):
     """Whitespace-collapsed digest text with every literal kept byte-for-byte.
 
     The shared per-line collapse turned `"a  b"` into `"a b"`, so an assertion
@@ -573,7 +574,7 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False):
             out.append(text[payload_start:end])
             i = start = end
             continue
-        if not (python or php or shell or rust):
+        if not (python or php or shell or rust or go):
             # JS `/…/` can hold a quote; treating that quote as a string
             # opener collapses the assertion (Codex on 6074117). Same
             # candidate rule as `_swift_bare_regex_end`.
@@ -583,7 +584,7 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False):
                 out.append(text[i:regex_end])
                 i = start = regex_end
                 continue
-        end = _quoted_span_end(text, i, python=python)
+        end = _quoted_span_end(text, i, python=python, go=go)
         if end is not None:
             out.append(code(text[start:i]))
             out.append(text[i:end])
@@ -594,18 +595,19 @@ def _code_normalize(text, python=False, php=False, shell=False, rust=False):
     return "".join(out).strip()
 
 def body_digest(body, python=False, php=False, shell=False, rust=False,
-                swift=False):
+                swift=False, go=False):
     """SHA-256 of comment-stripped, whitespace-collapsed body; strings kept."""
     text = body.replace("\r\n", "\n").replace("\r", "\n")
     if python:
         text = re.sub(r'"""(?:.|\n)*?"""', " ", text)
         text = re.sub(r"'''(?:.|\n)*?'''", " ", text)
     text = _strip_comments_keep_strings(
-        text, python=python, php=php, shell=shell, rust=rust, swift=swift)
+        text, python=python, php=php, shell=shell, rust=rust, swift=swift,
+        go=go)
     if swift:
         return hashlib.sha256(_swift_normalize(text).encode("utf-8")).hexdigest()
     return hashlib.sha256(_code_normalize(
-        text, python=python, php=php, shell=shell, rust=rust).encode("utf-8")).hexdigest()
+        text, python=python, php=php, shell=shell, rust=rust, go=go).encode("utf-8")).hexdigest()
 
 
 def _char_is_escaped(text, i):
@@ -618,7 +620,7 @@ def _char_is_escaped(text, i):
     return slashes % 2 == 1
 
 def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
-                                rust=False, swift=False):
+                                rust=False, swift=False, go=False):
     out, i, n, quote = [], 0, len(text), None
     pending = None
     while i < n:
@@ -629,7 +631,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
         c = text[i]
         if quote:
             out.append(c)
-            if c == "\\" and i + 1 < n:
+            if c == "\\" and i + 1 < n and not (go and quote == "`"):
                 out.append(text[i + 1])
                 i += 2
                 continue
@@ -680,7 +682,7 @@ def _strip_comments_keep_strings(text, python=False, php=False, shell=False,
             pending = (heredoc[1], heredoc[2])
             i = heredoc[0]
             continue
-        if not (python or php or shell or rust or swift):
+        if not (python or php or shell or rust or swift or go):
             # Same JS `/…/` keep as `_code_normalize`: a quote inside `/"/`
             # must not start string state or `//` inside the next string is
             # stripped as a comment (Codex high on 6e0fe99).
@@ -1678,7 +1680,7 @@ def snapshot_lock(root, tests_rows):
                 continue
             bodies[(rel, name)] = body_digest(
                 body, python=python, php=php, shell=shell, rust=rust,
-                swift=swift)
+                swift=swift, go=go)
         for n, r in tests_rows:
             if r == rel and (rel, n) not in bodies:
                 unproven.add((rel, n))

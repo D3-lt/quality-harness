@@ -69,6 +69,58 @@ print(json.dumps({
   assert.equal(got.b, true, 'TestB body must extract')
 })
 
+test('a Go raw string ending in backslash does not keep the hash after the assertion moves', () => {
+  // Codex P1 2026-09-15: extract_test_body(..., go=True) finds TestA, but
+  // snapshot_lock hashes via body_digest without go=, so `_strip_comments_keep_strings`
+  // C-escapes the raw `dir\` and a later `// … dir/*.go` comment swallows t.Fatal.
+  const fatal = [
+    'package p',
+    '',
+    'func TestA(t *testing.T) {',
+    '    s := `dir\\`',
+    '    _ = s',
+    '    // later ` and dir/*.go',
+    '    t.Fatal("FAIL")',
+    '}',
+    '',
+  ].join('\n')
+  const src = `
+import json, sys
+from pathlib import Path
+from record import extract_test_body, body_digest, snapshot_lock
+fatal = sys.stdin.read()
+log = fatal.replace('t.Fatal("FAIL")', 't.Log("PASS")')
+body_f = extract_test_body(fatal, "TestA", go=True)
+body_l = extract_test_body(log, "TestA", go=True)
+root = Path(sys.argv[1])
+(root / "a.go").write_text(fatal, encoding="utf-8")
+snap_f = snapshot_lock(root, [("TestA", "a.go")])
+(root / "a.go").write_text(log, encoding="utf-8")
+snap_l = snapshot_lock(root, [("TestA", "a.go")])
+key = ("a.go", "TestA")
+print(json.dumps({
+    "extracted": body_f is not None and body_l is not None,
+    "digest_moved": body_digest(body_f, go=True) != body_digest(body_l, go=True),
+    "lock_moved": key in snap_f["bodies"] and key in snap_l["bodies"]
+        and snap_f["bodies"][key] != snap_l["bodies"][key],
+    "unproven": len(snap_f["unproven"]) == 0,
+}))
+`
+  const run = spawnSync('python3', ['-c', src, testTmp], {
+    cwd: repoRoot,
+    env: pyEnv,
+    input: fatal,
+    encoding: 'utf8',
+    timeout: 30_000,
+  })
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.equal(got.extracted, true, 'TestA must extract under go=True')
+  assert.equal(got.unproven, true, 'snapshot_lock must hash TestA')
+  assert.equal(got.digest_moved, true, 'body_digest(go=True) must see t.Fatal vs t.Log')
+  assert.equal(got.lock_moved, true, 'snapshot_lock of a .go file must see t.Fatal vs t.Log')
+})
+
 test('C-escaping Go backticks leaves later tests UNPROVEN; JS templates still escape', () => {
   // Failure sibling of F-1: a language-flagged Go raw fix must not turn the
   // shared quote loop into "backticks never C-escape". JS `dir\`` still closes
@@ -149,6 +201,11 @@ test('command -v is not a publish; loud joiners still advise', () => {
   assert.equal(publishPrecededByValidation('pnpm check && command -v git commit -m x && git push'), false)
   assert.equal(publishPrecededByValidation('pnpm check && nice git commit -m x'), false)
   assert.equal(publishPrecededByValidation('pnpm check || git commit -m x'), false)
+  // Codex P1 2026-09-15: wrapper \\S+ swallowed attached || / ; so these stripped.
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar|| git push'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar; git push'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && sudo -u ci|| git push'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && env -u HOME|| git push'), false)
 })
 
 const stressPath = path.join(repoRoot, 'tests', 'adr053-stress.mjs')
@@ -174,6 +231,7 @@ test('unmutated leftover stress is green and leftover pools are generable', () =
   assert.match(src, /#expect a result here/, 'pool must include PHP #expect comment')
   assert.match(src, /command -v/, 'pool must include command -v as non-invocation')
   assert.match(src, /\.swift|#expect\(/, 'pool must include Swift #expect keep')
+  assert.match(src, /FOO=bar\|\|/, 'pool must include attached || after an assignment')
   const run = runLeftoverStress()
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
 })
@@ -194,6 +252,7 @@ test("a mutant that restores today's holes survives only if the suite is blind",
   assert.match(src, /end \+= 2|go=True/, 'a leftover mutant re-enables Go backtick C-escape')
   assert.match(src, /sudo -n|wrapper-arg/, 'a leftover mutant drops wrapper-arg stripping')
   assert.match(src, /#expect a result here|PHP #expect/, 'a leftover mutant keeps #expect on PHP')
+  assert.match(src, /go and quote/, 'a leftover mutant re-enables digest C-escape inside Go backticks')
   const run = runLeftoverStress({ QH_ADR053_STRESS_MUTANTS: '1' })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
 })

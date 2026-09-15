@@ -13,12 +13,15 @@
 //     T1 words command|env|sudo|exec|time. Spec invoking args: sudo -n,
 //     sudo -n -u ci, env FOO=bar, env -u HOME FOO=bar, command --, time -p.
 //     LEFT OUT of invoking: command -v (path lookup). LEFT OUT of the word list:
-//     nice / nohup / stdbuf (spec Non-Goals).
+//     nice / nohup / stdbuf (spec Non-Goals). LEFT OUT of joinCmd spacing:
+//     attached || / ; after an assignment or -u operand (Codex P1 2026-09-15);
+//     named arm1 rows cover that class.
 //   keep names: `rg -n 'for name in \("expect"' plugin/bin/adr-lint`
 //     → expect, require. LEFT OUT: expected, require_once, #[.
 //   Go raw: `rg -n 'raw_backtick = go' plugin/lib/record.py`
 //     member: raw string whose last content byte is a backslash, then a later
-//     comment backtick. Fixture text includes go=True extraction.
+//     comment backtick. Fixture text includes go=True extraction AND a
+//     t.Fatal vs t.Log digest that must move (snapshot_lock go=).
 //   publish verbs: `rg -n "\['commit', 'push'\]" plugin/scripts/lifecycle.mjs`
 //   silent joiners: && and newline (ADR-053 T1). LEFT OUT of silent: || ; |
 //   checks: pnpm check (VALIDATION_PATTERNS). LEFT OUT: mrw write --check.
@@ -149,6 +152,22 @@ function arm1(rng) {
     command: 'git add -A && git commit -m x',
     want: false,
   })
+  grid.push({
+    command: 'pnpm check && env FOO=bar|| git push',
+    want: false,
+  })
+  grid.push({
+    command: 'pnpm check && env FOO=bar; git push',
+    want: false,
+  })
+  grid.push({
+    command: 'pnpm check && sudo -u ci|| git push',
+    want: false,
+  })
+  grid.push({
+    command: 'pnpm check && env -u HOME|| git push',
+    want: false,
+  })
   for (let i = 0; i < ITERATIONS; i++) {
     const check = rng.pick([...CHECKS, ...NOT_CHECKS])
     const joiner = rng.pick([...SILENT_JOIN, ...LOUD_JOIN])
@@ -229,6 +248,44 @@ print(json.dumps({
   return JSON.parse(run.stdout)
 }
 
+function goAssertionFixture(call) {
+  return [
+    'package p',
+    '',
+    'func TestA(t *testing.T) {',
+    '    s := `dir\\`',
+    '    _ = s',
+    '    // later ` and dir/*.go',
+    `    ${call}`,
+    '}',
+    '',
+  ].join('\n')
+}
+
+function digestGoMoved(fatal, log) {
+  const src = `
+import json, sys
+from record import extract_test_body, body_digest
+fatal, log = sys.stdin.read().split("\\n-----\\n", 1)
+bf = extract_test_body(fatal, "TestA", go=True)
+bl = extract_test_body(log, "TestA", go=True)
+if bf is None or bl is None:
+    print(json.dumps({"ok": False, "reason": "extract"}))
+else:
+    print(json.dumps({
+        "ok": True,
+        "moved": body_digest(bf, go=True) != body_digest(bl, go=True),
+    }))
+`
+  const run = py(['-c', src], `${fatal}\n-----\n${log}`)
+  if (run.status !== 0) {
+    fail('arm2', 'body_digest spawn failed', {
+      stderr: run.stderr, stdout: run.stdout,
+    })
+  }
+  return JSON.parse(run.stdout)
+}
+
 function canFail(source, name, filename) {
   const tmp = mkdtempSync(path.join(
     process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-leftover-cf-'))
@@ -274,6 +331,7 @@ print(json.dumps({"block": list(errors), "advice": errors.advice}))
 
 function arm2(rng) {
   let goOk = 0
+  let goDigest = 0
   let phpDead = 0
   let swiftKeep = 0
   let swiftEmpty = 0
@@ -291,6 +349,15 @@ function arm2(rng) {
     }
     goOk += 1
   }
+
+  const digest = digestGoMoved(
+    goAssertionFixture('t.Fatal("FAIL")'),
+    goAssertionFixture('t.Log("PASS")'),
+  )
+  if (!(digest.ok && digest.moved)) {
+    fail('arm2', 'Go raw digest did not move on t.Fatal vs t.Log', digest)
+  }
+  goDigest += 1
 
   const php = '<?php\nit("x", function () {\n    #expect a result here\n});\n'
   const phpVerdict = canFail(php, 'x', 'ExpectCommentTest.php')
@@ -314,10 +381,10 @@ function arm2(rng) {
   }
   swiftEmpty += 1
 
-  if (!(goOk && phpDead && swiftKeep && swiftEmpty)) {
-    fail('arm2', `nothing to observe go=${goOk} php=${phpDead} swift=${swiftKeep} empty=${swiftEmpty}`)
+  if (!(goOk && goDigest && phpDead && swiftKeep && swiftEmpty)) {
+    fail('arm2', `nothing to observe go=${goOk} digest=${goDigest} php=${phpDead} swift=${swiftKeep} empty=${swiftEmpty}`)
   }
-  console.log(`arm2 go=${goOk} phpDead=${phpDead} swiftKeep=${swiftKeep} swiftEmpty=${swiftEmpty}`)
+  console.log(`arm2 go=${goOk} digest=${goDigest} phpDead=${phpDead} swiftKeep=${swiftKeep} swiftEmpty=${swiftEmpty}`)
 }
 
 const HAND_MUTANTS = [
@@ -329,10 +396,24 @@ const HAND_MUTANTS = [
     arm: '2',
   },
   {
+    label: 're-enable digest C-escape inside Go backticks (stripper go and quote)',
+    rel: 'lib/record.py',
+    from: '            if c == "\\\\" and i + 1 < n and not (go and quote == "`"):',
+    to: '            if c == "\\\\" and i + 1 < n:',
+    arm: '2',
+  },
+  {
     label: 'drop wrapper-arg stripping so sudo -n advises',
     rel: 'scripts/lifecycle.mjs',
-    from: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
+    from: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
     to: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command|env|sudo|exec|time)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
+    arm: '1',
+  },
+  {
+    label: 're-enable wrapper \\\\S+ so attached || strips as silent publish',
+    rel: 'scripts/lifecycle.mjs',
+    from: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
+    to: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
     arm: '1',
   },
   {

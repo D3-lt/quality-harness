@@ -3431,7 +3431,7 @@ def resolve_enforcement(pointer, root):
         f = resolve_test_file(root, rel.strip())
         if f is not None and f.is_file():
             source = code_only(f.read_text(errors="replace", encoding="utf-8"),
-                               python=f.suffix == ".py")
+                               python=f.suffix == ".py", swift=f.suffix == ".swift")
             # `test_body`, the same resolver check_tests_exist uses — NOT a
             # substring search over `code_only`, which blanks string contents and
             # so cannot see a JavaScript test name, since that name IS a string
@@ -3445,7 +3445,7 @@ def resolve_enforcement(pointer, root):
             javascript = f.suffix in (".js", ".jsx", ".mjs", ".cjs", ".ts", ".tsx")
             if wanted and not javascript and looks_like_a_test(f) and test_body(
                     source, wanted, python=f.suffix == ".py",
-                    php=f.suffix == ".php") is not None:
+                    php=f.suffix == ".php", swift=f.suffix == ".swift") is not None:
                 return "test"
             # A `node:test` name is a STRING ARGUMENT, not a function name, so
             # test_body cannot see it — and code_only blanks string contents, so
@@ -4214,7 +4214,7 @@ def check_tests_exist(infos, readme_text, errors, root):
             # being searched for (docs/BACKLOG.md §57).
             source = f.read_text(errors="replace", encoding="utf-8")
             if test_body(source, name, python=f.suffix == ".py",
-                         php=f.suffix == ".php") is None:
+                         php=f.suffix == ".php", swift=f.suffix == ".swift") is None:
                 # NO CLAIM ABOUT THE FILTER. This used to end "the acceptance
                 # filter passed without it", which is an inference the check never
                 # makes: measured 2026-08-29 on a 77-record corpus where four of
@@ -4288,7 +4288,7 @@ def commented_out(text, index):
     return re.match(r"\s*(?://|#|\*|--)", text[start:index]) is not None
 
 
-def test_body(text, name, python=False, php=False):
+def test_body(text, name, python=False, php=False, swift=False):
     """The source of the named test function, best-effort across languages.
 
     The opening brace may sit on the declaration line (Go, JS) or on the NEXT one
@@ -4380,7 +4380,7 @@ def test_body(text, name, python=False, php=False):
     # removed, and the BDD branch reads the raw text while refusing a match on a
     # commented-out line — which keeps the anti-comment property the last-resort
     # branch was fixed for.
-    stripped = code_only(text, python=python)
+    stripped = code_only(text, python=python, swift=swift)
     m = re.search(r"\b" + re.escape(name) + r"\b\s*\([^)]*\)[^{;]*?\{", stripped, re.S)
     if m:
         i = m.end() - 1
@@ -4432,7 +4432,7 @@ def test_body(text, name, python=False, php=False):
     return stripped[start:start + nxt.start()] if nxt else stripped[start:]
 
 
-def code_only(text, python=False):
+def code_only(text, python=False, swift=False):
     """Drop line comments, block comments and string literals.
 
     A reviewer pointed out that the failure-call search matched the word `expect`
@@ -4459,7 +4459,7 @@ def code_only(text, python=False):
     # literals-first let a backtick inside a `//` comment eat the code after it
     # (BACKLOG §139, found against a foreign corpus). `scan_code_only` holds one
     # state at a time, so neither is expressible.
-    return scan_code_only(text, hash_comments=True)
+    return scan_code_only(text, hash_comments=True, swift=swift)
 
 
 GO_TEST_BOOLEAN_FLAGS = {"-failfast", "-race", "-short"}
@@ -4690,7 +4690,7 @@ def _go_package_selects(scope, test_path, platform=None):
     return directory == package_parts
 
 
-def scan_code_only(text, hash_comments=False):
+def scan_code_only(text, hash_comments=False, swift=False):
     """Blank comments and literals in ONE left-to-right pass.
 
     NEITHER ORDER OF REGEXES IS CORRECT, and this project has now shipped both
@@ -4703,8 +4703,8 @@ def scan_code_only(text, hash_comments=False):
     and can make neither mistake, which is what "by construction" means, and it
     is why the fix is this function rather than a third ordering.
 
-    `hash_comments` adds `#` to end of line, except `#[` (a Rust attribute) and
-    Swift Testing macros `#expect` / `#require`.
+    `hash_comments` adds `#` to end of line, except `#[` (a Rust attribute).
+    When `swift` is set, Swift Testing macros `#expect` / `#require` stay code.
     """
     output = []
     state = "code"
@@ -4726,12 +4726,13 @@ def scan_code_only(text, hash_comments=False):
                 continue
             if hash_comments and char == "#" and pair != "#[":
                 rest = text[index + 1:]
-                if not any(
+                keep_swift_macros = swift and any(
                     rest.startswith(name)
                     and (len(rest) == len(name)
                          or not (rest[len(name)].isalnum() or rest[len(name)] == "_"))
                     for name in ("expect", "require")
-                ):
+                )
+                if not keep_swift_macros:
                     output.append(" ")
                     state = "line-comment"
                     index += 1
@@ -4881,20 +4882,21 @@ def check_tests_can_fail(infos, readme_text, errors, root):
             # bodies carry DOCSTRINGS that must be removed before an `assert` in
             # one can be mistaken for an assertion the test makes.
             raw = f.read_text(errors="replace", encoding="utf-8")
+            swift = f.suffix == ".swift"
             text = code_only(raw, python=True) if f.suffix == ".py" else raw
-            body = test_body(text, name, python=f.suffix == ".py", php=f.suffix == ".php")
+            body = test_body(text, name, python=f.suffix == ".py", php=f.suffix == ".php", swift=swift)
             if body is None:
                 continue
             # A no-op on the text above, which was already stripped; kept because
             # test_body slices out of it and a future extractor might not.
-            body = code_only(body, python=f.suffix == ".py")
+            body = code_only(body, python=f.suffix == ".py", swift=swift)
             # A test that delegates its assertions to a helper still fails when the
             # helper does. Follow one level: any same-file function the body calls
             # that takes the testing handle counts as part of it.
             if not FAIL_CALLS.search(body):
                 for callee in set(re.findall(r"\b([a-z_]\w{2,})\s*\(", body)):
                     h = test_body(text, callee, python=f.suffix == ".py",
-                                  php=f.suffix == ".php")
+                                  php=f.suffix == ".php", swift=swift)
                     if h and FAIL_CALLS.search(h):
                         body += h
                         break

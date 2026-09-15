@@ -7919,7 +7919,7 @@
       "tests": [
         "tests/test-lock.test.mjs"
       ],
-      "from": "        masked = _mask_lock_noncode(text)",
+      "from": "        masked = _mask_lock_noncode(text, go=True)",
       "to": "        masked = text",
       "only": "a Go signature comment does not keep"
     },

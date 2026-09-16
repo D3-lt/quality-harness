@@ -12837,8 +12837,10 @@ fixture before changing a classifier (§16).
 that executed ADR-057 and ADR-058 (its first 3,675 lines, 410 tool calls). Each hook point got its own
 transcript prefix and `cwd` on this repository, and ran `lifecycle.mjs` from `git archive e813f0a
 plugin` and from `git archive 5806727 plugin`. Each tree had a fresh `CLAUDE_PLUGIN_DATA` and
-`TMPDIR`, under the recorded session id. `git diff v2.99.6 e813f0a` is empty for `lifecycle.mjs` and
-`classify-command.mjs`, so `e813f0a` is the code the live hooks ran. Points:
+`TMPDIR`, under the recorded session id; the recorded SessionStart (startup, compact) points ran too,
+because the compaction resets repeat suppression. The live hooks ran this working tree — the
+marketplace source is this directory — so up to ADR-058's first code edit they ran `e813f0a`'s
+`lifecycle.mjs` (`git diff v2.99.6 e813f0a` is empty for it), and after that partially fixed code. Points:
 
 - every Bash `git commit`/`git push`: 16;
 - every Stop whose `stop_hook_summary` shows `lifecycle.mjs` ran past its early return: 8 of 23.
@@ -12846,23 +12848,26 @@ plugin` and from `git archive 5806727 plugin`. Each tree had a fresh `CLAUDE_PLU
 The other 15 Stops took 44–215 ms: background work was running (the re-ground monitor, a background
 Codex review), and the replay input carries no `background_tasks`. The 300 ms cut was chosen after
 seeing the durations; the final assistant text at the three 146–215 ms Stops names a background Codex
-run, which supports it. The first replay omitted `last_assistant_message` and the background filter
-and over-reported Stop 28 to 7, so the harness was checked before any after-count was read.
+run, which supports it. The first replay omitted `last_assistant_message`, the background filter and
+SessionStart, and over-reported Stop 28 to 7, so the harness was checked before any after-count was read.
 
-**Validation:** at `e813f0a` all 24 points match the live record — 21 messages, 3 silent.
+**Validation, text for text:** all 21 live messages equal one tree's replay exactly — 20 equal
+`e813f0a`'s, and the one recorded after T2's commit equals only `5806727`'s — and the 3 silent points
+are silent in both. So the replay reproduces what the session saw, including the regression below live.
 
-**Result at `5806727`:** 21 messages → 21; 7,767 → 8,026 bytes.
+**Result at `5806727`:** 21 messages → 21; 8,206 → 8,465 bytes.
 
 - Commit advisories 13 → 14, artifact failures 1 → 0. The false `UNPROVEN: could not classify <repo>/run
   dir removed, review kept at …` that T3 removed became a repeat of the commit advisory.
 - Completion (Stop) 7 → 7. At one, the invented `run dir removed …` path gave way to "I could not prove
   a repository path".
 - Three path lists changed. One now names a real restore (`git checkout -- <ADR-057 T4 task>`). Two now
-  name files that were only read: `git ls-files 'plugin/agents/*.md' … | tee /dev/stderr` and `grep -n …
-  tasks/T1-*.md; cat > <scratchpad file> <<EOF`. Before T2 both commands were `unrecognised` because of an
-  `mrw read` beside them, and the advisory said it could not prove a path. Now they are `mutation`, and
-  §220 reads every `.md` argument as a change. That is a regression in what the advisory names, not in how
-  often it speaks.
+  name files that were only read: `git ls-files 'plugin/agents/*.md' … | tee /dev/stderr` beside an `mrw
+  read` (flipped by T2), and `grep -n … tasks/T1-*.md; cat > <scratchpad file> <<EOF … timeout 120 node …`
+  (flipped by T1's wrapper peel). Both were `unrecognised`, and the advisory said it could not prove a
+  path. Now they are `mutation`, and §220 reads every `.md` argument as a change. The second fired live,
+  naming `T1-a-timeout-wrapped-check-is-a-check.md` beside the T2 task. That is a regression in what the
+  advisory names, not in how often it speaks.
 
 **Why the count did not move:**
 

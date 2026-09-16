@@ -8865,13 +8865,13 @@
       "to": "'(?![\\\\w-])|agentType:"
     },
     {
-      "label": "routing stress: a role that declares no model is rejected",
+      "label": "routing stress: a missing model is not coerced into a capability class",
       "file": "tests/routing-stress.test.mjs",
       "tests": [
         "tests/routing-stress.test.mjs"
       ],
-      "from": "    assert.equal(typeof options.model, 'string', options.label + ' must declare a model in ' + context)\n",
-      "to": ""
+      "from": "    assert.equal(typeof options.model, 'string', options.label + ' must declare a model in ' + context)\n    assert.match(options.model, /^[a-z]+$/,",
+      "to": "    assert.match(String(options.model), /^[a-z]+$/,"
     },
     {
       "label": "routing: each branch of a Codex route has its own destination",

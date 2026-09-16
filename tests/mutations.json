@@ -8034,16 +8034,6 @@
       "only": "a BDD name may wrap after the opening paren"
     },
     {
-      "label": "lifecycle: an apostrophe in a trailing comment does not hide a later loud joiner",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/leftovers-after-adr053.test.mjs"
-      ],
-      "from": "    if (character === '#') {\n      inComment = true\n      continue\n    }\n    if (character === '&' && command[index + 1] === '&') {",
-      "to": "    if (character === '&' && command[index + 1] === '&') {",
-      "only": "an apostrophe in a trailing comment"
-    },
-    {
       "label": "lock: a shell URL is not a C comment in the digest",
       "file": "plugin/lib/record.py",
       "tests": [

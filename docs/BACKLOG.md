@@ -12765,3 +12765,39 @@ Do not rewrite ADR-054 Decision text. Do not edit locked `tests/test-lock.test.m
 or `tests/swift-expect.test.mjs` bodies. BACKLOG §206 (never-hashable Tests rows)
 is a different class and stays.
 
+## 210. Routing leftovers from ADR-057 (2026-09-16)
+
+ADR-057 gives every shipped skill, agent and workflow a named route and leaves two
+pieces of work that no task of it owns:
+
+- **An architecture-staleness predicate in `work-next`.** `STAGES` lists
+  `arch-write` with "the architecture document is older than the record", and
+  `nextStage()` never returns it. ADR-057 T2 removes `work`'s sentence claiming
+  detection. A real predicate needs to know which Accepted records are structural,
+  which no record header says today.
+- **Behavioural `claude plugin eval` cases for the new routes** — class D reaching
+  `arch-write`, High tier without Codex reaching `quality-cycle`. Supplementary
+  only: model-scored, operator-granted, and outside `scripts/selftest.sh`, so they
+  cannot be an Acceptance fence.
+
+## 211. The reviewer guard refuses read-only commands a reviewer needs for evidence (2026-09-16)
+
+Reported by a `quality-harness:qh-correctness-reviewer` spawned through the Agent tool
+to cold-review ADR-057, from inside its own run; **not reproduced** by the main
+session. The plugin-level PreToolUse guard (`plugin/scripts/lifecycle.mjs` around
+`readOnlyVerdict`) refused, by the reviewer's account:
+
+- `node -e` reading a file, `node <file>`, `node --version`
+- `git stash list`
+- a `for … cat` loop; `grep | sed -n | grep`; `ls && wc && mrw --version`
+- a `git grep -e` pattern containing a backtick
+- any command ending in `echo "…=$?"`
+
+None of these writes. The reviewer still completed from `grep`/`git grep`/reads, but
+could not execute its predicate check. This is CLAUDE.md §16's direction worth
+checking first: a guard that PERMITS only what it recognises fails closed on correct
+work, and a reviewer that cannot gather evidence returns `unavailable`.
+
+It matters more after ADR-057 T3, which routes `quality-cycle`'s reviewers through the
+same role names. Reproduce each command against `readOnlyVerdict` before deciding
+anything; the list above is one agent's report.

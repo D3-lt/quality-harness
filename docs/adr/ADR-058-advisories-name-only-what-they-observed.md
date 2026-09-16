@@ -107,4 +107,4 @@ Revert the task commits. No persistent state, no migration; the four false advis
 
 ## Follow-ups
 
-- [ ] After T1–T4 land, replay the ADR-057 session's recorded hook points through `lifecycle.mjs` at `e813f0a` and at the new head, and record the before/after count of commit and completion advisories in BACKLOG §213.
+- [x] After T1–T4 land, replay the ADR-057 session's recorded hook points through `lifecycle.mjs` at `e813f0a` and at the new head, and record the before/after count of commit and completion advisories in BACKLOG §213. — done 2026-09-16, BACKLOG §213 ("Re-measured after ADR-058"): 21 messages before and after; two path lists got worse through §220.

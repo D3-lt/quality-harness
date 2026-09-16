@@ -1201,7 +1201,7 @@ def _parse_bdd_string(text, start, php=False):
                 i += 2
                 continue
             if php and quote == '"':
-                mapped = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"'}
+                mapped = {"n": "\n", "t": "\t", "r": "\r", "v": "\v", "f": "\f", "e": "\x1b", "\\": "\\", '"': '"'}
                 if nxt in mapped:
                     out.append(mapped[nxt])
                 else:
@@ -1211,6 +1211,15 @@ def _parse_bdd_string(text, start, php=False):
                 continue
             if quote == "`" and nxt == "$":
                 out.append("$")
+                i += 2
+                continue
+            if nxt in "\n\r":
+                i += 2
+                if nxt == "\r" and i < n and text[i] == "\n":
+                    i += 1
+                continue
+            if nxt == "0" and (i + 2 >= n or text[i + 2] not in "0123456789"):
+                out.append("\0")
                 i += 2
                 continue
             out.append({"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v"}.get(nxt, nxt))

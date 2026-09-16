@@ -12801,3 +12801,34 @@ work, and a reviewer that cannot gather evidence returns `unavailable`.
 It matters more after ADR-057 T3, which routes `quality-cycle`'s reviewers through the
 same role names. Reproduce each command against `readOnlyVerdict` before deciding
 anything; the list above is one agent's report.
+
+## 212. The JS test-lock masker does not skip regex literals (2026-09-16)
+
+Found executing ADR-057 T4. `plugin/lib/record.py` `bdd_callback_body` masks strings and comments
+but not regex literals, which its own docstring says for `)`. A body holding
+``text.replace(/\/?quality-harness:review(?![\w-])|`review`/g, '')`` or
+`/agentType:\s*['"]quality-harness:qh-synthesis['"],?\s*/g` makes `extract_test_body` return None,
+so the first red locks the test `unproven` and `done` is refused. The name extracts; only the body
+fails, so nothing at authoring time says so.
+
+Worked around in `tests/routing.test.mjs` by moving the patterns to module scope. The fix belongs in
+the masker (JS regex-literal recognition in operand position, the same heuristic §203 names for
+Swift) with a dirty-shown regression; until then `adr-execute`'s lessons say to probe
+`extract_test_body` before the first red.
+
+## 213. The commit advisory ignored a wrapped selftest and counted an `mrw read` as a write (2026-09-16)
+
+Observed twice executing ADR-057, not yet reproduced in a fixture. Before `git commit` of `d29734d`
+the PreToolUse advisory said "Nothing has verified the work since your last change" and listed
+`plugin/skills/adr-execute/references/lessons.md` among changed paths.
+
+- The last edit before that commit was followed by `gtimeout 590 bash scripts/selftest.sh > <file> 2>&1`,
+  exit 0. The same advisory fired before `fc99e1e` with no check run, which was correct; here it was
+  not. Likely cause, unverified: `gtimeout` is not among the recognised wrappers (§208 names the
+  wrapper list as bare words).
+- `lessons.md` was only ever read, through `mrw read <path>` in Bash; `git diff --quiet` on it exited 0.
+  Likely cause, unverified: `mrw` is an unrecognised command, so its path argument is treated as an
+  UNPROVEN write (ADR-047) and named as a changed path, which ADR-051 says Advise must not invent.
+
+Both are CLAUDE.md §17 false advisories. Reproduce each against `lifecycle.mjs` with a transcript
+fixture before changing a classifier (§16).

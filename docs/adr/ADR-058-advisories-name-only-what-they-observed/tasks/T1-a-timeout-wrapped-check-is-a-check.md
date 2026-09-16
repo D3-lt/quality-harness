@@ -56,6 +56,12 @@ out=$(node --test --test-reporter=tap --test-name-pattern '^(a timeout-wrapped c
 | 4 — it is used | ADR-058's Follow-up replays the measured session's hook points before and after |
 
 ## Mutation Log
+- 2026-09-16 · 652d62a* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the timeout prefix is no longer stripped, so a wrapped check is not recognised · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · covers:the timeout-wrapper strip before validation patterns
+- 2026-09-16 · 652d62a* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · commandInvocation no longer peels the wrapper, so the family check calls a wrapped check unrecognised · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · covers:the timeout-wrapper strip before validation patterns
+- 2026-09-16 · 652d62a* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a redirected timeout-wrapped check would count as validation once the whole-segment guard is gone · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · covers:UNSAFE_SEGMENT still seeing the whole segment
+- 2026-09-16 · 652d62a* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a second nested wrapper would be stripped, certifying a shape the Decision does not · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · covers:the timeout-wrapper strip before validation patterns
+- 2026-09-16 · 652d62a* · mutant killed · exit 1 · `tests/advice-accuracy.test.mjs` · a renamed test would leave the fence passing on the others unless it checks each named test ran · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · covers:each named test actually running
+- 2026-09-16 · 652d62a* · mutant killed · exit 1 · `plugin/scripts/classify-command.mjs` · dropping rm from the measured families must be caught by the classifier suite the fence runs · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · covers:the regression suites that pin the classifier
 
 ## Invariants
 
@@ -76,3 +82,12 @@ Stop and ask if a locked test in `tests/classify.test.mjs` or `tests/unread-advi
 - Compound or redirected checks (ADR-058 Out of Scope)
 
 ## Verification Log
+- 2026-09-16 · 652d62a* · exit 1 · `set -o pipefail …` · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · ms:113 · test-lock-sha256:6c7574591f08d398d1f4c6aa534d771aee7d034865fbdd494025686f075ad550 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2FkdmljZS1hY2N1cmFjeS50ZXN0Lm1qcwlhIHRpbWVvdXQgd3JhcHBlciBkb2VzIG5vdCBsYXVuZGVyIGEgbXV0YXRpb24JOTdjM2NlOTJhMDYyMTFlNWNmMDcyNzE3ZTQ5YzI5MDA5MTcwZWJmMDI4MzI5ZDIxNjgzYjliYjg2YTE0NGMxMgpib2R5CXRlc3RzL2FkdmljZS1hY2N1cmFjeS50ZXN0Lm1qcwlhIHRpbWVvdXQtd3JhcHBlZCBjaGVjayBpcyBhIGNoZWNrCTBjMWM2MzZlMTBmZDYzNGIwMTUwODcxZjUzYjdjMjY2YmE3YjQzZjI1NjNjN2ZiZjUwZDE4NDI5MWY4ZTViN2QKYm9keQl0ZXN0cy9hZHZpY2UtYWNjdXJhY3kudGVzdC5tanMJdGhlIGNvbW1pdCBnYXRlIGlzIHNpbGVudCBhZnRlciBhIHBhc3NpbmcgdGltZW91dC13cmFwcGVkIGNoZWNrCTY3MGEwODYxZDA2YTYzM2FiYWIwMzUzNmZkN2JhYmU2MjMzMjFjOWMwODE3ZDRkOGQxM2RiMTMwZmQwNWY4M2U
+  ```
+  ```
+- 2026-09-16 · 652d62a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · ms:1412
+- 2026-09-16 · 652d62a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · ms:1456
+- 2026-09-16 · 652d62a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · ms:1495
+- 2026-09-16 · 652d62a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · ms:1421
+- 2026-09-16 · 652d62a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · ms:2318
+- 2026-09-16 · 652d62a* · exit 0 · `set -o pipefail …` · acceptance-sha256:c4b8107df28f81f50f08c18e6f792d84a8042e3b48348e05d4ea67f49f2320d3 · ms:1423

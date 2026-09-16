@@ -592,6 +592,22 @@ function commandInvocation(command, depth = 0) {
       }
       continue
     }
+    // ADR-058 T1. `gtimeout 590 bash scripts/selftest.sh` runs the check and carries
+    // its exit status (124 on timeout; measured against a shell 2026-09-16), so the
+    // command inside is the command. Options, then exactly one duration. Any other
+    // shape leaves `timeout` itself as the family, which is unrecognised (§16).
+    if (wrapper === 'timeout' || wrapper === 'gtimeout') {
+      const at = index
+      index += 1
+      const timeoutValueOptions = new Set(['-k', '--kill-after', '-s', '--signal'])
+      while (words[index]?.startsWith('-')) {
+        if (words[index] === '--') { index += 1; break }
+        index += optionConsumesNext(words[index], timeoutValueOptions) ? 2 : 1
+      }
+      if (!/^\d+(?:\.\d+)?[smhd]?$/.test(words[index] ?? '')) { index = at; break }
+      index += 1
+      continue
+    }
     break
   }
   return { index, words }
@@ -1033,6 +1049,9 @@ function inertNavigation(segment) {
 const UNSAFE_SEGMENT = /[;`>]|\|\||\$\(|(?:^|[^|])\|(?:[^|]|$)|(?:^|[^&])&(?:[^&]|$)/
 const ASSIGNMENT_ONLY = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*)+$/
 const ASSIGNMENT_PREFIX = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s+)+/
+// ADR-058 T1. One leading timeout wrapper, stripped the same way as the assignment
+// prefix: after UNSAFE_SEGMENT has seen the whole segment, so it launders nothing.
+const TIMEOUT_PREFIX = /^g?timeout\s+(?:(?:-k|--kill-after|-s|--signal)(?:=\S+|\s+\S+)\s+|(?:--preserve-status|--foreground|-v|--verbose)\s+)*\d+(?:\.\d+)?[smhd]?\s+/
 
 // A command run inside a container is still that command.
 //
@@ -1097,7 +1116,7 @@ export function isValidationCommand(command) {
         // Every pattern is anchored, so the environment prefix hid the command
         // from all of them. UNSAFE_SEGMENT has already seen the whole segment,
         // so nothing is laundered by trimming it here.
-        && VALIDATION_PATTERNS.some(pattern => pattern.test(segment.replace(ASSIGNMENT_PREFIX, ''))))
+        && VALIDATION_PATTERNS.some(pattern => pattern.test(segment.replace(ASSIGNMENT_PREFIX, '').replace(TIMEOUT_PREFIX, ''))))
   })
 }
 const MRW_CHECK_FLAG = /(?:^|\s)--check(?:\s|$)/

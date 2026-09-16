@@ -1213,7 +1213,7 @@ def _parse_bdd_string(text, start, php=False):
                 out.append("$")
                 i += 2
                 continue
-            out.append({"n": "\n", "t": "\t", "r": "\r"}.get(nxt, nxt))
+            out.append({"n": "\n", "t": "\t", "r": "\r", "b": "\b", "f": "\f", "v": "\v"}.get(nxt, nxt))
             i += 2
             continue
         if c == quote:

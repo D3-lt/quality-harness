@@ -718,9 +718,31 @@ function quoteAwarePublishArgsOk(text) {
   return quote === null
 }
 
+function wrapperQuotesClosed(text) {
+  let quote = null
+  let escaped = false
+  for (const character of text) {
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (character === '\\' && quote !== "'") {
+      escaped = true
+      continue
+    }
+    if (quote) {
+      if (character === quote) quote = null
+      continue
+    }
+    if (character === "'" || character === '"') quote = character
+  }
+  return quote === null
+}
+
 function gitPublishTail(text) {
   const trimmed = text.trimStart()
   const wrap = trimmed.match(PUBLISH_WRAPPER)
+  if (wrap && !wrapperQuotesClosed(wrap[0])) return false
   const after = wrap ? trimmed.slice(wrap[0].length) : trimmed
   const git = after.match(/^git\s+(?:commit|push)\b/)
   if (!git) return false

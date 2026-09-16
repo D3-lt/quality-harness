@@ -53,7 +53,7 @@ function tokensAfter(text, prefix) {
   for (let i = text.indexOf(prefix); i !== -1; i = text.indexOf(prefix, i + 1)) {
     let j = i + prefix.length
     while (j < text.length && isTokenChar(text[j])) j++
-    found.push({ token: text.slice(i + prefix.length, j), next: text[j] })
+    found.push({ token: text.slice(i + prefix.length, j), next: text[j], prev: text[i - 1] })
   }
   return found
 }
@@ -68,6 +68,8 @@ function backticked(text, name) {
 function agentTypeNames(text) {
   const names = []
   for (let i = text.indexOf('agentType:'); i !== -1; i = text.indexOf('agentType:', i + 1)) {
+    // "agentType:" must be the whole key: notagentType is a different word.
+    if (i > 0 && isTokenChar(text[i - 1])) continue
     let j = i + 'agentType:'.length
     while (j < text.length && isSpace(text[j])) j++
     if (text[j] !== "'" && text[j] !== '"') continue
@@ -85,7 +87,9 @@ function oracleUnrouted(members, routers, workflows) {
     [...routers].some(([file, text]) => {
       if (file === own) return false
       const content = oracleBody(text)
-      return backticked(content, name) || tokensAfter(content, 'quality-harness:').some(t => t.token === name)
+      // A qualified name must start at a word boundary: not-quality-harness:x names nothing.
+      return backticked(content, name)
+        || tokensAfter(content, 'quality-harness:').some(t => t.token === name && !isTokenChar(t.prev ?? ' '))
     })
     || [...workflows].some(([file, text]) => file !== own
       && (tokensAfter(text, '/quality-harness:').some(t => t.token === name) || agentTypeNames(text).includes(name)))
@@ -110,6 +114,8 @@ const ROUTER_FORMS = [
   n => 'quality-harness:' + n + '_x',
   n => 'quality-harness:' + n + 'X',
   n => "agentType: 'quality-harness:" + n + "'",
+  n => 'not-quality-harness:' + n,
+  n => 'xquality-harness:' + n,
 ]
 const WORKFLOW_FORMS = [
   n => '/quality-harness:' + n,
@@ -121,6 +127,8 @@ const WORKFLOW_FORMS = [
   n => 'agentType: quality-harness:' + n,
   n => '`' + n + '`',
   n => '/quality-harness:' + n + '-extra',
+  n => "notagentType: 'quality-harness:" + n + "'",
+  n => '_agentType: "quality-harness:' + n + '"',
 ]
 const NEAR_MISSES = ['review-rin', 'qh-synth', 'Review', 'work-next', 'adr']
 
@@ -174,6 +182,8 @@ test('the oracle and the matcher both refuse the near misses the Decision rules 
     ['an unquoted agentType is not a route', {}, { 'plugin/workflows/x.js': 'agentType: quality-harness:qh-synthesis' }, ['review', 'review-ring', 'work', 'qh-synthesis']],
     ['a quoted agentType is a route', {}, { 'plugin/workflows/x.js': "agentType:\n  'quality-harness:qh-synthesis'" }, ['review', 'review-ring', 'work']],
     ['a slash route at end of text is a route', { 'plugin/skills/review/SKILL.md': 'see /quality-harness:work' }, {}, ['review', 'review-ring', 'qh-synthesis']],
+    ['a prefixed qualified name is not a route', { 'plugin/skills/review/SKILL.md': 'use not-quality-harness:work and xquality-harness:work' }, {}, ['review', 'review-ring', 'work', 'qh-synthesis']],
+    ['a prefixed agentType key is not a route', {}, { 'plugin/workflows/x.js': 'notagentType: "quality-harness:qh-synthesis"' }, ['review', 'review-ring', 'work', 'qh-synthesis']],
   ]
   for (const [why, routerTexts, workflowTexts, expected] of cases) {
     const routers = new Map(Object.entries(routerTexts))
@@ -271,9 +281,17 @@ function assertRoles(calls, context) {
   for (const options of calls) {
     assert.ok(Object.hasOwn(AGENT_FOR_LABEL, options.label), 'unknown role label ' + options.label + ' in ' + context)
     assert.equal(options.agentType, AGENT_FOR_LABEL[options.label], options.label + ' agentType in ' + context)
-    assert.match(String(options.model), /^[a-z]+$/, options.label + ' must keep a capability class in ' + context)
+    assert.equal(typeof options.model, 'string', options.label + ' must declare a model in ' + context)
+    assert.match(options.model, /^[a-z]+$/, options.label + ' must keep a capability class in ' + context)
   }
 }
+
+test('the role check rejects a role that declares no model', () => {
+  // Codex review, 2026-09-16: String(undefined) is "undefined", which matched the
+  // capability-class pattern, so a role with no model passed.
+  assert.throws(() => assertRoles([{ label: 'correctness', agentType: 'quality-harness:qh-correctness-reviewer' }], 'probe'))
+  assertRoles([{ label: 'correctness', agentType: 'quality-harness:qh-correctness-reviewer', model: 'opus' }], 'probe')
+})
 
 test('every role quality-cycle and review-ring spawn carries the agentType the Decision names, on every path', async () => {
   const random = rng(SEED + 1)

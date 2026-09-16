@@ -41,12 +41,14 @@ export function escaped(name) {
 
 // The trailing (?![\w-]) is what keeps `review` from being found inside
 // `review-ring` — the same hazard `lifecycle.mjs` paid for with `--rm` (CLAUDE.md §5).
+// The leading (?<![\w-]) is its other half, found by a Codex review on 2026-09-16:
+// without it `not-quality-harness:review` and `notagentType: "…"` counted as routes.
 export function routerPattern(name) {
-  return new RegExp('`' + escaped(name) + '`|quality-harness:' + escaped(name) + '(?![\\w-])')
+  return new RegExp('`' + escaped(name) + '`|(?<![\\w-])quality-harness:' + escaped(name) + '(?![\\w-])')
 }
 
 export function workflowPattern(name) {
-  return new RegExp('/quality-harness:' + escaped(name) + '(?![\\w-])|agentType:\\s*[\'"]quality-harness:' + escaped(name) + '[\'"]')
+  return new RegExp('/quality-harness:' + escaped(name) + '(?![\\w-])|(?<![\\w-])agentType:\\s*[\'"]quality-harness:' + escaped(name) + '[\'"]')
 }
 
 /** Names of members that no router body and no workflow names, excluding each member's own file. */

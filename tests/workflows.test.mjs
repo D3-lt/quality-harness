@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
-import { readFileSync, readdirSync } from 'node:fs'
+import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import path from 'node:path'
 import test from 'node:test'
@@ -175,9 +175,15 @@ test('Codex review and advice skills mark spawned sessions as non-recursive leav
 // default was wrong rather than merely unspecified.
 const AGENT_CALL = /\bagent\(/g
 
+// Listed through git, never the disk (CLAUDE.md §8): an ignored local .js in the
+// workflows directory is not a shipped workflow. Found by a Codex review, 2026-09-16.
 function shippedWorkflowSources() {
-  return readdirSync(workflowDir).filter(f => f.endsWith('.js'))
-    .map(f => ({ file: f, text: readFileSync(join(workflowDir, f), 'utf8') }))
+  const repoRoot = path.resolve(testDir, '..')
+  const run = spawnSync('git', ['-C', repoRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', 'plugin/workflows/*.js'],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(run.status, 0, 'git must list the shipped workflows')
+  return run.stdout.split('\n').filter(Boolean)
+    .map(file => ({ file: path.basename(file), text: readFileSync(join(repoRoot, file), 'utf8') }))
 }
 
 test('every spawned role declares the capability it needs', () => {

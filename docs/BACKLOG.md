@@ -12833,6 +12833,52 @@ the PreToolUse advisory said "Nothing has verified the work since your last chan
 Both are CLAUDE.md §17 false advisories. Reproduce each against `lifecycle.mjs` with a transcript
 fixture before changing a classifier (§16).
 
+**Re-measured after ADR-058, 2026-09-16 (its Follow-up).** Replayed the main transcript of the session
+that executed ADR-057 and ADR-058 (its first 3,675 lines, 410 tool calls). Each hook point got its own
+transcript prefix and `cwd` on this repository, and ran `lifecycle.mjs` from `git archive e813f0a
+plugin` and from `git archive 5806727 plugin`. Each tree had a fresh `CLAUDE_PLUGIN_DATA` and
+`TMPDIR`, under the recorded session id. `git diff v2.99.6 e813f0a` is empty for `lifecycle.mjs` and
+`classify-command.mjs`, so `e813f0a` is the code the live hooks ran. Points:
+
+- every Bash `git commit`/`git push`: 16;
+- every Stop whose `stop_hook_summary` shows `lifecycle.mjs` ran past its early return: 8 of 23.
+
+The other 15 Stops took 44–215 ms: background work was running (the re-ground monitor, a background
+Codex review), and the replay input carries no `background_tasks`. The 300 ms cut was chosen after
+seeing the durations; the final assistant text at the three 146–215 ms Stops names a background Codex
+run, which supports it. The first replay omitted `last_assistant_message` and the background filter
+and over-reported Stop 28 to 7, so the harness was checked before any after-count was read.
+
+**Validation:** at `e813f0a` all 24 points match the live record — 21 messages, 3 silent.
+
+**Result at `5806727`:** 21 messages → 21; 7,767 → 8,026 bytes.
+
+- Commit advisories 13 → 14, artifact failures 1 → 0. The false `UNPROVEN: could not classify <repo>/run
+  dir removed, review kept at …` that T3 removed became a repeat of the commit advisory.
+- Completion (Stop) 7 → 7. At one, the invented `run dir removed …` path gave way to "I could not prove
+  a repository path".
+- Three path lists changed. One now names a real restore (`git checkout -- <ADR-057 T4 task>`). Two now
+  name files that were only read: `git ls-files 'plugin/agents/*.md' … | tee /dev/stderr` and `grep -n …
+  tasks/T1-*.md; cat > <scratchpad file> <<EOF`. Before T2 both commands were `unrecognised` because of an
+  `mrw read` beside them, and the advisory said it could not prove a path. Now they are `mutation`, and
+  §220 reads every `.md` argument as a change. That is a regression in what the advisory names, not in how
+  often it speaks.
+
+**Why the count did not move:**
+
+- Every check the session ran was `gtimeout 590 bash scripts/selftest.sh > <file> 2>&1`. The gate does not
+  count a redirected check (ADR-058 Out of Scope), and T1 covers only the bare wrapped form, which the
+  session never ran. With the redirect, T1 makes those runs `mutation` of a temp path instead of
+  `unrecognised`.
+- The seven Stop messages come from commands that are still `unrecognised` (§218).
+- The one foreign commit (`R=<scratchpad>/mrwprobe; …; cd "$R" && git commit`) is unresolved to T4,
+  because `segmentDirectories` does not read an assignment made earlier in the same command.
+
+**Left out:** the UserPromptSubmit branch-state lines and PostToolUse rule injections (not ADR-058's
+subject); subagent and workflow transcripts; what the agent would have done differently had the
+messages differed. The replay script and its outputs stay in the session scratchpad, since they are
+derived from a transcript (CLAUDE.md §6).
+
 ## 214. quality-cycle's `codex: true` arm has no route after ADR-057 (2026-09-16)
 
 ADR-057 T1 routes High tier to `codex-review` when Codex is installed and to `quality-cycle` when it

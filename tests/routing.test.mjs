@@ -4,62 +4,15 @@
 //
 // The helpers live at module scope on purpose. A task's test body is locked at
 // its first red (ADR-050), and later tasks add tests here that reuse these
-// helpers; they must never need to edit a locked body to do it.
+// helpers; they must never need to edit a locked body to do it. The route
+// matcher itself lives in routing-routes.mjs so the stress test drives the same one.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
 import { readFileSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { join } from 'node:path'
 import test from 'node:test'
-import { fileURLToPath } from 'node:url'
-
-const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
-
-const MEMBER_GLOBS = ['plugin/skills/*/SKILL.md', 'plugin/agents/*.md', 'plugin/workflows/*.js']
-const ROUTERS = ['plugin/skills/work/SKILL.md', 'plugin/skills/quality-policy/SKILL.md', 'plugin/skills/review/SKILL.md']
-
-/** Paths git knows for these globs, tracked or about to be added — never the disk (CLAUDE.md §8). */
-function listed(...globs) {
-  const run = spawnSync('git', ['-C', repoRoot, 'ls-files', '--cached', '--others', '--exclude-standard', '--', ...globs],
-    { encoding: 'utf8', timeout: 60_000 })
-  assert.equal(run.status, 0, `git must list ${globs.join(' ')}`)
-  return [...new Set(run.stdout.split('\n').filter(Boolean))]
-}
-
-/** A skill is named by its directory; an agent or workflow by its file stem. */
-function memberName(path) {
-  return path.startsWith('plugin/skills/') ? path.split('/')[2] : path.split('/').pop().replace(/\.(md|js)$/, '')
-}
-
-function readTexts(paths) {
-  return new Map(paths.map(path => [path, readFileSync(join(repoRoot, path), 'utf8')]))
-}
-
-/** The text after YAML frontmatter. A description's "do not use X" is a boundary, not a route. */
-function body(text) {
-  return text.replace(/^---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')
-}
-
-function escaped(name) {
-  return name.replace(/[.*+?^${}()|[\]\\-]/g, '\\$&')
-}
-
-// The trailing (?![\w-]) is what keeps `review` from being found inside
-// `review-ring` — the same hazard `lifecycle.mjs` paid for with `--rm` (CLAUDE.md §5).
-function routerPattern(name) {
-  return new RegExp('`' + escaped(name) + '`|quality-harness:' + escaped(name) + '(?![\\w-])')
-}
-
-function workflowPattern(name) {
-  return new RegExp('/quality-harness:' + escaped(name) + '(?![\\w-])|agentType:\\s*[\'"]quality-harness:' + escaped(name) + '[\'"]')
-}
-
-/** Names of members that no router body and no workflow names, excluding each member's own file. */
-function unrouted(members, routers, workflows) {
-  const named = ({ path, name }) =>
-    [...routers].some(([file, text]) => file !== path && routerPattern(name).test(body(text)))
-    || [...workflows].some(([file, text]) => file !== path && workflowPattern(name).test(text))
-  return members.filter(member => !named(member)).map(member => member.name)
-}
+import {
+  MEMBER_GLOBS, ROUTERS, body, escaped, listed, memberName, readTexts, repoRoot, unrouted,
+} from './routing-routes.mjs'
 
 // Fixtures for the dirty cases, kept out of the test body and built from strings:
 // the test-lock hasher masks strings but not regex literals, and a quote or a

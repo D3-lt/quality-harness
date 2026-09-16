@@ -12871,3 +12871,15 @@ under `/private/tmp`, so the subagent's temp-root resolution may differ from the
 
 §213's false commit advisory fired a fourth time, before `11ee05f`, and named
 `plugin/skills/spec-write/SKILL.md`, which that session never read or edited.
+
+## 217. A per-session counter for repeated advisories (2026-09-16)
+
+Deferred from ADR-058, which fixes four false advisories and nothing else so that a re-measure can
+attribute each removed message. Measured the same day on the session that executed ADR-057: the
+plugin's hooks injected 22 messages across 282 tool calls, and the repeats were the "Nothing has
+verified" commit advisory (x3, plus x3 "same finding still stands"), the Stop "could not prove a
+repository path" message (x4) and the branch-state brief (x3, only its numbers changing). Proposal
+from the owner: count notifications per finding, print the first in full, stay silent on identical
+repeats until the state changes, and report the count once at Stop; a cadence (every Nth prompt)
+fits ambient context such as the branch-state brief but not event-bound gates like the commit
+advisory. It changes every gate's behaviour, so it needs its own record — after ADR-058's replay.

@@ -23,7 +23,7 @@ The PreToolUse commit branch returns before advising when every commit or push s
 
 ## Ordered Steps
 
-1. [S1] Add the two tests with real assertions — two temp git repositories created by the test (CLAUDE.md §9), an Edit and no check in the first — and see them fail on an assertion (TDD red).
+1. [S1] Add the two tests with real assertions — temp git repositories created by the test (CLAUDE.md §9), an Edit and no check in the first. The first fails on an assertion (TDD red); the second pins the unresolved direction, passes before the change by construction, and S3's mutant that treats unresolved as foreign is what shows it can fail.
 2. [S2] Return early only when at least one publish segment resolved and none resolved to this repository or stayed unresolved.
 3. [S3] Run the fence green and record mutants: treat unresolved as foreign; drop the early return. [proof: mutation]
 
@@ -53,6 +53,12 @@ out=$(node --test --test-reporter=tap --test-name-pattern "^(a commit in another
 | 4 — it is used | ADR-058's Follow-up replay |
 
 ## Mutation Log
+- 2026-09-16 · 4d26cd3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the early return is gone, so a commit in another repository advises about this one again · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · covers:the foreign-repository early return in the commit branch
+- 2026-09-16 · 4d26cd3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a commit in this repository counts as another one, so the own commit goes silent · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · covers:the foreign-repository early return in the commit branch
+- 2026-09-16 · 4d26cd3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a -C that does not exist or is not a repository is read as another repository · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · covers:an unresolved target still advising
+- 2026-09-16 · 4d26cd3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a segment after cd "$R" is skipped, so an unfollowable directory reads as foreign · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · covers:an unresolved target still advising
+- 2026-09-16 · 4d26cd3* · mutant killed · exit 1 · `tests/advice-accuracy.test.mjs` · a renamed test selects nothing and the per-name ok grep must refuse it · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · covers:each named test actually running
+- 2026-09-16 · 4d26cd3* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a check chained before git commit no longer counts; tests/unread-advice.test.mjs kills it · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · covers:the regression suites that pin the commit gate
 
 ## Invariants
 
@@ -65,10 +71,19 @@ out=$(node --test --test-reporter=tap --test-name-pattern "^(a commit in another
 
 ## Stop Condition
 
-Stop and ask if `tests/unread-advice.test.mjs::PreToolUse commit advice still Advises after a foreign git -C commit` (tests/lifecycle.test.mjs) goes red — that test is about a LATER own commit and must keep passing.
+Stop and ask if `tests/lifecycle.test.mjs::PreToolUse commit advice still Advises after a foreign git -C commit` goes red — that test is about a LATER own commit and must keep passing. It is not in the fence; `bash scripts/selftest.sh` runs it.
 
 ## Out of Scope
 
 - `git push` to a remote of another repository beyond the segment walk that already exists
 
 ## Verification Log
+- 2026-09-16 · 4d26cd3* · exit 1 · `set -o pipefail …` · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · ms:741 · test-lock-sha256:fa9b5343927d4c05e4444917b703505b87463a75159fa3c8039e5d33cfd88591 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL2FkdmljZS1hY2N1cmFjeS50ZXN0Lm1qcwlhIGNvbW1pdCBpbiBhbm90aGVyIHJlcG9zaXRvcnkgZG9lcyBub3QgYXJtIHRoaXMgcmVwb3NpdG9yeSdzIGNvbW1pdCBhZHZpc29yeQlmYjEwMTkyMjNiNDQ1YmJkNWQyY2FjNTk1Y2RhNGU3MmExNzk1ZDAwZTYxMzgyZDRlYzg5MWJjOTJkOThhMTViCmJvZHkJdGVzdHMvYWR2aWNlLWFjY3VyYWN5LnRlc3QubWpzCWEgY29tbWl0IHdob3NlIHJlcG9zaXRvcnkgY2Fubm90IGJlIHJlc29sdmVkIHN0aWxsIGFkdmlzZXMJZDk2MjUxOWI4OWUwOTNlZTA1OGJhZGI0Zjc2NDEwNDFmMjM1YzE5ZDI4MGUxZDU5MTViMTRlZWUxODc5YTRjNQpib2R5CXRlc3RzL2FkdmljZS1hY2N1cmFjeS50ZXN0Lm1qcwlhIHRpbWVvdXQgd3JhcHBlciBkb2VzIG5vdCBsYXVuZGVyIGEgbXV0YXRpb24JOTdjM2NlOTJhMDYyMTFlNWNmMDcyNzE3ZTQ5YzI5MDA5MTcwZWJmMDI4MzI5ZDIxNjgzYjliYjg2YTE0NGMxMgpib2R5CXRlc3RzL2FkdmljZS1hY2N1cmFjeS50ZXN0Lm1qcwlhIHRpbWVvdXQtd3JhcHBlZCBjaGVjayBpcyBhIGNoZWNrCTBjMWM2MzZlMTBmZDYzNGIwMTUwODcxZjUzYjdjMjY2YmE3YjQzZjI1NjNjN2ZiZjUwZDE4NDI5MWY4ZTViN2QKYm9keQl0ZXN0cy9hZHZpY2UtYWNjdXJhY3kudGVzdC5tanMJYW4gZWNobyByZWRpcmVjdCB0YXJnZXQgaXMgc3RpbGwgYSBjaGFuZ2VkIHBhdGgJNGI2MjhkNjA4ZDYwZTlhNWY3MWUyNWIzYmRmNGM2NDZjNmQ1NzY3ZGIyYTQ0NWI3NjU0MDJjNTk3ODdjYWYzZQpib2R5CXRlc3RzL2FkdmljZS1hY2N1cmFjeS50ZXN0Lm1qcwllY2hvIGFuZCBwcmludGYgYXJndW1lbnRzIGFyZSBub3QgY2hhbmdlZCBwYXRocwlkNTU2Y2M3MjIwNDZmODdiMjBjNGU5OTdjYzMwMDc1NmMyMDBjYzBhYzVjYTM1OWI1ODNjYmFmYjM3OTEyYzZlCmJvZHkJdGVzdHMvYWR2aWNlLWFjY3VyYWN5LnRlc3QubWpzCW1ydyByZWFkIGlzIGEgcmVhZCwgbm90IGFuIHVucHJvdmVuIHdyaXRlCWI5YzI2MmI0ZTYzN2IzYmU1MDU3YzVjNTg4YWZlMWIzYjFhMDAxY2YxZjBjN2Y1ZWMyYzUzNTM5ZDVhMjgwNzIKYm9keQl0ZXN0cy9hZHZpY2UtYWNjdXJhY3kudGVzdC5tanMJbXJ3IHdyaXRlIGlzIHN0aWxsIGp1ZGdlZCBhcyBhIHdyaXRlCTgxOWM1NmRjODdhNzNkMjQzOWQwNjkyOWE1MDJmNWQwZDgzNzA1ZDY4YTYzOTgyZTI0YWI4M2ZkNzQxYWZjNDMKYm9keQl0ZXN0cy9hZHZpY2UtYWNjdXJhY3kudGVzdC5tanMJdGhlIGNvbW1pdCBnYXRlIGlzIHNpbGVudCBhZnRlciBhIHBhc3NpbmcgdGltZW91dC13cmFwcGVkIGNoZWNrCTY3MGEwODYxZDA2YTYzM2FiYWIwMzUzNmZkN2JhYmU2MjMzMjFjOWMwODE3ZDRkOGQxM2RiMTMwZmQwNWY4M2U
+  ```
+  ```
+- 2026-09-16 · 4d26cd3* · exit 0 · `set -o pipefail …` · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · ms:4466
+- 2026-09-16 · 4d26cd3* · exit 0 · `set -o pipefail …` · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · ms:4639
+- 2026-09-16 · 4d26cd3* · exit 0 · `set -o pipefail …` · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · ms:4914
+- 2026-09-16 · 4d26cd3* · exit 0 · `set -o pipefail …` · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · ms:4665
+- 2026-09-16 · 4d26cd3* · exit 0 · `set -o pipefail …` · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · ms:4676
+- 2026-09-16 · 4d26cd3* · exit 0 · `set -o pipefail …` · acceptance-sha256:71b6e173d06a92facab9e408cdd51ade32fe183b263fb63a95db55586f125767 · ms:5369

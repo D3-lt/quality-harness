@@ -909,6 +909,31 @@ function gitPublishTargetsThisProject(command, cwd) {
   return targetsThis
 }
 
+// ADR-058 T4. True only when every commit or push segment names a directory that
+// exists inside a git repository other than this project's. A segment whose
+// directory cannot be followed — `cd "$X"`, a `-C` that does not exist, a
+// directory that is not a repository — is unresolved, and unresolved is never
+// read as another repository (CLAUDE.md §16), so the commit advisory still
+// speaks for it. Stricter than gitPublishTargetsThisProject on purpose: that one
+// may round a missing directory up to its nearest existing parent, which is fine
+// for "did this project publish" and wrong for "may this project stay silent".
+function gitPublishTargetsOnlyOtherRepositories(command, cwd) {
+  if (typeof command !== 'string' || typeof cwd !== 'string') return false
+  const here = nearestExistingDirectory(path.resolve(cwd))
+  const project = here ? gitRepositoryRoot(here) ?? here : null
+  if (!project) return false
+  let publishes = 0
+  for (const { segment, dir } of segmentDirectories(command, cwd)) {
+    if (!['commit', 'push'].includes(gitSubcommand(segment))) continue
+    publishes += 1
+    if (dir === null) return false
+    const target = path.resolve(dir, gitCommandDirectory(segment, dir))
+    const root = isDirectory(target) ? gitRepositoryRoot(target) : null
+    if (!root || sameDirectory(root, project)) return false
+  }
+  return publishes > 0
+}
+
 
 function isGitMutationCommand(command) {
   if (typeof command !== 'string') return false
@@ -4524,6 +4549,9 @@ export async function handleHook(input) {
         + 'and commit as two commands — a separate commit is checked against the repository.', input)
       return
     }
+    // A commit in another repository publishes nothing of this one, so this
+    // session's unverified edits are not what it would publish (ADR-058 T4).
+    if (gitPublishTargetsOnlyOtherRepositories(command, input.cwd)) return
 
     const raw = await readTranscript(input)
     if (!raw) {

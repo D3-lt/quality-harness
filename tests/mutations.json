@@ -7989,9 +7989,29 @@
       "tests": [
         "tests/leftovers-after-adr053.test.mjs"
       ],
-      "from": "const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/",
-      "to": "const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/",
+      "from": "const PUBLISH_WRAPPER = /^(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*/",
+      "to": "const PUBLISH_WRAPPER = /^(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*/",
       "only": "loud joiners still advise"
+    },
+    {
+      "label": "lock: escaped same-quote BDD names stay discoverable",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "    for name, _after in _iter_bdd_calls(text, php=php):",
+      "to": "    for name, _after in ((m.group(1) or m.group(2) or m.group(3), m.end()) for m in _BDD_NAME.finditer(text)):  # [^'\\n]+",
+      "only": "escaped same-quote BDD names are discovered"
+    },
+    {
+      "label": "lifecycle: quoted separators in a git operand still strip",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "function quoteAwarePublishArgsOk(text) {\n  // Replaces quote-blind [^|;\\n]* : unquoted | ; newline stop; quoted do not.\n  let quote = null",
+      "to": "function quoteAwarePublishArgsOk(text) {\n  return /^[^|;\\n]*$/.test(text)\n  // Replaces quote-blind [^|;\\n]*\n  let quote = null",
+      "only": "quoted semicolon and pipe"
     },
     {
       "label": "lock: a shell URL is not a C comment in the digest",

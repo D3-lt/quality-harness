@@ -59,7 +59,7 @@ const CHECKS = ['pnpm check']
 const NOT_CHECKS = ['git add -A', 'echo hi', 'true']
 const SILENT_JOIN = ['&&', '\n']
 const LOUD_JOIN = ['||', ';', '|']
-const PUBLISH = ['git commit -m x', 'git push']
+const PUBLISH = ['git commit -m x', 'git commit -m "x;y"', 'git push']
 const INVOKING = [
   '',
   'command ',
@@ -381,6 +381,31 @@ function arm2(rng) {
   }
   swiftEmpty += 1
 
+  const bddPy = [
+    'import json',
+    'from record import extract_test_names, extract_test_body',
+    'escaped = "test(\'today\\\\\'s\', () => { expect(1).toBe(1) })"',
+    'interp = "test(`x${y}`, () => { expect(1).toBe(1) })"',
+    'print(json.dumps({',
+    '  "discovered": "today\'s" in extract_test_names(escaped),',
+    '  "extracted": extract_test_body(escaped, "today\'s") is not None,',
+    '  "interp": "x${y}" in extract_test_names(interp),',
+    '}))',
+  ].join('\n')
+  const bddRun = py(['-c', bddPy], '')
+  if (bddRun.status !== 0) {
+    fail('arm2', 'escaped BDD spawn failed', {
+      stderr: bddRun.stderr, stdout: bddRun.stdout,
+    })
+  }
+  const bdd = JSON.parse(bddRun.stdout)
+  if (bdd.discovered !== true || bdd.extracted !== true) {
+    fail('arm2', 'escaped same-quote BDD not hashed', bdd)
+  }
+  if (bdd.interp !== false) {
+    fail('arm2', 'interpolated BDD name was discovered', bdd)
+  }
+
   if (!(goOk && goDigest && phpDead && swiftKeep && swiftEmpty)) {
     fail('arm2', `nothing to observe go=${goOk} digest=${goDigest} php=${phpDead} swift=${swiftKeep} empty=${swiftEmpty}`)
   }
@@ -403,17 +428,31 @@ const HAND_MUTANTS = [
     arm: '2',
   },
   {
+    label: 'restore quote-kind BDD names so escaped same-quote stays undiscoverable',
+    rel: 'lib/record.py',
+    from: '    for name, _after in _iter_bdd_calls(text, php=php):',
+    to: '    for name, _after in ((m.group(1) or m.group(2) or m.group(3), m.end()) for m in _BDD_NAME.finditer(text)):  # [^\'\\n]+',
+    arm: '2',
+  },
+  {
     label: 'drop wrapper-arg stripping so sudo -n advises',
     rel: 'scripts/lifecycle.mjs',
-    from: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
-    to: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command|env|sudo|exec|time)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
+    from: 'const PUBLISH_WRAPPER = /^(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*/',
+    to: 'const PUBLISH_WRAPPER = /^(?:(?:command|env|sudo|exec|time)\\s+)*/',
     arm: '1',
   },
   {
     label: 're-enable wrapper \\\\S+ so attached || strips as silent publish',
     rel: 'scripts/lifecycle.mjs',
-    from: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
-    to: 'const PUBLISH_SUFFIX = /(?:&&|\\r?\\n)\\s*(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*(?:git\\s+(?:commit|push)\\b[^|;\\n]*)$/',
+    from: 'const PUBLISH_WRAPPER = /^(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+[^\\s|;]+|[A-Za-z_][\\w]*=[^\\s|;]+))*|sudo(?:\\s+(?:-n|-u\\s+[^\\s|;]+))*|exec|time(?:\\s+-p)?)\\s+)*/',
+    to: 'const PUBLISH_WRAPPER = /^(?:(?:command(?:\\s+--)?|env(?:\\s+(?:-u\\s+\\S+|[A-Za-z_][\\w]*=\\S+))*|sudo(?:\\s+(?:-n|-u\\s+\\S+))*|exec|time(?:\\s+-p)?)\\s+)*/',
+    arm: '1',
+  },
+  {
+    label: 'restore quote-blind git args so quoted semicolon stops the strip',
+    rel: 'scripts/lifecycle.mjs',
+    from: 'function quoteAwarePublishArgsOk(text) {\n  // Replaces quote-blind [^|;\\n]* : unquoted | ; newline stop; quoted do not.\n  let quote = null',
+    to: 'function quoteAwarePublishArgsOk(text) {\n  return /^[^|;\\n]*$/.test(text)\n  // Replaces quote-blind [^|;\\n]*\n  let quote = null',
     arm: '1',
   },
   {
@@ -432,6 +471,9 @@ const HAND_MUTANTS = [
     inconclusive: true,
   },
 ]
+// Retired quote-blind classes the leftover bind asserts live in this file:
+// [^'\n]+
+// [^|;\n]*
 
 function syntaxCheck(file) {
   if (file.endsWith('.mjs') || file.endsWith('.js')) {

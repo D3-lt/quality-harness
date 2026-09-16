@@ -256,3 +256,88 @@ test("a mutant that restores today's holes survives only if the suite is blind",
   const run = runLeftoverStress({ QH_ADR053_STRESS_MUTANTS: '1' })
   assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
 })
+
+test('escaped same-quote BDD names are discovered and extracted', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+payload = json.loads(sys.stdin.read())
+
+def pack(text, php=False):
+    names = extract_test_names(text, php=php)
+    probe = {
+        name: extract_test_body(text, name, php=php) is not None
+        for name in payload["probe"]
+    }
+    return {"names": names, "probe": probe}
+
+print(json.dumps({key: pack(text, php=key == "php") for key, text in payload["src"].items()}))
+`
+  const run = python(py, JSON.stringify({
+    src: {
+      escaped: "test('today\\'s', () => { expect(1).toBe(1) })",
+      control: 'test("today\'s", () => { expect(1).toBe(1) })',
+      doubled: 'test("say \\"hi\\"", () => { expect(1).toBe(1) })',
+      tick: 'test(`plain`, () => { expect(1).toBe(1) })',
+      describe: "describe('x', () => { test('inner', () => { expect(1).toBe(1) }) })",
+      php: "<?php\nit('today\\'s', function () { expect(true); });\n",
+    },
+    probe: ["today's", 'say "hi"', 'plain', 'inner', 'x'],
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.ok(got.escaped.names.includes("today's"), 'escaped same-quote name must be discovered')
+  assert.equal(got.escaped.probe["today's"], true, 'escaped same-quote body must extract')
+  assert.ok(got.control.names.includes("today's"), "opposite-quote today's remains the control")
+  assert.equal(got.control.probe["today's"], true)
+  assert.ok(got.doubled.names.includes('say "hi"'), 'escaped double-quote name must be discovered')
+  assert.equal(got.doubled.probe['say "hi"'], true)
+  assert.ok(got.tick.names.includes('plain'), 'non-interpolated backtick name must be discovered')
+  assert.equal(got.tick.probe.plain, true)
+  assert.ok(got.describe.names.includes('inner'))
+  assert.equal(got.describe.probe.inner, true)
+  assert.equal(got.describe.names.includes('x'), false, 'describe() is not a hashed test name')
+  assert.equal(got.describe.probe.x, false)
+  assert.ok(got.php.names.includes("today's"), 'Pest it() escaped same-quote must be discovered')
+  assert.equal(got.php.probe["today's"], true)
+})
+
+test('interpolated BDD names stay undiscoverable', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+payload = json.loads(sys.stdin.read())
+js_names = extract_test_names(payload["js"])
+php_names = extract_test_names(payload["php"], php=True)
+print(json.dumps({
+    "js_names": js_names,
+    "js_body": extract_test_body(payload["js"], payload["js_name"]) is not None,
+    "php_names": php_names,
+    "php_body": extract_test_body(payload["php"], payload["php_name"], php=True) is not None,
+}))
+`
+  const run = python(py, JSON.stringify({
+    js: 'test(`x${y}`, () => { expect(1).toBe(1) })',
+    js_name: 'x${y}',
+    php: '<?php\nit("hello $name", function () { expect(true); });\n',
+    php_name: 'hello $name',
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.equal(got.js_names.includes('x${y}'), false, 'interpolated template must stay undiscoverable')
+  assert.equal(got.js_body, false)
+  assert.equal(got.php_names.includes('hello $name'), false, 'PHP double-quoted interpolation must stay undiscoverable')
+  assert.equal(got.php_body, false)
+})
+
+test('quoted semicolon and pipe in a git operand still strip', () => {
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
+  assert.equal(publishPrecededByValidation("pnpm check && git commit -m 'x|y'"), true)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "fix && more"'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar git push'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar|| git push'), false)
+  const src = readFileSync(stressPath, 'utf8')
+  assert.ok(src.includes('x;y'), 'stress pool must include a quoted semicolon operand')
+  assert.ok(src.includes("[^'\\n]+") || src.includes("[^|;\\n]*"),
+    'HAND_MUTANT restores the retired quote-blind class')
+})

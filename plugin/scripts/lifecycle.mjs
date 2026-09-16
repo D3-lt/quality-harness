@@ -1683,8 +1683,16 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
     // A segment whose directory cannot be followed resolves nothing: a guessed
     // path is what produced the never-existed file above.
     if (dir === null) continue
+    // `echo` and `printf` change a file only through a redirect; their arguments
+    // are text. `… && echo "review kept at scratchpad/codex-review-f37f57a.md"`
+    // was reported as a changed repository path (ADR-058 T3), so in those
+    // segments only the token right after `>` or `>>` is a candidate.
+    const invocation = commandInvocation(segment)
+    const printsOnly = Boolean(invocation)
+      && /^(?:echo|printf)$/.test(executableName(invocation.words[invocation.index]))
     for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
       let candidate = match[1] ?? match[2] ?? match[3]
+      if (printsOnly && !/>\s*$/.test(segment.slice(0, match.index))) continue
       // A `key=value` token that is not an assignment is an argument, and an
       // argument is not a path this gate can check.
       if (SHELL_ASSIGNMENT.test(candidate)) continue

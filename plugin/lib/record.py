@@ -379,10 +379,12 @@ _MACHINE = re.compile(
     r"^- (?P<date>\d{4}-\d{2}-\d{2}) · (?:[0-9a-f]{4,64}\*?|no-git) · "
     r"exit (?P<exit>\d+) · `"
 )
-# Opposite-quote classes: `[^'"`]` left a name containing `'` undiscoverable.
+# Retired quote-kind classes (`[^'\n]+`). Live walk is `_iter_bdd_calls`.
+# A leftover HAND_MUTANT restores finditer on this regex.
 _BDD_NAME = re.compile(
     r"""(?:\b(?:it|test)\s*\()\s*(?:'([^'\n]+)'|"([^"\n]+)"|`([^`\n]+)`)\s*,"""
 )
+_BDD_CALL_HEAD = re.compile(r"\b(?:it|test)\s*\(")
 # adr-lint `_go_direct_test_definitions` plus go/testing isTest: Test + not-lowercase.
 # `Fuzz` beside `Test`: a fuzz target is ordinary Go testing (`go test` runs its
 # seed corpus) and rewriting its body is the same risk the lock exists for. A
@@ -787,7 +789,7 @@ def extract_test_names(text, python=False, go=False, php=False, rust=False,
             if name not in seen:
                 seen.add(name)
                 names.append(name)
-    for name in _iter_bdd_names(text):
+    for name in _iter_bdd_names(text, php=php):
         if name not in seen:
             seen.add(name)
             names.append(name)
@@ -1167,14 +1169,83 @@ def _span_from_first_brace(text, masked, after):
     return text[brace:end + 1]
 
 
-def _iter_bdd_names(text):
+def _parse_bdd_string(text, start, php=False):
+    """JS/Pest quoted name at `start`. `(decoded, after, interpolated)` or None.
+
+    Same-quote escapes decode; unescaped `${` (backtick) and PHP `"` `$`
+    are interpolated (ADR-005 — skip). Go raw backticks are not this walk.
+    """
+    n = len(text)
+    if start >= n or text[start] not in "'\"`":
+        return None
+    quote = text[start]
+    i = start + 1
+    out = []
+    interpolated = False
+    while i < n:
+        c = text[i]
+        if c == "\n":
+            return None
+        if c == "\\" and i + 1 < n:
+            nxt = text[i + 1]
+            if php and quote == "'":
+                if nxt in ("\\", "'"):
+                    out.append(nxt)
+                    i += 2
+                    continue
+                out.append("\\")
+                i += 1
+                continue
+            if php and quote == '"' and nxt == "$":
+                out.append("$")
+                i += 2
+                continue
+            if quote == "`" and nxt == "$":
+                out.append("$")
+                i += 2
+                continue
+            out.append({"n": "\n", "t": "\t", "r": "\r"}.get(nxt, nxt))
+            i += 2
+            continue
+        if c == quote:
+            return ("".join(out), i + 1, interpolated)
+        if php and quote == '"' and c == "$":
+            interpolated = True
+        if quote == "`" and c == "$" and i + 1 < n and text[i + 1] == "{":
+            interpolated = True
+        out.append(c)
+        i += 1
+    return None
+
+
+def _iter_bdd_calls(text, php=False):
+    """Yield `(decoded_name, after_comma)` for each non-interpolated it()/test()."""
+    for head in _BDD_CALL_HEAD.finditer(text):
+        line = text.rfind("\n", 0, head.start()) + 1
+        if re.match(r"\s*(?://|#)", text[line:head.start()]):
+            continue
+        i = head.end()
+        n = len(text)
+        while i < n and text[i] in " \t":
+            i += 1
+        parsed = _parse_bdd_string(text, i, php=php)
+        if parsed is None:
+            continue
+        name, after, interpolated = parsed
+        if interpolated:
+            continue
+        j = after
+        while j < n and text[j] in " \t":
+            j += 1
+        if j >= n or text[j] != ",":
+            continue
+        yield name, j + 1
+
+
+def _iter_bdd_names(text, php=False):
     """Quoted names passed to bare test()/it(."""
     seen = set()
-    for match in _BDD_NAME.finditer(text):
-        start = text.rfind("\n", 0, match.start()) + 1
-        if re.match(r"\s*(?://|#)", text[start:match.start()]):
-            continue
-        name = match.group(1) or match.group(2) or match.group(3)
+    for name, _after in _iter_bdd_calls(text, php=php):
         if name in seen:
             continue
         seen.add(name)
@@ -1568,15 +1639,11 @@ def extract_test_body(text, name, python=False, go=False, php=False, rust=False,
             if found != name:
                 continue
             return _span_from_paren(text, masked, after_paren)
-    bdd = re.search(
-        r"""(?:\b(?:it|test)\s*\()\s*(['"`])""" + re.escape(name) + r"""\1\s*,""",
-        text)
-    if not bdd:
-        return None
-    start = text.rfind("\n", 0, bdd.start()) + 1
-    if re.match(r"\s*(?://|#)", text[start:bdd.start()]):
-        return None
-    return bdd_callback_body(text, bdd.end(), php=php)
+    for found, after in _iter_bdd_calls(text, php=php):
+        if found != name:
+            continue
+        return bdd_callback_body(text, after, php=php)
+    return None
 
 
 def bdd_callback_body(text, after, php=False):

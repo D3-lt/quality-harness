@@ -1226,7 +1226,7 @@ def _iter_bdd_calls(text, php=False):
             continue
         i = head.end()
         n = len(text)
-        while i < n and text[i] in " \t":
+        while i < n and text[i] in " \t\r\n":
             i += 1
         parsed = _parse_bdd_string(text, i, php=php)
         if parsed is None:
@@ -1234,8 +1234,10 @@ def _iter_bdd_calls(text, php=False):
         name, after, interpolated = parsed
         if interpolated:
             continue
+        if any(ch in name for ch in "\n\t\r"):
+            continue
         j = after
-        while j < n and text[j] in " \t":
+        while j < n and text[j] in " \t\r\n":
             j += 1
         if j >= n or text[j] != ",":
             continue

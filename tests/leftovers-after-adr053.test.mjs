@@ -420,6 +420,8 @@ test('a quoted wrapper assignment does not hide a later loud joiner', () => {
   assert.equal(publishPrecededByValidation('pnpm check --label=issue#42 && git commit -m "x;y"'), true)
   assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" # safe; done'), true)
   assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" # safe || done'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"\\ #42 || git push'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" &&\n  git push'), true)
 })
 
 test('PHP double-quoted unknown escapes keep their backslash', () => {

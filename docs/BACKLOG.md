@@ -12883,3 +12883,44 @@ from the owner: count notifications per finding, print the first in full, stay s
 repeats until the state changes, and report the count once at Stop; a cadence (every Nth prompt)
 fits ambient context such as the branch-state brief but not event-bound gates like the commit
 advisory. It changes every gate's behaviour, so it needs its own record — after ADR-058's replay.
+
+## 218. Shell grammar words make a loop or a conditional an unrecognised family (2026-09-16)
+
+Found by ADR-058 T2's class audit ("a family outside `MEASURED_FAMILIES` whose invocation is a
+read"). Every Bash command of the session that executed ADR-057 and ADR-058 was replayed through
+`classifyCommand` at T2's tree: 169 of 319 came back `unrecognised`. A word splitter written for the
+audit counted `for` in 62 of them, `mrw` in 58, `export` in 51, `aiagentmemory` in 36 and `gtimeout`
+in 19; it also counted heredoc-body words, so those figures locate rather than measure. The
+classifier's own answers, at the same tree:
+
+```
+unrecognised "for t in a b; do grep -c x $t; done"
+unrecognised "export A=1; grep x a"
+unrecognised "if [ -f a ]; then cat a; fi"
+unrecognised "while read l; do echo $l; done < a"
+unrecognised "aiagentmemory mcp am_search q.md"
+unrecognised "gtimeout 900 codex exec -s read-only x </dev/null"
+unrecognised ". ./env.sh; ls"
+```
+
+A command that succeeds while `unrecognised` is an UNPROVEN write (ADR-047), so every read-only loop
+arms the commit and Stop advisories, and the reviewer guard refuses it. `for`, `while`, `if`, `then`,
+`do`, `done`, `fi` and `export` are grammar or builtins whose body commands are the families to
+judge; `.` and `source` run an arbitrary script and are rightly unrecognised; `aiagentmemory` and a
+wrapped `codex exec` are unmeasured. Peeling grammar changes what the guard admits, so it needs its
+own record and its own measurement (§16), after ADR-058's replay.
+
+## 219. The foreign-shell check in `classify-command.mjs` survives its deletion (2026-09-16)
+
+ADR-058 T2 recorded a mutant that deletes `if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks)))
+return 'unrecognised'`; `tests/classify.test.mjs` and `tests/reviewer-guard.test.mjs` stayed green
+(`mutant survived` in T2's Mutation Log). A probe of 14 pwsh, powershell and cmd shapes — bare,
+path-shaped, `.exe`, nested in `bash -c`, behind `env` and `sudo`, after `&&` — classified
+identically with and without the line, because none of the three names is in `MEASURED_FAMILIES`,
+so both later family checks already return `unrecognised`. Today it is an equivalent mutant: a guard
+against a foreign shell ever entering `MEASURED_FAMILIES`. Either pin that intent with a test that
+would fail if one did, or delete the line.
+
+The catalogue already behaves as if it knew: `classify: foreign family is unrecognised before POSIX
+letters (ADR-047 T2)` in `tests/mutations.json` deletes this line together with both family checks,
+and no entry deletes it alone.

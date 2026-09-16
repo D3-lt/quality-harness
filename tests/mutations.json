@@ -8762,8 +8762,8 @@
       "tests": [
         "tests/routing-stress.test.mjs"
       ],
-      "from": "'`|quality-harness:' + escaped(name) + '(?![\\\\w-])')",
-      "to": "'`|quality-harness:' + escaped(name))"
+      "from": "'`|(?<![\\\\w-])quality-harness:' + escaped(name) + '(?![\\\\w-])')",
+      "to": "'`|(?<![\\\\w-])quality-harness:' + escaped(name))"
     },
     {
       "label": "routing stress: frontmatter is not a route",
@@ -8798,7 +8798,7 @@
       "tests": [
         "tests/routing-stress.test.mjs"
       ],
-      "from": "'(?![\\\\w-])|agentType:\\\\s*[\\'\"]quality-harness:' + escaped(name) + '[\\'\"]')",
+      "from": "'(?![\\\\w-])|(?<![\\\\w-])agentType:\\\\s*[\\'\"]quality-harness:' + escaped(name) + '[\\'\"]')",
       "to": "'(?![\\\\w-])')"
     },
     {
@@ -8845,6 +8845,51 @@
       ],
       "from": "by invoking it with the Skill tool, not by reading its file, ",
       "to": ""
+    },
+    {
+      "label": "routing stress: a prefixed qualified name is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'`|(?<![\\\\w-])quality-harness:'",
+      "to": "'`|quality-harness:'"
+    },
+    {
+      "label": "routing stress: a prefixed agentType key is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'(?![\\\\w-])|(?<![\\\\w-])agentType:",
+      "to": "'(?![\\\\w-])|agentType:"
+    },
+    {
+      "label": "routing stress: a role that declares no model is rejected",
+      "file": "tests/routing-stress.test.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "    assert.equal(typeof options.model, 'string', options.label + ' must declare a model in ' + context)\n",
+      "to": ""
+    },
+    {
+      "label": "routing: each branch of a Codex route has its own destination",
+      "file": "plugin/skills/quality-policy/SKILL.md",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "when Codex is installed (`command -v codex`), `/quality-harness:codex-review`; when it is not, `/quality-harness:quality-cycle`.",
+      "to": "when Codex is installed (`command -v codex`), `/quality-harness:quality-cycle`; when it is not, `/quality-harness:codex-review`."
+    },
+    {
+      "label": "routing: the Moderate tier names a whole agent",
+      "file": "plugin/skills/quality-policy/SKILL.md",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "`subagent_type: quality-harness:qh-correctness-reviewer`",
+      "to": "`subagent_type: quality-harness:qh-correctness-reviewer-typo`"
     }
   ]
 }

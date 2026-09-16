@@ -1200,6 +1200,15 @@ def _parse_bdd_string(text, start, php=False):
                 out.append("$")
                 i += 2
                 continue
+            if php and quote == '"':
+                mapped = {"n": "\n", "t": "\t", "r": "\r", "\\": "\\", '"': '"'}
+                if nxt in mapped:
+                    out.append(mapped[nxt])
+                else:
+                    out.append("\\")
+                    out.append(nxt)
+                i += 2
+                continue
             if quote == "`" and nxt == "$":
                 out.append("$")
                 i += 2

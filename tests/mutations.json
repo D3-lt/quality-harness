@@ -8039,8 +8039,8 @@
       "tests": [
         "tests/leftovers-after-adr053.test.mjs"
       ],
-      "from": "    if (character === '#') {\n      inComment = true\n      continue\n    }\n    if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {",
-      "to": "    if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {",
+      "from": "    if (character === '#') {\n      inComment = true\n      continue\n    }\n    if (character === '&' && command[index + 1] === '&') {",
+      "to": "    if (character === '&' && command[index + 1] === '&') {",
       "only": "an apostrophe in a trailing comment"
     },
     {

@@ -22,7 +22,7 @@ README must be regenerated.
 | T1 | A timeout-wrapped check is a check | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/classify.test.mjs tests/unread-advice.test.mjs` |
 | T2 | mrw read is a read | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/classify.test.mjs tests/reviewer-guard.test.mjs` |
 | T3 | Echo and printf arguments are not changed paths | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/lifecycle.test.mjs` |
-| T4 | A commit elsewhere does not arm this repository's advisory | pending | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/unread-advice.test.mjs tests/leftovers-after-adr053.test.mjs` |
+| T4 | A commit elsewhere does not arm this repository's advisory | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/unread-advice.test.mjs tests/leftovers-after-adr053.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

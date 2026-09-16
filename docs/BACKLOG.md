@@ -12943,3 +12943,28 @@ The extractor runs over the whole command once any segment is a mutation, and it
 as changed, and so does `mrw read` beside a write. It is not simply "skip the read-only families":
 `sort -o out.md`, `find … -delete` and `jq … > out.md` do write, and `node`/`python3` are
 interpreters. Scope a fix by the per-family write channels, measured (§16), in its own record.
+
+## 221. A git mutation in another repository marks this project's work unverified (2026-09-16)
+
+Found by ADR-058 T4's class audit ("a gate that reacts to a git command without asking which
+repository it targets"). T4 silenced the PreToolUse commit advisory when the commit being made targets
+only another repository. The session state still counts a foreign git mutation as a change here. Two
+temp repositories A and B; in A, an Edit, then a passing `npm test`, then one git command in B, read
+through `analyzeTranscript(raw, A)` at T4's tree:
+
+```
+mutation verifiedAfterLastMutation=false "git -C <B> commit --allow-empty -m x"
+mutation verifiedAfterLastMutation=true  "git -C <B> checkout -b t"
+mutation verifiedAfterLastMutation=false "git -C <B> reset --hard"
+mutation verifiedAfterLastMutation=false "git -C <B> add ."
+```
+
+So after a verified change, committing in another repository re-opens this project's Stop message and
+its next commit advisory. `writesOutsideProject` does not follow `git -C`, `--git-dir` or
+`--work-tree`, while `gitPublishTargetsThisProject` and T4's `gitPublishTargetsOnlyOtherRepositories`
+do. The call sites that ask about git without a repository, enumerated with `grep -n
+"isGitPublishCommand(\|isGitMutationCommand(" plugin/scripts/*.mjs`: `isPotentialMutationCommand`
+(the finding above), `mutatesOnlyTempPaths` (refuses the temp-root exemption to any git mutation, so a
+commit in a scratch repository under `/private/tmp` is a member too), `publishPrecededByValidation` (reads the same command's
+own prefix, so not a member), the reviewer guard's `bashVerdict` (a read-only role may not commit
+anywhere, so not a member), and the two commit-branch checks T4 edited.

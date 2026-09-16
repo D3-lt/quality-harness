@@ -682,7 +682,12 @@ const PUBLISH_WRAPPER = /^(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+[^\s|;]+|[A-Z
 function hashStartsComment(text, index) {
   if (index <= 0) return true
   const prev = text[index - 1]
-  return prev === ' ' || prev === '\t' || prev === '\n' || prev === '\r'
+  if (prev === ' ' || prev === '\t') {
+    let slashes = 0
+    for (let i = index - 2; i >= 0 && text[i] === '\\'; i -= 1) slashes += 1
+    return slashes % 2 === 0
+  }
+  return prev === '\n' || prev === '\r'
     || prev === '&' || prev === '|' || prev === ';' || prev === '('
 }
 
@@ -832,8 +837,12 @@ export function publishPrecededByValidation(command) {
     if (!join) break
     const suffix = rest.slice(join.at + join.len)
     if (!gitPublishTail(suffix)) break
+    const joiner = rest.slice(join.at, join.at + join.len)
     rest = rest.slice(0, join.at).trim()
     stripped = true
+    if (joiner === '\n' || joiner === '\r\n') {
+      if (rest.endsWith('&&')) rest = rest.slice(0, -2).trim()
+    }
   }
   if (!stripped || !rest) return false
   if (isValidationCommand(rest)) return true

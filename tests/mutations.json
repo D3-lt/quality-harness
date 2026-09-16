@@ -8124,6 +8124,26 @@
       "only": "a quoted wrapper assignment does not hide"
     },
     {
+      "label": "lifecycle: an escaped space does not start a comment",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "    return slashes % 2 === 0",
+      "to": "    return true",
+      "only": "a quoted wrapper assignment does not hide"
+    },
+    {
+      "label": "lifecycle: a newline after && still peels the continued publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "    if (joiner === '\\n' || joiner === '\\r\\n') {\n      if (rest.endsWith('&&')) rest = rest.slice(0, -2).trim()\n    }",
+      "to": "    if (false) {\n      if (rest.endsWith('&&')) rest = rest.slice(0, -2).trim()\n    }",
+      "only": "a quoted wrapper assignment does not hide"
+    },
+    {
       "label": "lock: a shell URL is not a C comment in the digest",
       "file": "plugin/lib/record.py",
       "tests": [

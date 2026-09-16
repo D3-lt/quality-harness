@@ -417,6 +417,9 @@ test('a quoted wrapper assignment does not hide a later loud joiner', () => {
   assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push # "'), false)
   assert.equal(publishPrecededByValidation('pnpm check && git commit -m "unterminated'), false)
   assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
+  assert.equal(publishPrecededByValidation('pnpm check --label=issue#42 && git commit -m "x;y"'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" # safe; done'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" # safe || done'), true)
 })
 
 test('PHP double-quoted unknown escapes keep their backslash', () => {
@@ -463,4 +466,71 @@ print(json.dumps({
   assert.equal(got.plain, true)
   assert.equal(got.names.includes('a\b'), true, 'JS \\\\b is backspace, not the letter b')
   assert.equal(got.backspace, true)
+})
+
+
+test('JS NUL does not collapse onto a shorter name', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+src = json.loads(sys.stdin.read())["src"]
+names = extract_test_names(src)
+print(json.dumps({
+    "names": names,
+    "nul": extract_test_body(src, "a\\0") is not None,
+    "plain": extract_test_body(src, "a0") is not None,
+}))
+`
+  const run = python(py, JSON.stringify({
+    src: 'test("a\\0", () => { expect(1); })\ntest("a0", () => { expect(2); })\n',
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.equal(got.names.includes('a0'), true)
+  assert.equal(got.plain, true)
+  assert.equal(got.names.includes('a\0'), true, 'JS \\0 is NUL, not the digit 0')
+  assert.equal(got.nul, true)
+})
+
+test('PHP double-quoted known control escapes do not collide with single-quoted unknown', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+src = json.loads(sys.stdin.read())["src"]
+names = extract_test_names(src, php=True)
+print(json.dumps({
+    "names": names,
+    "vt": extract_test_body(src, "say \\"hi\\"\\v", php=True) is not None,
+    "lit": extract_test_body(src, "say \\"hi\\"\\\\v", php=True) is not None,
+}))
+`
+  const run = python(py, JSON.stringify({
+    src: '<?php\nit("say \\"hi\\"\\v", function () { assert(1); });\nit(\'say "hi"\\v\', function () { assert(2); });\n',
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.equal(got.names.includes('say "hi"\v'), true)
+  assert.equal(got.names.includes('say "hi"\\v'), true)
+  assert.equal(got.vt, true)
+  assert.equal(got.lit, true)
+})
+
+test('JS line continuation does not leave an escaped name UNPROVEN', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+src = json.loads(sys.stdin.read())["src"]
+names = extract_test_names(src)
+print(json.dumps({
+    "names": names,
+    "body": extract_test_body(src, "hithere") is not None,
+}))
+`
+  const run = python(py, JSON.stringify({
+    src: 'test("hi\\\nthere", () => { expect(1); })\n',
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.equal(got.names.includes('hithere'), true)
+  assert.equal(got.body, true)
 })

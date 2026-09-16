@@ -415,6 +415,7 @@ test('a quoted wrapper assignment does not hide a later loud joiner', () => {
   assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push'), false)
   assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"|| git push # "'), false)
   assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push # "'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "unterminated'), false)
   assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
 })
 

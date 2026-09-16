@@ -72,7 +72,7 @@ const CODEX_INSTALLED = new RegExp('Codex is installed')
 const NO_CODEX_ROUTE = new RegExp('quality-cycle|consensus|/quality-harness:review(?![\\w-])')
 const CODEX_FALSE = new RegExp('codex:\\s*false')
 const LOADS_POLICY = new RegExp('\\bload\\s+.quality-harness:quality-policy', 'i')
-const MODERATE_AGENT = new RegExp('(?<!/)quality-harness:qh-correctness-reviewer')
+const MODERATE_AGENT = new RegExp('(?<![\\w/-])quality-harness:qh-correctness-reviewer(?![\\w-])')
 const RISK_BULLET_PROBE = '- Moderate coupling or regression surface: use one fresh-context reviewer.'
 const UNCONDITIONED_CODEX_PROBE = 'High-risk boundary: use /quality-harness:quality-cycle or /quality-harness:codex-review.'
 
@@ -213,4 +213,60 @@ test('work tells the coordinator to invoke quality-policy with the Skill tool', 
   const load = units(section(body(skillText('work')), '## 2.')).find(unit => LOADS_POLICY.test(unit))
   assert.ok(load, 'work section 2 must keep its load instruction')
   assert.ok(SKILL_TOOL.test(load), 'the load instruction must say to invoke quality-policy with the Skill tool, not read its file')
+})
+
+// Codex review of ADR-057, 2026-09-16. conditionsCodex only checked that a unit
+// mentioned a condition, a Codex route and a fallback, so swapping the two branches of
+// the High row still passed. These bind each branch to its own destination, and the
+// Moderate row to a whole agent name rather than any name it is a prefix of.
+const WHEN_NOT = new RegExp('when it is not', 'i')
+const SUBAGENT_TYPE = new RegExp('subagent_type:\\s*quality-harness:([A-Za-z0-9_-]+)')
+const HIGH_ROW_BRANCHES_SWAPPED_PROBE = '| High | auth | Caller-observed checks; when Codex is installed (`command -v codex`), '
+  + '`/quality-harness:quality-cycle`; when it is not, `/quality-harness:codex-review`. |'
+const MODERATE_TYPO_PROBE = '| Moderate | coupled | one fresh-context reviewer, spawned as '
+  + '`subagent_type: quality-harness:qh-correctness-reviewer-typo`. |'
+
+/** A Codex-conditioned unit split at its condition into the installed branch and the fallback branch. */
+function codexBranches(unit) {
+  const installed = unit.search(CODEX_INSTALLED)
+  const fallback = unit.search(WHEN_NOT)
+  if (installed === -1 || fallback === -1 || fallback < installed) return null
+  return { installed: unit.slice(installed, fallback), fallback: unit.slice(fallback) }
+}
+
+function routesEachBranch(unit, whenInstalled, whenNot) {
+  const branches = codexBranches(unit)
+  return Boolean(branches)
+    && branches.installed.includes(whenInstalled) && !branches.installed.includes(whenNot)
+    && branches.fallback.includes(whenNot) && !branches.fallback.includes(whenInstalled)
+}
+
+test('each branch of a Codex route sends the change to its own destination', () => {
+  const rows = units(skillText('quality-policy'))
+  const high = rows.find(unit => unit.startsWith('| High')) ?? ''
+  assert.ok(routesEachBranch(high, '/quality-harness:codex-review', '/quality-harness:quality-cycle'),
+    'High: codex-review only when Codex is installed, quality-cycle only when it is not')
+
+  const open = codexBranches(rows.find(unit => unit.startsWith('| Open decision')) ?? '')
+  assert.ok(open && open.installed.includes('/quality-harness:codex-advise') && !open.fallback.includes('codex-advise')
+    && open.fallback.includes('/quality-harness:consensus'), 'Open decision: codex-advise only when Codex is installed, consensus when it is not')
+
+  const classF = units(skillText('work')).find(unit => unit.startsWith('| F —')) ?? ''
+  const cut = classF.search(CODEX_INSTALLED)
+  assert.ok(cut !== -1 && classF.slice(0, cut).includes('/quality-harness:review') && !classF.slice(0, cut).includes('codex-review')
+    && classF.slice(cut).includes('/quality-harness:codex-review'), 'class F: review always, codex-review only once Codex is installed')
+
+  assert.equal(routesEachBranch(HIGH_ROW_BRANCHES_SWAPPED_PROBE, '/quality-harness:codex-review', '/quality-harness:quality-cycle'), false,
+    'a High row with its branches swapped must be reported')
+})
+
+test('the Moderate tier names a whole shipped agent, not a prefix of one', () => {
+  const moderate = units(skillText('quality-policy')).find(unit => unit.startsWith('| Moderate')) ?? ''
+  const named = SUBAGENT_TYPE.exec(moderate)
+  assert.ok(named, 'the Moderate row must name a subagent_type')
+  assert.equal(named[1], 'qh-correctness-reviewer')
+  assert.equal(listed('plugin/agents/' + named[1] + '.md').length, 1, 'the named agent must be a tracked definition')
+  assert.equal(MODERATE_AGENT.test(MODERATE_TYPO_PROBE), false, 'a longer name must not satisfy the Moderate check')
+  assert.equal(listed('plugin/agents/' + SUBAGENT_TYPE.exec(MODERATE_TYPO_PROBE)[1] + '.md').length, 0,
+    'a name that only starts like a definition must not resolve to one')
 })

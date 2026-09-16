@@ -682,13 +682,14 @@ const PUBLISH_WRAPPER = /^(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+[^\s|;]+|[A-Z
 function hashStartsComment(text, index) {
   if (index <= 0) return true
   const prev = text[index - 1]
-  if (prev === ' ' || prev === '\t') {
+  if (prev === ' ' || prev === '\t'
+      || prev === '&' || prev === '|' || prev === ';' || prev === '('
+      || prev === ')' || prev === '<' || prev === '>') {
     let slashes = 0
     for (let i = index - 2; i >= 0 && text[i] === '\\'; i -= 1) slashes += 1
     return slashes % 2 === 0
   }
   return prev === '\n' || prev === '\r'
-    || prev === '&' || prev === '|' || prev === ';' || prev === '('
 }
 
 

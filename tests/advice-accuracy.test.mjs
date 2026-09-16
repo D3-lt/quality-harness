@@ -113,3 +113,40 @@ test('the commit gate is silent after a passing timeout-wrapped check', async ()
   ]))
   assert.match(commitAdvice(failed, dir, 'failed').stderr, UNCHECKED_COMMIT)
 })
+
+// ---- T2: mrw read is a read.
+const MRW_READS = ['mrw read a.md:1-5', 'mrw --root /tmp/x read a.md', 'mrw -C /tmp/x read a.md', 'mrw --root=/tmp/x read a.md', 'mrw read "tests/a.json:10-20"; echo "mrw exit=$?"']
+const MRW_NOT_READS = ["mrw write - <<'PLAN'\n@@ a.md 1 replace\nx\nPLAN", 'mrw --root read write a.md', 'mrw read a.md; rm b.md', 'mrw read a.md > out.txt', 'mrw stats']
+
+test('mrw read is a read, not an unproven write', async () => {
+  for (const command of MRW_READS) {
+    assert.equal(classifyCommand(command), 'neither', command)
+  }
+  const dir = await checkedProject('t2-')
+  const edited = path.join(dir, 'a.js')
+  await writeFile(edited, 'export {}\n')
+  const file = path.join(dir, 'read.jsonl')
+  await writeFile(file, transcript([
+    toolUse('e1', 'Edit', { file_path: edited }), toolResult('e1'),
+    toolUse('c1', 'Bash', { command: 'npm test' }), toolResult('c1', false, PASSING_RUN),
+    toolUse('r1', 'Bash', { command: MRW_READS[0] }), toolResult('r1', false, '1| export {}'),
+  ]))
+  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
+  assert.equal(state.unprovenWritePending(), false, 'an mrw read after a passing check leaves nothing pending')
+  assert.equal(state.verifiedAfterLastMutation, true)
+})
+
+test('mrw write is still judged as a write', async () => {
+  for (const command of MRW_NOT_READS) {
+    assert.notEqual(classifyCommand(command), 'neither', command)
+  }
+  assert.equal(classifyCommand('mrw read a.md; rm b.md'), 'mutation')
+  const dir = await checkedProject('t2w-')
+  const file = path.join(dir, 'write.jsonl')
+  await writeFile(file, transcript([
+    toolUse('c1', 'Bash', { command: 'npm test' }), toolResult('c1', false, PASSING_RUN),
+    toolUse('w1', 'Bash', { command: MRW_NOT_READS[0] }), toolResult('w1', false, 'applied'),
+  ]))
+  assert.equal(analyzeTranscript(await readFile(file, 'utf8'), dir).unprovenWritePending(), true,
+    'an mrw write after the check is still an unproven write')
+})

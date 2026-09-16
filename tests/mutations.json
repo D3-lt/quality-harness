@@ -7427,7 +7427,7 @@
       "tests": [
         "tests/classify.test.mjs"
       ],
-      "from": "    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'",
+      "from": "    if (family && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'",
       "to": "    if (false) return 'unrecognised'",
       "only": "a path-shaped unmeasured family is unrecognised"
     },
@@ -7447,7 +7447,7 @@
       "tests": [
         "tests/classify.test.mjs"
       ],
-      "from": "    if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'\n  }\n\n  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'",
+      "from": "    if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'\n  }\n\n  // A family outside MEASURED_FAMILIES may still carry one measured read-only\n  // subcommand (`mrw read`, ADR-058 T2). Both family checks below ask the hook,\n  // which admits that invocation only; its redirects and sibling segments are\n  // still judged by the mutation check at the end.\n  //\n  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (family && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'",
       "to": "    if (false) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (false) return 'unrecognised'",
       "only": "POSIX rm as the executable stays mutation|pwsh or cmd with POSIX letters in the payload is unrecognised, not mutation"
     },
@@ -7458,7 +7458,7 @@
         "tests/classify.test.mjs",
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)) return 'unrecognised'\n  }\n\n",
+      "from": "  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'\n  }\n\n",
       "to": "\n",
       "only": "a never-measured bare \\*selftest\\* or \\*check\\* is unrecognised|a passing never-measured \\*selftest\\* after an UNPROVEN write"
     },

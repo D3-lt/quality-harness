@@ -68,6 +68,11 @@ export function classifyCommand(command, hooks, depth = 0) {
     if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'
   }
 
+  // A family outside MEASURED_FAMILIES may still carry one measured read-only
+  // subcommand (`mrw read`, ADR-058 T2). Both family checks below ask the hook,
+  // which admits that invocation only; its redirects and sibling segments are
+  // still judged by the mutation check at the end.
+  //
   // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing
   // selftest/check, which certified an unpublished name. A path-shaped executable
   // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.
@@ -77,7 +82,8 @@ export function classifyCommand(command, hooks, depth = 0) {
     if (!invocation) continue
     const word = invocation.words[invocation.index] ?? ''
     const family = familyOf(segment, hooks)
-    if (family && !/[/\\]/.test(word) && !MEASURED_FAMILIES.has(family)) return 'unrecognised'
+    if (family && !/[/\\]/.test(word) && !MEASURED_FAMILIES.has(family)
+      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'
   }
 
   if (hooks.isValidationCommand(command)) return 'validation'
@@ -85,7 +91,8 @@ export function classifyCommand(command, hooks, depth = 0) {
   for (const segment of segments) {
     if (hooks.nestedShellScript(segment)) continue
     const family = familyOf(segment, hooks)
-    if (family && !MEASURED_FAMILIES.has(family)) return 'unrecognised'
+    if (family && !MEASURED_FAMILIES.has(family)
+      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'
   }
 
   if (hooks.isPotentialMutationCommand(command)) return 'mutation'

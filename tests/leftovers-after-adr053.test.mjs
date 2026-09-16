@@ -357,8 +357,8 @@ print(json.dumps({
 `
   const run = python(py, [
     "test('anchor', () => { expect(1).toBe(1) })",
-    "test('a\\\\nb', () => { expect(2).toBe(2) })",
-    "test('a\\\\tb', () => { expect(3).toBe(3) })",
+    "test('a\\nb', () => { expect(2).toBe(2) })",
+    "test('a\\tb', () => { expect(3).toBe(3) })",
   ].join('\n'))
   assert.equal(run.status, 0, run.stderr || run.stdout)
   const got = JSON.parse(run.stdout)

@@ -8,12 +8,13 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
-import { mkdtemp, readFile, writeFile } from 'node:fs/promises'
+import { mkdir, mkdtemp, readFile, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import {
+  bashMarkdownMutationPaths,
   analyzeTranscript,
   classifyCommand,
   isValidationCommand,
@@ -149,4 +150,40 @@ test('mrw write is still judged as a write', async () => {
   ]))
   assert.equal(analyzeTranscript(await readFile(file, 'utf8'), dir).unprovenWritePending(), true,
     'an mrw write after the check is still an unproven write')
+})
+
+// ---- T3: echo and printf arguments are not changed paths.
+// The first command is the one measured on 2026-09-16, verbatim.
+const PRINTED_PATHS = [
+  'cp "$RUN/review.md" "$SC/codex-review-f37f57a.md" && rm -rf -- "$RUN" && echo "run dir removed, review kept at scratchpad/codex-review-f37f57a.md"',
+  "printf '%s\\n' notes.md",
+  'echo docs/new.md',
+  'echo "a > docs/new.md"',
+]
+const REDIRECTED_PATHS = [['echo x > docs/new.md', 'docs/new.md'], ['printf y >> README.md', 'README.md'], ['echo x >docs/new.md', 'docs/new.md']]
+
+async function markdownProject(prefix) {
+  const dir = await checkedProject(prefix)
+  await mkdir(path.join(dir, 'docs'))
+  await mkdir(path.join(dir, 'scratchpad'))
+  for (const file of ['notes.md', 'README.md', 'docs/new.md', 'scratchpad/codex-review-f37f57a.md']) {
+    await writeFile(path.join(dir, file), 'x\n')
+  }
+  return dir
+}
+
+test('echo and printf arguments are not changed paths', async () => {
+  const dir = await markdownProject('t3-')
+  for (const command of PRINTED_PATHS) {
+    assert.deepEqual(bashMarkdownMutationPaths(command, dir), [], command)
+  }
+  assert.equal(classifyCommand(PRINTED_PATHS[0]), 'mutation', 'the measured command is still a mutation')
+})
+
+test('an echo redirect target is still a changed path', async () => {
+  const dir = await markdownProject('t3r-')
+  for (const [command, target] of REDIRECTED_PATHS) {
+    assert.deepEqual(bashMarkdownMutationPaths(command, dir), [path.join(dir, target)], command)
+  }
+  assert.deepEqual(bashMarkdownMutationPaths('cp a.txt docs/new.md', dir), [path.join(dir, 'docs/new.md')])
 })

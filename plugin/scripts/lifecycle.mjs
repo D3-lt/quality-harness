@@ -679,14 +679,23 @@ export function isGitPublishCommand(command) {
 // the attached loud joiner (Codex P1, 2026-09-15).
 const PUBLISH_WRAPPER = /^(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+[^\s|;]+|[A-Za-z_][\w]*=[^\s|;]+))*|sudo(?:\s+(?:-n|-u\s+[^\s|;]+))*|exec|time(?:\s+-p)?)\s+)*/
 
+function hashStartsComment(text, index) {
+  if (index <= 0) return true
+  const prev = text[index - 1]
+  return prev === ' ' || prev === '\t' || prev === '\n' || prev === '\r'
+    || prev === '&' || prev === '|' || prev === ';' || prev === '('
+}
+
+
 function quoteAwarePublishArgsOk(text) {
   // Replaces quote-blind [^|;\n]* : unquoted | ; newline stop; quoted do not.
   let quote = null
   let escaped = false
   let inComment = false
-  for (const character of text) {
+  for (let index = 0; index < text.length; index += 1) {
+    const character = text[index]
     if (inComment) {
-      if (character === '|' || character === ';' || character === '\n' || character === '\r') {
+      if (character === '\n' || character === '\r') {
         return false
       }
       continue
@@ -707,7 +716,7 @@ function quoteAwarePublishArgsOk(text) {
       quote = character
       continue
     }
-    if (character === '#') {
+    if (character === '#' && hashStartsComment(text, index)) {
       inComment = true
       continue
     }
@@ -789,7 +798,7 @@ function lastSilentPublishJoiner(command) {
       quote = character
       continue
     }
-    if (character === '#') {
+    if (character === '#' && hashStartsComment(command, index)) {
       inComment = true
       continue
     }

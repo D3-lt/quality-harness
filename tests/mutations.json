@@ -8074,6 +8074,56 @@
       "only": "JS control escapes do not collapse"
     },
     {
+      "label": "lock: PHP double-quoted known control escapes do not collide with single-quoted unknown",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "                mapped = {\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"v\": \"\\v\", \"f\": \"\\f\", \"e\": \"\\x1b\", \"\\\\\": \"\\\\\", '\"': '\"'}",
+      "to": "                mapped = {\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"\\\\\": \"\\\\\", '\"': '\"'}",
+      "only": "PHP double-quoted known control escapes do not collide"
+    },
+    {
+      "label": "lock: JS NUL does not collapse onto a shorter name",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if nxt == \"0\" and (i + 2 >= n or text[i + 2] not in \"0123456789\"):",
+      "to": "            if False:",
+      "only": "JS NUL does not collapse"
+    },
+    {
+      "label": "lock: JS line continuation does not leave an escaped name UNPROVEN",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if nxt in \"\\n\\r\":",
+      "to": "            if False:",
+      "only": "JS line continuation does not leave"
+    },
+    {
+      "label": "lifecycle: a hash inside a word is not a comment opener",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "    if (character === '#' && hashStartsComment(command, index)) {",
+      "to": "    if (character === '#') {",
+      "only": "a quoted wrapper assignment does not hide"
+    },
+    {
+      "label": "lifecycle: operators inside a trailing comment are not joiners",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "    if (inComment) {\n      if (character === '\\n' || character === '\\r') {\n        return false\n      }",
+      "to": "    if (inComment) {\n      if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {\n        return false\n      }",
+      "only": "a quoted wrapper assignment does not hide"
+    },
+    {
       "label": "lock: a shell URL is not a C comment in the digest",
       "file": "plugin/lib/record.py",
       "tests": [

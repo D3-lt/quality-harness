@@ -8755,6 +8755,87 @@
       "from": "    if relock and human is not None:\n        fail(\"--relock cannot be combined with --human\")\n",
       "to": "    if False:\n        fail(\"--relock cannot be combined with --human\")\n",
       "only": "cannot combine with --sweep"
+    },
+    {
+      "label": "routing stress: the name boundary keeps review out of review-ring",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'`|quality-harness:' + escaped(name) + '(?![\\\\w-])')",
+      "to": "'`|quality-harness:' + escaped(name))"
+    },
+    {
+      "label": "routing stress: frontmatter is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "return text.replace(/^---\\r?\\n[\\s\\S]*?\\r?\\n---(?:\\r?\\n|$)/, '')",
+      "to": "return text"
+    },
+    {
+      "label": "routing stress: a CRLF frontmatter is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "/^---\\r?\\n[\\s\\S]*?\\r?\\n---(?:\\r?\\n|$)/",
+      "to": "/^---\\n[\\s\\S]*?\\n---(?:\\n|$)/"
+    },
+    {
+      "label": "routing stress: a member does not route itself",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "[...routers].some(([file, text]) => file !== path && routerPattern(name)",
+      "to": "[...routers].some(([file, text]) => routerPattern(name)"
+    },
+    {
+      "label": "routing stress: a quoted agentType is a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "'(?![\\\\w-])|agentType:\\\\s*[\\'\"]quality-harness:' + escaped(name) + '[\\'\"]')",
+      "to": "'(?![\\\\w-])')"
+    },
+    {
+      "label": "routing stress: a bare quality-harness name in a workflow is not a route",
+      "file": "tests/routing-routes.mjs",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "new RegExp('/quality-harness:'",
+      "to": "new RegExp('/?quality-harness:'"
+    },
+    {
+      "label": "routing stress: quality-cycle synthesis runs as qh-synthesis",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "model: 'opus', agentType: 'quality-harness:qh-synthesis'",
+      "to": "model: 'opus'"
+    },
+    {
+      "label": "routing stress: quality-cycle Codex role stays inline",
+      "file": "plugin/workflows/quality-cycle.js",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "{ label: 'codex-external', phase: 'Review', schema: REVIEW, model: 'sonnet' }",
+      "to": "{ label: 'codex-external', phase: 'Review', schema: REVIEW, model: 'sonnet', agentType: 'quality-harness:qh-correctness-reviewer' }"
+    },
+    {
+      "label": "routing stress: review-ring fixer runs as qh-narrow-fixer",
+      "file": "plugin/workflows/review-ring.js",
+      "tests": [
+        "tests/routing-stress.test.mjs"
+      ],
+      "from": "agentType: 'quality-harness:qh-narrow-fixer'",
+      "to": "agentType: 'quality-harness:qh-correctness-reviewer'"
     }
   ]
 }

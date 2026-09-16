@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { readFile } from 'node:fs/promises'
 import { readFileSync, readdirSync } from 'node:fs'
 import { join } from 'node:path'
@@ -238,4 +239,76 @@ test('declaring a capability does not cost a role its schema', () => {
   }
   // Shown able to fail, or it passes for a file that binds nothing at all.
   assert.doesNotMatch('{ label: "x", model: \'sonnet\' }', /schema:\s*FIXED\b/)
+})
+
+// ADR-057 T3. The workflows restated the qh-* roles in prose, so nothing spawned
+// the shipped definitions and three of them had never run. A role whose prompt
+// invokes a skill stays inline: no definition grants the Skill tool.
+// Patterns and fixtures live here, not in the test bodies, because the test-lock
+// hasher masks strings but not regex literals (ADR-050).
+const AGENT_TYPE = new RegExp('agentType:\\s*.quality-harness:([a-z-]+).', 'g')
+const UNKNOWN_AGENT_PROBE = "agent('x', { agentType: 'quality-harness:qh-nobody' })"
+
+function agentTypesIn(text) {
+  return [...text.matchAll(AGENT_TYPE)].map(match => match[1])
+}
+
+/** Agent definition stems git tracks, never the disk (CLAUDE.md §8). */
+function trackedAgentStems() {
+  const repoRoot = path.resolve(testDir, '..')
+  const run = spawnSync('git', ['-C', repoRoot, 'ls-files', '--', 'plugin/agents/*.md'],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(run.status, 0, 'git must list the shipped agent definitions')
+  return run.stdout.split('\n').filter(Boolean).map(file => path.basename(file, '.md'))
+}
+
+/** An agent() stub that records each call's options and answers from `replyFor`. */
+function recordingAgent(replyFor) {
+  const calls = []
+  const agent = async (prompt, options) => {
+    calls.push(options)
+    return replyFor(options)
+  }
+  return { calls, agent }
+}
+
+test('quality-cycle runs its reviewers and synthesis as the shipped agents', async () => {
+  const { calls, agent } = recordingAgent(() => ({ status: 'clean', findings: [] }))
+  const result = await runWorkflow(qualityCycle, {
+    repo: '/repo', scope: 'uncommitted', evidence: passingEvidence, codex: true,
+  }, agent)
+  assert.equal(result.status, 'clean')
+
+  const byLabel = new Map(calls.map(options => [options.label, options]))
+  assert.equal(byLabel.get('correctness').agentType, 'quality-harness:qh-correctness-reviewer')
+  assert.equal(byLabel.get('scope-simplicity').agentType, 'quality-harness:qh-scope-reviewer')
+  assert.equal(byLabel.get('synthesis').agentType, 'quality-harness:qh-synthesis')
+  // The Codex role invokes a skill, so it cannot run as a definition without the Skill tool.
+  assert.equal(byLabel.get('codex-external').agentType, undefined)
+  for (const options of calls) assert.ok(options.model, options.label + ' must keep its declared capability (ADR-029)')
+})
+
+test('review-ring runs its fixer as the shipped agent and keeps its reviewer inline', async () => {
+  const replies = [
+    { verdict: 'blocking', findings: [blocker], evidence: 'src/a.js:10' },
+    { files_changed: ['src/a.js'], test_result: 'npm test, exit 0', notes: 'added validation' },
+  ]
+  const { calls, agent } = recordingAgent(() => replies.shift())
+  const result = await runWorkflow(path.join(workflowDir, 'review-ring.js'), {
+    repo: '/repo', evidence: passingEvidence,
+  }, agent)
+  assert.equal(result.status, 'revalidation-required')
+  // The reviewer invokes /quality-harness:review, so it stays inline.
+  assert.deepEqual(calls.map(options => [options.label, options.agentType]),
+    [['review:fresh', undefined], ['fix:once', 'quality-harness:qh-narrow-fixer']])
+})
+
+test('every agentType a workflow names is a shipped agent definition', () => {
+  const stems = trackedAgentStems()
+  assert.ok(stems.length >= 4, 'git must list the shipped agent definitions')
+  const named = shippedWorkflowSources().flatMap(({ text }) => agentTypesIn(text))
+  assert.ok(named.length >= 4, 'the sweep must find the workflow agentType options')
+  assert.deepEqual(named.filter(stem => !stems.includes(stem)), [])
+  // Shown able to report a name no definition carries, or it passes for any text.
+  assert.deepEqual(agentTypesIn(UNKNOWN_AGENT_PROBE).filter(stem => !stems.includes(stem)), ['qh-nobody'])
 })

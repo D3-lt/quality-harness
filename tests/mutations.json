@@ -4255,8 +4255,8 @@
       "tests": [
         "tests/workflows.test.mjs"
       ],
-      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet' })",
-      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED })"
+      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet', agentType: 'quality-harness:qh-narrow-fixer' })",
+      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, agentType: 'quality-harness:qh-narrow-fixer' })"
     },
     {
       "label": "role: a pinned model id is refused where an alias is required",
@@ -4264,8 +4264,8 @@
       "tests": [
         "tests/workflows.test.mjs"
       ],
-      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet' })",
-      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'claude-sonnet-5' })"
+      "from": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet', agentType: 'quality-harness:qh-narrow-fixer' })",
+      "to": "  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'claude-sonnet-5', agentType: 'quality-harness:qh-narrow-fixer' })"
     },
     {
       "label": "role: a spawn with nothing declared is told nothing",

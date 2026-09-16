@@ -77,7 +77,7 @@ strands the run before any stage produces evidence.
 
 ## 2. Route quality by risk
 
-Load `quality-harness:quality-policy` and route by its risk table. It is the only copy: the tiers,
+Load `quality-harness:quality-policy` by invoking it with the Skill tool, not by reading its file, and route by its risk table. It is the only copy: the tiers,
 the reviewer each tier spawns, and the condition that picks a Codex route are read there, never
 restated here, so they cannot drift apart.
 

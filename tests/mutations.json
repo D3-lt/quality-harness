@@ -8836,6 +8836,15 @@
       ],
       "from": "agentType: 'quality-harness:qh-narrow-fixer'",
       "to": "agentType: 'quality-harness:qh-correctness-reviewer'"
+    },
+    {
+      "label": "routing: work names the Skill tool for loading quality-policy",
+      "file": "plugin/skills/work/SKILL.md",
+      "tests": [
+        "tests/routing.test.mjs"
+      ],
+      "from": "by invoking it with the Skill tool, not by reading its file, ",
+      "to": ""
     }
   ]
 }

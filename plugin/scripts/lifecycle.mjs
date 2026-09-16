@@ -670,19 +670,106 @@ export function isGitPublishCommand(command) {
 }
 // Bound to the matched git invocation. `[\s\S]*$` ate a later `|| git push`
 // / `; git push` as if they were still the `&&` suffix (Codex P1, 2026-09-14).
-// Quote-blind: `git commit -m "x;y"` stops at `;`.
+// Quote-aware peel: last unquoted `&&` or newline, then wrappers, then git
+// commit/push whose args may contain quoted `|` / `;`. Unquoted `|` / `;` /
+// `||` still refuse the tail (ADR-054 F-3 / ADR-056).
 // Wrapper flags/assignments that still invoke git (`sudo -n`, `env FOO=bar`,
 // `command --`, `time -p`). `command -v` is not an invocation.
 // Operand class is `[^\s|;]+`, not `\S+`: `FOO=bar||` / `-u ci||` swallowed
 // the attached loud joiner (Codex P1, 2026-09-15).
-const PUBLISH_SUFFIX = /(?:&&|\r?\n)\s*(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+[^\s|;]+|[A-Za-z_][\w]*=[^\s|;]+))*|sudo(?:\s+(?:-n|-u\s+[^\s|;]+))*|exec|time(?:\s+-p)?)\s+)*(?:git\s+(?:commit|push)\b[^|;\n]*)$/
+const PUBLISH_WRAPPER = /^(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+[^\s|;]+|[A-Za-z_][\w]*=[^\s|;]+))*|sudo(?:\s+(?:-n|-u\s+[^\s|;]+))*|exec|time(?:\s+-p)?)\s+)*/
+
+function quoteAwarePublishArgsOk(text) {
+  // Replaces quote-blind [^|;\n]* : unquoted | ; newline stop; quoted do not.
+  let quote = null
+  let escaped = false
+  for (const character of text) {
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (character === '\\' && quote !== "'") {
+      escaped = true
+      continue
+    }
+    if (quote) {
+      if (character === quote) quote = null
+      continue
+    }
+    if (character === "'" || character === '"') {
+      quote = character
+      continue
+    }
+    if (character === '|' || character === ';' || character === '\n' || character === '\r') {
+      return false
+    }
+  }
+  return true
+}
+
+function gitPublishTail(text) {
+  const trimmed = text.trimStart()
+  const wrap = trimmed.match(PUBLISH_WRAPPER)
+  const after = wrap ? trimmed.slice(wrap[0].length) : trimmed
+  const git = after.match(/^git\s+(?:commit|push)\b/)
+  if (!git) return false
+  return quoteAwarePublishArgsOk(after.slice(git[0].length))
+}
+
+function lastSilentPublishJoiner(command) {
+  let quote = null
+  let escaped = false
+  let last = -1
+  let lastLen = 0
+  for (let index = 0; index < command.length; index += 1) {
+    const character = command[index]
+    if (escaped) {
+      escaped = false
+      continue
+    }
+    if (character === '\\' && quote !== "'") {
+      escaped = true
+      continue
+    }
+    if (quote) {
+      if (character === quote) quote = null
+      continue
+    }
+    if (character === "'" || character === '"') {
+      quote = character
+      continue
+    }
+    if (character === '&' && command[index + 1] === '&') {
+      last = index
+      lastLen = 2
+      index += 1
+      continue
+    }
+    if (character === '\n') {
+      last = index
+      lastLen = 1
+      continue
+    }
+    if (character === '\r' && command[index + 1] === '\n') {
+      last = index
+      lastLen = 2
+      index += 1
+    }
+  }
+  if (last < 0) return null
+  return { at: last, len: lastLen }
+}
 
 export function publishPrecededByValidation(command) {
   if (typeof command !== 'string' || !isGitPublishCommand(command)) return false
   let rest = command.trim()
   let stripped = false
-  while (PUBLISH_SUFFIX.test(rest)) {
-    rest = rest.replace(PUBLISH_SUFFIX, '').trim()
+  for (;;) {
+    const join = lastSilentPublishJoiner(rest)
+    if (!join) break
+    const suffix = rest.slice(join.at + join.len)
+    if (!gitPublishTail(suffix)) break
+    rest = rest.slice(0, join.at).trim()
     stripped = true
   }
   if (!stripped || !rest) return false

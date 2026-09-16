@@ -12747,3 +12747,21 @@ in `plugin/scripts/lifecycle.mjs` on this change. Named leftovers:
   `command --`, `time -p` still advise (`publishPrecededByValidation` false). Expanding
   the regex without a task is a widening.
 
+## 209. ADR-054 T1–T4 `--replace-hashes` is accepted recovery, not a retake (2026-09-16)
+
+v2.99.5 named four leftovers. Two are product (escaped same-quote BDD names;
+quote-aware `PUBLISH_SUFFIX`) and are Spec A / Spec B. The other two are not
+product holes:
+
+- **T1–T4 `test-lock-kind:replace`.** ADR-054 F-5 and ADR-052 already say
+  `--relock --replace-hashes` is weaker than first-red and is not an Acceptance
+  run. The leftover bind file moved while the first-red maps were recorded, so
+  recovery used replace. That is accepted. Do not retake first-red on
+  ADR-054 T1–T4. Ordinary `adr-verify` still never re-hashes (ADR-050 F-1).
+- **`TEST_HASH_REQUIRED_FROM`.** Stays `2026-09-13` in `plugin/lib/record.py`.
+  Hasher-visible names after Spec A use `--relock`, never a cutover bump.
+
+Do not rewrite ADR-054 Decision text. Do not edit locked `tests/test-lock.test.mjs`
+or `tests/swift-expect.test.mjs` bodies. BACKLOG §206 (never-hashable Tests rows)
+is a different class and stays.
+

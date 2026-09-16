@@ -582,8 +582,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "pattern.test(segment.replace(ASSIGNMENT_PREFIX, ''))",
-      "to": "pattern.test(segment)"
+      "from": "segment.replace(ASSIGNMENT_PREFIX, '').replace(TIMEOUT_PREFIX, '')",
+      "to": "segment.replace(TIMEOUT_PREFIX, '')"
     },
     {
       "label": "advisory: a substitution still fails the guard",

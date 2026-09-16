@@ -19,10 +19,10 @@ README must be regenerated.
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | One risk table, with Codex as a condition | pending | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/routing.test.mjs` + `node --test tests/skill-metadata.test.mjs tests/skill-contract.test.mjs tests/package.test.mjs` |
-| T2 | Class routes name the stage they route to | pending | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/routing.test.mjs` + `node --test tests/skill-metadata.test.mjs tests/skill-contract.test.mjs` |
-| T3 | Workflows spawn the shipped agents | pending | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/workflows.test.mjs` + `node --test tests/workflows.test.mjs tests/reviewer-guard.test.mjs` |
-| T4 | Every shipped element is named by a route | pending | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/routing.test.mjs` + `node --test tests/routing.test.mjs tests/workflows.test.mjs tests/skill-metadata.test.mjs` |
+| T1 | One risk table, with Codex as a condition | done | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/routing.test.mjs` + `node --test tests/skill-metadata.test.mjs tests/skill-contract.test.mjs tests/package.test.mjs` |
+| T2 | Class routes name the stage they route to | done | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/routing.test.mjs` + `node --test tests/skill-metadata.test.mjs tests/skill-contract.test.mjs` |
+| T3 | Workflows spawn the shipped agents | done | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/workflows.test.mjs` + `node --test tests/workflows.test.mjs tests/reviewer-guard.test.mjs` |
+| T4 | Every shipped element is named by a route | done | none — no spec | `node --test --test-reporter=tap --test-name-pattern … tests/routing.test.mjs` + `node --test tests/routing.test.mjs tests/workflows.test.mjs tests/skill-metadata.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -39,4 +39,6 @@ Status: `pending` | `partial` | `blocked` | `done`.
 - Every fence checks that each named test actually ran: `node --test-name-pattern` that selects nothing still exits 0 and reports the file as one passing test (measured 2026-09-16, node v24.11.1).
 - Do not edit the phrases `tests/skill-metadata.test.mjs` pins in `work/SKILL.md` ("Classification is the decision", "invoke the routed skill in the same turn", "resume the routed chain", "brainstorm").
 - A `/quality-harness:<x>` written into skill text must resolve to a skill or workflow (`tests/skill-contract.test.mjs`); write agent names as `quality-harness:qh-…`, without the slash.
-- `adr-lint` advises that ADR-057's `Enforced-by:` names a test that does not exist. That is expected until T4 creates `tests/routing.test.mjs`; the header cannot carry the caveat, because `adr-lint` reads it as a list of pointers.
+- `tests/routing.test.mjs` exists since T4, so ADR-057's `Enforced-by:` resolves.
+- **Class sweep for T3, 2026-09-16:** `grep -n "agent(" plugin/workflows/*.js` lists ten spawn sites. Four now pass `agentType` (`quality-cycle.js` 56, 57, 75; `review-ring.js` 115). Two invoke a skill and stay inline (`quality-cycle.js` 61, `review-ring.js` 85). Four are `consensus.js` design roles (53, 63, 72, 80), out of scope by T3's boundary.
+- **Test bodies avoid regex literals.** The test-lock hasher masks strings but not regex literals, so a quote, backtick or parenthesis inside one left the class test `unproven` at its first red; that uncommitted row was discarded and the patterns moved to module scope (first-red-lock procedure).

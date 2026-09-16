@@ -53,6 +53,10 @@ out=$(node --test --test-reporter=tap --test-name-pattern '^every shipped skill,
 | 4 — it is used | a failing CI job on the next unrouted element; nothing measures session behaviour |
 
 ## Mutation Log
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `tests/routing.test.mjs` · without the boundary, review is found inside review-ring and a skill whose own routes were removed still reads as routed · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · covers:the named-route predicate and its name boundary
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `plugin/skills/work/SKILL.md` · operating loses its only route and the class test must name it · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · covers:the named-route predicate and its name boundary
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `tests/routing.test.mjs` · the enumeration silently lists no agents, which the per-kind non-empty check must refuse · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · covers:the class enumeration from git ls-files
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `plugin/workflows/review-ring.js` · the fixer loses its FIXED contract, which the workflow suite in this fence must catch · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · covers:the regression suites that share the router files
 
 ## Invariants
 
@@ -75,3 +79,10 @@ Stop and ask if S1's first red is not the eight members ADR-057 names — the pr
 - Checking that a session follows a route (ADR-057 Follow-up)
 
 ## Verification Log
+- 2026-09-16 · fc99e1e* · exit 1 · `set -o pipefail …` · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · ms:104 · test-lock-sha256:aa871571c2e3dec3cc83c48279f2b24729bb0e9489e24c502b259cc50e3468e6 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3JvdXRpbmcudGVzdC5tanMJZXZlcnkgc2hpcHBlZCBza2lsbCwgYWdlbnQgYW5kIHdvcmtmbG93IGlzIG5hbWVkIGJ5IGEgcm91dGUJYWM5MDJjOTFkMjMxMjU4MWE4ZTYyNTVjNzViNGJkZDhkNWVhMTc5NjJjZjE1NGQ5YjY4NDFjMjAyYjlmYWFmYQ
+  ```
+  ```
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · ms:239
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · ms:182
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · ms:179
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:1518b82732b8a6a0c11d31f41400f884826e91a942b3d495b37ec5ff7d38b6d8 · ms:181

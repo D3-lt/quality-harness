@@ -63,13 +63,17 @@ function runLifecycleHook(payload) {
   })
 }
 
-function commitAdvice(file, dir, label) {
+function publishAdvice(command, file, dir, label) {
   return runLifecycleHook({
     hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' },
+    tool_input: { command },
     transcript_path: file, cwd: dir,
     session_id: 'accuracy-' + label + '-' + process.pid + '-' + Math.random().toString(36).slice(2),
   })
+}
+
+function commitAdvice(file, dir, label) {
+  return publishAdvice('git commit -m test', file, dir, label)
 }
 
 // ---- T1: a timeout-wrapped check is a check.
@@ -186,4 +190,49 @@ test('an echo redirect target is still a changed path', async () => {
     assert.deepEqual(bashMarkdownMutationPaths(command, dir), [path.join(dir, target)], command)
   }
   assert.deepEqual(bashMarkdownMutationPaths('cp a.txt docs/new.md', dir), [path.join(dir, 'docs/new.md')])
+})
+
+// ---- T4: a commit elsewhere does not arm this repository's advisory.
+function gitRepository(dir) {
+  const run = spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 30_000 })
+  assert.equal(run.status, 0, run.stderr)
+}
+
+// Project A: a git repository with an Edit and no check after it.
+async function uncheckedRepository(prefix) {
+  const dir = await checkedProject(prefix)
+  gitRepository(dir)
+  const edited = path.join(dir, 'a.js')
+  await writeFile(edited, 'export {}\n')
+  const file = path.join(dir, 'edited.jsonl')
+  await writeFile(file, transcript([toolUse('e1', 'Edit', { file_path: edited }), toolResult('e1')]))
+  return { dir, file }
+}
+
+test("a commit in another repository does not arm this repository's commit advisory", async () => {
+  const { dir, file } = await uncheckedRepository('t4-')
+  const other = await mkdtemp(path.join(testTmp, 't4-other-'))
+  gitRepository(other)
+  const foreign = publishAdvice('git -C "' + other + '" commit --allow-empty -m probe', file, dir, 'foreign')
+  assert.equal(foreign.status, 0, foreign.stderr)
+  assert.doesNotMatch(foreign.stderr, UNCHECKED_COMMIT, foreign.stderr)
+  assert.match(publishAdvice('git commit -m own', file, dir, 'own').stderr, UNCHECKED_COMMIT)
+  assert.match(publishAdvice('git -C "' + other + '" commit -m probe && git commit -m own', file, dir, 'both').stderr,
+    UNCHECKED_COMMIT)
+})
+
+test('a commit whose repository cannot be resolved still advises', async () => {
+  const { dir, file } = await uncheckedRepository('t4u-')
+  const plain = await mkdtemp(path.join(testTmp, 't4-plain-'))
+  const unresolved = [
+    'git -C "$X" commit -m x',
+    'git -C "' + path.join(testTmp, 't4-missing') + '" commit -m x',
+    'git -C "' + plain + '" commit -m x',
+    'cd "$R" && git commit -m x',
+  ]
+  for (const [index, command] of unresolved.entries()) {
+    const run = publishAdvice(command, file, dir, 'unresolved-' + index)
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stderr, UNCHECKED_COMMIT, command)
+  }
 })

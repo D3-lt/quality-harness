@@ -413,6 +413,8 @@ test('a quoted wrapper assignment does not hide a later loud joiner', () => {
   assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar git push'), true)
   assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"|| git push'), false)
   assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"|| git push # "'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push # "'), false)
   assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
 })
 
@@ -437,4 +439,27 @@ print(json.dumps({
   assert.ok(got.names.includes('C:data'))
   assert.equal(got.slash, true)
   assert.equal(got.plain, true)
+})
+
+test('JS control escapes do not collapse onto a shorter name', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+src = json.loads(sys.stdin.read())["src"]
+names = extract_test_names(src)
+print(json.dumps({
+    "names": names,
+    "backspace": extract_test_body(src, "a\\b") is not None,
+    "plain": extract_test_body(src, "ab") is not None,
+}))
+`
+  const run = python(py, JSON.stringify({
+    src: 'test("a\\b", () => { expect(1); })\ntest("ab", () => { expect(2); })\n',
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.equal(got.names.includes('ab'), true)
+  assert.equal(got.plain, true)
+  assert.equal(got.names.includes('a\b'), true, 'JS \\\\b is backspace, not the letter b')
+  assert.equal(got.backspace, true)
 })

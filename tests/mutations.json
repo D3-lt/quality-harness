@@ -8039,8 +8039,8 @@
       "tests": [
         "tests/leftovers-after-adr053.test.mjs"
       ],
-      "from": "  return quote === null",
-      "to": "  return true",
+      "from": "    if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {\n      return false\n    }\n  }\n  return quote === null",
+      "to": "    if (character === '|' || character === ';' || character === '\\n' || character === '\\r') {\n      return false\n    }\n  }\n  return true",
       "only": "a quoted wrapper assignment does not hide"
     },
     {
@@ -8052,6 +8052,26 @@
       "from": "            if php and quote == '\"':",
       "to": "            if False and php and quote == '\"':",
       "only": "PHP double-quoted unknown escapes keep"
+    },
+    {
+      "label": "lifecycle: an unclosed quote on a wrapper match is not a silent publish",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "  if (wrap && !wrapperQuotesClosed(wrap[0])) return false",
+      "to": "  if (false) return false",
+      "only": "a quoted wrapper assignment does not hide"
+    },
+    {
+      "label": "lock: JS control escapes do not collapse onto a shorter name",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            out.append({\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\", \"b\": \"\\b\", \"f\": \"\\f\", \"v\": \"\\v\"}.get(nxt, nxt))",
+      "to": "            out.append({\"n\": \"\\n\", \"t\": \"\\t\", \"r\": \"\\r\"}.get(nxt, nxt))",
+      "only": "JS control escapes do not collapse"
     },
     {
       "label": "lock: a shell URL is not a C comment in the digest",

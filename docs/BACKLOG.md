@@ -12924,3 +12924,22 @@ would fail if one did, or delete the line.
 The catalogue already behaves as if it knew: `classify: foreign family is unrecognised before POSIX
 letters (ADR-047 T2)` in `tests/mutations.json` deletes this line together with both family checks,
 and no entry deletes it alone.
+
+## 220. Arguments of every read-only family are changed paths inside a mutating command (2026-09-16)
+
+Found by ADR-058 T3's class audit ("an argument of a command that writes only through a redirect is
+read as a path"). T3 fixed `echo` and `printf`. In a temp project holding `notes.md`,
+`bashMarkdownMutationPaths('touch build.log && <family> notes.md', dir)` at T3's tree:
+
+```
+reported as changed: grep, rg, ag, cat, head, tail, wc, sort, uniq, cut, ls, find, stat, file, which,
+  basename, dirname, realpath, readlink, diff, cmp, md5sum, sha256sum, jq, column, nl, git diff,
+  git log, mrw, node, python3
+not reported: echo, printf, git show
+```
+
+The extractor runs over the whole command once any segment is a mutation, and it reads every
+`.md`-shaped token of every segment. So `cp a b && grep -c x docs/BACKLOG.md` names `docs/BACKLOG.md`
+as changed, and so does `mrw read` beside a write. It is not simply "skip the read-only families":
+`sort -o out.md`, `find … -delete` and `jq … > out.md` do write, and `node`/`python3` are
+interpreters. Scope a fix by the per-family write channels, measured (§16), in its own record.

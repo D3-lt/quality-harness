@@ -683,7 +683,14 @@ function quoteAwarePublishArgsOk(text) {
   // Replaces quote-blind [^|;\n]* : unquoted | ; newline stop; quoted do not.
   let quote = null
   let escaped = false
+  let inComment = false
   for (const character of text) {
+    if (inComment) {
+      if (character === '|' || character === ';' || character === '\n' || character === '\r') {
+        return false
+      }
+      continue
+    }
     if (escaped) {
       escaped = false
       continue
@@ -698,6 +705,10 @@ function quoteAwarePublishArgsOk(text) {
     }
     if (character === "'" || character === '"') {
       quote = character
+      continue
+    }
+    if (character === '#') {
+      inComment = true
       continue
     }
     if (character === '|' || character === ';' || character === '\n' || character === '\r') {
@@ -719,10 +730,27 @@ function gitPublishTail(text) {
 function lastSilentPublishJoiner(command) {
   let quote = null
   let escaped = false
+  let inComment = false
   let last = -1
   let lastLen = 0
   for (let index = 0; index < command.length; index += 1) {
     const character = command[index]
+    if (inComment) {
+      if (character === '\n') {
+        inComment = false
+        last = index
+        lastLen = 1
+        continue
+      }
+      if (character === '\r' && command[index + 1] === '\n') {
+        inComment = false
+        last = index
+        lastLen = 2
+        index += 1
+        continue
+      }
+      continue
+    }
     if (escaped) {
       escaped = false
       continue
@@ -737,6 +765,10 @@ function lastSilentPublishJoiner(command) {
     }
     if (character === "'" || character === '"') {
       quote = character
+      continue
+    }
+    if (character === '#') {
+      inComment = true
       continue
     }
     if (character === '&' && command[index + 1] === '&') {

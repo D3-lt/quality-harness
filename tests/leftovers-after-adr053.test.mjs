@@ -341,3 +341,71 @@ test('quoted semicolon and pipe in a git operand still strip', () => {
   assert.ok(src.includes("[^'\\n]+") || src.includes("[^|;\\n]*"),
     'HAND_MUTANT restores the retired quote-blind class')
 })
+
+test('decoded lock delimiters in a BDD name stay unhashed', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+src = sys.stdin.read()
+names = extract_test_names(src)
+print(json.dumps({
+    "names": names,
+    "nl": extract_test_body(src, "a\\nb") is not None,
+    "tab": extract_test_body(src, "a\\tb") is not None,
+    "anchor": extract_test_body(src, "anchor") is not None,
+}))
+`
+  const run = python(py, [
+    "test('anchor', () => { expect(1).toBe(1) })",
+    "test('a\\\\nb', () => { expect(2).toBe(2) })",
+    "test('a\\\\tb', () => { expect(3).toBe(3) })",
+  ].join('\n'))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.ok(got.names.includes('anchor'))
+  assert.equal(got.anchor, true)
+  assert.equal(got.names.includes('a\nb'), false, 'newline in a decoded name is not lock-serializable')
+  assert.equal(got.nl, false)
+  assert.equal(got.names.includes('a\tb'), false, 'tab in a decoded name is not lock-serializable')
+  assert.equal(got.tab, false)
+})
+
+test('a BDD name may wrap after the opening paren', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+payload = json.loads(sys.stdin.read())
+out = {}
+for key, text in payload.items():
+    php = key == "php"
+    names = extract_test_names(text, php=php)
+    out[key] = {
+        "names": names,
+        "body": extract_test_body(text, "plain", php=php) is not None,
+    }
+print(json.dumps(out))
+`
+  const run = python(py, JSON.stringify({
+    wrap: "test(\n  'plain', () => { expect(1).toBe(1) })",
+    comma: "test('plain'\n, () => { expect(1).toBe(1) })",
+    php: "<?php\nit(\n  'plain', function () { expect(true); });\n",
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.ok(got.wrap.names.includes('plain'))
+  assert.equal(got.wrap.body, true)
+  assert.ok(got.comma.names.includes('plain'))
+  assert.equal(got.comma.body, true)
+  assert.ok(got.php.names.includes('plain'))
+  assert.equal(got.php.body, true)
+})
+
+test('an apostrophe in a trailing comment does not hide a later loud joiner', () => {
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m x # note'), true)
+  assert.equal(publishPrecededByValidation("pnpm check && git commit -m x # don't forget"), true)
+  assert.equal(
+    publishPrecededByValidation("pnpm check && git commit -m x # don't forget\nfalse || git push"),
+    false)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
+})
+

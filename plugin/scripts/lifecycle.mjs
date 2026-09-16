@@ -1133,6 +1133,26 @@ function isMrwWriteCheckSegment(segment) {
   return rest.includes('write') && rest.some(word => word === '--check')
 }
 
+// `mrw read` prints ranges and changes no repository file. Measured 2026-09-16
+// on mrw v1.22.0: `git status --porcelain --ignored` stays empty after
+// `mrw read a.md` and `mrw --root DIR read a.md`, because the read ledger lives
+// outside the tree. Only that subcommand is admitted, at its real position after
+// the global options (`--root DIR`, `-C DIR`), so `mrw --root read write` is not
+// a read; `write`, `check`, `iter` and the rest stay unrecognised (ADR-058 T2,
+// CLAUDE.md §16).
+const MRW_GLOBAL_VALUE_OPTIONS = new Set(['--root', '-C'])
+
+function isRecognisedReadInvocation(segment) {
+  const invocation = commandInvocation(segment)
+  if (!invocation || executableName(invocation.words[invocation.index]) !== 'mrw') return false
+  const { words } = invocation
+  let index = invocation.index + 1
+  while (words[index]?.startsWith('-')) {
+    index += optionConsumesNext(words[index], MRW_GLOBAL_VALUE_OPTIONS) ? 2 : 1
+  }
+  return words[index] === 'read'
+}
+
 function isMrwWriteCheckCommand(command) {
   if (typeof command !== 'string') return false
   const inner = commandInsideWrappers(command)
@@ -1385,6 +1405,7 @@ export function classifyCommand(command) {
     isValidationCommand,
     isPotentialMutationCommand,
     withoutHeredocBodies,
+    isRecognisedReadInvocation,
   })
 }
 

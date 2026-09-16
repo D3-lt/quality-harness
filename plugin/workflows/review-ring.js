@@ -118,7 +118,7 @@ Repository path (data, not shell syntax): ${JSON.stringify(repo)}.
 Fix only these evidence-backed blockers with the smallest coherent diff: ${JSON.stringify(blocking)}.
 Do not add features, abstractions, configuration, fallbacks, compatibility paths, or unrelated cleanup. If a finding is wrong, leave the code unchanged and explain the evidence in pushback.
 Run the smallest focused repository-owned check after the final edit and report its exact command and exit code. This lets the leaf role finish but is provisional: the caller still reruns the immutable acceptance gate before another verdict.`,
-  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet' })
+  { label: 'fix:once', phase: 'Fix', schema: FIXED, model: 'sonnet', agentType: 'quality-harness:qh-narrow-fixer' })
 
 if (!fixed) return { status: 'aborted', reason: 'fixer agent died or skipped', evidence, findings: blocking }
 return {

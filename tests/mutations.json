@@ -8034,6 +8034,26 @@
       "only": "a BDD name may wrap after the opening paren"
     },
     {
+      "label": "lifecycle: a quoted wrapper assignment does not hide a later loud joiner",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "  return quote === null",
+      "to": "  return true",
+      "only": "a quoted wrapper assignment does not hide"
+    },
+    {
+      "label": "lock: PHP double-quoted unknown escapes keep their backslash",
+      "file": "plugin/lib/record.py",
+      "tests": [
+        "tests/leftovers-after-adr053.test.mjs"
+      ],
+      "from": "            if php and quote == '\"':",
+      "to": "            if False and php and quote == '\"':",
+      "only": "PHP double-quoted unknown escapes keep"
+    },
+    {
       "label": "lock: a shell URL is not a C comment in the digest",
       "file": "plugin/lib/record.py",
       "tests": [

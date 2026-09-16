@@ -156,3 +156,7 @@ all.
 ### 2026-09-10 — `adr-next` reads "withdrawn" in a human sign-off as STOP
 
 A negative word anywhere in `--human` text wins (`withdraw`, `not `, `fail`, `stop`, …). A task whose prescribed sign-off is `withdrawn in <sha>` — the criterion's success branch, not a stop — routed `stopped` while its README said `done`. State an affirmative verb (`observed`, `signed-off`) and name a retired arm as `retired`, not `withdrawn`. Do not edit the first log line: append a second.
+
+### 2026-09-16 — a regex literal in a JS test body locks that test `unproven`
+
+ADR-057 T4's first red recorded `unproven` for a test whose name the hasher extracted fine: the body held `/…|`review`/g` and `/agentType:\s*['"]…['"]/g`. The masker skips strings and comments but not regex literals, so a quote, backtick or `)` inside one derails the span and `extract_test_body` returns None. Before the first `adr-verify`, run `record.extract_test_body(text, name)` from the plugin's `lib/` and require a non-None body; keep patterns at module scope or build them with `new RegExp('…')` from strings. An uncommitted `unproven` row is discarded with `git checkout -- <task.md>` and re-taken (BACKLOG §212).

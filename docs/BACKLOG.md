@@ -12832,3 +12832,42 @@ the PreToolUse advisory said "Nothing has verified the work since your last chan
 
 Both are CLAUDE.md §17 false advisories. Reproduce each against `lifecycle.mjs` with a transcript
 fixture before changing a classifier (§16).
+
+## 214. quality-cycle's `codex: true` arm has no route after ADR-057 (2026-09-16)
+
+ADR-057 T1 routes High tier to `codex-review` when Codex is installed and to `quality-cycle` when it
+is not, and the Open decision row passes `codex: false` to `consensus`. So no router passes
+`codex: true` to `quality-cycle`: `grep -n "codex: true" plugin/skills/*/SKILL.md plugin/workflows/*.js`
+finds only `consensus.js`'s own `whenToUse`. The `codex-external` role in `quality-cycle.js` is reached
+only when someone invokes the workflow by hand with `codex: true` — tested, and without a route.
+ADR-057's class test cannot see it because it checks element names, not arms. Owner decision: delete
+the arm, or route a High change on a Codex machine through `quality-cycle` with `codex: true` instead
+of `codex-review` alone (heavier).
+
+## 215. Class F ("review requested") does not consult the risk table (2026-09-16)
+
+Found by ADR-057's routing evals. Asked "which review should this change get?" after loading `work`,
+a session classified the question as class F and answered `quality-harness:review`, which is what
+class F's route says, without loading `quality-policy`. The same change framed as the coordinator
+finishing a class E implementation reached the Moderate row and `qh-correctness-reviewer` in 3 of 3
+runs. So a review a user asks for skips the risk tiers, including the High tier's Codex condition.
+Owner decision: whether class F should route by `quality-policy`'s table too.
+
+## 216. §211 reproduced live in workflow-spawned reviewers, and §213 sighted again (2026-09-16)
+
+ADR-057's live `quality-cycle` run spawned `qh-correctness-reviewer`, `qh-scope-reviewer` and
+`qh-synthesis` by `agentType`, and the plugin-level reviewer guard named the role in its denials, so
+`agent_type` does reach the guard from a workflow. It refused, among others:
+
+- `cd <scratchpad>/e2e/cycle && node --input-type=module -e "…console.log(multiply(3,4))…"` —
+  "writes outside the temp roots", though it writes nothing;
+- `cd <scratchpad>/e2e/cycle && mrw --root . read math.mjs …` — "executable family is unrecognised";
+- `printf … > <file under the session scratchpad>` — "writes outside the temp roots", although the
+  scratchpad is under `/private/tmp`.
+
+The reviewer returned `clean` from reading alone and said so. Reproduce against `readOnlyVerdict`
+before changing it (§16); note that `readOnlyVerdict` called directly returns null for a plain `touch`
+under `/private/tmp`, so the subagent's temp-root resolution may differ from the caller's.
+
+§213's false commit advisory fired a fourth time, before `11ee05f`, and named
+`plugin/skills/spec-write/SKILL.md`, which that session never read or edited.

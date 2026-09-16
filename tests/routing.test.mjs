@@ -202,3 +202,15 @@ test('work claims no stage that work-next never selects', () => {
   assert.equal(claimsUnselectedArchStage(WORK_ARCH_CLAIM_PROBE, workNext + WORK_NEXT_ARCH_BRANCH_PROBE), false,
     'once a branch selects arch-write, the claim is allowed')
 })
+
+// Found by the ADR-057 routing evals, 2026-09-16: sessions that loaded `work` read
+// "Load quality-policy" as "read its file", a Read the sandbox refused, and then
+// answered from skill descriptions instead of the risk table. The one run that
+// invoked the skill routed the Moderate tier exactly. So section 2 names the Skill tool.
+const SKILL_TOOL = new RegExp('Skill tool')
+
+test('work tells the coordinator to invoke quality-policy with the Skill tool', () => {
+  const load = units(section(body(skillText('work')), '## 2.')).find(unit => LOADS_POLICY.test(unit))
+  assert.ok(load, 'work section 2 must keep its load instruction')
+  assert.ok(SKILL_TOOL.test(load), 'the load instruction must say to invoke quality-policy with the Skill tool, not read its file')
+})

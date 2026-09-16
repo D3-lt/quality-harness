@@ -449,7 +449,7 @@ the plugin reports on them and never acts:
 
 - Protected-branch, leaf-agent, completion-evidence, and artifact gates.
 - Immediate facts-first checks after edits, repeated before completion.
-- `quality-cycle` for bounded high-risk review.
+- `quality-cycle` for high-risk review on a machine where Codex is not installed.
 - `consensus` for genuinely unresolved, costly-to-reverse choices.
 - `review-ring` for one review, at most one minimal fix, then caller revalidation.
 

@@ -9,13 +9,11 @@ Code review with an execution gate: no verdict on read-only evidence.
 
 ## Route by Risk
 
-- Small, local, reversible diff: review inline.
-- Moderate coupling or regression surface: use one fresh-context reviewer.
-- High-risk boundary—auth, untrusted input, money/data integrity, concurrency, migration, public
-  contract, production infrastructure, or cross-module ownership—use
-  `/quality-harness:quality-cycle` or `/quality-harness:codex-review`.
-- Parallel reviewers are justified only for genuinely independent concerns. Do not create a panel
-  for routine work.
+The coordinator routes review depth by `quality-harness:quality-policy`'s risk table. A delegated
+reviewer does not re-route, and does not pull that policy into its own context.
+
+Parallel reviewers are justified only for genuinely independent concerns. Do not create a panel
+for routine work.
 
 A delegated reviewer is a read-only leaf role. It must not invoke `/quality-harness:work`, another lifecycle
 workflow, or an implementation agent.

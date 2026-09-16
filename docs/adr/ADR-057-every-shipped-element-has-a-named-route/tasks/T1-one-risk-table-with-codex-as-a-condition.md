@@ -63,6 +63,11 @@ out=$(node --test --test-reporter=tap --test-name-pattern '^(the risk table has 
 | 4 — it is used | nothing measures this yet; ADR-057's Follow-up re-counts invocations on or after 2026-10-16 |
 
 ## Mutation Log
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `plugin/skills/work/SKILL.md` · work section 2 stops telling the coordinator to load quality-policy, so no risk table reaches it · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · covers:the coordinator's load of quality-policy
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `plugin/skills/quality-policy/SKILL.md` · the High row goes back to an unconditioned quality-cycle-or-codex-review choice the cheaper arm always wins · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · covers:the Codex condition on each Codex route
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `plugin/skills/quality-policy/SKILL.md` · the Moderate tier describes a reviewer in prose again instead of naming the shipped agent · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · covers:the Moderate tier's subagent_type name
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `plugin/skills/review/SKILL.md` · review restates a risk tier beside quality-policy's table, a second copy that can drift · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · covers:the single risk table in quality-policy
+- 2026-09-16 · fc99e1e* · mutant killed · exit 1 · `plugin/skills/work/SKILL.md` · rewriting work's routing loses a phrase skill-metadata pins, which the fence's regression half must catch · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · covers:the pinned routing text and skill-name checks
 
 ## Invariants
 
@@ -87,3 +92,11 @@ Stop and ask if removing the table from `work` breaks a test outside `tests/rout
 - Workflow `agentType` (T3's job)
 
 ## Verification Log
+- 2026-09-16 · fc99e1e* · exit 1 · `set -o pipefail …` · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · ms:96 · test-lock-sha256:a120bd49c66212ee994918612e035a7a35af9a92ed3d4e517832bef3e3899b58 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3JvdXRpbmcudGVzdC5tanMJYSBDb2RleCByb3V0ZSBzYXlzIHdoYXQgcnVucyB3aGVuIENvZGV4IGlzIG5vdCBpbnN0YWxsZWQJNjE5YTZmYTE5YzBkNGIwNGFmNTUyMjE1ODFiNDVjYmEzOTMwNDBmYWMyYzU2ODhkYzc0MjdkZTZkNDlmMWVhNgpib2R5CXRlc3RzL3JvdXRpbmcudGVzdC5tanMJZXZlcnkgc2hpcHBlZCBza2lsbCwgYWdlbnQgYW5kIHdvcmtmbG93IGlzIG5hbWVkIGJ5IGEgcm91dGUJYWM5MDJjOTFkMjMxMjU4MWE4ZTYyNTVjNzViNGJkZDhkNWVhMTc5NjJjZjE1NGQ5YjY4NDFjMjAyYjlmYWFmYQpib2R5CXRlc3RzL3JvdXRpbmcudGVzdC5tanMJdGhlIE1vZGVyYXRlIHRpZXIgc3Bhd25zIHRoZSBjb3JyZWN0bmVzcyByZXZpZXdlciBieSBuYW1lCTE1OWE4ZGYyMjMxMzlkZjE2Y2MwMTBkYjgyMTRjMDIyNzFkMmU2ZDA1YzVjNTNlMGVlNmY2MjA0ZDM3ZWQwY2IKYm9keQl0ZXN0cy9yb3V0aW5nLnRlc3QubWpzCXRoZSBjb29yZGluYXRvciBsb2FkcyBxdWFsaXR5LXBvbGljeSBhbmQgYSBkZWxlZ2F0ZWQgcmV2aWV3ZXIgZG9lcyBub3QJMTU5M2NlMjM5ZGIyZGNhMjcwNDQzZjg4NjM2ZmRmNmNjNzM5NDA0MDllOGQ4NDY2ZTBkYjA3NTkzZTEzOGVhOApib2R5CXRlc3RzL3JvdXRpbmcudGVzdC5tanMJdGhlIHJpc2sgdGFibGUgaGFzIG9uZSBob21lCWRlOGU1NmQzODE4ZDVjNzA1MmVhMjQ5YTIxMWZlZmE5ZWEyNTUzYTkxODNlODljNmJiODlkYzA1MTExMTBjMzc
+  ```
+  ```
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · ms:9666
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · ms:8564
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · ms:9517
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · ms:13023
+- 2026-09-16 · fc99e1e* · exit 0 · `set -o pipefail …` · acceptance-sha256:fbc4d4b73db79bf43b36abc070d3670a1d1d91bfbdd13f1dc242acaf207035c0 · ms:9415

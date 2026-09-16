@@ -29,9 +29,9 @@ skill supplies the invariant and selects the least expensive quality depth that 
 | Tier | Signals | Quality path |
 |---|---|---|
 | Small | Local, reversible, no contract or trust-boundary effect | One writer; targeted check; inline scope/simplicity pass. |
-| Moderate | Several coupled behaviors or meaningful regression surface | One writer; caller-observed checks; one fresh-context reviewer. |
-| High | Auth, untrusted input, money/data integrity, concurrency, migration, public contract, production infrastructure, or cross-module ownership | Caller-observed checks; `/quality-harness:quality-cycle` or `/quality-harness:codex-review`; fix only confirmed blockers. |
-| Open decision | At least two credible designs remain and a wrong choice is costly to reverse | `/quality-harness:consensus`; otherwise decide directly. |
+| Moderate | Several coupled behaviors or meaningful regression surface | One writer; caller-observed checks; one fresh-context reviewer, spawned as `subagent_type: quality-harness:qh-correctness-reviewer`. |
+| High | Auth, untrusted input, money/data integrity, concurrency, migration, public contract, production infrastructure, or cross-module ownership | Caller-observed checks; when Codex is installed (`command -v codex`), `/quality-harness:codex-review`; when it is not, `/quality-harness:quality-cycle`. Fix only confirmed blockers. |
+| Open decision | At least two credible designs remain and a wrong choice is costly to reverse | When Codex is installed, `/quality-harness:codex-advise` first, then `/quality-harness:consensus` with `codex: false` only if two credible designs still remain; when it is not, `/quality-harness:consensus`. Otherwise decide directly. |
 
 Large mechanical work does not automatically need a panel or ADR. Parallelize only independent
 research or file ownership that can be isolated without coordination collisions.

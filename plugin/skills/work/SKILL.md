@@ -20,7 +20,7 @@ must not invoke `/quality-harness:work` or restart the lifecycle.
 Run `node ${CLAUDE_PLUGIN_ROOT}/scripts/work-next.mjs` first, every time. It reads the corpus and
 says which lifecycle stage is waiting and why, with the files that put it there — a task claiming
 done with no exit-0 entry, an Accepted ADR whose tasks are not executed, a superseded record still
-sitting in the active corpus, an architecture document older than the decision that changed it.
+sitting in the active corpus.
 
 The lifecycle is a DAG and the edges are static; only the STATE is derived, and it is derived from
 the corpus rather than kept beside it. Routing from what is actually there beats routing from what
@@ -40,6 +40,8 @@ Before classifying:
    catalog identifies one as governing or the task concerns its history. Project policy stays in
    the project; never dispatch by repository name.
 4. Search the actual code and tests. Surface conflicts between intent, code, and memory.
+5. When a gate behaves unexpectedly, or the plugin was just updated, load
+   `/quality-harness:operating` before trusting what the gate says.
 
 ## 1. Freeze and classify
 
@@ -48,12 +50,12 @@ Restate one outcome, explicit non-goals, and observable completion evidence. Cla
 | Class | Signal | Route |
 |---|---|---|
 | R — record retirement | Archive, retire, freeze, supersede, or reduce current ADR corpus noise | `adr-retire`; preserve governing discovery and active obligation receipts |
-| A — bug | Reproducible unexpected behavior | systematic debugging → `execution` → risk-routed review → postmortem only when material, recurrent, or production-relevant |
+| A — bug | Reproducible unexpected behavior | systematic debugging → `execution` → risk-routed review → `postmortem` only when material, recurrent, or production-relevant |
 | B — question | Explanation, investigation, or status only | Read and answer; do not edit until asked |
 | C — undecided | Required behavior or product choice is genuinely unresolved | `spec-write` → user Ready-for-ADR gate when a durable decision follows |
-| D — durable decision | New public contract, persistent-state shape, trust boundary, cross-component ownership, costly-to-reverse architecture, or reversal of an accepted ADR | architecture prerequisite when structural → `adr-write` → user Accepted gate → `adr-execute` |
+| D — durable decision | New public contract, persistent-state shape, trust boundary, cross-component ownership, costly-to-reverse architecture, or reversal of an accepted ADR | `/quality-harness:arch-write` first when the change is structural and the repository has no architecture document → the Open decision route in `quality-harness:quality-policy` when two credible designs remain → `adr-write` → user Accepted gate → `adr-execute` |
 | E — bounded change | Requirements are decided and no durable decision is being introduced | `execution` directly |
-| F — review | Verdict or audit requested | `/quality-harness:review` or `/quality-harness:codex-review`; repeated fix loop only when explicitly requested |
+| F — review | Verdict or audit requested | `/quality-harness:review`; when Codex is installed and the change is substantive or an external pass is asked for, also `/quality-harness:codex-review`; repeated fix loop only when explicitly requested |
 | N — north star | Several independently shippable outcomes | milestone ledger; classify and finish one milestone at a time |
 
 File count alone does not create an ADR, panel, or workflow. A large mechanical migration may be
@@ -64,7 +66,7 @@ choice cannot be discovered from the project.
 the same turn. Do not present the classification for approval, and do not wait to be told the next
 stage by name — being asked to name it means this skill failed. A route containing arrows is one
 chain this coordinator drives end to end: C runs `spec-write` and then continues into D's route;
-D runs `adr-write`, and once the user marks the record Accepted, continues into `adr-execute` and
+D runs `arch-write` first when it is structural and no architecture document exists, then `adr-write`, and once the user marks the record Accepted, continues into `adr-execute` and
 its verification; A and E go straight to `execution` and then to §3 evidence. The only pauses are
 the three gates in §5.
 
@@ -75,14 +77,9 @@ strands the run before any stage produces evidence.
 
 ## 2. Route quality by risk
 
-Use the least expensive path that honestly covers the failure modes:
-
-| Tier | Signals | Required path |
-|---|---|---|
-| Small | Local, reversible, narrow behavior | One writer; targeted check; inline scope/simplicity review |
-| Moderate | Coupled behavior or meaningful regression surface | One writer; caller-observed checks; one fresh-context reviewer |
-| High | Auth, untrusted input, money/data integrity, concurrency, migration, public contract, production infrastructure, or cross-module ownership | Caller-observed checks; `/quality-harness:quality-cycle` or `/quality-harness:codex-review`; fix confirmed blockers only |
-| Open decision | Two or more credible designs remain and reversal is costly | `/quality-harness:consensus`; otherwise decide directly |
+Load `quality-harness:quality-policy` and route by its risk table. It is the only copy: the tiers,
+the reviewer each tier spawns, and the condition that picks a Codex route are read there, never
+restated here, so they cannot drift apart.
 
 Parallelize independent research or isolated file ownership only. Do not fan out tightly coupled
 implementation, and do not use a reviewer panel for routine work. One writer owns any shared file.
@@ -101,7 +98,8 @@ summary: useful output or the concrete limitation
 
 A nonzero command stops the chain. `unavailable` makes the result evidence-limited, never clean.
 Guard against false green: confirm the check ran something and, for load-bearing custom gates,
-that a relevant rejected fixture or mutation can make it fail.
+that a relevant rejected fixture or mutation can make it fail — `/quality-harness:mutation-audit`
+measures exactly that.
 
 For an explicit until-clean request, invoke `/quality-harness:review-ring` with this evidence. The workflow may make
 one minimal fix and then returns `revalidation-required`; rerun the command in the coordinator and

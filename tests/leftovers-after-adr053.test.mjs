@@ -409,3 +409,32 @@ test('an apostrophe in a trailing comment does not hide a later loud joiner', ()
   assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
 })
 
+test('a quoted wrapper assignment does not hide a later loud joiner', () => {
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar git push'), true)
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"|| git push'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push'), false)
+  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
+})
+
+test('PHP double-quoted unknown escapes keep their backslash', () => {
+  const py = `
+import json, sys
+from record import extract_test_names, extract_test_body
+src = json.loads(sys.stdin.read())["src"]
+names = extract_test_names(src, php=True)
+print(json.dumps({
+    "names": names,
+    "slash": extract_test_body(src, "C:\\\\data", php=True) is not None,
+    "plain": extract_test_body(src, "C:data", php=True) is not None,
+}))
+`
+  const run = python(py, JSON.stringify({
+    src: '<?php\nit("C:\\data", function () { assert(1); });\nit("C:data", function () { assert(2); });\n',
+  }))
+  assert.equal(run.status, 0, run.stderr || run.stdout)
+  const got = JSON.parse(run.stdout)
+  assert.ok(got.names.includes('C:\\data'), 'PHP unknown escape keeps the backslash')
+  assert.ok(got.names.includes('C:data'))
+  assert.equal(got.slash, true)
+  assert.equal(got.plain, true)
+})

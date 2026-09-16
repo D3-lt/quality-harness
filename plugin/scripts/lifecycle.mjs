@@ -715,7 +715,7 @@ function quoteAwarePublishArgsOk(text) {
       return false
     }
   }
-  return true
+  return quote === null
 }
 
 function gitPublishTail(text) {

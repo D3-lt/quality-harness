@@ -53,6 +53,12 @@ out=$(node --test --test-reporter=tap --test-name-pattern '^(a channel-free read
 | 4 — it is used | ADR-059's Follow-up replay |
 
 ## Mutation Log
+- 2026-09-17 · 279018c* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · cat leaves the table, so its argument is a changed path again · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · covers:the family table in readsOnlyItsArguments
+- 2026-09-17 · 279018c* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · wc leaves the table in the refactor, so ADR-058 T5 regresses · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · covers:the family table in readsOnlyItsArguments
+- 2026-09-17 · 279018c* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the table is never consulted, so every family but mrw read names its arguments again · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · covers:the family table in readsOnlyItsArguments
+- 2026-09-17 · 279018c* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the redirect target of a read segment is skipped too · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · covers:a redirect beside a read still counting
+- 2026-09-17 · 279018c* · mutant killed · exit 1 · `tests/read-only-arguments.test.mjs` · a renamed test selects nothing and the per-name ok grep must refuse it · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · covers:each named test actually running
+- 2026-09-17 · 279018c* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a git revision such as origin/main:docs/x.md resolves as a changed path; tests/lifecycle.test.mjs kills it · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · covers:the regression suites that pin path extraction
 
 ## Invariants
 
@@ -73,3 +79,12 @@ Stop and ask if a `tests/lifecycle.test.mjs` test about Markdown-only changes (B
 - Families with a write channel (deferred: docs/adr/ADR-059-a-read-only-command-names-no-changed-path/tasks/T2-a-family-that-can-write-names-no-changed-path-until-it-uses-that-channel.md)
 
 ## Verification Log
+- 2026-09-17 · 279018c* · exit 1 · `set -o pipefail …` · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · ms:299 · test-lock-sha256:4899758ea3626c17b880a34460d3b4bd92975d0c2275dcd7b86c1a7e6c1383f7 · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL3JlYWQtb25seS1hcmd1bWVudHMudGVzdC5tanMJYSBjaGFubmVsLWZyZWUgcmVhZCBuYW1lcyBubyBjaGFuZ2VkIHBhdGgJZjI0YzIwYmYyMzcwYWJhOGUwZjNmZGI3NWUyMDNlMjM4NmZmNWMzZmNkMDhjOTAyODI0YzA1N2QwMWM4MmI4OApib2R5CXRlc3RzL3JlYWQtb25seS1hcmd1bWVudHMudGVzdC5tanMJYSByZWRpcmVjdCBiZXNpZGUgYSBjaGFubmVsLWZyZWUgcmVhZCBpcyBzdGlsbCBhIGNoYW5nZWQgcGF0aAkxNzNiMjRkYTZiMWZmMmI4OTk0YmQ1OWRmNjdiNTNlN2Q3NzIzZGM5YTc2MDgzYTQ5ZWEzYWNjMWYwN2I1MmU3
+  ```
+  ```
+- 2026-09-17 · 279018c* · exit 0 · `set -o pipefail …` · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · ms:25578
+- 2026-09-17 · 279018c* · exit 0 · `set -o pipefail …` · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · ms:24301
+- 2026-09-17 · 279018c* · exit 0 · `set -o pipefail …` · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · ms:25655
+- 2026-09-17 · 279018c* · exit 0 · `set -o pipefail …` · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · ms:25113
+- 2026-09-17 · 279018c* · exit 0 · `set -o pipefail …` · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · ms:24928
+- 2026-09-17 · 279018c* · exit 0 · `set -o pipefail …` · acceptance-sha256:ec320417e697c0d7b5a873592c78c7395f5718d56b746e2618132d9974967af3 · ms:24858

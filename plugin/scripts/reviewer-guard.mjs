@@ -1,18 +1,17 @@
 #!/usr/bin/env node
 // A read-only role is read-only by contract, and a contract with no check is a
 // sentence (BACKLOG §135). The reviewer agents omit Edit and Write from their
-// tools, and keep Bash — which writes, through `sed -i`, a heredoc, `git
-// commit`. This hook is declared in those agents' own frontmatter, so it runs
-// only inside them, and refuses a Bash command the mutation classifier reads as
-// a write outside the temp roots, and any Edit/Write/MultiEdit/NotebookEdit call.
+// tools, and keep Bash. This hook is declared in those agents' own frontmatter, so
+// it runs only inside them. It refuses any Edit/Write/MultiEdit/NotebookEdit call,
+// and a Bash command that names `commit` or `push` as a word, wrapped or not
+// (ADR-060). It reads nothing else about a command: any other change a reviewer
+// makes is reported when the reviewer finishes (rule R3), not refused before.
 //
 // Exit 2 with the reason on stderr is the hook contract for a refusal. This is
 // not a quality gate advising on work (CLAUDE.md §3); it is the boundary of a
 // role that says "never edits", enforced where the tool list could not reach.
-// Everything else — reads, greps, git diff, scratch writes under the temp
-// roots, a command this hook cannot parse — passes, and a payload this hook
-// cannot read passes too: a guard that fails closed on its own bug would stop
-// a reviewer from reading, which is the one thing it exists to do.
+// A payload this hook cannot read passes: a guard that fails closed on its own
+// bug would stop a reviewer from reading, which is the one thing it exists to do.
 import { pathToFileURL } from 'node:url'
 import { readOnlyVerdict } from './lifecycle.mjs'
 

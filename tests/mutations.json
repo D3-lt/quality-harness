@@ -5090,22 +5090,13 @@
       "to": "  if (false) return { kind: 'too-large', bytes: stat.size }"
     },
     {
-      "label": "reviewer-guard: a write outside the temp roots is refused inside a read-only role",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (kind === 'mutation' && !mutatesOnlyTempPaths(command, cwd)) {",
-      "to": "  if (false) {"
-    },
-    {
       "label": "reviewer-guard: a publish is refused inside a read-only role",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/reviewer-guard.test.mjs"
       ],
-      "from": "  if (isGitPublishCommand(command)) {",
-      "to": "  if (false) {"
+      "from": "  if (!containsCommitOrPush(command)) return null",
+      "to": "  if (true) return null"
     },
     {
       "label": "reviewer-guard: an editing tool is refused inside a read-only role",
@@ -5124,24 +5115,6 @@
       ],
       "from": "    if root is None:\n        raise GateDidNotRun(\"could not run: no repository root (.git or docs/adr) above {}\".format(paths[0]))",
       "to": "    if root is None:\n        root = os.getcwd()"
-    },
-    {
-      "label": "reviewer-guard: a shell payload or a command substitution is judged as a command of its own",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (depth < 3) {",
-      "to": "  if (false) {"
-    },
-    {
-      "label": "reviewer-guard: an editor is refused inside a read-only role",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs"
-      ],
-      "from": "  if (EDITORS.test(command)) {",
-      "to": "  if (false) {"
     },
     {
       "label": "doctor: a tag on the remote is the only thing that makes an install a release",
@@ -8424,17 +8397,6 @@
       "only": "unrecognised Bash is Advise the same way an MCP write is|echo is not Advise, and a classify-only green is not this fact"
     },
     {
-      "label": "lifecycle: bashVerdict denies unrecognised (ADR-047 T4)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/reviewer-guard.test.mjs",
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const kind = classifyCommand(command)\n  if (kind === 'unrecognised') {",
-      "to": "  const kind = classifyCommand(command)\n  if (false) {",
-      "only": "a reviewer is denied Remove-Item and pwsh -Command rm|echo and selftest are not denied as unrecognised"
-    },
-    {
       "label": "lifecycle: UNPROVEN Advise has a validation term (ADR-048 T1)",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -8908,6 +8870,15 @@
       ],
       "from": "kept = kept.subarray(kept.length - KEEP_BYTES)",
       "to": "kept = kept.subarray(0, KEEP_BYTES)"
+    },
+    {
+      "label": "R3: an index-only change during a read-only run is reported",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (before?.ok !== true || after?.ok !== true || sameObservation(before, after)) return",
+      "to": "  if (before?.ok !== true || after?.ok !== true || before.tree === after.tree) return"
     }
   ]
 }

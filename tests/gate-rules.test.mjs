@@ -1097,6 +1097,7 @@ test('every gate refuses a flag it does not know', () => {
     ['spec-verify', ['--spec', '--bogus', 'spec-selftest.md']],
     ['qh-mcp', ['--bogus']],
     ['qh-root', ['--bogus']],
+    ['qh-check', ['--bogus']],
   ]
   for (const [gate, args] of invocations) {
     const result = run(gate, args, dir)

@@ -1274,7 +1274,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (exitCode === 0) {\n    return testCommand(command) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
+      "from": "  if (exitCode === 0) {\n    return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'\n  }",
       "to": ""
     },
     {
@@ -8890,6 +8890,24 @@
       ],
       "from": "`subagent_type: quality-harness:qh-correctness-reviewer`",
       "to": "`subagent_type: quality-harness:qh-correctness-reviewer-typo`"
+    },
+    {
+      "label": "qh-check: --version answers without running a check",
+      "file": "plugin/bin/qh-check",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    if \"--version\" in argv:",
+      "to": "    if False:"
+    },
+    {
+      "label": "qh-check: the kept output is the tail, where a runner prints its summary",
+      "file": "plugin/scripts/qh-check.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "kept = kept.subarray(kept.length - KEEP_BYTES)",
+      "to": "kept = kept.subarray(0, KEEP_BYTES)"
     }
   ]
 }

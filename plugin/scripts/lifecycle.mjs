@@ -1024,7 +1024,10 @@ const KILLED_ON_TIME = new RegExp([
 // POSIX's "found but not executable".
 const NEVER_STARTED_EXITS = new Set([126, 127, 9009])
 
-export function validationVerdict(result, command) {
+// `anyCommand`: the caller already knows the command is the project's check
+// (`qh-check`, ADR-060 T2), so a zero-test summary is read whatever the command is
+// spelled. Without it, `sh check.sh` printing `tests 0` read as passed.
+export function validationVerdict(result, command, { anyCommand = false } = {}) {
   const text = collectStrings(result).join('\n')
   const serialized = JSON.stringify(result)
   let exitCode = null
@@ -1047,7 +1050,7 @@ export function validationVerdict(result, command) {
   // widening the patterns for Windows buys a fail-open in one direction by
   // selling a false alarm in the other.
   if (exitCode === 0) {
-    return testCommand(command) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'
+    return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'
   }
   if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'
   if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'
@@ -1057,7 +1060,7 @@ export function validationVerdict(result, command) {
       || /\b(?:process|command)\b.{0,80}\bexit(?:ed)?(?: with)?(?: code)?\s+[1-9]\d*/i.test(text)) {
     return 'failed'
   }
-  if (testCommand(command) && reportsZeroTestWork(text, command)) return 'no-work'
+  if ((anyCommand || testCommand(command)) && reportsZeroTestWork(text, command)) return 'no-work'
   return 'passed'
 }
 
@@ -4715,6 +4718,42 @@ export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
 }
 
 // ADR-005: an observation that could not be made never matches anything.
+// A `qh-check` record becomes exactly one event, the first rule that applies
+// (ADR-060 Decision). Outside git no observation can be ok, so a pass there is
+// not unproven: it clears only unobservable writes recorded before it started.
+export function checkEventName(record) {
+  if (record?.verdict === 'unstarted') return 'check.unstarted'
+  // Inside git the evidence is about the TREE: a check that stages or commits has
+  // not changed what it checked, and a not-ok side never matches (ADR-005).
+  const treeOnly = observation => observation?.ok === true ? { ok: true, tree: observation.tree, index: null, head: null } : observation
+  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'
+  if (record?.exit !== 0) return 'check.failed'
+  if (record.git === true && !sameObservation(treeOnly(record.before), treeOnly(record.after))) return 'check.unproven'
+  if (record.verdict === 'no-work') return 'check.no-work'
+  return 'check.passed'
+}
+
+function importCheckRecords(cwd, session) {
+  let text
+  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch { return 0 }
+  const seen = new Set(readEvents(cwd, session).filter(entry => typeof entry.record === 'string').map(entry => entry.record))
+  let imported = 0
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    let record
+    try { record = JSON.parse(line) } catch { continue }
+    if (typeof record?.id !== 'string' || seen.has(record.id)) continue
+    appendEvent(cwd, session, {
+      event: checkEventName(record), record: record.id, startedAt: record.before?.at ?? null,
+      before: record.before ?? null, after: record.after ?? null, exit: record.exit ?? null,
+      signal: record.signal ?? null, command: record.command ?? null, origin: record.origin ?? null,
+    })
+    seen.add(record.id)
+    imported += 1
+  }
+  return imported
+}
+
 export function sameObservation(a, b) {
   return a?.ok === true && b?.ok === true && a.tree === b.tree && a.index === b.index && a.head === b.head
 }
@@ -4776,6 +4815,7 @@ export function recordHookEvent(input) {
   }
   if (!name) return null
   const entry = { event: name, ...extra, observation: observe(input.cwd) }
+  importCheckRecords(input.cwd, session)
   if (!appendEvent(input.cwd, session, entry)) {
     return { ...entry, observation: { ok: false, reason: 'the event log could not be appended' } }
   }
@@ -5139,6 +5179,9 @@ async function main() {
   try {
     await handleHook(input)
   } finally {
+    // Every hook's output leaves through deliver(), so a rule's action and a
+    // legacy emitJson output are composed, never one overwriting the other.
+    deliver([], input ?? {}, { legacy: pendingOutput })
     flushOutput(startedAt, input)
   }
 }

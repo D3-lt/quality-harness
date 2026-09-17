@@ -12926,6 +12926,11 @@ under `/private/tmp`, so the subagent's temp-root resolution may differ from the
 §213's false commit advisory fired a fourth time, before `11ee05f`, and named
 `plugin/skills/spec-write/SKILL.md`, which that session never read or edited.
 
+Sighted again 2026-09-17: a `qh-correctness-reviewer` spawned to review ADR-059's draft had all three
+attempts to run `bashMarkdownMutationPaths` on new inputs refused — two `node -e` one-liners and a probe
+file in the session scratchpad — so every extractor outcome in its report was traced, not executed. The
+coordinator then ran them; the traces held.
+
 ## 217. A per-session counter for repeated advisories (2026-09-16)
 
 Deferred from ADR-058, which fixes four false advisories and nothing else so that a re-measure can
@@ -12964,6 +12969,10 @@ judge; `.` and `source` run an arbitrary script and are rightly unrecognised; `a
 wrapped `codex exec` are unmeasured. Peeling grammar changes what the guard admits, so it needs its
 own record and its own measurement (§16), after ADR-058's replay.
 
+A loop glob is a member too, found while drafting ADR-059 (2026-09-17): at `4e9c79a`,
+`touch b.log; for f in docs/*.md; do cat "$f"; done` makes `bashMarkdownMutationPaths` expand
+`docs/*.md` into every Markdown file under `docs/` as a changed path. ADR-059 leaves it here.
+
 ## 219. The foreign-shell check in `classify-command.mjs` survives its deletion (2026-09-16)
 
 ADR-058 T2 recorded a mutant that deletes `if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks)))
@@ -13001,6 +13010,12 @@ interpreters. Scope a fix by the per-family write channels, measured (§16), in 
 ADR-058 T5 (2026-09-17) took `wc`, `grep` (without an ugrep write or command option), `git ls-files` and
 `mrw read` out of this list, because the Follow-up replay caught them naming read-only files. The rest,
 and the `NAME=<file>.md` assignment harvest, remain.
+
+ADR-059 (Proposed 2026-09-17) takes the remaining measured, classifier-recognised families and the
+assignment harvest. It leaves here: `sed -n`, `awk` and other readers that write through their program
+text; `ag`, `date -r`, `true` and `pwd`; the `g`-prefixed names and `shasum`, which `MEASURED_FAMILIES`
+does not recognise, so the extractor never sees them; and the source operand of `cp`, `mv` and `rsync`
+(`cp notes.md docs/new.md` names `notes.md`, measured at `4e9c79a`).
 
 ## 221. A git mutation in another repository marks this project's work unverified (2026-09-16)
 

@@ -12,7 +12,7 @@
 
 ## Goal
 
-Every hook event appends its named internal event, with an observation of the working tree, index and HEAD (or a not-ok observation), to `sessions/<session_id>.jsonl` in the state directory: `<git-common-dir>/quality-harness/` in git, `<os.tmpdir()>/quality-harness/<sha256 of the canonical cwd>/` outside it. Edit/Write add `file.written` with path, observability and blob. Each hook delivers one output and records only what it delivered. Nothing reads command text.
+Every hook event appends its named internal event, with an observation of the working tree, index and HEAD (or a not-ok observation), to `sessions/<session_id>.jsonl` in the state directory: `<git-dir>/quality-harness/` in git (per worktree, from `git rev-parse --absolute-git-dir`), `<os.tmpdir()>/quality-harness/<sha256 of the canonical cwd>/` outside it. Edit/Write add `file.written` with path, observability and blob. Each hook delivers one output and records only what it delivered. Nothing reads command text.
 
 ## Affected Files
 
@@ -21,7 +21,7 @@ Every hook event appends its named internal event, with an observation of the wo
 | `tests/observed-events.test.mjs` | create | the three tests below |
 | `plugin/scripts/lifecycle.mjs` | edit | `observe(cwd)`, `sameObservation`, `stateDir(cwd)`, the event table, the log and `deliver(actions)`; `handleHook` translates and observes after the reviewer deny; existing `emitJson` output goes through `deliver` |
 | `tests/mutations.json` | edit | entries whose `from` lives in output code `deliver` replaces are repinned or retired |
-| `plugin/hooks/hooks.json` | edit | a PostToolUse block for Edit/Write/MultiEdit/NotebookEdit whose only hook is `lifecycle.mjs`, beside the existing shell hooks |
+| `plugin/hooks/hooks.json` | edit | the existing PostToolUse Edit/Write/MultiEdit/NotebookEdit block gains `lifecycle.mjs` beside its two shell hooks |
 
 ## Ordered Steps
 
@@ -36,7 +36,7 @@ Every hook event appends its named internal event, with an observation of the wo
 3. [S3] Add `stateDir(cwd)`, the event table and the log.
    - Append a `session.started` only when the log has none.
    - Add `file.written` with an absolute path; `observable: false` when the path is outside the repository or ignored, or git is absent; and `blob` from `git hash-object` when observable.
-   - Call the loop in `handleHook` after the reviewer deny, and register the new PostToolUse block.
+   - Call the loop in `handleHook` after the reviewer deny, and add `lifecycle.mjs` to the existing PostToolUse block.
 4. [S4] Add `deliver(actions)`: a deny is delivered alone, otherwise advisories are joined in rule order into one output, and `action.emitted` is appended once per delivered action. Route the existing `emitJson` output through it.
 5. [S5] Record the observation's wall time on a scratch clone of this repository in this task's sign-off. [proof: human: the recorded wall time on this repository's tree]
 6. [S6] Run the fence green and record mutants:
@@ -45,6 +45,7 @@ Every hook event appends its named internal event, with an observation of the wo
    - write objects into the repository;
    - hash the real index in place;
    - make `sameObservation` true for two not-ok observations;
+   - put the state directory under `--git-common-dir`, so linked worktrees share one log;
    - deliver only the last action.
 
    [proof: mutation]
@@ -63,7 +64,7 @@ for name in 'a turn end observes the tree without reading any command' 'observin
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `a turn end observes the tree without reading any command` | `tests/observed-events.test.mjs` | Temp repository, driven through `lifecycle.mjs` as a process.<br>• SessionStart, a write, then Stop leave `session.started` and `turn.ended` with different trees; a compact SessionStart adds no `session.started`.<br>• An Edit outside the repository appends `file.written` with `observable: false` and no blob; one inside carries its blob.<br>• A linked worktree behaves the same; outside git the log is in the temporary state directory.<br>• With git failing the observation is not ok; `sameObservation` is false for two not-ok observations and true for an ok observation with itself. | — | S1, S2, S3 |
+| `a turn end observes the tree without reading any command` | `tests/observed-events.test.mjs` | Temp repository, driven through `lifecycle.mjs` as a process.<br>• SessionStart, a write, then Stop leave `session.started` and `turn.ended` with different trees; a compact SessionStart adds no `session.started`.<br>• An Edit outside the repository appends `file.written` with `observable: false` and no blob; one inside carries its blob.<br>• A linked worktree writes its log under its own `--absolute-git-dir`, not the main worktree's; outside git the log is in the temporary state directory.<br>• With git failing the observation is not ok; `sameObservation` is false for two not-ok observations and true for an ok observation with itself. | — | S1, S2, S3 |
 | `observing writes nothing into the repository` | `tests/observed-events.test.mjs` | In a temp repository with one modified and one untracked file, the count under `.git/objects`, the index bytes and `git status --porcelain` are unchanged by `observe`, and two calls agree; outside git it is not ok | — | S1, S2 |
 | `one hook delivers every action it records` | `tests/observed-events.test.mjs` | `deliver` with two advisories outputs both texts and appends two `action.emitted`; with a deny and an advisory it outputs only the deny and appends only its action; with none it outputs nothing and appends nothing | — | S1, S4 |
 

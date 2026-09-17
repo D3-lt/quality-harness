@@ -1345,9 +1345,17 @@ function segmentOnlyReads(segment) {
 function withoutSingleQuoted(text) {
   let kept = ''
   let quote = null
-  for (const character of text) {
+  for (let index = 0; index < text.length; index++) {
+    const character = text[index]
     if (quote === "'") {
       if (character === "'") quote = null
+      continue
+    }
+    // Outside single quotes a backslash escapes the next character, so `\'` and
+    // `\"` open no quote and hide no redirect after them (ADR-059 T7).
+    if (character === '\\') {
+      kept += character + (text[index + 1] ?? '')
+      index++
       continue
     }
     if (character === "'" && quote === null) {
@@ -1361,11 +1369,12 @@ function withoutSingleQuoted(text) {
 }
 
 // Whether position `at` sits inside the operand of a `>`/`>>` redirect: the
-// shell word around `at`, quoted runs included, preceded by `>`. `> "./$T"`
-// and `> ./"$T"` write $T; `>out "$T"` does not (ADR-059 T5, Codex review
-// 2026-09-17: an immediate-prefix test missed `"./$T"`).
+// shell word around `at`, quoted runs and backslash escapes included, preceded
+// by `>`. `> "./$T"` and `> ./"$T"` write $T; `>out "$T"` does not (ADR-059 T5,
+// Codex review 2026-09-17: an immediate-prefix test missed `"./$T"`). An escaped
+// quote is part of a word, not a quote (ADR-059 T7: `printf \" > "$T"`).
 function isRedirectOperand(text, at) {
-  for (const word of text.matchAll(/(?:"[^"]*"|'[^']*'|[^\s;&|<>"'])+/g)) {
+  for (const word of text.matchAll(/(?:\\.|"(?:[^"\\]|\\.)*"|'[^']*'|[^\s;&|<>"'\\])+/g)) {
     if (word.index <= at && at < word.index + word[0].length) return />\s*$/.test(text.slice(0, word.index))
   }
   return false

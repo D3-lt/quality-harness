@@ -13148,3 +13148,25 @@ same at `v2.99.6` (`git archive v2.99.6 plugin`) and at T9's tree:
 
 ADR-059 does not fix them. They were found while preparing the 2.99.7 release, and ADR-060 (Proposed)
 replaces this parsing with observation.
+
+## 228. ADR-059 T8 and T9 were reverted; the quote strip stays as released (2026-09-17)
+
+ADR-059 T8 (`1f823d0`) and T9 (`57b8182`) made `withoutQuotedSegments` honour a backslash, to close
+`T=README.md; printf \" > "$T"`. That input writes README.md, but classifies `neither` with authorship
+`none`, as it did in every release through `v2.99.6`. Three Codex review rounds (`gpt-6-astra`, high)
+each found a new fail-open in the changed strip, measured against `e31187e`:
+- **T8, by erasing an escape to a space:** `echo x > \./dev/null` read as a `/dev/null` redirect;
+- **T8, by letting a quoted run continue across a backslash-newline:** the redirect in
+  `echo "$(printf x > README.md)\` + newline + `"` was hidden;
+- **T9's `__` mask:** `echo $'\'\'' >README.md ''` classified `neither` and passed the reviewer
+  guard, and `echo \" "$(printf x >README.md)"` lost its write.
+
+The owner chose on 2026-09-17 to revert both and keep the strip byte-for-byte as in `v2.99.6`. ADR-059
+T10 re-applies only T8's `\\[\s\S]` in `isRedirectOperand`, which fixes T7's newline regression. It
+pins the four inputs above as writes so a later attempt must keep them. This corrects two earlier
+entries:
+- §226 says `withoutQuotedSegments` was "fixed in ADR-059 T8"; it is not;
+- §227's T8/T9 line numbers describe a tree that was reverted.
+
+Open: `printf \" > "$T"`, `printf a\"b > "$T"` and `echo \" >> "x.md"` stay unrecorded. A fix should
+tokenise the command as the shell does, not extend the regular expression; ADR-060 removes the need.

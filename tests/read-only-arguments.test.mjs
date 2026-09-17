@@ -311,49 +311,26 @@ test('an escaped quote in a read operand is still a read', async () => {
   }
 })
 
-// ---- T8: an escaped character is part of its word in every redirect scan.
+// ---- T10: a continued redirect target keeps its path, and the quote strip stays as released.
+// T8 and T9 were reverted; these are the inputs their strips broke.
 const CONTINUED_REDIRECT = ['T=README.md; printf x > "./\\\n$T"', 'README.md']
-const ESCAPED_QUOTE_WRITES = [
-  'T=README.md; printf \\" > "$T"',
-  'printf a\\"b > "$T"',
-  'T=README.md; echo \\" >> "x.md"',
+const RELEASED_STRIP_WRITES = [
+  'echo x > \\./dev/null',
+  'echo "$(printf x > README.md)\\\n"',
+  "echo $'\\'\\'' >README.md ''",
+  'echo \\" "$(printf x >README.md)"',
 ]
-const ESCAPED_REDIRECT_READS = ['echo \\> notes.txt', 'echo \\\\"x > y"']
 
-test('an escaped quote or newline does not hide a write', async () => {
-  const dir = await project('t8-')
+test('a continued redirect target keeps its path', async () => {
+  const dir = await project('t10-')
   assert.ok(bashMarkdownMutationPaths(CONTINUED_REDIRECT[0], dir).includes(path.join(dir, CONTINUED_REDIRECT[1])))
-  for (const command of ESCAPED_QUOTE_WRITES) {
+})
+
+test('the released quote strip still sees these writes', async () => {
+  const dir = await project('t10s-')
+  for (const command of RELEASED_STRIP_WRITES) {
     assert.equal(classifyCommand(command), 'mutation', command)
     assert.equal(analyzeTranscript(transcriptOf(command), dir).authorship, 'bash', command)
     assert.equal(guardExit(command), 2, command)
-  }
-})
-
-test('an escaped redirect character is not a write', () => {
-  for (const command of ESCAPED_REDIRECT_READS) {
-    assert.equal(classifyCommand(command), 'neither', command)
-  }
-})
-
-// ---- T9: an escape is masked, not erased.
-const MASKED_ESCAPE_WRITES = ['echo x > \\./dev/null', 'echo x > \\a/dev/null']
-const QUOTED_SUBSTITUTION_WRITE = 'echo "$(printf x > README.md)\\\n"'
-const MASKED_ESCAPE_READS = ['echo \\> notes.txt', 'echo x > /dev/null', 'echo x 2>/dev/null']
-
-test('a masked escape keeps a write visible', async () => {
-  const dir = await project('t9-')
-  for (const command of MASKED_ESCAPE_WRITES) {
-    assert.equal(classifyCommand(command), 'mutation', command)
-    assert.equal(analyzeTranscript(transcriptOf(command), dir).authorship, 'bash', command)
-    assert.equal(guardExit(command), 2, command)
-  }
-  assert.equal(classifyCommand(QUOTED_SUBSTITUTION_WRITE), 'mutation')
-  assert.equal(analyzeTranscript(transcriptOf(QUOTED_SUBSTITUTION_WRITE), dir).authorship, 'bash')
-})
-
-test('a masked escape is still no redirect', () => {
-  for (const command of MASKED_ESCAPE_READS) {
-    assert.equal(classifyCommand(command), 'neither', command)
   }
 })

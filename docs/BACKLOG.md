@@ -13073,3 +13073,39 @@ green (1,155 pass, 0 fail). Load was 12.9 on 10 cores, most of it an editor rend
 was imported from a `__pycache__` entry written within the same second by the clean run, because
 CPython validates bytecode by source mtime (second resolution) and size, and the mutant does not
 always change the size. Reproduce with repeated fast runs before changing the tutorial.
+
+## 223. Three over-reports from ADR-058 T7 and ADR-059 T4/T5 ship open (2026-09-17)
+
+A Codex re-review (`gpt-6-astra`, xhigh) of ADR-058 T7 and ADR-059 T4/T5 at `a7c5e57` found five
+regressions against the commit before them. The two fail-opens were fixed before release as ADR-059 T6
+and T7. These three over-report, so the owner released with them open on 2026-09-17. ADR-060
+(Proposed) deletes the code they live in.
+
+- **`uniq` operands:** `uniq < README.md`, `uniq README.md > /dev/null` and `uniq -cf 1 README.md`
+  run as reads, yet classify `mutation`. The reviewer guard refuses them (exit 2). `uniqWritesOutput`
+  counts shell redirections and the value of a clustered `-f` as file operands.
+- **Write options matched on values:** `sort -to README.md` (a field separator), `find . -name
+  "-fprint"` (a name pattern), `git log --grep --output=foo` (a grep pattern) and `git diff HEAD --
+  --output=out.txt` (a pathspec) run read-only with exit 0, yet classify `mutation` and are refused.
+  `segmentWriteChannel` tests every word, not only real options.
+- **Heredoc commit message:** `git -C <other> commit -F - <<'EOF'` with the message line `git commit
+  parser fix`, and unchecked edits in this repository, warns that the commit would publish them. The
+  heredoc body is read as another executable publish.
+
+## 224. A quoted `bash -c` payload is read as one Markdown path (2026-09-17)
+
+Found while writing ADR-059 T6's test. `bashMarkdownMutationPaths('printf x > a.js && bash -c "rg --pre
+false x README.md"', dir)` returns `<dir>/rg --pre false x README.md`, and the commit hook prints
+`UNPROVEN: could not classify` for that invented path instead of the unchecked-commit advisory. The
+hook still speaks, so it is not a fail-open. It predates this work: `git archive v2.99.6 plugin`
+returns the same path for `bash -c "cat README.md"` and `bash -c "wc -l README.md"`. It is the invented
+path class CLAUDE.md §17 names. ADR-060 removes command-derived paths.
+
+## 225. `adr-verify` blames the sha width when a clean fence is killed (2026-09-17)
+
+`adr-verify … --mutant` on ADR-059 T6 printed `UNPROVEN: the clean fence exited -9 before any mutant
+ran`, and then refused the entry with "The sha field is `9cf862f*` — git's `core.abbrev` decides its
+width". The sha was valid. The entry was refused because a negative exit code (signal 9) is not in the
+grammar. No mutant was applied and the file was clean. A retry passed, and the fence alone exited 0.
+The refusal message should name the field that failed. What sent signal 9 was not found (load 10.4 on 10
+cores at the time).

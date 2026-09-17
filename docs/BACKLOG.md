@@ -13017,6 +13017,21 @@ text; `ag`, `date -r`, `true` and `pwd`; the `g`-prefixed names and `shasum`, wh
 does not recognise, so the extractor never sees them; and the source operand of `cp`, `mv` and `rsync`
 (`cp notes.md docs/new.md` names `notes.md`, measured at `4e9c79a`).
 
+**ADR-059 re-measured, 2026-09-17 (its Follow-up).** Same method as §213's re-measure (transcript prefixes,
+`cwd` on this repository, fresh plugin data and TMPDIR per tree, SessionStart points, gate-running Stops
+only), at `a8ee9da` and at `2c69766`, over the same 3,675-line transcript: 21 messages at both, and
+every message and path list identical. The two regressions §213 recorded were already fixed by
+ADR-058 T5/T6 in `a8ee9da`, and no other commit or Stop point in that session hit a family T1–T3
+changed; their effect is shown by `tests/read-only-arguments.test.mjs`, not by this session.
+
+For the 12 commit advisories whose commit could be matched by subject (13 matched points, one silent), a listed path was checked
+against `git show --name-only` of that commit. One advisory (`d29734d`) lists two paths outside it.
+`docs/adr/ADR-057-…/tasks/T4-…md` was restored by `git checkout -- "$T"`: a real write whose net change
+was nothing. `docs/adr/ADR-057-…md` came from `python3 plugin/bin/adr-next <that record> --all >
+<scratchpad file>`, a read-only gate run through its interpreter. Interpreters are ADR-059's permanent
+boundary, so a gate invoked as `python3 plugin/bin/adr-next|adr-lint|adr-debt|adr-judge` is a member
+left here.
+
 ## 221. A git mutation in another repository marks this project's work unverified (2026-09-16)
 
 Found by ADR-058 T4's class audit ("a gate that reacts to a git command without asking which
@@ -13041,3 +13056,15 @@ do. The call sites that ask about git without a repository, enumerated with `gre
 commit in a scratch repository under `/private/tmp` is a member too), `publishPrecededByValidation` (reads the same command's
 own prefix, so not a member), the reviewer guard's `bashVerdict` (a read-only role may not commit
 anywhere, so not a member), and the two commit-branch checks T4 edited.
+
+## 222. The tutorial test saw a mutant survive once, under load (2026-09-17)
+
+The first selftest after ADR-059 T3's change failed one test: `tests/tutorial.test.mjs` "the tutorial
+walkthrough still produces the two outcomes it prints", with `mutant survived` for the parser mutation
+the tutorial expects to be killed (fence `python3 -m unittest -v test_duration 2>&1 | tee /tmp/t1.out &&
+grep -q "OK" /tmp/t1.out`). The test passed when run alone straight after, and the full selftest rerun was
+green (1,155 pass, 0 fail). Load was 12.9 on 10 cores, most of it an editor renderer. Only this test uses
+`/tmp/t1.out`, so a concurrent writer is unlikely. One unverified hypothesis: the mutated `duration.py`
+was imported from a `__pycache__` entry written within the same second by the clean run, because
+CPython validates bytecode by source mtime (second resolution) and size, and the mutant does not
+always change the size. Reproduce with repeated fast runs before changing the tutorial.

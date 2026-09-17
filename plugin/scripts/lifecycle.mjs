@@ -1190,11 +1190,25 @@ function isRecognisedReadInvocation(segment) {
 // read-only family waits on its own measured write channels (BACKLOG §220).
 const GREP_WRITE_OPTION = /^--(?:save-config|filter|pager|view|format-open)/
 
+// Read-only families: each maps to the test for the channel through which that
+// family can write or run a command. Without the channel, a segment contributes
+// only its redirect target. ADR-059 T1 measured the channel-free families on
+// 2026-09-17 (macOS BSD userland, jq 1.7.1): `cat`, `head`, `tail`, `cut`, `tr`,
+// `ls`, `stat`, `which`, `basename`, `dirname`, `realpath`, `readlink`, `diff`,
+// `cmp`, `md5sum`, `sha256sum`, `jq`, `column` and `nl` changed nothing in a
+// scratch repository. Only names MEASURED_FAMILIES recognises belong here: any
+// other name makes the command unrecognised, and the extractor never sees it.
+const NO_WRITE_CHANNEL = () => false
+const READ_ARGUMENT_FAMILIES = new Map([
+  ...['cat', 'head', 'tail', 'cut', 'tr', 'ls', 'stat', 'which', 'basename', 'dirname', 'realpath', 'readlink',
+    'diff', 'cmp', 'md5sum', 'sha256sum', 'jq', 'column', 'nl', 'wc'].map(family => [family, NO_WRITE_CHANNEL]),
+  ['grep', invocation => invocation.words.slice(invocation.index + 1).some(word => GREP_WRITE_OPTION.test(word))],
+  ['git', (invocation, segment) => gitSubcommand(segment) !== 'ls-files'],
+])
+
 function readsOnlyItsArguments(segment, invocation) {
-  const family = executableName(invocation.words[invocation.index])
-  if (family === 'wc') return true
-  if (family === 'grep') return !invocation.words.slice(invocation.index + 1).some(word => GREP_WRITE_OPTION.test(word))
-  if (family === 'git') return gitSubcommand(segment) === 'ls-files'
+  const usesWriteChannel = READ_ARGUMENT_FAMILIES.get(executableName(invocation.words[invocation.index]))
+  if (usesWriteChannel) return !usesWriteChannel(invocation, segment)
   return isRecognisedReadInvocation(segment)
 }
 

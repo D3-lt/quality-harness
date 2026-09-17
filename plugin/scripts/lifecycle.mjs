@@ -95,12 +95,7 @@ const WRITE_REDIRECT = /(?<![-=<>!])(?:\d*|&)>>?(?=(\s*))\1(?!&\d|&-|\/dev\/null
 // A redirect inside quotes is not a redirect. Removing quoted runs keeps the
 // glued-redirect fix above from reading shell operators out of inline code.
 function withoutQuotedSegments(command) {
-  // An escape comes first: an unquoted `\"` opens no quoted run, and `\>` is no
-  // redirect (ADR-059 T8: `printf \" > "$T"` read as no write). It is masked, not
-  // erased, so `\./dev/null` stays a word and never reads as `/dev/null`; and a
-  // quoted run still ends at a backslash-newline, so a `$(…)` redirect before it
-  // stays visible (ADR-059 T9).
-  return command.replace(/\\[\s\S]|'[^']*'|"(?:[^"\\]|\\.)*"/g, match => match[0] === '\\' ? '__' : ' ')
+  return command.replace(/'[^']*'|"(?:[^"\\]|\\.)*"/g, ' ')
 }
 
 function walk(value, visit) {
@@ -1379,6 +1374,7 @@ function withoutSingleQuoted(text) {
 // Codex review 2026-09-17: an immediate-prefix test missed `"./$T"`). An escaped
 // quote is part of a word, not a quote (ADR-059 T7: `printf \" > "$T"`).
 function isRedirectOperand(text, at) {
+  // `\\[\s\S]`, not `\\.`: an escaped newline continues the word (ADR-059 T10).
   for (const word of text.matchAll(/(?:\\[\s\S]|"(?:[^"\\]|\\[\s\S])*"|'[^']*'|[^\s;&|<>"'\\])+/g)) {
     if (word.index <= at && at < word.index + word[0].length) return />\s*$/.test(text.slice(0, word.index))
   }

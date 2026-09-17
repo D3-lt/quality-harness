@@ -16,7 +16,7 @@ Class: every advisory `lifecycle.mjs` derives from a Bash command's text rather 
 
 One reading of command text stays, deliberately: whether a Bash command contains the word `commit` or `push` (T3, T4).
 
-**Enforced-by:** `tests/observed-events.test.mjs::a turn end observes the tree without reading any command`, `tests/observed-events.test.mjs::observing writes nothing into the repository`, `tests/observed-events.test.mjs::one hook delivers every action it records`, `tests/observed-events.test.mjs::a check event is written by qh-check`, `tests/observed-events.test.mjs::a read-only role cannot commit or push and its other changes are reported`, `tests/observed-events.test.mjs::a command naming commit or push is warned before it runs`, `tests/observed-events.test.mjs::the scripted session advises as its step table lists`, `tests/observed-events.test.mjs::a committed artifact is still validated`, `tests/observed-events.test.mjs::the command classifiers are gone`
+**Enforced-by:** None — tests will be created in T1-T7
 **Invalidates:**
 - **ADR-047:** an unrecognised command no longer matters to what is reported. The only command text read is the `commit`/`push` word rule.
 - **ADR-041, ADR-042, ADR-048:** markers, UNPROVEN authorship and its validation term go.
@@ -107,7 +107,7 @@ BACKLOG status:
 - **`recordClaim`, `hasBackgroundWork`, `interimResponse`, `evidenceLimited`, `docsOnly`, `evidenceNudge`** — **reuse** with observed inputs.
 - **`emitJson`/`advise`** — **replace** with one delivery step per hook (T1).
 - **`readOnlyVerdict`, `readOnlyRole`, `decisionContextFor`** — **keep**; `readOnlyVerdict` becomes tool name plus the word rule (T3).
-- **The session marker files under `os.tmpdir()`** (`sessionGenerationPath`) — **reuse** for R4's once-marker.
+- **The session marker files under `os.tmpdir()`** (`sessionGenerationPath`) — **replace** with reading the event log for R4's once-per-session checks.
 - **The Python bin layout and forwarders** — **reuse**: `qh-check` is a Python bin exec'ing `plugin/scripts/qh-check.mjs`.
 - **`classify-command.mjs`, `VALIDATION_PATTERNS`, `analyzeTranscript` and the transcript command classifiers, `isGitPublishCommand`, `gitSubcommand`, `shellCommandRegions`, `shellSegments`, `commandInvocation`, `heredocBodies`** — **replace and delete** once nothing calls them (T7).
 
@@ -165,7 +165,7 @@ BACKLOG status:
   - The message lists the current `git status --porcelain` paths relative to the repository, the paths staged now (`git diff --cached --name-only`), and the commits in `rev-list <its start HEAD>..HEAD`.
   - It says the state changed during that reviewer's run, not who changed it.
   - Key `(R3, agentId)`.
-- **R4 `could-not-look`,** once per session and `cwd`: the observation is not ok and the project has a check. It says what could not be observed (ADR-005), and that Edit/Write paths are still tracked.
+- **R4 `could-not-look`,** once per session and `cwd`: the observation is not ok, the project has a check, and the event log has no prior `could-not-look` delivery for this `cwd`. It says what could not be observed (ADR-005), and that Edit/Write paths are still tracked.
 - **A `artifact-invalid`** (turn, task and subagent end, `context.compacting`, `publish.requested`), skipped when the tree equals the latest `artifacts.checked` tree. It runs `runArtifactGates` over:
   - the paths in `git diff --name-only <first HEAD>`, the untracked status paths, and observable `file.written` paths;
   - minus paths whose current blob equals their latest `file.written` blob, which the per-edit PostToolUse gate already checked;
@@ -339,7 +339,7 @@ See `docs/adr/ADR-060-advisories-react-to-observed-events/tasks/README.md`.
 
 ## Rollback
 
-Revert the task commits. The persistent state is `<git-common-dir>/quality-harness/`, `<os.tmpdir()>/quality-harness/` and R4's marker files under the system temp directory. All of it is plugin-owned and safe to delete.
+Revert the task commits. The persistent state is `<git-common-dir>/quality-harness/` and `<os.tmpdir()>/quality-harness/`. All of it is plugin-owned and safe to delete.
 
 ## Follow-ups
 

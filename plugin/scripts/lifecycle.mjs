@@ -16,6 +16,7 @@ import {
 } from './standalone-link.mjs'
 
 import { ARTIFACT_OUTPUT_LIMIT } from './run-shell-hook.mjs'
+import { findGitDir } from './git-directory.mjs'
 import {
   classifyCommand as classifyCommandWithHooks,
   POSIX_NESTED_SHELLS,
@@ -2535,12 +2536,6 @@ export function provenMutationPaths(paths, cwd) {
   return out
 }
 
-function displayProvenPath(entry, cwd) {
-  const root = path.resolve(cwd ?? process.cwd())
-  const rel = path.relative(root, path.resolve(root, entry))
-  return rel || entry
-}
-
 function docsOnly(paths) {
   return paths.length > 0 && paths.every(file => DOC_EXTENSIONS.has(path.extname(file).toLowerCase()))
 }
@@ -2845,8 +2840,8 @@ export function runTheCheckSentence(cwd) {
   // cause teaches distrust of the gate, which is what let an earlier wrong
   // command survive so long (docs/BACKLOG.md §59).
   if (origin === 'declared') {
-    return `Run \`${command}\` (this project's own check) after the final edit and report the exact `
-      + 'command and result.'
+    return `Run \`qh-check\` — it runs \`${command}\` (this project's own check) and records what it `
+      + 'observed — after the final edit and report the exact command and result.'
   }
   // The word "environment" is deliberately NOT used here. It is reserved for a
   // run that actually failed that way, and a standing note carrying it in every
@@ -2859,36 +2854,8 @@ export function runTheCheckSentence(cwd) {
     + `repository rather than from a declaration: \`${command}\`, so that is not this `
     + 'project\'s own check. If it is red on an unmodified tree the finding is about this '
     + 'machine and not about your change — say which, and declare the real command as `check`. '
-    + `Run \`${command}\` after the final edit and report the exact command and result.`
-}
-
-// What the last attempt was, when it was not a pass. An environment that could
-// not run the check is not a finding about the change, and saying so is the
-// difference between guidance and an accusation.
-function environmentExcuse(state) {
-  if (state.lastVerdict === 'unstarted') {
-    return `\`${state.lastVerdictCommand}\` never started — the command or something it needs is `
-      + 'missing here. That is this environment, not your change; nothing is wrong with the work '
-      + 'that this can see.'
-  }
-  if (state.lastVerdict === 'timeout') {
-    return `\`${state.lastVerdictCommand}\` was killed on its time budget rather than reporting. `
-      + 'That is not a verdict about your change either — raise the budget or narrow the run.'
-  }
-  return null
-}
-
-function missingEvidenceReason(state, cwd, paths = state.mutationPaths) {
-  // Distinct proven paths, because the list is five slots wide and repeats spend
-  // them saying the same thing. A live session filled all five with one identical
-  // marker and the sentence that exists to say WHAT CHANGED said nothing.
-  const proven = provenMutationPaths(paths, cwd)
-  const changed = proven.length
-    ? `Changed paths include: ${proven.slice(-5).map(entry => displayProvenPath(entry, cwd)).join(', ')}.`
-    : 'I could not prove a repository path for those edits (could not classify the command, or could not resolve a path).'
-  const excuse = environmentExcuse(state)
-  if (excuse) return `${changed} ${excuse}`
-  return `${changed} ${runTheCheckSentence(cwd)} Do not add cleanup or new scope.`
+    + `Run \`qh-check\` (it runs \`${command}\` and records what it observed) after the final `
+    + 'edit and report the exact command and result.'
 }
 
 // ADR-035. One line per completion event, machine-local, append-only.
@@ -2926,6 +2893,9 @@ function recordClaim(input, claim, evidence, mutations) {
       phrase: claim.phrase,
       evidence,
       mutations,
+      // ADR-060: the row's vocabulary is unchanged and its computation is not, so
+      // a reader can tell which model produced it.
+      version: 'events/1',
     })}\n`, 'utf8')
   } catch (failure) {
     process.stderr.write(`[quality-harness] could not append to the claims ledger (${failure.code
@@ -4419,14 +4389,23 @@ export function readOnlyRole(agentType) {
 // recorded in one worktree never clears another's findings. Outside a repository
 // it is keyed by the canonical directory under the system temp directory.
 const stateDirectories = new Map()
-export function stateDir(cwd) {
+export function stateDir(cwd, { spawn = true } = {}) {
   const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
-  const key = directory ?? String(cwd)
+  const key = `${directory ?? String(cwd)}:${spawn}`
   if (stateDirectories.has(key)) return stateDirectories.get(key)
   let resolved = null
   if (directory) {
-    const run = spawnSync('git', ['-C', directory, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 5_000 })
-    if (!run.error && run.status === 0 && run.stdout.trim()) resolved = path.join(canonical(run.stdout.trim()), 'quality-harness')
+    // findGitDir walks the checkout without starting a process, and answers a
+    // linked worktree with its OWN git directory, which is what makes one
+    // worktree's check unable to clear another's findings. The spawn is the
+    // second rung for the cases it cannot see (a GIT_DIR in the environment);
+    // a reader that must not start a process asks for it to be skipped.
+    resolved = findGitDir(directory)
+    if (resolved) resolved = path.join(canonical(resolved), 'quality-harness')
+    if (!resolved && spawn) {
+      const run = spawnSync('git', ['-C', directory, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 5_000 })
+      if (!run.error && run.status === 0 && run.stdout.trim()) resolved = path.join(canonical(run.stdout.trim()), 'quality-harness')
+    }
   }
   resolved ??= path.join(os.tmpdir(), 'quality-harness',
     createHash('sha256').update(directory ? canonical(directory) : String(cwd)).digest('hex'))
@@ -4434,14 +4413,14 @@ export function stateDir(cwd) {
   return resolved
 }
 
-function sessionLogPath(cwd, session) {
-  return path.join(stateDir(cwd), 'sessions', `${String(session).replace(/[^A-Za-z0-9._-]/g, '_')}.jsonl`)
+export function sessionLogFile(cwd, session, options) {
+  return path.join(stateDir(cwd, options), 'sessions', `${String(session).replace(/[^A-Za-z0-9._-]/g, '_')}.jsonl`)
 }
 
 export function appendEvent(cwd, session, entry) {
   if (typeof session !== 'string' || !session) return false
   try {
-    const file = sessionLogPath(cwd, session)
+    const file = sessionLogFile(cwd, session)
     mkdirSync(path.dirname(file), { recursive: true })
     appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, 'utf8')
     return true
@@ -4450,10 +4429,10 @@ export function appendEvent(cwd, session, entry) {
   }
 }
 
-export function readEvents(cwd, session) {
+export function readEvents(cwd, session, options) {
   if (typeof session !== 'string' || !session) return []
   let text
-  try { text = readFileSync(sessionLogPath(cwd, session), 'utf8') } catch { return [] }
+  try { text = readFileSync(sessionLogFile(cwd, session, options), 'utf8') } catch { return [] }
   const entries = []
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
@@ -4670,6 +4649,7 @@ export function deliver(actions, input, { legacy = null } = {}) {
 // belongs to the tree of its `after` observation, and the evidence revision of a
 // tree is how many check events it has, so a later check re-opens a finding.
 function checkEventsFor(log, tree) {
+  if (typeof tree !== 'string' || !tree) return []
   return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && entry.after?.tree === tree)
 }
 
@@ -4745,6 +4725,159 @@ function reviewChangedState(input, ended) {
   if (staged.length) lines.push(`Staged now:\n${staged.map(line => `  ${line}`).join('\n')}`)
   if (commits.length) lines.push(`New commits:\n${commits.map(line => `  ${line}`).join('\n')}`)
   queueAction({ rule: 'R3', key, text: lines.join('\n') })
+}
+
+// ---- ADR-060's completion rules. They read the event log and git, never the
+// transcript. R1 is work no check has passed on, R2 is a newly reachable commit
+// whose tree nothing checked, R4 is an observation that could not be made. Each
+// speaks once per rule and evidence state, so a finding does not repeat while
+// nothing has moved.
+function emittedFor(log, rule, key) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key)
+}
+
+// P already said this tree is unchecked, before the command ran. Saying it again
+// at the end of the same turn is the repetition ADR-060 closed (BACKLOG §217).
+function namedByPublish(log, tree, revision) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P'
+    && entry.detail?.tree === tree && entry.detail?.revision === revision)
+}
+
+// A write git cannot see — outside the repository, ignored, or with no git at
+// all. The last passing check observed the work as it was when it STARTED, so a
+// write made while it ran is not covered by it.
+function unobservableWrites(log) {
+  const since = log.filter(entry => entry.event === 'check.passed').at(-1)?.startedAt ?? null
+  return log.filter(entry => entry.event === 'file.written' && entry.observable === false
+    && (typeof since !== 'string' || typeof entry.at !== 'string' || entry.at > since))
+}
+
+// The evidence revision where nothing can be observed: every check event is one,
+// since there is no tree to attach it to (ADR-005 — unknown is not "the same").
+function revisionFor(log, observation) {
+  return observation?.ok === true
+    ? checkRevision(log, observation.tree)
+    : log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).length
+}
+
+function statusPaths(root) {
+  if (!root) return []
+  return gitLines(root, ['status', '--porcelain']).map(line => {
+    const rest = line.slice(3)
+    const arrow = rest.indexOf(' -> ')
+    return (arrow === -1 ? rest : rest.slice(arrow + 4)).replace(/^"|"$/g, '')
+  }).filter(Boolean)
+}
+
+// Commits reachable now that were not reachable when the session started. NOT
+// "authored here": a fetch, a merge or a checkout makes commits reachable too,
+// and this says only that no check has passed on their trees.
+function sessionCommits(log, root, head) {
+  const first = log.find(entry => entry.event === 'session.started')?.observation?.head
+  if (!root || typeof first !== 'string' || typeof head !== 'string' || first === head) return []
+  return gitLines(root, ['log', '--format=%H%x09%T%x09%s', `${first}..${head}`]).map(line => {
+    const [sha, tree, ...subject] = line.split('\t')
+    return { sha, tree, subject: subject.join('\t') }
+  }).filter(commit => commit.sha && commit.tree)
+}
+
+function unseenPathNote(count) {
+  if (!count) return ''
+  return ` ${count} path${count === 1 ? '' : 's'} written outside this repository `
+    + `${count === 1 ? 'is' : 'are'} not named here.`
+}
+
+function uncheckedWorkReason(cwd, paths, outside) {
+  const shown = paths.slice(0, 8)
+  const listed = paths.length
+    ? `Changed paths: ${shown.join(', ')}${paths.length > shown.length ? `, and ${paths.length - shown.length} more` : ''}.`
+    : 'Git reports no changed path in the working tree.'
+  return `quality-harness: this turn ends with work no \`qh-check\` has passed on. ${listed}`
+    + `${unseenPathNote(outside)} ${runTheCheckSentence(cwd)}`
+}
+
+function uncheckedCommitReason(cwd, commit) {
+  return `quality-harness: a newly reachable commit is unchecked — \`${commit.sha.slice(0, 8)}\` `
+    + `${commit.subject}. No \`qh-check\` has passed on its tree. This says the commit is `
+    + `reachable from HEAD and unchecked, not that this session authored it. ${runTheCheckSentence(cwd)}`
+}
+
+function couldNotLookReason(cwd, reason) {
+  return `quality-harness: this repository could not be observed (${reason}), so its tree, index `
+    + 'and HEAD are unknown to this hook. That is a statement about what could be looked at, not '
+    + 'about your work (ADR-005). Edit and Write paths are still tracked, and `qh-check` still '
+    + `records what it observed. ${runTheCheckSentence(cwd)}`
+}
+
+// The ledger's evidence, computed from the tree, the commits and the writes
+// THEMSELVES — never from whether a rule spoke. A P warning, a dedupe or a
+// suppression must not be able to turn an unchecked state into `verified`
+// (ADR-035, ADR-060 revision 4 review).
+function ledgerEvidence(log, observation, baseline, commits, writes, check) {
+  if (observation?.ok !== true) return 'could-not-look'
+  if (!check) return 'no-check'
+  const treeUnchecked = !treeChecked(log, observation.tree)
+    && (baseline?.ok !== true || observation.tree !== baseline.tree)
+  if (treeUnchecked || writes.length > 0) return 'unverified'
+  if (commits.some(commit => !treeChecked(log, commit.tree))) return 'unverified'
+  return 'verified'
+}
+
+function completionRules(input, ended) {
+  if (!ended || typeof input.session_id !== 'string' || !input.session_id) return
+  const log = readEvents(input.cwd, input.session_id)
+  const observation = ended.observation
+  const check = projectCheckCommand(input.cwd)
+  const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const writes = unobservableWrites(log)
+  const status = observation?.ok === true ? statusPaths(root) : []
+  const commits = observation?.ok === true ? sessionCommits(log, root, observation.head) : []
+  recordClaim(input, completionClaim(input.last_assistant_message),
+    ledgerEvidence(log, observation, baseline, commits, writes, check), status.length + writes.length)
+  // The opt-in today's advice already requires: a project that named no check
+  // cannot be asked to run one (reported from redash-api, 2026-08-26).
+  if (!check) return
+
+  const changed = [...status.map(relative => path.join(root ?? path.resolve(input.cwd), relative)),
+    ...writes.map(entry => entry.path).filter(candidate => typeof candidate === 'string')]
+  const quiet = (docsOnly(changed) && evidenceLimited(input.last_assistant_message))
+    || (input.hook_event_name === 'Stop' && interimResponse(input.last_assistant_message))
+  const revision = revisionFor(log, observation)
+  const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
+    && (baseline?.ok !== true || observation.tree !== baseline.tree)
+  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {
+    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
+    if (!emittedFor(log, 'R1', key)) {
+      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length) })
+    }
+  }
+  for (const commit of commits) {
+    // The observed working tree is R1's to speak for, and a tree P has already
+    // named at this revision has been said once.
+    if (treeChecked(log, commit.tree)) continue
+    if (observation?.ok === true && commit.tree === observation.tree) continue
+    const commitRevision = checkRevision(log, commit.tree)
+    if (namedByPublish(log, commit.tree, commitRevision)) continue
+    const key = `${commit.sha}:${commitRevision}`
+    if (emittedFor(log, 'R2', key)) continue
+    queueAction({ rule: 'R2', key, text: uncheckedCommitReason(input.cwd, commit) })
+  }
+  if (observation?.ok !== true) {
+    // Once per session and cwd, read from the log rather than from a marker file
+    // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
+    const key = canonical(root ?? path.resolve(input.cwd ?? process.cwd()))
+    if (!emittedFor(log, 'R4', key)) {
+      queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, observation?.reason ?? 'no reason was recorded') })
+    }
+  }
+  // The check passed and a task file changed: the corpus wants that recorded,
+  // not asserted. Not a rule — it repeats while the state it is about holds.
+  if (observation?.ok === true && treeChecked(log, observation.tree)) {
+    const nudge = evidenceNudge(input.cwd, changed)
+    if (nudge) queueAction({ text: nudge })
+  }
 }
 
 
@@ -4919,75 +5052,20 @@ export async function handleHook(input) {
 
   if (!['SubagentStop', 'TaskCompleted', 'Stop'].includes(event)) return
   if (input.stop_hook_active === true || (event === 'Stop' && hasBackgroundWork(input))) return
-
-  const claim = completionClaim(input.last_assistant_message)
+  // A read-only role's end is R3's to report; the completion rules are about the
+  // session's own work, and a reviewer authored none of it.
+  if (event === 'SubagentStop' && readOnlyRole(input.agent_type)) return
+  completionRules(input, recorded)
+  // The completion artifact pass stays until ADR-060 T6 replaces it with rule A.
+  if (event === 'Stop') return
   const raw = await readTranscript(input)
-  if (!raw) {
-    // ADR-005: the hook could not look. That is its own bucket, in neither half
-    // of any rate — never a claim about the work, and never silence either.
-    recordClaim(input, claim, 'could-not-look', 0)
-    const reason = 'Quality gate could not read the session transcript; completion evidence is '
-      + 'unavailable. This is an environment problem, not a finding about your work: the hook was '
-      + 'given a transcript path it cannot read.'
-    if (event === 'TaskCompleted') advise(reason)
-    else emitJson({ systemMessage: reason })
-    return
-  }
+  if (!raw) return
   const state = analyzeTranscript(raw, input.cwd)
-  // ADR-035. ONE row per completion event, written here because this is the one
-  // point every path below has already passed and none has yet returned. The
-  // rate's denominator is only honest if nothing can reach an exit without being
-  // counted, so this must not be pushed down into the branches that follow.
-  const check = projectCheckCommand(input.cwd)
-  const unverified = state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()
-  recordClaim(input, claim, !check ? 'no-check' : unverified ? 'unverified' : 'verified',
-    state.mutationPathsSince(state.lastPublish).length)
-  if (event !== 'Stop') {
-    const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
-    if (artifactFailure) {
-      if (event === 'TaskCompleted') advise(artifactFailure)
-      else emitJson({ systemMessage: artifactFailure })
-      return
-    }
+  const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
+  if (artifactFailure) {
+    if (event === 'TaskCompleted') advise(artifactFailure)
+    else emitJson({ systemMessage: artifactFailure })
   }
-  // Since the last publish, like the commit gate. `git add -A && git commit` is
-  // itself a git mutation, so a session that edited, checked, and committed
-  // ended its turn being told nothing had verified the work — the check had run,
-  // it just ran before the commit that came after it. Reported from blueprints,
-  // 2026-08-26. Work authored AFTER the publish still counts, which is the case
-  // this gate is actually for.
-  if (!unverified) {
-    // The check passed, so there is no finding. If an ADR task is waiting on
-    // exactly this kind of evidence, say so — a V-Log entry written by
-    // adr-verify is the difference between a claim and a record.
-    if (state.verifiedAfterLastMutation && event !== 'TaskCompleted') {
-      const nudge = evidenceNudge(input.cwd, state.mutationPaths)
-      if (nudge) emitJson({ systemMessage: nudge })
-    }
-    return
-  }
-  // Same window as `unverified`: a Markdown path published earlier is not a
-  // reason to treat a later unproven write as docs-only.
-  if (docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)) && evidenceLimited(input.last_assistant_message)) return
-  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return
-  // No check to name, nothing to ask for. This gate's whole question is "did you
-  // run THE check", and in a project that declares none it degrades into "run the
-  // smallest repository-owned test, lint, build, or validation command" at the
-  // end of every single turn — advice that names nothing, cannot be satisfied,
-  // and fires in repositories that never opted into this harness. Reported from
-  // redash-api on 2026-08-26: "this is useless.. repeats everywhere even when we
-  // do not work with quality harness".
-  if (!check) return
-
-
-  // One arm only: `completionClaim` cannot return `asserted` any more, so a
-  // `claim.kind === 'asserted'` ternary here was a branch nothing could take.
-  const reason = missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))
-  if (event === 'TaskCompleted') {
-    advise(reason)
-    return
-  }
-  emitJson({ systemMessage: reason })
 }
 
 async function readStdin() {

@@ -13170,3 +13170,23 @@ entries:
 
 Open: `printf \" > "$T"`, `printf a\"b > "$T"` and `echo \" >> "x.md"` stay unrecorded. A fix should
 tokenise the command as the shell does, not extend the regular expression; ADR-060 removes the need.
+
+## 229. The status line's header says it never spawns a process, and it does (2026-09-17)
+
+`plugin/scripts/statusline.mjs` opens with "NEVER spawns a process: a status line renders constantly
+and a command that waits on git or a gate freezes the prompt for as long as they take". Found while
+pointing it at ADR-060's event log: `reading()` calls `projectCheckCommand(cwd)`, which reaches
+`gitRepositoryRoot` and runs `git -C <dir> rev-parse --show-toplevel` with a 5s timeout. That has
+been true since the check name entered the segment; the claim was written when it was not.
+
+ADR-060 T5 leaves the call where it is and narrows the claim in the header, because the reading it
+needs — is there a check at all — has no spawn-free source today, and the per-session cache keeps it
+off most renders. What would close this: resolve the declared check from `.quality-harness.json` at
+the nearest ancestor with `findGitDir`'s walk, which starts nothing, and reserve
+`projectCheckCommand` for the hooks.
+
+Also open from the same task: the status line speaks for the tree and the writes only. It cannot see
+an unchecked COMMIT, because the log holds no commit history — so a session whose tree is checked and
+whose new commit is not renders `QH ✓ checked` while R2 has something to say at the next turn end.
+Storing the last completion's evidence in the log would close it, at the cost of putting a verdict
+into a file of observations.

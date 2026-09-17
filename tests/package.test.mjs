@@ -846,14 +846,15 @@ test('manifest and hook configuration expose the bundled components', () => {
   const hooks = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8'))
   const post = hooks.hooks.PostToolUse.flatMap(group => group.hooks)
   assert.ok(post.every(hook => hook.command === 'node'))
-  assert.ok(post.every(hook => hook.args?.[0] === '${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs'))
+  // ADR-060 T1: lifecycle.mjs joins the per-edit shell hooks to record file.written.
+  assert.ok(post.every(hook => ['${CLAUDE_PLUGIN_ROOT}/scripts/run-shell-hook.mjs', '${CLAUDE_PLUGIN_ROOT}/scripts/lifecycle.mjs'].includes(hook.args?.[0])))
   assert.ok(post.some(hook => hook.args?.includes('facts-gate-dispatch.sh')))
   assert.ok(post.some(hook => hook.args?.includes('post-edit-check.sh')))
 
   // Every event lifecycle.mjs handles must actually be declared, or the handler
   // is dead in production while its tests stay green. SubagentStart was the one
   // nothing had ever fired.
-  for (const event of ['SessionStart', 'SubagentStart', 'SubagentStop', 'Stop', 'TaskCompleted', 'PreToolUse', 'PreCompact', 'SessionEnd']) {
+  for (const event of ['SessionStart', 'SubagentStart', 'SubagentStop', 'Stop', 'TaskCompleted', 'PreToolUse', 'PreCompact', 'SessionEnd', 'PostToolUse']) {
     const declared = (hooks.hooks[event] ?? []).flatMap(group => group.hooks)
     assert.ok(declared.length > 0, `${event} is handled but not declared`)
     assert.ok(declared.some(hook => hook.args?.some(arg => arg.endsWith('lifecycle.mjs'))),

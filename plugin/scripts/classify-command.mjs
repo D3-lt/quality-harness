@@ -95,6 +95,10 @@ export function classifyCommand(command, hooks, depth = 0) {
       && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'
   }
 
-  if (hooks.isPotentialMutationCommand(command)) return 'mutation'
+  // A measured read family that uses its write channel (ADR-059 T4): one that
+  // runs a program is unrecognised, one that writes a file is a mutation.
+  const channel = typeof hooks.writeChannelOf === 'function' ? hooks.writeChannelOf(command) : null
+  if (channel === 'unrecognised') return 'unrecognised'
+  if (channel === 'mutation' || hooks.isPotentialMutationCommand(command)) return 'mutation'
   return 'neither'
 }

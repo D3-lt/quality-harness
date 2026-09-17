@@ -5,12 +5,17 @@
 // test body: the test-lock hasher masks strings but not regex literals
 // (BACKLOG §212), and every body here is locked at its task's first red.
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdtempSync, realpathSync, rmSync } from 'node:fs'
 import { mkdir, mkdtemp, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
-import { bashMarkdownMutationPaths, classifyCommand } from '../plugin/scripts/lifecycle.mjs'
+import { fileURLToPath } from 'node:url'
+import { analyzeTranscript, bashMarkdownMutationPaths, classifyCommand } from '../plugin/scripts/lifecycle.mjs'
+
+const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
+const reviewerGuard = path.join(repoRoot, 'plugin', 'scripts', 'reviewer-guard.mjs')
 
 const testTmp = realpathSync(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-read-args-')))
@@ -147,4 +152,46 @@ test('an assigned path written, hidden, exported or never referenced is still a 
   for (const [command, target] of ASSIGNED_KEPT) {
     assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
   }
+})
+
+// ---- T4: a used write channel is a write to the classifier and the guard.
+const OUTPUT_CHANNELS = ['uniq /dev/null README.md', 'gtimeout 5 uniq /dev/null README.md', 'sort -o README.md /dev/null',
+  'gtimeout 5 sort -o README.md /dev/null', 'sort -uo README.md docs/a.md', 'sort --out=README.md docs/a.md',
+  'printf "a\\n" | uniq - README.md', 'find docs -name a.md -fprint out.txt', 'file -C -m docs/magic',
+  'git diff --output=out.txt HEAD', 'git log -1 --output=out.txt', 'echo "$(sort -o README.md docs/a.md)"']
+const PROGRAM_CHANNELS = ['rg --pre ./w.sh a docs', 'sort --compress-program=./z.sh docs/a.md', "git grep -O'./w.sh' a"]
+const GUARD_REFUSES = ['gtimeout 5 uniq /dev/null README.md', 'git diff --output=README.md HEAD']
+const CHANNEL_FREE_READS = ['uniq docs/a.md', 'uniq -c -f 1 docs/a.md', 'sort -u docs/a.md', 'gtimeout 5 sort docs/a.md',
+  "find docs -name '*.md'", 'file docs/a.md', 'git diff HEAD', 'git log -1', 'rg a docs']
+
+function guardExit(command) {
+  const input = JSON.stringify({ hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repoRoot, tool_input: { command } })
+  return spawnSync(process.execPath, [reviewerGuard], { input, encoding: 'utf8', timeout: 30_000 }).status
+}
+
+function transcriptOf(command) {
+  return [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'w1', name: 'Bash', input: { command } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'w1', is_error: false, content: '' }] } },
+  ].map(entry => JSON.stringify(entry)).join('\n')
+}
+
+test('a used write channel is a write to the classifier and the guard', () => {
+  for (const command of OUTPUT_CHANNELS) {
+    assert.equal(classifyCommand(command), 'mutation', command)
+  }
+  for (const command of PROGRAM_CHANNELS) {
+    assert.equal(classifyCommand(command), 'unrecognised', command)
+  }
+  assert.notEqual(analyzeTranscript(transcriptOf(OUTPUT_CHANNELS[1]), repoRoot).authorship, 'none', OUTPUT_CHANNELS[1])
+  for (const command of GUARD_REFUSES) {
+    assert.equal(guardExit(command), 2, command)
+  }
+})
+
+test('a read without its channel is still not a write', () => {
+  for (const command of CHANNEL_FREE_READS) {
+    assert.equal(classifyCommand(command), 'neither', command)
+  }
+  assert.equal(guardExit('sort README.md'), 0)
 })

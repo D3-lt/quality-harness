@@ -13129,3 +13129,22 @@ and `\\.`. These members were not checked for which way a backslash moves their 
 Line numbers are at `e31187e` before T8's two added lines. A member whose miss yields "not matched" may
 fail safe (`CD_ONLY`), while one that extracts a target (`REDIRECT_TARGET`) may drop a path. Assess each
 against bash before trusting it, or let ADR-060 delete them.
+
+## 227. Three older redirect gaps a Codex review listed as residual (2026-09-17)
+
+A Codex review (`gpt-6-astra`, high) of ADR-059 T8 listed these as older than T8. Each was measured the
+same at `v2.99.6` (`git archive v2.99.6 plugin`) and at T9's tree:
+- **`echo "$(printf x > README.md)"`** writes README.md, but classifies `neither` with authorship
+  `none`. `withoutQuotedSegments` strips the whole double-quoted run, substitution included, before
+  `WRITE_REDIRECT` is tested. The reviewer guard still refuses it through `innerCommands`. This is a
+  fail-open for the commit and Stop advisories. Codex's suggested fix: test redirects in each
+  `shellCommandRegions` region, substitution bodies included.
+- **`echo x ->README.md`** writes README.md in bash (`-` is an argument, and `>README.md` the
+  redirect). It classifies `neither`, records authorship `none`, and the reviewer guard allows it,
+  because `WRITE_REDIRECT`'s lookbehind `(?<![-=<>!])` rejects a `>` after `-`. This fails open for
+  the advisories and for the guard.
+- **`echo x > C:\tmp\a.md`** records a mutation, but `bashMarkdownMutationPaths` returns no
+  Markdown path, so artifact validation does not see the file.
+
+ADR-059 does not fix them. They were found while preparing the 2.99.7 release, and ADR-060 (Proposed)
+replaces this parsing with observation.

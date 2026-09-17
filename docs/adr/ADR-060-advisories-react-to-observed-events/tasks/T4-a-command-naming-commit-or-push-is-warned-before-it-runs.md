@@ -50,7 +50,7 @@ for name in 'a command naming commit or push is warned before it runs'; do print
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `a command naming commit or push is warned before it runs` | `tests/observed-events.test.mjs` | Temp repositories with a declared check, coordinator hooks driven as processes.<br>• With an unchecked edit, `git commit -m x` gets P; `git push` in the same state gets nothing.<br>• After another edit, `pwsh -Command 'git push'` gets P; after another, `git -C <other> commit` gets P.<br>• After `qh-check` passes, `git commit -m x` gets nothing; after `qh-check` then fails on the same tree, it gets P again.<br>• A repository without a check gets nothing.<br>• The message names `qh-check` and does not say the command publishes this repository. | — | S1, S2 |
+| `a command naming commit or push is warned before it runs` | `tests/observed-events.test.mjs` | Temp repositories with a declared check, coordinator hooks driven as processes.<br>• With an unchecked edit, `git commit -m x` gets P; `git push` in the same state gets nothing, because P speaks once per state, not because a push is exempt.<br>• After another edit, `pwsh -Command 'git push'` gets P; after another, `git -C <other> commit` gets P.<br>• After `qh-check` passes, `git commit -m x` gets nothing; after `qh-check` then fails on the same tree, it gets P again.<br>• A repository without a check gets nothing.<br>• The message names `qh-check` and does not say the command publishes this repository. | — | S1, S2 |
 
 ## Reachability
 

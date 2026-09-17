@@ -16,6 +16,7 @@ README must be regenerated.
 | 4 | T4 | T3 |
 | 5 | T5 | T4 |
 | 6 | T6 | T5 |
+| 7 | T7 | T6 |
 
 Every task edits `tests/read-only-arguments.test.mjs`, so each wave holds one task.
 
@@ -29,6 +30,7 @@ Every task edits `tests/read-only-arguments.test.mjs`, so each wave holds one ta
 | T4 | A used write channel is a write to the classifier and the guard | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs tests/classify.test.mjs tests/reviewer-guard.test.mjs` |
 | T5 | A variable inside a redirect target is still a changed path | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 | T6 | A failed command that also writes is still a write | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
+| T7 | An escaped quote does not hide a redirect target | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

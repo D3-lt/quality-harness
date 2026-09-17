@@ -4951,8 +4951,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (/\\.md$/i.test(value)) paths.push(...expandExistingGlob(value, cwd))",
-      "to": "      if (/\\.md$/i.test(value)) paths.push(...expandExistingGlob(`${assignment[1]}=${value}`, cwd))"
+      "from": "      if (kept.has(name)) paths.push(...expandExistingGlob(value, cwd))",
+      "to": "      if (kept.has(name)) paths.push(...expandExistingGlob(`${name}=${value}`, cwd))"
     },
     {
       "label": "lifecycle: a key=value argument is data, not a path the gate reports",

@@ -111,3 +111,40 @@ test('a used write channel keeps every candidate', async () => {
     assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
   }
 })
+
+// ---- T3: an assigned path used only by reads is not a changed path.
+// The first command is the measured session's shape, with its python probe
+// shortened to one that still reads a file.
+const ASSIGNED_ONLY_READ = [
+  "T=docs/a.md && mrw read \"$T\" | sed -n '1,90p'; cd plugin/lib && python3 -c 'src = open(\"notes.md\").read()'",
+  'D=docs/a.md; cat "$D"; touch b.log',
+  "T=docs/a.md; cat \"$T\"; sed -i '' 's/$T/x/' docs/b.md",
+]
+const ASSIGNED_KEPT = [
+  ['A=docs/a.md; printf x | tee "$A"', 'docs/a.md'],
+  ['T=docs/a.md && python3 plugin/bin/adr-verify "$T"', 'docs/a.md'],
+  ['NOTE=docs/a.md; echo "- x" >> "$NOTE"', 'docs/a.md'],
+  ['OUT=docs/c.md; cat docs/a.md docs/b.md > "$OUT"', 'docs/c.md'],
+  ['F=docs/a.md; head -3 "$F"; pushd plugin; popd; printf x | tee -a "$F"', 'docs/a.md'],
+  ['T=docs/a.md; cat "$T"; echo "$(printf x | tee "$T")"', 'docs/a.md'],
+  ['T=docs/a.md; cat "$T"; bash <<EOF\nprintf x > "$T"\nEOF', 'docs/a.md'],
+  ['T=docs/a.md; N=T; cat "$T"; printf x | tee "${!N}"', 'docs/a.md'],
+  ['T=docs/a.md; printf x | tee "$T"; T=docs/b.md; cat "$T"', 'docs/a.md'],
+  ['T=docs/a.md; export T; ./w.sh', 'docs/a.md'],
+  ["DOC='docs/a.md' && printf x > docs/b.md", 'docs/a.md'],
+]
+
+test('an assigned path used only by reads is not a changed path', async () => {
+  const dir = await project('t3-')
+  for (const command of ASSIGNED_ONLY_READ) {
+    assert.equal(classifyCommand(command), 'mutation', command)
+    assert.equal(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, 'docs/a.md')), false, command)
+  }
+})
+
+test('an assigned path written, hidden, exported or never referenced is still a changed path', async () => {
+  const dir = await project('t3w-')
+  for (const [command, target] of ASSIGNED_KEPT) {
+    assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
+  }
+})

@@ -315,3 +315,14 @@ test('a revision path under a used git channel is not a changed path', async () 
   assert.ok(paths.includes(path.join(dir, 'docs/timing.md')), REVISION_UNDER_CHANNEL)
   assert.equal(paths.some(found => found.includes(REVISION_MARK)), false, JSON.stringify(paths))
 })
+
+// ---- ADR-059 T3 regression pin: an exported name keeps its assigned path.
+// T3's kept case `T=…; export T; ./w.sh` never references $T, so it is kept
+// whether or not the export clause exists. Here the only reference is a read,
+// so only the export clause keeps the path.
+const EXPORTED_AFTER_READ = 'T=docs/BACKLOG.md; cat "$T"; export T; ./w.sh'
+
+test('an exported name keeps its assigned path after a read', async () => {
+  const dir = await readArgumentProject('t59e-')
+  assert.ok(bashMarkdownMutationPaths(EXPORTED_AFTER_READ, dir).includes(path.join(dir, 'docs/BACKLOG.md')), EXPORTED_AFTER_READ)
+})

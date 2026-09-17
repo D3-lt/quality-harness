@@ -20,7 +20,7 @@ README must be regenerated.
 |----|-------|--------|--------|------------|
 | T1 | A channel-free read names no changed path | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 | T2 | A family that can write names no changed path until it uses that channel | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
-| T3 | An assigned path used only by reads is not a changed path | pending | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
+| T3 | An assigned path used only by reads is not a changed path | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

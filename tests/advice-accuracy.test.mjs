@@ -283,3 +283,20 @@ test('a write beside a read is still a changed path', async () => {
     assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
   }
 })
+
+// ---- T6: a wrapper's file operand is still a changed path.
+const WRAPPER_WRITES = [
+  'touch build.log; /usr/bin/time -o docs/timing.md wc -l docs/BACKLOG.md',
+  'touch build.log; time -o docs/timing.md echo x',
+  'touch build.log; /usr/bin/time -o docs/timing.md mrw read notes.md',
+]
+const WRAPPED_READ = 'touch build.log; /usr/bin/time wc -l docs/BACKLOG.md'
+
+test('a wrapper file operand is still a changed path', async () => {
+  const dir = await readArgumentProject('t6-')
+  await writeFile(path.join(dir, 'docs/timing.md'), 'x\n')
+  for (const command of WRAPPER_WRITES) {
+    assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, 'docs/timing.md')), command)
+  }
+  assert.deepEqual(bashMarkdownMutationPaths(WRAPPED_READ, dir), [], WRAPPED_READ)
+})

@@ -3,7 +3,7 @@
 **Status:** Proposed
 **Date:** 2026-09-17
 **Owner:** zy
-**Spec:** None — no spec stage. The owner decided the direction on 2026-09-17: "use events … better event names for separation, then watch for events in our internal loop, then do the actions … simple". After Codex's loss review of revision 2, the owner kept a small publish guard. After Codex's review of revision 3 and the refusal rates measured below, the owner chose a guard that reads one thing from a command: whether it contains the word `commit` or `push`.
+**Spec:** None — no spec stage. The owner decided the direction on 2026-09-17: "use events … better event names for separation, then watch for events in our internal loop, then do the actions … simple". After Codex's loss review of revision 2, the owner kept a small publish guard. After Codex's review of revision 3 and the refusal rates measured below, the owner chose a guard that reads one thing from a command: whether it contains the word `commit` or `push`. Revision 5 answers two reviews of revision 4, and the owner chose to try it on a local branch before accepting.
 **Cross-references:** ADR-005, ADR-035, ADR-041, ADR-042, ADR-044, ADR-047, ADR-048, ADR-051, ADR-053, ADR-054, ADR-056, ADR-058, ADR-059, `docs/BACKLOG.md` §213, `docs/BACKLOG.md` §216, `docs/BACKLOG.md` §217, `docs/BACKLOG.md` §218, `docs/BACKLOG.md` §220, `docs/BACKLOG.md` §221
 **Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/classify-command.mjs`, `plugin/scripts/reviewer-guard.mjs`, `plugin/scripts/statusline.mjs`, `plugin/scripts/run-shell-hook.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/hooks/hooks.json`
 
@@ -115,7 +115,7 @@ BACKLOG status:
 
 **Hooks are the only event source. Each hook becomes a named internal event. One loop observes git and Edit/Write targets, appends to a per-session event log, runs the rules and delivers their actions as one output. The only command text read is whether a Bash command contains the word `commit` or `push`.**
 
-**Storage.** The state directory is `<git-common-dir>/quality-harness/` in a git repository, and `<os.tmpdir()>/quality-harness/<sha256 of the canonical cwd>/` outside one. It holds `sessions/<session_id>.jsonl` and `checks.jsonl`. Every event carries `at`.
+**Storage.** The state directory is `<git-dir>/quality-harness/` in a git repository, where `<git-dir>` is `git rev-parse --absolute-git-dir` and so belongs to one worktree. Outside a repository it is `<os.tmpdir()>/quality-harness/<sha256 of the canonical cwd>/`. It holds `sessions/<session_id>.jsonl` and `checks.jsonl`, so a check run in one worktree never clears another worktree's findings. Every event carries `at`.
 
 | Event | From | Carries |
 |-------|------|---------|
@@ -126,7 +126,7 @@ BACKLOG status:
 | `publish.requested` | PreToolUse Bash, outside a read-only role, whose command contains the word `commit` or `push` | `observation` |
 | `file.written` | PostToolUse Edit/Write/MultiEdit/NotebookEdit | `path` (absolute); `observable` (false outside the repository, in an ignored path, or without git); `blob` (the written content's git hash, when observable) |
 | `check.passed` / `check.failed` / `check.unproven` / `check.no-work` / `check.unstarted` / `check.timeout` | a `checks.jsonl` record the log has not seen | `before`, `after`, `exit`, `signal`, `command`, `origin` |
-| `artifacts.checked` | rule A, after it runs the gates | `tree` |
+| `artifact.gated` | the per-edit PostToolUse gate (`run-shell-hook.mjs`) and rule A, once per path they gated | `path`, `blob`, `complete` (true only when the gate returned a verdict for that content; false for a timeout, `UNRUN` or `UNPROVEN`) |
 | `action.emitted` | the delivery step, once per delivered action | `rule`, `key` |
 
 **The word rule.** A command contains `commit` or `push` when either word appears with no letter, digit, `_` or `-` directly before or after it. Nothing else about the command is parsed.
@@ -152,7 +152,7 @@ BACKLOG status:
   - Key `(P, tree, index, revision)`.
 - **R1 `unchecked-work`** (turn, task or non-read-only subagent end), when:
   - the tree differs from `session.started` and is not checked, and P has not named this tree at this revision; or
-  - a `file.written` with `observable: false` came after the last `check.passed`.
+  - a `file.written` with `observable: false` came after the start (`before.at`) of the last `check.passed`.
 
   The message lists `git status --porcelain` paths relative to the repository, and the number of written paths outside it without naming them (CLAUDE.md §17). It names `qh-check` and, when the check is inferred, says so and asks for it to be declared. The key is `(R1, tree, revision, count of unobservable writes)`. It is skipped by the docs-only/EVIDENCE-LIMITED and interim-reply conditions, and followed by `evidenceNudge` when a check passed and task files changed.
 - **R2 `unchecked-commits`** (the same boundaries): commits in `rev-list <first HEAD>..HEAD` whose tree:
@@ -166,18 +166,17 @@ BACKLOG status:
   - It says the state changed during that reviewer's run, not who changed it.
   - Key `(R3, agentId)`.
 - **R4 `could-not-look`,** once per session and `cwd`: the observation is not ok, the project has a check, and the event log has no prior `could-not-look` delivery for this `cwd`. It says what could not be observed (ADR-005), and that Edit/Write paths are still tracked.
-- **A `artifact-invalid`** (turn, task and subagent end, `context.compacting`, `publish.requested`), skipped when the tree equals the latest `artifacts.checked` tree. It runs `runArtifactGates` over:
+- **A `artifact-invalid`** (turn, task and subagent end, `context.compacting`, `publish.requested`). It runs `runArtifactGates`, with the first HEAD and then HEAD as deletion bases, over:
   - the paths in `git diff --name-only <first HEAD>`, the untracked status paths, and observable `file.written` paths;
-  - minus paths whose current blob equals their latest `file.written` blob, which the per-edit PostToolUse gate already checked;
-  - with the first HEAD, then HEAD, as deletion bases.
+  - minus paths whose current blob has an `artifact.gated` event with `complete: true`.
 
-  Its budget is 45 s at `publish.requested`, 20 s at `context.compacting` and 90 s elsewhere. Paths the budget left unchecked are named `UNRUN`, never passed. Key `(A, tree, gate output hash)`.
+  It runs nothing when no path remains. Each path it gates appends `artifact.gated`; a path the budget left unchecked is named `UNRUN` and gets no complete event, so the next boundary retries it. Its budget is 45 s at `publish.requested`, 20 s at `context.compacting` and 90 s elsewhere. Key `(A, tree, gate output hash)`.
 - **Reviewer deny** (PreToolUse, read-only role): Edit, Write, MultiEdit and NotebookEdit by tool name, and a Bash command containing the word `commit` or `push`.
 
 **Notes and ledger.** PreCompact and SessionEnd observe before they write, and `sessionStateNote`/`previousSessionNotice` read the log. ADR-035 rows keep `evidence` in its four values, the first that applies:
 1. `could-not-look`: the observation is not ok;
 2. `no-check`: the project has no check;
-3. `unverified`: R1's or R2's condition holds, whether or not it has spoken;
+3. `unverified`: the tree differs from `session.started` and is not checked, a commit in `rev-list <first HEAD>..HEAD` has an unchecked tree, or an unobservable write came after the start of the last `check.passed`. This is computed from those facts alone, not from R1 or R2, so a P warning, dedupe or a suppression never turns it into `verified`;
 4. `verified`: otherwise, including a session with no change.
 
 Each row adds `version: "events/1"`, and `mutations` is the number of paths R1 would list plus the unobservable writes.
@@ -194,7 +193,7 @@ Import turns each record into one event, the first that applies:
 1. `check.unstarted`: the verdict is `unstarted`;
 2. `check.timeout`: the verdict is `timeout`, or a signal was recorded;
 3. `check.failed`: a non-zero exit;
-4. `check.unproven`: the `before` and `after` trees differ, or either observation is not ok;
+4. `check.unproven`: inside a git repository, the `before` and `after` trees differ, or either observation is not ok. Outside one, where no observation can be ok, this step does not apply, and a pass clears only unobservable writes recorded before it started;
 5. `check.no-work`: the verdict is `no-work`;
 6. `check.passed`.
 
@@ -223,7 +222,7 @@ A command that masks its own failure (`… || true`) is the project's declared c
 | 14 | Outside any hook, commit a new `d.md` as `five`, then remove it as `six`, so the tree equals step 13's checked tree; Stop | R2 naming `five` |
 | 15 | `qh-check` fails on the same tree; Stop | R1 |
 
-The same steps in a repository with no check deliver nothing. Step 14 cannot catch R2 skipping a commit whose tree equals the session start; T5's `an unchecked commit is named even when its tree equals the session start` does. T1 records the observation cost, and fails if observation writes any repository object or changes the index. T7 fails if `classify-command.mjs` exists, or if `plugin/scripts/*.mjs` plus `plugin/bin/qh-check` total more than 9,277 lines (10,277 at `a7c5e57`, minus 1,000).
+The same steps in a repository with no check deliver nothing. Step 14 cannot catch R2 skipping a commit whose tree equals the session start; T5's `an unchecked commit is named even when its tree equals the session start` does. T5 also runs the revision 4 reviews' cases: a check passing in another worktree, and the ledger after a warned, unchecked commit. T1 records the observation cost, and fails if observation writes any repository object or changes the index. T7 fails if `classify-command.mjs` exists, or if any deleted parsing symbol is still defined or imported under `plugin/`.
 
 ## Alternatives Considered
 
@@ -235,6 +234,7 @@ The same steps in a repository with no check deliver nothing. Step 14 cannot cat
 - **A host sandbox for read-only roles.** Rejected because no per-subagent read-only setting is measured in this repository.
 - **A PostToolUse Bash hook observing after every call.** Rejected because it pays a hook and a fingerprint per call, needs persistent tree objects for paths, and advises on commits by key mismatch. Turn-end observation, `rev-list` and the publish warning cover the same events.
 - **Recognise a raw check from a PostToolUse payload.** Rejected because it brings back command matching and an unmeasured exit-status field. `qh-check` makes the evidence tool-written.
+- **Revision 4 of this record.** Rejected because of two reviews on 2026-09-17. `checks.jsonl` under the common git directory let a check in one worktree clear another's finding. The ledger derived `unverified` from R1 and R2, which skip a tree P warned about, so a warned unchecked commit could be recorded `verified`. Rule A skipped a blob without knowing its per-edit gate finished, and cached a whole tree after a pass that left paths `UNRUN`. Outside git every check imported as `check.unproven` while T5 expected it to clear the finding. `Governs:` had no step adding the new `qh-check` files once they exist, T7's absence check named a subset of the deleted symbols, and a line ceiling stood in for the decision.
 - **Revision 3 of this record.** Rejected because of Codex's revision 3 review, reconciled in Context. Its scenario count contradicted its rules, its ledger rows were unreadable, and one hook could lose a finding. Its check import discarded unstarted and timeout. It had no storage for non-git writes and no hook deadlines. Its task order left artifacts unchecked and refused `qh-check` to reviewers, and one T3 mutant could not fail.
 - **Revision 2 of this record.** Rejected because of Codex's loss review. It dropped reviewer publish refusal and pre-publish warnings. Its once-per-tree key hid later failures and let one rule silence another, and it gated artifact validation behind the check opt-in and missed committed files. PreCompact and SessionEnd notes went stale, zero-test runs passed, and native writes outside git's view went unnoticed. R3 could not name paths and R4 had nowhere to remember. Its commit boundary relied on timestamps, its statusline had no age source, a T5 mutant could not fail, and it left shipped guidance teaching the raw check.
 - **Revision 1 of this record.** Rejected because of 26 cold-review findings, folded into revision 2.
@@ -259,9 +259,10 @@ The same steps in a repository with no check deliver nothing. Step 14 cannot cat
 | session event log | new: `sessions/<session_id>.jsonl` in the state directory | T1 | rules, notes, ledger, statusline |
 | check record | new: `checks.jsonl` in the state directory | T2 | the loop |
 | `qh-check` CLI | new bin with `--version`; runs the project check at the root and exits with its code | T2 | agents, reviewers, humans, advisories |
-| `plugin/hooks/hooks.json` | PostToolUse Edit/Write/MultiEdit/NotebookEdit adds a `lifecycle.mjs` block of its own; timeouts unchanged | T1 | Claude Code |
+| `plugin/hooks/hooks.json` | the existing PostToolUse Edit/Write/MultiEdit/NotebookEdit block gains `lifecycle.mjs` beside its two shell hooks; timeouts unchanged | T1 | Claude Code |
 | advisory output | one delivered output per hook, from P, R1, R2, R3, R4 and A | T1, T3–T6 | sessions |
 | `QUALITY_HARNESS_HISTORY_BASES` | new environment variable from `runArtifactGates` to `run-shell-hook.mjs` and `facts-gate-dispatch.sh`: the revisions to look deleted paths up in, in order | T6 | the artifact gates |
+| `artifact.gated` events | new: written by `run-shell-hook.mjs` after the per-edit gate, and by rule A | T6 | rule A |
 | ADR-035 claim rows | outcome order and `version: "events/1"` | T5 | `claims-rate.mjs` |
 | exports of `classifyCommand`, `analyzeTranscript`, `isGitPublishCommand` and the other parsing symbols | removed | T7 | tests, statusline |
 
@@ -313,7 +314,7 @@ See `docs/adr/ADR-060-advisories-react-to-observed-events/tasks/README.md`.
     - Commits pulled in are listed as newly reachable, not attributed.
   - **Reminders:** a finding is not repeated after compaction or in later turns unless its evidence changes.
   - **Artifacts:** an archive created and deleted within one session is in neither deletion base.
-  - **Cost:** each observed hook pays an observation (30–56 ms here, bounded at 5 s), and A pays its gates when the tree changed.
+  - **Cost:** each observed hook pays an observation (30–56 ms here, bounded at 5 s), and A pays its gates for paths without a complete result for their current content.
   - **Statusline:** it shows the last observation and its age, so it can lag an edit until the next hook.
   - **Claim ledger:** `verified` becomes tree-based and rows carry `version: "events/1"`, so rates before and after are not directly comparable.
 - **Neutral:** ADR-044's statusline composition is unchanged.
@@ -339,7 +340,7 @@ See `docs/adr/ADR-060-advisories-react-to-observed-events/tasks/README.md`.
 
 ## Rollback
 
-Revert the task commits. The persistent state is `<git-common-dir>/quality-harness/` and `<os.tmpdir()>/quality-harness/`. All of it is plugin-owned and safe to delete.
+Revert the task commits. The persistent state is `<git-dir>/quality-harness/` in each worktree and `<os.tmpdir()>/quality-harness/`. All of it is plugin-owned and safe to delete.
 
 ## Follow-ups
 

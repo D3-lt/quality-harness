@@ -8,11 +8,11 @@
 **Consumes:** the word rule, the reviewer deny and R3 (T3); rule P (T4); rules R1, R2 and R4, the ledger and the statusline (T5); rule A, the deletion bases and the observing notes (T6); `tests/observed-events.test.mjs` (file exists) (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `the absence check over plugin/`, `the fixed line budget`, `the test output printed when a named test fails`, `each named test actually running`, `the full selftest`
+**Rests-on:** `the absence check over plugin/`, `the full list of deleted parsing symbols`, `the test output printed when a named test fails`, `each named test actually running`, `the full selftest`
 
 ## Goal
 
-`classify-command.mjs` and every parsing symbol nothing calls after T3–T6 are deleted with their tests and mutation-catalogue entries. The word rule is the only reading of command text left. `plugin/scripts/*.mjs` plus `plugin/bin/qh-check` total at most 9,277 lines.
+`classify-command.mjs` and every parsing symbol nothing calls after T3–T6 are deleted with their tests and mutation-catalogue entries. The word rule is the only reading of command text left. No file under `plugin/` still defines or imports a deleted symbol.
 
 ## Affected Files
 
@@ -33,7 +33,7 @@
 4. [S4] Add the BACKLOG closing lines. [proof: acceptance]
 5. [S5] Run the fence green and record mutants:
    - add `export function analyzeTranscript() {}` back to `lifecycle.mjs`;
-   - lower the budget constant below the current total, so the assertion is shown to fire.
+   - add `export function shellSegments() {}` back to `lifecycle.mjs`.
 
    [proof: mutation]
 
@@ -51,14 +51,14 @@ for name in 'the command classifiers are gone'; do printf '%s\n' "$out" | grep -
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `the command classifiers are gone` | `tests/observed-events.test.mjs` | `plugin/scripts/classify-command.mjs` does not exist on disk. No file under `plugin/` defines or imports `classifyCommand`, `isPotentialMutationCommand`, `bashMarkdownMutationPaths`, `analyzeTranscript`, `isGitPublishCommand` or `shellCommandRegions`, while `readOnlyVerdict` and `containsCommitOrPush` remain. `plugin/scripts/*.mjs` plus `plugin/bin/qh-check` total at most 9,277 lines (a budget written into the test). | — | S1, S2 |
+| `the command classifiers are gone` | `tests/observed-events.test.mjs` | `plugin/scripts/classify-command.mjs` does not exist on disk. No file under `plugin/` defines or imports any of `classifyCommand`, `classifyCommandWithHooks`, `isPotentialMutationCommand`, `isValidationCommand`, `bashMarkdownMutationPaths`, `bashDeletionMutationPaths`, `analyzeTranscript`, `isGitPublishCommand`, `gitSubcommand`, `shellCommandRegions`, `shellSegments`, `commandInvocation`, `heredocBodies`, `writeChannelOf` or `readsOnlyItsArguments`, while `readOnlyVerdict` and `containsCommitOrPush` remain. | — | S1, S2 |
 
 ## Reachability
 
 | Rung | How this task shows it |
 |------|------------------------|
 | 1 — exists | the test |
-| 2 — something selects it | the full selftest runs every remaining consumer; S5's mutants restore a symbol or show the budget assertion firing |
+| 2 — something selects it | the full selftest runs every remaining consumer; S5's mutants restore a deleted symbol |
 | 3 — the caller can discover it | n/a: deletion |
 | 4 — it is used | n/a: deletion |
 
@@ -75,7 +75,7 @@ for name in 'the command classifiers are gone'; do printf '%s\n' "$out" | grep -
 
 ## Stop Condition
 
-Stop and ask if the budget is missed, since that falsifies ADR-060's simplification claim.
+Stop and ask if a symbol on the list still has a caller outside the deleted code, since that means T3–T6 left a consumer.
 
 ## Out of Scope
 

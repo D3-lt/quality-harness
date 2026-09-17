@@ -26,6 +26,7 @@
 | `tests/mutations.json` | edit | the catalogue entry every shipped bin needs |
 | `README.md` | edit | names the new gate, as every shipped gate is named |
 | `plugin/scripts/standalone-link.mjs` | edit | only if its gate forwarder list is not derived from `plugin/bin` |
+| `docs/adr/ADR-060-advisories-react-to-observed-events.md` | edit | `Governs:` gains `plugin/bin/qh-check`, `plugin/bin/qh-check.cmd` and `plugin/scripts/qh-check.mjs` in the commit that creates them; the corpus test refuses a `Governs:` path that does not exist |
 
 ## Ordered Steps
 
@@ -41,13 +42,14 @@
    - verdict `unstarted` is `check.unstarted`;
    - verdict `timeout`, or a recorded signal, is `check.timeout`;
    - a non-zero exit is `check.failed`;
-   - differing `before` and `after` trees, or a not-ok observation, is `check.unproven`;
+   - inside a git repository, differing `before` and `after` trees, or a not-ok observation, is `check.unproven`; outside one this step does not apply;
    - verdict `no-work` is `check.no-work`;
    - anything else is `check.passed`.
 4. [S4] Add the catalogue entry and the README line; `tests/gates.test.mjs` and `tests/package.test.mjs` pass. [proof: acceptance]
 5. [S5] Run the fence green and record mutants:
    - record the after-observation as `before`;
    - import a tree-changing pass as passed;
+   - import a pass outside git as `check.unproven`;
    - read zero-test output only for recognised test commands;
    - import exit 127 as `check.failed`;
    - keep the first 64 KiB instead of the last;
@@ -69,7 +71,7 @@ for name in 'a check event is written by qh-check'; do printf '%s\n' "$out" | gr
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `a check event is written by qh-check` | `tests/observed-events.test.mjs` | Temp repository, `qh-check` run from a subdirectory with a declared `check` of `sh check.sh`.<br>• Exit 0 imports `check.passed`; exit 1 imports `check.failed` and `qh-check` exits 1; creating a file imports `check.unproven`.<br>• A zero-test summary with exit 0 imports `check.no-work`, including after 100 KiB of earlier output.<br>• A missing command inside the script (exit 127) imports `check.unstarted`; `exit 124` imports `check.timeout`; SIGTERM to `qh-check` imports `check.timeout` with the signal.<br>• No check exits 2 and records nothing.<br>• Outside git the record lands in the temporary state directory.<br>• Records carry `origin`. | — | S1, S2, S3 |
+| `a check event is written by qh-check` | `tests/observed-events.test.mjs` | Temp repository, `qh-check` run from a subdirectory with a declared `check` of `sh check.sh`.<br>• Exit 0 imports `check.passed`; exit 1 imports `check.failed` and `qh-check` exits 1; creating a file imports `check.unproven`.<br>• A zero-test summary with exit 0 imports `check.no-work`, including after 100 KiB of earlier output.<br>• A missing command inside the script (exit 127) imports `check.unstarted`; `exit 124` imports `check.timeout`; SIGTERM to `qh-check` imports `check.timeout` with the signal.<br>• No check exits 2 and records nothing.<br>• Outside git the record lands in the temporary state directory, and exit 0 imports `check.passed`, not `check.unproven`.<br>• Records carry `origin`. | — | S1, S2, S3 |
 
 ## Reachability
 

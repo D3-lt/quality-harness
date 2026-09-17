@@ -8,7 +8,7 @@
 **Consumes:** `observe(cwd)`, the state directory, the session event log and delivery (T1); `checks.jsonl` written by `qh-check` (T2); rule P (T4); `tests/observed-events.test.mjs` (file exists) (T1)
 **Data dependency:** hermetic
 **Proof map:** v1
-**Rests-on:** `R1 unchecked-work`, `R2 unchecked-commits by commit id`, `the rule-and-evidence key`, `the P coverage skip`, `the unobservable-write count`, `the check opt-in`, `R4 remembered once per session and cwd`, `the kept suppressions and evidenceNudge`, `the ledger outcome order and version field`, `the statusline reading the log`, `the kept completion artifact calls`, `each named test actually running`
+**Rests-on:** `R1 unchecked-work`, `R2 unchecked-commits by commit id`, `the rule-and-evidence key`, `the P coverage skip`, `the unobservable-write count`, `the check opt-in`, `R4 remembered once per session and cwd`, `the kept suppressions and evidenceNudge`, `the ledger outcome order and version field`, `the ledger computed apart from the rules`, `the statusline reading the log`, `the kept completion artifact calls`, `each named test actually running`
 
 ## Goal
 
@@ -34,8 +34,8 @@ At turn, task and non-read-only subagent end, R1, R2 and R4 are the only complet
    - Gate R1, R2 and R4 on `projectCheckCommand`.
    - Key R1 with the tree, revision and unobservable-write count, and skip a tree P named at the same revision.
    - Key R2 by commit and its tree's revision; skip the observed working tree and trees P named at their current revision.
-   - Keep R4's once-marker under `os.tmpdir()`, keyed by session and `cwd`.
-3. [S3] Route Stop (skipped while `hasBackgroundWork`), TaskCompleted and non-read-only SubagentStop through these rules. Keep the docs-only/EVIDENCE-LIMITED and interim-reply suppressions, `evidenceNudge` and the existing artifact calls. Apply the ledger outcome order whether or not a rule has spoken, with the version field.
+   - Decide R4's once per session and `cwd` from `action.emitted` in the log.
+3. [S3] Route Stop (skipped while `hasBackgroundWork`), TaskCompleted and non-read-only SubagentStop through these rules. Keep the docs-only/EVIDENCE-LIMITED and interim-reply suppressions, `evidenceNudge` and the existing artifact calls. Apply the ledger outcome order from the tree, commits and writes themselves, not from R1 or R2, with the version field.
 4. [S4] Point the statusline at the log.
 5. [S5] Point shipped guidance at `qh-check` and remove the tests of the removed emitters. [proof: acceptance]
 6. [S6] Run the fence green and record mutants:
@@ -46,6 +46,7 @@ At turn, task and non-read-only subagent end, R1, R2 and R4 are the only complet
    - skip R2 when a commit's tree equals the session-start tree;
    - drop the check opt-in;
    - map `verified` from whether R1 spoke;
+   - compute `unverified` from R1's condition, so a tree P warned about records `verified`;
    - render the statusline without its age.
 
    [proof: mutation]
@@ -64,10 +65,10 @@ for name in 'the scripted session advises as its step table lists' 'a repository
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `the scripted session advises as its step table lists` | `tests/observed-events.test.mjs` | ADR-060's fifteen steps, driven through SessionStart, PreToolUse, Stop and `qh-check` as processes in two temp repositories. Each step's delivered rules equal the Decision's table: R1 at steps 2, 10 and 15; P at 9, 11 and 12; R2 naming `five` at 14; nothing else. The ledger rows at steps 2 and 3 are both `unverified` with `version: "events/1"`, and `tally` recognises them beside an old row without a version. | — | S1, S2, S3 |
+| `the scripted session advises as its step table lists` | `tests/observed-events.test.mjs` | ADR-060's fifteen steps, driven through SessionStart, PreToolUse, Stop and `qh-check` as processes in two temp repositories. Each step's delivered rules equal the Decision's table: R1 at steps 2, 10 and 15; P at 9, 11 and 12; R2 naming `five` at 14; nothing else. The ledger rows at steps 2 and 3 are both `unverified` with `version: "events/1"`, and `tally` recognises them beside an old row without a version. The row at step 9′, after P warned and the unchecked commit ran, is `unverified`. | — | S1, S2, S3 |
 | `a repository without a check hears no completion advisory` | `tests/observed-events.test.mjs` | the same steps in a repository with no declared or inferred check deliver nothing, and its ledger rows are `no-check` | — | S1, S2, S3 |
 | `an unchecked commit is named even when its tree equals the session start` | `tests/observed-events.test.mjs` | A session starts with an uncommitted file. Outside any hook it is committed, then a new file is written. Stop delivers R1 and R2, and R2 names that commit | — | S1, S2 |
-| `writes the tree cannot see re-open the finding` | `tests/observed-events.test.mjs` | • **Repository with a check:** an Edit outside the repository, then Stop, gives R1 with a count and no path. A second outside Edit, then Stop, gives R1 again. `qh-check` passes, then Stop gives nothing.<br>• **Non-git directory with a declared check:** an Edit, then Stop, gives R4 and R1; a second Stop gives nothing; `qh-check` passes, then Stop gives nothing.<br>• **Statusline:** from these logs it renders "last observed" with an age, and "unknown" without a log. | — | S1, S2, S4 |
+| `writes the tree cannot see re-open the finding` | `tests/observed-events.test.mjs` | • **Repository with a check:** an Edit outside the repository, then Stop, gives R1 with a count and no path. A second outside Edit, then Stop, gives R1 again. `qh-check` passes, then Stop gives nothing.<br>• **Two worktrees of one repository:** an Edit outside the repository from worktree A, then `qh-check` passing in worktree B, then Stop in A gives R1.<br>• **Non-git directory with a declared check:** an Edit, then Stop, gives R4 and R1; a second Stop gives nothing; `qh-check` passes, then Stop gives nothing; an Edit during a passing `qh-check` still gives R1 at the next Stop.<br>• **Statusline:** from these logs it renders "last observed" with an age, and "unknown" without a log. | — | S1, S2, S4 |
 
 ## Reachability
 

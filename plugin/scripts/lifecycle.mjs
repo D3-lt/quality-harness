@@ -1271,6 +1271,67 @@ function readsOnlyItsArguments(segment, invocation) {
   return isRecognisedReadInvocation(segment)
 }
 
+// Whether a segment only reads, so only its redirect target can be a changed
+// path. `echo` and `printf` write only through a redirect (ADR-058 T3); the
+// families in READ_ARGUMENT_FAMILIES read their arguments (ADR-058 T5, ADR-059).
+// A wrapper and its operands come before the command it runs:
+// `/usr/bin/time -o docs/timing.md wc -l a.md` writes docs/timing.md (measured
+// 2026-09-17), so a Markdown word there means the segment writes (ADR-058 T6).
+function segmentOnlyReads(segment) {
+  const invocation = commandInvocation(segment)
+  if (!invocation) return false
+  if (invocation.words.slice(0, invocation.index).some(word => /\.md(?:$|[),\]])/i.test(word))) return false
+  return /^(?:echo|printf)$/.test(executableName(invocation.words[invocation.index]))
+    || readsOnlyItsArguments(segment, invocation)
+}
+
+function withoutSingleQuoted(text) {
+  let kept = ''
+  let quote = null
+  for (const character of text) {
+    if (quote === "'") {
+      if (character === "'") quote = null
+      continue
+    }
+    if (character === "'" && quote === null) {
+      quote = "'"
+      continue
+    }
+    if (character === '"') quote = quote === '"' ? null : '"'
+    kept += character
+  }
+  return kept
+}
+
+// ADR-059 T3: the assigned names whose `.md` values stay changed paths. A name is
+// dropped only when it is referenced and every reference is a plain argument of
+// a segment that only reads. References are found with the same traversal the
+// assignment loop uses, so a `$(…)` body is its own segment and no segment is
+// skipped for an unknown directory. A reference right after `>`/`>>` is a write
+// in any segment. A heredoc body, `${!…}`, or an export can use a name the scan
+// cannot see, so each of those keeps every name.
+function assignedNamesAWriterMayUse(command, executable, names) {
+  if (heredocBodies(command) !== '' || executable.includes('${!')
+      || /(?:^|[\s;&|(])(?:export|declare\s+-\w*x|set\s+-\w*a|set\s+-o\s+allexport)(?:\s|$|;)/.test(executable)) {
+    return new Set(names)
+  }
+  const referenced = new Set()
+  const written = new Set()
+  for (const region of shellCommandRegions(executable)) {
+    for (const segment of shellSegments(region)) {
+      const text = withoutSingleQuoted(segment)
+      const reads = segmentOnlyReads(segment)
+      for (const name of names) {
+        for (const match of text.matchAll(new RegExp('\\$\\{?' + name + '(?![A-Za-z0-9_])', 'g'))) {
+          referenced.add(name)
+          if (!reads || />\s*"?$/.test(text.slice(0, match.index))) written.add(name)
+        }
+      }
+    }
+  }
+  return new Set(names.filter(name => written.has(name) || !referenced.has(name)))
+}
+
 function isMrwWriteCheckCommand(command) {
   if (typeof command !== 'string') return false
   const inner = commandInsideWrappers(command)
@@ -1787,6 +1848,7 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
   // the quote-aware tokenizer, which is also what makes `DOC='docs/My File.md'`
   // one value rather than two tokens.
   const assignments = new Map()
+  const assignedMarkdown = []
   for (const region of shellCommandRegions(executable)) {
     for (const segment of shellSegments(region)) {
       const assignment = segment.match(SHELL_ASSIGNMENT)
@@ -1794,26 +1856,22 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
       const value = expandShellToken(assignment[2], assignments, false)
       if (value === null) continue
       assignments.set(assignment[1], value)
-      if (/\.md$/i.test(value)) paths.push(...expandExistingGlob(value, cwd))
+      if (/\.md$/i.test(value)) assignedMarkdown.push([assignment[1], value])
+    }
+  }
+  if (assignedMarkdown.length > 0) {
+    const kept = assignedNamesAWriterMayUse(command, executable, [...new Set(assignedMarkdown.map(([name]) => name))])
+    for (const [name, value] of assignedMarkdown) {
+      if (kept.has(name)) paths.push(...expandExistingGlob(value, cwd))
     }
   }
   for (const { segment, dir } of segmentDirectories(executable, cwd)) {
     // A segment whose directory cannot be followed resolves nothing: a guessed
     // path is what produced the never-existed file above.
     if (dir === null) continue
-    // `echo` and `printf` change a file only through a redirect; their arguments
-    // are text. `… && echo "review kept at scratchpad/codex-review-f37f57a.md"`
-    // was reported as a changed repository path (ADR-058 T3), so in those
-    // segments only the token right after `>` or `>>` is a candidate.
-    const invocation = commandInvocation(segment)
-    // A wrapper and its operands come before the command it runs:
-    // `/usr/bin/time -o docs/timing.md wc -l a.md` writes docs/timing.md (measured
-    // 2026-09-17). A Markdown word there keeps every candidate (ADR-058 T6).
-    const wrapperNamesMarkdown = Boolean(invocation)
-      && invocation.words.slice(0, invocation.index).some(word => /\.md(?:$|[),\]])/i.test(word))
-    const printsOnly = Boolean(invocation) && !wrapperNamesMarkdown
-      && (/^(?:echo|printf)$/.test(executableName(invocation.words[invocation.index]))
-        || readsOnlyItsArguments(segment, invocation))
+    // A segment that only reads contributes only the token right after `>` or
+    // `>>` (segmentOnlyReads: ADR-058 T3, T5, T6; ADR-059).
+    const printsOnly = segmentOnlyReads(segment)
     for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
       let candidate = match[1] ?? match[2] ?? match[3]
       if (printsOnly && !/>\s*$/.test(segment.slice(0, match.index))) continue

@@ -1733,7 +1733,12 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
     // was reported as a changed repository path (ADR-058 T3), so in those
     // segments only the token right after `>` or `>>` is a candidate.
     const invocation = commandInvocation(segment)
-    const printsOnly = Boolean(invocation)
+    // A wrapper and its operands come before the command it runs:
+    // `/usr/bin/time -o docs/timing.md wc -l a.md` writes docs/timing.md (measured
+    // 2026-09-17). A Markdown word there keeps every candidate (ADR-058 T6).
+    const wrapperNamesMarkdown = Boolean(invocation)
+      && invocation.words.slice(0, invocation.index).some(word => /\.md(?:$|[),\]])/i.test(word))
+    const printsOnly = Boolean(invocation) && !wrapperNamesMarkdown
       && (/^(?:echo|printf)$/.test(executableName(invocation.words[invocation.index]))
         || readsOnlyItsArguments(segment, invocation))
     for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {

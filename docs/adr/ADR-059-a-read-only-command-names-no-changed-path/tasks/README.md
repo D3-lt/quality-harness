@@ -17,6 +17,7 @@ README must be regenerated.
 | 5 | T5 | T4 |
 | 6 | T6 | T5 |
 | 7 | T7 | T6 |
+| 8 | T8 | T7 |
 
 Every task edits `tests/read-only-arguments.test.mjs`, so each wave holds one task.
 
@@ -31,6 +32,7 @@ Every task edits `tests/read-only-arguments.test.mjs`, so each wave holds one ta
 | T5 | A variable inside a redirect target is still a changed path | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 | T6 | A failed command that also writes is still a write | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 | T7 | An escaped quote does not hide a redirect target | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
+| T8 | An escaped character is part of its word in every redirect scan | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs tests/classify.test.mjs tests/reviewer-guard.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

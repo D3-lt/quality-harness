@@ -333,3 +333,47 @@ test('a read-only role cannot commit or push and its other changes are reported'
   assert.ok(overlapping.includes(CHANGED_DURING) && overlapping.includes('during.md'), overlapping)
   assert.equal(stop('b2').includes(CHANGED_DURING), false)
 })
+
+// ---- T4: a command naming commit or push is warned before it runs.
+const PUBLISH_WARNING = 'names commit or push'
+const OLD_COMMIT_ADVISORY = 'would publish'
+
+test('a command naming commit or push is warned before it runs', () => {
+  assert.equal(typeof lifecycle.containsCommitOrPush, 'function')
+  const dir = repository('t4p-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const other = repository('t4o-')
+  const session = sessionId('publish')
+  const pre = command => JSON.stringify(hookOutput(hook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command }, session_id: session, cwd: dir,
+  })))
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+
+  writeFileSync(path.join(dir, 'a.md'), 'edited\n')
+  const first = pre('git commit -m x')
+  assert.ok(first.includes(PUBLISH_WARNING), first)
+  assert.ok(first.includes('qh-check'), first)
+  assert.equal(first.includes(OLD_COMMIT_ADVISORY), false, first)
+  assert.equal(pre('git push').includes(PUBLISH_WARNING), false)
+
+  writeFileSync(path.join(dir, 'b.md'), 'b\n')
+  assert.ok(pre("pwsh -Command 'git push'").includes(PUBLISH_WARNING))
+  writeFileSync(path.join(dir, 'c.md'), 'c\n')
+  assert.ok(pre('git -C "' + other + '" commit -m x').includes(PUBLISH_WARNING))
+
+  assert.equal(qhCheckRun(dir, 'pass').status, 0)
+  assert.equal(pre('git commit -m x').includes(PUBLISH_WARNING), false)
+  assert.equal(qhCheckRun(dir, 'fail').status, 1)
+  assert.ok(pre('git commit -m x').includes(PUBLISH_WARNING))
+
+  const bare = repository('t4n-')
+  const bareSession = sessionId('publish-bare')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: bareSession, cwd: bare })
+  writeFileSync(path.join(bare, 'a.md'), 'edited\n')
+  const quiet = JSON.stringify(hookOutput(hook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, session_id: bareSession, cwd: bare,
+  })))
+  assert.equal(quiet.includes(PUBLISH_WARNING), false, quiet)
+})

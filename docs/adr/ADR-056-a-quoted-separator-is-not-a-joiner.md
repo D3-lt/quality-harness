@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-16-a-quoted-separator-is-not-a-joiner.md`
 **Cross-references:** ADR-053, ADR-054, `docs/BACKLOG.md` §209
-**Governs:** `plugin/scripts/lifecycle.mjs`, `tests/leftovers-after-adr053.test.mjs`, `tests/adr053-stress.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `tests/leftovers-after-adr053.test.mjs`
 
 Class: every trailing `git commit` / `git push` whose operands hold quoted `|` / `;` / `||` / `&&`, after a recognised check joined by unquoted `&&` or a newline. Enumerated 2026-09-16 with `rg -n 'PUBLISH_SUFFIX|publishPrecededByValidation' plugin/scripts/lifecycle.mjs` and `git ls-files -- plugin/scripts/lifecycle.mjs tests/leftovers-after-adr053.test.mjs tests/adr053-stress.mjs`. Named members:
 

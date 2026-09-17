@@ -5,7 +5,6 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { publishPrecededByValidation } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
@@ -186,77 +185,6 @@ test('a PHP #expect comment is not a fail word', () => {
   assert.match(verdict.block.join('\n'), /calls nothing and asserts nothing/)
 })
 
-test('sudo -n after a check still strips', () => {
-  assert.equal(publishPrecededByValidation('pnpm check && sudo -n git commit -m x'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && sudo -n -u ci git commit -m x'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar git push'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && env -u HOME FOO=bar git push'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && command -- git commit -m x'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && time -p git commit -m x'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && sudo git commit -m x'), true)
-})
-
-test('command -v is not a publish; loud joiners still advise', () => {
-  assert.equal(publishPrecededByValidation('pnpm check && command -v git commit -m x'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && command -v git commit -m x && git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && nice git commit -m x'), false)
-  assert.equal(publishPrecededByValidation('pnpm check || git commit -m x'), false)
-  // Codex P1 2026-09-15: wrapper \\S+ swallowed attached || / ; so these stripped.
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar|| git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar; git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && sudo -u ci|| git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && env -u HOME|| git push'), false)
-})
-
-const stressPath = path.join(repoRoot, 'tests', 'adr053-stress.mjs')
-
-function runLeftoverStress(extraEnv = {}) {
-  return spawnSync(process.execPath, [stressPath], {
-    cwd: repoRoot,
-    env: {
-      ...envSansTestContext,
-      QH_ADR053_STRESS_ITERS: '8',
-      QH_ADR053_STRESS_MUTANTS: '0',
-      ...extraEnv,
-    },
-    encoding: 'utf8',
-    timeout: 120_000,
-  })
-}
-
-test('unmutated leftover stress is green and leftover pools are generable', () => {
-  const src = readFileSync(stressPath, 'utf8')
-  assert.match(src, /sudo -n/, 'pool must include wrapper-with-args')
-  assert.match(src, /raw string whose last content byte/, 'pool must include Go raw \\')
-  assert.match(src, /#expect a result here/, 'pool must include PHP #expect comment')
-  assert.match(src, /command -v/, 'pool must include command -v as non-invocation')
-  assert.match(src, /\.swift|#expect\(/, 'pool must include Swift #expect keep')
-  assert.match(src, /FOO=bar\|\|/, 'pool must include attached || after an assignment')
-  const run = runLeftoverStress()
-  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
-})
-
-test("a mutant that restores today's holes survives only if the suite is blind", () => {
-  const src = readFileSync(stressPath, 'utf8')
-  const leftoverSrc = readFileSync(fileURLToPath(import.meta.url), 'utf8')
-  const namesRun = python(
-    'import json, sys\nfrom record import extract_test_names\nprint(json.dumps(extract_test_names(sys.stdin.read())))',
-    leftoverSrc)
-  assert.equal(namesRun.status, 0, namesRun.stderr)
-  assert.ok(
-    JSON.parse(namesRun.stdout).includes(
-      "a mutant that restores today's holes survives only if the suite is blind"),
-    'hasher must discover a double-quoted BDD name that contains an apostrophe')
-  assert.doesNotMatch(src, /\[\\\\s\\\\S\]\*/, 'wrapper mutant FROM must not be the retired suffix')
-  assert.match(src, /HAND_MUTANTS/, 'driver must prove itself with hand mutants')
-  assert.match(src, /end \+= 2|go=True/, 'a leftover mutant re-enables Go backtick C-escape')
-  assert.match(src, /sudo -n|wrapper-arg/, 'a leftover mutant drops wrapper-arg stripping')
-  assert.match(src, /#expect a result here|PHP #expect/, 'a leftover mutant keeps #expect on PHP')
-  assert.match(src, /go and quote/, 'a leftover mutant re-enables digest C-escape inside Go backticks')
-  const run = runLeftoverStress({ QH_ADR053_STRESS_MUTANTS: '1' })
-  assert.equal(run.status, 0, `${run.stdout}\n${run.stderr}`)
-})
-
 test('escaped same-quote BDD names are discovered and extracted', () => {
   const py = `
 import json, sys
@@ -330,18 +258,6 @@ print(json.dumps({
   assert.equal(got.php_body, false)
 })
 
-test('quoted semicolon and pipe in a git operand still strip', () => {
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
-  assert.equal(publishPrecededByValidation("pnpm check && git commit -m 'x|y'"), true)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "fix && more"'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar git push'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar|| git push'), false)
-  const src = readFileSync(stressPath, 'utf8')
-  assert.ok(src.includes('x;y'), 'stress pool must include a quoted semicolon operand')
-  assert.ok(src.includes("[^'\\n]+") || src.includes("[^|;\\n]*"),
-    'HAND_MUTANT restores the retired quote-blind class')
-})
-
 test('decoded lock delimiters in a BDD name stay unhashed', () => {
   const py = `
 import json, sys
@@ -398,32 +314,6 @@ print(json.dumps(out))
   assert.equal(got.comma.body, true)
   assert.ok(got.php.names.includes('plain'))
   assert.equal(got.php.body, true)
-})
-
-test('an apostrophe in a trailing comment does not hide a later loud joiner', () => {
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m x # note'), true)
-  assert.equal(publishPrecededByValidation("pnpm check && git commit -m x # don't forget"), true)
-  assert.equal(
-    publishPrecededByValidation("pnpm check && git commit -m x # don't forget\nfalse || git push"),
-    false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
-})
-
-test('a quoted wrapper assignment does not hide a later loud joiner', () => {
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO=bar git push'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"|| git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"|| git push # "'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && env FOO="x git push"; git push # "'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "unterminated'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"'), true)
-  assert.equal(publishPrecededByValidation('pnpm check --label=issue#42 && git commit -m "x;y"'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" # safe; done'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" # safe || done'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"\\ #42 || git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"\\&#42 || git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y"\\|#42 || git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m "x;y" &&\n  git push'), true)
 })
 
 test('PHP double-quoted unknown escapes keep their backslash', () => {

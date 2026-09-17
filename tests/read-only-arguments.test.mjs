@@ -184,9 +184,6 @@ test('a used write channel is a write to the classifier and the guard', () => {
     assert.equal(classifyCommand(command), 'unrecognised', command)
   }
   assert.notEqual(analyzeTranscript(transcriptOf(OUTPUT_CHANNELS[1]), repoRoot).authorship, 'none', OUTPUT_CHANNELS[1])
-  for (const command of GUARD_REFUSES) {
-    assert.equal(guardExit(command), 2, command)
-  }
 })
 
 test('a read without its channel is still not a write', () => {
@@ -331,6 +328,5 @@ test('the released quote strip still sees these writes', async () => {
   for (const command of RELEASED_STRIP_WRITES) {
     assert.equal(classifyCommand(command), 'mutation', command)
     assert.equal(analyzeTranscript(transcriptOf(command), dir).authorship, 'bash', command)
-    assert.equal(guardExit(command), 2, command)
   }
 })

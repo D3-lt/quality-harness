@@ -3177,6 +3177,12 @@ function subagentContract(input) {
 // nothing, 2026-09-05); above SLOW_HOOK_MS the run names itself on both
 // channels, as one more line, never instead of the finding.
 let pendingOutput = null
+// Rule actions a hook collects; main() delivers them with any legacy output in one
+// composed result (ADR-060 T1's deliver).
+const pendingActions = []
+function queueAction(action) {
+  pendingActions.push(action)
+}
 function emitJson(value) {
   pendingOutput = value
 }
@@ -4563,45 +4569,13 @@ function decisionContextFor(input) {
 // entry with a top-level await pending (Node: "unsettled top-level await").
 const READ_ONLY_EDITING_TOOLS = new Set(['Edit', 'Write', 'MultiEdit', 'NotebookEdit'])
 
-// Interactive editors and anything that opens a file to write it. A reviewer
-// has no business in one; the classifier reads none of them as a mutation.
-const EDITORS = /(?:^|[\s;&|(])(?:vim?|nvim|nano|emacs|ed|ex|pico|micro|code|subl|open\s+-e)\b/
-
-// Payloads a shell would run: `bash -c '…'`, `$(…)`, backticks. The classifier
-// looks at the outer command; these are the inner ones, each judged as a
-// command of its own (Codex review, 2026-09-05: all three passed the first
-// shape of this guard).
-function innerCommands(command) {
-  const inner = []
-  for (const match of command.matchAll(/\b(?:ba|z|da)?sh\s+(?:-[a-zA-Z]*\s+)*-c\s+(?:"((?:[^"\\]|\\.)*)"|'((?:[^'\\]|\\.)*)')/g)) {
-    inner.push(match[1] ?? match[2])
-  }
-  for (const match of command.matchAll(/\$\(((?:[^()]|\([^()]*\))*)\)/g)) inner.push(match[1])
-  for (const match of command.matchAll(/`([^`]*)`/g)) inner.push(match[1])
-  return inner.filter(text => text && text.trim())
-}
-
-function bashVerdict(command, cwd, depth = 0) {
-  if (isGitPublishCommand(command)) {
-    return 'This role is read-only: it does not commit, push, or stage. Name the commit you would make in the review.'
-  }
-  if (EDITORS.test(command)) {
-    return 'This role is read-only: an editor is not available to it. Read the file and report the change you would make.'
-  }
-  const kind = classifyCommand(command)
-  if (kind === 'unrecognised') {
-    return 'This role is read-only: that command\'s executable family is unrecognised, so it is not known not to write. Read, grep, diff and run checks; report the edit rather than making it.'
-  }
-  if (kind === 'mutation' && !mutatesOnlyTempPaths(command, cwd)) {
-    return 'This role is read-only: that command writes outside the temp roots. Read, grep, diff and run checks; report the edit rather than making it.'
-  }
-  if (depth < 3) {
-    for (const inner of innerCommands(command)) {
-      const reason = bashVerdict(inner, cwd, depth + 1)
-      if (reason) return reason
-    }
-  }
-  return null
+// The one reading of a command's text that stays (ADR-060): whether it names
+// `commit` or `push` as a word — no letter, digit, `_` or `-` directly before or
+// after. Nothing else is parsed, so a wrapped publish (`pwsh -Command 'git push'`,
+// a Python subprocess) is caught, and `pre-commit` is not.
+const COMMIT_OR_PUSH_WORD = /(?<![A-Za-z0-9_-])(?:commit|push)(?![A-Za-z0-9_-])/
+export function containsCommitOrPush(command) {
+  return typeof command === 'string' && COMMIT_OR_PUSH_WORD.test(command)
 }
 
 export function readOnlyVerdict(input) {
@@ -4611,9 +4585,8 @@ export function readOnlyVerdict(input) {
   }
   if (tool !== 'Bash') return null
   const command = input?.tool_input?.command
-  if (typeof command !== 'string' || !command.trim()) return null
-  const cwd = typeof input?.cwd === 'string' ? input.cwd : process.cwd()
-  return bashVerdict(command, cwd)
+  if (!containsCommitOrPush(command)) return null
+  return 'This role is read-only: a command naming commit or push is not available to it. Name the commit you would make in the review. Any other change you make is reported when you finish.'
 }
 
 export const READ_ONLY_ROLES = ['qh-correctness-reviewer', 'qh-scope-reviewer', 'qh-synthesis']
@@ -4866,13 +4839,55 @@ export function deliver(actions, input, { legacy = null } = {}) {
   return { output, delivered }
 }
 
+// R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its
+// SubagentStart and SubagentStop observations, paired by agent id. A change in
+// tree, index or HEAD between them is reported — as having happened DURING that
+// run, never as done by the reviewer, since overlapping agents and the user share
+// the tree. An observation that could not be made is R4's to report, not this.
+function gitLines(root, args) {
+  const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000 })
+  if (run.error || run.status !== 0) return []
+  return run.stdout.split('\n').map(line => line.trimEnd()).filter(Boolean)
+}
+
+function reviewChangedState(input, ended) {
+  const role = readOnlyRole(input.agent_type)
+  if (!role || ended?.event !== 'subagent.ended' || typeof input.agent_id !== 'string') return
+  const log = readEvents(input.cwd, input.session_id)
+  const started = log.filter(entry => entry.event === 'subagent.started' && entry.agentId === input.agent_id).at(-1)
+  const before = started?.observation
+  const after = ended.observation
+  if (before?.ok !== true || after?.ok !== true || sameObservation(before, after)) return
+  const key = input.agent_id
+  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === key)) return
+  const directory = nearestExistingDirectory(path.resolve(input.cwd))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  if (!root) return
+  const status = gitLines(root, ['status', '--porcelain'])
+  const staged = gitLines(root, ['diff', '--cached', '--name-only'])
+  const commits = before.head && after.head && before.head !== after.head
+    ? gitLines(root, ['rev-list', '--oneline', `${before.head}..${after.head}`]) : []
+  const lines = [`quality-harness: the repository's state changed during the ${role} run (agent ${key}). `
+    + 'This says what changed during that run, not who changed it.']
+  if (status.length) lines.push(`Working tree now:\n${status.map(line => `  ${line}`).join('\n')}`)
+  if (staged.length) lines.push(`Staged now:\n${staged.map(line => `  ${line}`).join('\n')}`)
+  if (commits.length) lines.push(`New commits:\n${commits.map(line => `  ${line}`).join('\n')}`)
+  queueAction({ rule: 'R3', key, text: lines.join('\n') })
+}
+
 
 export async function handleHook(input) {
   const event = input.hook_event_name
   // ADR-060 T1: every hook first appends its named, observed event. The log is
   // additive here; a failure in it must never change an existing advisory.
-  try { recordHookEvent(input) } catch (failure) {
+  let recorded = null
+  try { recorded = recordHookEvent(input) } catch (failure) {
     process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+  }
+  if (event === 'SubagentStop') {
+    try { reviewChangedState(input, recorded) } catch (failure) {
+      process.stderr.write(`[quality-harness] the reviewer state check did not run (${failure?.message ?? failure}).\n`)
+    }
   }
 
   if (event === 'SessionStart') {
@@ -5181,7 +5196,7 @@ async function main() {
   } finally {
     // Every hook's output leaves through deliver(), so a rule's action and a
     // legacy emitJson output are composed, never one overwriting the other.
-    deliver([], input ?? {}, { legacy: pendingOutput })
+    deliver(pendingActions.splice(0), input ?? {}, { legacy: pendingOutput })
     flushOutput(startedAt, input)
   }
 }

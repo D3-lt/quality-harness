@@ -2697,38 +2697,24 @@ test('a failed UNPROVEN write does not advance lastUnprovenWrite', async () => {
   assert.equal(inflightState.lastUnprovenWrite, -1)
 })
 
-test('a reviewer is denied Remove-Item and pwsh -Command rm', async () => {
-  const repo = await checkedProject('quality-unrecognised-reviewer-')
-  const deny = (command) => JSON.parse(runLifecycleHook({
+test('a reviewer is denied only a command naming commit or push (ADR-060)', async () => {
+  const repo = await checkedProject('quality-reviewer-word-rule-')
+  const decide = (command) => JSON.parse(runLifecycleHook({
     hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
     agent_type: 'qh-correctness-reviewer', agent_id: 'a1',
     tool_input: { command },
   }).stdout || '{}')
-  for (const command of [
-    'Remove-Item -Recurse build',
-    'pwsh -Command rm -rf build',
-    'rm -rf build',
-  ]) {
-    const said = deny(command)
+  for (const command of ["pwsh -Command 'git push'", 'git commit -m x']) {
+    const said = decide(command)
     assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', command)
     assert.match(said.hookSpecificOutput.permissionDecisionReason, /read-only/, command)
     assert.ok(readOnlyVerdict({ tool_name: 'Bash', tool_input: { command }, cwd: repo }))
   }
-})
-
-test('echo and selftest are not denied as unrecognised', async () => {
-  const repo = await checkedProject('quality-reviewer-allows-probe-')
-  const verdict = (command) => JSON.parse(runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: repo,
-    agent_type: 'qh-correctness-reviewer', agent_id: 'a1',
-    tool_input: { command },
-  }).stdout || '{}')
-  for (const command of ['echo hi', 'bash scripts/selftest.sh', 'ls']) {
-    assert.notEqual(verdict(command).hookSpecificOutput?.permissionDecision, 'deny', command)
+  // Every other command passes; a write it makes is reported when the reviewer finishes (R3).
+  for (const command of ['Remove-Item -Recurse build', 'pwsh -Command rm -rf build', 'rm -rf build', 'echo hi', 'bash scripts/selftest.sh', 'ls']) {
+    assert.notEqual(decide(command).hookSpecificOutput?.permissionDecision, 'deny', command)
     assert.equal(readOnlyVerdict({ tool_name: 'Bash', tool_input: { command }, cwd: repo }), null, command)
   }
-  const dirty = verdict('Remove-Item -Recurse build')
-  assert.equal(dirty.hookSpecificOutput?.permissionDecision, 'deny')
 })
 
 test('Read or Grep is not Advise every turn', async () => {
@@ -6084,8 +6070,8 @@ test('inside a read-only role, the plugin-level PreToolUse hook denies a write; 
     tool_input: toolInput,
   }).stdout || '{}')
   for (const role of ['qh-correctness-reviewer', 'quality-harness:qh-correctness-reviewer', 'qh-scope-reviewer', 'qh-synthesis']) {
-    const said = deny(role, 'Bash', { command: "sed -i 's/a/b/' README.md" })
-    assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', `${role}: a write must be denied`)
+    const said = deny(role, 'Bash', { command: 'git commit -am x' })
+    assert.equal(said.hookSpecificOutput?.permissionDecision, 'deny', `${role}: a commit must be denied`)
     assert.match(said.hookSpecificOutput.permissionDecisionReason, /reviewer guard \(qh-[a-z-]+\): This role is read-only/)
   }
   assert.equal(deny('qh-synthesis', 'Edit', { file_path: path.join(repo, 'x') }).hookSpecificOutput?.permissionDecision, 'deny')
@@ -6093,7 +6079,7 @@ test('inside a read-only role, the plugin-level PreToolUse hook denies a write; 
   assert.notEqual(deny('qh-correctness-reviewer', 'Bash', { command: 'git diff HEAD' }).hookSpecificOutput?.permissionDecision, 'deny')
   // Outside the role — the main thread, Explore, the fixer — nothing is denied.
   for (const other of [undefined, 'Explore', 'qh-narrow-fixer', 'general-purpose']) {
-    const said = deny(other, 'Bash', { command: "sed -i 's/a/b/' README.md" })
+    const said = deny(other, 'Bash', { command: 'git commit -am x' })
     assert.notEqual(said.hookSpecificOutput?.permissionDecision, 'deny', `${other}: not a read-only role`)
   }
 })

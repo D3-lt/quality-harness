@@ -271,3 +271,65 @@ test('a check event is written by qh-check', () => {
   hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
   assert.deepEqual(checkEvents(eventsIn(temporaryStateDirectory(plain), plainSession)).map(entry => entry.event), ['check.passed'])
 })
+
+// ---- T3: a read-only role cannot commit or push, and its other changes are reported.
+const REVIEWER = 'quality-harness:qh-correctness-reviewer'
+const DENIED_FOR_REVIEWER = [
+  'git commit -m x',
+  'git push',
+  "bash -c 'git commit -m x'",
+  "pwsh -Command 'git push'",
+  'python3 -c \'import subprocess; subprocess.run(["git","push"])\'',
+]
+const ALLOWED_FOR_REVIEWER = ['qh-check', "node -e 'console.log(1)'", 'uniq < a.md', 'git log --oneline', 'grep -n pre-commit a.md']
+const CHANGED_DURING = 'changed during'
+
+function hookOutput(run) {
+  const line = run.stdout.trim().split('\n').filter(Boolean).at(-1)
+  if (!line) return {}
+  try { return JSON.parse(line) } catch { return {} }
+}
+
+function isDenied(run) {
+  return hookOutput(run)?.hookSpecificOutput?.permissionDecision === 'deny'
+}
+
+test('a read-only role cannot commit or push and its other changes are reported', () => {
+  assert.equal(typeof lifecycle.containsCommitOrPush, 'function')
+  const dir = repository('t3r-')
+  const denySession = sessionId('reviewer-deny')
+  const asReviewer = (toolName, toolInput, session) => hook({
+    hook_event_name: 'PreToolUse', tool_name: toolName, tool_input: toolInput, agent_type: REVIEWER, session_id: session, cwd: dir,
+  })
+  for (const command of DENIED_FOR_REVIEWER) {
+    assert.equal(isDenied(asReviewer('Bash', { command }, denySession)), true, command)
+  }
+  assert.equal(isDenied(asReviewer('Edit', { file_path: path.join(dir, 'a.md') }, denySession)), true, 'Edit')
+  assert.equal(eventsIn(path.join(dir, '.git', 'quality-harness'), denySession).length, 0)
+  for (const command of ALLOWED_FOR_REVIEWER) {
+    assert.equal(isDenied(asReviewer('Bash', { command }, sessionId('reviewer-allow'))), false, command)
+  }
+
+  const session = sessionId('review')
+  const start = id => hook({ hook_event_name: 'SubagentStart', agent_id: id, agent_type: REVIEWER, session_id: session, cwd: dir })
+  const stop = id => JSON.stringify(hookOutput(hook({ hook_event_name: 'SubagentStop', agent_id: id, agent_type: REVIEWER, session_id: session, cwd: dir })))
+  writeFileSync(path.join(dir, 'staged.md'), 'staged\n')
+  start('a1')
+  git(dir, 'add', 'staged.md')
+  const staged = stop('a1')
+  assert.ok(staged.includes(CHANGED_DURING) && staged.includes('staged.md'), staged)
+  start('a2')
+  const sorted = spawnSync('sh', ['-c', 'sort -o out.txt a.md'], { cwd: dir, encoding: 'utf8', timeout: 30_000 })
+  assert.equal(sorted.status, 0, sorted.stderr)
+  const written = stop('a2')
+  assert.ok(written.includes(CHANGED_DURING) && written.includes('out.txt'), written)
+  start('a3')
+  assert.equal(stop('a3').includes(CHANGED_DURING), false)
+
+  start('b1')
+  writeFileSync(path.join(dir, 'during.md'), 'during\n')
+  start('b2')
+  const overlapping = stop('b1')
+  assert.ok(overlapping.includes(CHANGED_DURING) && overlapping.includes('during.md'), overlapping)
+  assert.equal(stop('b2').includes(CHANGED_DURING), false)
+})

@@ -138,4 +138,4 @@ Revert the task commits. No persistent state or contract; the removed paths retu
 
 ## Follow-ups
 
-- [ ] After T1–T3 land, replay the measured session's commit and Stop points (the BACKLOG §213 method) at `a8ee9da` and at the new head, and record in BACKLOG §220 how many advisories still name a path no segment wrote.
+- [x] After T1–T3 land, replay the measured session's commit and Stop points (the BACKLOG §213 method) at `a8ee9da` and at the new head, and record in BACKLOG §220 how many advisories still name a path no segment wrote. — done 2026-09-17, BACKLOG §220 ("ADR-059 re-measured"): 21 messages at both trees and identical paths on that session; one remaining false path comes from a gate run through its interpreter.

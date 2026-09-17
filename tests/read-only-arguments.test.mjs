@@ -55,3 +55,59 @@ test('a redirect beside a channel-free read is still a changed path', async () =
     assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
   }
 })
+
+// ---- T2: a family that can write names no changed path until it uses that channel.
+const CHANNEL_FAMILY_READS = [
+  'touch b.log && sort docs/a.md',
+  'touch b.log && sort -u -r docs/a.md',
+  'touch b.log && uniq docs/a.md',
+  'touch b.log && uniq -c -f 1 docs/a.md',
+  "touch b.log && find docs -name '*.md'",
+  'touch b.log && file docs/a.md',
+  'touch b.log && rg a docs/a.md',
+  'touch b.log && git diff -- docs/a.md',
+  'touch b.log && git log -- docs/a.md',
+  'touch b.log && git show HEAD -- docs/a.md',
+  'touch b.log && git status docs/a.md',
+  'touch b.log && git cat-file --batch-check < docs/a.md',
+  'touch b.log && git grep -n a -- docs/a.md',
+]
+const CHANNEL_FAMILY_WRITES = [
+  ['touch b.log; sort -o docs/new.md docs/a.md', 'docs/new.md'],
+  ['touch b.log; sort -odocs/new.md docs/a.md', 'docs/a.md'],
+  ['touch b.log; sort -uo docs/new.md docs/a.md', 'docs/new.md'],
+  ['touch b.log; sort --output=docs/new.md docs/a.md', 'docs/new.md'],
+  ['touch b.log; sort --out=docs/new.md docs/a.md', 'docs/new.md'],
+  ['touch b.log; sort --compress-program=./z.sh docs/a.md', 'docs/a.md'],
+  ['touch b.log; uniq docs/a.md docs/new.md', 'docs/new.md'],
+  ['touch b.log; printf "a\\n" | uniq - docs/new.md', 'docs/new.md'],
+  ['touch b.log; find docs/a.md -delete', 'docs/a.md'],
+  ['touch b.log; find docs/a.md -exec cat {} \;', 'docs/a.md'],
+  ['touch b.log; find docs -fprint0 docs/new.md', 'docs/new.md'],
+  ['touch b.log; file -C -m docs/a.md', 'docs/a.md'],
+  ['touch b.log; git diff --output=docs/new.md HEAD', 'docs/new.md'],
+  ['touch b.log; git log -1 --output=docs/new.md', 'docs/new.md'],
+  ['touch b.log; git show --output=docs/new.md HEAD', 'docs/new.md'],
+  ['touch b.log; git -c diff.external=./w.sh diff docs/a.md', 'docs/a.md'],
+  ['touch b.log; GIT_EXTERNAL_DIFF=./w.sh git diff docs/a.md', 'docs/a.md'],
+  ["touch b.log; git grep -O'./w.sh' a -- docs/a.md", 'docs/a.md'],
+  ['touch b.log; git grep --textconv a -- docs/a.md', 'docs/a.md'],
+  ['touch b.log; rg --pre ./w.sh a docs/a.md', 'docs/a.md'],
+  ['touch b.log; rg --hostname-bin=./w.sh a docs/a.md', 'docs/a.md'],
+  ['touch b.log; RIPGREP_CONFIG_PATH=./rg.conf rg a docs/a.md', 'docs/a.md'],
+]
+
+test('a family that can write names no changed path until it uses that channel', async () => {
+  const dir = await project('t2-')
+  for (const command of CHANNEL_FAMILY_READS) {
+    assert.equal(classifyCommand(command), 'mutation', command)
+    assert.deepEqual(bashMarkdownMutationPaths(command, dir), [], command)
+  }
+})
+
+test('a used write channel keeps every candidate', async () => {
+  const dir = await project('t2w-')
+  for (const [command, target] of CHANNEL_FAMILY_WRITES) {
+    assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
+  }
+})

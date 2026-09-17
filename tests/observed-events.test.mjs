@@ -626,6 +626,35 @@ test('a tree the publish warning named still records unverified', () => {
   assert.equal(claimRows(session).at(-1)?.evidence, 'unverified')
 })
 
+// A fetch, a merge or a branch switch makes many commits newly reachable at
+// once. One finding names them, because a message per commit would be dozens of
+// joined advisories in a single hook — and each one asks git for the check.
+test('many unchecked commits are one finding', () => {
+  const dir = repository('t5m-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('many')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  for (let index = 1; index <= 7; index += 1) {
+    writeFileSync(path.join(dir, `f${index}.md`), `f${index}\n`)
+    git(dir, 'add', '-A')
+    git(dir, 'commit', '-q', '-m', `commit ${index}`)
+  }
+  writeFileSync(path.join(dir, 'later.md'), 'later\n')
+  const ended = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'a turn' })
+  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
+  assert.ok(ended.stdout.includes('7 newly reachable commits'), ended.stdout)
+  assert.ok(ended.stdout.includes('and 2 more'), ended.stdout)
+  assert.equal(ended.stdout.includes('commit 1'), false, 'only the newest five are named')
+  assert.ok(ended.stdout.includes('commit 7'), ended.stdout)
+
+  // Every one of them has been said, so the same state says nothing again.
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'a turn' })
+  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
+})
+
 function waitFor(predicate, what) {
   const deadline = Date.now() + 30_000
   while (Date.now() < deadline) {

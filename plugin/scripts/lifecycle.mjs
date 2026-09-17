@@ -4736,6 +4736,13 @@ function emittedFor(log, rule, key) {
   return log.some(entry => entry.event === 'action.emitted' && entry.rule === rule && entry.key === key)
 }
 
+// R2's own dedupe: one delivered action carries several commit keys in its
+// detail, and a commit named in any of them has been said.
+function namedByReview(log, key) {
+  return log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R2'
+    && (entry.key === key || entry.detail?.commits?.includes(key)))
+}
+
 // P already said this tree is unchecked, before the command ran. Saying it again
 // at the end of the same turn is the repetition ADR-060 closed (BACKLOG §217).
 function namedByPublish(log, tree, revision) {
@@ -4796,10 +4803,21 @@ function uncheckedWorkReason(cwd, paths, outside) {
     + `${unseenPathNote(outside)} ${runTheCheckSentence(cwd)}`
 }
 
-function uncheckedCommitReason(cwd, commit) {
-  return `quality-harness: a newly reachable commit is unchecked — \`${commit.sha.slice(0, 8)}\` `
-    + `${commit.subject}. No \`qh-check\` has passed on its tree. This says the commit is `
-    + `reachable from HEAD and unchecked, not that this session authored it. ${runTheCheckSentence(cwd)}`
+// ONE finding per boundary, however many commits it names. A fetch, a merge or a
+// branch switch makes dozens newly reachable at once, and a message per commit
+// would be dozens of joined advisories in a single hook — each of them asking
+// git for the check command again. Dedupe stays per commit and evidence revision
+// (ADR-060's key), carried in the action's detail.
+const NAMED_COMMIT_LIMIT = 5
+function uncheckedCommitsReason(cwd, commits) {
+  const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
+  const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
+  const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
+  const head = commits.length === 1
+    ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
+    : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
+  return `quality-harness: ${head}\n${listed}${rest}\nThis says they are reachable from HEAD and `
+    + `unchecked, not that this session authored them. ${runTheCheckSentence(cwd)}`
 }
 
 function couldNotLookReason(cwd, reason) {
@@ -4853,16 +4871,21 @@ function completionRules(input, ended) {
       queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length) })
     }
   }
-  for (const commit of commits) {
+  const unchecked = commits.filter(commit => {
     // The observed working tree is R1's to speak for, and a tree P has already
     // named at this revision has been said once.
-    if (treeChecked(log, commit.tree)) continue
-    if (observation?.ok === true && commit.tree === observation.tree) continue
+    if (treeChecked(log, commit.tree)) return false
+    if (observation?.ok === true && commit.tree === observation.tree) return false
     const commitRevision = checkRevision(log, commit.tree)
-    if (namedByPublish(log, commit.tree, commitRevision)) continue
-    const key = `${commit.sha}:${commitRevision}`
-    if (emittedFor(log, 'R2', key)) continue
-    queueAction({ rule: 'R2', key, text: uncheckedCommitReason(input.cwd, commit) })
+    if (namedByPublish(log, commit.tree, commitRevision)) return false
+    return !namedByReview(log, `${commit.sha}:${commitRevision}`)
+  })
+  if (unchecked.length) {
+    const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
+    queueAction({
+      rule: 'R2', key: keys.join(' '), detail: { commits: keys },
+      text: uncheckedCommitsReason(input.cwd, unchecked),
+    })
   }
   if (observation?.ok !== true) {
     // Once per session and cwd, read from the log rather than from a marker file

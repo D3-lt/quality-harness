@@ -285,3 +285,28 @@ test('a failed command with no write is still no write', async () => {
     assert.doesNotMatch(run.stderr, UNCHECKED_COMMIT, command)
   }
 })
+
+// ---- T7: an escaped quote does not hide a redirect target.
+const ESCAPED_REDIRECTS = [
+  ['T=README.md; printf \\" > "$T"', 'README.md'],
+  ['T=docs/a.md; printf "\\"" > "$T"', 'docs/a.md'],
+  ["T=docs/a.md; printf \"$T\" \\' > \"$T\"", 'docs/a.md'],
+]
+const ESCAPED_READS = [
+  'T=docs/a.md; cat \\" "$T" > notes.md',
+  'T=docs/a.md; cat "\\"" "$T" > notes.md',
+]
+
+test('an escaped quote does not hide a redirect target', async () => {
+  const dir = await project('t7-')
+  for (const [command, target] of ESCAPED_REDIRECTS) {
+    assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
+  }
+})
+
+test('an escaped quote in a read operand is still a read', async () => {
+  const dir = await project('t7r-')
+  for (const command of ESCAPED_READS) {
+    assert.equal(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, 'docs/a.md')), false, command)
+  }
+})

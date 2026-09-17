@@ -118,24 +118,6 @@
       "to": "/\\bEVIDENCE-LIMITED:\\s*/i"
     },
     {
-      "label": "hooks: EVIDENCE-LIMITED does not release code",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)) && evidenceLimited(input.last_assistant_message)) return",
-      "to": "  if (evidenceLimited(input.last_assistant_message)) return"
-    },
-    {
-      "label": "hooks: an interim answer is Stop-only",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return",
-      "to": "  if (interimResponse(input.last_assistant_message)) return"
-    },
-    {
       "label": "hooks: SubagentStart names its own event",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -537,8 +519,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "  if (!check) return",
-      "to": "  if (false) return"
+      "from": "  if (!check) return\n\n  const changed",
+      "to": "  if (false) return\n\n  const changed"
     },
     {
       "label": "advisory: finding the repo root does not disqualify the check",
@@ -593,15 +575,6 @@
       ],
       "from": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 0",
       "to": "      + 'The gates did not report; nothing is blocked.\\n')\n    return 2"
-    },
-    {
-      "label": "advisory: the turn does not re-ask about what was published",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const unverified = state.unverifiedSince(state.lastPublish) || state.unprovenWritePending()",
-      "to": "  const unverified = state.hasMutations && !state.verifiedAfterLastMutation"
     },
     {
       "label": "advisory: a verify script is the project's named check",
@@ -1195,15 +1168,6 @@
       ],
       "from": "        if (lastVerdict === 'passed') {",
       "to": "        if (lastVerdict !== 'failed') {"
-    },
-    {
-      "label": "verdict: an environment problem says so instead of asking again",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (excuse) return `${changed} ${excuse}`",
-      "to": "  if (false) return `${changed} ${excuse}`"
     },
     {
       "label": "verdict: Windows says none of what POSIX says",
@@ -2978,15 +2942,6 @@
       ],
       "from": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=fence_timeout())",
       "to": "                            text=True, encoding=\"utf-8\", errors=\"replace\",\n                            timeout=None)"
-    },
-    {
-      "label": "checks: an inferred command says it was inferred, a declared one does not",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (origin === 'declared') {\n    return `Run \\`${command}\\` (this project's own check)",
-      "to": "  if (false) {\n    return `Run \\`${command}\\` (this project's own check)"
     },
     {
       "label": "next: a record owning no tasks is answered, a missing path is refused",
@@ -5018,33 +4973,6 @@
       "to": "      void sessionNotePath"
     },
     {
-      "label": "statusline: an unchanged transcript is not analysed twice",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "      if (cached.key === key) return cached.value",
-      "to": "      if (false) return cached.value"
-    },
-    {
-      "label": "statusline: unverified edits render as unverified, not as checked",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "    kind: unprovenWrite || markerOnly ? 'unverified'\n      : proven.length === 0 ? 'nothing'\n      : state.unverifiedSince(state.lastPublish) ? 'unverified' : 'checked',",
-      "to": "    kind: unprovenWrite || markerOnly ? 'unverified'\n      : proven.length === 0 ? 'nothing'\n      : 'checked',"
-    },
-    {
-      "label": "statusline: a transcript over the cap is said, not read",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "  if (stat.size > SIZE_CAP) return { kind: 'too-large', bytes: stat.size }",
-      "to": "  if (false) return { kind: 'too-large', bytes: stat.size }"
-    },
-    {
       "label": "reviewer-guard: a publish is refused inside a read-only role",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -5367,15 +5295,6 @@
       ],
       "from": "    || /\\b(?:can ?n[o']t|cannot|could ?n[o']t|unable to)\\s+(?:\\w+\\s+){0,2}(?:verify|confirm|check|run|test)\\b/i.test(message)",
       "to": "    || /\\b(?:verify|confirm|check|run|test|ran|verified)\\b/i.test(message)"
-    },
-    {
-      "label": "lifecycle: an honest disclosure does not suppress the evidence advisory at Stop",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  if (event === 'Stop' && interimResponse(input.last_assistant_message)) return",
-      "to": "  if (event === 'Stop' && (interimResponse(input.last_assistant_message) || unverifiedDisclosure(input.last_assistant_message))) return"
     },
     {
       "label": "lint: a document with no Status line and no ADR name is not judged as a record",
@@ -8362,56 +8281,6 @@
       "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
     },
     {
-      "label": "advisory: empty mutationPaths is could-not-look (ADR-051 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    : 'I could not prove a repository path for those edits (could not classify the command, or could not resolve a path).'",
-      "to": "    : 'The transcript contains file mutations.'",
-      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
-    },
-    {
-      "label": "statusline: marker-only is unverified, not a numbered write (ADR-051 T2)",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "    count: proven.length,",
-      "to": "    count: edited.length,",
-      "only": "a marker-only transcript is unverified, not a numbered write"
-    },
-    {
-      "label": "hooks: docsOnly is over proven paths (ADR-051 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "docsOnly(provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd))",
-      "to": "docsOnly(state.mutationPaths)",
-      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
-    },
-    {
-      "label": "hooks: docsOnly uses paths since lastPublish",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "provenMutationPaths(state.mutationPathsSince(state.lastPublish), input.cwd)",
-      "to": "provenMutationPaths(state.mutationPaths, input.cwd)",
-      "only": "EVIDENCE-LIMITED does not release an unproven write after a published docs change"
-    },
-    {
-      "label": "statusline: marker-only stays unverified, not nothing-edited (ADR-051 T2)",
-      "file": "plugin/scripts/statusline.mjs",
-      "tests": [
-        "tests/statusline.test.mjs"
-      ],
-      "from": "  const markerOnly = edited.length > 0 && proven.length === 0",
-      "to": "  const markerOnly = false",
-      "only": "a marker-only transcript is unverified, not a numbered write"
-    },
-    {
       "label": "lock: a UTF-8 lock map with no check record is unreadable",
       "file": "plugin/lib/record.py",
       "tests": [
@@ -8754,6 +8623,51 @@
       ],
       "from": "  if (before?.ok !== true || after?.ok !== true || sameObservation(before, after)) return",
       "to": "  if (before?.ok !== true || after?.ok !== true || before.tree === after.tree) return"
+    },
+    {
+      "label": "advisory: R1 speaks only about an unchecked tree or an unseen write",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {",
+      "to": "  if (!quiet) {"
+    },
+    {
+      "label": "advisory: R1's key carries the evidence revision, so a later check re-opens it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`",
+      "to": "    const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${writes.length}`"
+    },
+    {
+      "label": "advisory: R4 is said once per session and cwd",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    if (!emittedFor(log, 'R4', key)) {",
+      "to": "    if (true) {"
+    },
+    {
+      "label": "ledger: an unchecked tree is unverified, whatever the rules said",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "  if (treeUnchecked || writes.length > 0) return 'unverified'",
+      "to": "  if (writes.length > 0) return 'unverified'"
+    },
+    {
+      "label": "statusline: the segment says when it was last observed",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/statusline.test.mjs"
+      ],
+      "from": "  const age = typeof value?.ageMs === 'number' ? `last observed ${renderAge(value.ageMs)} ago` : null",
+      "to": "  const age = null"
     }
   ]
 }

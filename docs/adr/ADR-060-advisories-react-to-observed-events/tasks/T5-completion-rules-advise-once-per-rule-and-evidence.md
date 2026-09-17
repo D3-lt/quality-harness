@@ -58,7 +58,7 @@ set -o pipefail
 out=$(node --test --test-reporter=tap --test-name-pattern '^(the scripted session advises as its step table lists|a repository without a check hears no completion advisory|an unchecked commit is named even when its tree equals the session start|writes the tree cannot see re-open the finding)$' tests/observed-events.test.mjs 2>&1) \
   || { printf '%s\n' "$out"; exit 1; }
 for name in 'the scripted session advises as its step table lists' 'a repository without a check hears no completion advisory' 'an unchecked commit is named even when its tree equals the session start' 'writes the tree cannot see re-open the finding'; do printf '%s\n' "$out" | grep -qxE "ok [0-9]+ - $name" || { printf '%s\n' "$out"; echo "did not run: $name"; exit 1; }; done \
-  && node --test tests/lifecycle.test.mjs tests/claims-rate.test.mjs tests/statusline.test.mjs
+  && node --test tests/observed-events.test.mjs tests/lifecycle.test.mjs tests/claims-rate.test.mjs tests/statusline.test.mjs
 ```
 
 ## Tests
@@ -69,6 +69,7 @@ for name in 'the scripted session advises as its step table lists' 'a repository
 | `a repository without a check hears no completion advisory` | `tests/observed-events.test.mjs` | the same steps in a repository with no declared or inferred check deliver nothing, and its ledger rows are `no-check` | — | S1, S2, S3 |
 | `an unchecked commit is named even when its tree equals the session start` | `tests/observed-events.test.mjs` | A session starts with an uncommitted file. Outside any hook it is committed, then a new file is written. Stop delivers R1 and R2, and R2 names that commit | — | S1, S2 |
 | `writes the tree cannot see re-open the finding` | `tests/observed-events.test.mjs` | • **Repository with a check:** an Edit outside the repository, then Stop, gives R1 with a count and no path. A second outside Edit, then Stop, gives R1 again. `qh-check` passes, then Stop gives nothing.<br>• **Two worktrees of one repository:** an Edit outside the repository from worktree A, then `qh-check` passing in worktree B, then Stop in A gives R1.<br>• **Non-git directory with a declared check:** an Edit, then Stop, gives R4 and R1; a second Stop gives nothing; `qh-check` passes, then Stop gives nothing; an Edit during a passing `qh-check` still gives R1 at the next Stop.<br>• **Statusline:** from these logs it renders "last observed" with an age, and "unknown" without a log. | — | S1, S2, S4 |
+| `a tree the publish warning named still records unverified` | `tests/observed-events.test.mjs` | found by this task's mutation pass: with P suppressing R1 and nothing committed, the ledger must still record `unverified`. The scripted session could not see it, because at step 9′ an unchecked commit kept the row honest whatever the tree contributed | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -80,6 +81,19 @@ for name in 'the scripted session advises as its step table lists' 'a repository
 | 4 — it is used | every session's completion advisories and statusline |
 
 ## Mutation Log
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R1 fires on every turn end, not only over an unchecked tree or an unseen write · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R1's key drops the evidence revision, so a check that ran and failed cannot re-open it · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R1's key drops the count of writes the tree cannot see, so a second such write is silent · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the baseline moves to the newest observation, so a compact SessionStart resets what unchecked work is measured against · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R2 skips a commit whose tree equals the session start, so a commit of exactly the work in flight is never named · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the check opt-in goes, so a project that named no check is judged against an invented one · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the ledger ignores an unchecked commit once the tree is checked, so step 14 records verified · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant survived · exit 0 · `plugin/scripts/lifecycle.mjs` · the ledger takes R1's P skip, so a tree the publish warning already named records verified · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/statusline.mjs` · the status line renders no age, so an old observation reads as the tree as it is now · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede
+- 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the ledger takes R1's P skip, so a tree the publish warning already named records verified · acceptance-sha256:5b0765d5af4d8ce5bf9c73a79ff1ef2db731777cef1ea970871bd1dfbc10c28d
 
 ## Invariants
 
@@ -100,3 +114,28 @@ Stop and ask if the scenario needs a different step table to describe a real sta
 - Artifact validation and notes (deferred: docs/adr/ADR-060-advisories-react-to-observed-events/tasks/T6-artifacts-and-notes-read-observed-changes.md)
 
 ## Verification Log
+- 2026-09-17 · bdb6dde* · exit 1 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:6352 · test-lock-sha256:ae5b799b874c13129285421169fcfa298b7829a21efa65b481796e053d52db9d · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGNoZWNrIGV2ZW50IGlzIHdyaXR0ZW4gYnkgcWgtY2hlY2sJZjgwMzk5YmMxY2EyZTlkMDI5MTRjYWM2NDlkNzYwNWEzMzljZTU4YTY0MTFkNDZiOGU0MWRkOWZiNGI1ZTc4Ywpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGNvbW1hbmQgbmFtaW5nIGNvbW1pdCBvciBwdXNoIGlzIHdhcm5lZCBiZWZvcmUgaXQgcnVucwk5MDE3ZmIxMzdiZGYzMTRkNmM4MGI0N2ExOGExN2RhZGNiOWQ1OTBiYTRmNzg2MTNjNzBlY2I2MDRhNGNmNmU1CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgcmVhZC1vbmx5IHJvbGUgY2Fubm90IGNvbW1pdCBvciBwdXNoIGFuZCBpdHMgb3RoZXIgY2hhbmdlcyBhcmUgcmVwb3J0ZWQJOWViNjZmZTlmYjZhNWZiYjQ5YjE4MDU4ODEzYTdmNDRjYWE0ODg2ZDJmMWIyNjRhZGQ1YjMyMjEyNmY0NDE1YQpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIHJlcG9zaXRvcnkgd2l0aG91dCBhIGNoZWNrIGhlYXJzIG5vIGNvbXBsZXRpb24gYWR2aXNvcnkJNmJhYzE1MTU4NTJjOTMwNjcwZDZkMzdjN2VmYzg5ODcwYjYwNzM4NGQ0MzA1Mzg1MmY3NmIwZDdjMzY4NTE3Ngpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIHR1cm4gZW5kIG9ic2VydmVzIHRoZSB0cmVlIHdpdGhvdXQgcmVhZGluZyBhbnkgY29tbWFuZAlkNzhkNDJjYzBmOGJhYzdhZmRiODFiYTc3YzUzOWQyZjRhZmM4ZWFkMWQ5NTcwNmNiZjJjNDNjYjE3ZTgzZmZhCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWFuIHVuY2hlY2tlZCBjb21taXQgaXMgbmFtZWQgZXZlbiB3aGVuIGl0cyB0cmVlIGVxdWFscyB0aGUgc2Vzc2lvbiBzdGFydAlmMzY3NjM4YWIxZjc4ODQ0ZDFmZmRlN2EzM2YzZDk1MGVmNTRiYjhmYjhjMDU2YzIyOTUyY2VlN2RhZjBjZjM2CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCW9ic2VydmluZyB3cml0ZXMgbm90aGluZyBpbnRvIHRoZSByZXBvc2l0b3J5CWQ2NWUyZjQ2NzQzNzI0ODNmZmYwMzhkNGZlYmFlYTJkODJhYTczNDA0YTJkNWFmOWEyMTBlZDhiMDMxMmY2YmEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJb25lIGhvb2sgZGVsaXZlcnMgZXZlcnkgYWN0aW9uIGl0IHJlY29yZHMJNzhlZmE1NjhmMzFlOGE5MTRjN2RkNGQwZjI2YWY0ODM4MWU0OGMxZTNmYWUyYWM0YzU1NmY0MjgzNGZmNDQyZApib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwl0aGUgc2NyaXB0ZWQgc2Vzc2lvbiBhZHZpc2VzIGFzIGl0cyBzdGVwIHRhYmxlIGxpc3RzCWIxZmQwMjAwZTA4YzFjZDE4YTNhODExMzcxZmM4OThlMmUzYWEzM2NhMzY1YjlhNDFhZTQxZGMyODY1ODRkNzkKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJd3JpdGVzIHRoZSB0cmVlIGNhbm5vdCBzZWUgcmUtb3BlbiB0aGUgZmluZGluZwlkZGNiYzk4NmM0MTVlYjEwOTcxNTMxNTdjNWZiZmYyOWVhNGM0N2FjNjEyOTcwN2MzYzY4NTVjZWU0MTk4NTg4
+  ```
+  --- last 10 line(s) of stdout (of 281 after folding 281 raw)
+    ...
+  1..4
+  # tests 4
+  # suites 0
+  # pass 0
+  # fail 4
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 6266.077583
+  ```
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:28553
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:28520
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:27832
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:28261
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:27690
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:27963
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:27666
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:28204
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5c420a7c07384e67455710af4916c2c900bfa306f718e85eec7e3c1ad15a3ede · ms:29528
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b0765d5af4d8ce5bf9c73a79ff1ef2db731777cef1ea970871bd1dfbc10c28d · ms:29329
+- 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b0765d5af4d8ce5bf9c73a79ff1ef2db731777cef1ea970871bd1dfbc10c28d · ms:29105

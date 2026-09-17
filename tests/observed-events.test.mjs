@@ -4,7 +4,7 @@
 // test body (BACKLOG §212). Git runs only in directories these tests create
 // (CLAUDE.md §9); every hook runs as a process with its temp directory here.
 import assert from 'node:assert/strict'
-import { spawnSync } from 'node:child_process'
+import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
@@ -12,6 +12,8 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
+import * as statusline from '../plugin/scripts/statusline.mjs'
+import { tally } from '../plugin/scripts/claims-rate.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
@@ -205,6 +207,7 @@ const CHECK_SCRIPT = [
   '  missing) qh_probe_missing_command_zz ;;',
   '  timeout) exit 124 ;;',
   '  sleep) sleep 30 ;;',
+  '  pause) : > started.flag; i=0; while [ ! -f go.flag ] && [ $i -lt 600 ]; do sleep 0.1; i=$((i+1)); done ;;',
   'esac',
 ].join('\n') + '\n'
 const CHECK_RUNS = [
@@ -376,4 +379,343 @@ test('a command naming commit or push is warned before it runs', () => {
     hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' }, session_id: bareSession, cwd: bare,
   })))
   assert.equal(quiet.includes(PUBLISH_WARNING), false, quiet)
+})
+
+// ---- T5: completion rules advise once per rule and evidence.
+//
+// ADR-060's Decision fixes the step table below. Each step's delivered rules are
+// read from `action.emitted` rather than from message text, so a wording change
+// cannot loosen the test; every step whose row is `—` must also have said
+// nothing at all, since a legacy delivery carries no rule and writes no event.
+const SCENARIO = [
+  ['1 SessionStart', []],
+  ['2 write a.md; Stop', ['R1']],
+  ['3 Stop', []],
+  ['4 qh-check passes; Stop', []],
+  ['5 PreToolUse then commit one; Stop', []],
+  ['6 PreToolUse then commit in B; Stop', []],
+  ['7 reads; Stop', []],
+  ['8 compact SessionStart; Stop', []],
+  ['9 write b.md; sh check.sh; PreToolUse commit two', ['P']],
+  ["9' run it; Stop", []],
+  ['10 write c.md; compact SessionStart; Stop', ['R1']],
+  ['11 edit a.md; PreToolUse bash -c commit three', ['P']],
+  ["11' run it; Stop", []],
+  ['12 edit a.md; PreToolUse git --git-dir commit -am four', ['P']],
+  ["12' run it; Stop", []],
+  ['13 qh-check passes; Stop', []],
+  ['14 commit five then six; Stop', ['R2']],
+  ['15 qh-check fails; Stop', ['R1']],
+]
+const LEDGER_VERSION = 'events/1'
+const PAUSE_STARTED = 'started.flag'
+const PAUSE_RELEASE = 'go.flag'
+const OUTSIDE_COUNT = /1 path written outside/
+const LAST_OBSERVED = /last observed \d+[smh] ago/
+
+function claimRows(session) {
+  const file = path.join(HOOK_ENV.CLAUDE_PLUGIN_DATA, 'claims.jsonl')
+  if (!existsSync(file)) return []
+  return readFileSync(file, 'utf8').split('\n').filter(Boolean)
+    .map(line => JSON.parse(line)).filter(row => row.session === session)
+}
+
+// The scripted session, driven as processes in repositories A (with the check,
+// when asked for one) and B. Returns one record per step: the rules it
+// delivered, the ledger rows it wrote, and everything it said.
+function scriptedSession(withCheck) {
+  const a = repository(withCheck ? 't5a-' : 't5u-')
+  writeFileSync(path.join(a, 'check.sh'), CHECK_SCRIPT)
+  if (withCheck) writeFileSync(path.join(a, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  git(a, 'add', '-A')
+  git(a, 'commit', '-q', '-m', 'check')
+  const b = repository(withCheck ? 't5b-' : 't5v-')
+  const session = sessionId(withCheck ? 'scripted' : 'scripted-plain')
+  const state = path.join(a, '.git', 'quality-harness')
+  const said = []
+  const fire = (payload, collect = true) => {
+    const run = hook({ ...payload, session_id: session, cwd: a })
+    if (collect) said.push(run.stdout.trim())
+    return run
+  }
+  const stop = () => fire({ hook_event_name: 'Stop', last_assistant_message: 'a turn of work' })
+  const pre = command => fire({ hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command } })
+  const wrote = (tool, file) => fire({
+    hook_event_name: 'PostToolUse', tool_name: tool, tool_input: { file_path: path.join(a, file) },
+  }, false)
+  const opened = source => fire({ hook_event_name: 'SessionStart', source }, false)
+  const shell = (cwd, command) => {
+    const run = spawnSync('sh', ['-c', command], {
+      cwd, encoding: 'utf8', timeout: 60_000, env: { ...HOOK_ENV, QH_PROBE_MODE: 'pass' },
+    })
+    assert.equal(run.status, 0, command + ': ' + run.stderr)
+  }
+  const check = (mode, code) => assert.equal(qhCheckRun(a, mode).status, withCheck ? code : 2)
+  const steps = []
+  let seenActions = 0
+  let seenRows = 0
+  const step = (label, run) => {
+    said.length = 0
+    run()
+    const emitted = named(eventsIn(state, session), 'action.emitted')
+    const rows = claimRows(session)
+    steps.push({
+      label,
+      rules: emitted.slice(seenActions).map(entry => entry.rule),
+      rows: rows.slice(seenRows),
+      said: said.join('\n'),
+      quiet: said.every(line => !line),
+    })
+    seenActions = emitted.length
+    seenRows = rows.length
+  }
+
+  step(SCENARIO[0][0], () => { opened('startup') })
+  step(SCENARIO[1][0], () => {
+    writeFileSync(path.join(a, 'a.md'), 'second\n')
+    wrote('Write', 'a.md')
+    stop()
+  })
+  step(SCENARIO[2][0], () => { stop() })
+  step(SCENARIO[3][0], () => { check('pass', 0); stop() })
+  step(SCENARIO[4][0], () => {
+    pre('git add -A && git commit -m one')
+    shell(a, 'git add -A && git commit -q -m one')
+    stop()
+  })
+  step(SCENARIO[5][0], () => {
+    pre('git -C ' + b + ' commit --allow-empty -m other')
+    git(b, 'commit', '-q', '--allow-empty', '-m', 'other')
+    stop()
+  })
+  step(SCENARIO[6][0], () => {
+    for (const command of ['cat a.md', 'grep -n second a.md', 'for f in $(ls); do echo "$f"; done']) {
+      pre(command)
+      shell(a, command)
+    }
+    stop()
+  })
+  step(SCENARIO[7][0], () => { opened('compact'); stop() })
+  step(SCENARIO[8][0], () => {
+    writeFileSync(path.join(a, 'b.md'), 'b\n')
+    wrote('Write', 'b.md')
+    shell(a, 'sh check.sh')
+    pre('git add -A && git commit -m two')
+  })
+  step(SCENARIO[9][0], () => { shell(a, 'git add -A && git commit -q -m two'); stop() })
+  step(SCENARIO[10][0], () => {
+    writeFileSync(path.join(a, 'c.md'), 'c\n')
+    wrote('Write', 'c.md')
+    opened('compact')
+    stop()
+  })
+  step(SCENARIO[11][0], () => {
+    writeFileSync(path.join(a, 'a.md'), 'third\n')
+    wrote('Edit', 'a.md')
+    pre("bash -c 'git add -A && git commit -m three'")
+  })
+  step(SCENARIO[12][0], () => { shell(a, "bash -c 'git add -A && git commit -q -m three'"); stop() })
+  step(SCENARIO[13][0], () => {
+    writeFileSync(path.join(a, 'a.md'), 'fourth\n')
+    wrote('Edit', 'a.md')
+    pre('git --git-dir=' + path.join(a, '.git') + ' --work-tree=' + a + ' -C ' + b + ' commit -am four')
+  })
+  step(SCENARIO[14][0], () => {
+    const run = spawnSync('git', ['--git-dir=' + path.join(a, '.git'), '--work-tree=' + a,
+      '-C', b, 'commit', '-q', '-am', 'four'], { encoding: 'utf8', timeout: 60_000, env: { ...process.env, ...GIT_IDENTITY } })
+    assert.equal(run.status, 0, run.stderr)
+    stop()
+  })
+  step(SCENARIO[15][0], () => { check('pass', 0); stop() })
+  step(SCENARIO[16][0], () => {
+    writeFileSync(path.join(a, 'd.md'), 'd\n')
+    shell(a, 'git add -A && git commit -q -m five')
+    shell(a, 'git rm -q d.md && git commit -q -m six')
+    stop()
+  })
+  step(SCENARIO[17][0], () => { check('fail', 1); stop() })
+  return { steps, session, a, b, state }
+}
+
+test('the scripted session advises as its step table lists', () => {
+  const run = scriptedSession(true)
+  assert.deepEqual(run.steps.map(entry => [entry.label, entry.rules]),
+    SCENARIO.map(([label, rules]) => [label, rules]))
+  for (const [index, entry] of run.steps.entries()) {
+    if (SCENARIO[index][1].length === 0) assert.ok(entry.quiet, entry.label + ' said: ' + entry.said)
+  }
+  // Step 14 names the commit whose tree nothing checked, and not the one whose
+  // tree is the checked working tree.
+  const fourteen = run.steps[16]
+  assert.ok(fourteen.said.includes('five'), fourteen.said)
+  assert.equal(fourteen.said.includes('six'), false, fourteen.said)
+
+  // ADR-035: one row per completion event, its evidence computed from the tree,
+  // the commits and the writes — never from whether a rule spoke.
+  const rows = claimRows(run.session)
+  assert.ok(rows.every(row => row.version === LEDGER_VERSION), JSON.stringify(rows.slice(0, 2)))
+  assert.equal(run.steps[1].rows.at(-1)?.evidence, 'unverified')
+  assert.equal(run.steps[2].rows.at(-1)?.evidence, 'unverified')
+  // Step 9′: P warned, the commit ran, and nothing checked it. A suppressed R1
+  // must not read as verified.
+  assert.equal(run.steps[9].rows.at(-1)?.evidence, 'unverified')
+  assert.equal(run.steps[3].rows.at(-1)?.evidence, 'verified')
+  // Step 14: the tree is the checked one, and a commit nothing checked is
+  // reachable — the ledger speaks for the commits too, not only for the tree.
+  assert.equal(run.steps[16].rows.at(-1)?.evidence, 'unverified')
+
+  // `tally` still reads these rows, beside a row written before the version field.
+  const older = JSON.stringify({
+    at: new Date().toISOString(), event: 'Stop', cwd: run.a, session: 'older',
+    claim: 'none', phrase: null, evidence: 'verified', mutations: 0,
+  })
+  const counts = tally(older + '\n' + rows.map(row => JSON.stringify(row)).join('\n') + '\n')
+  assert.equal(counts.unreadable, 0)
+  assert.equal(counts.unrecognised, 0, JSON.stringify(counts.unrecognisedLines))
+  assert.equal(counts.rows, rows.length + 1)
+})
+
+test('a repository without a check hears no completion advisory', () => {
+  const run = scriptedSession(false)
+  for (const entry of run.steps) {
+    assert.deepEqual(entry.rules, [], entry.label + ' delivered ' + entry.rules.join(', '))
+    assert.ok(entry.quiet, entry.label + ' said: ' + entry.said)
+  }
+  const rows = claimRows(run.session)
+  assert.ok(rows.length > 0)
+  assert.deepEqual([...new Set(rows.map(row => row.evidence))], ['no-check'])
+})
+
+test('an unchecked commit is named even when its tree equals the session start', () => {
+  const dir = repository('t5s-')
+  projectWithCheck(dir)
+  writeFileSync(path.join(dir, 'pending.md'), 'pending\n')
+  const session = sessionId('start-tree')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  // Outside any hook: the commit takes exactly what the session started with, so
+  // its tree IS the session-start tree — and nothing has checked it.
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'pinned')
+  writeFileSync(path.join(dir, 'later.md'), 'later\n')
+  const ended = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1', 'R2'])
+  assert.ok(ended.stdout.includes('pinned'), ended.stdout)
+})
+
+// Found by the T5 mutation pass: the scripted session could not tell the ledger
+// apart from the rules, because at step 9′ an unchecked COMMIT kept the row
+// honest whatever the tree contributed. This is the isolated case — P warned,
+// nothing was committed, and the row must still say the work is unchecked.
+test('a tree the publish warning named still records unverified', () => {
+  const dir = repository('t5l-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('warned')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  writeFileSync(path.join(dir, 'e.md'), 'e\n')
+  hook({
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' },
+    session_id: session, cwd: dir,
+  })
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'a turn' })
+  const log = eventsIn(path.join(dir, '.git', 'quality-harness'), session)
+  // P spoke before the command; R1 does not repeat it for the same tree.
+  assert.deepEqual(named(log, 'action.emitted').map(entry => entry.rule), ['P'])
+  assert.equal(claimRows(session).at(-1)?.evidence, 'unverified')
+})
+
+function waitFor(predicate, what) {
+  const deadline = Date.now() + 30_000
+  while (Date.now() < deadline) {
+    if (predicate()) return
+    spawnSync(process.execPath, ['-e', 'setTimeout(() => {}, 100)'], { timeout: 10_000 })
+  }
+  assert.fail('waited 30s for ' + what)
+}
+
+test('writes the tree cannot see re-open the finding', () => {
+  const dir = repository('t5w-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const state = path.join(dir, '.git', 'quality-harness')
+  const session = sessionId('outside')
+  const rules = () => named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule)
+  const editedOutside = (id, sessionFor) => {
+    const file = path.join(testTmp, 'outside-' + id + '.md')
+    writeFileSync(file, id + '\n')
+    hook({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: file }, session_id: sessionFor, cwd: dir })
+    return file
+  }
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  const first = editedOutside(session + '-1', session)
+  const one = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.deepEqual(rules(), ['R1'])
+  assert.match(one.stdout, OUTSIDE_COUNT)
+  assert.equal(one.stdout.includes(first), false, one.stdout)
+  // A second write the tree cannot see is a new state, so the finding re-opens.
+  editedOutside(session + '-2', session)
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.deepEqual(rules(), ['R1', 'R1'])
+  // A pass clears what was written before it started.
+  assert.equal(qhCheckRun(dir, 'pass').status, 0)
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.deepEqual(rules(), ['R1', 'R1'])
+
+  // A check that passed in ANOTHER worktree of this repository clears nothing here.
+  const linked = path.join(testTmp, 'wt-' + path.basename(dir))
+  git(dir, 'worktree', 'add', '-q', '-b', 'linked', linked)
+  const worktreeSession = sessionId('worktree-a')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: worktreeSession, cwd: dir })
+  editedOutside(worktreeSession + '-1', worktreeSession)
+  assert.equal(qhCheckRun(linked, 'pass').status, 0)
+  hook({ hook_event_name: 'Stop', session_id: worktreeSession, cwd: dir })
+  assert.deepEqual(named(eventsIn(state, worktreeSession), 'action.emitted').map(entry => entry.rule), ['R1'])
+
+  // Outside git nothing can be observed, so the writes are all there is.
+  const plain = mkdtempSync(path.join(testTmp, 't5p-'))
+  projectWithCheck(plain)
+  const plainState = temporaryStateDirectory(plain)
+  const plainSession = sessionId('plain-writes')
+  const plainRules = () => named(eventsIn(plainState, plainSession), 'action.emitted').map(entry => entry.rule)
+  const editedIn = name => {
+    writeFileSync(path.join(plain, name), name + '\n')
+    hook({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: path.join(plain, name) }, session_id: plainSession, cwd: plain })
+  }
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: plainSession, cwd: plain })
+  editedIn('note.md')
+  hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
+  assert.deepEqual(plainRules(), ['R1', 'R4'])
+  hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
+  assert.deepEqual(plainRules(), ['R1', 'R4'])
+  assert.equal(qhCheckRun(plain, 'pass').status, 0)
+  hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
+  assert.deepEqual(plainRules(), ['R1', 'R4'])
+  // A write DURING a passing check is not cleared by it: the check observed the
+  // work as it was when it started. This test body is synchronous, so the check
+  // is waited for through the file it writes, never through an exit event the
+  // event loop has no chance to deliver.
+  const records = () => {
+    try { return readFileSync(path.join(plainState, 'checks.jsonl'), 'utf8').split('\n').filter(Boolean).length }
+    catch { return 0 }
+  }
+  const before = records()
+  // A hang guard, not a speed assertion: the release file below is what ends it.
+  spawn('python3', [qhCheck], {
+    cwd: plain, env: { ...HOOK_ENV, QH_PROBE_MODE: 'pause' }, stdio: 'ignore',
+    timeout: 120_000, killSignal: 'SIGKILL',
+  }).unref()
+  waitFor(() => existsSync(path.join(plain, PAUSE_STARTED)), 'the paused check to start')
+  editedIn('during.md')
+  writeFileSync(path.join(plain, PAUSE_RELEASE), 'go\n')
+  waitFor(() => records() > before, 'the paused check to record its run')
+  hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
+  assert.deepEqual(plainRules(), ['R1', 'R4', 'R1'])
+
+  // The status line reads the same log, and says when it was last observed.
+  const rendered = statusline.render(statusline.reading({ session_id: session, cwd: dir }))
+  assert.match(rendered, LAST_OBSERVED)
+  assert.match(statusline.render(statusline.reading({ session_id: sessionId('never'), cwd: dir })), /unknown/)
 })

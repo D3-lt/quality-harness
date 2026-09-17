@@ -1199,11 +1199,70 @@ const GREP_WRITE_OPTION = /^--(?:save-config|filter|pager|view|format-open)/
 // scratch repository. Only names MEASURED_FAMILIES recognises belong here: any
 // other name makes the command unrecognised, and the extractor never sees it.
 const NO_WRITE_CHANNEL = () => false
+const argumentsOf = invocation => invocation.words.slice(invocation.index + 1)
+const prefixOf = invocation => invocation.words.slice(0, invocation.index)
+
+// ADR-059 T2 measured these channels on 2026-09-17: each wrote or ran a command
+// in a scratch repository, while the same family without it changed nothing.
+// BSD sort takes `--ou` for --output and `-uo F` as `-u -o F`, and lists
+// --compress-program, so any short cluster holding `o` and any `--o…`/`--co…`
+// counts; git and rg refuse abbreviations.
+const SORT_WRITE_OPTION = /^(?:-[^-]*o|--c?o)/
+const FILE_WRITE_OPTION = /^(?:-[^-]*C|--c)/
+const RG_COMMAND_OPTION = /^--(?:pre|pre-glob|hostname-bin)(?:$|=)/
+const GIT_DIFF_CHANNEL = /^--(?:output|ext-diff|textconv)(?:$|=)/
+const GIT_FILTER_CHANNEL = /^--(?:textconv|filters)(?:$|=)/
+const GIT_READ_SUBCOMMANDS = new Map([
+  ['ls-files', null],
+  ['diff', GIT_DIFF_CHANNEL], ['log', GIT_DIFF_CHANNEL], ['show', GIT_DIFF_CHANNEL],
+  ['status', GIT_FILTER_CHANNEL], ['rev-parse', GIT_FILTER_CHANNEL], ['cat-file', GIT_FILTER_CHANNEL],
+  ['grep', /^(?:-O|--open-files-in-pager|--textconv)/],
+])
+
+// `uniq IN OUT` writes OUT: two operands use the channel. `-` is an operand
+// (stdin), and -f, -s, -w take a value.
+function uniqWritesOutput(invocation) {
+  const words = argumentsOf(invocation)
+  let operands = 0
+  for (let index = 0; index < words.length; index += 1) {
+    const word = words[index]
+    if (word === '--') {
+      operands += words.length - index - 1
+      break
+    }
+    if (word !== '-' && word.startsWith('-')) {
+      if (/^-[fsw]$/.test(word)) index += 1
+      continue
+    }
+    operands += 1
+  }
+  return operands >= 2
+}
+
+// A git read runs a configured program when the command line chooses one
+// (`-c diff.external=…`, `--config-env`, a `GIT_…=` prefix) or when the
+// subcommand's own option asks for it.
+function gitUsesWriteChannel(invocation, segment) {
+  const subcommand = gitSubcommand(segment)
+  if (!GIT_READ_SUBCOMMANDS.has(subcommand)) return true
+  if (prefixOf(invocation).some(word => /^GIT_[A-Za-z0-9_]*=/.test(word))) return true
+  const words = argumentsOf(invocation)
+  if (words.some(word => /^(?:-c|--config-env)(?:$|=)/.test(word))) return true
+  const channel = GIT_READ_SUBCOMMANDS.get(subcommand)
+  return channel !== null && words.some(word => channel.test(word))
+}
+
 const READ_ARGUMENT_FAMILIES = new Map([
   ...['cat', 'head', 'tail', 'cut', 'tr', 'ls', 'stat', 'which', 'basename', 'dirname', 'realpath', 'readlink',
     'diff', 'cmp', 'md5sum', 'sha256sum', 'jq', 'column', 'nl', 'wc'].map(family => [family, NO_WRITE_CHANNEL]),
-  ['grep', invocation => invocation.words.slice(invocation.index + 1).some(word => GREP_WRITE_OPTION.test(word))],
-  ['git', (invocation, segment) => gitSubcommand(segment) !== 'ls-files'],
+  ['grep', invocation => argumentsOf(invocation).some(word => GREP_WRITE_OPTION.test(word))],
+  ['git', gitUsesWriteChannel],
+  ['sort', invocation => argumentsOf(invocation).some(word => SORT_WRITE_OPTION.test(word))],
+  ['uniq', uniqWritesOutput],
+  ['find', invocation => FIND_WRITES.test(' ' + argumentsOf(invocation).join(' '))],
+  ['file', invocation => argumentsOf(invocation).some(word => FILE_WRITE_OPTION.test(word))],
+  ['rg', invocation => prefixOf(invocation).some(word => /^RIPGREP_CONFIG_PATH=/.test(word))
+    || argumentsOf(invocation).some(word => RG_COMMAND_OPTION.test(word))],
 ])
 
 function readsOnlyItsArguments(segment, invocation) {
@@ -1352,7 +1411,7 @@ export function heredocBodies(command) {
 // found by a different-lineage review (BACKLOG §187). A name is not a behaviour.
 const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/
 // `find` is read-only only while it neither executes nor deletes.
-const FIND_WRITES = /(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fls|fprint|fprintf|fputs)(?:\s|$)/
+const FIND_WRITES = /(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fls|fprint|fprint0|fprintf|fputs)(?:\s|$)/
 
 function withoutReadOnlySubprocessCalls(code) {
   return code.replace(

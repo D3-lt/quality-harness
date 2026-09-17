@@ -300,3 +300,18 @@ test('a wrapper file operand is still a changed path', async () => {
   }
   assert.deepEqual(bashMarkdownMutationPaths(WRAPPED_READ, dir), [], WRAPPED_READ)
 })
+
+// ---- ADR-059 T2 regression pin: a revision path under a used git channel.
+// T2 made `git show <rev>:<path>` a read, which hid the git-revision colon rule
+// from the one test that pinned it (a mutant deleting the rule survived T2's
+// fence). A git read that uses its channel keeps every candidate, so the rule
+// still decides there.
+const REVISION_UNDER_CHANNEL = 'touch build.log; git diff --output=docs/timing.md HEAD:docs/BACKLOG.md HEAD:notes.md'
+const REVISION_MARK = 'HEAD:'
+
+test('a revision path under a used git channel is not a changed path', async () => {
+  const dir = await readArgumentProject('t59r-')
+  const paths = bashMarkdownMutationPaths(REVISION_UNDER_CHANNEL, dir)
+  assert.ok(paths.includes(path.join(dir, 'docs/timing.md')), REVISION_UNDER_CHANNEL)
+  assert.equal(paths.some(found => found.includes(REVISION_MARK)), false, JSON.stringify(paths))
+})

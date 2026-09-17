@@ -223,3 +223,65 @@ test('a variable in a read operand is still not a changed path', async () => {
     assert.equal(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, 'docs/a.md')), false, command)
   }
 })
+
+// ---- T6: a failed command that also writes is still a write.
+const UNCHECKED_COMMIT = new RegExp('would publish unchecked', 'i')
+const FAILED_WRITES = [
+  'printf x > a.js; rg --pre false x README.md',
+  'printf x > a.js; sort --compress-program=gzip README.md',
+  'printf x > a.js; git grep -O x',
+  'printf x > a.js; mytool --flag',
+  'printf x > a.js && bash -c "rg --pre false x notes.txt"',
+]
+const FAILED_READS = ['rg --pre false x README.md', 'pwsh -Command ls', 'mytool --flag']
+
+function failedTranscriptOf(command) {
+  return [
+    { type: 'assistant', message: { content: [{ type: 'tool_use', id: 'f1', name: 'Bash', input: { command } }] } },
+    { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'f1', is_error: true, content: 'Exit code 2' }] } },
+  ].map(entry => JSON.stringify(entry)).join('\n')
+}
+
+async function checkedRepository(prefix) {
+  const dir = await project(prefix)
+  await writeFile(path.join(dir, 'package.json'), JSON.stringify({ scripts: { test: 'true' } }))
+  const init = spawnSync('git', ['init', '-q', dir], { encoding: 'utf8', timeout: 30_000 })
+  assert.equal(init.status, 0, init.stderr)
+  return dir
+}
+
+async function commitAdviceAfter(command, dir, label) {
+  const file = path.join(dir, label + '.jsonl')
+  await writeFile(file, failedTranscriptOf(command))
+  return spawnSync(process.execPath, [path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')], {
+    cwd: testTmp,
+    input: JSON.stringify({
+      hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m test' },
+      transcript_path: file, cwd: dir,
+      session_id: 'read-args-' + label + '-' + process.pid + '-' + Math.random().toString(36).slice(2),
+    }),
+    encoding: 'utf8',
+    timeout: 60_000,
+    env: { ...process.env, CLAUDE_PLUGIN_DATA: path.join(testTmp, 'claims-ledger'), TMPDIR: testTmp, TMP: testTmp, TEMP: testTmp },
+  })
+}
+
+test('a failed command that also writes is still a write', async () => {
+  const dir = await checkedRepository('t6-')
+  for (const [index, command] of FAILED_WRITES.entries()) {
+    assert.equal(analyzeTranscript(failedTranscriptOf(command), dir).authorship, 'bash', command)
+    const run = await commitAdviceAfter(command, dir, 'write-' + index)
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stderr, UNCHECKED_COMMIT, command)
+  }
+})
+
+test('a failed command with no write is still no write', async () => {
+  const dir = await checkedRepository('t6r-')
+  for (const [index, command] of FAILED_READS.entries()) {
+    assert.equal(analyzeTranscript(failedTranscriptOf(command), dir).authorship, 'none', command)
+    const run = await commitAdviceAfter(command, dir, 'read-' + index)
+    assert.equal(run.status, 0, run.stderr)
+    assert.doesNotMatch(run.stderr, UNCHECKED_COMMIT, command)
+  }
+})

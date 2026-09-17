@@ -2457,7 +2457,11 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
         // evidence of its own. 'inert' (creating a branch in place) does
         // neither.
         lastTreeRefresh = Math.max(lastTreeRefresh, use.position)
-      } else if (navigation !== 'inert' && kind === 'mutation'
+      } else if (navigation !== 'inert'
+          // A failed call whose other part is unrecognised still wrote what it
+          // visibly wrote: `printf x > f; rg --pre false x` (ADR-059 T6).
+          && (kind === 'mutation' || (kind === 'unrecognised' && !commandSucceeded(results.get(use.id))
+            && isPotentialMutationCommand(use.input.command)))
           && !mutatesOnlyTempPaths(use.input.command, cwd)
           && !writesOutsideProject(use.input.command, cwd)) {
         if (authorship !== 'native') authorship = 'bash'

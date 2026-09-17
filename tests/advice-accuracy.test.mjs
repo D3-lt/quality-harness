@@ -236,3 +236,50 @@ test('a commit whose repository cannot be resolved still advises', async () => {
     assert.match(run.stderr, UNCHECKED_COMMIT, command)
   }
 })
+
+// ---- T5: wc, grep, git ls-files and mrw read arguments are not changed paths.
+// The first two commands are the ones measured on 2026-09-16, with the
+// scratchpad path shortened.
+const READ_ARGUMENT_COMMANDS = [
+  "ls docs/adr | grep -c '^ADR-057' ; wc -l docs/BACKLOG.md; mrw read docs/BACKLOG.md:12750-12770; echo \"mrw exit=$?\"; git ls-files 'plugin/skills/*/SKILL.md' 'plugin/agents/*.md' 'plugin/workflows/*.js' | tee /dev/stderr | wc -l; git ls-files docs/specs | tail -2",
+  "S=/private/tmp/qh-scratch; grep -n \"^## \" docs/tasks/T1-*.md | head -20; cat > $S/audit.mjs <<'EOF'\nconsole.log(1)\nEOF\ntimeout 120 node $S/audit.mjs",
+  'touch build.log && mrw read notes.md',
+  'touch build.log && mrw --root . read docs/BACKLOG.md',
+  'rm -f build.log; wc -c notes.md docs/BACKLOG.md',
+]
+const READ_WRITE_COMMANDS = [
+  ['grep -c x notes.md > docs/new.md', 'docs/new.md'],
+  ['wc -l notes.md >> README.md', 'README.md'],
+  ['mrw read notes.md > docs/new.md', 'docs/new.md'],
+  ['grep --save-config=docs/new.md', 'docs/new.md'],
+  ['git ls-files docs && cp notes.md docs/new.md', 'docs/new.md'],
+  ['T=docs/new.md && python3 plugin/bin/adr-verify "$T"', 'docs/new.md'],
+  ["find docs -name 'new.md' -delete", 'new.md'],
+]
+
+async function readArgumentProject(prefix) {
+  const dir = await markdownProject(prefix)
+  for (const folder of ['docs/tasks', 'plugin/agents', 'plugin/skills/work']) {
+    await mkdir(path.join(dir, folder), { recursive: true })
+  }
+  for (const file of ['docs/BACKLOG.md', 'docs/tasks/T1-a.md', 'plugin/agents/qh-a.md', 'plugin/skills/work/SKILL.md']) {
+    await writeFile(path.join(dir, file), 'x\n')
+  }
+  return dir
+}
+
+test('read-only arguments are not changed paths', async () => {
+  const dir = await readArgumentProject('t5-')
+  for (const command of READ_ARGUMENT_COMMANDS) {
+    assert.deepEqual(bashMarkdownMutationPaths(command, dir), [], command)
+  }
+  assert.equal(classifyCommand(READ_ARGUMENT_COMMANDS[0]), 'mutation', 'the first measured command is a mutation')
+  assert.equal(classifyCommand(READ_ARGUMENT_COMMANDS[1]), 'mutation', 'the second measured command is a mutation')
+})
+
+test('a write beside a read is still a changed path', async () => {
+  const dir = await readArgumentProject('t5w-')
+  for (const [command, target] of READ_WRITE_COMMANDS) {
+    assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
+  }
+})

@@ -14,6 +14,7 @@ README must be regenerated.
 | 2 | T2 | T1 |
 | 3 | T3 | T2 |
 | 4 | T4 | T3 |
+| 5 | T5 | T4 |
 
 ## Task Index
 
@@ -23,6 +24,7 @@ README must be regenerated.
 | T2 | mrw read is a read | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/classify.test.mjs tests/reviewer-guard.test.mjs` |
 | T3 | Echo and printf arguments are not changed paths | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/lifecycle.test.mjs` |
 | T4 | A commit elsewhere does not arm this repository's advisory | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/unread-advice.test.mjs tests/leftovers-after-adr053.test.mjs` |
+| T5 | wc, grep, git ls-files and mrw read arguments are not changed paths | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/lifecycle.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 
@@ -30,7 +32,7 @@ Status: `pending` | `partial` | `blocked` | `done`.
 
 | Producer | Contract | Consumer(s) | Ordering note |
 |----------|----------|-------------|---------------|
-| T1 | `tests/advice-accuracy.test.mjs` (file exists) | T2, T3, T4 | serialised so one writer owns the new file |
+| T1 | `tests/advice-accuracy.test.mjs` (file exists) | T2, T3, T4, T5 | serialised so one writer owns the new file |
 
 ## Notes
 

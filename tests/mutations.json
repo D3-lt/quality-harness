@@ -598,7 +598,8 @@
       "label": "advisory: a git revision is not a changed path",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/lifecycle.test.mjs",
+        "tests/advice-accuracy.test.mjs"
       ],
       "from": "    if (/^.{2,}:/.test(candidate)) continue",
       "to": "    if (false) continue"

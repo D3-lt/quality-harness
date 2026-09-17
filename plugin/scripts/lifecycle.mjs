@@ -1222,7 +1222,8 @@ const prefixOf = invocation => invocation.words.slice(0, invocation.index)
 // BSD sort takes `--ou` for --output and `-uo F` as `-u -o F`, and lists
 // --compress-program, so any short cluster holding `o` and any `--o…`/`--co…`
 // counts; git and rg refuse abbreviations.
-const SORT_WRITE_OPTION = /^(?:-[^-]*o|--c?o)/
+const SORT_OUTPUT_OPTION = /^(?:-[^-]*o|--o)/
+const SORT_PROGRAM_OPTION = /^--co/
 const FILE_WRITE_OPTION = /^(?:-[^-]*C|--c)/
 const RG_COMMAND_OPTION = /^--(?:pre|pre-glob|hostname-bin)(?:$|=)/
 const GIT_DIFF_CHANNEL = /^--(?:output|ext-diff|textconv)(?:$|=)/
@@ -1272,13 +1273,54 @@ const READ_ARGUMENT_FAMILIES = new Map([
     'diff', 'cmp', 'md5sum', 'sha256sum', 'jq', 'column', 'nl', 'wc'].map(family => [family, NO_WRITE_CHANNEL]),
   ['grep', invocation => argumentsOf(invocation).some(word => GREP_WRITE_OPTION.test(word))],
   ['git', gitUsesWriteChannel],
-  ['sort', invocation => argumentsOf(invocation).some(word => SORT_WRITE_OPTION.test(word))],
+  ['sort', invocation => argumentsOf(invocation).some(word => SORT_OUTPUT_OPTION.test(word) || SORT_PROGRAM_OPTION.test(word))],
   ['uniq', uniqWritesOutput],
   ['find', invocation => FIND_WRITES.test(' ' + argumentsOf(invocation).join(' '))],
   ['file', invocation => argumentsOf(invocation).some(word => FILE_WRITE_OPTION.test(word))],
   ['rg', invocation => prefixOf(invocation).some(word => /^RIPGREP_CONFIG_PATH=/.test(word))
     || argumentsOf(invocation).some(word => RG_COMMAND_OPTION.test(word))],
 ])
+
+// ADR-059 T4 (Codex review, 2026-09-17): the classifier called every measured
+// write channel above `neither`, so a successful `uniq IN OUT` or
+// `gtimeout 5 sort -o F …` recorded no authorship and the reviewer guard let it
+// run. An output channel is a mutation; a channel that runs a program is not
+// known not to write, so it is unrecognised (ADR-047).
+const FIND_OUTPUT_PRIMARY = /(?:^|\s)-(?:delete|fls|fprint|fprint0|fprintf)(?:\s|$)/
+const FILE_COMPILE_OPTION = /^(?:-[^-]*C|--comp)/
+
+function segmentWriteChannel(segment) {
+  const invocation = commandInvocation(segment)
+  if (!invocation) return null
+  const words = argumentsOf(invocation)
+  const uses = pattern => words.some(word => pattern.test(word))
+  switch (executableName(invocation.words[invocation.index])) {
+    case 'sort': return uses(SORT_PROGRAM_OPTION) ? 'unrecognised' : uses(SORT_OUTPUT_OPTION) ? 'mutation' : null
+    case 'uniq': return uniqWritesOutput(invocation) ? 'mutation' : null
+    case 'find': return FIND_OUTPUT_PRIMARY.test(' ' + words.join(' ')) ? 'mutation' : null
+    case 'file': return uses(FILE_COMPILE_OPTION) ? 'mutation' : null
+    case 'rg': return uses(RG_COMMAND_OPTION) ? 'unrecognised' : null
+    case 'git': {
+      const subcommand = gitSubcommand(segment)
+      if (['diff', 'log', 'show'].includes(subcommand) && uses(/^--output(?:$|=)/)) return 'mutation'
+      if (subcommand === 'grep' && uses(/^(?:-O|--open-files-in-pager)/)) return 'unrecognised'
+      return null
+    }
+    default: return null
+  }
+}
+
+function writeChannelOf(command) {
+  let found = null
+  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
+    for (const segment of shellSegments(region)) {
+      const channel = segmentWriteChannel(segment)
+      if (channel === 'unrecognised') return channel
+      if (channel === 'mutation') found = channel
+    }
+  }
+  return found
+}
 
 function readsOnlyItsArguments(segment, invocation) {
   const usesWriteChannel = READ_ARGUMENT_FAMILIES.get(executableName(invocation.words[invocation.index]))
@@ -1600,6 +1642,7 @@ export function classifyCommand(command) {
     isPotentialMutationCommand,
     withoutHeredocBodies,
     isRecognisedReadInvocation,
+    writeChannelOf,
   })
 }
 

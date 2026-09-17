@@ -195,3 +195,31 @@ test('a read without its channel is still not a write', () => {
   }
   assert.equal(guardExit('sort README.md'), 0)
 })
+
+// ---- T5: a variable inside a redirect target is still a changed path.
+const REDIRECTED_THROUGH_VARIABLE = [
+  ['T=README.md; printf x > "./$T"', 'README.md'],
+  ['T=docs/a.md; cat notes.md > ./"$T"', 'docs/a.md'],
+  ['T=docs/a.md; cat notes.md >> "./docs/../$T"', 'docs/a.md'],
+  ['T="docs/my notes.md"; echo x > "./$T"', 'docs/my notes.md'],
+]
+const READ_THROUGH_VARIABLE = [
+  'T=docs/a.md; cat "./$T" > notes.md; touch b.log',
+  'T=docs/a.md; head -2 ./"$T" >> README.md',
+  'T=docs/a.md; cat notes.md >README.md "./$T"',
+]
+
+test('a variable inside a redirect target is still a changed path', async () => {
+  const dir = await project('t5-')
+  for (const [command, target] of REDIRECTED_THROUGH_VARIABLE) {
+    assert.ok(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, target)), command)
+  }
+})
+
+test('a variable in a read operand is still not a changed path', async () => {
+  const dir = await project('t5r-')
+  for (const command of READ_THROUGH_VARIABLE) {
+    assert.equal(classifyCommand(command), 'mutation', command)
+    assert.equal(bashMarkdownMutationPaths(command, dir).includes(path.join(dir, 'docs/a.md')), false, command)
+  }
+})

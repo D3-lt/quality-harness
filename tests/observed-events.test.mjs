@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -192,4 +192,82 @@ test('one hook delivers every action it records', () => {
   const quiet = { hook_event_name: 'Stop', session_id: sessionId('quiet'), cwd: dir }
   assert.equal(lifecycle.deliver([], quiet).output, null)
   assert.equal(eventsIn(lifecycle.stateDir(dir), quiet.session_id).length, 0)
+})
+
+// ---- T2: qh-check writes the check event.
+const qhCheck = path.join(repoRoot, 'plugin', 'bin', 'qh-check')
+const CHECK_SCRIPT = [
+  'case "$QH_PROBE_MODE" in',
+  '  fail) exit 1 ;;',
+  '  write) echo x > created-by-check.txt ;;',
+  "  zero) echo 'tests 0' ;;",
+  '  long) i=0; while [ $i -lt 2000 ]; do echo "line $i of padding that pushes the summary past the first 64 KiB"; i=$((i+1)); done; echo \'tests 0\' ;;',
+  '  missing) qh_probe_missing_command_zz ;;',
+  '  timeout) exit 124 ;;',
+  '  sleep) sleep 30 ;;',
+  'esac',
+].join('\n') + '\n'
+const CHECK_RUNS = [
+  ['pass', 0, 'check.passed'],
+  ['fail', 1, 'check.failed'],
+  ['zero', 0, 'check.no-work'],
+  ['long', 0, 'check.no-work'],
+  ['missing', 127, 'check.unstarted'],
+  ['timeout', 124, 'check.timeout'],
+  ['write', 0, 'check.unproven'],
+]
+const CHECK_EVENT_PREFIX = 'check.'
+
+function qhCheckRun(cwd, mode, options = {}) {
+  return spawnSync('python3', [qhCheck], {
+    cwd, encoding: 'utf8', timeout: 60_000, env: { ...HOOK_ENV, QH_PROBE_MODE: mode }, ...options,
+  })
+}
+
+function checkEvents(log) {
+  return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith(CHECK_EVENT_PREFIX))
+}
+
+function projectWithCheck(directory) {
+  writeFileSync(path.join(directory, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+  writeFileSync(path.join(directory, 'check.sh'), CHECK_SCRIPT)
+}
+
+test('a check event is written by qh-check', () => {
+  assert.ok(existsSync(qhCheck), 'plugin/bin/qh-check exists')
+  const dir = repository('t2c-')
+  projectWithCheck(dir)
+  mkdirSync(path.join(dir, 'sub'))
+  writeFileSync(path.join(dir, 'sub', 'keep.md'), 'k\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const sub = path.join(dir, 'sub')
+  const expected = []
+  for (const [mode, exit, name] of CHECK_RUNS) {
+    const run = qhCheckRun(sub, mode)
+    assert.equal(run.status, exit, mode + ': ' + run.stderr)
+    expected.push(name)
+  }
+  if (process.platform !== 'win32') {
+    qhCheckRun(sub, 'sleep', { timeout: 3_000, killSignal: 'SIGTERM' })
+    expected.push('check.timeout')
+  }
+  const session = sessionId('checks')
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  const imported = checkEvents(eventsIn(path.join(dir, '.git', 'quality-harness'), session))
+  assert.deepEqual(imported.map(entry => entry.event), expected)
+  assert.ok(imported.every(entry => entry.origin === 'declared'), JSON.stringify(imported.map(entry => entry.origin)))
+  if (process.platform !== 'win32') assert.equal(imported.at(-1).signal, 'SIGTERM')
+
+  const bare = repository('t2n-')
+  assert.equal(qhCheckRun(bare, 'pass').status, 2)
+  assert.equal(existsSync(path.join(bare, '.git', 'quality-harness', 'checks.jsonl')), false)
+
+  const plain = mkdtempSync(path.join(testTmp, 'plain-check-'))
+  projectWithCheck(plain)
+  assert.equal(qhCheckRun(plain, 'pass').status, 0)
+  assert.ok(existsSync(path.join(temporaryStateDirectory(plain), 'checks.jsonl')))
+  const plainSession = sessionId('plain-check')
+  hook({ hook_event_name: 'Stop', session_id: plainSession, cwd: plain })
+  assert.deepEqual(checkEvents(eventsIn(temporaryStateDirectory(plain), plainSession)).map(entry => entry.event), ['check.passed'])
 })

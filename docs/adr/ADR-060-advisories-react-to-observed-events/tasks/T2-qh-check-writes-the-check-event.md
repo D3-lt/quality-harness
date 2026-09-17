@@ -26,6 +26,8 @@
 | `tests/mutations.json` | edit | the catalogue entry every shipped bin needs |
 | `README.md` | edit | names the new gate, as every shipped gate is named |
 | `plugin/scripts/standalone-link.mjs` | edit | only if its gate forwarder list is not derived from `plugin/bin` |
+| `tests/gate-rules.test.mjs` | edit | the unknown-flag table has a case for every bundled gate, so `qh-check` gets one. Found by the selftest, a gap in this task's original file list |
+| `plugin/scripts/lifecycle.mjs` (`main`) | edit | output leaves through `deliver`, which T1's step S4 required and T1 did not do; the orphan sweep reports a shipped function nothing calls |
 | `docs/adr/ADR-060-advisories-react-to-observed-events.md` | edit | `Governs:` gains `plugin/bin/qh-check`, `plugin/bin/qh-check.cmd` and `plugin/scripts/qh-check.mjs` in the commit that creates them; the corpus test refuses a `Governs:` path that does not exist |
 
 ## Ordered Steps
@@ -83,6 +85,17 @@ for name in 'a check event is written by qh-check'; do printf '%s\n' "$out" | gr
 | 4 — it is used | T4's and T5's rules read check events |
 
 ## Mutation Log
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · the after-observation is recorded as before, so a check that writes a file is never unproven · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:qh-check recording the observation before and after
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a tree-changing pass imports as passed · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:the import order
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a pass outside git imports as unproven, so a non-git check can never clear anything · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:the import order
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · the zero-test reading needs a recognised test command again, so sh check.sh printing tests 0 is passed · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:a zero-test reading independent of the command's spelling
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a missing command inside the check (exit 127) imports as failed · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:unstarted and timeout kept from the verdict
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/qh-check.mjs` · the first 64 KiB are kept, so a summary printed after 100 KiB of output is lost · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:the kept output tail
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · no record is ever imported, so the log holds no check event · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:the loop importing unseen records
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/bin/qh-check` · --version runs the check instead of answering, so the shipped-gate --version test fails · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:the shipped-gate conventions
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `tests/observed-events.test.mjs` · a renamed test selects nothing and the per-name ok grep must refuse it · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:each named test actually running
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a tree-changing pass imports as passed (re-recorded on the sameObservation form) · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:the import order
+- 2026-09-17 · 639b8ed* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a pass outside git imports as unproven (re-recorded on the sameObservation form) · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · covers:the import order
 
 ## Invariants
 
@@ -102,3 +115,28 @@ Stop and ask if a bin cannot exec `node` on the Windows CI runner.
 - Sharding or caching a check's result (permanent: boundary: `qh-check` records what one run observed)
 
 ## Verification Log
+- 2026-09-17 · 639b8ed* · exit 1 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:104 · test-lock-sha256:73ce2fe09017fa1383c3821d7571dd5b406d41b340e75c2c84c295014282267d · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGNoZWNrIGV2ZW50IGlzIHdyaXR0ZW4gYnkgcWgtY2hlY2sJZjgwMzk5YmMxY2EyZTlkMDI5MTRjYWM2NDlkNzYwNWEzMzljZTU4YTY0MTFkNDZiOGU0MWRkOWZiNGI1ZTc4Ywpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIHR1cm4gZW5kIG9ic2VydmVzIHRoZSB0cmVlIHdpdGhvdXQgcmVhZGluZyBhbnkgY29tbWFuZAlkNzhkNDJjYzBmOGJhYzdhZmRiODFiYTc3YzUzOWQyZjRhZmM4ZWFkMWQ5NTcwNmNiZjJjNDNjYjE3ZTgzZmZhCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCW9ic2VydmluZyB3cml0ZXMgbm90aGluZyBpbnRvIHRoZSByZXBvc2l0b3J5CWQ2NWUyZjQ2NzQzNzI0ODNmZmYwMzhkNGZlYmFlYTJkODJhYTczNDA0YTJkNWFmOWEyMTBlZDhiMDMxMmY2YmEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJb25lIGhvb2sgZGVsaXZlcnMgZXZlcnkgYWN0aW9uIGl0IHJlY29yZHMJNzhlZmE1NjhmMzFlOGE5MTRjN2RkNGQwZjI2YWY0ODM4MWU0OGMxZTNmYWUyYWM0YzU1NmY0MjgzNGZmNDQyZA
+  ```
+  --- last 10 line(s) of stdout (of 30 after folding 30 raw)
+    ...
+  1..1
+  # tests 1
+  # suites 0
+  # pass 0
+  # fail 1
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 44.811458
+  ```
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:34880
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:37309
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:38529
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:35047
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:33532
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:34051
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:34225
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:34590
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:34179
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:34284
+- 2026-09-17 · 639b8ed* · exit 0 · `set -o pipefail …` · acceptance-sha256:e01f5e79e6846e2aebeeec1daecafb0ea2b6fe8d05adf9fd04d94582fd1f001e · ms:35131

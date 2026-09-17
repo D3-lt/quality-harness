@@ -326,3 +326,24 @@ test('an exported name keeps its assigned path after a read', async () => {
   const dir = await readArgumentProject('t59e-')
   assert.ok(bashMarkdownMutationPaths(EXPORTED_AFTER_READ, dir).includes(path.join(dir, 'docs/BACKLOG.md')), EXPORTED_AFTER_READ)
 })
+
+// ---- T7: a nested publish or a repository override still arms the commit advisory.
+test('a nested publish or a repository override still arms the commit advisory', async () => {
+  const { dir, file } = await uncheckedRepository('t7-')
+  const other = await mkdtemp(path.join(testTmp, 't7-other-'))
+  gitRepository(other)
+  const quiet = publishAdvice('git -C "' + other + '" commit -m other', file, dir, 'quiet')
+  assert.doesNotMatch(quiet.stderr, UNCHECKED_COMMIT, quiet.stderr)
+  const shapes = [
+    'git -C "' + other + '" commit -m other; bash -c \'git commit -m local\'',
+    'git -C "' + other + '" commit -m other && echo "$(git commit -m local)"',
+    'git -C "' + other + '" commit -m other; bash <<EOF\ngit commit -m local\nEOF',
+    'GIT_DIR="' + dir + '/.git" git -C "' + other + '" commit -m local',
+    'git --git-dir="' + dir + '/.git" --work-tree="' + other + '" commit -m local',
+  ]
+  for (const [index, command] of shapes.entries()) {
+    const run = publishAdvice(command, file, dir, 'override-' + index)
+    assert.equal(run.status, 0, run.stderr)
+    assert.match(run.stderr, UNCHECKED_COMMIT, command)
+  }
+})

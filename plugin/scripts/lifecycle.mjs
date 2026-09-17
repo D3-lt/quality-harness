@@ -927,10 +927,25 @@ function gitPublishTargetsOnlyOtherRepositories(command, cwd) {
     if (!['commit', 'push'].includes(gitSubcommand(segment))) continue
     publishes += 1
     if (dir === null) return false
+    // ADR-058 T7: `GIT_DIR=<this>/.git git -C <other> commit` and
+    // `--git-dir=<this>/.git --work-tree=<other>` publish HERE (git rev-parse
+    // --absolute-git-dir, 2026-09-17), so a repository override is unresolved.
+    const invocation = commandInvocation(segment)
+    if (invocation?.words.slice(0, invocation.index).some(word => /^GIT_[A-Za-z0-9_]*=/.test(word))) return false
+    if (gitInvocation(segment)?.globalOptions.some(option => option.name === '--git-dir' || option.name === '--work-tree')) return false
     const target = path.resolve(dir, gitCommandDirectory(segment, dir))
     const root = isDirectory(target) ? gitRepositoryRoot(target) : null
     if (!root || sameDirectory(root, project)) return false
   }
+  // ADR-058 T7: a publish inside `bash -c`, `$(…)` or a heredoc body is one the
+  // walk above never resolved, so it cannot be called another repository's.
+  let reachable = 0
+  for (const region of shellCommandRegions(withoutHeredocBodies(command))) {
+    for (const segment of shellSegments(region)) {
+      if (['commit', 'push'].includes(gitSubcommand(segment))) reachable += 1
+    }
+  }
+  if (reachable > publishes || isGitPublishCommand(heredocBodies(command))) return false
   return publishes > 0
 }
 

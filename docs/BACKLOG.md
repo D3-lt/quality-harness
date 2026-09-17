@@ -13032,6 +13032,11 @@ was nothing. `docs/adr/ADR-057-…md` came from `python3 plugin/bin/adr-next <th
 boundary, so a gate invoked as `python3 plugin/bin/adr-next|adr-lint|adr-debt|adr-judge` is a member
 left here.
 
+ADR-059 T4 (2026-09-17, from a Codex review) made the classifier call a measured output channel a
+`mutation` and a program channel `unrecognised`. It leaves here, as classifier channels: `find -exec`,
+`-execdir`, `-ok` and `-okdir`, whose inner command decides; and git tools chosen by `-c`, `--config-env`,
+a `GIT_…=` prefix or configuration (`diff.external`, textconv, pager), which still classify as before.
+
 ## 221. A git mutation in another repository marks this project's work unverified (2026-09-16)
 
 Found by ADR-058 T4's class audit ("a gate that reacts to a git command without asking which

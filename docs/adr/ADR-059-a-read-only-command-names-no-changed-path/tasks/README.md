@@ -13,6 +13,7 @@ README must be regenerated.
 | 1 | T1 | none |
 | 2 | T2 | T1 |
 | 3 | T3 | T2 |
+| 4 | T4 | T3 |
 
 ## Task Index
 
@@ -21,6 +22,7 @@ README must be regenerated.
 | T1 | A channel-free read names no changed path | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 | T2 | A family that can write names no changed path until it uses that channel | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
 | T3 | An assigned path used only by reads is not a changed path | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs` |
+| T4 | A used write channel is a write to the classifier and the guard | done | none — no spec | `node --test … tests/read-only-arguments.test.mjs` + `node --test tests/lifecycle.test.mjs tests/advice-accuracy.test.mjs tests/classify.test.mjs tests/reviewer-guard.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

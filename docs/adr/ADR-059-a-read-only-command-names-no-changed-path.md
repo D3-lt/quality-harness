@@ -5,11 +5,11 @@
 **Owner:** zy
 **Spec:** None — no spec stage. ADR-051 already decides that Advise names only proven paths; this record removes a measured class of paths that are not proven.
 **Cross-references:** ADR-047, ADR-051, ADR-058, `docs/BACKLOG.md` §213, `docs/BACKLOG.md` §218, `docs/BACKLOG.md` §220
-**Governs:** `plugin/scripts/lifecycle.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/classify-command.mjs`
 
 Class: every token `bashMarkdownMutationPaths` (plugin/scripts/lifecycle.mjs) turns into a changed path although no segment of the command writes it. Enumerated 2026-09-17 at `4e9c79a`: `grep -n "^const READ_ONLY_CHILD" plugin/scripts/lifecycle.mjs` lists 32 read-only command families. ADR-058 already handles `echo` and `printf` (T3), `wc`, `grep`, `git ls-files` and `mrw read` (T5), and a wrapper's own operand (T6). The remaining members are the other families the classifier recognises, the read-only `git` subcommands, and a `NAME=<file>.md` assignment used only by reads. Members left out, each with its reason, are in Out of Scope.
 
-**Enforced-by:** `tests/read-only-arguments.test.mjs::a channel-free read names no changed path`, `tests/read-only-arguments.test.mjs::a family that can write names no changed path until it uses that channel`, `tests/read-only-arguments.test.mjs::an assigned path used only by reads is not a changed path`
+**Enforced-by:** `tests/read-only-arguments.test.mjs::a channel-free read names no changed path`, `tests/read-only-arguments.test.mjs::a family that can write names no changed path until it uses that channel`, `tests/read-only-arguments.test.mjs::an assigned path used only by reads is not a changed path`, `tests/read-only-arguments.test.mjs::a used write channel is a write to the classifier and the guard`
 **Invalidates:** ADR-058 — T5's `readsOnlyItsArguments` predicate becomes a per-family table (T1). Its four families keep exactly today's behaviour, and `tests/advice-accuracy.test.mjs` is in every task's fence.
 **Served-path change:** a commit or completion advisory after a command that reads Markdown with `cat`, `head`, `find`, `sort`, `git diff` or another measured read-only family, or passes an assigned path only to such a read, no longer names that file as changed.
 
@@ -68,6 +68,7 @@ In the measured session, the last shape named the ADR-058 T2 task file after `T=
    - the command has no heredoc body, no `${!` and no `export NAME`, `declare -x`, `set -a` or `set -o allexport`.
 
    References are found with the same traversal the assignment loop uses — `shellCommandRegions` × `shellSegments`, where a `$(…)` body is its own segment and no segment is skipped for an unknown directory. Each name keeps a list of its values. `A=docs/spec.md; printf x | tee "$A"` and the never-referenced `DOC='docs/spec.md' && printf x > docs/other.md` (both pinned in `tests/lifecycle.test.mjs`) keep their paths.
+4. **T4 — a used write channel is a write to the classifier** (added 2026-09-17 from a Codex review). `classifyCommand` returned `neither` for every channel T2 measured, bare since before this record and wrapped since ADR-058 T1's timeout peel: `gtimeout 5 uniq /dev/null README.md` recorded no authorship and passed the reviewer guard. An output channel (`sort -o`, `uniq IN OUT`, `find -delete`/`-fprint*`/`-fls`, `file -C`, `git diff`/`log`/`show --output`) is now `mutation`; a program channel (`sort --compress-program`, `rg --pre`/`--pre-glob`/`--hostname-bin`, `git grep -O`) is `unrecognised`, at the top level, under a peeled wrapper and inside `$(…)`.
 
 **What would make each fail, and whether that data exists:** each test runs the measured shapes through `bashMarkdownMutationPaths` in a temp project, and asserts `classifyCommand` returns `mutation` wherever it claims a served-path effect. Each test carries its opposite, which must still yield the path:
 - a family that uses its channel, in every spelling measured;
@@ -93,6 +94,7 @@ None — internal to `plugin/scripts/lifecycle.mjs`: `bashMarkdownMutationPaths`
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
 | `bashMarkdownMutationPaths` result | no arguments of a measured read-only family without its write channel; no assigned path used only by such reads | T1, T2, T3 | Stop "Changed paths include", the commit advisory, the artifact gate, `docsOnly` |
+| `classifyCommand` result | a used output channel is `mutation`, a used program channel `unrecognised` (was `neither`) | T4 | transcript authorship, commit and Stop advisories, the reviewer guard |
 | `FIND_WRITES` | also matches `-fprint0` | T2 | the reviewer guard, the extractor's `find` channel |
 
 ## Inter-task Contracts
@@ -110,6 +112,7 @@ See `docs/adr/ADR-059-a-read-only-command-names-no-changed-path/tasks/README.md`
 
 - **Positive:** an advisory stops naming Markdown files a session only read with the measured families or passed to them through a variable. Where the command's only write is unresolved, the advisory says it could not prove a path instead.
 - **Negative:** these writes are no longer named by the read's argument, though the advisory still fires because the command stays a mutation:
+- **Negative, found in Codex review 2026-09-17:** the classifier never knew these channels, and ADR-058 T1's peel extended that to wrapped commands, so a reviewer could run `gtimeout 5 uniq IN OUT`. T4 closes the measured channels; `find -exec` and git tools chosen by `-c`, `GIT_…=` or configuration still classify as before (BACKLOG §220).
   - a tool selected by configuration outside the command line: a `diff.external` or textconv driver in git config, or `RIPGREP_CONFIG_PATH` set in the environment;
   - an alias or function named like a family that writes;
   - a read whose output feeds a writer: `ls docs/*.md | git restore --pathspec-from-file=-` names the listed files today and will not.

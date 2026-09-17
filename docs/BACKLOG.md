@@ -13109,3 +13109,23 @@ width". The sha was valid. The entry was refused because a negative exit code (s
 grammar. No mutant was applied and the file was clean. A retry passed, and the fence alone exited 0.
 The refusal message should name the field that failed. What sent signal 9 was not found (load 10.4 on 10
 cores at the time).
+
+## 226. Shell-quote patterns whose escape handling nobody assessed (2026-09-17)
+
+ADR-059 T7's record says its two helpers were the only quote scanners that ignore a backslash. That
+was wrong: its sweep, a `grep` with `\|` alternation, matched only the `quote ===` lines, and a Codex
+review found `withoutQuotedSegments` escape-blind (fixed in ADR-059 T8). T8 redid the sweep with
+`rg -n -F -- '<pattern>' plugin/scripts/lifecycle.mjs plugin/scripts/classify-command.mjs
+plugin/scripts/reviewer-guard.mjs` for `"[^"]*"`, `"(?:[^"\\]|\\.)*"`, `'[^']*'`, `quote ===`, `[^"\\]`
+and `\\.`. These members were not checked for which way a backslash moves their answer:
+- `CD_ONLY` (`lifecycle.mjs:1064`);
+- `ASSIGNMENT_ONLY` and `ASSIGNMENT_PREFIX` (`:1090`–`:1091`);
+- `REDIRECT_TARGET` (`:2080`);
+- `SHELL_ASSIGNMENT` (`:2120`);
+- `NAVIGATION_PREFIX` (`:2380`);
+- the quote trackers ending at `:749` and `:770`;
+- `innerCommands` in the reviewer verdict (`:4572`).
+
+Line numbers are at `e31187e` before T8's two added lines. A member whose miss yields "not matched" may
+fail safe (`CD_ONLY`), while one that extracts a target (`REDIRECT_TARGET`) may drop a path. Assess each
+against bash before trusting it, or let ADR-060 delete them.

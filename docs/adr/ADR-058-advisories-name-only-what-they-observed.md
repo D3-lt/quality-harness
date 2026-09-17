@@ -9,7 +9,7 @@
 
 Class: every PreToolUse and Stop advisory that `plugin/scripts/lifecycle.mjs` emits from its transcript scan (`analyzeTranscript`) or the commit branch of `handleHook`. Enumerated 2026-09-16 at `e813f0a` with `grep -n "Nothing has verified the work since your last change\|could not prove a repository path\|Changed paths include\|the same finding as earlier this session still stands\|Artifact validation failed" plugin/scripts/lifecycle.mjs` — five message sites (lines 932, 2308, 2381, 2754-2755, 2938, 4513). Members this record does not change: the artifact-gate runner messages at 2308/2381 (they report what the gates return; the false one here was fed an invented path, which T3 removes upstream), and the "same finding still stands" repeat at 2938 (a repetition policy, which belongs to its own record).
 
-**Enforced-by:** `tests/advice-accuracy.test.mjs::a timeout-wrapped check is a check`, `tests/advice-accuracy.test.mjs::mrw read is a read, not an unproven write`, `tests/advice-accuracy.test.mjs::echo and printf arguments are not changed paths`, `tests/advice-accuracy.test.mjs::a commit in another repository does not arm this repository's commit advisory`
+**Enforced-by:** `tests/advice-accuracy.test.mjs::a timeout-wrapped check is a check`, `tests/advice-accuracy.test.mjs::mrw read is a read, not an unproven write`, `tests/advice-accuracy.test.mjs::echo and printf arguments are not changed paths`, `tests/advice-accuracy.test.mjs::a commit in another repository does not arm this repository's commit advisory`, `tests/advice-accuracy.test.mjs::read-only arguments are not changed paths`
 **Invalidates:** none — checked. ADR-047's rule stands: `mrw read` becomes a RECOGNISED read, not an unrecognised command waved through. ADR-053/054's publish wrappers (`command|env|sudo|exec|time`) are unchanged; T1 adds a timeout wrapper to the VALIDATION side only.
 **Served-path change:** a session that runs `gtimeout 590 bash scripts/selftest.sh`, reads with `mrw read`, echoes a sentence ending in `.md`, or commits in a scratch repository no longer receives a commit or completion advisory that none of those earned.
 
@@ -43,6 +43,7 @@ Not changed, and why:
 2. **T2 — `mrw read` is a read.** `classifyCommand` returns `neither` for an `mrw read …` or `mrw --root DIR read …` invocation that is the whole segment; `mrw write` keeps today's classification.
 3. **T3 — echo and printf arguments are not changed paths.** In `bashMarkdownMutationPaths`, a segment whose command word is `echo` or `printf` contributes only the target of its `>`/`>>` redirect.
 4. **T4 — a commit elsewhere does not arm this repository's commit advisory.** The commit branch returns early when every commit or push segment resolves to a repository other than this one. A segment whose target cannot be resolved still advises.
+5. **T5 — wc, grep, git ls-files and mrw read arguments are not changed paths** (added 2026-09-17). The Follow-up replay found that T1 and T2 made two commit advisories name files that were only read: the commands around `wc`, `grep` and `git ls-files` became recognised mutations, and `bashMarkdownMutationPaths` read their `.md` arguments. Those segments, and `mrw read`, contribute only a redirect target, as T3's do; a `grep` naming an ugrep option that writes or runs a command keeps every candidate. The rest of the class is BACKLOG §220.
 
 **What would make each fail, and whether that data exists:** each task's test reproduces the exact command shape from the measured session (above) through `handleHook` or the classifier, and each carries its opposite — a timeout-wrapped mutation, an `mrw write`, an `echo … > file.md`, an unresolvable `git -C "$X" commit` — which must still advise. Both halves are constructible today; the mutants delete each new guard.
 
@@ -69,7 +70,7 @@ None — no Module Map file in this repository; no architecture document to upda
 | Surface | Change | Producer | Consumer(s) |
 |---------|--------|----------|-------------|
 | `isValidationCommand` / `classifyCommand` results | a timeout-wrapped check is `validation`; `mrw read` is `neither` | T1, T2 | commit and completion advisories, the reviewer guard, `publishPrecededByValidation` |
-| `bashMarkdownMutationPaths` result | no echo/printf arguments | T3 | Stop "Changed paths include", the artifact gate |
+| `bashMarkdownMutationPaths` result | no echo/printf arguments; no `wc`, `grep`, `git ls-files` or `mrw read` arguments beyond a redirect target | T3, T5 | Stop "Changed paths include", the commit advisory, the artifact gate |
 | PreToolUse commit advisory | not armed by a commit that resolves to another repository | T4 | sessions |
 
 ## Inter-task Contracts
@@ -84,6 +85,7 @@ See `docs/adr/ADR-058-advisories-name-only-what-they-observed/tasks/README.md`.
 
 - **Positive:** the four reproduced false advisories stop; a bare `gtimeout`-bounded check, which the `costly-runs` discipline recommends, counts as evidence.
 - **Negative:** `readOnlyVerdict` also reads `classifyCommand`, so a reviewer role may now run `mrw read` and a timeout-wrapped check; both are reads or checks.
+- **Negative, found after T1–T4 landed:** recognising more commands exposed BACKLOG §220 — two commit advisories on the measured session named read-only files instead of saying they could not prove a path. T5 closes those two (replayed 2026-09-17); the other read-only families still carry the defect until §220's record lands.
 - **Neutral:** a check buried in a compound command is still invisible to the gate, by design.
 
 ## Out of Scope

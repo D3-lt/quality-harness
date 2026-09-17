@@ -1178,6 +1178,26 @@ function isRecognisedReadInvocation(segment) {
   return words[index] === 'read'
 }
 
+// `wc`, `grep`, `git ls-files` and `mrw read` read their arguments and change no
+// file. Measured 2026-09-17 in a scratch repository: `git status --porcelain
+// --ignored` and a newer-than scan stayed unchanged after `wc -l`, `wc -c`,
+// coreutils `gwc -l`, `grep -n`, `grep -rn`, `grep -c`, `git ls-files '<glob>'`,
+// `git ls-files -m` and `mrw read`. Once ADR-058 T1 and T2 recognised the commands
+// around them, their `.md` arguments were named as changed paths (BACKLOG §213),
+// so they contribute only a redirect target, as echo and printf do (ADR-058 T5).
+// Claude Code's shell runs `grep` as ugrep, which writes or runs a command through
+// these options, so a grep segment naming one keeps every candidate. Every other
+// read-only family waits on its own measured write channels (BACKLOG §220).
+const GREP_WRITE_OPTION = /^--(?:save-config|filter|pager|view|format-open)/
+
+function readsOnlyItsArguments(segment, invocation) {
+  const family = executableName(invocation.words[invocation.index])
+  if (family === 'wc') return true
+  if (family === 'grep') return !invocation.words.slice(invocation.index + 1).some(word => GREP_WRITE_OPTION.test(word))
+  if (family === 'git') return gitSubcommand(segment) === 'ls-files'
+  return isRecognisedReadInvocation(segment)
+}
+
 function isMrwWriteCheckCommand(command) {
   if (typeof command !== 'string') return false
   const inner = commandInsideWrappers(command)
@@ -1714,7 +1734,8 @@ export function bashMarkdownMutationPaths(command, cwd = process.cwd()) {
     // segments only the token right after `>` or `>>` is a candidate.
     const invocation = commandInvocation(segment)
     const printsOnly = Boolean(invocation)
-      && /^(?:echo|printf)$/.test(executableName(invocation.words[invocation.index]))
+      && (/^(?:echo|printf)$/.test(executableName(invocation.words[invocation.index]))
+        || readsOnlyItsArguments(segment, invocation))
     for (const match of segment.matchAll(/"([^"]+)"|'([^']+)'|([^\s;&|<>]+)/g)) {
       let candidate = match[1] ?? match[2] ?? match[3]
       if (printsOnly && !/>\s*$/.test(segment.slice(0, match.index))) continue

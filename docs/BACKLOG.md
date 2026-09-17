@@ -12868,6 +12868,9 @@ are silent in both. So the replay reproduces what the session saw, including the
   path. Now they are `mutation`, and §220 reads every `.md` argument as a change. The second fired live,
   naming `T1-a-timeout-wrapped-check-is-a-check.md` beside the T2 task. That is a regression in what the
   advisory names, not in how often it speaks.
+- **Closed by ADR-058 T5, 2026-09-17.** The same two hook points, replayed through `66fb261` and through
+  T5's tree with fresh state: Pre@1208 now names `docs/BACKLOG.md, docs/adr/ADR-057-…md` (the files that
+  commit really carried, as at `e813f0a`), and Pre@3308 names only the T2 task file.
 
 **Why the count did not move:**
 
@@ -12881,8 +12884,8 @@ are silent in both. So the replay reproduces what the session saw, including the
 
 **Left out:** the UserPromptSubmit branch-state lines and PostToolUse rule injections (not ADR-058's
 subject); subagent and workflow transcripts; what the agent would have done differently had the
-messages differed. The replay script and its outputs stay in the session scratchpad, since they are
-derived from a transcript (CLAUDE.md §6).
+messages differed. The replay script and its outputs were kept only in the session scratchpad, since
+they are derived from a transcript (CLAUDE.md §6), and were deleted on 2026-09-17.
 
 ## 214. quality-cycle's `codex: true` arm has no route after ADR-057 (2026-09-16)
 
@@ -12994,6 +12997,10 @@ The extractor runs over the whole command once any segment is a mutation, and it
 as changed, and so does `mrw read` beside a write. It is not simply "skip the read-only families":
 `sort -o out.md`, `find … -delete` and `jq … > out.md` do write, and `node`/`python3` are
 interpreters. Scope a fix by the per-family write channels, measured (§16), in its own record.
+
+ADR-058 T5 (2026-09-17) took `wc`, `grep` (without an ugrep write or command option), `git ls-files` and
+`mrw read` out of this list, because the Follow-up replay caught them naming read-only files. The rest,
+and the `NAME=<file>.md` assignment harvest, remain.
 
 ## 221. A git mutation in another repository marks this project's work unverified (2026-09-16)
 

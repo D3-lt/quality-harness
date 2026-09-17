@@ -24,13 +24,13 @@ Every task touches `tests/advice-accuracy.test.mjs`, so each wave holds one task
 
 | ID | Title | Status | Covers | Acceptance |
 |----|-------|--------|--------|------------|
-| T1 | A timeout-wrapped check is a check | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/classify.test.mjs tests/unread-advice.test.mjs` |
+| T1 | A timeout-wrapped check is a check | superseded | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/classify.test.mjs tests/unread-advice.test.mjs` |
 | T2 | mrw read is a read | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/classify.test.mjs tests/reviewer-guard.test.mjs` |
 | T3 | Echo and printf arguments are not changed paths | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/lifecycle.test.mjs` |
-| T4 | A commit elsewhere does not arm this repository's advisory | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/unread-advice.test.mjs tests/leftovers-after-adr053.test.mjs` |
+| T4 | A commit elsewhere does not arm this repository's advisory | superseded | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/unread-advice.test.mjs tests/leftovers-after-adr053.test.mjs` |
 | T5 | wc, grep, git ls-files and mrw read arguments are not changed paths | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/lifecycle.test.mjs` |
 | T6 | A wrapper's file operand is still a changed path | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/advice-accuracy.test.mjs tests/lifecycle.test.mjs` |
-| T7 | A nested publish or a repository override still arms the commit advisory | done | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/advice-accuracy.test.mjs tests/unread-advice.test.mjs` |
+| T7 | A nested publish or a repository override still arms the commit advisory | superseded | none — no spec | `node --test … tests/advice-accuracy.test.mjs` + `node --test tests/advice-accuracy.test.mjs tests/unread-advice.test.mjs` |
 
 Status: `pending` | `partial` | `blocked` | `done`.
 

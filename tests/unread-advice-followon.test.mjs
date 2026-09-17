@@ -9,7 +9,6 @@ import { fileURLToPath } from 'node:url'
 import {
   analyzeTranscript,
   isValidationCommand,
-  publishPrecededByValidation,
 } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -53,51 +52,6 @@ function runLifecycleHook(payload, options = {}) {
     ...rest,
   })
 }
-
-test('a later || or ; publish is not a silent suffix of the check', async () => {
-  // Codex P1 2026-09-14: PUBLISH_SUFFIX used [\s\S]*$ so
-  // `pnpm check && git commit -m x || git push` stripped through `|| git push`
-  // and looked like a recognised check joined only by &&.
-  assert.equal(isValidationCommand('pnpm check && git commit -m x || git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m x'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m x && git push'), true)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m x || git push'), false)
-  assert.equal(publishPrecededByValidation('pnpm check && git commit -m x; git push'), false)
-
-  const dir = await checkedProject('unread-p1-suffix-')
-  const edited = path.join(dir, 'a.js')
-  await writeFile(edited, 'export {}\n')
-  const file = path.join(dir, 'main.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: edited }),
-    toolResult('e1'),
-  ]))
-
-  const silent = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'pnpm check && git commit -m test' },
-    transcript_path: file, cwd: dir,
-    session_id: `unread-p1-and-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(silent.status, 0, silent.stderr)
-  assert.doesNotMatch(silent.stderr, /would publish unchecked/i, silent.stderr)
-
-  const orPush = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'pnpm check && git commit -m test || git push' },
-    transcript_path: file, cwd: dir,
-    session_id: `unread-p1-or-${Date.now()}-${process.pid}`,
-  })
-  assert.match(orPush.stderr, /would publish unchecked/i, orPush.stderr)
-
-  const semiPush = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'pnpm check && git commit -m test; git push' },
-    transcript_path: file, cwd: dir,
-    session_id: `unread-p1-semi-${Date.now()}-${process.pid}`,
-  })
-  assert.match(semiPush.stderr, /would publish unchecked/i, semiPush.stderr)
-})
 
 test('a mentioned or unfinished mrw --check is not a completed check', async () => {
   // Codex P1 2026-09-14: /\bmrw\b/ && /\bwrite\b/ && --check matched a printf

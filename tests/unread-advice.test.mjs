@@ -77,155 +77,38 @@ function gitInit(dir) {
   assert.equal(run.status ?? 0, 0, run.stderr)
 }
 
-test('commit gate does not accuse unverified when this Bash already runs a check then git commit', async () => {
-  // Measured 2026-09-14: isValidationCommand('pnpm check') is true;
-  // isValidationCommand('pnpm check && git commit -m x') is false and
-  // classifyCommand is mutation. PreToolUse runs before the command, so the
-  // prefix check is not in the transcript yet. Accusing "nothing has verified"
-  // on that compound is a lie about this command, not a finding about the tree.
-  assert.equal(isValidationCommand('pnpm check'), true)
-  assert.equal(isValidationCommand('pnpm check && git commit -m x'), false)
-  assert.equal(isValidationCommand('pnpm check || git commit -m x'), false)
-
-  const dir = await checkedProject('unread-t1-')
-  const edited = path.join(dir, 'a.js')
-  await writeFile(edited, 'export {}\n')
-  const file = path.join(dir, 'main.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: edited }),
-    toolResult('e1'),
-  ]))
-
-  const compound = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'pnpm check && git commit -m test' },
-    transcript_path: file, cwd: dir,
-    session_id: `unread-t1-and-${Date.now()}-${process.pid}`,
-  })
-  assert.equal(compound.status, 0, compound.stderr)
-  assert.doesNotMatch(compound.stderr, /would publish unchecked/i, compound.stderr)
-  assert.doesNotMatch(compound.stderr, /Nothing has verified the work/, compound.stderr)
-
-  const orJoin = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'pnpm check || git commit -m test' },
-    transcript_path: file, cwd: dir,
-    session_id: `unread-t1-or-${Date.now()}-${process.pid}`,
-  })
-  assert.match(orJoin.stderr, /would publish unchecked/i, orJoin.stderr)
-
-  const bare = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' },
-    transcript_path: file, cwd: dir,
-    session_id: `unread-t1-bare-${Date.now()}-${process.pid}`,
-  })
-  assert.match(bare.stderr, /would publish unchecked/i, bare.stderr)
-})
-
-test('a passing mrw --check is a validation for the commit gate', async () => {
-  const dir = await checkedProject('unread-t2-')
-  const passText = 'check PASS (exit 0)'
-
-  const mcpFile = path.join(dir, 'mcp.jsonl')
-  await writeFile(mcpFile, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md', check: true }),
-    toolResult('w1', false, passText),
-  ]))
-  const mcpState = analyzeTranscript(await readFile(mcpFile, 'utf8'), dir)
-  assert.equal(mcpState.unprovenWritePending(), false, 'MCP mrw --check PASS is not pending UNPROVEN')
-  assert.ok(mcpState.lastSuccessfulValidation >= 0)
-  const mcpCommit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' },
-    transcript_path: mcpFile, cwd: dir,
-    session_id: `unread-t2-mcp-${Date.now()}-${process.pid}`,
-  })
-  assert.doesNotMatch(mcpCommit.stderr, /would publish unchecked/i, mcpCommit.stderr)
-
-  const bashFile = path.join(dir, 'bash.jsonl')
-  await writeFile(bashFile, transcript([
-    toolUse('w1', 'Bash', { command: 'mrw write --plan-file p.txt --check' }),
-    toolResult('w1', false, passText),
-  ]))
-  const bashState = analyzeTranscript(await readFile(bashFile, 'utf8'), dir)
-  assert.equal(bashState.unprovenWritePending(), false, 'Bash mrw write --check PASS is not pending UNPROVEN')
-  const bashCommit = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' },
-    transcript_path: bashFile, cwd: dir,
-    session_id: `unread-t2-bash-${Date.now()}-${process.pid}`,
-  })
-  assert.doesNotMatch(bashCommit.stderr, /would publish unchecked/i, bashCommit.stderr)
-
-  const dirtyFile = path.join(dir, 'dirty.jsonl')
-  await writeFile(dirtyFile, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }),
-    toolResult('w1', false, 'ok'),
-  ]))
-  const dirty = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' },
-    transcript_path: dirtyFile, cwd: dir,
-    session_id: `unread-t2-dirty-${Date.now()}-${process.pid}`,
-  })
-  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
-})
-
-test('a gitignored Write after a green check does not re-open the commit gate', async () => {
+test('a gitignored write does not raise the publish warning (ADR-060)', async () => {
+  // The warning is about the observed tree, and a gitignored path is not in it,
+  // so an ignored write leaves nothing to warn about; a tracked one does.
   const dir = await checkedProject('unread-t3-')
   gitInit(dir)
   writeFileSync(path.join(dir, '.gitignore'), 'ledger/\n')
   mkdirSync(path.join(dir, 'ledger'), { recursive: true })
-  const tracked = path.join(dir, 'a.js')
-  writeFileSync(tracked, 'export {}\n')
+  writeFileSync(path.join(dir, 'a.js'), 'export {}\n')
+  spawnSync('git', ['-C', dir, 'add', '-A'], { encoding: 'utf8', timeout: 30_000 })
+  spawnSync('git', ['-C', dir, '-c', 'user.name=qh', '-c', 'user.email=qh@example.invalid', 'commit', '-qm', 'base'],
+    { encoding: 'utf8', timeout: 30_000 })
   const ignored = path.join(dir, 'ledger', 'session.md')
+  const session = `unread-ignored-${Date.now()}-${process.pid}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: dir, session_id: session })
+
   writeFileSync(ignored, '# ledger\n')
-
-  const ignore = spawnSync('git', ['-C', dir, 'check-ignore', '-q', '--', ignored], {
-    encoding: 'utf8', timeout: 15_000,
-  })
-  assert.equal(ignore.status, 0, 'the fixture must be gitignored or the test is not about T3')
-
-  const cleanFile = path.join(dir, 'clean.jsonl')
-  await writeFile(cleanFile, transcript([
-    toolUse('e1', 'Write', { file_path: tracked }),
-    toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, '12 passed'),
-    toolUse('e2', 'Write', { file_path: ignored }),
-    toolResult('e2'),
-  ]))
-  const cleanState = analyzeTranscript(await readFile(cleanFile, 'utf8'), dir)
-  assert.equal(cleanState.unverifiedSince(cleanState.lastPublish), false)
+  const ignore = spawnSync('git', ['-C', dir, 'check-ignore', '-q', '--', ignored], { encoding: 'utf8', timeout: 15_000 })
+  assert.equal(ignore.status, 0, 'the fixture must be gitignored or the test is not about this')
   const clean = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' },
-    transcript_path: cleanFile, cwd: dir,
-    session_id: `unread-t3-clean-${Date.now()}-${process.pid}`,
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir, session_id: session,
+    tool_input: { command: 'git commit -m x' },
   })
-  assert.doesNotMatch(clean.stderr, /would publish unchecked/i, clean.stderr)
+  assert.equal(clean.status, 0, clean.stderr)
+  assert.doesNotMatch(clean.stderr, /names commit or push/, clean.stderr)
 
-  const dirtyFile = path.join(dir, 'dirty.jsonl')
-  const later = path.join(dir, 'b.js')
-  writeFileSync(later, 'export const x = 1\n')
-  await writeFile(dirtyFile, transcript([
-    toolUse('e1', 'Write', { file_path: tracked }),
-    toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, '12 passed'),
-    toolUse('e2', 'Write', { file_path: later }),
-    toolResult('e2'),
-  ]))
+  writeFileSync(path.join(dir, 'b.js'), 'export {}\n')
   const dirty = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash',
-    tool_input: { command: 'git commit -m test' },
-    transcript_path: dirtyFile, cwd: dir,
-    session_id: `unread-t3-dirty-${Date.now()}-${process.pid}`,
+    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir, session_id: session,
+    tool_input: { command: 'git commit -m y' },
   })
-  assert.match(dirty.stderr, /would publish unchecked/i, dirty.stderr)
+  assert.match(dirty.stderr, /names commit or push/, dirty.stderr)
 })
-
 test('PostToolUse is silent on a file that is not a QH record', () => {
   const root = mkdtempSync(path.join(testTmp, 'unread-t4-'))
   const file = path.join(root, 'notes.md')

@@ -4,7 +4,7 @@ import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { appendFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
+import { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
@@ -4620,9 +4620,220 @@ export function readOnlyRole(agentType) {
   return READ_ONLY_ROLES.includes(bare) ? bare : null
 }
 
+// ---- ADR-060: hooks are named events, each observed and appended to a log.
+//
+// The state directory belongs to one worktree (`--absolute-git-dir`), so a check
+// recorded in one worktree never clears another's findings. Outside a repository
+// it is keyed by the canonical directory under the system temp directory.
+const stateDirectories = new Map()
+export function stateDir(cwd) {
+  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
+  const key = directory ?? String(cwd)
+  if (stateDirectories.has(key)) return stateDirectories.get(key)
+  let resolved = null
+  if (directory) {
+    const run = spawnSync('git', ['-C', directory, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 5_000 })
+    if (!run.error && run.status === 0 && run.stdout.trim()) resolved = path.join(canonical(run.stdout.trim()), 'quality-harness')
+  }
+  resolved ??= path.join(os.tmpdir(), 'quality-harness',
+    createHash('sha256').update(directory ? canonical(directory) : String(cwd)).digest('hex'))
+  stateDirectories.set(key, resolved)
+  return resolved
+}
+
+function sessionLogPath(cwd, session) {
+  return path.join(stateDir(cwd), 'sessions', `${String(session).replace(/[^A-Za-z0-9._-]/g, '_')}.jsonl`)
+}
+
+export function appendEvent(cwd, session, entry) {
+  if (typeof session !== 'string' || !session) return false
+  try {
+    const file = sessionLogPath(cwd, session)
+    mkdirSync(path.dirname(file), { recursive: true })
+    appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, 'utf8')
+    return true
+  } catch {
+    return false
+  }
+}
+
+export function readEvents(cwd, session) {
+  if (typeof session !== 'string' || !session) return []
+  let text
+  try { text = readFileSync(sessionLogPath(cwd, session), 'utf8') } catch { return [] }
+  const entries = []
+  for (const line of text.split('\n')) {
+    if (!line.trim()) continue
+    try { entries.push(JSON.parse(line)) } catch { /* a torn line is skipped, not fatal */ }
+  }
+  return entries
+}
+
+// The working tree, the index and HEAD as content hashes. Both hashes are taken
+// over a COPY of the index with objects written to a temporary directory, the
+// repository's own objects as alternate: measured 2026-09-17, the repository's
+// objects, index and status are unchanged by it (ADR-060 Context).
+const OBSERVE_BUDGET_MS = 5_000
+export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
+  const started = Date.now()
+  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
+  if (!directory) return { ok: false, reason: 'the working directory does not exist' }
+  let scratch = null
+  const git = (args, env = null, allowed = [0]) => {
+    const remaining = budgetMs - (Date.now() - started)
+    if (remaining <= 0) throw new Error(`git took more than ${budgetMs} ms`)
+    const run = spawnSync('git', ['-C', directory, ...args], {
+      encoding: 'utf8', timeout: remaining, maxBuffer: 16 * 1024 * 1024,
+      env: env ? { ...process.env, ...env } : process.env,
+    })
+    if (run.error?.code === 'ETIMEDOUT') throw new Error(`git took more than ${budgetMs} ms`)
+    if (run.error) throw new Error(`git could not run (${run.error.code ?? run.error.message})`)
+    if (!allowed.includes(run.status)) throw new Error(`git ${args[0]} exited ${run.status}`)
+    return { status: run.status, out: run.stdout.trim() }
+  }
+  try {
+    git(['rev-parse', '--show-toplevel'])
+    const indexPath = path.resolve(directory, git(['rev-parse', '--git-path', 'index']).out)
+    const objects = path.resolve(directory, git(['rev-parse', '--git-path', 'objects']).out)
+    const head = git(['rev-parse', '--verify', '-q', 'HEAD'], null, [0, 1])
+    scratch = mkdtempSync(path.join(os.tmpdir(), 'qh-observe-'))
+    const index = path.join(scratch, 'index')
+    if (existsSync(indexPath)) copyFileSync(indexPath, index)
+    mkdirSync(path.join(scratch, 'objects'))
+    const env = { GIT_INDEX_FILE: index, GIT_OBJECT_DIRECTORY: path.join(scratch, 'objects'), GIT_ALTERNATE_OBJECT_DIRECTORIES: objects }
+    const indexTree = git(['write-tree'], env).out
+    git(['add', '-A'], env)
+    const tree = git(['write-tree'], env).out
+    return { ok: true, tree, index: indexTree, head: head.status === 0 ? head.out : null }
+  } catch (failure) {
+    return { ok: false, reason: failure.message }
+  } finally {
+    if (scratch) {
+      try { rmSync(scratch, { recursive: true, force: true }) } catch { /* a leftover temp copy is not a finding */ }
+    }
+  }
+}
+
+// ADR-005: an observation that could not be made never matches anything.
+export function sameObservation(a, b) {
+  return a?.ok === true && b?.ok === true && a.tree === b.tree && a.index === b.index && a.head === b.head
+}
+
+const OBSERVED_HOOK_EVENTS = {
+  TaskCompleted: 'task.completed',
+  PreCompact: 'context.compacting',
+  SessionEnd: 'session.ending',
+  SubagentStart: 'subagent.started',
+  SubagentStop: 'subagent.ended',
+}
+
+function recordFileWritten(input) {
+  const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
+  if (typeof target !== 'string' || !target) return null
+  const absolute = path.resolve(input.cwd, target)
+  const entry = { event: 'file.written', path: absolute, observable: false }
+  const directory = nearestExistingDirectory(path.resolve(input.cwd))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  const parent = nearestExistingDirectory(absolute)
+  if (root && parent) {
+    const resolved = path.join(canonical(parent), path.relative(parent, absolute))
+    const relative = path.relative(root, resolved)
+    if (relative && !relative.startsWith('..') && !path.isAbsolute(relative)) {
+      const ignored = spawnSync('git', ['-C', root, 'check-ignore', '-q', '--', relative], { encoding: 'utf8', timeout: 5_000 })
+      if (!ignored.error && ignored.status === 1) {
+        const hashed = spawnSync('git', ['-C', root, 'hash-object', '--', relative], { encoding: 'utf8', timeout: 5_000 })
+        entry.observable = true
+        entry.blob = !hashed.error && hashed.status === 0 ? hashed.stdout.trim() : null
+      }
+    }
+  }
+  appendEvent(input.cwd, input.session_id, entry)
+  return entry
+}
+
+// Translate one hook into its named event, observe, and append both. Reads no
+// command text. A payload without a session or a directory records nothing,
+// because the log is per session.
+export function recordHookEvent(input) {
+  const session = input?.session_id
+  if (typeof session !== 'string' || !session || typeof input.cwd !== 'string') return null
+  const hook = input.hook_event_name
+  if (hook === 'PostToolUse') return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
+  let name = null
+  const extra = {}
+  if (hook === 'SessionStart') {
+    if (readEvents(input.cwd, session).some(entry => entry.event === 'session.started')) return null
+    name = 'session.started'
+  } else if (hook === 'Stop') {
+    if (input.stop_hook_active === true || hasBackgroundWork(input)) return null
+    name = 'turn.ended'
+  } else if (OBSERVED_HOOK_EVENTS[hook]) {
+    name = OBSERVED_HOOK_EVENTS[hook]
+    if (hook === 'SubagentStart' || hook === 'SubagentStop') {
+      extra.agentId = typeof input.agent_id === 'string' ? input.agent_id : null
+      extra.agentType = typeof input.agent_type === 'string' ? input.agent_type : null
+    }
+  }
+  if (!name) return null
+  const entry = { event: name, ...extra, observation: observe(input.cwd) }
+  if (!appendEvent(input.cwd, session, entry)) {
+    return { ...entry, observation: { ok: false, reason: 'the event log could not be appended' } }
+  }
+  return entry
+}
+
+// ONE output per hook. A deny is delivered alone, and a legacy deny as well;
+// otherwise every advisory is joined, beside any legacy output passed in, so no
+// finding overwrites another. `action.emitted` is appended only for what was
+// delivered (ADR-060 revision 3 review: `emitJson` kept only the last output).
+export function deliver(actions, input, { legacy = null } = {}) {
+  const event = input?.hook_event_name
+  const denials = actions.filter(action => action.deny)
+  let delivered
+  let output
+  if (denials.length) {
+    delivered = [denials[0]]
+    output = {
+      hookSpecificOutput: { hookEventName: 'PreToolUse', permissionDecision: 'deny', permissionDecisionReason: denials[0].text },
+    }
+    process.stderr.write(`${denials[0].text}\n`)
+  } else if (legacy?.hookSpecificOutput?.permissionDecision === 'deny') {
+    delivered = []
+    output = legacy
+  } else {
+    delivered = actions.filter(action => typeof action.text === 'string' && action.text)
+    output = legacy ? JSON.parse(JSON.stringify(legacy)) : null
+    if (delivered.length) {
+      const texts = delivered.map(action => action.text)
+      for (const text of texts) process.stderr.write(`${text}\n`)
+      const joined = texts.join('\n\n')
+      output ??= {}
+      if (event === 'PreToolUse') {
+        const specific = output.hookSpecificOutput ?? { hookEventName: 'PreToolUse' }
+        specific.additionalContext = specific.additionalContext ? `${specific.additionalContext}\n\n${joined}` : joined
+        output.hookSpecificOutput = specific
+        const headline = `quality-harness advised the agent: ${advisoryHeadline(texts[0])} (full text in the transcript)`
+        output.systemMessage = output.systemMessage ? `${output.systemMessage}\n${headline}` : headline
+      } else {
+        output.systemMessage = output.systemMessage ? `${output.systemMessage}\n\n${joined}` : joined
+      }
+    }
+  }
+  pendingOutput = output
+  for (const action of delivered) {
+    if (action.rule) appendEvent(input.cwd, input.session_id, { event: 'action.emitted', rule: action.rule, key: action.key ?? null })
+  }
+  return { output, delivered }
+}
+
 
 export async function handleHook(input) {
   const event = input.hook_event_name
+  // ADR-060 T1: every hook first appends its named, observed event. The log is
+  // additive here; a failure in it must never change an existing advisory.
+  try { recordHookEvent(input) } catch (failure) {
+    process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+  }
 
   if (event === 'SessionStart') {
     // After compaction the session has none of the context the once-per-session

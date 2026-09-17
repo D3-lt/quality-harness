@@ -96,30 +96,6 @@ test('a timeout wrapper does not launder a mutation', () => {
   assert.equal(classifyCommand('gtimeout 5 rm -rf build'), 'mutation')
 })
 
-test('the commit gate is silent after a passing timeout-wrapped check', async () => {
-  const dir = await checkedProject('t1-')
-  const edited = path.join(dir, 'a.js')
-  await writeFile(edited, 'export {}\n')
-
-  const passed = path.join(dir, 'passed.jsonl')
-  await writeFile(passed, transcript([
-    toolUse('e1', 'Edit', { file_path: edited }), toolResult('e1'),
-    toolUse('c1', 'Bash', { command: 'gtimeout 60 npm test' }), toolResult('c1', false, PASSING_RUN),
-  ]))
-  assert.equal(analyzeTranscript(await readFile(passed, 'utf8'), dir).verifiedAfterLastMutation, true)
-  const silent = commitAdvice(passed, dir, 'passed')
-  assert.equal(silent.status, 0, silent.stderr)
-  assert.doesNotMatch(silent.stderr, UNCHECKED_COMMIT, silent.stderr)
-
-  const failed = path.join(dir, 'failed.jsonl')
-  await writeFile(failed, transcript([
-    toolUse('e1', 'Edit', { file_path: edited }), toolResult('e1'),
-    toolUse('c1', 'Bash', { command: 'gtimeout 60 npm test' }), toolResult('c1', true, FAILING_RUN),
-  ]))
-  assert.match(commitAdvice(failed, dir, 'failed').stderr, UNCHECKED_COMMIT)
-})
-
-// ---- T2: mrw read is a read.
 const MRW_READS = ['mrw read a.md:1-5', 'mrw --root /tmp/x read a.md', 'mrw -C /tmp/x read a.md', 'mrw --root=/tmp/x read a.md', 'mrw read "tests/a.json:10-20"; echo "mrw exit=$?"']
 const MRW_NOT_READS = ["mrw write - <<'PLAN'\n@@ a.md 1 replace\nx\nPLAN", 'mrw --root read write a.md', 'mrw read a.md; rm b.md', 'mrw read a.md > out.txt', 'mrw stats']
 
@@ -208,38 +184,6 @@ async function uncheckedRepository(prefix) {
   await writeFile(file, transcript([toolUse('e1', 'Edit', { file_path: edited }), toolResult('e1')]))
   return { dir, file }
 }
-
-test("a commit in another repository does not arm this repository's commit advisory", async () => {
-  const { dir, file } = await uncheckedRepository('t4-')
-  const other = await mkdtemp(path.join(testTmp, 't4-other-'))
-  gitRepository(other)
-  const foreign = publishAdvice('git -C "' + other + '" commit --allow-empty -m probe', file, dir, 'foreign')
-  assert.equal(foreign.status, 0, foreign.stderr)
-  assert.doesNotMatch(foreign.stderr, UNCHECKED_COMMIT, foreign.stderr)
-  assert.match(publishAdvice('git commit -m own', file, dir, 'own').stderr, UNCHECKED_COMMIT)
-  assert.match(publishAdvice('git -C "' + other + '" commit -m probe && git commit -m own', file, dir, 'both').stderr,
-    UNCHECKED_COMMIT)
-})
-
-test('a commit whose repository cannot be resolved still advises', async () => {
-  const { dir, file } = await uncheckedRepository('t4u-')
-  const plain = await mkdtemp(path.join(testTmp, 't4-plain-'))
-  const unresolved = [
-    'git -C "$X" commit -m x',
-    'git -C "' + path.join(testTmp, 't4-missing') + '" commit -m x',
-    'git -C "' + plain + '" commit -m x',
-    'cd "$R" && git commit -m x',
-  ]
-  for (const [index, command] of unresolved.entries()) {
-    const run = publishAdvice(command, file, dir, 'unresolved-' + index)
-    assert.equal(run.status, 0, run.stderr)
-    assert.match(run.stderr, UNCHECKED_COMMIT, command)
-  }
-})
-
-// ---- T5: wc, grep, git ls-files and mrw read arguments are not changed paths.
-// The first two commands are the ones measured on 2026-09-16, with the
-// scratchpad path shortened.
 const READ_ARGUMENT_COMMANDS = [
   "ls docs/adr | grep -c '^ADR-057' ; wc -l docs/BACKLOG.md; mrw read docs/BACKLOG.md:12750-12770; echo \"mrw exit=$?\"; git ls-files 'plugin/skills/*/SKILL.md' 'plugin/agents/*.md' 'plugin/workflows/*.js' | tee /dev/stderr | wc -l; git ls-files docs/specs | tail -2",
   "S=/private/tmp/qh-scratch; grep -n \"^## \" docs/tasks/T1-*.md | head -20; cat > $S/audit.mjs <<'EOF'\nconsole.log(1)\nEOF\ntimeout 120 node $S/audit.mjs",
@@ -256,7 +200,6 @@ const READ_WRITE_COMMANDS = [
   ['T=docs/new.md && python3 plugin/bin/adr-verify "$T"', 'docs/new.md'],
   ["find docs -name 'new.md' -delete", 'new.md'],
 ]
-
 async function readArgumentProject(prefix) {
   const dir = await markdownProject(prefix)
   for (const folder of ['docs/tasks', 'plugin/agents', 'plugin/skills/work']) {
@@ -328,22 +271,3 @@ test('an exported name keeps its assigned path after a read', async () => {
 })
 
 // ---- T7: a nested publish or a repository override still arms the commit advisory.
-test('a nested publish or a repository override still arms the commit advisory', async () => {
-  const { dir, file } = await uncheckedRepository('t7-')
-  const other = await mkdtemp(path.join(testTmp, 't7-other-'))
-  gitRepository(other)
-  const quiet = publishAdvice('git -C "' + other + '" commit -m other', file, dir, 'quiet')
-  assert.doesNotMatch(quiet.stderr, UNCHECKED_COMMIT, quiet.stderr)
-  const shapes = [
-    'git -C "' + other + '" commit -m other; bash -c \'git commit -m local\'',
-    'git -C "' + other + '" commit -m other && echo "$(git commit -m local)"',
-    'git -C "' + other + '" commit -m other; bash <<EOF\ngit commit -m local\nEOF',
-    'GIT_DIR="' + dir + '/.git" git -C "' + other + '" commit -m local',
-    'git --git-dir="' + dir + '/.git" --work-tree="' + other + '" commit -m local',
-  ]
-  for (const [index, command] of shapes.entries()) {
-    const run = publishAdvice(command, file, dir, 'override-' + index)
-    assert.equal(run.status, 0, run.stderr)
-    assert.match(run.stderr, UNCHECKED_COMMIT, command)
-  }
-})

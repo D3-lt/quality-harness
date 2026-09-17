@@ -684,189 +684,6 @@ export function isGitPublishCommand(command) {
   }
   return false
 }
-// Bound to the matched git invocation. `[\s\S]*$` ate a later `|| git push`
-// / `; git push` as if they were still the `&&` suffix (Codex P1, 2026-09-14).
-// Quote-aware peel: last unquoted `&&` or newline, then wrappers, then git
-// commit/push whose args may contain quoted `|` / `;`. Unquoted `|` / `;` /
-// `||` still refuse the tail (ADR-054 F-3 / ADR-056).
-// Wrapper flags/assignments that still invoke git (`sudo -n`, `env FOO=bar`,
-// `command --`, `time -p`). `command -v` is not an invocation.
-// Operand class is `[^\s|;]+`, not `\S+`: `FOO=bar||` / `-u ci||` swallowed
-// the attached loud joiner (Codex P1, 2026-09-15).
-const PUBLISH_WRAPPER = /^(?:(?:command(?:\s+--)?|env(?:\s+(?:-u\s+[^\s|;]+|[A-Za-z_][\w]*=[^\s|;]+))*|sudo(?:\s+(?:-n|-u\s+[^\s|;]+))*|exec|time(?:\s+-p)?)\s+)*/
-
-function hashStartsComment(text, index) {
-  if (index <= 0) return true
-  const prev = text[index - 1]
-  if (prev === ' ' || prev === '\t'
-      || prev === '&' || prev === '|' || prev === ';' || prev === '('
-      || prev === ')' || prev === '<' || prev === '>') {
-    let slashes = 0
-    for (let i = index - 2; i >= 0 && text[i] === '\\'; i -= 1) slashes += 1
-    return slashes % 2 === 0
-  }
-  return prev === '\n' || prev === '\r'
-}
-
-
-function quoteAwarePublishArgsOk(text) {
-  // Replaces quote-blind [^|;\n]* : unquoted | ; newline stop; quoted do not.
-  let quote = null
-  let escaped = false
-  let inComment = false
-  for (let index = 0; index < text.length; index += 1) {
-    const character = text[index]
-    if (inComment) {
-      if (character === '\n' || character === '\r') {
-        return false
-      }
-      continue
-    }
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (character === "'" || character === '"') {
-      quote = character
-      continue
-    }
-    if (character === '#' && hashStartsComment(text, index)) {
-      inComment = true
-      continue
-    }
-    if (character === '|' || character === ';' || character === '\n' || character === '\r') {
-      return false
-    }
-  }
-  return quote === null
-}
-
-function wrapperQuotesClosed(text) {
-  let quote = null
-  let escaped = false
-  for (const character of text) {
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (character === "'" || character === '"') quote = character
-  }
-  return quote === null
-}
-
-function gitPublishTail(text) {
-  const trimmed = text.trimStart()
-  const wrap = trimmed.match(PUBLISH_WRAPPER)
-  if (wrap && !wrapperQuotesClosed(wrap[0])) return false
-  const after = wrap ? trimmed.slice(wrap[0].length) : trimmed
-  const git = after.match(/^git\s+(?:commit|push)\b/)
-  if (!git) return false
-  return quoteAwarePublishArgsOk(after.slice(git[0].length))
-}
-
-function lastSilentPublishJoiner(command) {
-  let quote = null
-  let escaped = false
-  let inComment = false
-  let last = -1
-  let lastLen = 0
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index]
-    if (inComment) {
-      if (character === '\n') {
-        inComment = false
-        last = index
-        lastLen = 1
-        continue
-      }
-      if (character === '\r' && command[index + 1] === '\n') {
-        inComment = false
-        last = index
-        lastLen = 2
-        index += 1
-        continue
-      }
-      continue
-    }
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (character === "'" || character === '"') {
-      quote = character
-      continue
-    }
-    if (character === '#' && hashStartsComment(command, index)) {
-      inComment = true
-      continue
-    }
-    if (character === '&' && command[index + 1] === '&') {
-      last = index
-      lastLen = 2
-      index += 1
-      continue
-    }
-    if (character === '\n') {
-      last = index
-      lastLen = 1
-      continue
-    }
-    if (character === '\r' && command[index + 1] === '\n') {
-      last = index
-      lastLen = 2
-      index += 1
-    }
-  }
-  if (last < 0) return null
-  return { at: last, len: lastLen }
-}
-
-export function publishPrecededByValidation(command) {
-  if (typeof command !== 'string' || !isGitPublishCommand(command)) return false
-  let rest = command.trim()
-  let stripped = false
-  for (;;) {
-    const join = lastSilentPublishJoiner(rest)
-    if (!join) break
-    const suffix = rest.slice(join.at + join.len)
-    if (!gitPublishTail(suffix)) break
-    const joiner = rest.slice(join.at, join.at + join.len)
-    rest = rest.slice(0, join.at).trim()
-    stripped = true
-    if (joiner === '\n' || joiner === '\r\n') {
-      if (rest.endsWith('&&')) rest = rest.slice(0, -2).trim()
-    }
-  }
-  if (!stripped || !rest) return false
-  if (isValidationCommand(rest)) return true
-  const lastLine = rest.split(/\r?\n/).filter(Boolean).at(-1) ?? ''
-  const lastAnd = lastLine.split(/\s*&&\s*/).filter(Boolean).at(-1) ?? ''
-  return isValidationCommand(lastAnd)
-}
 
 
 function commandSucceeded(result) {
@@ -4773,6 +4590,12 @@ export function recordHookEvent(input) {
   if (hook === 'PostToolUse') return MUTATION_TOOLS.has(input.tool_name) ? recordFileWritten(input) : null
   let name = null
   const extra = {}
+  // A read-only role's PreToolUse is decided by the reviewer deny and never
+  // observed; outside one, a Bash command naming commit or push is a publish request.
+  if (hook === 'PreToolUse') {
+    if (readOnlyRole(input.agent_type) || input.tool_name !== 'Bash' || !containsCommitOrPush(input.tool_input?.command)) return null
+    name = 'publish.requested'
+  }
   if (hook === 'SessionStart') {
     if (readEvents(input.cwd, session).some(entry => entry.event === 'session.started')) return null
     name = 'session.started'
@@ -4834,11 +4657,60 @@ export function deliver(actions, input, { legacy = null } = {}) {
   }
   pendingOutput = output
   for (const action of delivered) {
-    if (action.rule) appendEvent(input.cwd, input.session_id, { event: 'action.emitted', rule: action.rule, key: action.key ?? null })
+    if (action.rule) {
+      appendEvent(input.cwd, input.session_id, {
+        event: 'action.emitted', rule: action.rule, key: action.key ?? null, ...(action.detail ? { detail: action.detail } : {}),
+      })
+    }
   }
   return { output, delivered }
 }
 
+// "Checked" for a tree: its latest check event is check.passed. A check event
+// belongs to the tree of its `after` observation, and the evidence revision of a
+// tree is how many check events it has, so a later check re-opens a finding.
+function checkEventsFor(log, tree) {
+  return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && entry.after?.tree === tree)
+}
+
+function treeChecked(log, tree) {
+  return checkEventsFor(log, tree).at(-1)?.event === 'check.passed'
+}
+
+function checkRevision(log, tree) {
+  return checkEventsFor(log, tree).length
+}
+
+function inferredCheckCaveat(cwd) {
+  const { command, origin } = checkCommandOrigin(cwd)
+  return origin === 'inferred'
+    ? ` The check \`${command}\` was inferred from a manifest, not declared; declare it as \`check\` in .quality-harness.json.`
+    : ''
+}
+
+// P `publish-unchecked` (ADR-060): before a command naming commit or push runs,
+// when the tree or the index is unchecked and differs from the session's start.
+// It says the command is about to run while this repository is unchecked; it
+// does not claim the command publishes this repository, which it may not.
+function publishUnchecked(input, requested) {
+  if (requested?.event !== 'publish.requested' || requested.observation?.ok !== true) return
+  if (!projectCheckCommand(input.cwd)) return
+  const now = requested.observation
+  const log = readEvents(input.cwd, input.session_id)
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const treeUnchecked = !treeChecked(log, now.tree) && (baseline?.ok !== true || now.tree !== baseline.tree)
+  const indexUnchecked = !treeChecked(log, now.index) && (baseline?.ok !== true || now.index !== baseline.index)
+  if (!treeUnchecked && !indexUnchecked) return
+  const revision = checkRevision(log, now.tree)
+  const key = `${now.tree}:${now.index}:${revision}`
+  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
+  queueAction({
+    rule: 'P', key, detail: { tree: now.tree, revision },
+    text: 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command '
+      + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
+      + `the command publishes.${inferredCheckCaveat(input.cwd)}`,
+  })
+}
 // R3 `review-changed-state` (ADR-060): a read-only role's run is bracketed by its
 // SubagentStart and SubagentStop observations, paired by agent id. A change in
 // tree, index or HEAD between them is reported — as having happened DURING that
@@ -5029,73 +4901,19 @@ export async function handleHook(input) {
     // very escape it was demanding.
     if (input.tool_name !== 'Bash') return
     const command = input.tool_input?.command
-    if (!isGitPublishCommand(command)) return
-
-    // The one case the transcript cannot cover: a command that deletes by an
-    // unresolved path AND publishes, in that order, inside itself. This hook runs
-    // BEFORE the command does, so the deletion is not in the transcript yet and
-    // deletedTrackedPaths would answer about a tree the command has not touched.
-    // Afterwards HEAD has moved and the answer is gone.
-    //
-    // The rule this replaces asked the transcript whether a publish had landed
-    // after an unresolved deletion. Measured 2026-08-26, that is exactly
-    // backwards: `rm -rf "$X" && git commit` in ONE command did NOT arm it —
-    // both land at the same tool-use position and the comparison was strict —
-    // while a deletion followed by a SEPARATE commit did, on every commit for the
-    // rest of the session. But a separate commit runs this hook first, and
-    // runArtifactGates resolves the deletion through deletedTrackedPaths while
-    // HEAD still answers. So the old rule fired only on deletions that had
-    // already been checked, and never on the one that had not. It blocked real
-    // work in three different sessions and caught nothing.
-    if (isGitPublishCommand(command)
-        && bashDeletionMutationPaths(command, input.cwd).includes(UNRESOLVED_DELETION_MUTATION)) {
-      advise('This command deletes by an unresolved path and commits in the same breath, so '
-        + 'nothing can establish what was removed: before it runs the deletion has not happened, and '
-        + 'after it HEAD no longer shows the difference. Name the deleted paths explicitly, or delete '
-        + 'and commit as two commands — a separate commit is checked against the repository.', input)
-      return
-    }
-    // A commit in another repository publishes nothing of this one, so this
-    // session's unverified edits are not what it would publish (ADR-058 T4).
-    if (gitPublishTargetsOnlyOtherRepositories(command, input.cwd)) return
-
+    if (!containsCommitOrPush(command)) return
+    publishUnchecked(input, recorded)
+    // The pre-publish artifact pass stays until ADR-060 T6 replaces it with rule A.
+    if (!isGitPublishCommand(command) || gitPublishTargetsOnlyOtherRepositories(command, input.cwd)) return
     const raw = await readTranscript(input)
-    if (!raw) {
-      advise('Quality gate could not read the session transcript, so it cannot tell whether this '
-        + 'change was checked. Nothing is wrong with your change and nothing is blocked — the gate '
-        + `is blind here, not unhappy. ${runTheCheckSentence(input.cwd)} If this repeats, the `
-        + 'transcript path the hook was given does not exist.', input)
-      return
-    }
+    if (!raw) return
     const state = analyzeTranscript(raw, input.cwd)
     // The PreToolUse hook has a 60s deadline (hooks.json) and a hook killed on
     // its deadline blocks nothing, so the artifact pass gets a window that fits
-    // inside it.
-    // What is being published now, not everything the session has touched. A
-    // publish is the boundary at which authored work was submitted; re-gating it
-    // at every later commit is what made a long session unable to commit at all.
-    // A commit that bypassed this gate (--no-verify) still moves the boundary —
-    // the override was the author's, and punishing every later commit for it is
-    // the "fights you" behaviour this gate exists to avoid.
+    // inside it. What is being published now, not everything the session has
+    // touched.
     const artifactFailure = runArtifactGates(state.mutationPathsSince(state.lastPublish), input.cwd, 45_000)
-    if (artifactFailure) {
-      advise(artifactFailure, input)
-      return
-    }
-    // Since the last publish, for the same reason the artifact pass is: a commit
-    // that itself counts as a mutation (`git add -A && git commit …`) made the
-    // NEXT commit demand a check of the previous one, and no amount of testing
-    // could satisfy it — the loop closed on the publish itself. Reported from a
-    // live 2.3.0 session on 2026-08-26.
-    // Same rule as the completion gates: with no check to name, this has nothing
-    // to ask for.
-    if ((state.unverifiedSince(state.lastPublish) || state.unprovenWritePending())
-        && projectCheckCommand(input.cwd)
-        && !publishPrecededByValidation(command)) {
-      advise('Nothing has verified the work since your last change, so this commit would publish '
-        + `unchecked. ${missingEvidenceReason(state, input.cwd, state.mutationPathsSince(state.lastPublish))} `
-        + 'Nothing is blocked — this is what the gate sees before you commit.', input)
-    }
+    if (artifactFailure) advise(artifactFailure, input)
     return
   }
 

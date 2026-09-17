@@ -5,7 +5,7 @@
 **Owner:** zy
 **Spec:** `docs/specs/2026-09-15-a-go-raw-string-is-not-an-escape.md`
 **Cross-references:** ADR-050, ADR-052, ADR-053, `docs/BACKLOG.md` §208, inbox `c69249d9df8ba9d196fde7346277156668d87b8c5dc4194078c6445f42c76078`
-**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/scripts/lifecycle.mjs`, `tests/leftovers-after-adr053.test.mjs`, `tests/adr053-stress.mjs`
+**Governs:** `plugin/lib/record.py`, `plugin/bin/adr-lint`, `plugin/scripts/lifecycle.mjs`, `tests/leftovers-after-adr053.test.mjs`
 
 Class: every hasher quote rule that C-escapes `\` inside a Go backtick string; every `#expect` / `#require` keep that is not keyed on Swift; every T1 wrapper that drops flags or assignments before `git commit` / `git push`; and the leftover stress driver whose pools cannot generate those members. Enumerated 2026-09-15 with `rg -n "_mask_lock_noncode|extract_test_body" plugin/lib/record.py`, `rg -n 'for name in \\("expect", "require"\\)|hash_comments=True' plugin/bin/adr-lint`, `rg -n "PUBLISH_SUFFIX" plugin/scripts/lifecycle.mjs`, and `git ls-files -- plugin/lib/record.py plugin/bin/adr-lint plugin/scripts/lifecycle.mjs tests/swift-expect.test.mjs tests/test-lock.test.mjs` plus `git ls-files --others --exclude-standard -- tests/leftovers-after-adr053.test.mjs tests/adr053-stress.mjs docs/specs/2026-09-15-a-go-raw-string-is-not-an-escape.md`. Named members:
 

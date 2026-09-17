@@ -1360,12 +1360,23 @@ function withoutSingleQuoted(text) {
   return kept
 }
 
+// Whether position `at` sits inside the operand of a `>`/`>>` redirect: the
+// shell word around `at`, quoted runs included, preceded by `>`. `> "./$T"`
+// and `> ./"$T"` write $T; `>out "$T"` does not (ADR-059 T5, Codex review
+// 2026-09-17: an immediate-prefix test missed `"./$T"`).
+function isRedirectOperand(text, at) {
+  for (const word of text.matchAll(/(?:"[^"]*"|'[^']*'|[^\s;&|<>"'])+/g)) {
+    if (word.index <= at && at < word.index + word[0].length) return />\s*$/.test(text.slice(0, word.index))
+  }
+  return false
+}
+
 // ADR-059 T3: the assigned names whose `.md` values stay changed paths. A name is
 // dropped only when it is referenced and every reference is a plain argument of
 // a segment that only reads. References are found with the same traversal the
 // assignment loop uses, so a `$(…)` body is its own segment and no segment is
-// skipped for an unknown directory. A reference right after `>`/`>>` is a write
-// in any segment. A heredoc body, `${!…}`, or an export can use a name the scan
+// skipped for an unknown directory. A reference inside a `>`/`>>` operand is a
+// write in any segment. A heredoc body, `${!…}`, or an export can use a name the scan
 // cannot see, so each of those keeps every name.
 function assignedNamesAWriterMayUse(command, executable, names) {
   if (heredocBodies(command) !== '' || executable.includes('${!')
@@ -1381,7 +1392,7 @@ function assignedNamesAWriterMayUse(command, executable, names) {
       for (const name of names) {
         for (const match of text.matchAll(new RegExp('\\$\\{?' + name + '(?![A-Za-z0-9_])', 'g'))) {
           referenced.add(name)
-          if (!reads || />\s*"?$/.test(text.slice(0, match.index))) written.add(name)
+          if (!reads || isRedirectOperand(text, match.index)) written.add(name)
         }
       }
     }

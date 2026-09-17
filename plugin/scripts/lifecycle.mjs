@@ -96,8 +96,11 @@ const WRITE_REDIRECT = /(?<![-=<>!])(?:\d*|&)>>?(?=(\s*))\1(?!&\d|&-|\/dev\/null
 // glued-redirect fix above from reading shell operators out of inline code.
 function withoutQuotedSegments(command) {
   // An escape comes first: an unquoted `\"` opens no quoted run, and `\>` is no
-  // redirect (ADR-059 T8: `printf \" > "$T"` read as no write).
-  return command.replace(/\\[\s\S]|'[^']*'|"(?:[^"\\]|\\[\s\S])*"/g, ' ')
+  // redirect (ADR-059 T8: `printf \" > "$T"` read as no write). It is masked, not
+  // erased, so `\./dev/null` stays a word and never reads as `/dev/null`; and a
+  // quoted run still ends at a backslash-newline, so a `$(…)` redirect before it
+  // stays visible (ADR-059 T9).
+  return command.replace(/\\[\s\S]|'[^']*'|"(?:[^"\\]|\\.)*"/g, match => match[0] === '\\' ? '__' : ' ')
 }
 
 function walk(value, visit) {

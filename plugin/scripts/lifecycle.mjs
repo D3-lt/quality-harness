@@ -2384,7 +2384,7 @@ export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
     return { status: run.status, out: run.stdout.trim() }
   }
   try {
-    git(['rev-parse', '--show-toplevel'])
+    const root = git(['rev-parse', '--show-toplevel']).out
     const indexPath = path.resolve(directory, git(['rev-parse', '--git-path', 'index']).out)
     const objects = path.resolve(directory, git(['rev-parse', '--git-path', 'objects']).out)
     const head = git(['rev-parse', '--verify', '-q', 'HEAD'], null, [0, 1])
@@ -2394,7 +2394,7 @@ export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
     mkdirSync(path.join(scratch, 'objects'))
     const env = { GIT_INDEX_FILE: index, GIT_OBJECT_DIRECTORY: path.join(scratch, 'objects'), GIT_ALTERNATE_OBJECT_DIRECTORIES: objects }
     const indexTree = git(['write-tree'], env).out
-    git(['add', '-A'], env)
+    git(['add', '-A', ...harnessPathspecs(root)], env)
     const tree = git(['write-tree'], env).out
     return { ok: true, tree, index: indexTree, head: head.status === 0 ? head.out : null }
   } catch (failure) {
@@ -2687,9 +2687,26 @@ function revisionFor(log, observation) {
     : log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).length
 }
 
+// The harness's own bookkeeping is not the session's work. CLAUDE_PLUGIN_DATA is
+// wherever the host puts it, and a host that puts it inside the repository makes
+// every hook dirty the tree it is watching — the ledger row appears as a changed
+// path and moves the tree, so the same finding is made again with a new key.
+// Found by a peer session's test of this branch, 2026-09-18.
+function harnessPathspecs(root) {
+  const home = process.env.CLAUDE_PLUGIN_DATA
+  if (!root || typeof home !== 'string' || !home) return []
+  const relative = path.relative(canonical(path.resolve(root)), canonical(path.resolve(home)))
+  if (!relative || relative.startsWith('..') || path.isAbsolute(relative)) return []
+  return ['--', ':(top)', `:(top,exclude)${relative.split(path.sep).join('/')}`]
+}
+
+// `-uall` lists every untracked FILE. Without it git collapses an untracked
+// directory to `name/`, which the artifact dispatcher cannot classify — it
+// answers UNPROVEN, which is not a verdict, so the path is retried at every
+// boundary for ever (same peer test).
 function statusPaths(root) {
   if (!root) return []
-  return gitLines(root, ['status', '--porcelain']).map(line => {
+  return gitLines(root, ['status', '--porcelain', '-uall', ...harnessPathspecs(root)]).map(line => {
     const rest = line.slice(3)
     const arrow = rest.indexOf(' -> ')
     return (arrow === -1 ? rest : rest.slice(arrow + 4)).replace(/^"|"$/g, '')

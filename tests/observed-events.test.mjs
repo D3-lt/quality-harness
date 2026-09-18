@@ -983,3 +983,59 @@ test('the command classifiers are gone', () => {
     assert.ok(new RegExp(`function ${symbol}\\b`).test(lifecycleText), symbol)
   }
 })
+
+// ---- Found by a peer session's test of this branch, 2026-09-18. Both are about
+// what the OBSERVER itself contributes to what it observes.
+const UNCLASSIFIABLE = 'could not classify'
+
+test('an untracked directory is gated by the files in it, never as a directory', () => {
+  // `git status --porcelain` collapses an untracked directory to `name/`, and the
+  // artifact dispatcher cannot classify a directory: it answers UNPROVEN, which
+  // is not a verdict, so the path is retried at every boundary for ever. Any
+  // build/, vendor/ or scratch directory did it, not only the peer's case.
+  const dir = repository('peer-dir-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('untracked-directory')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  mkdirSync(path.join(dir, 'docs', 'adr'), { recursive: true })
+  writeFileSync(path.join(dir, 'docs', 'adr', 'ADR-900-bad.md'), BAD_RECORD)
+  const first = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
+  const said = `${first.stdout}${first.stderr}`
+  assert.ok(said.includes('docs/adr/ADR-900-bad.md'), said)
+  assert.equal(said.includes(UNCLASSIFIABLE), false, said)
+  assert.equal(gatedPaths(eventsIn(state, session)).some(file => file.endsWith(path.sep)), false,
+    'no directory is recorded as gated')
+
+  // The record was gated, so the next turn end has nothing to gate again.
+  const before = gatedPaths(eventsIn(state, session)).length
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
+  assert.equal(gatedPaths(eventsIn(state, session)).length, before, 'a complete result is not re-taken')
+})
+
+test('the harness does not observe its own ledger', () => {
+  // CLAUDE_PLUGIN_DATA is wherever the host puts it, and a host that puts it
+  // inside the repository made every hook dirty the tree it was watching: the
+  // claims ledger appeared as a changed path and moved the tree, so the SAME
+  // finding was made again with a new key. The observer must not observe itself.
+  const dir = repository('peer-ledger-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('own-ledger')
+  const inside = { CLAUDE_PLUGIN_DATA: path.join(dir, 'data') }
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir }, inside)
+  writeFileSync(path.join(dir, 'README.md'), 'edited\n')
+  const first = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' }, inside)
+  const said = `${first.stdout}${first.stderr}`
+  assert.ok(said.includes('README.md'), said)
+  assert.equal(said.includes('data/'), false, said)
+  assert.ok(existsSync(path.join(dir, 'data', 'claims.jsonl')), 'the ledger really was written inside the repository')
+
+  // Nothing the session did has moved, so the same finding is not made twice —
+  // the harness's own write must not count as a change of state.
+  const again = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' }, inside)
+  assert.equal(again.stdout.trim(), '', again.stdout)
+})

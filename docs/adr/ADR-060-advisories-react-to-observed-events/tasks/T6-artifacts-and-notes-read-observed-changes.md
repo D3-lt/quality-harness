@@ -48,9 +48,9 @@ Rule A replaces the old artifact calls. It runs the artifact gates over the path
 
 ```bash
 set -o pipefail
-out=$(node --test --test-reporter=tap --test-name-pattern '^(a committed artifact is still validated|a compaction note sees the latest edit)$' tests/observed-events.test.mjs 2>&1) \
+out=$(node --test --test-reporter=tap --test-name-pattern '^(a committed artifact is still validated|a compaction note sees the latest edit|an untracked directory is gated by the files in it, never as a directory|the harness does not observe its own ledger)$' tests/observed-events.test.mjs 2>&1) \
   || { printf '%s\n' "$out"; exit 1; }
-for name in 'a committed artifact is still validated' 'a compaction note sees the latest edit'; do printf '%s\n' "$out" | grep -qxE "ok [0-9]+ - $name" || { printf '%s\n' "$out"; echo "did not run: $name"; exit 1; }; done \
+for name in 'a committed artifact is still validated' 'a compaction note sees the latest edit' 'an untracked directory is gated by the files in it, never as a directory' 'the harness does not observe its own ledger'; do printf '%s\n' "$out" | grep -qxE "ok [0-9]+ - $name" || { printf '%s\n' "$out"; echo "did not run: $name"; exit 1; }; done \
   && node --test tests/lifecycle.test.mjs tests/staged-product.test.mjs
 ```
 
@@ -62,6 +62,8 @@ for name in 'a committed artifact is still validated' 'a compaction note sees th
 | `a compaction note sees the latest edit` | `tests/observed-events.test.mjs` | SessionStart, an edit, then PreCompact with no Stop between: the note names the edit and not a clean state; the same for SessionEnd's ledger row | — | S1, S4 |
 
 ## Reachability
+| `an untracked directory is gated by the files in it, never as a directory` | `tests/observed-events.test.mjs` | found by a peer session's test of this branch, 2026-09-18: `git status --porcelain` collapses an untracked directory to `name/`, the dispatcher cannot classify a directory, and its UNPROVEN is not a verdict — so the path was retried, and the message repeated, at every boundary. `-uall` lists the files instead | — | S1, S2 |
+| `the harness does not observe its own ledger` | `tests/observed-events.test.mjs` | the same test run: with `CLAUDE_PLUGIN_DATA` inside the repository, the claims ledger appeared as a changed path AND moved the tree, so the same finding was made again with a new key. The observation and the status list exclude it. (Named without an apostrophe: the fence quotes each test name in a shell string, and `'` inside one ends it — the first spelling made `node --test` refuse the pattern) | — | S1, S2 |
 
 | Rung | How this task shows it |
 |------|------------------------|
@@ -82,6 +84,8 @@ for name in 'a committed artifact is still validated' 'a compaction note sees th
 - 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the dispatcher's own lookup reads HEAD, so a single deleted record cannot be classified · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
 - 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a path the budget cut is recorded as gated, so the next boundary never retries it · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
 - 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the note reads the last Stop's observation instead of this hook's, so a compaction mid-turn reports stale state · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+- 2026-09-18 · 870fbaa* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · status collapses an untracked directory again, so a directory reaches the artifact gates · acceptance-sha256:d8ec8ca8858d2c3c608bb8b9cab60226fa5be5b856af797a54f8f789daa0de51
+- 2026-09-18 · 870fbaa* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the observation takes in the harness's own ledger, so its own write moves the tree it is watching · acceptance-sha256:d8ec8ca8858d2c3c608bb8b9cab60226fa5be5b856af797a54f8f789daa0de51
 
 ## Invariants
 
@@ -127,3 +131,62 @@ Stop and ask if the dispatcher cannot take deletion bases without changing its c
 - 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27774
 - 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27976
 - 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27421
+- 2026-09-18 · 870fbaa* · exit 1 · `set -o pipefail …` · acceptance-sha256:061c7a0da5b3acf1cec85a2babb9fe66f17625bcee5b8b4b2ab8fff4d87b4ec0 · ms:36
+  ```
+  --- last 10 line(s) of stdout (of 15 after folding 15 raw)
+      at convertStringToRegExp (node:internal/test_runner/utils:121:11)
+      at node:internal/test_runner/utils:449:48
+      at Array.map (<anonymous>)
+      at mapPatternFlagToRegExArray (node:internal/test_runner/utils:449:12)
+      at parseCommandLine (node:internal/test_runner/utils:273:26)
+      at node:internal/main/test_runner:19:17 {
+    code: 'ERR_INVALID_ARG_VALUE'
+  }
+  
+  Node.js v26.8.2
+  ```
+- 2026-09-18 · 870fbaa* · exit 1 · `set -o pipefail …` · acceptance-sha256:061c7a0da5b3acf1cec85a2babb9fe66f17625bcee5b8b4b2ab8fff4d87b4ec0 · ms:37
+  ```
+  --- last 10 line(s) of stdout (of 15 after folding 15 raw)
+      at convertStringToRegExp (node:internal/test_runner/utils:121:11)
+      at node:internal/test_runner/utils:449:48
+      at Array.map (<anonymous>)
+      at mapPatternFlagToRegExArray (node:internal/test_runner/utils:449:12)
+      at parseCommandLine (node:internal/test_runner/utils:273:26)
+      at node:internal/main/test_runner:19:17 {
+    code: 'ERR_INVALID_ARG_VALUE'
+  }
+  
+  Node.js v26.8.2
+  ```
+- 2026-09-18 · 870fbaa* · exit 1 · `set -o pipefail …` · acceptance-sha256:061c7a0da5b3acf1cec85a2babb9fe66f17625bcee5b8b4b2ab8fff4d87b4ec0 · ms:40
+  ```
+  --- last 10 line(s) of stdout (of 15 after folding 15 raw)
+      at convertStringToRegExp (node:internal/test_runner/utils:121:11)
+      at node:internal/test_runner/utils:449:48
+      at Array.map (<anonymous>)
+      at mapPatternFlagToRegExArray (node:internal/test_runner/utils:449:12)
+      at parseCommandLine (node:internal/test_runner/utils:273:26)
+      at node:internal/main/test_runner:19:17 {
+    code: 'ERR_INVALID_ARG_VALUE'
+  }
+  
+  Node.js v26.8.2
+  ```
+- 2026-09-18 · 870fbaa* · exit 1 · `set -o pipefail …` · acceptance-sha256:061c7a0da5b3acf1cec85a2babb9fe66f17625bcee5b8b4b2ab8fff4d87b4ec0 · ms:39
+  ```
+  --- last 10 line(s) of stdout (of 15 after folding 15 raw)
+      at convertStringToRegExp (node:internal/test_runner/utils:121:11)
+      at node:internal/test_runner/utils:449:48
+      at Array.map (<anonymous>)
+      at mapPatternFlagToRegExArray (node:internal/test_runner/utils:449:12)
+      at parseCommandLine (node:internal/test_runner/utils:273:26)
+      at node:internal/main/test_runner:19:17 {
+    code: 'ERR_INVALID_ARG_VALUE'
+  }
+  
+  Node.js v26.8.2
+  ```
+- 2026-09-18 · 870fbaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:d8ec8ca8858d2c3c608bb8b9cab60226fa5be5b856af797a54f8f789daa0de51 · ms:27152
+- 2026-09-18 · 870fbaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:d8ec8ca8858d2c3c608bb8b9cab60226fa5be5b856af797a54f8f789daa0de51 · ms:27039
+- 2026-09-18 · 870fbaa* · exit 0 · `set -o pipefail …` · acceptance-sha256:d8ec8ca8858d2c3c608bb8b9cab60226fa5be5b856af797a54f8f789daa0de51 · ms:27063

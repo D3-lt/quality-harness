@@ -290,7 +290,20 @@ test('which copy a bare gate name reaches is precedence, not presence', () => {
   assert.equal(barePathWinner(win, '', 'win32').winner, 'neither')
 })
 
-test('a forwarder that could not run the gate does not report a pass', { skip: process.platform === 'win32' }, () => {
+// §7 and ADR-005: a skip states its reason, or a test that chose not to run reads
+// exactly like one that had nothing to say. Both forwarder tests below build a
+// POSIX `#!` script, chmod it 0o755 and exec it BY NAME — Windows can do none of
+// those three (no POSIX permission bits in a Git for Windows checkout, and no
+// exec of a `#!` script at all). The Windows half is a separate `.cmd`, asserted
+// by 'the Windows forwarder uses CRLF and resolves the bare name through PATHEXT'
+// above, so nothing here is unmeasured on that platform.
+// Named 2026-09-18 after a Windows session read both as bare `# SKIP`.
+const NO_POSIX_FORWARDER = process.platform === 'win32'
+  ? 'a POSIX `#!` forwarder cannot be chmod 0o755 or exec\'d by name on Windows; '
+    + 'the .cmd forwarder is covered by the CRLF/PATHEXT test instead'
+  : false
+
+test('a forwarder that could not run the gate does not report a pass', { skip: NO_POSIX_FORWARDER }, () => {
   // THIS TEST USED TO ASSERT THE DEFECT, and its comment carried the reasoning
   // that produced it: "the harness failing to run is never a finding about the
   // user's file. A non-zero here would make a project's own gate fail because a
@@ -342,7 +355,7 @@ test('the Windows forwarder uses CRLF and resolves the bare name through PATHEXT
   assert.match(text, /%USERPROFILE%/)
 })
 
-test('a real forwarder resolves and runs the gate it names', { skip: process.platform === 'win32' }, () => {
+test('a real forwarder resolves and runs the gate it names', { skip: NO_POSIX_FORWARDER }, () => {
   const directory = home()
   const script = path.join(directory, 'adr-lint')
   writeFileSync(script, forwarderScript('adr-lint', directory))

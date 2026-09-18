@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
-  chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync,
-  writeFileSync,
+  chmodSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync,
+  rmSync, writeFileSync,
 } from 'node:fs'
 import { linkDirectory, symlinkOrSkip } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
@@ -14,7 +14,7 @@ import {
   FORWARDER_MARK, RESOLVER, archive, backupRoot, bySemver, cacheDirectory, citeOrphan,
   classifyHomeFile, formerlyShipped, forwarderCmd, forwarderScript, orphans,
   barePathWinner,
-  knownDigests, linkPlan, onSearchPath, replaceable, sameLineage, write,
+  knownDigests, linkPlan, linkTypeFor, onSearchPath, replaceable, sameLineage, write,
 } from '../plugin/scripts/standalone-link.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -290,7 +290,20 @@ test('which copy a bare gate name reaches is precedence, not presence', () => {
   assert.equal(barePathWinner(win, '', 'win32').winner, 'neither')
 })
 
-test('a forwarder that could not run the gate does not report a pass', { skip: process.platform === 'win32' }, () => {
+// §7 and ADR-005: a skip states its reason, or a test that chose not to run reads
+// exactly like one that had nothing to say. Both forwarder tests below build a
+// POSIX `#!` script, chmod it 0o755 and exec it BY NAME — Windows can do none of
+// those three (no POSIX permission bits in a Git for Windows checkout, and no
+// exec of a `#!` script at all). The Windows half is a separate `.cmd`, asserted
+// by 'the Windows forwarder uses CRLF and resolves the bare name through PATHEXT'
+// above, so nothing here is unmeasured on that platform.
+// Named 2026-09-18 after a Windows session read both as bare `# SKIP`.
+const NO_POSIX_FORWARDER = process.platform === 'win32'
+  ? 'a POSIX `#!` forwarder cannot be chmod 0o755 or exec\'d by name on Windows; '
+    + 'the .cmd forwarder is covered by the CRLF/PATHEXT test instead'
+  : false
+
+test('a forwarder that could not run the gate does not report a pass', { skip: NO_POSIX_FORWARDER }, () => {
   // THIS TEST USED TO ASSERT THE DEFECT, and its comment carried the reasoning
   // that produced it: "the harness failing to run is never a finding about the
   // user's file. A non-zero here would make a project's own gate fail because a
@@ -342,7 +355,7 @@ test('the Windows forwarder uses CRLF and resolves the bare name through PATHEXT
   assert.match(text, /%USERPROFILE%/)
 })
 
-test('a real forwarder resolves and runs the gate it names', { skip: process.platform === 'win32' }, () => {
+test('a real forwarder resolves and runs the gate it names', { skip: NO_POSIX_FORWARDER }, () => {
   const directory = home()
   const script = path.join(directory, 'adr-lint')
   writeFileSync(script, forwarderScript('adr-lint', directory))
@@ -606,6 +619,56 @@ test('a dangling symlink is archived rather than throwing mid-run', t => {
   }
 })
 
+test('a link that cannot be recreated fails the archive and leaves the original alone', () => {
+  // ⚠ THE BACKUP'S CONTRACT IS RECOVERABILITY, AND A TEXT FILE DOES NOT MEET IT.
+  // archive() used to catch a failed recreation and write the target as text.
+  // That looks harmless — the path is preserved — but the artifact loses the
+  // object's identity as a link and its Windows link kind, and with no metadata
+  // it is indistinguishable from an original plain file that happened to contain
+  // a path. A restorer cannot tell the two apart, so the backup silently stopped
+  // being able to restore what it replaced.
+  //
+  // Measured on two ordinary Windows accounts 2026-09-18: a DANGLING link took
+  // that path every time, because linkTypeFor correctly answers "unknown" for a
+  // target it cannot stat, an untyped symlinkSync defaults to a FILE link, and
+  // that is EPERM -4048 without SeCreateSymbolicLinkPrivilege. The CI runner
+  // HOLDS that privilege, so the untyped call succeeds there and no signal this
+  // project has could see it.
+  //
+  // Ruled by a different-lineage review (BACKLOG §239): do not guess a type to
+  // keep the call succeeding — refuse. write() archives BEFORE it removes
+  // anything, so throwing here preserves this entry's original, which is the
+  // whole point. It does NOT roll back earlier entries, and that limit is part
+  // of the decision rather than a gap in it.
+  //
+  // The failure is driven through the injectable `makeLink` seam, so this runs
+  // on every host — including an unprivileged Windows account, where the real
+  // EPERM lives and where the old behaviour was invisible (CLAUDE.md §7).
+  const directory = home()
+  mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
+  const link = path.join(directory, '.claude', 'skills', 'adr-write')
+  const target = path.join(directory, 'moved-away')
+  linkDirectory(target, link)
+  const refuses = () => { const error = new Error('operation not permitted'); error.code = 'EPERM'; throw error }
+  try {
+    assert.throws(
+      () => write({ to: link, relative: path.join('skills', 'adr-write'), contents: 'replacement', mode: 0o644 },
+        'stamp', directory, refuses),
+      error => /adr-write/.test(`${error.message}`) && /EPERM|not permitted/.test(`${error.message}`),
+      'the failure must name the original path and carry the underlying reason')
+
+    // The original is untouched: still a link, still pointing where it did.
+    assert.ok(lstatSync(link).isSymbolicLink(), 'the original must survive a refused archive')
+    assert.equal(readlinkSync(link), target)
+
+    // And no plain-text stand-in was left behind pretending to be the backup.
+    const kept = path.join(backupRoot('stamp', directory), 'skills', 'adr-write')
+    assert.equal(existsSync(kept), false, 'a refused archive leaves no half-backup')
+  } finally {
+    rmSync(directory, { recursive: true, force: true })
+  }
+})
+
 test('nothing to keep is not an error', () => {
   const directory = home()
   try {
@@ -708,33 +771,72 @@ test('a plugin with no gates yields no forwarders rather than throwing', () => {
   }
 })
 
-test('an archive that cannot create a symlink records its target instead', () => {
-  // Windows refuses symlink creation to an unprivileged account. Measured on a
-  // real machine 2026-08-27: archive() threw EPERM, so write() threw, so the
-  // repoint never happened, and thirteen of nineteen skill links stayed pinned
-  // to the previous release. An archive that can fail takes the work with it.
+test('an archive that cannot recreate a link refuses rather than recording its target', () => {
+  // ⚠ REVERSED 2026-09-18, and the original reason is still true. Measured on a
+  // real machine 2026-08-27: archive() threw EPERM on an unprivileged Windows
+  // account, so write() threw, so the repoint never happened, and thirteen of
+  // nineteen skill links stayed pinned to the previous release. The repair then
+  // was to make archive always succeed by recording the target as text.
+  //
+  // BACKLOG §239 reversed the repair. The text artifact loses the object's
+  // identity as a link and its Windows link kind, and with no metadata it cannot
+  // be distinguished from an original plain file that happened to contain a path
+  // — so the "backup" could not restore what it replaced, which is the one thing
+  // it exists to do. Guessing a type to keep the call succeeding is worse still:
+  // a junction cannot express a file link (CLAUDE.md §16).
+  //
+  // The 2026-08-27 lesson lives at the CALLER now, where it belongs:
+  // sync-standalone.mjs:188-195 already contains each entry's failure and
+  // continues, so a refusal costs one entry and names it.
   const directory = home({ 'elsewhere/SKILL.md': '---\nname: adr-write\n---\n' })
   mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
   const link = path.join(directory, '.claude', 'skills', 'adr-write')
   linkDirectory(path.join(directory, 'elsewhere'), link)
   const refuse = () => { const error = new Error('EPERM'); error.code = 'EPERM'; throw error }
   try {
-    const kept = archive({ to: link, relative: path.join('skills', 'adr-write') },
-      'stamp', directory, refuse)
-    assert.equal(readFileSync(kept, 'utf8').trim(), path.join(directory, 'elsewhere'),
-      'the target is the whole content of a link, so recording it loses nothing')
+    assert.throws(
+      () => archive({ to: link, relative: path.join('skills', 'adr-write') }, 'stamp', directory, refuse),
+      error => /could not archive the link/.test(error.message) && /EPERM/.test(error.message),
+      'the refusal names the original and carries the underlying reason')
+    assert.equal(existsSync(path.join(backupRoot('stamp', directory), 'skills', 'adr-write')), false,
+      'and leaves no text stand-in behind')
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
 })
 
-test('the write still happens when the archive cannot make a link', {
+test('a refused archive leaves this entry exactly as it found it', {
   skip: process.platform === 'win32' ? 'no unprivileged file symlink' : false,
 }, t => {
-  // The failure that mattered: archive threw, so write threw, so the entry was
-  // never installed. Thirteen of nineteen entries stayed on the previous release
-  // and the run reported "6 of 19 installed". A gate left as a symlink by an
-  // older version of this tool is the case that still reaches it.
+  // ⚠ THIS TEST REVERSED ON 2026-09-18, and both halves of its history matter.
+  //
+  // It was written for a real failure on 2026-08-27: archive threw, so write
+  // threw, so the entry was never installed — thirteen of nineteen entries stayed
+  // on the previous release and the run reported "6 of 19 installed". The repair
+  // then was to make archive ALWAYS succeed by writing the link's target into a
+  // plain file, and this test pinned that: "the write still happens".
+  //
+  // BACKLOG §239 reversed the repair, not the lesson. The text artifact is not a
+  // backup: it loses the object's identity as a link and its Windows link kind,
+  // and with no metadata it cannot be told apart from an original plain file that
+  // happened to contain a path. An archive that cannot restore has not archived.
+  //
+  // ⚠ RENAMED, because the old name claimed more than this body asserts. It was
+  // `a refused archive stops THIS entry AND NOTHING ELSE`, and two Windows
+  // sessions read it independently and found that the "nothing else" half is
+  // asserted NOWHERE: this builds ONE entry, calls `write()` on it directly, and
+  // never invokes the sync loop, so nothing here shows that another entry still
+  // installs, that the run continues, or that a partial install exits 1. A test
+  // whose name claims more than its body is the defect this project exists to
+  // demonstrate the absence of, and the skip made the gap look platform-shaped
+  // when it was total.
+  //
+  // The containment property is real and was MEASURED end to end on 2026-09-18
+  // against a fake home — exit 1, the casualty named on stderr with its cause,
+  // 21 of 22 siblings installed, the original still a link into the old release.
+  // A measurement is not a test: BACKLOG §242 carries it, with the fixture that
+  // reaches the refusal without privilege or injection, because it is currently
+  // known-true and guarded by nothing.
   const directory = home()
   const old = path.join(cacheDirectory(directory), '1.0.0', 'bin')
   mkdirSync(old, { recursive: true })
@@ -746,10 +848,13 @@ test('the write still happens when the archive cannot make a link', {
   try {
     const entry = linkPlan(root, directory).find(e => e.to.endsWith(`bin${path.sep}adr-verify`))
     assert.equal(entry.state, 'replaced')
-    // Only the ARCHIVE's link creation is refused; the forwarder itself must land.
-    write(entry, 'stamp', directory, refuse)
-    assert.ok(!lstatSync(link).isSymbolicLink(), 'the link was left in place')
-    assert.equal(readFileSync(link, 'utf8'), entry.contents)
+    assert.throws(() => write(entry, 'stamp', directory, refuse), /could not archive the link/,
+      'a link whose archive cannot be recreated is refused, not overwritten')
+    // The original is still the link it was, still pointing at the old release.
+    assert.ok(lstatSync(link).isSymbolicLink(), 'the original must survive a refused archive')
+    assert.equal(readlinkSync(link), path.join(old, 'adr-verify'))
+    assert.equal(existsSync(path.join(backupRoot('stamp', directory), 'bin', 'adr-verify')), false,
+      'and no plain-text stand-in is left pretending to be the backup')
   } finally {
     rmSync(directory, { recursive: true, force: true })
   }
@@ -1109,4 +1214,49 @@ test('a forwarder that cannot run its resolver says so, and blames neither the p
   assert.match(cmd, /^where \/q node && goto :havenode$/m,
     'the node probe must select by goto, not by a parenthesised block')
   assert.match(cmd, /^:havenode$/m, 'missing the label the node probe jumps to')
+})
+
+test('a link type probe answers about the link directory, and never throws', () => {
+  // ⚠ REGRESSION, caught from two directions on 2026-09-18. This probe was written
+  // INLINE inside archive()'s try, so both its failure modes landed in a catch
+  // that means "EPERM, use the text fallback" — the branch the junction exists to
+  // stop using. CI run 35323591833's windows job went red on the DANGLING case,
+  // where statSync throws ENOENT; a Windows session reading the same line found
+  // the RELATIVE case, where the target resolved against process.cwd() instead of
+  // the link's own directory. Neither machine could see the other's.
+  // macOS reaches none of it — the branch is win32-only — so `platform` is an
+  // argument rather than an ambient fact (CLAUDE.md §7).
+  const dir = mkdtempSync(path.join(tmpdir(), 'qh-link-type-'))
+  const sub = path.join(dir, 'sub')
+  mkdirSync(sub)
+  const link = path.join(sub, 'a-link')
+  const targetDir = path.join(sub, 'target-dir')
+  mkdirSync(targetDir)
+  const targetFile = path.join(sub, 'target-file')
+  writeFileSync(targetFile, 'x')
+
+  // The answer the junction fix exists to give, and the other answer beside it so
+  // neither assertion is vacuous (CLAUDE.md §4).
+  assert.equal(linkTypeFor(link, targetDir, 'win32'), 'junction')
+  assert.equal(linkTypeFor(link, targetFile, 'win32'), undefined)
+
+  // A RELATIVE target is resolved against the LINK's directory. Against
+  // process.cwd() these names do not exist, so the old line lost the junction or
+  // threw — and where cwd happens to hold the same name it answered about the
+  // wrong file, which is worse than losing it.
+  assert.equal(linkTypeFor(link, 'target-dir', 'win32'), 'junction')
+  assert.equal(linkTypeFor(link, 'target-file', 'win32'), undefined)
+
+  // A DANGLING target has nothing to stat. UNTYPED is the answer; throwing is
+  // what made CI's archive stop being a link at all.
+  const gone = path.join(sub, 'never-existed')
+  assert.doesNotThrow(() => linkTypeFor(link, gone, 'win32'))
+  assert.equal(linkTypeFor(link, gone, 'win32'), undefined)
+  assert.equal(linkTypeFor(link, 'never-existed', 'win32'), undefined)
+
+  // Off Windows there is no junction at all, whatever the target is.
+  assert.equal(linkTypeFor(link, targetDir, 'linux'), undefined)
+  assert.equal(linkTypeFor(link, targetDir, 'darwin'), undefined)
+
+  rmSync(dir, { recursive: true, force: true })
 })

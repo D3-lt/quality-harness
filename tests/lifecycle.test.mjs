@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { linkDirectory } from './symlink-support.mjs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -528,8 +529,20 @@ test('reported: a PHP repository is not evidenced by a vite build', async () => 
   await writeFile(path.join(dir, 'phpunit.xml'), '<phpunit/>\n')
   await writeFile(path.join(dir, 'composer.json'),
     JSON.stringify({ require: { php: '^8.2' }, scripts: { test: 'phpunit' } }))
-  assert.equal(projectCheckCommand(dir), 'composer test',
-    'a repository-owned composer script beats a guess, as scripts/verify.sh does')
+  // ⚠ REVERSED 2026-09-18. A `composer test` script used to answer here, ahead of
+  // the phpunit guess, on the reasoning that a project naming its own test script
+  // is the project SPEAKING. Two things were wrong with that. The `laravel new`
+  // skeleton ships that script, so it is often the FRAMEWORK speaking and not the
+  // author. And the harness would then offer a command `isValidationCommand`
+  // refused — the invariant that every offered command is also accepted as
+  // evidence. Two attempts to fix it by ACCEPTING `composer` each produced a P1 in
+  // review, the second turning `composer update` from `unrecognised` into
+  // `neither`, so a command that rewrites composer.lock stopped reading as a
+  // mutation. Removing the rung satisfies the invariant by offering LESS, and a
+  // Laravel session confirmed the phpunit answer is the one they would run anyway.
+  assert.equal(projectCheckCommand(dir), 'php vendor/bin/phpunit',
+    'the declared test RUNNER answers; a composer script is not offered, because it '
+    + 'would not be accepted as evidence')
 
   // Without a composer script, the test runner it declares — still never the
   // frontend build.
@@ -1872,7 +1885,7 @@ test('reported: a symlinked checkout is not an empty corpus', async t => {
   // A genuine symlink, because testTmp is already realpath'd on darwin and the
   // trap would otherwise be invisible on every platform.
   const link = path.join(await mkdtemp(path.join(testTmp, 'quality-corpus-via-')), 'repo')
-  if (!await symlinkOrSkip(t, real, link, 'dir')) return
+  linkDirectory(real, link)
   const spelled = path.join(link, 'src', 'orders', 'schema.ts')
 
   // Root spelled through the link, file spelled through the link.
@@ -3758,4 +3771,63 @@ test('a guard that cannot be written stops the sweep instead of running unbounde
   assert.equal(report.removed, 0)
   assert.match(report.unreadable.join(' '), /guard: E/, 'and the failure is named')
   assert.equal(existsSync(marker), true, 'the stale marker is left, which is only the state §146 described')
+})
+
+test('every command this harness OFFERS, it also accepts as evidence', () => {
+  // ⚠ THE INVARIANT lifecycle.mjs STATES ABOUT ITSELF, asserted for the first
+  // time. Its own comment: "Only commands VALIDATION_PATTERNS already accepts as
+  // evidence are offered — telling someone to run something the gate would then
+  // refuse is worse than saying nothing."
+  //
+  // It was broken on PHP. A session running a real Laravel 11 tree found that a
+  // composer manifest with a `test` script yields
+  // `{command: 'composer test', origin: 'declared'}`, that `runTheCheckSentence`
+  // names it with NO caveat as "this project's own check" — and that
+  // `isValidationCommand('composer test')` is FALSE. The harness told you to run
+  // something it would then refuse, which is precisely the thing the comment
+  // forbids, and it OUTRANKS the carefully-caveated phpunit rung below it, so the
+  // good inference was suppressed by the bad one.
+  //
+  // ⚠ AND THE TRIGGER IS NOT SYNTHETIC: the current `laravel new` skeleton ships
+  // a `scripts.test` by default, so an app created today hits this without its
+  // author deciding anything.
+  //
+  // This asserts the CLASS rather than the instance: whatever a tree's manifests
+  // look like, if a command is named then it must be evidence. A new rung added
+  // later fails here rather than in somebody's repository.
+  const trees = [
+    ['composer with a test script (the Laravel skeleton default)',
+      { 'composer.json': '{"scripts":{"test":["@php artisan test"]},"require":{"laravel/framework":"^13.8"}}' }],
+    ['composer with phpunit and no script',
+      { 'composer.json': '{"require-dev":{"phpunit/phpunit":"^11"}}', 'phpunit.xml': '<phpunit/>\n' }],
+    ['npm with a test script', { 'package.json': '{"scripts":{"test":"vitest run"}}' }],
+    ['a Makefile with a test target', { Makefile: 'test:\n\techo hi\n' }],
+    ['cargo', { 'Cargo.toml': '[package]\nname = "x"\n' }],
+    ['go', { 'go.mod': 'module x\n' }],
+  ]
+  const offered = []
+  for (const [label, files] of trees) {
+    const dir = mkdtempSync(path.join(testTmp, 'offers-'))
+    for (const [name, body] of Object.entries(files)) writeFileSync(path.join(dir, name), body)
+    const { command, origin } = checkCommandOrigin(dir)
+    if (command === null) continue
+    offered.push(`${label}: ${command} (${origin})`)
+    // ⚠ THE INVARIANT SURVIVES ADR-060 IN A DIFFERENT SHAPE. There is no text
+    // predicate for evidence any more: a check is an event `qh-check` writes, not
+    // a command a classifier approves. So "the harness must accept what it
+    // offers" becomes "the sentence must route the offer through `qh-check`" — a
+    // command named without it runs bare, records nothing, and the advisory then
+    // reports `unchecked` for a check the user DID run. That is the Laravel
+    // report's defect wearing new clothes, so the assertion moves rather than
+    // goes.
+    assert.match(runTheCheckSentence(dir), /\bqh-check\b/,
+      `${label}: the harness offers \`${command}\`, so the sentence must route it through `
+      + '`qh-check` — naming a command whose run it cannot then see is worse than saying nothing')
+    // ...and the sentence it prints names that same command, so the two cannot
+    // drift apart without this failing.
+    assert.match(runTheCheckSentence(dir), new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      `${label}: the sentence must name the command the resolver chose`)
+  }
+  // The control: this is worthless unless some tree actually produced a command.
+  assert.ok(offered.length >= 4, `the fixtures must exercise several rungs, got: ${offered.join(' · ')}`)
 })

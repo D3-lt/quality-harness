@@ -29,6 +29,35 @@ node --test --test-name-pattern    0 -> 0
 cargo test <filter>                0 -> 0
 ```
 
+⚠ **`vitest -t` WITH NO MATCH IS THE QUIETEST FAILURE IN THIS TABLE, and it was re-measured on a
+second major on 2026-09-18** by a session running a real React SPA (vitest **4.1.6**, 115 test files,
+node v26.8.2), against the 5.0.0 row above. Same answer, and the mechanism is worse than the number:
+
+```
+vitest run <file> -t 'zzz-no-such-test-zzz'   EXIT=0
+  RUN  v4.1.6
+  Test Files  1 skipped (1)
+       Tests  3 skipped (3)
+```
+
+No "no tests matched" line, nothing on stderr, nothing red. **It reports a no-match run as SKIPPED,
+which a human reads as success** — where `bun test -t` at least exits 1. Two majors of vitest agree,
+which is the closest this table gets to a name being safe to classify; a fence still carries no
+version, so it stays a measurement rather than a licence.
+
+⚠ **AND `--passWithNoTests` DOES NOT GOVERN THIS CASE AT ALL**, which is the part that would mislead
+a reader of the flag list below: it answers "no test FILES were found". A name filter that matches
+nothing never reaches that check, because the files WERE found — the tests inside them were filtered
+to skipped. So "the project does not set `--passWithNoTests`" says nothing about whether its `-t`
+fence can pass vacuously. Both were absent from that project's config and every script, and the 0
+above is the default.
+
+⚠ **`bun` in that repository is the PACKAGE MANAGER, not the runner**, and the reporter flagged this
+unprompted so the measurement would not be filed against the wrong row: `bun run test` shells out to
+vitest there. It neither confirms nor contradicts the `bun test -t` row. A wrapper measurement
+measures the wrapped thing — the rule two paragraphs down — and here even the wrapper's NAME
+suggested the wrong runner.
+
 Three ways the same list went wrong before it was measured:
 
 - **`bun` was in the inert half because it had been typed, not run.** `bun test` on an empty

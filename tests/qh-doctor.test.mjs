@@ -17,7 +17,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  classifyBinEntry, drift, homeReport, inventory, ledgerReport, releaseReport, report, severitySplit,
+  classifyBinEntry, drift, driftReading, homeReport, inventory, ledgerReport, releaseReport, report, severitySplit,
 } from '../plugin/scripts/qh-doctor.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -305,6 +305,66 @@ test('drift reports that it could not look rather than that nothing differs', ()
   const answer = drift(join(testDir, 'fixtures', 'definitely-not-a-plugin-root'))
   assert.equal(answer.looked, false)
   assert.notEqual(answer.clean, true)
+})
+
+test('a match with unidentifiable files is not a clean bill', () => {
+  // ⚠ `drift` REDUCED ITS SUBTOOL'S ANSWER TO A BOOLEAN AND DROPPED THE QUALIFIER
+  // THE SUBTOOL WAS CAREFUL TO PRINT. `sync-standalone.mjs` says, in the same
+  // breath as "already matches this plugin", how many files it could NOT identify
+  // either way — and `clean` was a bare `/already matches this plugin/.test(out)`,
+  // so that number never reached the reader.
+  //
+  // `looked` stayed TRUE, because the subprocess ran and exited 0, which meant
+  // drift could never reach the incomplete-bill gate qh-doctor applies to every
+  // other section. A PARTIAL answer arrived as a WHOLE one.
+  //
+  // ⚠ THIS HAS ALREADY PROPAGATED INTO USER-AUTHORED DOCUMENTATION. A session
+  // reported 2026-09-18 that the hazard is written verbatim into a global
+  // instruction file on that machine — with a warning not to read the line as "no
+  // duplicate exists", and a count that no longer matches the tool's. Somebody had
+  // to discover this by reading the subtool directly and then write the caveat by
+  // hand, which is the cost of a gate that under-reports.
+  const matched = out => ({ looked: true, clean: /already matches this plugin/.test(out), out })
+  const whole = 'The standalone install already matches this plugin. Nothing to do.\n'
+  const partial = whole
+    + '\nNo longer shipped by this plugin:\n  none this tool can prove it wrote\n'
+    + '  12 further file(s) could not be identified either way, and are not listed.\n'
+
+  // The control: a genuinely whole answer must still read as clean, or the
+  // assertion below is satisfied by a reader that never says clean (CLAUDE.md §4).
+  assert.equal(driftReading(matched(whole)).clean, true, 'a whole match is still clean')
+  assert.equal(driftReading(matched(whole)).unidentified, 0)
+
+  const answer = driftReading(matched(partial))
+  assert.equal(answer.unidentified, 12, 'the count the subtool printed must survive')
+  assert.notEqual(answer.clean, true,
+    'twelve files it could not identify is not "the standalone install matches this plugin"')
+
+  // ⚠ AND IT MUST SURVIVE `report()`, WHICH IS WHERE THE USER READS IT. The first
+  // version of this test stopped at `driftReading` — and a different-lineage
+  // review found that the render then folded the partial answer into `differs`
+  // and still exited 0: a FALSE drift diagnosis, promising a repair the sync tool
+  // explicitly will not perform, with the count gone and "Nothing to act on"
+  // underneath. Fixing a missing qualifier by inventing a wrong verdict is not a
+  // fix, and only the boundary shows it.
+  const rendered = report({
+    counted: COUNTED, home: CLEAN_HOME, moved: answer, gateSource: '',
+  })
+  const text = rendered.lines.join('\n')
+  assert.match(text, /12 file\(s\) could not be identified/, `the count must reach the reader:\n${text}`)
+  assert.doesNotMatch(text, /differs/,
+    `files it could not attribute are not drift, and offering a repair for them is a false promise:\n${text}`)
+  assert.doesNotMatch(text, /Nothing to act on/, `a partial look is not a clean bill:\n${text}`)
+  assert.notEqual(rendered.exit, 0, 'and an incomplete section must not exit 0')
+
+  // The control, through the same boundary: a genuinely whole match still reads
+  // clean and still exits 0, so none of the above is satisfied by a report that
+  // has simply stopped saying anything good.
+  const wholeReport = report({
+    counted: COUNTED, home: CLEAN_HOME, moved: driftReading(matched(whole)), gateSource: '',
+  })
+  assert.match(wholeReport.lines.join('\n'), /the standalone install matches this plugin/)
+  assert.equal(wholeReport.exit, 0, 'a whole clean run still exits 0')
 })
 
 // The same zero, one layer up: qh-doctor points a reader at claims-rate, so

@@ -28,7 +28,7 @@
 // calls it, and it reports unless asked to write.
 import { createHash } from 'node:crypto'
 import {
-  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync,
+  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync,
   symlinkSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
@@ -940,6 +940,45 @@ export function backupRoot(stamp, homeDirectory = os.homedir()) {
 }
 
 /**
+ * The type argument for recreating a link, or undefined for an untyped one.
+ *
+ * ⚠ A TYPE PROBE MUST NOT BE ABLE TO THROW, and the reason is a regression this
+ * project shipped to `main` and CI caught the same day. The junction fix was
+ * written inline as
+ * `platform === 'win32' && statSync(points).isDirectory() ? 'junction' : undefined`
+ * INSIDE archive()'s try. For a DANGLING link the target does not exist, so
+ * statSync throws ENOENT, and the catch below cannot tell that from the EPERM it
+ * was written for — so it took the text fallback, the branch the junction exists
+ * to stop using, and the archive stopped being a link. Run 35323591833's windows
+ * job went red on 'a dangling symlink is archived rather than throwing mid-run'.
+ * A stat that cannot answer is not a directory answer: it means UNTYPED.
+ *
+ * ⚠ AND readlinkSync RETURNS THE TARGET VERBATIM, so it may be RELATIVE — which
+ * resolves against the LINK'S OWN directory, never against process.cwd(). Statting
+ * it unresolved either throws, or worse answers about a same-named path that
+ * happens to sit under the current directory, which is a wrong answer rather than
+ * a missing one.
+ *
+ * The two hazards were found from opposite ends on 2026-09-18 — the relative one
+ * by a Windows session reading the line, the dangling one by CI executing it — and
+ * both are the same mistake: a probe that can fail, inside a catch that means
+ * something else.
+ *
+ * `platform` is a parameter because a win32-only branch with no injectable seam
+ * has no test at all (CLAUDE.md §7), and this one had none.
+ */
+export function linkTypeFor(linkPath, rawTarget, platform = process.platform) {
+  if (platform !== 'win32') return undefined
+  try {
+    return statSync(path.resolve(path.dirname(linkPath), rawTarget)).isDirectory()
+      ? 'junction'
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Copy what is about to be replaced, before replacing it.
  *
  * Asked for by the owner on 2026-08-27 — "i need to backup my original ones
@@ -964,17 +1003,44 @@ export function archive(entry, stamp, homeDirectory = os.homedir(), makeLink = s
   if (info.isSymbolicLink()) {
     const points = readlinkSync(entry.to)
     try {
-      makeLink(points, kept)
-    } catch {
-      // Windows refuses symlink creation to an unprivileged account, and this
-      // threw EPERM on a real machine on 2026-08-27 — so the archive failed, so
-      // the repoint failed, and thirteen of nineteen skill links stayed pinned
-      // to the previous release. A link's entire content IS its target, so a
-      // plain file holding that target loses nothing and always succeeds.
-      // Driven by what actually works rather than by a platform guess: some
-      // Windows accounts can create symlinks, and this project has been wrong
-      // about that before.
-      writeFileSync(kept, `${points}\n`)
+      // ⚠ A DIRECTORY LINK IS RECREATED AS A JUNCTION ON WINDOWS, because that
+      // needs no privilege at all. Untyped `symlinkSync` defaults to a FILE
+      // link, which is EPERM for an ordinary Windows account — so this branch
+      // always fell through to the text fallback there, and the archive stopped
+      // being a link at all. Measured on two real Windows 11 machines
+      // 2026-09-18: untyped threw EPERM, `'junction'` succeeded, and the result
+      // lstats as a symbolic link on Node 24.
+      makeLink(points, kept, linkTypeFor(entry.to, points))
+    } catch (cause) {
+      // ⚠ REFUSE RATHER THAN DEGRADE. This used to catch the failure and write the
+      // target into a plain file, on the reasoning that "a link's entire content IS
+      // its target, so a plain file holding it loses nothing". That reasoning is
+      // wrong about what a BACKUP is for. A restore has to recover the original's
+      // BEHAVIOUR at its original location, and the text artifact loses the object's
+      // identity as a link, its Windows link kind, and ordinary copy-back
+      // restoration — with no metadata it cannot even be told apart from an original
+      // plain file that happened to contain a path.
+      //
+      // Measured on two ordinary Windows accounts 2026-09-18: a DANGLING link took
+      // that path every time, because `linkTypeFor` rightly answers "unknown" for a
+      // target it cannot stat and an untyped symlinkSync defaults to a FILE link,
+      // which is EPERM without SeCreateSymbolicLinkPrivilege. The CI runner HOLDS
+      // that privilege, so this degraded silently where users are and nowhere the
+      // project could see it.
+      //
+      // Ruled by a different-lineage review (BACKLOG §239). Guessing `'junction'`
+      // to keep the call succeeding was the other candidate and is worse: a junction
+      // cannot express a file link, so it would restore the wrong thing confidently,
+      // and treating a failed stat as directory evidence is what CLAUDE.md §16
+      // forbids. Refusing costs the run; degrading costs the recovery.
+      //
+      // Safe HERE because of the ORDER: `write()` archives before it removes
+      // anything, so throwing preserves THIS entry's original. It does not roll back
+      // earlier entries, which is a limit of this decision rather than an oversight.
+      throw new Error(
+        `quality-harness: could not archive the link ${entry.to} — it was NOT replaced. `
+        + `Recreating it under ${kept} failed: ${cause?.code ?? ''} ${cause?.message ?? cause}`.trim(),
+        { cause })
     }
     return kept
   }

@@ -272,6 +272,22 @@ test('a fence whose runner never starts must fail', () => {
   assert.notEqual(run(fixed), 0, 'the form this project now uses does not')
 })
 
+// ⚠ A CONVENTION IS ONLY A CONVENTION IF SOMETHING APPLIES IT. Windows defaults
+// Python's stdout to the ANSI codepage, so a gate printing `—` or `·` reaches a
+// UTF-8 terminal as mojibake. Eight gates carried the two-line reconfigure and
+// four did not — including `qh-check`, added days earlier, and `adr-judge`,
+// which mangled 34 lines. Measured on Windows 11, 2026-09-18, by a session that
+// was not asked to look for it. Nothing failed; it just looked broken.
+test('every Python gate says its output is UTF-8, whatever the console codepage is', () => {
+  const missing = gates
+    .map(gate => ({ gate, text: readFileSync(join(root, 'bin', gate), 'utf8') }))
+    .filter(({ text }) => text.startsWith('#!') && /python/.test(text.split('\n')[0]))
+    .filter(({ text }) => !/_s\.reconfigure\(encoding="utf-8", errors="replace"\)/.test(text))
+    .map(({ gate }) => gate)
+  assert.deepEqual(missing, [],
+    `these print to a Windows console in the ANSI codepage:\n  ${missing.join('\n  ')}`)
+})
+
 test('the plugin contains the complete reusable decision lifecycle', () => {
   for (const skill of skills) {
     assert.ok(statSync(join(root, 'skills', skill, 'SKILL.md')).isFile(), skill)

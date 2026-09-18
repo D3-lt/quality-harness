@@ -179,20 +179,20 @@ export function leafTestsRun(stdout, files = []) {
   const wrappers = new Set(files.flatMap(file => [file, path.resolve(file)]))
   return [...text.matchAll(/^\s*[✔✖] (.+?) \(\d[\d.]*ms\)\s*$/gm)]
     .filter(m => !wrappers.has(m[1]) && !wrappers.has(path.resolve(m[1])))
-    // The shape rule stays as a FALLBACK for a caller that passes no files — and
-    // that fallback still has to be safe. Node prints the file wrapper ONLY when
-    // nothing matched, at column 0, with the path exactly as argv gave it, so
-    // nothing about its SHAPE distinguishes it from a leaf whose name happens to
-    // look like a path. Measured 2026-09-18 on Windows from a spaced checkout and
-    // on macOS from a spaced directory: with the old `/^\S+$/` the wrapper
+    // ⚠ THE FALLBACK MAY NOT KEY ON WHITESPACE, and passing `files` is not
+    // enough on its own: a caller that omits them — including this project's own
+    // end-to-end test — still has to be safe. Node prints the file wrapper ONLY
+    // when nothing matched, at column 0, with the path exactly as argv gave it,
+    // so nothing about its SHAPE distinguishes it from a leaf whose name happens
+    // to look like a path. Measured 2026-09-18 on Windows from `C:\qh fl spaces`
+    // and on macOS from a spaced directory: with the old `/^\S+$/` the wrapper
     // survived and a run in which NOTHING executed graded as a passing baseline.
-    // Discounting by extension alone can only discount MORE, which turns a `pass`
-    // into `unrun` and never the reverse — the safe direction for ADR-005, at the
-    // documented cost that a test NAMED like a source file is discounted with it
-    // (BACKLOG §53). Carried from main, where it landed as 1e5fae2.
+    // Discounting by extension alone can only discount MORE, which turns a
+    // `pass` into `unrun` and never the reverse — the safe direction for
+    // ADR-005, at the documented cost that a test NAMED like a source file is
+    // discounted with it (BACKLOG §53).
     .filter(m => !/\.(mjs|js|py|cjs)$/.test(m[1])).length
 }
-
 export function baselineOf(run, files = []) {
   if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }
   // A run in which NO test executed is not a passing baseline, whatever its exit

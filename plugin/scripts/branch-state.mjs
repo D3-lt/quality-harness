@@ -80,7 +80,22 @@ export function shell(argv, { cwd = process.cwd(), timeout = 15_000 } = {}) {
     // name, a path, a sha, a `rev-list --count` number or JSON — none of them
     // localised.
     const env = { ...process.env, LC_ALL: 'C' }
-    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }
+    // ⚠ `stdio` IS EXPLICIT BECAUSE THE DEFAULT PASSES THE CHILD'S STDERR THROUGH.
+    // `execFileSync` captures stderr into `error.stderr` AND writes it to the
+    // parent's, so the careful `catch` below — which turns a failure into a quiet
+    // `{ ok: false, note }` — was never the only thing the user saw. This reader
+    // positively decides that a repository with no tags may be silent, and that a
+    // non-GitHub remote means `gh` is not asked; git then printed `fatal: No names
+    // found` and `fatal: ambiguous argument 'origin/main...HEAD'` above the header
+    // anyway, so an operator could not tell a working reader from a crashed one.
+    // The reverse of ADR-005's usual failure, and reported 2026-09-18 from an
+    // Ansible repository with a Bitbucket remote. ⚠ This comment claimed
+    // `statusline.mjs` imports the same `shell` and so shared the defect; it
+    // imports `usableCache` and never calls `shell`. Corrected before release by a
+    // different-lineage review — a comment is a claim, and this one was wrong on
+    // the day it was written (CLAUDE.md, "Comments Lie — Follow the Code").
+    return { ok: true, out: execFileSync(argv[0], argv.slice(1),
+      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }
   } catch (error) {
     return { ok: false, out: '', note: (error.stderr || error.message || 'failed').toString().split('\n')[0] }
   }

@@ -141,14 +141,53 @@ export function homeReport(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROO
   return { entries, looked: true, note: null }
 }
 
+/**
+ * Qualify what `sync-standalone.mjs` said, instead of reducing it to a boolean.
+ *
+ * ⚠ THE SUBTOOL IS CAREFUL AND THIS READER THREW THE CARE AWAY. It prints, in the
+ * same breath as "already matches this plugin", how many files it could NOT
+ * identify either way — orphans under the user's home configuration directory it
+ * cannot ATTRIBUTE, not shipped
+ * files it failed to verify. `clean` was a bare regex test for the headline, so
+ * that number never reached anyone. Worse, `looked` stayed TRUE (the subprocess
+ * ran and exited 0), so drift could never reach the incomplete-bill gate this tool
+ * applies to every other section: a PARTIAL answer arrived as a WHOLE one, in the
+ * one section whose whole job is drift.
+ *
+ * ⚠ IT HAD ALREADY PROPAGATED INTO USER-AUTHORED DOCUMENTATION. Two sessions
+ * reported it independently on 2026-09-18, and both noted the same thing: a global
+ * instruction file on that machine carries the caveat by hand, warning not to read
+ * the line as "no duplicate exists", with a count that no longer matches the
+ * tool's. Somebody had to read the subtool to learn what this gate would not tell
+ * them — which is the cost of a gate that under-reports (ADR-005).
+ */
+export function driftReading(raw) {
+  const out = String(raw?.out ?? '')
+  const unidentified = Number(out.match(/(\d+)\s+further file\(s\) could not be identified/)?.[1] ?? 0)
+  // THREE STATES, NOT TWO. `clean` and `differs` are no longer each other's
+  // negation: a run can match on everything it could identify and still have left
+  // files it could not attribute. Collapsing that into `differs` announces drift
+  // that is not there and offers a repair the sync tool explicitly will not
+  // perform; collapsing it into `clean` is the missing qualifier this function was
+  // written to fix. `unidentified` is the third answer and the renderer says it
+  // separately.
+  const matched = raw?.looked === true && /already matches this plugin/.test(out)
+  return {
+    ...raw,
+    unidentified,
+    clean: matched && unidentified === 0,
+    differs: raw?.looked === true && !matched,
+  }
+}
+
 /** What `sync-standalone.mjs` says differs, without re-deriving it here. */
 export function drift(pluginRoot = PLUGIN_ROOT) {
   try {
     const out = execFileSync(process.execPath, [join(pluginRoot, 'scripts', 'sync-standalone.mjs')],
       { encoding: 'utf8', timeout: 60_000 })
-    return { looked: true, clean: /already matches this plugin/.test(out), out }
+    return driftReading({ looked: true, out })
   } catch (error) {
-    return { looked: false, clean: null, out: error.message }
+    return { looked: false, clean: null, unidentified: 0, out: error.message }
   }
 }
 
@@ -245,8 +284,19 @@ export function report({
 
   lines.push('\ndrift')
   if (!moved.looked) lines.push(`  COULD NOT LOOK — ${String(moved.out).split('\n')[0]}`)
-  else lines.push(moved.clean ? '  the standalone install matches this plugin'
-    : '  differs — `sync-standalone.mjs --link --apply` repairs it')
+  else if (moved.differs) lines.push('  differs — `sync-standalone.mjs --link --apply` repairs it')
+  else lines.push('  the standalone install matches this plugin')
+  // ⚠ SAY THE COUNT, AND DO NOT CALL IT DRIFT. These files are ones the sync tool
+  // could not ATTRIBUTE — it says so itself and says it will not touch them — so
+  // reporting them as `differs` would promise a repair that will not happen, and
+  // reporting them as a match would be the clean bill this whole function exists
+  // to avoid. They are their own state. The first attempt at this fix folded them
+  // into `differs`, which a different-lineage review caught before release: a
+  // false diagnosis is not an improvement on a missing qualifier.
+  if (moved.looked && moved.unidentified > 0) {
+    lines.push(`  ⚠ ${moved.unidentified} file(s) could not be identified either way, and this tool `
+      + 'does not touch them — so this section is a partial look, not a clean bill')
+  }
 
   const copies = home.entries.filter(entry => entry.kind === 'copy')
   lines.push('')
@@ -286,7 +336,10 @@ export function report({
   // A COPY outranks an unreadable read: a finding you can act on is more useful
   // than "some of this could not be seen", and reporting the weaker verdict would
   // hide the stronger one.
-  if (!home.looked || !moved.looked || !ledger.looked || !release.looked) {
+  // An unidentified file makes the drift section incomplete in exactly the sense
+  // this gate means, so it belongs in the same condition rather than beside it.
+  if (!home.looked || !moved.looked || !ledger.looked || !release.looked
+    || (moved.unidentified ?? 0) > 0) {
     lines.push('Some of this could not be read, so this is not a clean bill — only an incomplete one.')
     return { lines, exit: 2 }
   }

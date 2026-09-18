@@ -546,6 +546,14 @@ test('a checkout path with a space is still an unrun baseline when nothing match
     const files = [join(spaced, 'probe.test.mjs')]
     assert.equal(leafTestsRun(nothing.stdout, files), 0,
       `the file-level line is not a leaf test: ${nothing.stdout.slice(0, 300)}`)
+    // ⚠ AND WITHOUT THE FILE LIST TOO. Two Windows sessions measured this from a
+    // spaced CHECKOUT on 2026-09-18: the unit case above passed while the
+    // end-to-end one — which calls baselineOf with no files, from the real
+    // repository root — still graded a run where nothing executed as `pass`.
+    // A fix that only covers callers who pass files leaves the defect reachable
+    // one level further out.
+    assert.equal(baselineOf(nothing).state, 'unrun',
+      `no file list is no excuse from a spaced path: ${nothing.stdout.slice(0, 300)}`)
     assert.equal(baselineOf(nothing, files).state, 'unrun',
       `a no-match run from a spaced path is not a passing baseline: ${nothing.stdout.slice(0, 300)}`)
 

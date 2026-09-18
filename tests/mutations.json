@@ -2890,15 +2890,6 @@
       "to": "  for (const name of ['test', 'check', 'lint', 'typecheck', 'build']) {"
     },
     {
-      "label": "checks: a composer script answers before a phpunit guess",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const composed = composerScriptCommand(root)",
-      "to": "  const composed = null && composerScriptCommand(root)"
-    },
-    {
       "label": "lint: a BDD test named by a string is found",
       "file": "plugin/bin/adr-lint",
       "tests": [

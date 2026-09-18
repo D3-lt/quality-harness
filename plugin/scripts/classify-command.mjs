@@ -25,15 +25,19 @@ export const MEASURED_FAMILIES = new Set([
   'ls', 'find', 'stat', 'file', 'which', 'echo', 'printf', 'true', 'pwd', 'date',
   'basename', 'dirname', 'realpath', 'readlink', 'diff', 'cmp', 'md5sum',
   'sha256sum', 'jq', 'column', 'nl',
-  // ⚠ `composer` was missing while `npm` was present, so a SUCCESSFUL composer run
-  // was classified `unrecognised` and a transcript containing it recorded no
-  // validation at all — `lastSuccessfulValidation: -1`, authorship UNPROVEN — where
-  // the same transcript with `npm test` recorded one. Found by a different-lineage
-  // review the day `composer` was added to VALIDATION_PATTERNS: adding it in one
-  // list and not the other made the harness accept the command as evidence and
-  // then fail to SEE it having run. It is the same family of tool as the four
-  // beside it (CLAUDE.md §5).
-  'git', 'npm', 'pnpm', 'yarn', 'bun', 'npx', 'composer',
+  // ⚠ `composer` IS DELIBERATELY ABSENT, and the reason is worth keeping because
+  // adding it looked obviously right. It was added here for one day, to stop a
+  // successful `composer test` reading as `unrecognised` — and a different-lineage
+  // review measured the cost: naming the FAMILY moved `composer update`,
+  // `composer dump-autoload` and `composer run-script deploy` from `unrecognised`
+  // to `neither`, so a command that rewrites composer.lock stopped counting as a
+  // potential mutation. That is §16's direction-of-failure rule exactly: "not
+  // recognised as X" is never "known to be not-X", and a family is an open input
+  // space where only some members are read-only.
+  //
+  // The rung that made it necessary is gone instead, so nothing now offers a
+  // composer command as a check and nothing needs to accept one as evidence.
+  'git', 'npm', 'pnpm', 'yarn', 'bun', 'npx',
   'cargo', 'go', 'gofmt', 'black', 'ruff', 'prettier',
   'docker', 'podman', 'make', 'just', 'sed',
   'cd', 'pushd', 'popd',

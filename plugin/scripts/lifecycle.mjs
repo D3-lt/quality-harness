@@ -42,21 +42,20 @@ const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 const ARTIFACT_GATE_TIMEOUT_MS = 30_000
 export const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
 const VALIDATION_PATTERNS = [
-  // ⚠ `composer` BELONGS HERE AND WAS MISSING, which broke this list's own
-  // contract with the resolver below: `composer test` was OFFERED as the project's
-  // check and then REFUSED as evidence. A Laravel session measured it on a real
-  // tree 2026-09-18, and the trigger is the `laravel new` skeleton, which ships a
-  // `scripts.test` by default — so an app created today hit it without its author
-  // choosing anything. `composer run-script <name>` is the long form of the same
-  // thing. Anything not in the verb list (install, update, dump-autoload) stays
-  // refused, exactly as it does for npm.
-  //
   // ⚠ THE VERB IS A WHOLE TOKEN. It ended `\b`, and a hyphen and a colon are both
   // word boundaries — so `test-data`, `test:seed` and `test-fixtures` all counted
   // as the `test` script. A different script is a different command; a name that
-  // merely BEGINS with a verb has not run that verb. Found by a different-lineage
-  // review of the composer change, and it was wrong for npm all along.
-  /^(?:npm|pnpm|yarn|bun|composer)\s+(?:run(?:-script)?\s+)?(?:test|lint|check|typecheck|build|verify|validate)(?:\s|$)/i,
+  // merely BEGINS with a verb has not run that verb. Found 2026-09-18 by a
+  // different-lineage review, and it had been wrong for npm since this line was
+  // written.
+  //
+  // ⚠ `composer` IS DELIBERATELY NOT HERE. It was added, and review found that
+  // accepting it cost more than it bought: the family it needed in the read-only
+  // classifier turned `composer update` — which writes composer.lock — from
+  // `unrecognised` into `neither`. The rung that made it necessary was removed
+  // instead (see `checkCommandOrigin`), which satisfies the same invariant by
+  // OFFERING LESS. §16: a classifier that permits more needs stronger evidence.
+  /^(?:npm|pnpm|yarn|bun)\s+(?:run(?:-script)?\s+)?(?:test|lint|check|typecheck|build|verify|validate)(?:\s|$)/i,
   /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,
   // `php artisan test` is how a Laravel project runs its tests, and it was not
   // here: a session with 286 passing tests kept being asked for a check.
@@ -859,29 +858,47 @@ function lastSilentPublishJoiner(command) {
   return { at: last, len: lastLen }
 }
 
+/** Modes that print and exit. A `help` SUBCOMMAND is not here: `<tool> help` is a
+ * different command and never reaches the validation patterns anyway. */
+const DESCRIBE_ONLY_FLAGS = new Set(['--help', '-h', '--version', '-V'])
+
 /**
  * A validation command that was actually RUN, rather than asked to describe itself.
  *
  * ⚠ SEPARATE FROM `isValidationCommand`, and the separation is the point. That
  * predicate answers "is this the kind of command that validates", and it is ALSO
- * used to decide a command is READ-ONLY and may be peeled off as a probe prefix —
- * `adr-lint --version; node work-next.mjs` peels to the second half precisely
- * because the first is recognised and harmless. Putting the help guard THERE made
- * `--version` look like a mutation and broke that peeling; the suite caught it
+ * how the hooks decide a command is READ-ONLY and may be peeled off as a probe
+ * prefix — `adr-lint --version; node work-next.mjs` peels to the second half
+ * precisely because the first is recognised and harmless. Putting this guard THERE
+ * made `--version` look like a mutation and broke that peeling; the suite caught it
  * within the minute, which is the only reason this is two functions.
  *
- * So the guard lives at the EVIDENCE question. `npm test --help` and
- * `composer run-script test --help` exit 0 having run nothing, and both suppressed
- * the unchecked-publish warning — found by a different-lineage review of the
- * composer pattern, and true for every runner in that list long before it.
+ * ⚠ IT READS THE EFFECTIVE INVOCATION'S OPTION WORDS, NOT THE RAW TEXT, and the
+ * first version read the raw text — which a review broke in both directions at
+ * once. It MISSED `composer run-script test "--help"` and `sh -c "npm test
+ * --help"`, because a quoted flag and a wrapper payload are not bare whitespace-
+ * delimited words. And it wrongly REJECTED `bash -n -c 'echo --help '`, which is a
+ * real syntax check that exits 0, and `node --check x.mjs # --help is documented`,
+ * because the flag appeared inside a shell payload and inside a comment. §16 names
+ * that second direction as the expensive one: a false refusal makes the harness ask
+ * for a validation the user already ran.
  *
- * Bounded to modes that PRINT AND EXIT. A `help` SUBCOMMAND is not matched:
- * `<tool> help` is a different command and never reaches these patterns anyway.
+ * So: decode the words, peel the wrappers the same way `isValidationCommand` does,
+ * and look only at the ARGUMENTS OF THE INVOCATION ITSELF — stopping at `--`,
+ * after which everything is data, and at a comment.
  */
 export function isValidationEvidence(command) {
   if (typeof command !== 'string') return false
-  if (/(?:^|\s)(?:--help|-h|--version|-V)(?:\s|$)/.test(command)) return false
-  return isValidationCommand(command)
+  if (!isValidationCommand(command)) return false
+  const inner = commandInsideWrappers(command)
+  const effective = inner && inner !== command.trim() ? inner : command
+  const invocation = commandInvocation(effective)
+  if (!invocation) return true
+  for (const word of invocation.words.slice(invocation.index + 1)) {
+    if (word === '--' || word.startsWith('#')) break
+    if (DESCRIBE_ONLY_FLAGS.has(word)) return false
+  }
+  return true
 }
 
 export function publishPrecededByValidation(command) {
@@ -2924,16 +2941,6 @@ function declaredCheckCommand(directory) {
   return typeof check === 'string' && check.trim() ? check.trim() : null
 }
 
-/** A `test` script a composer.json declares, which is the project's own answer. */
-function composerScriptCommand(directory) {
-  let manifest
-  try {
-    manifest = JSON.parse(readFileSync(path.join(directory, 'composer.json'), 'utf8'))
-  } catch { return null }
-  const script = manifest?.scripts?.test
-  const named = Array.isArray(script) ? script.length > 0 : typeof script === 'string' && script.trim()
-  return named ? 'composer test' : null
-}
 
 function packageManagerCommand(directory) {
   let manifest
@@ -3011,12 +3018,24 @@ export function checkCommandOrigin(cwd = process.cwd()) {
   // reason `scripts/verify.sh` sits above `go test ./...`: `php vendor/bin/phpunit`
   // is a guess at how this project runs its tests, and in the repository that
   // reported §56 it is the wrong one — phpunit there runs only inside Docker, so
-  // the bare host command would not execute at all. `composer test` is whatever
-  // that project decided it is.
-  // The project naming its own test script is the project SPEAKING, like the
-  // declared `check` above and unlike a manifest guess.
-  const composed = composerScriptCommand(root)
-  if (composed) return { command: composed, origin: 'declared' }
+  // the bare host command would not execute at all.
+  //
+  // ⚠ THE `composer test` RUNG IS GONE, and removing it is the SAFE way to satisfy
+  // the invariant it broke. It offered `composer test` as the project's own check
+  // while `isValidationCommand` refused that string, and the two attempts to fix
+  // that by ACCEPTING more each produced a P1 in review: first `--help` and
+  // `test-data` passing the publish guard, then a whole `composer` family turning
+  // `composer update` — which writes composer.lock — from `unrecognised` into
+  // `neither`. Section 16 is explicit that a classifier permitting more needs
+  // stronger evidence than one permitting less, and this rung was the demand for
+  // it.
+  //
+  // Offering LESS satisfies the same invariant with none of that risk, and it
+  // gives a Laravel project the BETTER answer anyway: it falls through to the
+  // phpunit rung below, which a session running a real Laravel 11 tree confirmed
+  // names the command they would actually run, with the inference caveat leading.
+  // The rung also read a `laravel new` skeleton default as the project SPEAKING,
+  // which it is not.
   for (const candidate of PROJECT_CHECKS) {
     if (existsSync(path.join(root, candidate.file))) {
       return { command: candidate.command, origin: 'inferred' }

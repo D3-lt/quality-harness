@@ -42,6 +42,7 @@ import {
   classifyCommand,
   isPotentialMutationCommand,
   isValidationCommand,
+  isValidationEvidence,
   publishPrecededByValidation,
   readOnlyVerdict,
   posixListed,
@@ -967,8 +968,20 @@ test('reported: a PHP repository is not evidenced by a vite build', async () => 
   await writeFile(path.join(dir, 'phpunit.xml'), '<phpunit/>\n')
   await writeFile(path.join(dir, 'composer.json'),
     JSON.stringify({ require: { php: '^8.2' }, scripts: { test: 'phpunit' } }))
-  assert.equal(projectCheckCommand(dir), 'composer test',
-    'a repository-owned composer script beats a guess, as scripts/verify.sh does')
+  // ⚠ REVERSED 2026-09-18. A `composer test` script used to answer here, ahead of
+  // the phpunit guess, on the reasoning that a project naming its own test script
+  // is the project SPEAKING. Two things were wrong with that. The `laravel new`
+  // skeleton ships that script, so it is often the FRAMEWORK speaking and not the
+  // author. And the harness would then offer a command `isValidationCommand`
+  // refused — the invariant that every offered command is also accepted as
+  // evidence. Two attempts to fix it by ACCEPTING `composer` each produced a P1 in
+  // review, the second turning `composer update` from `unrecognised` into
+  // `neither`, so a command that rewrites composer.lock stopped reading as a
+  // mutation. Removing the rung satisfies the invariant by offering LESS, and a
+  // Laravel session confirmed the phpunit answer is the one they would run anyway.
+  assert.equal(projectCheckCommand(dir), 'php vendor/bin/phpunit',
+    'the declared test RUNNER answers; a composer script is not offered, because it '
+    + 'would not be accepted as evidence')
 
   // Without a composer script, the test runner it declares — still never the
   // frontend build.
@@ -6288,73 +6301,52 @@ test('every command this harness OFFERS, it also accepts as evidence', () => {
 })
 
 test('a script runner asked for HELP has not validated anything', () => {
-  // ⚠ A FAIL-OPEN AT THE PUBLISH BOUNDARY, found by a different-lineage review of
-  // the composer pattern I added the same day — and the hole turned out to be
-  // OLDER and WIDER than the change that surfaced it. `npm test --help` suppressed
-  // the unchecked-publish warning too. So this is the class, not the instance
-  // (CLAUDE.md §5): every runner in that alternation had it.
+  // ⚠ A FAIL-OPEN AT THE PUBLISH BOUNDARY, and the hole was OLDER and WIDER than
+  // the change that surfaced it: `npm test --help` suppressed the unchecked-publish
+  // warning, and had since that pattern was written. So this is the class, not the
+  // instance (CLAUDE.md §5).
   //
-  // Two separate mistakes in one pattern:
-  //   `--help` runs no tests and exits 0, and nothing looked at the mode.
-  //   `\b` after the verb accepted `test-data` and `test:seed` as `test`, because
-  //   a hyphen and a colon are both word boundaries.
+  // Two separate mistakes:
+  //   `--help` runs nothing and exits 0, and nothing looked at the mode.
+  //   `\b` after the verb accepted `test-data` and `test:seed` as `test`, because a
+  //   hyphen and a colon are both word boundaries.
+  //
+  // ⚠ AND THE FIRST GUARD WAS WRONG IN BOTH DIRECTIONS, which is why the cases
+  // below are shaped the way they are. Reading the RAW TEXT missed a quoted flag
+  // and a wrapper payload, and wrongly rejected a flag appearing as DATA inside a
+  // shell payload or a comment — a false refusal being the expensive direction
+  // (§16): it makes the harness demand a validation the user already ran. The
+  // guard reads the effective invocation's option words now.
   //
   // Asserted at `publishPrecededByValidation`, which is what actually decides
-  // whether the warning is suppressed. The previous test for this pattern
-  // exercised the regex helper and would have passed through every case below.
+  // whether the warning is suppressed; the earlier attempt exercised the regex
+  // helper and would have passed every case here.
   const suppressed = command => publishPrecededByValidation(`${command} && git commit -m probe`)
 
-  // The control, first: these are real runs and must go on suppressing it, or
-  // everything below is satisfied by a predicate that now refuses everything.
-  for (const real of ['npm test', 'npm run test', 'composer test', 'composer run-script test',
-    'pnpm lint', 'yarn build', 'bun run verify']) {
+  // Real runs must go on suppressing it, or everything below is satisfied by a
+  // predicate that now refuses everything.
+  for (const real of ['npm test', 'npm run test', 'pnpm lint', 'yarn build', 'bun run verify']) {
     assert.equal(suppressed(real), true, `a real run must still count as evidence: ${real}`)
   }
 
-  // A help or version mode runs nothing.
-  for (const mode of ['npm test --help', 'composer run-script test --help', 'npm run test -h',
-    'composer test --version', 'yarn lint --help']) {
+  // A help or version mode runs nothing — bare, QUOTED, or inside a wrapper.
+  for (const mode of ['npm test --help', 'npm run test -h', 'yarn lint --help',
+    'npm run test "--help"', 'sh -c "npm test --help"', 'npm test --version']) {
     assert.equal(suppressed(mode), false,
       `asking a runner to describe itself is not running it: ${mode}`)
   }
 
   // A DIFFERENT script whose name merely starts with a verb.
-  for (const other of ['composer test-data', 'composer run-script test:seed',
-    'npm run test-fixtures', 'npm test:generate']) {
+  for (const other of ['npm run test-fixtures', 'npm test:generate', 'npm run test-data']) {
     assert.equal(suppressed(other), false,
       `a script is not the \`test\` script just because its name begins with it: ${other}`)
   }
-})
 
-test('a composer run that PASSED is seen to have passed, not merely permitted', () => {
-  // ⚠ ACCEPTED AS EVIDENCE BUT INVISIBLE WHEN IT RAN. Adding `composer` to
-  // VALIDATION_PATTERNS and not to the production classifier's MEASURED_FAMILIES
-  // meant the harness would tell you to run `composer test`, accept the string as
-  // the kind of thing that counts — and then fail to SEE it having succeeded: the
-  // transcript recorded `lastSuccessfulValidation: -1` and authorship UNPROVEN,
-  // while the identical transcript with `npm test` recorded a validation.
-  //
-  // Found by a different-lineage review, which also named why my first test
-  // missed it: it exercised the regex helper, and the regex was never the half
-  // that was broken. This asserts through `analyzeTranscript`, the boundary the
-  // hooks actually go through.
-  const ran = command => analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(pluginDir, 'a.ts') }), toolResult('e1'),
-    toolUse('v1', 'Bash', { command }), toolResult('v1', false, 'OK (12 tests)'),
-  ]), pluginDir)
-
-  // The control is npm, which has always worked — so a regression that blinded
-  // BOTH runners could not satisfy this test.
-  const npm = ran('npm test')
-  assert.equal(npm.verifiedAfterLastMutation, true, 'npm test is seen; the fixture shape is right')
-
-  for (const command of ['composer test', 'composer run-script test']) {
-    const answer = ran(command)
-    assert.equal(answer.verifiedAfterLastMutation, true,
-      `a passing \`${command}\` must be seen to have validated the edit above it`)
+  // ⚠ AND THE FALSE-REFUSAL HALF. These are real validations that merely CONTAIN a
+  // help-like string as data, and rejecting them is the costly direction.
+  for (const real of ["bash -n -c 'echo --help '",
+    'node --check plugin/scripts/lifecycle.mjs # --help is documented']) {
+    assert.equal(isValidationEvidence(real), true,
+      `a flag as DATA is not a help mode: ${real}`)
   }
-
-  // ...and the help mode is still not a run, at this boundary too.
-  assert.equal(ran('composer test --help').verifiedAfterLastMutation, false,
-    'asking composer to describe its script validates nothing')
 })

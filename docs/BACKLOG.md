@@ -13245,3 +13245,143 @@ could notice that nothing ran and say UNRUN with a reason, instead of passing no
 NOT tested, and named so nobody assumes it: a genuine mapped network drive to another host.
 `\\localhost\Y$` is SMB loopback to a local disk, so it exercises UNC path handling but not network
 latency, reconnection, or a drive letter that is actually remote.
+
+## 233. Three green signals, each blind for a different reason (2026-09-18)
+
+The junction fix in `1e5fae2` regressed the dangling case and reached `main`. `statSync(points)`
+was written INSIDE `archive()`'s try; a dangling target makes it throw ENOENT, and that catch means
+one specific thing — "Windows refused the symlink, write the target as text". So the archive
+silently stopped being a link. CI run 35323591833's `windows` job caught it; `5be1280` fixed it by
+extracting `linkTypeFor`, whose stat catches its own failure and answers UNTYPED.
+
+What is worth keeping is not the bug, it is the signal structure. Four observers, none of which
+could see it:
+
+- **macOS** never reaches the branch — `platform === 'win32' &&` short-circuits, so `statSync` is
+  not called at all. Local `selftest.sh` was green through the whole thing.
+- **Two real Windows 11 boxes**, ordinary accounts, no `SeCreateSymbolicLinkPrivilege`. The test
+  that would look builds its fixture with a real symlink, so it SKIPS there. Both reported all five
+  fixes closed, from a spaced checkout and a cp1252 console — configurations CI cannot produce.
+- **The GitHub runner** HOLDS the privilege, so the test runs — but it checks out at a short
+  unspaced path with a UTF-8 console, so it could see none of what the real boxes found.
+
+Neither Windows configuration is a superset of the other, and "green on macOS + green on two real
+Windows machines + green on three of four CI jobs" was still wrong. A fix is verified by the
+observer that can distinguish it, and naming that observer is part of the fix.
+
+The repair that generalises is the seam, not the fix: `linkTypeFor(linkPath, rawTarget, platform)`
+takes `platform` as an argument, so the win32-only logic is now exercised on every host — and both
+Windows reporters confirmed that test RUNS and PASSES on an unprivileged account. CLAUDE.md §7 said
+this already ("a Windows-only branch with no injectable seam has no test"); an inline expression
+inside a `try` was the form that evaded it.
+
+## 234. A dangling link still archives as a plain file on an ordinary Windows account (2026-09-18)
+
+⚠ OPEN, and it is a decision rather than a defect to go and fix. Reproduced end to end and
+INDEPENDENTLY by two Windows sessions on separate accounts, through the real `archive()`:
+
+```
+fixture: dangling junction, lstat.isSymbolicLink = true
+linkTypeFor(brokenLink, readlink, 'win32') -> undefined        (correct)
+archive(...) -> isSymbolicLink = false, isFile = true
+kept is a PLAIN FILE containing "C:\Users\...\moved-away\n"
+```
+
+The chain: dangling target → `linkTypeFor` correctly returns undefined → `makeLink` is called
+untyped → Windows defaults to a FILE symlink → EPERM -4048 unprivileged → `archive()`'s catch →
+text fallback. `linkTypeFor` is right on every input; the degradation is one layer below it.
+
+Measured, and it is what makes this a choice: **`symlinkSync(missingTarget, link, 'junction')`
+SUCCEEDS on Windows without privilege.** So "text is the only option" is false, and a third state
+exists that `5be1280` does not use.
+
+The argument against taking it is in `archive()`'s own comment: a junction cannot express a file
+link, and for a dangling link NOTHING can tell you which it was. Returning `'junction'` when the
+stat fails converts an unknown into a confident wrong type on exactly the path that cannot be
+tested from here. §16 — a stronger action needs stronger evidence — so it is not being taken on two
+measurements this machine cannot reproduce.
+
+⚠ AND THE TWO HALVES ARE COUPLED, which is the part that is easy to get wrong. The obvious cheap
+half is to rebuild the fixture as a dangling JUNCTION so the guard runs on real machines instead of
+only where CI holds the privilege — `archive()` branches on `isSymbolicLink()`, true for a junction,
+so it drives the identical path. But adopting the fixture WITHOUT the third state makes that test
+FAIL on both real Windows boxes, because the behaviour there genuinely is the text fallback. So it
+is one decision with two parts, not two independent tidy-ups:
+
+- keep the symlink fixture and `undefined` — today's behaviour, guarded only on a privileged runner;
+- junction fixture AND `'junction'`-on-stat-failure — guarded where users are, at the cost of typing
+  an unknown link.
+
+Whoever rules on this should rule on both at once.
+
+## 235. Nothing anywhere executes a `.cmd` forwarder (2026-09-18)
+
+`forwarderCmd` is asserted as TEXT at six sites (`tests/standalone-link.test.mjs` 75, 161, 338,
+1079, 1108; `tests/lifecycle.test.mjs` 2288). Nothing EXECUTES one, on any platform. The only
+end-to-end forwarder execution tests are the two POSIX ones, and those skip on Windows by
+construction (they exec a `#!` script). So the forwarder Windows users actually run has no
+execution coverage at all.
+
+**This is a coverage gap, not a defect.** A Windows session executed all three arms by hand — the
+first time anything has — against `1e5fae2` on Windows 11 / node v24.20.0, and every arm is correct:
+
+```
+A  PATH=C:\Windows\System32 (node absent, System32 kept so `where` exists) -> exit 5
+   "node is not on PATH, so the plugin resolver did NOT run." / "this is not a pass"
+B  node on PATH, USERPROFILE = empty temp dir                              -> exit 4
+   "so this gate did NOT run." / "this is not a pass - an absent checker certifies nothing."
+C  node on PATH, real USERPROFILE                                          -> exit 0
+   "adr-lint 2.99.7 (C:\Users\...\cache\quality-harness\quality-harness\2.99.7)"
+```
+
+Arm A is the BACKLOG §94 regression guard (NODE-FIRST `where /q node`); it does NOT reproduce.
+Distinguishing 5 from 4 is the point — assert the exit code AND that the 4-text is absent in A.
+
+Two traps recorded so nobody rediscovers them:
+
+1. **Do not build a quoted command string.** From MSYS bash with escaped quotes it fails as
+   `'"C:\...\adr-lint.cmd"' is not recognized as an internal or external command` — the escapes
+   reach cmd literally, and that error looks exactly like a missing forwarder, so the test would
+   fail for an unrelated reason. Spawn `cmd.exe` with an argv ARRAY: `['/c', cmdPath, '--version']`.
+2. **Arm C is environment-coupled.** With no plugin cache it silently becomes arm B. Either assert
+   C only when the cache exists and say UNRUN otherwise, or stage a fake cache. "No plugin
+   installed" must not read as a pass (ADR-005).
+
+`forwarderCmd(gate, homeDirectory)` bakes the cache path with `homeDirectory` replaced by the
+LITERAL `%USERPROFILE%`, so the cache resolves at RUN time from the environment. That is what makes
+arms B and C selectable by env alone, and it is itself worth asserting: the forwarder's "resolves
+the newest installed plugin at call time" claim rests on it.
+
+## 236. Windows + a real symlink + a relative target, in the archive type probe (2026-09-18)
+
+`readlinkSync` returns a link's target VERBATIM, so it can be relative, and a relative target
+resolves against the LINK's own directory rather than `process.cwd()`. `linkTypeFor` now does
+`path.resolve(path.dirname(linkPath), rawTarget)` and a test covers the relative arm through the
+platform seam.
+
+Recorded because the REACH was narrowed by measurement after being reported broadly, and the
+narrowing is the useful part. A Windows junction always stores an ABSOLUTE target — `readlinkSync`
+on one returns `C:\...` even when a relative path was passed to create it — and on POSIX the
+`platform === 'win32' &&` guard short-circuits before the stat. So the live exposure is exactly:
+Windows + a REAL symlink (Developer Mode or an elevated shell) + a relative target. Neither Windows
+account available to this project has that privilege, so nobody can build the fixture. The reporter
+withdrew the broader claim themselves rather than leave it standing.
+
+## 237. What no configuration available to this project can test (2026-09-18)
+
+Stated together so none of them reads as merely unattempted:
+
+- **A genuine mapped network drive.** Two Windows sessions checked their own boxes independently:
+  both `Y:` volumes are `Win32_LogicalDisk` DriveType 3, empty `ProviderName`, nothing in `subst`,
+  no `DisplayRoot` — plain local NTFS. §232's `\\localhost\Y$` is SMB loopback, which exercises UNC
+  path handling but not latency, reconnection, or a drive letter that is actually remote. This is
+  known-untestable here, not unattempted.
+- **Windows + a real symlink + a relative target** (§236) — needs a privilege neither account holds.
+- **A live `--plugin-dir` session**, and with it the double-hook question.
+- ⚠ **Three session names were never three environments.** Two of the three Windows reporters are on
+  the SAME machine, and assuming otherwise manufactured the concurrency artefact in the first round
+  of reports: three concurrent suite runs on 16 CPUs produced timeout-kills that were read as code
+  defects. `test-lock` then passed alone on a quiet box — 49.8s standalone against a 120s budget, so
+  no hasher bug, but a 2.4x margin with `selftest.sh:81` running `node --test` at 16-way. The budget
+  is thin; widening it is a separate decision from the Windows work and was deliberately not slipped
+  into a Windows commit.

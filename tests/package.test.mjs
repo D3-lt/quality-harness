@@ -841,7 +841,7 @@ test('manifest and hook configuration expose the bundled components', () => {
   // hold: the installer orders cached versions with it.
   assert.match(manifest.version, /^\d+\.\d+\.\d+$/, 'the plugin version must be semver')
   assert.equal(manifest.license, 'MIT')
-  assert.ok(statSync(join(repoRoot, 'tests', 'classify.test.mjs')).isFile())
+  assert.ok(statSync(join(repoRoot, 'tests', 'observed-events.test.mjs')).isFile())
 
   const hooks = JSON.parse(readFileSync(join(root, 'hooks', 'hooks.json'), 'utf8'))
   const post = hooks.hooks.PostToolUse.flatMap(group => group.hooks)
@@ -1369,7 +1369,11 @@ test('every shipped gate carries at least one mutation', () => {
   // A forwarder has no behaviour to assert. Each entry is a claim someone can
   // check, and a file that stops being trivial has to be removed from the list
   // deliberately -- which is the point.
-  const trivial = new Set([])
+  // ADR-060 T7: classify-command.mjs is a TOMBSTONE — it ships as comments only,
+  // kept so ADR-041's and ADR-047's `Governs:` pointers still resolve while those
+  // records await retirement under ADR-060. There is no mechanism in it to
+  // mutate, and tests/classify.test.mjs asserts it stays that way.
+  const trivial = new Set(['plugin/scripts/classify-command.mjs'])
   const bareScripts = scriptPaths.filter(p => !covered.has(p) && !trivial.has(p))
   // Shown capable of naming one, for the same reason the bin/ predicate is.
   assert.deepEqual(['plugin/scripts/ghost.sh'].filter(p => !new Set(['plugin/scripts/real.sh']).has(p)),

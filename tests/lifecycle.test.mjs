@@ -7,22 +7,12 @@ import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
-  analyzeTranscript,
   artifactGateTimeoutMs,
-  bashDeletionMutationPaths,
-  namesOnlyMarkdownFiles,
-  segmentDirectories,
-  writesOutsideProject,
-  interpreterCommandLooksMutating,
-  bashNavigationImpact,
-  mutatesOnlyTempPaths,
   checkCommandOrigin,
   projectCheckCommand,
   runTheCheckSentence,
-  provenMutationPaths,
   budgetExhausted,
   commandInsideWrappers,
-  describeCommand,
   sessionOrientation,
   sessionStateNote,
   hasDecisionCorpus,
@@ -36,11 +26,6 @@ import {
   decisionContext,
   decisionsGoverning,
   pathMatchesDeclaration,
-  bashMarkdownMutationPaths,
-  isGitPublishCommand,
-  classifyCommand,
-  isPotentialMutationCommand,
-  isValidationCommand,
   readOnlyVerdict,
   posixListed,
   readyTaskLines,
@@ -48,7 +33,6 @@ import {
   observe,
   appendEvent,
   surfaceReadyLines,
-  shellSegments,
   ASSERTION_ARM_WITHDRAWN,
   completionClaim,
   saidMarkerDirectory,
@@ -227,276 +211,6 @@ function runLifecycleHook(payload, options = {}) {
   })
 }
 
-test('recognizes project verification commands without treating arbitrary shell as evidence', () => {
-  assert.equal(isValidationCommand('pnpm test'), true)
-  assert.equal(isValidationCommand('cargo check --workspace'), true)
-  assert.equal(isValidationCommand('node /plugin/scripts/verify.mjs --cwd /repo -- custom gate'), true)
-  assert.equal(isValidationCommand('node --test tests/unit.test.mjs'), true)
-  assert.equal(isValidationCommand('pnpm test && pnpm lint'), true)
-  assert.equal(isValidationCommand('pnpm test || true'), false)
-  assert.equal(isValidationCommand('pnpm test && python3 rewrite.py'), false)
-  assert.equal(isValidationCommand('pnpm test | tail -20'), false)
-  assert.equal(isValidationCommand('git status --short'), false)
-  assert.equal(isValidationCommand('rg test src'), false)
-  assert.equal(isValidationCommand('test -n x'), false)
-
-  // A shell name in front of the validator does not change what ran.
-  assert.equal(isValidationCommand('bash scripts/selftest.sh'), true)
-  assert.equal(isValidationCommand('sh ./run-checks.sh'), true)
-  assert.equal(isValidationCommand('bash -n scripts/lifecycle.sh'), true)
-  assert.equal(isValidationCommand('bash scripts/deploy.sh'), false)
-  assert.equal(isValidationCommand('bash scripts/rewrite-tests.sh'), false)
-  assert.equal(isValidationCommand('bash -c "rm -rf build"'), false)
-
-  // Running the gate the obvious way must also clear the evidence bar, and must
-  // not be recorded as an edit on the way through.
-  assert.equal(isPotentialMutationCommand('bash scripts/selftest.sh'), false)
-})
-
-test('tracks mutation-capable Bash commands without treating read-only probes as edits', () => {
-  assert.equal(isPotentialMutationCommand('python3 rewrite.py'), true)
-  assert.equal(isPotentialMutationCommand('printf x > src/generated.txt'), true)
-  assert.equal(isPotentialMutationCommand('cp source.txt destination.txt'), true)
-  assert.equal(isPotentialMutationCommand('touch generated.txt'), true)
-  assert.equal(isPotentialMutationCommand('git restore tracked.txt'), true)
-  assert.equal(isPotentialMutationCommand("sed -i '' docs/spec.md"), true)
-  assert.equal(isPotentialMutationCommand("sed -i.bak 's/x/y/' docs/spec.md"), true)
-  assert.equal(isPotentialMutationCommand("sed --in-place=.bak 's/x/y/' docs/spec.md"), true)
-  assert.equal(isPotentialMutationCommand('git reset --hard HEAD~1'), true)
-  assert.equal(isPotentialMutationCommand('git -c user.name=Bot commit -m test'), true)
-  assert.equal(isPotentialMutationCommand('command git -C /repo -c user.name=Bot restore file'), true)
-  assert.equal(isPotentialMutationCommand('git pull --ff-only'), true)
-  assert.equal(isPotentialMutationCommand('rsync -a src/ dst/'), true)
-  assert.equal(isPotentialMutationCommand('chmod +x script.sh'), true)
-  assert.equal(isPotentialMutationCommand('ln -sf a b'), true)
-  assert.equal(isPotentialMutationCommand('git status --short'), false)
-  // The gate resolves a relative operand against the session cwd, so what it
-  // returns is an ABSOLUTE path in the host platform's shape: `/repo/docs/spec.md`
-  // on POSIX, `D:\\repo\\docs\\spec.md` on Windows. Spelling the expectation as a
-  // POSIX literal asserted the platform, not the behaviour.
-  const under = (...parts) => path.resolve('/repo', ...parts)
-  assert.deepEqual(
-    bashMarkdownMutationPaths("printf x > docs/spec.md", '/repo'),
-    [under('docs/spec.md')],
-  )
-  assert.deepEqual(bashMarkdownMutationPaths('python rewrite.py $DOC/spec.md', '/repo'), [])
-  // `A=docs/spec.md; tee "$A"` names the file through an assignment: the path is
-  // the value, not a file called `A=docs/spec.md` (owner's terminal, 2026-09-05).
-  assert.deepEqual(
-    bashMarkdownMutationPaths('A=docs/spec.md; printf x | tee "$A"', '/repo'),
-    [path.resolve('/repo', 'docs/spec.md')])
-  assert.deepEqual(
-    bashMarkdownMutationPaths("DOC='docs/spec.md' && printf x > docs/other.md", '/repo').sort(),
-    [path.resolve('/repo', 'docs/other.md'), path.resolve('/repo', 'docs/spec.md')].sort())
-  // A quoted value with a space is ONE value; the token scanner alone split it
-  // in two and matched neither (Codex review, 2026-09-05).
-  assert.deepEqual(
-    bashMarkdownMutationPaths("DOC='docs/My File.md'; printf x | tee \"$DOC\"", '/repo'),
-    [path.resolve('/repo', 'docs/My File.md')])
-  // A `key=value` ARGUMENT is data, not an assignment: neither the literal token
-  // nor its value is a path this gate can report.
-  assert.deepEqual(bashMarkdownMutationPaths("printf '%s' 'file=docs/BACKLOG.md' > out.txt", '/repo'), [])
-  assert.deepEqual(bashMarkdownMutationPaths('curl -d name=docs/x.md https://h/', '/repo'), [])
-  assert.deepEqual(bashMarkdownMutationPaths("sed -i '' docs/specs/*.md", '/repo'), [])
-  assert.deepEqual(
-    bashDeletionMutationPaths('rm -rf /repo/adr-archive', '/elsewhere'),
-    [path.resolve('/repo/adr-archive')],
-  )
-  assert.deepEqual(
-    bashDeletionMutationPaths('rm -rf docs/adr-archive', '/repo'),
-    [under('docs/adr-archive')],
-  )
-  assert.match(bashDeletionMutationPaths('rm -rf "$ARCHIVE"', '/repo')[0], /Unresolved/)
-})
-
-test('a redirect ampersand stays inside its segment', () => {
-  // The branch guard classifies per segment, so it has to be tested per segment:
-  // `2>&1` split at the bare `&` leaves `… 2>` behind, and a whole-command test
-  // stays green while that truncated segment reads as a write.
-  const readOnly = 'git ls-remote --heads https://example.invalid/repo.git 2>&1 | head -20'
-  assert.deepEqual(shellSegments(readOnly), [
-    'git ls-remote --heads https://example.invalid/repo.git 2>&1',
-    'head -20',
-  ])
-  for (const segment of shellSegments(readOnly)) {
-    assert.equal(isPotentialMutationCommand(segment), false, segment)
-  }
-  assert.deepEqual(shellSegments('gh release list >&2'), ['gh release list >&2'])
-  assert.equal(isPotentialMutationCommand('gh release list >&2'), false)
-  assert.deepEqual(shellSegments('git fsck 2>&-'), ['git fsck 2>&-'])
-  assert.deepEqual(shellSegments('echo x &> out.txt'), ['echo x &> out.txt'])
-
-  // `&` still separates a background job, and `&&` still separates two commands.
-  assert.deepEqual(shellSegments('sleep 1 & git status --short'), ['sleep 1', 'git status --short'])
-  assert.deepEqual(shellSegments('git status --short && git diff'), ['git status --short', 'git diff'])
-  // A quoted `>` never turns the next `&` into part of a redirect.
-  assert.deepEqual(shellSegments('echo "a>" & git diff'), ['echo "a>"', 'git diff'])
-
-  // `&>f` and `&>>f` write, so keeping them in one segment must not lose them.
-  assert.equal(isPotentialMutationCommand('echo x &> out.txt'), true)
-  assert.equal(isPotentialMutationCommand('echo x &>> out.txt'), true)
-})
-
-test('quoted Markdown and git text are mentions, not permanent lifecycle failures', async () => {
-  assert.equal(isGitPublishCommand("printf '%s\\n' 'diagnostic: git commit failed'"), false)
-  assert.equal(isGitPublishCommand("cat <<'EOF'\ngit push origin main\nEOF"), false)
-  assert.equal(isGitPublishCommand('command -v git commit'), false)
-  for (const command of [
-    'cd /repo && git commit -m test',
-    'git -c user.name=Bot -c user.email=bot@example.invalid commit -m test',
-    'git --no-pager push origin main',
-    'command git commit -m test',
-    'env GIT_AUTHOR_NAME=Bot git commit -m test',
-    'GIT_AUTHOR_NAME="Bot User" git commit -m test',
-    'env -S "git commit -m test"',
-    'env -a custom0 git commit -m test',
-    'sudo -u root git commit -m test',
-    'sudo -D /tmp git commit -m test',
-    'exec git commit -m test',
-    'time -p git commit -m test',
-    'time -o /tmp/timing git commit -m test',
-    '(git commit -m test)',
-    '{ git commit -m test; }',
-    'bash -c "git commit -m test"',
-    'bash -o pipefail -c "git commit -m test"',
-    'echo $((1 << 2))\ngit commit -m test',
-    '((1 << 2))\ngit commit -m test',
-    '"C:\\Tools\\Git\\cmd\\git.exe" -C "C:\\repo" push origin main',
-  ]) {
-    assert.equal(isGitPublishCommand(command), true, command)
-  }
-  const quotedHeredocText = [
-    'EOF(){ :; }',
-    "printf %s 'literal <<EOF'",
-    'git commit -m test',
-    'EOF',
-  ].join('\n')
-  assert.equal(isGitPublishCommand(quotedHeredocText), true)
-  assert.equal(isGitPublishCommand("cat <<\\EOF\ngit push origin main\nEOF"), false)
-
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-quoted-md-'))
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', {
-      command: 'python3 signer.py --human "A1 PROVEN; see $DOC/T9-verdict.md Cleanup"',
-    }),
-    toolResult('b1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-  assert.equal(run.status, 0, run.stderr)
-  assert.equal(run.stdout, '')
-})
-
-test('requires successful verification after the final edit', () => {
-  const before = analyzeTranscript(transcript([
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1'),
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1'),
-  ]))
-  assert.equal(before.verifiedAfterLastMutation, false)
-
-  const after = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1'),
-  ]))
-  assert.equal(after.verifiedAfterLastMutation, true)
-})
-
-test('only executed tool calls count as mutations', () => {
-  const pending = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-  ]))
-  assert.equal(pending.hasMutations, false)
-  assert.deepEqual(pending.mutationPaths, [])
-
-  const blocked = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1', true, 'PreToolUse:Edit hook error: Quality gate blocked'),
-  ]))
-  assert.equal(blocked.hasMutations, false)
-  assert.deepEqual(blocked.mutationPaths, [])
-
-  const failedAfterStarting = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.ts' }),
-    toolResult('e1', true, 'write failed after replacing one section'),
-  ]))
-  assert.equal(failedAfterStarting.hasMutations, true)
-  assert.deepEqual(failedAfterStarting.mutationPaths, ['/repo/src/a.ts'])
-})
-
-test('failed verification does not satisfy the gate', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/a.py' }),
-    toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }),
-    toolResult('t1', true, '1 failed'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, false)
-})
-
-test('the latest validation result determines whether post-edit evidence is verified', () => {
-  const failedAfterPass = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.py' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }), toolResult('t1', false, '3 passed'),
-    toolUse('t2', 'Bash', { command: 'pytest -q' }), toolResult('t2', true, '1 failed'),
-  ]))
-  assert.equal(failedAfterPass.verifiedAfterLastMutation, false)
-
-  const successfulRerun = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.py' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }), toolResult('t1', false, '3 passed'),
-    toolUse('t2', 'Bash', { command: 'pytest -q' }), toolResult('t2', true, '1 failed'),
-    toolUse('t3', 'Bash', { command: 'pytest -q' }), toolResult('t3', false, '3 passed'),
-  ]))
-  assert.equal(successfulRerun.verifiedAfterLastMutation, true)
-})
-
-test('explicit non-zero process metadata cannot satisfy the gate', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/a.py' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pytest -q' }),
-    toolResult('t1', false, 'Process exited with code 1'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, false)
-})
-
-test('aggregate Cargo output must include at least one executed test', () => {
-  const zero = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/lib.rs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'cargo test' }),
-    toolResult('t1', false, 'running 0 tests\ntest result: ok. 0 passed; 0 failed'),
-  ]))
-  assert.equal(zero.verifiedAfterLastMutation, false)
-
-  const mixed = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/lib.rs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'cargo test' }),
-    toolResult('t1', false, 'running 0 tests\ntest result: ok. 0 passed\nrunning 3 tests\ntest result: ok. 3 passed'),
-  ]))
-  assert.equal(mixed.verifiedAfterLastMutation, true)
-})
-
-test('Node test output must include executed work', () => {
-  const zero = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.mjs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'node --test' }),
-    toolResult('t1', false, 'tests 0\npass 0\nfail 0'),
-  ]))
-  assert.equal(zero.verifiedAfterLastMutation, false)
-
-  const one = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/src/a.mjs' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'node --test' }),
-    toolResult('t1', false, 'tests 1\npass 1\nfail 0'),
-  ]))
-  assert.equal(one.verifiedAfterLastMutation, true)
-})
-
 test('documented custom-validator wrapper executes through Node', () => {
   const run = spawnSync(process.execPath, [
     path.join(pluginDir, 'scripts/verify.mjs'),
@@ -653,55 +367,6 @@ test('shell-hook timeout stays below its host deadline and kills the process tre
   assert.equal(descendantAlive, false, `descendant process ${descendantPid} survived timeout`)
 })
 
-test('masked, zero-work, and stale validation cannot satisfy the gate', () => {
-  const masked = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test || true' }), toolResult('t1', false, '1 failed'),
-  ]))
-  assert.equal(masked.verifiedAfterLastMutation, false)
-
-  const zeroWork = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test --filter missing' }), toolResult('t1', false, 'No tests found'),
-  ]))
-  assert.equal(zeroWork.verifiedAfterLastMutation, false)
-
-  const stale = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'python3 rewrite.py' }), toolResult('b1'),
-  ]))
-  assert.equal(stale.verifiedAfterLastMutation, false)
-
-  const sedAfterTest = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: "sed -i '' docs/spec.md" }), toolResult('b1'),
-  ]), '/repo')
-  assert.equal(sedAfterTest.verifiedAfterLastMutation, false)
-
-  for (const command of [
-    'git reset --hard HEAD~1', 'git pull --ff-only', 'rsync -a src/ dst/',
-    'chmod +x script.sh', 'ln -sf a b',
-  ]) {
-    const staleAfterCommonMutator = analyzeTranscript(transcript([
-      toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-      toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-      toolUse('b1', 'Bash', { command }), toolResult('b1'),
-    ]))
-    assert.equal(staleAfterCommonMutator.verifiedAfterLastMutation, false, command)
-  }
-})
-
-test('unfinished background validation cannot satisfy the gate', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test', run_in_background: true }),
-    toolResult('t1', false, 'Command running in background with ID 42'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, false)
-})
-
 test('advisory Python syntax check creates no project bytecode', async () => {
   const dir = await mkdtemp(path.join(testTmp, 'quality-python-check-'))
   const source = path.join(dir, 'probe.py')
@@ -716,15 +381,6 @@ test('advisory Python syntax check creates no project bytecode', async () => {
   })
   assert.equal(run.status, 0, run.stderr)
   assert.deepEqual(await readdir(dir), ['probe.py'])
-})
-
-test('successful negative-control suites are not rejected by their output text', () => {
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.ts' }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: './selftest.sh' }),
-    toolResult('t1', false, 'negative fixture expected exit 1\nPASS — 47 checks'),
-  ]))
-  assert.equal(state.verifiedAfterLastMutation, true)
 })
 
 test('command hook advises on subagent completion without later evidence', async () => {
@@ -747,32 +403,6 @@ test('the publish warning advises, never blocks, while this repository is unchec
   assert.match(run.stderr, /names commit or push/i)
   assert.match(run.stderr, /qh-check/)
   assert.doesNotMatch(run.stderr, /would publish unchecked/i)
-})
-
-test('reported: finding the repository root does not disqualify the check that follows', () => {
-  // blueprints, 2026-08-26. `cd "$(git rev-parse --show-toplevel)" && …
-  // ./verify.sh` is how a script finds its own root, and the guard rejected the
-  // whole command for containing `$(` — so the project's check ran, passed, and
-  // the gate asked for it again at the end of the turn.
-  assert.equal(isValidationCommand(
-    'cd "$(git rev-parse --show-toplevel)" && BLUEPRINT_VENV=.venv ./verify.sh'), true)
-  assert.equal(isValidationCommand('cd "$(git rev-parse --show-toplevel)"\nnpm test'), true)
-  assert.equal(isValidationCommand('cd `pwd` && npm test'), true)
-
-  // The guard did not go away, it moved. A substitution anywhere a command can
-  // actually run is still opaque, and a `cd` whose argument runs something with
-  // effects is not navigation.
-  assert.equal(isValidationCommand('npm test $(rm -rf build)'), false)
-  assert.equal(isValidationCommand('cd "$(rm -rf x && pwd)" && npm test'), false)
-  // Same on its own line, where a plain `cd`-shaped filter would have dropped it
-  // unread and let the test below stand as the session's only evidence.
-  assert.equal(isValidationCommand('cd "$(rm -rf x && pwd)"\nnpm test'), false)
-  assert.equal(isValidationCommand('cd "$(curl -s http://evil)" && npm test'), false)
-  assert.equal(isValidationCommand('npm test; rm -rf build'), false)
-  assert.equal(isValidationCommand('npm test | tail -3'), false)
-  assert.equal(isValidationCommand('npm test > out.txt'), false)
-  assert.equal(isValidationCommand('npm test &'), false)
-  assert.equal(isValidationCommand('cd /repo && npm test && rm -rf build'), false)
 })
 
 test('reported: no advisory claims to have blocked anything', async () => {
@@ -1034,32 +664,6 @@ test('subagent evidence gate remains active while the parent has background work
 })
 
 
-test('an unresolved Bash deletion is answered by the repository, not held against the session', async () => {
-  // The sentinel comes from the public classifier so the test cannot drift from it.
-  const [sentinel] = bashDeletionMutationPaths('rm -rf "$ARCHIVE"', testTmp)
-  const repo = await mkdtemp(path.join(testTmp, 'quality-unresolved-rm-'))
-  const fixtures = path.join(repoRoot, 'tests', 'fixtures', 'ok')
-  await cp(path.join(fixtures, 'adr-archive'), path.join(repo, 'docs', 'adr-archive'), { recursive: true })
-  await cp(path.join(fixtures, 'adr'), path.join(repo, 'docs', 'adr'), { recursive: true })
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000 })
-  git('add', '-A')
-  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'archive')
-
-  // A scratch deletion leaves the corpus whole, so the session is not held to a
-  // question the repository has already answered.
-  assert.equal(runArtifactGates([sentinel], repo), null)
-
-  // When a record really is gone the gate still fails, and now it names the file.
-  await rm(path.join(repo, 'docs', 'adr-archive', 'ADR-001-history.md'))
-  const removed = runArtifactGates([sentinel], repo)
-  assert.match(removed, /ADR-001-history\.md/)
-  assert.match(removed, /archive catalog lists ADR-001/)
-
-  // Outside a repository Git cannot answer, so the gate stays closed.
-  assert.match(runArtifactGates([sentinel], testTmp), /Git cannot say what is missing/)
-})
-
 test('every record gate advises, at the edit and at the boundary alike', async () => {
   const repo = await mkdtemp(path.join(testTmp, 'quality-adr-set-'))
   const fixtures = path.join(repoRoot, 'tests', 'fixtures', 'ok')
@@ -1192,64 +796,6 @@ test('the artifact gate budget is raisable, and running out of it names the budg
   assert.doesNotMatch(judged, /timed out/)
 })
 
-test('scratch writes under the temp root are not the repository\'s edits', async t => {
-  // pluginDir stands in for a real (non-temp) project checkout; the scratch
-  // base comes from the platform so the truths hold off-macOS too.
-  const scratch = path.join(os.tmpdir(), 'qh-scratch')
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${scratch}/note.txt"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`S="${scratch}"\ncat > "$S/commit.txt"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`mkdir -p "${scratch}/old"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`rm -rf "${scratch}"`, pluginDir), true)
-  assert.equal(mutatesOnlyTempPaths(`git show HEAD:scripts/lifecycle.mjs > "${scratch}/old.mjs"`, pluginDir), true)
-
-  // Anything unprovable, repo-touching, or executed keeps today's answer.
-  assert.equal(mutatesOnlyTempPaths('printf x > docs/spec.md', pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`sed -i '' "${scratch}/x.md"`, pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`python3 "${scratch}/rewrite.py"`, pluginDir), false)
-  // NOT here any more: `cp scripts/lifecycle.mjs "<scratch>/"`. It used to be
-  // false, accounted by its source — but cp reads the source and writes only the
-  // destination, so nothing in the repository changed. Asserted the other way in
-  // the changed-path test above.
-  assert.equal(mutatesOnlyTempPaths('cat > "$UNSET_VAR_QH/f"', pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`rm -rf "${scratch}/a" && printf x > README.md`, pluginDir), false)
-  // A project living under the temp root gets no exemption at all.
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${scratch}/note.txt"`, testTmp), false)
-
-  // The bypasses the 2.0.17 review demonstrated stay dead:
-  // an option can smuggle the destination...
-  assert.equal(mutatesOnlyTempPaths(`mv --target-directory=scripts "${scratch}/evil.js"`, pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`cp -tscripts "${scratch}/evil.js"`, pluginDir), false)
-  assert.equal(mutatesOnlyTempPaths(`cp -t scripts "${scratch}/evil.js"`, pluginDir), false)
-  // ...a later reassignment must not rewrite an earlier use...
-  assert.equal(mutatesOnlyTempPaths(`S=docs\nprintf x > $S/f.md\nS="${scratch}"\nprintf y > $S/g`, pluginDir), false)
-  // ...a glued redirect writes even where the mutation classifier is blind...
-  assert.equal(mutatesOnlyTempPaths(`echo y > "${scratch}/ok"; echo x>scripts/f`, pluginDir), false)
-  // ...and a symlink under the temp root is judged by where it lands, whether
-  // it points at a directory, a file, or nothing yet.
-  const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-link-'))
-  const directoryLink = path.join(linkDir, 'repo-link')
-  if (!await symlinkOrSkip(t, pluginDir, directoryLink)) return
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${directoryLink}/smuggled.txt"`, pluginDir), false)
-  const fileLink = path.join(linkDir, 'file-link')
-  if (!await symlinkOrSkip(t, path.join(repoRoot, 'README.md'), fileLink)) return
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${fileLink}"`, pluginDir), false)
-  const danglingLink = path.join(linkDir, 'dangling-link')
-  await symlink(path.join(repoRoot, 'does-not-exist-yet.md'), danglingLink)
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${danglingLink}"`, pluginDir), false)
-
-  // A scratch write is invisible to the evidence gate; a repo write is not.
-  const scratchOnly = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
-  ]), pluginDir)
-  assert.equal(scratchOnly.hasMutations, false)
-  const verifiedThenScratch = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(pluginDir, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
-  ]), pluginDir)
-  assert.equal(verifiedThenScratch.verifiedAfterLastMutation, true)
-})
-
 test('the artifact pass never outlives the hook it runs inside', async () => {
   // An exhausted window is a blocking failure, not a silent skip: an unread
   // artifact is not a clean one.
@@ -1267,69 +813,6 @@ test('the artifact pass never outlives the hook it runs inside', async () => {
 // Each of these is a shape that stopped real work in a real session. They are
 // written as the reports arrived rather than as tidy minimal cases, because the
 // tidy version is what passed while the real one failed.
-
-test('reported: a read-only command is not authorship because of how it is spelled', () => {
-  // Hit live on 2026-08-26 while trying to WATCH a CI run:
-  //   gh run watch 123 > /dev/null 2>&1
-  //   -> "Bash would mutate files in protected 'main'. Create a task branch first"
-  //
-  // `\s*` matched the space, the /dev/null exclusion failed, the engine handed the
-  // space back, and the lookahead was re-tried against " /dev/null" — which does
-  // not start with /dev/null. So the spacing decided whether reading counted as
-  // writing. Recorded in BACKLOG item 6 as "one careful regex away" and left
-  // unfixed until it blocked a session.
-  const nul = ['>', ' /dev/null'].join('')
-  for (const spelling of [`gh run watch 123 ${nul} 2>&1`, `gh run watch 123 >/dev/null`,
-    `printf x ${nul}`, `node --test ${nul} 2>&1`]) {
-    assert.equal(isPotentialMutationCommand(spelling), false, spelling)
-  }
-
-  // Closing a descriptor writes nothing either.
-  assert.equal(isPotentialMutationCommand('git fsck 2>&-'), false)
-  assert.equal(isPotentialMutationCommand('git fsck 2>&1'), false)
-
-  // The exclusion must stay narrow: a real write is still a write, and a path
-  // that merely BEGINS like the null device is not it.
-  assert.equal(isPotentialMutationCommand(['printf x ', ' out.txt'].join('>')), true)
-  assert.equal(isPotentialMutationCommand(['printf x ', ' /dev/null-backup'].join('>')), true)
-  assert.equal(isPotentialMutationCommand(['printf x ', '> appended.log'].join('>')), true)
-
-  // A glued redirect is a redirect. `printf x>out.txt` writes a file, and the
-  // old `(?:^|\s)` prefix required whitespace, so the evidence gate never saw it
-  // — a fail-open living in the same regex as the two false blocks above.
-  assert.equal(isPotentialMutationCommand(['printf x', 'out.txt'].join('>')), true)
-
-  // Quoted segments are stripped before the test, so a `>` that is a comparison
-  // in someone else's language is not read as a redirect in this one. That is
-  // what makes the glued-redirect fix safe rather than noisy.
-  assert.equal(isPotentialMutationCommand("python3 -c 'print(1 if a>b else 2)'"), false)
-  assert.equal(isPotentialMutationCommand('echo "a > b"'), false)
-})
-
-test('reported: a Windows path is a path, not an escape sequence', () => {
-  // `\` is a shell escape on POSIX and the path separator on Windows. The
-  // deletion resolver treated it as unresolvable on both, so on Windows EVERY
-  // literal path deletion came back <Unresolved Bash deletion> — which is why the
-  // sticky sentinel bit hardest there. Caught by the windows job on 2026-08-26,
-  // on a test written for the POSIX shape of the same bug.
-  //
-  // The platform is a parameter so both branches are exercised here rather than
-  // on one machine each. mutatesOnlyTempPaths already excluded `\` from its own
-  // ambiguous set; the two had simply disagreed.
-  const win = String.raw`C:\Users\RUNNER~1\AppData\Local\Temp\scratch`
-  const onWindows = bashDeletionMutationPaths(`rm -rf "${win}"`, 'C:\\repo', 'win32')
-  assert.ok(!onWindows.includes('<Unresolved Bash deletion>'), JSON.stringify(onWindows))
-
-  // On POSIX the same characters really are escapes, and must stay unresolvable.
-  assert.ok(bashDeletionMutationPaths(`rm -rf "${win}"`, '/repo', 'linux')
-    .includes('<Unresolved Bash deletion>'))
-
-  // A glob is unresolvable on both, because it names no single path.
-  for (const platform of ['win32', 'linux']) {
-    assert.ok(bashDeletionMutationPaths('rm -rf build/*', '/repo', platform)
-      .includes('<Unresolved Bash deletion>'), platform)
-  }
-})
 
 test('no finding is ever hidden: a completion advisory is a systemMessage, and a PreToolUse one reaches the agent in full', async () => {
   // The owner's rule, stated three times: never block, never hide. The advisory
@@ -1544,65 +1027,6 @@ test('a location key is the realpath of the repository root, case-folded where t
   assert.equal(locationKey(path.join(dir, 'nope'), 'linux'), path.join(dir, 'nope'))
 })
 
-test('reported: a build in a container is a build, not a deletion', () => {
-  // depozitas_laravel, 2026-08-26. `docker compose run --rm --no-deps node sh -c
-  // 'cd /var/www && npm run build'` was recorded as a MUTATION, so every build
-  // demanded another build — a closed loop the session escaped only by running
-  // npm ci (37 packages) to make a native build possible.
-  //
-  // `--rm` was read as the `rm` command: \b treats a hyphen as a word boundary.
-  const containerBuild = "docker compose run --rm --no-deps node sh -c 'cd /var/www && npm run build'"
-  assert.equal(isPotentialMutationCommand(containerBuild), false, containerBuild)
-  assert.equal(isPotentialMutationCommand('docker compose run --rm app npm run build'), false)
-  // The same trap sits under every mutator word that is also a flag.
-  for (const flag of ['--rm', '--move', '--copy', '--install', '--patch', '--link']) {
-    assert.equal(isPotentialMutationCommand(`some-tool ${flag} thing`), false, flag)
-  }
-  // And a real one is still real.
-  assert.equal(isPotentialMutationCommand('rm -rf build'), true)
-  assert.equal(isPotentialMutationCommand('docker compose exec -T app rm -rf storage'), true)
-
-  // The other half: nothing containerised counted as validation, so a project
-  // whose tests run in a container produced no evidence at all — 286 passing
-  // tests, and the completion gate still asking for a check.
-  assert.equal(isValidationCommand('docker compose exec -T app php artisan test'), true)
-  assert.equal(isValidationCommand(containerBuild), true)
-  assert.equal(isValidationCommand('docker exec -u root ctr npm run test'), true)
-
-  // A wrapper judges what it runs — it does not launder what it runs.
-  assert.equal(isValidationCommand('docker compose exec -T app rm -rf storage'), false)
-  assert.equal(isValidationCommand('docker compose exec -T app php artisan migrate'), false)
-
-  // Two runners that were missing outright, container or not.
-  assert.equal(isValidationCommand('php artisan test'), true)
-  assert.equal(isValidationCommand('./vendor/bin/phpunit'), true)
-  assert.equal(isValidationCommand('php artisan migrate'), false)
-
-  // Only one layer of each wrapper is peeled: guessing deeper is how a wrapper
-  // starts hiding a mutation inside a validation.
-  assert.equal(commandInsideWrappers('docker compose exec -T app php artisan test'), 'php artisan test')
-  assert.equal(commandInsideWrappers('npm run test'), 'npm run test')
-})
-
-test('reported: a long session can still commit', async () => {
-  // Webitel, 2026-08-26. An ADR/spec session made dozens of edits; every commit
-  // re-gated the whole accumulated list against a fixed 45s window, so once the
-  // per-file cost crossed it EVERY commit failed, naming a different file as the
-  // cutoff each time. Three retries, three different files.
-  const entries = []
-  for (let index = 0; index < 40; index += 1) {
-    entries.push(toolUse(`e${index}`, 'Write', { file_path: `/repo/docs/specs/spec-${index}.md` }),
-      toolResult(`e${index}`))
-  }
-  entries.push(toolUse('c1', 'Bash', { command: 'git commit -m "first batch"' }), toolResult('c1'))
-  entries.push(toolUse('last', 'Write', { file_path: '/repo/docs/specs/current.md' }), toolResult('last'))
-
-  const state = analyzeTranscript(transcript(entries))
-  assert.ok(state.mutationPaths.length > 40, 'the session still knows everything it touched')
-  // But the commit gates one file: the one being published.
-  assert.deepEqual(state.mutationPathsSince(state.lastPublish), ['/repo/docs/specs/current.md'])
-})
-
 test('reported: the nag says what changed in a form a person can read', async () => {
   // depozitas_laravel, 2026-08-26. The Stop message spliced 120 raw characters of
   // each command into one sentence, so a heredoc put newlines and a mid-token
@@ -1624,28 +1048,6 @@ test('reported: the nag says what changed in a form a person can read', async ()
   assert.doesNotMatch(message, /\\n/, message)
 })
 
-test('reported: cleaning up a scratch directory does not brick the session', async () => {
-  // This repository, 2026-08-26, mid-session. `W=<temp>; rm -rf "$W"` armed the
-  // unresolved-deletion sentinel, and because a publish after one failed closed,
-  // committing was blocked for the rest of the session. Two commits had to be
-  // run by hand through the `!` prefix.
-  const repo = await mkdtemp(path.join(testTmp, 'quality-scratch-'))
-  const scratch = path.join(os.tmpdir(), 'quality-scratch-target')
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'notes.md'), '# Notes\n')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `W=${scratch}\nrm -rf "$W"\nmkdir -p "$W"` }), toolResult('b1'),
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'notes.md') }), toolResult('e1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m one' }), toolResult('c1'),
-  ]))
-
-  // The scratch deletion resolves, so nothing is unresolved and nothing sticks.
-  const cleaned = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo)
-  assert.ok(!cleaned.includes('<Unresolved Bash deletion>'), JSON.stringify(cleaned))
-  const state = analyzeTranscript(await readFile(file, 'utf8'), repo)
-  assert.ok(!state.mutationPaths.includes('<Unresolved Bash deletion>'))
-})
-
 test('reported: a deletion in one command does not block every commit after it', async () => {
   // The rule that did this was inverted. Measured 2026-08-26: `rm -rf "$X" &&
   // git commit` in ONE command did NOT arm it — both land at the same tool-use
@@ -1665,53 +1067,6 @@ test('reported: a deletion in one command does not block every commit after it',
   // The completion boundary must not refuse the session outright.
   const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file, cwd: repo })
   assert.doesNotMatch(`${task.stdout}${task.stderr}`, /commit has already landed since/)
-})
-
-test('the gate names the check this project owns instead of asking for one', async () => {
-  // The harness's own repository names its check in a script.
-  assert.equal(projectCheckCommand(pluginDir), 'bash scripts/selftest.sh')
-
-  // A package manifest is read for a real script, in lock-file order.
-  const node = await mkdtemp(path.join(testTmp, 'quality-check-node-'))
-  await writeFile(path.join(node, 'package.json'),
-    JSON.stringify({ scripts: { build: 'tsc', test: 'vitest run' } }))
-  assert.equal(projectCheckCommand(node), 'npm run test')
-  await writeFile(path.join(node, 'pnpm-lock.yaml'), '')
-  assert.equal(projectCheckCommand(node), 'pnpm test')
-
-  // An empty or absent scripts block names nothing rather than guessing.
-  const bare = await mkdtemp(path.join(testTmp, 'quality-check-bare-'))
-  await writeFile(path.join(bare, 'package.json'), JSON.stringify({ name: 'x' }))
-  assert.equal(projectCheckCommand(bare), null)
-
-  const make = await mkdtemp(path.join(testTmp, 'quality-check-make-'))
-  await writeFile(path.join(make, 'Makefile'), 'all:\n\techo hi\ncheck:\n\techo ok\n')
-  assert.equal(projectCheckCommand(make), 'make check')
-
-  // Whatever is offered must be something the evidence rule actually accepts —
-  // naming a command the gate would then refuse is worse than naming none.
-  for (const command of ['bash scripts/selftest.sh', 'npm run test', 'pnpm test', 'make check',
-    'cargo test', 'go test ./...', 'pytest']) {
-    assert.equal(isValidationCommand(command), true, command)
-  }
-
-  // And the blocking message carries it. The fixture repo sits on a task branch
-  // with its own manifest, so this reads the project under test rather than the
-  // host checkout — the trap that made this suite branch-sensitive before.
-  spawnSync('git', ['init', '-q', '-b', 'task/work', node], { encoding: 'utf8', timeout: 60_000 })
-  // And the publish warning carries it. The fixture repo sits on a task branch
-  // with its own manifest, so this reads the project under test rather than the
-  // host checkout — the trap that made this suite branch-sensitive before.
-  const session = `named-check-${Date.now()}-${process.pid}`
-  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: node, session_id: session })
-  await writeFile(path.join(node, 'b.ts'), 'export {}\n')
-  const run = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: node, session_id: session,
-    tool_input: { command: 'git commit -m test' },
-  })
-  assert.equal(run.status, 0)
-  assert.match(run.stderr, /inferred from a manifest, not declared/)
-  assert.match(run.stderr, /pnpm test/)
 })
 
 test('a bin/ gate is spawned in a way Windows can actually run', async () => {
@@ -1893,181 +1248,6 @@ test('every hook script the runner accepts has its arguments wired', () => {
 
 // --- Wave 2 of docs/TEST-PLAN.md: the escapes, and the hook nothing ever fired.
 
-test('a commit gates what it is publishing, not everything the session touched', () => {
-  // mutationPaths is append-only across the whole transcript. Re-gating all of it
-  // at every commit meant the per-file cost grew without bound until it exceeded
-  // the boundary's 45s window — and from then on EVERY commit failed, whatever
-  // was staged, naming a different file as the cutoff each time. Reported from a
-  // live 2.1.7 session on 2026-08-26; on this repository's own transcript the
-  // accumulated list had reached 390 entries against 33 actually being published.
-  const state = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/first.md' }), toolResult('e1'),
-    toolUse('c1', 'Bash', { command: 'git commit -m first' }), toolResult('c1'),
-    toolUse('e2', 'Write', { file_path: '/repo/second.md' }), toolResult('e2'),
-  ]))
-
-  // The whole list is unchanged, because the completion gate and the nag still
-  // ask about the session.
-  assert.ok(state.mutationPaths.includes('/repo/first.md'))
-  assert.ok(state.mutationPaths.includes('/repo/second.md'))
-
-  // What a commit gates is only what came after the last publish.
-  const publishing = state.mutationPathsSince(state.lastPublish)
-  assert.deepEqual(publishing, ['/repo/second.md'])
-
-  // Before any publish, nothing is pruned — a first commit still gates it all.
-  const fresh = analyzeTranscript(transcript([
-    toolUse('e1', 'Write', { file_path: '/repo/only.md' }), toolResult('e1'),
-  ]))
-  assert.deepEqual(fresh.mutationPathsSince(fresh.lastPublish), ['/repo/only.md'])
-})
-
-test('a deletion whose path the command itself set is not unresolved', async () => {
-  // `W=/tmp/scratch; rm -rf "$W"` names its own path — the value is in the
-  // command, in front of the use. Until 2026-08-26 the sentinel armed on every
-  // scratch cleanup written that way, and because a publish after an unresolved
-  // deletion fails closed, committing was bricked for the rest of the session.
-  // It happened here, mid-session, on this repository.
-  const repo = await mkdtemp(path.join(testTmp, 'quality-deletion-'))
-  const scratch = path.join(os.tmpdir(), 'quality-deletion-target')
-  const resolved = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"`, repo)
-  assert.ok(!resolved.includes('<Unresolved Bash deletion>'), JSON.stringify(resolved))
-  assert.equal(resolved.length, 1)
-  // Separator-insensitive: the resolver normalises, and which separator it lands
-  // on is not what this test is about.
-  assert.match(resolved[0].replaceAll('\\', '/'), /quality-deletion-target$/)
-
-  // The three ways it must STILL refuse, because each would disarm the sentinel
-  // on a value the command did not establish.
-  const refuses = {
-    'a use before its assignment': `rm -rf "$W"\nW=${scratch}`,
-    'a value from the ambient environment': 'rm -rf "$HOME/thing"',
-    'a glob, which names no single path': `W=${scratch}\nrm -rf "$W"/*`,
-  }
-  for (const [why, command] of Object.entries(refuses)) {
-    assert.ok(bashDeletionMutationPaths(command, repo).includes('<Unresolved Bash deletion>'), why)
-  }
-
-  // Ordering is the point: a later reassignment must not reach back.
-  const ordered = bashDeletionMutationPaths(`W=${scratch}\nrm -rf "$W"\nW=${repo}`, repo)
-  assert.match(ordered[0].replaceAll('\\', '/'), /quality-deletion-target$/)
-})
-
-test('an unresolvable Bash write is named in one readable line', async () => {
-  // The completion message exists to say what changed. It used to splice 120 raw
-  // characters of the command into that sentence, so a heredoc put newlines and a
-  // mid-token truncation into it and five of them joined by ", " were unreadable.
-  // Reported from a live 2.1.7 session on 2026-08-26.
-  // The body has to actually WRITE. A heredoc that only reads is correctly not a
-  // mutation — the classifier inspects the script rather than assuming, which is
-  // why `python3 -` with unknown stdin counts and this one is judged on content.
-  const heredoc = 'cd /repo\npython3 - <<\'PY\'\nimport pathlib\n'
-    + 'pathlib.Path("tests/Unit/CustomerEmailTest.php").write_text("x")\nPY'
-  const described = describeCommand(heredoc)
-  assert.doesNotMatch(described, /\n/, 'a marker must not carry newlines into the sentence')
-  // NOT 'cd /repo'. The first line of an agent's Bash call is almost always the
-  // move into the repository, so describing it describes the one segment that
-  // changed nothing — and five such calls produced five identical markers that
-  // said nothing at all. Live 2.3.0 session, 2026-08-26.
-  assert.equal(described, "python3 - <<'PY'")
-
-  // Navigation is peeled however it is spelled, and a command that is ONLY
-  // navigation still describes itself rather than collapsing to an empty marker.
-  assert.equal(describeCommand('cd /repo\ngit add -A && git commit -m x'),
-    'git add -A && git commit -m x')
-  assert.equal(describeCommand('cd "/a b/repo" && rm -rf build'), 'rm -rf build')
-  assert.equal(describeCommand('pushd /repo; touch f'), 'touch f')
-  assert.equal(describeCommand('cd /repo'), 'cd /repo')
-  assert.equal(describeCommand('cd /repo &&'), 'cd /repo &&')
-
-  // Long single-line commands are cut at a word boundary, not mid-token.
-  const long = `git commit -m ${'word '.repeat(40)}`
-  const cut = describeCommand(long)
-  assert.ok(cut.length <= 73, cut)
-  assert.match(cut, /…$/)
-  assert.doesNotMatch(cut, /wor…$/, 'cut at a space, not inside a word')
-
-  // Short commands are left exactly as they are.
-  assert.equal(describeCommand('rm -rf build'), 'rm -rf build')
-  assert.equal(describeCommand(undefined), '')
-
-  // And the marker must stay non-absolute, because that is what keeps an
-  // unresolvable command OUT of the artifact gate rather than into it.
-  const dir = await mkdtemp(path.join(testTmp, 'quality-marker-'))
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: heredoc }), toolResult('b1'),
-  ]))
-  const state = analyzeTranscript(await readFile(file, 'utf8'))
-  const marker = state.mutationPaths.find(p => p.startsWith('<Bash mutation:'))
-  assert.ok(marker, 'the write is still recorded')
-  assert.doesNotMatch(marker, /\n/)
-  assert.equal(path.isAbsolute(marker), false)
-})
-
-test('a nested validation with a later succeeding segment does not silence Advise', async () => {
-  const dir = await checkedProject('quality-nested-true-')
-  const file = path.join(dir, 'nested-true.jsonl')
-  const command = "bash -c 'bash -n'; true"
-  await writeFile(file, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command }),
-    toolResult('t1', false, 'ok'),
-  ]))
-  assert.notEqual(classifyCommand(command), 'validation')
-  const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-  assert.equal(state.lastSuccessfulValidation, -1,
-    'a succeeding ; true must not become lastSuccessfulValidation')
-})
-
-test('a failed UNPROVEN write does not advance lastUnprovenWrite', async () => {
-  const dir = await checkedProject('quality-unproven-failed-write-')
-  const writes = [
-    ['mcp', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }],
-    ['mrw', 'Bash', { command: 'mrw write --plan-file p.txt' }],
-  ]
-  for (const [name, tool, input] of writes) {
-    const file = path.join(dir, `${name}-fail.jsonl`)
-    await writeFile(file, transcript([
-      toolUse('w1', tool, input), toolResult('w1', true, 'write failed'),
-      toolUse('t1', 'Bash', { command: 'pnpm test' }),
-      toolResult('t1', false, '12 passed'),
-    ]))
-    const state = analyzeTranscript(await readFile(file, 'utf8'), dir)
-    assert.equal(state.lastUnprovenWrite, -1, name)
-    assert.notEqual(state.authorship, 'UNPROVEN', name)
-    const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file, cwd: dir })
-    assert.doesNotMatch(`${stop.stdout}${stop.stderr}`, /systemMessage/, name)
-    const note = sessionStateNote(state, dir, dir, false)
-    assert.doesNotMatch(note.text, /no recognised check has proven it/)
-    const value = reading({
-      session_id: `unproven-failed-write-${name}-${Date.now()}-${process.pid}`,
-      transcript_path: file,
-      workspace: { current_dir: dir },
-    })
-    assert.notEqual(value.kind, 'unverified', name)
-  }
-
-  const ok = path.join(dir, 'ok-then-check.jsonl')
-  await writeFile(ok, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }), toolResult('w1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }),
-    toolResult('t1', false, '12 passed'),
-  ]))
-  const okState = analyzeTranscript(await readFile(ok, 'utf8'), dir)
-  assert.ok(okState.lastUnprovenWrite >= 0)
-  assert.ok(okState.lastSuccessfulValidation > okState.lastUnprovenWrite)
-  const okStop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: ok, cwd: dir })
-  assert.doesNotMatch(`${okStop.stdout}${okStop.stderr}`, /systemMessage/)
-
-  const inflight = path.join(dir, 'inflight.jsonl')
-  await writeFile(inflight, transcript([
-    toolUse('w1', 'mcp__mrw__mrw_write', { plan: 'docs/a.md' }),
-  ]))
-  const inflightState = analyzeTranscript(await readFile(inflight, 'utf8'), dir)
-  assert.equal(inflightState.lastUnprovenWrite, -1)
-})
-
 test('a reviewer is denied only a command naming commit or push (ADR-060)', async () => {
   const repo = await checkedProject('quality-reviewer-word-rule-')
   const decide = (command) => JSON.parse(runLifecycleHook({
@@ -2181,138 +1361,6 @@ test('EVIDENCE-LIMITED opens the completion gate only with a stated reason, and 
     'EVIDENCE-LIMITED: prose only, nothing here executes').stdout, /"systemMessage"/)
 })
 
-test('a heredoc that only reads through a literal read-only subprocess is not a mutation', () => {
-  // docs/BACKLOG.md §175, verbatim from the reporting session: a Python heredoc
-  // that grepped the tree and printed a JSON summary was listed under "Changed
-  // paths" as a mutation, on the strength of `subprocess` and `re.search(`.
-  const body = [
-    'import re,pathlib,subprocess,json', 'defs={}',
-    'out=subprocess.run(["grep","-rnoE",r"def test_[a-z0-9_]+","tests/"],capture_output=True,text=True).stdout',
-    'for line in out.splitlines():', '  m=re.search(r"def (test_\\w+)",line)',
-    '  defs.setdefault(m.group(1),[]).append(line.split(":")[0])',
-    'print(json.dumps(defs,indent=0))',
-  ].join('\n')
-  const heredoc = script => `cd /repo\ngh run list --limit 1 --json headSha 2>&1 | head -3\npython3 - <<'PY'\n${script}\nPY`
-  assert.equal(isPotentialMutationCommand(heredoc(body)), false)
-  // The must-fail arms: a literal argv that mutates, a computed argv, and
-  // `shell=True` each keep the command a mutation.
-  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run(["rm","-rf","build"])')), true)
-  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run(argv)')), true)
-  assert.equal(isPotentialMutationCommand(heredoc('import subprocess\nsubprocess.run("ls", shell=True)')), true)
-  assert.equal(isPotentialMutationCommand(heredoc('import pathlib\npathlib.Path("x").write_text("y")')), true)
-})
-
-test('the writes a different-lineage review got past these classifiers', async () => {
-  // docs/BACKLOG.md §180. Every input below is verbatim from that review and each
-  // was classified NON-mutating or docs-only at the time. The coarse mutants for
-  // these functions already died, which is exactly the point: they prove a branch
-  // is reachable, not that it is NARROW enough. A guard is only worth the input
-  // that would slip past a narrower version of it (CLAUDE.md §4).
-  const heredoc = body => `python3 - <<'PY'\nimport subprocess\n${body}\nPY`
-
-  // withoutReadOnlySubprocessCalls read "not recognised as mutating" as "safe" —
-  // ADR-005 inverted, inside the gate that enforces it.
-  for (const [label, body] of [
-    ['an executable hidden in a variable', 'cmd = "rm"\nsubprocess.run([cmd, "-rf", "build"])'],
-    ['tar extracts',                       'subprocess.run(["tar", "-xf", "archive.tar"])'],
-    ['find -exec runs anything',           'subprocess.run(["find", ".", "-exec", "./mutate", "{}", ";"])'],
-    ['stdout=open writes a file the argv never names',
-                                           'subprocess.run(["grep", "x", "in"], stdout=open("out.txt", "w"))'],
-    // ⚠ THE CASE THAT DISTINGUISHES "EVERY ELEMENT MUST BE A LITERAL" FROM THE
-    // EXECUTABLE CHECK, and it took three tries to find one that does. `cmd = "rm"`
-    // is caught by the executable test whether or not non-literals are skipped,
-    // because skipping leaves `-rf` as the command name. A computed `"-exec"` looked
-    // right and was worse than useless: that literal string trips `\bexec\b` in
-    // VISIBLE_CODE_MUTATION_TOKENS, so the case read MUTATING for a reason having
-    // nothing to do with this guard, and the mutant stayed GREEN behind it twice.
-    //
-    // These two carry a READ-ONLY literal head and a computed element that trips no
-    // token by itself, so only refusing the whole call keeps them: skipping the
-    // non-literal leaves `find . flag`, which FIND_WRITES cannot see (BACKLOG §188).
-    ['a computed argument that could be -delete',
-     'flag = "-delete"\nsubprocess.run(["find", ".", flag])'],
-    ['a computed argument to a read-only head',
-     'p = "x"\nsubprocess.run(["grep", p, "in"])'],
-  ]) {
-    assert.equal(isPotentialMutationCommand(heredoc(body)), true, label)
-  }
-  // ...and the genuinely read-only call the exemption exists for is still exempt,
-  // or "recognise nothing" would satisfy every assertion above.
-  assert.equal(isPotentialMutationCommand(
-    heredoc('out = subprocess.run(["grep", "-rn", "x", "tests/"], capture_output=True).stdout')), false)
-  assert.equal(isPotentialMutationCommand(
-    heredoc('subprocess.run(["find", ".", "-name", "*.py"])')), false)
-
-  // The Markdown-only marker suppression laundered a code write through the
-  // docs-only escape: one .md argument silenced the Stop notice for a command
-  // that rewrote a gate.
-  const launder = 'python3 -c "open(\'plugin/bin/adr-lint\',\'w\').write(\'x\')" docs/BACKLOG.md'
-  assert.equal(namesOnlyMarkdownFiles(launder, repoRoot), false, 'an interpreter body cannot be read')
-  assert.equal(namesOnlyMarkdownFiles("python3 - <<EOF\nopen('x','w')\nEOF\ndocs/a.md", repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('some-tool --out docs/a.md', repoRoot), false, 'unknown command')
-  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true,
-    'a real docs edit still earns the exemption')
-
-  // writesOutsideProject exempted genuine in-repository writes: the CWD was the
-  // boundary rather than the git root, and `cd` followed into a FILE, which bash
-  // rejects while staying where it was.
-  assert.equal(writesOutsideProject('cd ../docs && touch BACKLOG.md', path.join(repoRoot, 'plugin')), false,
-    'the project is its git root, not wherever the session happens to stand')
-  // ⚠ A COMMAND THAT NEVER NAVIGATES CANNOT BE OUTSIDE THE PROJECT — true by
-  // construction, and it was being COMPUTED from two paths agreeing. On the
-  // Windows runner they did not: `printf x > notes.txt`, with no `cd` anywhere,
-  // was exempted and its mutation marker dropped, so a session that wrote a file
-  // was asked for no evidence (BACKLOG 188). Canonicalising both sides was the
-  // first fix and did not hold; this asserts the invariant instead.
-  assert.equal(writesOutsideProject('printf x > notes.txt', repoRoot), false,
-    'no cd means the command ran in the project')
-  assert.equal(writesOutsideProject('sed -i "s/a/b/" plugin/bin/adr-lint', repoRoot), false)
-  assert.equal(writesOutsideProject('cd /etc/passwd; touch plugin/bin/adr-lint', repoRoot), false,
-    'cd into a file fails and the shell stays in the repository')
-  assert.deepEqual(segmentDirectories('cd /etc/passwd; touch x', repoRoot).map(t => t.dir),
-    [repoRoot, repoRoot])
-  // ...and a write that really is outside is still exempt, or the fix would be
-  // "always false" and the exemption dead rather than correct.
-  const away = await mkdtemp(path.join(testTmp, 'quality-away-'))
-  assert.equal(writesOutsideProject(`cd "${away}" && touch note.md`, repoRoot), true)
-})
-
-test('two doors into the evidence gate that this release opened and closed', async () => {
-  // docs/BACKLOG.md §183, found by probing these two functions directly rather
-  // than through a transcript. BOTH are fail-opens introduced by this range: a
-  // real code write escaping the Stop evidence requirement. Before this range
-  // neither exemption existed, so each was a REGRESSION in what the gate can see.
-  //
-  // 1. A BARE WORD CAN BE A DIRECTORY. `cp docs/BACKLOG.md plugin` writes into a
-  //    code directory; requiring a `/` or a `.` in a token skipped it entirely,
-  //    so the command read as docs-only and the mutation marker was withheld.
-  //    `plugin/` with a slash was held all along, which is what made it look fine.
-  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin', repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('mv docs/BACKLOG.md plugin', repoRoot), false)
-  assert.equal(namesOnlyMarkdownFiles('cp docs/BACKLOG.md plugin/', repoRoot), false)
-  // ...and the exemption still fires for a real documents-only edit, or the fix
-  // would be "never docs-only" and the optimisation dead rather than correct.
-  assert.equal(namesOnlyMarkdownFiles('sed -i "s/a/b/" docs/BACKLOG.md README.md', repoRoot), true)
-  assert.equal(namesOnlyMarkdownFiles('cd docs && touch a.md', repoRoot), true)
-
-  // 2. `~` IS EXPANDED BY THE SHELL AND WAS NOT EXPANDED HERE. `$HOME` was
-  //    already held, because `$` marks a token this cannot follow; `~` carries no
-  //    such mark, so a write bash makes INSIDE the repository was exempted.
-  // ⚠ `/tmp` DOES NOT EXIST ON WINDOWS, and a `cd` that fails leaves the shell
-  // where it was — which is the behaviour this parser deliberately copies. Three
-  // assertions here used /tmp and two of them passed on Windows for the WRONG
-  // reason (the cd failed, so nothing was outside anything). A real temporary
-  // directory makes the intent hold on every platform (BACKLOG §188).
-  const outside = await mkdtemp(path.join(testTmp, 'quality-tilde-'))
-  const under = path.relative(os.homedir(), repoRoot)
-  if (!under.startsWith('..') && !path.isAbsolute(under)) {
-    assert.equal(writesOutsideProject(`cd "${outside}" && touch ~/${under}/plugin/bin/adr-lint`, repoRoot), false)
-  }
-  assert.equal(writesOutsideProject(`cd "${outside}" && touch "$HOME/x/plugin/bin/adr-lint"`, repoRoot), false)
-  // ...and a tilde path that really is outside the project is still exempt.
-  assert.equal(writesOutsideProject(`cd "${outside}" && touch ~/scratch-qh-note.md`, repoRoot), true)
-})
-
 test('an interim answer defers the gate at Stop, and never at TaskCompleted', async () => {
   const { dir, session } = await unheldRepository('quality-interim-', 'notes.md')
   const at = (event, message) => runLifecycleHook({
@@ -2335,50 +1383,6 @@ test('an interim answer defers the gate at Stop, and never at TaskCompleted', as
   // one — once per rule and evidence state (ADR-060).
   await writeFile(path.join(dir, 'second.md'), '# second\n')
   assert.match(at('Stop', 'All done, shipped it.').stdout, /"systemMessage"/)
-})
-
-test('navigation refreshes the tree without counting as authored work', async () => {
-  const repo = await mkdtemp(path.join(testTmp, 'quality-navigation-'))
-  spawnSync('git', ['init', '-q', '-b', 'main', repo], { encoding: 'utf8', timeout: 60_000 })
-  await writeFile(path.join(repo, 'tracked.txt'), 'one\n')
-  const git = (...args) => spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 60_000 })
-  git('add', '-A')
-  git('-c', 'user.email=gate@test', '-c', 'user.name=Gate', 'commit', '-q', '-m', 'init')
-  git('branch', 'task/work')
-
-  assert.equal(bashNavigationImpact('git checkout task/work && git pull --ff-only', repo), 'refresh')
-  assert.equal(bashNavigationImpact('git switch task/work', repo), 'refresh')
-  // A non-fast-forward pull can create a merge commit: authorship, not navigation.
-  assert.equal(bashNavigationImpact('git pull', repo), null)
-  assert.equal(bashNavigationImpact('git pull --rebase', repo), null)
-  assert.equal(bashNavigationImpact('git checkout -b task/next', repo), 'inert')
-  assert.equal(bashNavigationImpact('git checkout -b task/next origin/main', repo), 'refresh')
-  assert.equal(bashNavigationImpact('git pull --ff-only && rm -rf src', repo), null)
-  assert.equal(bashNavigationImpact('git checkout tracked.txt', repo), null)
-  assert.equal(bashNavigationImpact('git status', repo), null)
-
-  // A session that only navigated authored nothing and owes nothing.
-  const navigationOnly = analyzeTranscript(transcript([
-    toolUse('b1', 'Bash', { command: 'git checkout task/work && git pull --ff-only' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(navigationOnly.hasMutations, false)
-
-  // But navigating after a green run stales that evidence: the tested tree is
-  // no longer the current tree.
-  const staleAfterSwitch = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'git checkout task/work' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(staleAfterSwitch.verifiedAfterLastMutation, false)
-
-  // Creating a branch where you stand changes no tree and stales nothing.
-  const branchAfterGreen = analyzeTranscript(transcript([
-    toolUse('e1', 'Edit', { file_path: path.join(repo, 'a.ts') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'pnpm test' }), toolResult('t1', false, '12 passed'),
-    toolUse('b1', 'Bash', { command: 'git checkout -b task/next' }), toolResult('b1'),
-  ]), repo)
-  assert.equal(branchAfterGreen.verifiedAfterLastMutation, true)
 })
 
 test('session orientation states this project, and only this project', async () => {
@@ -2720,56 +1724,6 @@ test('listing-null still names a stale shadow install, not no corpus', async () 
     { env: hookEnv },
   )
   assert.match(`${listed.stdout}${listed.stderr}`, /SEPARATE copy/)
-})
-
-test('reported: a scratch directory made the standard way is still scratch', async () => {
-  // `W=$(mktemp -d)` is how everyone makes a scratch directory, and every use of
-  // it armed the unresolved-deletion sentinel AND counted as repository
-  // authorship — so cleaning up after yourself invalidated a check that had
-  // already passed. Two causes: the assignment pattern's `\S*` stopped at the
-  // space inside the substitution, so the value was never recorded at all, and
-  // nothing knew what mktemp -d returns.
-  const repo = pluginDir
-  const clean = 'W=$(mktemp -d); cp README.md "$W/"; rm -rf "$W"'
-  assert.equal(mutatesOnlyTempPaths(clean, repo), true)
-  assert.deepEqual(bashDeletionMutationPaths(clean, repo)
-    .filter(entry => entry === '<Unresolved Bash deletion>'), [])
-  assert.equal(mutatesOnlyTempPaths('rm -rf "$(mktemp -d)"', repo), true)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -t qh); rm -rf "$W"', repo), true)
-
-  // Only the spellings that cannot name somewhere else. -p and --tmpdir point
-  // where they are told, and a bare template is created relative to the working
-  // directory by GNU mktemp — `mktemp -d buildXXXXXX` writes into the repo.
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -p .); rm -rf "$W"', repo), false)
-  // The glued and `=` spellings are the ones the flag guard exists for: a bare
-  // operand is already refused, so without it these would read as scratch.
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d -p.); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d --tmpdir=.); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp -d buildXXXX); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(mktemp); rm -rf "$W"', repo), false)
-  assert.equal(mutatesOnlyTempPaths('W=$(pwd); rm -rf "$W"', repo), false)
-})
-
-test('reported: naming a gate is not running it, and asking is not writing', async () => {
-  // Both from live sessions on 2026-08-26.
-  // `which adr-lint adr-verify arch-lint` asks where the gates are and runs
-  // none of them; the pattern counted the mention.
-  assert.equal(isPotentialMutationCommand('which adr-lint adr-verify arch-lint'), false)
-  assert.equal(isPotentialMutationCommand('command -v adr-verify'), false)
-  // Running it really is authorship: it writes a Verification Log entry.
-  assert.equal(isPotentialMutationCommand('adr-verify docs/tasks/T1.md'), true)
-  assert.equal(isPotentialMutationCommand('python3 bin/adr-verify docs/tasks/T1.md'), true)
-
-  // An unrecognised call inside `-c` is treated as a mutation, which made
-  // `print(inspect.signature(X.__init__))` authorship and demanded a re-run of
-  // the project's check for having looked something up.
-  assert.equal(isPotentialMutationCommand(
-    'python3 -c "import inspect; print(inspect.signature(int))"'), false)
-  assert.equal(isPotentialMutationCommand(
-    './.venv/Scripts/python.exe -c "import inspect\nfrom x import Y\nprint(inspect.signature(Y.__init__))"'), false)
-  // The conservative default survives: a call nobody recognises still counts.
-  assert.equal(isPotentialMutationCommand('python3 -c "open(\'f\',\'w\').write(1)"'), true)
-  assert.equal(isPotentialMutationCommand('python3 -c "shutil.rmtree(p)"'), true)
 })
 
 test('the harness has no opinion about git branches', async () => {

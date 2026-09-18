@@ -280,51 +280,6 @@
       "to": "\"--every\" in flags"
     },
     {
-      "label": "hooks: an unresolvable Bash write is one readable line",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const line = collapse(remainder) || collapse(script)",
-      "to": "  const line = String(command ?? '').slice(0, 120)"
-    },
-    {
-      "label": "hooks: a commit gates only what it publishes",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    mutationPathsSince: position => mutationPaths.filter((_, index) => mutationPositions[index] > position),",
-      "to": "    mutationPathsSince: () => mutationPaths,"
-    },
-    {
-      "label": "hooks: a deletion path the command set is resolved",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw",
-      "to": "        const operand = raw"
-    },
-    {
-      "label": "hooks: a deletion never trusts the ambient environment",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, false) : raw",
-      "to": "        const operand = /\\$/.test(raw) ? expandShellToken(raw, assignments, true) : raw"
-    },
-    {
-      "label": "hooks: a Windows path is a path, not an escape",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        const ambiguous = platform === 'win32' ? '*?[]{}' : '*?[]{}\\\\'",
-      "to": "        const ambiguous = '*?[]{}\\\\'"
-    },
-    {
       "label": "gates: the edit boundary advises rather than blocks",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "tests": [
@@ -460,24 +415,6 @@
       "to": "  process.stderr.write(`${reason}\\n`)\n  if (input?.hook_event_name !== 'PreToolUse') {\n    return\n  }"
     },
     {
-      "label": "advisory: a wrapper does not launder a mutation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const inner = commandInsideWrappers(command)\n  if (inner && inner !== command.trim()) return isValidationCommand(inner)",
-      "to": "  const inner = commandInsideWrappers(command)\n  if (inner && inner !== command.trim()) return true"
-    },
-    {
-      "label": "advisory: --rm is a flag, not the rm command",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  return /(?<![-\\w])(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)(?![-\\w])/.test(executable)",
-      "to": "  return /\\b(?:rm|mv|cp|install|mkdir|rmdir|touch|truncate|tee|dd|patch|apply_patch|rsync|chmod|chown|ln)\\b/.test(executable)"
-    },
-    {
       "label": "advisory: php artisan test is validation",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -487,33 +424,6 @@
       "to": ""
     },
     {
-      "label": "advisory: the marker names the write, not the cd that preceded it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const script = withoutHeredocBodies(String(command ?? ''))",
-      "to": "  const script = String(command ?? '').split(String.fromCharCode(10))[0]"
-    },
-    {
-      "label": "advisory: cd arguments stop at the newline",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "(?:[ \\t]+(?:\"[^\"]*\"|'[^']*'|[^\\s;&|<>]+))*",
-      "to": "(?:\\s+(?:\"[^\"]*\"|'[^']*'|[^\\s;&|<>]+))*"
-    },
-    {
-      "label": "advisory: the changed-path list is distinct",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (seen.has(entry)) continue\n    seen.add(entry)",
-      "to": "    seen.add(entry)"
-    },
-    {
       "label": "advisory: a project that names no check hears nothing",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -521,51 +431,6 @@
       ],
       "from": "  if (!check) return\n\n  const changed",
       "to": "  if (false) return\n\n  const changed"
-    },
-    {
-      "label": "advisory: finding the repo root does not disqualify the check",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !inertNavigation(line))",
-      "to": "    .filter(line => line && !ASSIGNMENT_ONLY.test(line) && !CD_ONLY.test(line))"
-    },
-    {
-      "label": "advisory: an env prefix does not hide the command",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "segment.replace(ASSIGNMENT_PREFIX, '').replace(TIMEOUT_PREFIX, '')",
-      "to": "segment.replace(TIMEOUT_PREFIX, '')"
-    },
-    {
-      "label": "advisory: a substitution still fails the guard",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      && segments.every(segment => !UNSAFE_SEGMENT.test(segment)",
-      "to": "      && segments.every(segment => true"
-    },
-    {
-      "label": "advisory: a git revision is not a changed path",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (/^.{2,}:/.test(candidate)) continue",
-      "to": "    if (false) continue"
-    },
-    {
-      "label": "advisory: cp is accounted by its destination",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "          if (word === 'cp') operands.push(argument)",
-      "to": "          if (false) operands.push(argument)"
     },
     {
       "label": "advisory: the harness never blocks over its own breakage",
@@ -586,42 +451,6 @@
       "to": ""
     },
     {
-      "label": "advisory: mktemp -d is a temp directory",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      ? mktempDirectoryValue()",
-      "to": "      ? match"
-    },
-    {
-      "label": "advisory: mktemp -d -p names somewhere else",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (/^(?:-p|--tmpdir)/.test(word)) return false",
-      "to": "    if (word === '--never-matches') return false"
-    },
-    {
-      "label": "advisory: an assignment can hold a substitution",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(\"[^\"]*\"|'[^']*'|\\$\\([^()]*\\)|`[^`]*`|\\S*)$/",
-      "to": "const SHELL_ASSIGNMENT = /^([A-Za-z_][A-Za-z0-9_]*)=(\"[^\"]*\"|'[^']*'|\\S*)$/"
-    },
-    {
-      "label": "advisory: naming adr-verify is not running it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    || runsAdrVerify(executable)",
-      "to": "    || /(?:^|\\s)(?:\\S*[\\\\/])?adr-verify(?:\\s|$)/i.test(executable)"
-    },
-    {
       "label": "advisory: introspection is not authorship",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -629,15 +458,6 @@
       ],
       "from": "  'inspect.signature', 'isinstance', 'issubclass', 'getmembers', 'getsource',\n  'isclass', 'isfunction', 'signature', 'vars',",
       "to": ""
-    },
-    {
-      "label": "advisory: a Windows venv interpreter is an interpreter",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    /\\b(?:python3?|node|ruby|perl|php)(?:\\.exe)?\\b((?:\\s+-[A-Za-bd-z]\\w*)*\\s+-[ce]\\s+)('[^']*'|\"(?:[^\"\\\\]|\\\\.)*\")/g,",
-      "to": "    /\\b(?:python3?|node|ruby|perl|php)\\b((?:\\s+-[A-Za-bd-z]\\w*)*\\s+-[ce]\\s+)('[^']*'|\"(?:[^\"\\\\]|\\\\.)*\")/g,"
     },
     {
       "label": "advisory: the harness has no opinion about branches",
@@ -1159,15 +979,6 @@
       ],
       "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
       "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'"
-    },
-    {
-      "label": "verdict: only a pass is evidence",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (lastVerdict === 'passed') {",
-      "to": "        if (lastVerdict !== 'failed') {"
     },
     {
       "label": "verdict: Windows says none of what POSIX says",
@@ -4856,24 +4667,6 @@
       "to": "  const first = true\n  const headline = advisoryHeadline(reason)"
     },
     {
-      "label": "lifecycle: a shell assignment names the markdown file through its value, not as a path called NAME=…",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (kept.has(name)) paths.push(...expandExistingGlob(value, cwd))",
-      "to": "      if (kept.has(name)) paths.push(...expandExistingGlob(`${name}=${value}`, cwd))"
-    },
-    {
-      "label": "lifecycle: a key=value argument is data, not a path the gate reports",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (SHELL_ASSIGNMENT.test(candidate)) continue\n      if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue",
-      "to": "      if (!/\\.md(?:$|[),\\]])/i.test(candidate)) continue"
-    },
-    {
       "label": "lifecycle: a changed PreToolUse finding is news again, not a repeat",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -6389,24 +6182,6 @@
       "to": "    if False:\n        print(f\"[adr-verify] {task.name} already carries {prior} exit-0 \"\n"
     },
     {
-      "label": "lifecycle: a Bash edit naming only Markdown files carries no mutation marker",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (markdown.length === 0 || !namesOnlyMarkdownFiles(use.input.command, cwd)) {\n",
-      "to": "        if (true) {\n"
-    },
-    {
-      "label": "lifecycle: a real non-Markdown path in a Bash edit keeps the marker",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (expandExistingGlob(candidate, cwd).some(resolved => existsSync(resolved))) return false\n",
-      "to": "    if (false) return false\n"
-    },
-    {
       "label": "lifecycle: a literal read-only subprocess argv in a heredoc is not a mutation",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -6423,33 +6198,6 @@
       ],
       "from": "        if (!literal) return whole\n",
       "to": "        if (!literal) { words.push(element); continue }\n"
-    },
-    {
-      "label": "lifecycle: a relative path follows the command's own cd",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (isDirectory(next)) here = next\n",
-      "to": "        if (false) here = next\n"
-    },
-    {
-      "label": "lifecycle: a write outside the project is not a project change",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "          && !writesOutsideProject(use.input.command, cwd)) {\n",
-      "to": "          && true) {\n"
-    },
-    {
-      "label": "lifecycle: an absolute path back into the project is not outside it",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (resolved !== null && underDirectory(resolved, project)) return false\n",
-      "to": "      if (false) return false\n"
     },
     {
       "label": "lint: a runner that fails on an empty selection is itself the vacuity check",
@@ -6569,15 +6317,6 @@
       "to": "      if (false) return whole\n"
     },
     {
-      "label": "lifecycle: an interpreter is not a direct file writer",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir)$/\n",
-      "to": "const DIRECT_FILE_WRITER = /^(?:cp|mv|touch|rm|ln|cat|tee|sed|printf|echo|mkdir|rmdir|python3?|node)$/\n"
-    },
-    {
       "label": "lint: an OR tail that always fails makes its head load-bearing",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -6603,24 +6342,6 @@
       ],
       "from": "                              f\"fenced ELSEWHERE is unproven here: a file that was planned and never \"\n",
       "to": "                              f\"fenced ELSEWHERE is not in doubt: nothing can run it, and never \"\n"
-    },
-    {
-      "label": "lifecycle: a bare directory name is a write target, not a skipped token",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (candidate === '.' || candidate === '..') continue\n",
-      "to": "        if (!/[/.]/.test(candidate) || candidate === '.' || candidate === '..') continue\n"
-    },
-    {
-      "label": "lifecycle: a tilde path is expanded before it is judged outside the project",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      const expanded = token.startsWith('~/') ? path.join(os.homedir(), token.slice(2))\n        : (token === '~' ? os.homedir() : token)\n",
-      "to": "      const expanded = token\n"
     },
     {
       "label": "lint: the shell splitter does not cut inside a command substitution",
@@ -7267,57 +6988,6 @@
       "from": "**Invalidates:** Amends ADR-012 §2 for the could-not-run case.",
       "to": "**Invalidates:** none",
       "only": "^ADR-046 names the ADR-012 §2 amendment for a completed could-not-run exit$"
-    },
-    {
-      "label": "classify: an unmeasured family is unrecognised, not neither (ADR-047 T1)",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs"
-      ],
-      "from": "    if (family && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'",
-      "to": "    if (false) return 'unrecognised'",
-      "only": "a path-shaped unmeasured family is unrecognised"
-    },
-    {
-      "label": "classify: nested validation does not certify a later succeeding segment",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs"
-      ],
-      "from": "      if (inner === 'unrecognised' || inner === 'mutation') {",
-      "to": "      if (inner === 'unrecognised' || inner === 'mutation' || inner === 'validation') {",
-      "only": "a nested validation does not certify"
-    },
-    {
-      "label": "classify: foreign family is unrecognised before POSIX letters (ADR-047 T2)",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs"
-      ],
-      "from": "    if (FOREIGN_SHELL_FAMILIES.has(familyOf(segment, hooks))) return 'unrecognised'\n  }\n\n  // A family outside MEASURED_FAMILIES may still carry one measured read-only\n  // subcommand (`mrw read`, ADR-058 T2). Both family checks below ask the hook,\n  // which admits that invocation only; its redirects and sibling segments are\n  // still judged by the mutation check at the end.\n  //\n  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (family && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'",
-      "to": "    if (false) return 'unrecognised'\n  }\n\n  if (hooks.isValidationCommand(command)) return 'validation'\n\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const family = familyOf(segment, hooks)\n    if (false) return 'unrecognised'",
-      "only": "POSIX rm as the executable stays mutation|pwsh or cmd with POSIX letters in the payload is unrecognised, not mutation"
-    },
-    {
-      "label": "classify: a never-measured bare *selftest* is unrecognised, not validation",
-      "file": "plugin/scripts/classify-command.mjs",
-      "tests": [
-        "tests/classify.test.mjs",
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  // Bare PATH family first: VALIDATION_PATTERNS admits any first word containing\n  // selftest/check, which certified an unpublished name. A path-shaped executable\n  // still goes through isValidationCommand (`./scripts/selftest.sh`). CLAUDE.md §16.\n  for (const segment of segments) {\n    if (hooks.nestedShellScript(segment)) continue\n    const invocation = hooks.commandInvocation(segment)\n    if (!invocation) continue\n    const word = invocation.words[invocation.index] ?? ''\n    const family = familyOf(segment, hooks)\n    if (family && !/[/\\\\]/.test(word) && !MEASURED_FAMILIES.has(family)\n      && !hooks.isRecognisedReadInvocation?.(segment)) return 'unrecognised'\n  }\n\n",
-      "to": "\n",
-      "only": "a never-measured bare \\*selftest\\* or \\*check\\* is unrecognised|a passing never-measured \\*selftest\\* after an UNPROVEN write"
-    },
-    {
-      "label": "lifecycle: analyzeTranscript certifies only classifyCommand validation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (use.name === 'Bash' && classifyCommand(use.input.command) === 'validation'",
-      "to": "    if (use.name === 'Bash' && isValidationCommand(use.input.command)",
-      "only": "a passing never-measured \\*selftest\\* after an UNPROVEN write"
     },
     {
       "label": "corpus: an unreadable listed ADR is PARTIAL, not dropped as not-a-record",
@@ -8181,46 +7851,6 @@
       "only": "chmod-000 named ADR with strictFrom is UNPROVEN exit 2, not a traceback"
     },
     {
-      "label": "lifecycle: unrecognised Bash advances lastUnprovenWrite (ADR-047 T3)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))\n          && !isMrwWriteCheckCommand(use.input.command)) {",
-      "to": "      // mcp__mrw__mrw_write already sets (ADR-047 F-2).\n      if (false) {",
-      "only": "unrecognised Bash is Advise the same way an MCP write is|echo is not Advise, and a classify-only green is not this fact"
-    },
-    {
-      "label": "lifecycle: UNPROVEN Advise has a validation term (ADR-048 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    unprovenWritePending: () => lastUnprovenWrite > lastPublish\n      && !(lastSuccessfulValidation > lastUnprovenWrite && lastSuccessfulValidation === lastValidation),",
-      "to": "    unprovenWritePending: () => lastUnprovenWrite > lastPublish,",
-      "only": "a passing recognised check after an UNPROVEN write silences Advise|a failing check after an UNPROVEN write still Advises, and Read does not flag"
-    },
-    {
-      "label": "lifecycle: lastUnprovenWrite only on success, unrecognised arm (ADR-048 T2)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (kind === 'unrecognised' && commandSucceeded(results.get(use.id))\n          && !isMrwWriteCheckCommand(use.input.command)) {",
-      "to": "      if (kind === 'unrecognised'\n          && !isMrwWriteCheckCommand(use.input.command)) {",
-      "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
-    },
-    {
-      "label": "lifecycle: lastUnprovenWrite only on success, MCP arm (ADR-048 T2)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    } else if (executed(use) && commandSucceeded(results.get(use.id)) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
-      "to": "    } else if (executed(use) && use.name !== 'Bash' && !MUTATION_TOOLS.has(use.name)",
-      "only": "a failed UNPROVEN write does not advance lastUnprovenWrite"
-    },
-    {
       "label": "lock: first-red suffix is written (ADR-050 T1)",
       "file": "plugin/bin/adr-verify",
       "tests": [
@@ -8269,16 +7899,6 @@
       "from": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    adr-lint|arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
       "to": "unrun_exit() {\n  case \"$1\" in\n    \"spec-verify --draft\") printf '4' ;;\n    arch-lint|adr-retire-check|postmortem-verify) printf '2' ;;",
       "only": "UNPROVEN through the dispatcher, not not satisfied"
-    },
-    {
-      "label": "advisory: provenMutationPaths drops stand-ins and paths outside cwd (ADR-051 T1)",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "    if (typeof entry !== 'string' || !entry || entry.startsWith('<')) continue",
-      "to": "    if (typeof entry !== 'string' || !entry) continue",
-      "only": "Stop does not invent writes from probes, markers, or paths outside the repo"
     },
     {
       "label": "lock: a UTF-8 lock map with no check record is unreadable",

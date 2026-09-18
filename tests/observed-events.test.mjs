@@ -929,3 +929,57 @@ test('a compaction note sees the latest edit', () => {
   assert.equal(rows.at(-1)?.status, 'unverified', JSON.stringify(rows.at(-1)))
   assert.ok(JSON.stringify(rows.at(-1)?.files ?? []).includes('late.md'), JSON.stringify(rows.at(-1)))
 })
+
+// ---- T7: the command classifiers are deleted.
+//
+// The list is ADR-060's: every symbol that read a command's TEXT to decide what
+// happened. `readOnlyVerdict` and `containsCommitOrPush` stay, because the word
+// rule is the one reading of command text the decision keeps.
+const DELETED_SYMBOLS = [
+  'classifyCommand', 'classifyCommandWithHooks', 'isPotentialMutationCommand', 'isValidationCommand',
+  'bashMarkdownMutationPaths', 'bashDeletionMutationPaths', 'analyzeTranscript', 'isGitPublishCommand',
+  'gitSubcommand', 'shellCommandRegions', 'shellSegments', 'commandInvocation', 'heredocBodies',
+  'writeChannelOf', 'readsOnlyItsArguments',
+]
+const KEPT_SYMBOLS = ['readOnlyVerdict', 'containsCommitOrPush']
+const CODE_SUFFIXES = ['.mjs', '.js', '.sh', '.py']
+
+function codeFilesUnder(directory, found = []) {
+  for (const name of readdirSync(directory)) {
+    const entry = path.join(directory, name)
+    if (statSync(entry).isDirectory()) {
+      if (name !== 'node_modules' && name !== '.git') codeFilesUnder(entry, found)
+    } else if (CODE_SUFFIXES.some(suffix => name.endsWith(suffix)) || !path.extname(name)) {
+      found.push(entry)
+    }
+  }
+  return found
+}
+
+test('the command classifiers are gone', () => {
+  const pluginRoot = path.join(repoRoot, 'plugin')
+  // ⚠ classify-command.mjs is KEPT as a tombstone, not deleted: ADR-041 and
+  // ADR-047 declare it in `Governs:`, and a `Governs:` path no tracked file
+  // matches makes adr-lint advise that the decision governs nothing. The code is
+  // what goes; tests/classify.test.mjs asserts the file stays empty.
+  const tombstone = path.join(pluginRoot, 'scripts', 'classify-command.mjs')
+  assert.equal(existsSync(tombstone), true, 'the path stays so the records still resolve')
+  assert.doesNotMatch(readFileSync(tombstone, 'utf8'), /^\s*export\b/m, 'and it defines nothing')
+  // Every other shipped file: the symbols themselves are gone, name and all.
+  const files = codeFilesUnder(pluginRoot).filter(file => file !== tombstone)
+  assert.ok(files.length > 20, `the sweep must actually read the plugin, found ${files.length}`)
+  const offenders = []
+  for (const file of files) {
+    let text
+    try { text = readFileSync(file, 'utf8') } catch { continue }
+    for (const symbol of DELETED_SYMBOLS) {
+      if (new RegExp(`\\b${symbol}\\b`).test(text)) offenders.push(`${path.relative(repoRoot, file)}: ${symbol}`)
+    }
+  }
+  assert.deepEqual(offenders, [], offenders.join('\n'))
+  // And the word rule is still there, or this test would pass on an empty plugin.
+  const lifecycleText = readFileSync(path.join(pluginRoot, 'scripts', 'lifecycle.mjs'), 'utf8')
+  for (const symbol of KEPT_SYMBOLS) {
+    assert.ok(new RegExp(`function ${symbol}\\b`).test(lifecycleText), symbol)
+  }
+})

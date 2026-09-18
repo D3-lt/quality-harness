@@ -1009,20 +1009,38 @@ export function archive(entry, stamp, homeDirectory = os.homedir(), makeLink = s
       // always fell through to the text fallback there, and the archive stopped
       // being a link at all. Measured on two real Windows 11 machines
       // 2026-09-18: untyped threw EPERM, `'junction'` succeeded, and the result
-      // lstats as a symbolic link on Node 24. The fallback below stays for file
-      // links, which a junction cannot express — and for dangling ones, which
-      // `linkTypeFor` deliberately leaves untyped rather than guessing.
+      // lstats as a symbolic link on Node 24.
       makeLink(points, kept, linkTypeFor(entry.to, points))
-    } catch {
-      // Windows refuses symlink creation to an unprivileged account, and this
-      // threw EPERM on a real machine on 2026-08-27 — so the archive failed, so
-      // the repoint failed, and thirteen of nineteen skill links stayed pinned
-      // to the previous release. A link's entire content IS its target, so a
-      // plain file holding that target loses nothing and always succeeds.
-      // Driven by what actually works rather than by a platform guess: some
-      // Windows accounts can create symlinks, and this project has been wrong
-      // about that before.
-      writeFileSync(kept, `${points}\n`)
+    } catch (cause) {
+      // ⚠ REFUSE RATHER THAN DEGRADE. This used to catch the failure and write the
+      // target into a plain file, on the reasoning that "a link's entire content IS
+      // its target, so a plain file holding it loses nothing". That reasoning is
+      // wrong about what a BACKUP is for. A restore has to recover the original's
+      // BEHAVIOUR at its original location, and the text artifact loses the object's
+      // identity as a link, its Windows link kind, and ordinary copy-back
+      // restoration — with no metadata it cannot even be told apart from an original
+      // plain file that happened to contain a path.
+      //
+      // Measured on two ordinary Windows accounts 2026-09-18: a DANGLING link took
+      // that path every time, because `linkTypeFor` rightly answers "unknown" for a
+      // target it cannot stat and an untyped symlinkSync defaults to a FILE link,
+      // which is EPERM without SeCreateSymbolicLinkPrivilege. The CI runner HOLDS
+      // that privilege, so this degraded silently where users are and nowhere the
+      // project could see it.
+      //
+      // Ruled by a different-lineage review (BACKLOG §239). Guessing `'junction'`
+      // to keep the call succeeding was the other candidate and is worse: a junction
+      // cannot express a file link, so it would restore the wrong thing confidently,
+      // and treating a failed stat as directory evidence is what CLAUDE.md §16
+      // forbids. Refusing costs the run; degrading costs the recovery.
+      //
+      // Safe HERE because of the ORDER: `write()` archives before it removes
+      // anything, so throwing preserves THIS entry's original. It does not roll back
+      // earlier entries, which is a limit of this decision rather than an oversight.
+      throw new Error(
+        `quality-harness: could not archive the link ${entry.to} — it was NOT replaced. `
+        + `Recreating it under ${kept} failed: ${cause?.code ?? ''} ${cause?.message ?? cause}`.trim(),
+        { cause })
     }
     return kept
   }

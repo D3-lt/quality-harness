@@ -13170,3 +13170,78 @@ entries:
 
 Open: `printf \" > "$T"`, `printf a\"b > "$T"` and `echo \" >> "x.md"` stay unrecorded. A fix should
 tokenise the command as the shell does, not extend the regular expression; ADR-060 removes the need.
+
+## 229. A space in the checkout path made a run where NO test ran a passing baseline (2026-09-18) — FIXED
+
+`scripts/mutate.mjs`'s `leafTestsRun` discounted node's file-level reporter line by ABSENCE OF
+WHITESPACE: `/^\S+$/.test(name) && /\.(mjs|js|py|cjs)$/.test(name)`. A checkout path containing a
+space stops looking like a path, so the wrapper line survived the filter and counted as a leaf test
+that passed. `baselineOf` then reported `pass` for a run in which nothing executed, and `classify`
+never reaches `UNPROVEN` — every mutant graded against that baseline reads GREEN or RED. That is the
+precise failure ADR-005 exists to prevent, in the tool whose whole job is catching
+green-for-the-wrong-reason, and the invariant is stated in `baselineOf`'s own comment.
+
+REPORTED by a Windows session running this suite from `Y:\qh with spaces` (1,168 tests, 7 fail),
+which flagged its own platform-independence as INFERENCE rather than measurement and asked for it to
+be confirmed elsewhere. CONFIRMED ON macOS the same day, identical trees, name pattern matching
+nothing:
+
+    nospace/x.test.mjs        leafTestsRun 0 -> state unrun    correct
+    "space probe"/x.test.mjs  leafTestsRun 1 -> state pass     false baseline
+
+So it was never a Windows defect: `~/My Projects/`, anything under `Application Support`, a Dropbox
+or OneDrive folder with a space reproduces it. CI never saw it because this repository's own
+checkout path has no space, on any runner.
+
+FIXED here: `leafTestsRun(stdout, files)` and `baselineOf(run, files)` take the file list the runner
+actually passed (`testArgs` built it), so the wrapper line is KNOWN rather than inferred from its
+shape. The shape rule stays as a fallback for a caller that passes no files — it under-discounts,
+never over-discounts. Pinned by `a checkout path with a space is still an unrun baseline when nothing
+matched`, which runs real node output from a real spaced directory.
+
+## 230. Six tests fail on a stock Windows account, where three others already skip (2026-09-18) — FIXED
+
+Creating a symlink on Windows needs SeCreateSymbolicLinkPrivilege: Developer Mode off, shell not
+elevated, `AllowDevelopmentWithoutDevLicense = 0`, and `fs.symlinkSync` is EPERM -4048. That is the
+DEFAULT configuration; GitHub's `windows-latest` runner holds the privilege, so CI cannot see it.
+Measured 2026-09-18 on Windows 11 Pro (26200): 1,168 tests, 1,141 pass, 6 fail, 21 skipped — every
+failure this, in `tests/adr-next`, `tests/standalone-link` (x3), `tests/statusline` and `tests/sweep`.
+
+⚠ THE GUARD ALREADY EXISTED AND WAS APPLIED INCONSISTENTLY. Three tests skip this with a stated
+reason, and `tests/event-analyser` uses a JUNCTION, which needs no privilege at all — one platform
+fact, three handling strategies in one suite. FIXED with `tests/symlink-support.mjs`: `linkDirectory`
+(a junction on Windows, so the test RUNS rather than skipping) for every directory link, and
+`symlinkOrSkip` for a file link or a deliberately dangling one, where only a real symlink will do.
+A skip with a reason is the fallback, not the goal.
+
+## 231. The repository cannot be cloned on Windows from a deep root (2026-09-18) — DOCUMENTED, not fixed
+
+Default Git for Windows does not set `core.longpaths`, and the longest tracked path here is 149
+characters, so MAX_PATH leaves **110 characters for the checkout root**. A clone under a longer root
+fails with `Filename too long ... unable to checkout working tree`. Measured 2026-09-18: a
+115-character scratch root fails, `Y:\qh` succeeds, `-c core.longpaths=true` fixes the deep root
+(583 files, clean). A `windows-latest` runner checks out at about 36 characters, so CI never sees it.
+
+DOCUMENTED in `docs/INSTALL.md` rather than fixed by renaming: the longest paths are task files
+inside ACCEPTED records, and records are history (CLAUDE.md §10). ⚠ The documentation only reaches
+people who read it BEFORE cloning, and cloning is how they get it — so the real repair, when a
+future record makes it cheap, is a path-length rule for NEW task filenames so the ceiling stops
+rising. ADR-060's longest is 134; ADR-059's T10 at 149 is the current ceiling.
+
+## 232. `node --test` cannot find test files through a UNC path (2026-09-18)
+
+From `\\localhost\Y$\qh` (the same tree over SMB loopback), `bash scripts/selftest.sh` exits 1 with
+`Could not find '//localhost/Y$/qh/tests/adr-next.test.mjs, ...'` — all 59 files, comma-joined into
+one quoted string — after printing three `✔ Validation passed` lines. Isolated by the reporter: the
+glob expands to 59 separate argv entries and `fs.existsSync` resolves the UNC path fine, but `node
+--test` given that absolute path says "Could not find", while the same file via the drive letter runs
+20 tests, 20 pass. So it is node's test-runner path resolution, not this repository's globbing.
+
+Two things here ARE ours. It exits 1, which is right — it fails loudly rather than going green. But a
+run that executed ZERO tests is exactly the shape this project already has a word for: `selftest.sh`
+could notice that nothing ran and say UNRUN with a reason, instead of passing node's message through
+— and the three `✔ Validation passed` lines before it read as success to anyone skimming.
+
+NOT tested, and named so nobody assumes it: a genuine mapped network drive to another host.
+`\\localhost\Y$` is SMB loopback to a local disk, so it exercises UNC path handling but not network
+latency, reconnection, or a drive letter that is actually remote.

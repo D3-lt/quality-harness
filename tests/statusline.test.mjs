@@ -6,7 +6,8 @@
 // for a large transcript.
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { closeSync, ftruncateSync, mkdirSync, mkdtempSync, openSync, readFileSync, realpathSync, rmSync, statSync, unlinkSync, utimesSync, writeFileSync } from 'node:fs'
+import { linkDirectory } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -213,7 +214,7 @@ test('the CI piece reads the hook\'s cache: green, red with a count, running, st
     // A symlink INTO the repository still finds it (the walk starts from the realpath).
     const alias = join(tmpdir(), `qh-statusline-alias-${process.pid}`)
     try { unlinkSync(alias) } catch {}
-    symlinkSync(sub, alias, 'dir')
+    linkDirectory(sub, alias)
     write({ looked: true, sha: 'abc1234', status: 'completed', conclusion: 'success', failed: [] })
     assert.equal(renderCi(ciReading(alias, now)), 'CI ✓', 'a symlinked cwd is walked from its target')
     unlinkSync(alias)

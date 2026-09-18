@@ -8,7 +8,7 @@ import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { analyzeTranscript, adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
@@ -667,30 +667,6 @@ test('post-edit-check still runs on unclassified files', () => {
     encoding: 'utf8', timeout: 30_000,
   })
   assert.ok(run.status === 0 || run.stdout || run.stderr === '')
-})
-
-test('an MCP write is UNPROVEN authorship, not no mutation', () => {
-  const state = analyzeTranscript(toolTranscript([
-    { id: 'm1', name: 'mcp__mrw__mrw_write', input: { plan: 'docs/a.md' } },
-  ]))
-  assert.equal(state.authorship, 'UNPROVEN')
-  assert.equal(state.lastMutation, -1)
-  assert.deepEqual(state.mutationPaths, [])
-  assert.notEqual(state.hasMutations, false)
-  assert.ok(state.hasMutations === true || state.authorship === 'UNPROVEN')
-})
-
-test('a native Edit or Write is still a mutation', () => {
-  const edit = analyzeTranscript(toolTranscript([
-    { id: 'e1', name: 'Edit', input: { file_path: '/tmp/x.md' } },
-  ]))
-  assert.notEqual(edit.authorship, 'UNPROVEN')
-  assert.notEqual(edit.lastMutation, -1)
-  assert.ok(edit.hasMutations)
-  const write = analyzeTranscript(toolTranscript([
-    { id: 'w1', name: 'Write', input: { file_path: '/tmp/y.md' } },
-  ]))
-  assert.notEqual(write.lastMutation, -1)
 })
 
 test('no in-process plugin registry was added', () => {

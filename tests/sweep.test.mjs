@@ -1,7 +1,8 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, writeFileSync } from 'node:fs'
+import { linkDirectory } from './symlink-support.mjs'
 import os from 'node:os'
 import { dirname, join, relative, resolve } from 'node:path'
 import test from 'node:test'
@@ -713,7 +714,7 @@ test('a corpus reached through a symlink is swept', () => {
   const real = corpus()
   task(real, 'T1', { fence: 'exit 0' })
   const link = join(mkdtempSync(join(os.tmpdir(), 'qh-link-')), 'corpus')
-  symlinkSync(real, link, 'dir')
+  linkDirectory(real, link)
   assert.equal(JSON.parse(sweep(link, ['--json']).stdout).claims, 1)
 })
 

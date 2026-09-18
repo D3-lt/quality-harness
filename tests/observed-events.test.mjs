@@ -1165,3 +1165,52 @@ test('the key a per-edit gate persists is the one rule A looks up, on either pla
     path.posix.join(posixRoot, 'docs', 'adr', 'ADR-902-bad.md'))
   assert.notEqual(persistedEventPath(asBashSawIt, root, 'win32'), asBashSawIt)
 })
+
+test('a git query that FAILED is not a git query that found nothing', () => {
+  // ⚠ `gitLines` returned `[]` for a nonzero exit, a timeout and a spawn error
+  // alike, and its callers read that as "no commits" and "no paths". So a history
+  // query that could not run suppressed R2 entirely and left the ledger saying
+  // `verified` — a clean answer assembled from a question nobody managed to ask.
+  // That is ADR-005 exactly: could-not-look is its own state and must never be
+  // reported in the vocabulary of a verdict (CLAUDE.md §3).
+  //
+  // Found by a different-lineage review of this branch. Driven here with a REAL
+  // git failure rather than a mock: a recorded session head that is a well-formed
+  // sha nothing in the repository has, so `git log <missing>..HEAD` exits non-zero
+  // for the same reason it would in the field.
+  const dir = repository('gitfail-')
+  const session = sessionId('gitfail')
+  const state = path.join(dir, '.git', 'quality-harness')
+  // The rules return early for a project that declared no check, so declare one:
+  // this test is about what happens when a git QUERY fails, not about that arm.
+  writeFileSync(path.join(dir, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'declare a check')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+
+  // Rewrite the recorded starting point to a sha this repository does not hold.
+  const logFile = path.join(state, 'sessions', session + '.jsonl')
+  const missing = '0'.repeat(40)
+  writeFileSync(logFile, readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map(line => {
+    const entry = JSON.parse(line)
+    if (entry.event === 'session.started' && entry.observation) entry.observation.head = missing
+    return JSON.stringify(entry)
+  }).join('\n') + '\n')
+
+  // Confirm the premise rather than assuming it: this query really does fail.
+  // Spawned raw, because the `git` helper asserts exit 0 and a failure is the point.
+  const probe = spawnSync('git', ['-C', dir, 'log', '--format=%H', `${missing}..HEAD`],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.notEqual(probe.status, 0, 'the fixture must make git actually fail')
+
+  writeFileSync(path.join(dir, 'b.md'), 'b\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'work nothing checked')
+  const run = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  const said = `${run.stdout}${run.stderr}`
+
+  assert.match(said, /could not|UNPROVEN|UNRUN|unknown/i,
+    `a failed history query must be said out loud, not read as nothing: ${said}`)
+  assert.doesNotMatch(said, /\bverified\b/,
+    `and it must not leave the ledger claiming verified: ${said}`)
+})

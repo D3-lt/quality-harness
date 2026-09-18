@@ -514,6 +514,8 @@ test('end to end: a nonsense pattern under an inherited dot reporter is unrun, a
   const one = runNode('^a stale entry is decided before any baseline')
   assert.equal(one.status, 0, one.stderr)
   assert.equal(leafTestsRun(one.stdout), 1, `exactly the matching test ran: ${one.stdout.slice(0, 300)}`)
+  assert.equal(baselineOf(one).state, 'pass')
+})
 
 // ⚠ A CHECKOUT PATH WITH A SPACE TURNED "NO TEST RAN" INTO A PASSING BASELINE.
 // Reported by a Windows session running this suite from `Y:\qh with spaces`,
@@ -555,6 +557,4 @@ test('a checkout path with a space is still an unrun baseline when nothing match
   } finally {
     rmSync(spaced, { recursive: true, force: true })
   }
-})
-  assert.equal(baselineOf(one).state, 'pass')
 })

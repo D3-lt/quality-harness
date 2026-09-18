@@ -13688,3 +13688,49 @@ Two things to decide, neither done here:
   and the file looks covered again. ⚠ Any such gate is itself a classifier over an open input space
   (§16) — "exported symbol with no entry naming it" will have false positives, and a gate that
   refuses correct work is one people turn off (§3).
+
+## 244. The inferred check can be NARROWER than the project's real gate (2026-09-18)
+
+⚠ OPEN, and it is a fail-open in the adopter's view rather than in this repository's. Reported by a
+session running a real React SPA after being asked to look at the inference specifically.
+
+**What the plugin does right, and this matters for reading the rest:** it does NOT present the guess
+as declared. Its SessionStart wording labels itself, verbatim from that repository:
+
+> no `check` is declared in `.quality-harness.json`; inferred `npm run test` from a manifest — that
+> is not this project's own check. The completion and commit gates accept it as evidence when it
+> runs after your last edit.
+
+So the defect class this was checked against — a guess wearing the project's authority — is not
+live. The second sentence is where the problem is.
+
+**The project's real gate is two commands, and the inference found one.** That repository declares
+`bun run test` in its `AGENTS.md`, and its husky pre-push hook runs:
+
+```
+bun run typecheck:gate && bun run test
+```
+
+The manifest yields `npm run test` alone. The npm-versus-bun spelling is harmless there — the
+reporter verified `npm run test` executes correctly in that tree — but **the missing half is a
+typecheck gate**, a whole crash class the completion gate would then treat as covered. An inferred
+pass satisfies "a check ran after your last edit" while the thing most likely to catch a broken build
+never ran.
+
+**So "inferred" is doing two jobs and only one of them is disclosed.** The notice says the command is
+a guess about IDENTITY. It says nothing about the guess being a SUBSET — and a subset that passes is
+indistinguishable, from the gate's side, from the real gate passing.
+
+⚠ The repair the reporter points at is not a better manifest heuristic: **the husky pre-push hook is
+right there and names the real gate.** A repository that wires a pre-push hook has already written
+down what it considers sufficient before publishing, which is exactly the question the completion
+gate is asking. Reading `.husky/`, `.git/hooks/pre-push` or the equivalent would have got that
+repository right where the manifest could not.
+
+NOT DONE, and two cautions against rushing it:
+- Any such reader is a classifier over an open input space (§16). A pre-push hook can run things a
+  completion gate should not — a push to a remote, a deploy, an interactive prompt — so "the hook's
+  commands" is not simply a better answer, it is a different open set with its own wrong cases.
+- The honest cheap alternative may be wording rather than inference: say that an inferred command may
+  be NARROWER than the project's own gate, so a reader knows a pass does not mean what it looks like.
+  That costs nothing and cannot be wrong.

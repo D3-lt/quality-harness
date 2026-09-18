@@ -13211,3 +13211,29 @@ and what closed them is a decision, not a repair:
 ⚠ **These closures are on the ADR-060 trial branch and describe its tree.** Four of the defects
 (§223's over-reports, §224, §227, §228) are about the released 2.99.7 classifiers and stay open
 there until ADR-060 is accepted and released.
+
+## 231. A Windows install sat twenty minors behind, and nothing said so (2026-09-18)
+
+Asked to test, a Windows 11 Pro (26200) session reported `quality-harness` at **2.79.0** while the
+published release was **2.99.7**. `claude plugin update quality-harness` fetched cleanly from the
+marketplace, so nothing was broken — the install had simply never been updated, and no surface said
+it was behind. Every fix between those versions, including the ADR-053/054/055/056/058/059 advisory
+corrections, reached that machine only because somebody asked today.
+
+Two consequences, and the second is the one that bites:
+
+- **A stale install measures the wrong build.** That session was about to give a Windows baseline
+  with 2.79.0 hooks and said so itself rather than reporting it as 2.99.7 — which is the only reason
+  the comparison is not already poisoned. Any cross-platform claim has to carry the version of each
+  side, and a Windows-vs-macOS difference is old-build-vs-new-build until the versions are shown.
+- **`claude plugin update` needs a restart to apply**, and the session that ran it keeps running the
+  old code. A session that updates mid-flight and then reports is reporting the previous version.
+
+What would close it: something that says, once, when the running plugin is behind the marketplace's
+newest — `staleVersionNotice()` already exists for a related question, and this is the case it does
+not cover. Unknown and worth finding out first: how that install was made (marketplace, manual, a
+clone), because an update mechanism that does not notify is a different defect from a machine nobody
+updated.
+
+Recorded because it is an ADOPTION fact, not a code defect: the corpus can only be judged against
+what people are actually running.

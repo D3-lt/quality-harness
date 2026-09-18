@@ -940,6 +940,45 @@ export function backupRoot(stamp, homeDirectory = os.homedir()) {
 }
 
 /**
+ * The type argument for recreating a link, or undefined for an untyped one.
+ *
+ * ⚠ A TYPE PROBE MUST NOT BE ABLE TO THROW, and the reason is a regression this
+ * project shipped to `main` and CI caught the same day. The junction fix was
+ * written inline as
+ * `platform === 'win32' && statSync(points).isDirectory() ? 'junction' : undefined`
+ * INSIDE archive()'s try. For a DANGLING link the target does not exist, so
+ * statSync throws ENOENT, and the catch below cannot tell that from the EPERM it
+ * was written for — so it took the text fallback, the branch the junction exists
+ * to stop using, and the archive stopped being a link. Run 35323591833's windows
+ * job went red on 'a dangling symlink is archived rather than throwing mid-run'.
+ * A stat that cannot answer is not a directory answer: it means UNTYPED.
+ *
+ * ⚠ AND readlinkSync RETURNS THE TARGET VERBATIM, so it may be RELATIVE — which
+ * resolves against the LINK'S OWN directory, never against process.cwd(). Statting
+ * it unresolved either throws, or worse answers about a same-named path that
+ * happens to sit under the current directory, which is a wrong answer rather than
+ * a missing one.
+ *
+ * The two hazards were found from opposite ends on 2026-09-18 — the relative one
+ * by a Windows session reading the line, the dangling one by CI executing it — and
+ * both are the same mistake: a probe that can fail, inside a catch that means
+ * something else.
+ *
+ * `platform` is a parameter because a win32-only branch with no injectable seam
+ * has no test at all (CLAUDE.md §7), and this one had none.
+ */
+export function linkTypeFor(linkPath, rawTarget, platform = process.platform) {
+  if (platform !== 'win32') return undefined
+  try {
+    return statSync(path.resolve(path.dirname(linkPath), rawTarget)).isDirectory()
+      ? 'junction'
+      : undefined
+  } catch {
+    return undefined
+  }
+}
+
+/**
  * Copy what is about to be replaced, before replacing it.
  *
  * Asked for by the owner on 2026-08-27 — "i need to backup my original ones
@@ -971,8 +1010,9 @@ export function archive(entry, stamp, homeDirectory = os.homedir(), makeLink = s
       // being a link at all. Measured on two real Windows 11 machines
       // 2026-09-18: untyped threw EPERM, `'junction'` succeeded, and the result
       // lstats as a symbolic link on Node 24. The fallback below stays for file
-      // links, which a junction cannot express.
-      makeLink(points, kept, process.platform === 'win32' && statSync(points).isDirectory() ? 'junction' : undefined)
+      // links, which a junction cannot express — and for dangling ones, which
+      // `linkTypeFor` deliberately leaves untyped rather than guessing.
+      makeLink(points, kept, linkTypeFor(entry.to, points))
     } catch {
       // Windows refuses symlink creation to an unprivileged account, and this
       // threw EPERM on a real machine on 2026-08-27 — so the archive failed, so

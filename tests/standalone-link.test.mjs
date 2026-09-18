@@ -14,7 +14,7 @@ import {
   FORWARDER_MARK, RESOLVER, archive, backupRoot, bySemver, cacheDirectory, citeOrphan,
   classifyHomeFile, formerlyShipped, forwarderCmd, forwarderScript, orphans,
   barePathWinner,
-  knownDigests, linkPlan, onSearchPath, replaceable, sameLineage, write,
+  knownDigests, linkPlan, linkTypeFor, onSearchPath, replaceable, sameLineage, write,
 } from '../plugin/scripts/standalone-link.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -1122,4 +1122,49 @@ test('a forwarder that cannot run its resolver says so, and blames neither the p
   assert.match(cmd, /^where \/q node && goto :havenode$/m,
     'the node probe must select by goto, not by a parenthesised block')
   assert.match(cmd, /^:havenode$/m, 'missing the label the node probe jumps to')
+})
+
+test('a link type probe answers about the link directory, and never throws', () => {
+  // ⚠ REGRESSION, caught from two directions on 2026-09-18. This probe was written
+  // INLINE inside archive()'s try, so both its failure modes landed in a catch
+  // that means "EPERM, use the text fallback" — the branch the junction exists to
+  // stop using. CI run 35323591833's windows job went red on the DANGLING case,
+  // where statSync throws ENOENT; a Windows session reading the same line found
+  // the RELATIVE case, where the target resolved against process.cwd() instead of
+  // the link's own directory. Neither machine could see the other's.
+  // macOS reaches none of it — the branch is win32-only — so `platform` is an
+  // argument rather than an ambient fact (CLAUDE.md §7).
+  const dir = mkdtempSync(path.join(tmpdir(), 'qh-link-type-'))
+  const sub = path.join(dir, 'sub')
+  mkdirSync(sub)
+  const link = path.join(sub, 'a-link')
+  const targetDir = path.join(sub, 'target-dir')
+  mkdirSync(targetDir)
+  const targetFile = path.join(sub, 'target-file')
+  writeFileSync(targetFile, 'x')
+
+  // The answer the junction fix exists to give, and the other answer beside it so
+  // neither assertion is vacuous (CLAUDE.md §4).
+  assert.equal(linkTypeFor(link, targetDir, 'win32'), 'junction')
+  assert.equal(linkTypeFor(link, targetFile, 'win32'), undefined)
+
+  // A RELATIVE target is resolved against the LINK's directory. Against
+  // process.cwd() these names do not exist, so the old line lost the junction or
+  // threw — and where cwd happens to hold the same name it answered about the
+  // wrong file, which is worse than losing it.
+  assert.equal(linkTypeFor(link, 'target-dir', 'win32'), 'junction')
+  assert.equal(linkTypeFor(link, 'target-file', 'win32'), undefined)
+
+  // A DANGLING target has nothing to stat. UNTYPED is the answer; throwing is
+  // what made CI's archive stop being a link at all.
+  const gone = path.join(sub, 'never-existed')
+  assert.doesNotThrow(() => linkTypeFor(link, gone, 'win32'))
+  assert.equal(linkTypeFor(link, gone, 'win32'), undefined)
+  assert.equal(linkTypeFor(link, 'never-existed', 'win32'), undefined)
+
+  // Off Windows there is no junction at all, whatever the target is.
+  assert.equal(linkTypeFor(link, targetDir, 'linux'), undefined)
+  assert.equal(linkTypeFor(link, targetDir, 'darwin'), undefined)
+
+  rmSync(dir, { recursive: true, force: true })
 })

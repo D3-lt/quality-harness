@@ -12,7 +12,6 @@ import {
   projectCheckCommand,
   runTheCheckSentence,
   budgetExhausted,
-  commandInsideWrappers,
   sessionOrientation,
   sessionStateNote,
   hasDecisionCorpus,

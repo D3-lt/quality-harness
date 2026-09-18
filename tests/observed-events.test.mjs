@@ -14,6 +14,7 @@ import { fileURLToPath } from 'node:url'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
 import * as statusline from '../plugin/scripts/statusline.mjs'
 import { tally } from '../plugin/scripts/claims-rate.mjs'
+import { persistedEventPath } from '../plugin/scripts/run-shell-hook.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
@@ -1125,4 +1126,42 @@ test('a check that finishes in a later turn clears the finding then', () => {
   writeFileSync(path.join(dir, 'README.md'), 'edited again\n')
   hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
   assert.deepEqual(rules(), ['R1', 'R1'])
+})
+
+test('the key a per-edit gate persists is the one rule A looks up, on either platform', () => {
+  // ⚠ RULE A's DEDUP HAD NEVER WORKED ON WINDOWS, and no test could see it.
+  // `artifact.gated` has two writers. The turn end records `path.join(root,
+  // relative)` — NATIVE. The per-edit gate recorded whatever
+  // hookFilePathFromPayload returned, which on win32 has been through
+  // windowsPathForBash so a bash gate can read it — `C:/x`, POSIX. The reader is a
+  // raw string Map, so the two never matched: `answered` was always empty and every
+  // artifact already answered COMPLETE was re-gated and re-reported at turn end.
+  //
+  // Diagnosed 2026-09-18 by two Windows sessions. The assertion that matters is
+  // the last pair in each half: the persisted key must EQUAL the candidate rule A
+  // builds. Asserting the separator alone would pass while the two sites drifted.
+  const root = 'C:\\Users\\dev\\project'
+  const relative = path.win32.join('docs', 'adr', 'ADR-902-bad.md')
+  const asBashSawIt = 'C:/Users/dev/project/docs/adr/ADR-902-bad.md'
+
+  assert.equal(persistedEventPath(asBashSawIt, root, 'win32'), 'C:\\Users\\dev\\project\\docs\\adr\\ADR-902-bad.md')
+  assert.equal(persistedEventPath(asBashSawIt, root, 'win32'), path.win32.join(root, relative))
+
+  // Already native stays put, so the fix is not a one-way rewrite.
+  const native = path.win32.join(root, relative)
+  assert.equal(persistedEventPath(native, root, 'win32'), native)
+
+  // windowsPathForBash maps a UNC path too, and that is the mapped-drive
+  // configuration nobody on this project can test. It is covered by the same line
+  // rather than by a second one.
+  assert.equal(persistedEventPath('//server/share/docs/a.md', root, 'win32'), '\\\\server\\share\\docs\\a.md')
+
+  // And POSIX is untouched — the helper must be capable of both answers, or the
+  // win32 assertions above prove nothing about a platform switch (CLAUDE.md §4).
+  const posixRoot = '/home/dev/project'
+  const posixFile = '/home/dev/project/docs/adr/ADR-902-bad.md'
+  assert.equal(persistedEventPath(posixFile, posixRoot, 'linux'), posixFile)
+  assert.equal(persistedEventPath(posixFile, posixRoot, 'linux'),
+    path.posix.join(posixRoot, 'docs', 'adr', 'ADR-902-bad.md'))
+  assert.notEqual(persistedEventPath(asBashSawIt, root, 'win32'), asBashSawIt)
 })

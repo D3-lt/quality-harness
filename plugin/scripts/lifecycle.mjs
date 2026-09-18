@@ -2623,10 +2623,33 @@ function publishUnchecked(input, requested) {
 // tree, index or HEAD between them is reported — as having happened DURING that
 // run, never as done by the reviewer, since overlapping agents and the user share
 // the tree. An observation that could not be made is R4's to report, not this.
+// ⚠ AN ENUMERATION THAT FAILED IS NOT ONE THAT FOUND NOTHING. This returned `[]`
+// for a nonzero exit, a timeout and a spawn error alike, and its callers read that
+// as "no commits" and "no paths" — so a history query that could not run suppressed
+// R2 and left the ledger saying `verified`, a clean answer assembled from a
+// question nobody managed to ask. ADR-005 governs exactly this, and the branch was
+// applying it to observations while its own git reads failed open underneath.
+// Found by a different-lineage review of this branch, 2026-09-18.
+//
+// The result is still an array, so every existing `.length`, `.map` and spread
+// keeps working; it carries `ok` beside them, and `mark` re-attaches that through a
+// map so a transform cannot silently drop the one field that says the answer is
+// real. `ok === false` is the only failure signal — an absent `ok` means a caller
+// that never asked git anything, not a failure.
+function mark(lines, ok, why = '') {
+  const out = [...lines]
+  out.ok = ok
+  out.why = why
+  return out
+}
+
 function gitLines(root, args) {
   const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000 })
-  if (run.error || run.status !== 0) return []
-  return run.stdout.split('\n').map(line => line.trimEnd()).filter(Boolean)
+  if (run.error || run.status !== 0) {
+    const why = run.error ? run.error.message : `git ${args[0]} exited ${run.status}`
+    return mark([], false, why)
+  }
+  return mark(run.stdout.split('\n').map(line => line.trimEnd()).filter(Boolean), true)
 }
 
 function reviewChangedState(input, ended) {
@@ -2712,12 +2735,13 @@ function harnessPathspecs(root) {
 // answers UNPROVEN, which is not a verdict, so the path is retried at every
 // boundary for ever (same peer test).
 function statusPaths(root) {
-  if (!root) return []
-  return gitLines(root, ['status', '--porcelain', '-uall', ...harnessPathspecs(root)]).map(line => {
+  if (!root) return mark([], true)
+  const lines = gitLines(root, ['status', '--porcelain', '-uall', ...harnessPathspecs(root)])
+  return mark(lines.map(line => {
     const rest = line.slice(3)
     const arrow = rest.indexOf(' -> ')
     return (arrow === -1 ? rest : rest.slice(arrow + 4)).replace(/^"|"$/g, '')
-  }).filter(Boolean)
+  }).filter(Boolean), lines.ok, lines.why)
 }
 
 // Commits reachable now that were not reachable when the session started. NOT
@@ -2725,11 +2749,12 @@ function statusPaths(root) {
 // and this says only that no check has passed on their trees.
 function sessionCommits(log, root, head) {
   const first = log.find(entry => entry.event === 'session.started')?.observation?.head
-  if (!root || typeof first !== 'string' || typeof head !== 'string' || first === head) return []
-  return gitLines(root, ['log', '--format=%H%x09%T%x09%s', `${first}..${head}`]).map(line => {
+  if (!root || typeof first !== 'string' || typeof head !== 'string' || first === head) return mark([], true)
+  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', `${first}..${head}`])
+  return mark(lines.map(line => {
     const [sha, tree, ...subject] = line.split('\t')
     return { sha, tree, subject: subject.join('\t') }
-  }).filter(commit => commit.sha && commit.tree)
+  }).filter(commit => commit.sha && commit.tree), lines.ok, lines.why)
 }
 
 function unseenPathNote(count) {
@@ -2788,8 +2813,14 @@ function couldNotLookReason(cwd, reason) {
 // THEMSELVES — never from whether a rule spoke. A P warning, a dedupe or a
 // suppression must not be able to turn an unchecked state into `verified`
 // (ADR-035, ADR-060 revision 4 review).
-function ledgerEvidence(log, observation, baseline, commits, writes, check) {
+function ledgerEvidence(log, observation, baseline, commits, writes, check, status) {
   if (observation?.ok !== true) return 'could-not-look'
+  // ⚠ AN ENUMERATION THAT FAILED IS COULD-NOT-LOOK TOO. The observation can be
+  // fine while the follow-up git query that lists the paths or the commits is not,
+  // and reading those empty results as "nothing changed" is how a failed question
+  // became `verified` (ADR-005). `ok === false` is set only by a query that really
+  // ran and really failed; an absent `ok` is a caller that asked git nothing.
+  if (commits?.ok === false || status?.ok === false) return 'could-not-look'
   if (!check) return 'no-check'
   const treeUnchecked = !treeChecked(log, observation.tree)
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
@@ -2872,7 +2903,7 @@ function completionRules(input, ended) {
   const status = observation?.ok === true ? statusPaths(root) : []
   const commits = observation?.ok === true ? sessionCommits(log, root, observation.head) : []
   recordClaim(input, completionClaim(input.last_assistant_message),
-    ledgerEvidence(log, observation, baseline, commits, writes, check), status.length + writes.length)
+    ledgerEvidence(log, observation, baseline, commits, writes, check, status), status.length + writes.length)
   // The opt-in today's advice already requires: a project that named no check
   // cannot be asked to run one (reported from redash-api, 2026-08-26).
   if (!check) return
@@ -2908,12 +2939,18 @@ function completionRules(input, ended) {
       text: uncheckedCommitsReason(input.cwd, unchecked),
     })
   }
-  if (observation?.ok !== true) {
+  if (observation?.ok !== true || status?.ok === false || commits?.ok === false) {
     // Once per session and cwd, read from the log rather than from a marker file
     // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
     const key = canonical(root ?? path.resolve(input.cwd ?? process.cwd()))
     if (!emittedFor(log, 'R4', key)) {
-      queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, observation?.reason ?? 'no reason was recorded') })
+      // NAME what could not be looked at. A failed enumeration has a reason of its
+      // own — the observation may have succeeded and the follow-up query failed —
+      // and "no reason was recorded" would report the wrong could-not-look.
+      const why = observation?.ok !== true
+        ? (observation?.reason ?? 'no reason was recorded')
+        : (status?.why || commits?.why || 'a git query failed without saying why')
+      queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, why) })
     }
   }
   // The check passed and a task file changed: the corpus wants that recorded,

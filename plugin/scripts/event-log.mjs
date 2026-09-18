@@ -126,13 +126,29 @@ function complete(entries, whole) {
   return out
 }
 
+/** The identity of a path that positively DOES NOT EXIST. */
+export const ABSENT = 'absent'
+
 /**
  * contentId identifies the CONTENT a gate gave a verdict on, so a later edit of
  * the same path is a new question. It is a hash of the bytes rather than a Git
  * blob id, because both writers must agree on it without starting a process,
- * and an uncommitted or deleted file has no blob. Null means unreadable, which
- * a reader must treat as unknown and not as "the same as last time".
+ * and an uncommitted or deleted file has no blob.
+ *
+ * THREE ANSWERS, NOT TWO, and the third is why this is not simply a hash:
+ *   <hex>    these exact bytes
+ *   ABSENT   the path is not there — a positive observation, and the state a
+ *            DELETED record is in after its deletion has been gated
+ *   null     the path is there and could not be read — UNKNOWN, which a reader
+ *            must never treat as "the same as last time"
+ *
+ * ⚠ Absence used to collapse into null, and `null === null` then suppressed a
+ * deleted record for ever on the strength of two non-answers agreeing. Splitting
+ * absence out is what lets the null rule be strict without re-gating every
+ * deletion at every boundary (ADR-005; a different-lineage review, 2026-09-18).
  */
 export function contentId(file) {
-  try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch { return null }
+  try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch (error) {
+    return error?.code === 'ENOENT' || error?.code === 'ENOTDIR' ? ABSENT : null
+  }
 }

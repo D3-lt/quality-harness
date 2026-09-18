@@ -2883,6 +2883,28 @@ function artifactBudgetMs(eventName) {
   return ARTIFACT_BUDGETS[eventName] ?? 90_000
 }
 
+/**
+ * Whether a COMPLETE verdict already covers this file's current content.
+ *
+ * ⚠ AN UNKNOWN IDENTITY MATCHES NOTHING, INCLUDING ANOTHER UNKNOWN. `contentId`
+ * documents exactly this — "Null means unreadable, which a reader must treat as
+ * unknown and not as 'the same as last time'" — and the reader contradicted its
+ * own contract with `answered.get(file) === contentId(file)`, where `null ===
+ * null` is true. A path whose bytes could not be read when it was gated and
+ * cannot be read now was therefore suppressed for ever, on the strength of two
+ * non-answers agreeing. Found by a different-lineage review of this branch,
+ * 2026-09-18.
+ *
+ * Re-gating is the safe direction: it costs a repeated check, while suppressing
+ * costs a file nobody ever looks at again (ADR-005).
+ */
+export function alreadyAnswered(answered, file, identity) {
+  if (!answered.has(file)) return false
+  const recorded = answered.get(file)
+  if (recorded === null || recorded === undefined || identity === null || identity === undefined) return false
+  return recorded === identity
+}
+
 function artifactRule(input, recorded) {
   if (typeof input.session_id !== 'string' || !input.session_id) return
   const log = readEvents(input.cwd, input.session_id)
@@ -2915,7 +2937,7 @@ function artifactRule(input, recorded) {
       answered.set(entry.path, entry.blob ?? null)
     }
   }
-  const targets = [...paths].filter(file => !(answered.has(file) && answered.get(file) === contentId(file)))
+  const targets = [...paths].filter(file => !alreadyAnswered(answered, file, contentId(file)))
   if (!targets.length) return
   // Nearest first: the session's own starting point, then HEAD. A record deleted
   // and committed during the session is in neither the working tree nor HEAD.

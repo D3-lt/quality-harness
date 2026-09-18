@@ -805,7 +805,7 @@ test('an archive that cannot recreate a link refuses rather than recording its t
   }
 })
 
-test('a refused archive stops THIS entry and nothing else', {
+test('a refused archive leaves this entry exactly as it found it', {
   skip: process.platform === 'win32' ? 'no unprivileged file symlink' : false,
 }, t => {
   // ⚠ THIS TEST REVERSED ON 2026-09-18, and both halves of its history matter.
@@ -821,12 +821,22 @@ test('a refused archive stops THIS entry and nothing else', {
   // and with no metadata it cannot be told apart from an original plain file that
   // happened to contain a path. An archive that cannot restore has not archived.
   //
-  // What preserves the 2026-08-27 lesson is the CALLER, and it already did:
-  // sync-standalone.mjs:188-195 wraps each entry's write in its own try/catch,
-  // reports `could not write <path>: <reason>` on stderr, and continues the loop.
-  // So a refusal costs ONE entry and names it, rather than silently installing
-  // over an original whose backup cannot restore it. That is the property August
-  // actually needed, at the level where it belongs.
+  // ⚠ RENAMED, because the old name claimed more than this body asserts. It was
+  // `a refused archive stops THIS entry AND NOTHING ELSE`, and two Windows
+  // sessions read it independently and found that the "nothing else" half is
+  // asserted NOWHERE: this builds ONE entry, calls `write()` on it directly, and
+  // never invokes the sync loop, so nothing here shows that another entry still
+  // installs, that the run continues, or that a partial install exits 1. A test
+  // whose name claims more than its body is the defect this project exists to
+  // demonstrate the absence of, and the skip made the gap look platform-shaped
+  // when it was total.
+  //
+  // The containment property is real and was MEASURED end to end on 2026-09-18
+  // against a fake home — exit 1, the casualty named on stderr with its cause,
+  // 21 of 22 siblings installed, the original still a link into the old release.
+  // A measurement is not a test: BACKLOG §242 carries it, with the fixture that
+  // reaches the refusal without privilege or injection, because it is currently
+  // known-true and guarded by nothing.
   const directory = home()
   const old = path.join(cacheDirectory(directory), '1.0.0', 'bin')
   mkdirSync(old, { recursive: true })

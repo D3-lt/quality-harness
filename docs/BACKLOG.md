@@ -13577,3 +13577,62 @@ revision being checked.
 NOT DONE. Recorded rather than fixed: it is a test-isolation change with a real chance of hiding the
 behaviour it is meant to keep, and it deserves its own red test rather than being folded into a day
 of Windows work.
+
+## 242. The containment property is measured true and guarded by nothing (2026-09-18)
+
+⚠ OPEN, and it is the clause §239's reversal rests on. `archive()` now REFUSES rather than writing a
+text stand-in it cannot restore from (4501999). The argument that made that safe is that
+`sync-standalone.mjs:188-195` already wraps each entry's write in its own try/catch and continues,
+so a refusal costs ONE entry and names it — the property August's incident actually needed.
+
+**Two Windows sessions read the guard for that claim and found it hollow.** The test was called
+`a refused archive stops THIS entry and nothing else`; its body builds ONE entry, calls `write()` on
+it directly, and never invokes the sync loop. Nothing in it asserts that another entry still
+installs, that the run continues, or that a partial install exits 1. On macOS it passed while
+covering the first clause of its own name; on Windows it did not run at all, and the skip made a
+TOTAL gap look platform-shaped. It is renamed to `a refused archive leaves this entry exactly as it
+found it`, which is what it does assert — a name that claims more than its body is the defect this
+project exists to demonstrate the absence of.
+
+**The property itself is TRUE, and was measured end to end** on an unprivileged Windows account
+against a fake home, driving the published CLI:
+
+```
+EXIT 1
+stderr: could not write …\.claude\bin\adr-verify: … it was NOT replaced … failed: EPERM
+stdout: Installed 21 of 22 entry(s).
+original still a link, still pointing into the 1.0.0 cache, no forwarder written,
+no text stand-in in the backup, and a sibling entry DID install
+```
+
+⚠ **A measurement is not a test.** The property is now known-true and nothing catches a regression,
+which is worse than the gap it replaced: the next reader finds a rename and a BACKLOG note where
+they would have found a green test, and only this entry says the guard is missing.
+
+**The fixture is known and needs neither privilege nor injection**, which removes the reason it
+"could not" be tested: a junction pointing INSIDE the plugin cache
+(`cache/quality-harness/quality-harness/<version>/bin`) whose target is then DELETED. Dangling, so
+`linkTypeFor` returns undefined, so `makeLink` is untyped, so EPERM, so the refusal fires naturally.
+⚠ The trap that cost one attempt: a junction to an ARBITRARY missing path is classified `skipped — a
+symlink to something outside this plugin`, never reaches `archive`, and the run looks fine while
+testing nothing — a false green in the fixture itself.
+
+⚠ **On macOS the refusal cannot be reached naturally at all**: every entry shares `~/.claude/bin`, so
+no per-entry failure can be isolated there, and a dangling symlink succeeds rather than refusing. The
+loop takes no `makeLink` seam, so the honest options are to export the install loop for testing or to
+write this as a Windows-reachable test. That is why it is recorded rather than rushed.
+
+**The fourth stated impossibility today that described a probe rather than a requirement**, after
+"nothing can tell which kind it was", "no unprivileged file symlink" and "no subtests anywhere". The
+rule worth keeping: when a skip names a platform limit, check whether the test depends on the limit
+or on something its fixture merely happens to use.
+
+### The accidental protection beside it
+
+Nothing in the suite currently writes to a real home: both `--link` spawn sites set `HOME` and
+`USERPROFILE` together, and the two `HOME`-only sites are POSIX-forwarder tests that skip on Windows.
+⚠ But they are safe for an UNRELATED reason — a shebang Windows cannot exec — and nothing about home
+redirection is protecting anything. Today's whole direction has been converting Windows skips into
+Windows runs (junctions for directory links, the un-nesting, "the guard was applied inconsistently"),
+so the next person doing the encouraged thing arms this as a side effect. A dormant trap whose safety
+catch is a skip people are actively being asked to remove.

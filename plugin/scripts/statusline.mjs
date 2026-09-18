@@ -33,7 +33,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { projectCheckCommand, readEvents, sessionLogFile } from './lifecycle.mjs'
+import { latestCheckFor, projectCheckCommand, readEvents, sessionLogFile } from './lifecycle.mjs'
 import { usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
 export { findGitDir } from './git-directory.mjs'
@@ -98,10 +98,15 @@ function observedReading(log, observed, check) {
   const since = lastPass?.startedAt ?? null
   const writes = log.filter(entry => entry.event === 'file.written'
     && (typeof since !== 'string' || typeof entry.at !== 'string' || entry.at > since))
-  // The same rule the advisories use: a tree is checked when its LATEST check
-  // event is a pass, so a later failure re-opens it.
+  // ⚠ THE SAME RULE THE ADVISORIES USE — AND NOW LITERALLY THE SAME FUNCTION.
+  // This was a second copy of the rule, `…filter(…).at(-1)`, under a comment that
+  // already claimed they agreed. They did not: when `treeChecked` learned to
+  // dedupe re-imports and refuse an unresolved order, this kept certifying from
+  // the last-APPENDED event, so a stale re-imported pass still read `checked`
+  // here after the advisories had stopped believing it. Two copies of one rule is
+  // exactly what CLAUDE.md §5 is about, and the comment is what made it invisible.
   const checked = observation?.ok === true
-    && checks.filter(entry => entry.after?.tree === observation.tree).at(-1)?.event === 'check.passed'
+    && latestCheckFor(log, observation.tree)?.event === 'check.passed'
   const kind = observation?.ok !== true ? 'could-not-look'
     : checked ? 'checked'
     : writes.length === 0 && baseline?.ok === true && observation.tree === baseline.tree ? 'nothing'

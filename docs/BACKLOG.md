@@ -13409,3 +13409,55 @@ Two corollaries for reading any contended number:
   with `scripts/selftest.sh` running `node --test` at full width. Nothing is broken; the margin is
   thin enough that contention reaches it first. Widening the budget, or bounding concurrency, is a
   deliberate change and was kept out of the Windows commits on purpose.
+
+## 239. A different-lineage ruling on §234 picked an option neither side had (2026-09-18)
+
+§234 put the dangling-link archive as a two-way choice: keep today's silent text fallback (A), or
+return `'junction'` on a failed stat and rebuild the fixture (B). A Codex review at `6290a95`,
+scoped to that one decision, ruled **C** and REQUEST CHANGES on both.
+
+**The ruling.** Keep a failed type probe UNKNOWN — do not guess a type — but stop writing the text
+fallback. Make a failed link recreation an explicit archive FAILURE that names the original path and
+the underlying error, and leave the original unreplaced.
+
+**What decides it is the contract, not the platform.** `archive()` copies what is about to be
+replaced so that work is not lost. A restore must recover the original link's BEHAVIOUR at its
+original location, and `isSymbolicLink() === true` is not sufficient for that — a directory junction
+cannot restore a file link. So B buys link-ness at the price of the property the backup exists for.
+
+**The text fallback is lossier than its own comment claims.** That comment says a plain file holding
+the target "loses nothing". It loses the object's identity as a link, its Windows link kind, and
+ordinary copy-back restoration — and with no metadata it is indistinguishable from an original plain
+file that happened to contain a path. A restorer cannot tell the two apart.
+
+**Refusing is safe HERE because of the ordering, which was checked rather than assumed:** `write()`
+calls `archive()` BEFORE removing anything, so an exception preserves that entry's original. It does
+not roll back earlier entries, and that limit is part of the ruling rather than a gap in it.
+
+**The coupling in §234 is CONFIRMED** — changing only the fixture cannot keep the current passing
+assertion — **but it does not force B.** §234 framed the space as two options when the failure
+contract itself was the third variable.
+
+⚠ **ONE PREMISE OF §234 IS CORRECTED: "nothing can tell you which kind it was" is too strong.** That
+is true of a probe that stats the TARGET, which is all this code does. Windows exposes the link
+itself through `FindFirstFile` — attributes plus a reparse tag — so there is a documented route to
+the original link's kind without resolving a missing target. That is a route, not a result: nothing
+here has implemented or measured it, and the ruling explicitly declines to add a native metadata
+adapter before someone does.
+
+**On the two rules §234 invoked.** Returning `'junction'` after ANY failed stat treats missing
+evidence as directory evidence — and the catch covers more failures than a missing target — which is
+what §16 forbids. But §3 was invoked slightly wrong by §234: `archive()` is an OPERATION, not a gate,
+so "could-not-look must not wear a verdict's vocabulary" is not the direct charge. The direct charge
+is simpler and worse: the backup does not satisfy its own contract, and says nothing.
+
+**The regression is constructible UNPRIVILEGED**, which is what makes this actionable where §234 was
+not: create a dangling junction, call `write()` with a stamp and force its existing `makeLink` seam
+to throw EPERM, then assert the call reports archive failure, the original is still a link with the
+same target, and no plain-text backup appears. HEAD fails that today because it swallows the error
+and writes text. The existing privilege-dependent success test stays — it answers a different
+question.
+
+NOT DONE: none of this is implemented. It changes `archive()` from always-succeeds to can-throw,
+which reaches every caller of `write()`, so it is a decision for the owner rather than a fix to slip
+in behind a Windows commit. Recorded so the ruling is not lost with the session.

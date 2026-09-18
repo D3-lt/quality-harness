@@ -104,86 +104,6 @@ function reportsZeroTestWork(text, command) {
 }
 
 
-function heredocDeclarations(line, initialQuote = null) {
-  const declarations = []
-  let quote = initialQuote
-  let escaped = false
-  let arithmeticDepth = 0
-
-  for (let index = 0; index < line.length; index += 1) {
-    const character = line[index]
-    if (escaped) {
-      escaped = false
-      continue
-    }
-    if (character === '\\' && quote !== "'") {
-      escaped = true
-      continue
-    }
-    if (quote) {
-      if (character === quote) quote = null
-      continue
-    }
-    if (arithmeticDepth > 0) {
-      if (character === '(') arithmeticDepth += 1
-      else if (character === ')') arithmeticDepth -= 1
-      continue
-    }
-    if (line.startsWith('$((', index)) {
-      arithmeticDepth = 2
-      index += 2
-      continue
-    }
-    if (line.startsWith('((', index)) {
-      arithmeticDepth = 2
-      index += 1
-      continue
-    }
-    if (character === "'" || character === '"') {
-      quote = character
-      continue
-    }
-    if (character !== '<' || line[index + 1] !== '<' || line[index + 2] === '<') continue
-
-    index += 2
-    const stripTabs = line[index] === '-'
-    if (stripTabs) index += 1
-    while (/\s/.test(line[index] ?? '')) index += 1
-    const start = index
-    let delimiterQuote = null
-    let delimiterEscaped = false
-    while (index < line.length) {
-      const delimiterCharacter = line[index]
-      if (delimiterEscaped) {
-        delimiterEscaped = false
-        index += 1
-        continue
-      }
-      if (delimiterCharacter === '\\' && delimiterQuote !== "'") {
-        delimiterEscaped = true
-        index += 1
-        continue
-      }
-      if (delimiterQuote) {
-        if (delimiterCharacter === delimiterQuote) delimiterQuote = null
-        index += 1
-        continue
-      }
-      if (delimiterCharacter === "'" || delimiterCharacter === '"') {
-        delimiterQuote = delimiterCharacter
-        index += 1
-        continue
-      }
-      if (/[\s;&|<>]/.test(delimiterCharacter)) break
-      index += 1
-    }
-    const delimiter = shellWords(line.slice(start, index))[0] ?? ''
-    index -= 1
-    if (delimiter) declarations.push({ delimiter, stripTabs })
-  }
-  return { declarations, quote }
-}
-
 function shellWords(command) {
   const words = []
   let word = ''
@@ -231,10 +151,6 @@ function shellWords(command) {
   }
   finishWord()
   return words
-}
-
-function executableName(token) {
-  return token?.replaceAll('\\', '/').split('/').pop()?.replace(/\.exe$/i, '') ?? ''
 }
 
 
@@ -337,16 +253,6 @@ const CD_ONLY = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/
 // not an inference: anything else keeps failing the guard.
 const INERT_SUBSTITUTION = /^\s*(?:git\s+rev-parse\s+--show-toplevel|pwd|dirname\s+[^;&|`$()]*|realpath\s+[^;&|`$()]*|basename\s+[^;&|`$()]*)\s*$/
 
-// A segment that only moves, and moves somewhere it can name without side
-// effects. Carries no verdict, so it neither counts as validation nor spoils it.
-function inertNavigation(segment) {
-  if (!CD_ONLY.test(segment)) return false
-  for (const match of segment.matchAll(/\$\(([^()]*)\)|`([^`]*)`/g)) {
-    if (!INERT_SUBSTITUTION.test(match[1] ?? match[2] ?? '')) return false
-  }
-  return true
-}
-
 // Everything the whole-command guard used to reject: a second command hiding
 // behind a separator, a redirect, a pipe, a background job, a substitution.
 // Applied per segment now rather than to the whole string, so navigation can be
@@ -370,23 +276,6 @@ const ASSIGNMENT_ONLY = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*)+
 // peeled — guessing deeper is how a wrapper starts laundering a mutation.
 const CONTAINER_RUNNER = /^(?:sudo\s+)?(?:docker|podman)(?:\s+compose)?\s+(?:run|exec)\b/
 const FLAG_WITH_VALUE = /^(?:-e|--env|-u|--user|-w|--workdir|-v|--volume|--entrypoint|-p|--publish)$/
-
-export function commandInsideWrappers(command) {
-  let text = String(command ?? '').trim()
-  if (CONTAINER_RUNNER.test(text)) {
-    const tokens = text.split(/\s+/)
-    let index = tokens[0] === 'sudo' ? 1 : 0
-    index += tokens[index + 1] === 'compose' ? 3 : 2   // runner [compose] run|exec
-    while (index < tokens.length && tokens[index].startsWith('-')) {
-      index += FLAG_WITH_VALUE.test(tokens[index]) ? 2 : 1
-    }
-    index += 1                                          // the service or image
-    text = tokens.slice(index).join(' ').trim()
-  }
-  const shell = text.match(/^(?:\S*\/)?(?:ba|z|k|da)?sh\s+-[a-z]*c\s+('([^']*)'|"([^"]*)")$/)
-  if (shell) text = (shell[2] ?? shell[3] ?? '').trim()
-  return text
-}
 
 
 const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/
@@ -447,34 +336,6 @@ const SAFE_VISIBLE_CALLS = new Set([
 const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/
 // `find` is read-only only while it neither executes nor deletes.
 const FIND_WRITES = /(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fls|fprint|fprint0|fprintf|fputs)(?:\s|$)/
-
-function withoutReadOnlySubprocessCalls(code) {
-  return code.replace(
-    /\bsubprocess\.(?:run|check_output|check_call|call|Popen)\s*\(\s*\[((?:"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'|[^\]])*)\]([^)]*)\)/g,
-    (whole, argv, rest) => {
-      // Any keyword that can open a file handle, or a shell, keeps the call.
-      if (/\b(?:shell\s*=\s*True|stdout\s*=|stderr\s*=|stdin\s*=|input\s*=)/.test(rest)) return whole
-      // EVERY element must be a string literal. A bare name is a value this
-      // cannot see — `cmd = "rm"; subprocess.run([cmd, "-rf", "build"])` used to
-      // yield ["-rf", "build"], which names no command at all and read as safe.
-      const elements = argv.split(',').map(e => e.trim()).filter(Boolean)
-      if (elements.length === 0) return whole
-      const words = []
-      for (const element of elements) {
-        const literal = element.match(/^(?:[rbuRBU]{0,2})(["'])((?:(?!\1).)*)\1$/)
-        if (!literal) return whole
-        words.push(literal[2])
-      }
-      if (/[$`]/.test(words.join(' '))) return whole
-      const executable = (words[0] ?? '').split('/').pop()
-      if (!READ_ONLY_CHILD.test(executable)) return whole
-      if (executable === 'find' && FIND_WRITES.test(' ' + words.slice(1).join(' '))) return whole
-      // A redirect written into the argv itself is not a redirect to the OS, but
-      // this gate does not model that; keep the call rather than reason about it.
-      if (words.some(word => /^>>?|^\d?>/.test(word))) return whole
-      return '""'
-    })
-}
 
 
 // Canonical form of a directory, so a symlink cannot make an inside path look

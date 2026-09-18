@@ -13385,3 +13385,27 @@ Stated together so none of them reads as merely unattempted:
   no hasher bug, but a 2.4x margin with `selftest.sh:81` running `node --test` at 16-way. The budget
   is thin; widening it is a separate decision from the Windows work and was deliberately not slipped
   into a Windows commit.
+
+## 238. Re-announce per RUN, not once per session — §237's rule was too weak (2026-09-18)
+
+§237 recorded that two of three Windows "sessions" were one machine, and that assuming otherwise
+manufactured the first round's timeout-kill data. That is the observation. The OPERATIONAL rule it
+implies was written too weakly, and the same day produced the proof.
+
+After both sessions had read and agreed §237, one of them claimed the box before its first run,
+then started a second suite run AND a separate reproduction without re-announcing — while the
+other was mid-suite. The result was a `test-lock` timeout at 120013ms in the other's run, which
+re-ran alone at 48.2s. §237's artefact reproducing after both parties had written it up.
+
+So: **a claim is per RUN, not per session.** Announcing once and then running repeatedly is the
+failure mode, and it is not prevented by everyone understanding the hazard — both parties did.
+The reporter volunteered this against their own session, which is why it is worth recording: the
+finding is about the coordination protocol, not about anyone's care.
+
+Two corollaries for reading any contended number:
+- A contended result is unattributable in BOTH directions. The 120013ms timeout was not a hasher
+  defect, and a PASS taken under contention would not have been evidence either.
+- `test-lock`'s margin is the standing question underneath: ~50s standalone against a 120s budget,
+  with `scripts/selftest.sh` running `node --test` at full width. Nothing is broken; the margin is
+  thin enough that contention reaches it first. Widening the budget, or bounding concurrency, is a
+  deliberate change and was kept out of the Windows commits on purpose.

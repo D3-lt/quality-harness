@@ -605,17 +605,27 @@ export async function runArtifactBatch(raw) {
 // this process is the only one that knows what the gate answered.
 export async function runEditGate(raw) {
   const payload = raw ?? await readStdin()
-  const verdict = {}
-  const status = await runShellHook('facts-gate-dispatch.sh', payload, { verdict })
   const file = hookFilePathFromPayload(payload)
   let parsed
   try { parsed = JSON.parse(payload) } catch {}
-  if (file && typeof parsed?.session_id === 'string' && typeof parsed?.cwd === 'string') {
-    // The key is the NATIVE spelling, never the bash-shaped one this payload was
-    // normalized into; rule A looks it up against `path.join(root, relative)`.
-    const key = persistedEventPath(file, parsed.cwd)
+  const key = file && typeof parsed?.cwd === 'string' ? persistedEventPath(file, parsed.cwd) : null
+  // ⚠ HASH THE BYTES THE GATE IS ABOUT TO READ, NOT THE ONES LEFT AFTERWARDS.
+  // This recorded `contentId` AFTER the gate ran, so a file edited while the gate
+  // was running was filed under the NEW content with the OLD content's verdict —
+  // and rule A then suppressed the very edit nothing had looked at. Taking the
+  // identity first means a concurrent edit produces a MISMATCH at the next
+  // boundary, which re-gates. Re-gating is the safe direction (ADR-005).
+  // Found by a different-lineage review of this branch, 2026-09-18.
+  const before = key ? contentId(key) : null
+  const verdict = {}
+  const status = await runShellHook('facts-gate-dispatch.sh', payload, { verdict })
+  if (key && typeof parsed?.session_id === 'string' && typeof parsed?.cwd === 'string') {
+    // And if the bytes MOVED under the gate, its verdict is about content that is
+    // no longer there: record it as incomplete so the next boundary asks again.
+    const after = contentId(key)
+    const steady = before !== null && before === after
     appendEvent(parsed.cwd, parsed.session_id, {
-      event: 'artifact.gated', path: key, blob: contentId(key), complete: verdict.complete === true,
+      event: 'artifact.gated', path: key, blob: before, complete: verdict.complete === true && steady,
     })
   }
   return status

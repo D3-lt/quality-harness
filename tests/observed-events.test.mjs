@@ -10,10 +10,11 @@ import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpath
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
-import { fileURLToPath } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import * as lifecycle from '../plugin/scripts/lifecycle.mjs'
 import * as statusline from '../plugin/scripts/statusline.mjs'
 import { tally } from '../plugin/scripts/claims-rate.mjs'
+import { ABSENT } from '../plugin/scripts/event-log.mjs'
 import { persistedEventPath } from '../plugin/scripts/run-shell-hook.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
@@ -1348,4 +1349,102 @@ test('a session that began before the first commit still sees the commits it gai
   assert.match(said, /commit/i, `a commit nothing checked must be reported: ${said}`)
   const rules = named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule)
   assert.ok(rules.includes('R2'), `R2 must fire for the commits gained since an unborn HEAD: ${rules}`)
+})
+
+test('an unknown content identity matches nothing, including another unknown', () => {
+  // ⚠ THE READER CONTRADICTED ITS OWN CONTRACT. `contentId` says in its own doc
+  // comment: "Null means unreadable, which a reader must treat as unknown and not
+  // as 'the same as last time'." The dedup was written
+  // `answered.get(file) === contentId(file)`, and `null === null` is true — so a
+  // path whose bytes could not be read when it was gated and cannot be read now
+  // was suppressed FOR EVER, on the strength of two non-answers agreeing.
+  // Found by a different-lineage review of this branch, 2026-09-18.
+  const answered = new Map()
+  answered.set('/x/known.md', 'aaa')
+  answered.set('/x/unreadable.md', null)
+
+  // The suppression this exists to provide still works...
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/known.md', 'aaa'), true)
+  // ...and every kind of not-knowing refuses it.
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/known.md', 'bbb'), false, 'different bytes are a new question')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/known.md', null), false, 'unreadable NOW is not "unchanged"')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/unreadable.md', null), false,
+    'two unknowns are not a match — this is the defect')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/unreadable.md', 'aaa'), false,
+    'and an unknown RECORD cannot certify readable bytes either')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/never-gated.md', 'aaa'), false, 'never gated is never answered')
+
+  // ⚠ AND ABSENCE IS THE THIRD ANSWER, not a kind of unknown. A record that was
+  // DELETED and whose deletion was gated is positively accounted for, so it is
+  // suppressed — otherwise the strict null rule above would re-gate every deleted
+  // record at every boundary for ever. Absence used to collapse into null, and
+  // that collapse is what made the null rule look harmless.
+  answered.set('/x/deleted.md', ABSENT)
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/deleted.md', ABSENT), true,
+    'a gated deletion stays gated')
+  assert.equal(lifecycle.alreadyAnswered(answered, '/x/deleted.md', 'aaa'), false,
+    'and a file that came BACK is a new question')
+  assert.notEqual(ABSENT, null, 'absence must be distinguishable from unreadable, or none of this holds')
+})
+
+test('a file edited while its gate ran is not recorded as answered', t => {
+  // ⚠ THE IDENTITY WAS TAKEN AFTER THE GATE RAN. So a file edited WHILE the gate
+  // was reading it got filed under the NEW content carrying the OLD content's
+  // verdict, and rule A then suppressed the one edit nothing had looked at.
+  //
+  // ⚠ AND MY FIRST VERSION OF THIS TEST COULD NOT FAIL. It edited the file AFTER
+  // `editGate` returned, so the old post-hoc hash recorded the pre-edit content
+  // too and the assertion held against the defect. Measured, not reasoned: it
+  // passed against the stashed pre-fix source. The edit has to land DURING the
+  // gate, which means driving the spawn seam rather than a real subprocess.
+  const dir = repository('moved-')
+  mkdirSync(path.join(dir, 'docs', 'adr'), { recursive: true })
+  const record = path.join(dir, 'docs', 'adr', 'ADR-903-moves.md')
+  writeFileSync(record, '# ADR-903: before\n')
+  const session = sessionId('moved')
+
+  const probe = async (moduleUrl, file, cwd, sessionId) => {
+    const cp = await import('node:child_process')
+    const fs = await import('node:fs')
+    const { EventEmitter } = await import('node:events')
+    const { PassThrough } = await import('node:stream')
+    const { syncBuiltinESMExports } = await import('node:module')
+    cp.default.spawn = () => {
+      const child = new EventEmitter()
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.unref = () => {}
+      // The gate is "running" — and the file moves underneath it, which is the
+      // whole case. A real editor doing this is an ordinary race.
+      queueMicrotask(() => {
+        fs.writeFileSync(file, '# ADR-903: changed WHILE the gate was reading it\n')
+        child.emit('close', 0, null)
+      })
+      return child
+    }
+    syncBuiltinESMExports()
+    const { runEditGate } = await import(moduleUrl)
+    await runEditGate(JSON.stringify({
+      hook_event_name: 'PostToolUse', tool_name: 'Edit',
+      tool_input: { file_path: file }, session_id: sessionId, cwd,
+    }))
+    process.stdout.write('done')
+  }
+  const code = '(' + probe.toString() + ')(...' + JSON.stringify([
+    pathToFileURL(path.join(repoRoot, 'plugin', 'scripts', 'run-shell-hook.mjs')).href,
+    record, dir, session,
+  ]) + ')'
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', code],
+    { encoding: 'utf8', timeout: 60_000, cwd: dir, env: HOOK_ENV })
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
+
+  const state = path.join(dir, '.git', 'quality-harness')
+  const gated = named(eventsIn(state, session), 'artifact.gated').at(-1)
+  assert.ok(gated, 'the per-edit gate must have recorded something')
+  const after = createHash('sha256').update(readFileSync(record)).digest('hex')
+  assert.notEqual(gated.blob, after,
+    'the identity must be the content the gate was GIVEN, not what the file holds after it')
+  assert.equal(gated.complete, false,
+    'and a gate whose bytes moved underneath it has not answered about them')
 })

@@ -391,6 +391,7 @@ clear, the rest of this page reads normally.
 - `execution` — bounded implementation with fresh evidence.
 - `review` — evidence-backed code review with risk routing.
 - `mutation-audit` — break a mechanism on purpose and measure whether anything notices.
+- `codebase-audit` — audit a whole codebase with no diff, and leave a committed ledger.
 - `postmortem` — structured learning from material failures.
 - `codex-review` — fresh-context GPT-6 Astra verdict review.
 - `codex-advise` — fresh-context GPT-6 Astra technical advice.

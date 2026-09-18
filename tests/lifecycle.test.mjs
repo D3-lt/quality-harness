@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, utimesSync, writeFileSync } from 'node:fs'
+import { linkDirectory } from './symlink-support.mjs'
 import { cp, mkdir, mkdtemp, readFile, readdir, rm, symlink, writeFile } from 'node:fs/promises'
 import os from 'node:os'
 import path from 'node:path'
@@ -1352,7 +1353,9 @@ test('scratch writes under the temp root are not the repository\'s edits', async
   // it points at a directory, a file, or nothing yet.
   const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-link-'))
   const directoryLink = path.join(linkDir, 'repo-link')
-  if (!await symlinkOrSkip(t, pluginDir, directoryLink)) return
+  // A DIRECTORY link: a junction needs no privilege, so this runs on Windows
+  // rather than skipping (tests/symlink-support.mjs).
+  linkDirectory(pluginDir, directoryLink)
   assert.equal(mutatesOnlyTempPaths(`printf x > "${directoryLink}/smuggled.txt"`, pluginDir), false)
   const fileLink = path.join(linkDir, 'file-link')
   if (!await symlinkOrSkip(t, path.join(repoRoot, 'README.md'), fileLink)) return
@@ -4089,7 +4092,7 @@ test('reported: a symlinked checkout is not an empty corpus', async t => {
   // A genuine symlink, because testTmp is already realpath'd on darwin and the
   // trap would otherwise be invisible on every platform.
   const link = path.join(await mkdtemp(path.join(testTmp, 'quality-corpus-via-')), 'repo')
-  if (!await symlinkOrSkip(t, real, link, 'dir')) return
+  linkDirectory(real, link)
   const spelled = path.join(link, 'src', 'orders', 'schema.ts')
 
   // Root spelled through the link, file spelled through the link.

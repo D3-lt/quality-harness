@@ -6,7 +6,8 @@
 // clean is one nothing has proven can return dirty (CLAUDE.md §4).
 import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
-import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { mkdirSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { linkDirectory } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -247,14 +248,10 @@ test('the CLI runs when its own path is reached through a symlink', t => {
     writeFileSync(subject, `${HEADER}return 1\n`)
 
     const link = join(dir, 'link')
-    try {
-      symlinkSync(real, link, 'dir')
-    } catch (err) {
-      // §7: a skip names its reason, after the failure has been seen — a Git for
-      // Windows checkout without developer mode cannot create one.
-      t.skip(`this host cannot create a directory symlink: ${err.code ?? err.message}`)
-      return
-    }
+    // A DIRECTORY link, so a junction builds it with no privilege and this runs
+    // on an ordinary Windows account instead of skipping (2026-09-18: a Windows
+    // session found this still on the skip path after the others were converted).
+    linkDirectory(real, link)
 
     const viaLink = spawnSync(process.execPath, [join(link, 'workflow-parse.mjs'), '--js', subject],
       { encoding: 'utf8', timeout: 60_000 })

@@ -29,6 +29,17 @@ one that just ran (ADR-031).
 
 Exit: 0 always, whatever it finds — see above · 2 = usage, a broken invocation, or a named path that exists but could not be read.
 """
+# Windows defaults stdout/stderr to the ANSI codepage, and this gate prints `—`
+# and `·`. Under cp1252 they reach the terminal as mojibake: measured on Windows
+# 11 on 2026-09-18, `qh-check — run this project's check` and `CLAUDE.md Â§4`.
+# Eight gates here already carry this and four did not; the convention is only a
+# convention if something applies it.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 import re
 import sys
 from pathlib import Path

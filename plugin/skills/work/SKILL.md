@@ -100,7 +100,6 @@ A nonzero command stops the chain. `unavailable` makes the result evidence-limit
 Guard against false green: confirm the check ran something and, for load-bearing custom gates,
 that a relevant rejected fixture or mutation can make it fail — `/quality-harness:mutation-audit`
 measures exactly that.
-
 For an explicit until-clean request, invoke `/quality-harness:review-ring` with this evidence. The workflow may make
 one minimal fix and then returns `revalidation-required`; rerun the command in the coordinator and
 invoke the ring once more with fresh evidence. If a material finding remains or repeats without new

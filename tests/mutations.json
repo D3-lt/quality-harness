@@ -415,15 +415,6 @@
       "to": "  process.stderr.write(`${reason}\\n`)\n  if (input?.hook_event_name !== 'PreToolUse') {\n    return\n  }"
     },
     {
-      "label": "advisory: php artisan test is validation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "(?:php\\s+)?artisan\\s+test|",
-      "to": ""
-    },
-    {
       "label": "advisory: a project that names no check hears nothing",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -843,7 +834,6 @@
       ],
       "from": "    recover_mutant(cwd)\n    if relock:\n        record_relock(task, text, cmd, cwd, today, replace_hashes)\n        sys.exit(0)\n\n    # ADR-028 T1, corrected by T3.",
       "to": "    if relock:\n        record_relock(task, text, cmd, cwd, today, replace_hashes)\n        sys.exit(0)\n\n    # ADR-028 T1, corrected by T3."
-
     },
     {
       "label": "sync: a forwarder is not reported as drifted",
@@ -1260,13 +1250,13 @@
       "to": "      if (false) continue"
     },
     {
-      "label": "link: an archive that cannot link records the target instead",
+      "label": "link: an archive that cannot recreate the link REFUSES instead of degrading",
       "file": "plugin/scripts/standalone-link.mjs",
       "tests": [
         "tests/standalone-link.test.mjs"
       ],
-      "from": "      writeFileSync(kept, `${points}\\n`)",
-      "to": "      throw new Error('unreachable')"
+      "from": "      throw new Error(\n        `quality-harness: could not archive the link ${entry.to} — it was NOT replaced. `\n        + `Recreating it under ${kept} failed: ${cause?.code ?? ''} ${cause?.message ?? cause}`.trim(),\n        { cause })\n",
+      "to": "      return kept\n"
     },
     {
       "label": "mutate: a run that refuses still repairs first",
@@ -2620,15 +2610,6 @@
       "to": "  for (const name of ['test', 'check', 'lint', 'typecheck', 'build']) {"
     },
     {
-      "label": "checks: a composer script answers before a phpunit guess",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "  const composed = composerScriptCommand(root)",
-      "to": "  const composed = null && composerScriptCommand(root)"
-    },
-    {
       "label": "lint: a BDD test named by a string is found",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -3811,7 +3792,6 @@
         "tests/evidence-chain.test.mjs"
       ],
       "from": "    record_run(task, task.read_text(encoding=\"utf-8\"), cmd, today, clean,\n               clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
-
       "to": "    pass"
     },
     {
@@ -3831,7 +3811,6 @@
       ],
       "from": "               clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
       "to": "               round((time.monotonic() - clean_started) * 1000), entry_sha, steps, cwd=cwd)"
-
     },
     {
       "label": "verify: an empty unittest or cargo run is not counted as evidence",
@@ -3949,7 +3928,6 @@
         "tests/evidence-chain.test.mjs"
       ],
       "from": "    r\"(?: · steps:S[1-9]\\d*(?:,S[1-9]\\d*)*)?\" + TEST_LOCK_FIELD_ANON + r\"$\")",
-
       "to": "    r\"$\")"
     },
     {
@@ -4122,7 +4100,6 @@
       ],
       "from": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, steps, cwd=cwd)",
       "to": "            record_run(task, text, cmd, today, clean, clean_elapsed_ms, entry_sha, cwd=cwd)"
-
     },
     {
       "label": "steps: --restore names no run, so the flag is refused there",
@@ -4437,8 +4414,8 @@
       "tests": [
         "tests/qh-doctor.test.mjs"
       ],
-      "from": "  if (!home.looked || !moved.looked || !ledger.looked || !release.looked) {",
-      "to": "  if (!home.looked || !moved.looked || !release.looked) {"
+      "from": "  if (!home.looked || !moved.looked || !ledger.looked || !release.looked\n    || (moved.unidentified ?? 0) > 0) {",
+      "to": "  if (!home.looked || !moved.looked || !release.looked\n    || (moved.unidentified ?? 0) > 0) {"
     },
     {
       "label": "rate: a value outside the vocabulary is excluded, never counted as held",
@@ -4870,8 +4847,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }",
-      "to": "    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, timeout, encoding: 'utf8' }).trim() }"
+      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
+      "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }"
     },
     {
       "label": "branch-state: gh is not asked where no remote names a GitHub host",
@@ -5097,7 +5074,6 @@
       ],
       "from": "              f\"reads a whole directory.\")\n        sys.exit(2)",
       "to": "              f\"reads a whole directory.\")\n        pass"
-
     },
     {
       "label": "lint: a file NAMED ADR- keeps its findings even with no Status line",
@@ -5763,7 +5739,6 @@
       ],
       "only": "declared in its own docstring",
       "from": "Exit: 0 the contract holds · 1 it does not · 2 could not run: plugin/lib/record.py\nis not beside this gate's bin/ (a gate copied on its own; ADR-045), or a named path that exists but could not be read.",
-
       "to": "The contract either holds or it does not."
     },
     {
@@ -6529,7 +6504,6 @@
       ],
       "from": "from record import sections_of, acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402",
       "to": "from record import acceptance_fence, unterminated_fence, normalize_acceptance, acceptance_digest, TEST_LOCK_FIELD_ANON, lock_blocks_done, TEST_HASH_REQUIRED_FROM  # noqa: E402\n\n\ndef sections_of(text):\n    out, current = {}, None\n    for line in text.split(\"\\n\"):\n        m = re.match(r\"^##\\s+(.+?)\\s*$\", line)\n        if m:\n            current = m.group(1)\n            out.setdefault(current, [])\n            continue\n        if current is not None:\n            out[current].append(line)\n    return out",
-
       "only": "^a heading inside the Acceptance fence is not a heading: adr-next agrees with adr-verify's digest$"
     },
     {
@@ -7011,7 +6985,6 @@
       ],
       "from": "            elif sha and not kind:\n                later_red_locks.append(sha.group(1))\n",
       "to": "            elif sha and not kind:\n                pass\n",
-
       "only": "a later red carrying a different lock hash"
     },
     {
@@ -7892,7 +7865,6 @@
       ],
       "from": "        if not sha:\n            # R3: the first red predates the lock writer. Take the first later\n            # machine row that carries a trailing lock (any exit). Weaker than\n            # first-red; later reds after that with a different sha still conflict.\n            past = False\n",
       "to": "        if not sha:\n            return first_date, None\n            past = False\n",
-
       "only": "later row can recover"
     },
     {
@@ -7903,7 +7875,6 @@
       ],
       "from": "    elif recorded.get(\"recovered\"):",
       "to": "    elif False:",
-
       "only": "later row can recover"
     },
     {
@@ -8264,4 +8235,3 @@
     }
   ]
 }
-

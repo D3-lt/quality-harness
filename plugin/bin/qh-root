@@ -30,6 +30,18 @@ one that just ran (ADR-031).
 """
 from __future__ import annotations
 
+# Windows defaults stdout/stderr to the ANSI codepage, and this gate prints `—`
+# and `·`. Under cp1252 they reach the terminal as mojibake: measured on Windows
+# 11 on 2026-09-18. Eight gates here already carried this and four did not; a
+# convention is only a convention if something applies it. ⚠ It sits AFTER the
+# `__future__` import, which the language requires to be the first statement.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
+
 import os
 import re
 import sys

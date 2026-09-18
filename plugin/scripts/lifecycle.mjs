@@ -39,31 +39,22 @@ const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 // to be raisable by whoever owns the corpus.
 const ARTIFACT_GATE_TIMEOUT_MS = 30_000
 export const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
-const VALIDATION_PATTERNS = [
-  /^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
-  /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,
-  // `php artisan test` is how a Laravel project runs its tests, and it was not
-  // here: a session with 286 passing tests kept being asked for a check.
-  // vendor/bin/phpunit needed its path prefix allowed for the same reason —
-  // requiring the bare name meant only a globally installed runner counted.
-  /^(?:pytest|python(?:3)?\s+-m\s+(?:pytest|unittest)|(?:php\s+)?(?:\S*\/)?(?:phpunit|pest)|(?:php\s+)?artisan\s+test|rspec|bundle\s+exec\s+rspec)\b/i,
-  /^(?:npx\s+)?(?:tsc|eslint|ruff|mypy|pyright|shellcheck)\b/i,
-  /^(?:node\s+(?:--check|--test)|bash\s+-n|php\s+-l|jq\s+empty|claude\s+plugin\s+validate)\b/i,
-  /^(?:make|just)\s+(?:test|check|lint|build|verify|validate)\b/i,
-  /^(?!test(?:\s|$))(?!\S*(?:adr-verify|create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))(?=\S*(?:test|lint|check|verify|validate|selftest))\S+(?:\s|$)/i,
-  /^(?:node\s+)?(?:\S*\/)?verify\.mjs\s+--cwd\s+/i,
-  /^(?:python(?:3)?|node|ruby|perl|php)\s+(?!\S*(?:create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))\S*(?:check|lint|verify|test|validate)\S*\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|lint|test|validate|audit|census|status|spine|evals)\b/i,
-  /^(?:python(?:3)?|node|ruby|perl|php)\s+\S*derive_shapes\.(?:py|mjs|js|ts|rb|pl|php)\s+(?:verify|check|audit|census|status)\b/i,
-  /^(?:python(?:3)?\s+)?\S*(?:adr-lint|adr-debt|spec-verify|arch-lint|postmortem-verify|adr-retire-check)\b/i,
-  // `bash scripts/selftest.sh` is the same run as `./scripts/selftest.sh`, and
-  // only the second was evidence: the pattern above needs the validator's own
-  // name as the first word. Running a repository's own gate the obvious way left
-  // the hook asking for a validation that had just passed. Hit live repeatedly on
-  // 2026-08-25. The shell name is a wrapper, so look past it at the script — with
-  // the same authoring-verb exclusions, and `(?!-)` so `bash -n` keeps its own
-  // rule above and `bash -c "…"` stays outside this one.
-  /^(?:bash|sh|zsh|ksh)\s+(?!-)(?!\S*(?:adr-verify|create|update|rewrite|write|package|generate|format|fix|migrate|seed|install|remove|delete))\S*(?:test|lint|check|verify|validate|selftest)\S*(?:\s|$)/i,
-]
+// ⚠ THE VALIDATION PATTERN TABLE WENT WITH THE CLASSIFIERS (ADR-060 T7), and two
+// lessons it held are worth keeping even though its code is not — both bought in
+// the 2.100.0 release, days before this branch landed:
+//
+//   - A verb must be a WHOLE TOKEN. The table ended each verb with `\b`, and a
+//     hyphen and a colon are both word boundaries, so `test-data`, `test:seed`
+//     and `test-fixtures` all counted as the `test` script. Wrong for npm since
+//     the line was first written.
+//   - `composer` must not be in such a table at all. Admitting it forced a family
+//     into the read-only classifier that turned `composer update` — which
+//     rewrites composer.lock — from `unrecognised` into `neither`, a fail-open
+//     introduced while fixing a fail-closed.
+//
+// Neither has a consumer here any more: nothing on this branch decides what
+// happened by reading a command's text. They survive in docs/BACKLOG.md and in
+// this record's Consequences, which is where a lesson outlives its code.
 
 function walk(value, visit) {
   if (!value || typeof value !== 'object') return
@@ -617,10 +608,11 @@ function hasBackgroundWork(input) {
 }
 
 // Discovery, in the order a person would try: the repository's own script, then
-// its package manifest, then its build file, then the language's default. Only
-// commands VALIDATION_PATTERNS already accepts as evidence are offered — telling
-// someone to run something the gate would then refuse is worse than saying
-// nothing. Returns null when the project names no check; the gate must not
+// its package manifest, then its build file, then the language's default. The
+// offer is routed through `qh-check`, which is the only thing here that records
+// evidence — naming a command without it leaves a run nothing can see, which is
+// worse than saying nothing. Returns null when the project names no check; the
+// gate must not
 // invent one.
 const PROJECT_CHECKS = [
   { file: 'scripts/selftest.sh', command: 'bash scripts/selftest.sh' },
@@ -667,16 +659,6 @@ function declaredCheckCommand(directory) {
   return typeof check === 'string' && check.trim() ? check.trim() : null
 }
 
-/** A `test` script a composer.json declares, which is the project's own answer. */
-function composerScriptCommand(directory) {
-  let manifest
-  try {
-    manifest = JSON.parse(readFileSync(path.join(directory, 'composer.json'), 'utf8'))
-  } catch { return null }
-  const script = manifest?.scripts?.test
-  const named = Array.isArray(script) ? script.length > 0 : typeof script === 'string' && script.trim()
-  return named ? 'composer test' : null
-}
 
 function packageManagerCommand(directory) {
   let manifest
@@ -754,12 +736,24 @@ export function checkCommandOrigin(cwd = process.cwd()) {
   // reason `scripts/verify.sh` sits above `go test ./...`: `php vendor/bin/phpunit`
   // is a guess at how this project runs its tests, and in the repository that
   // reported §56 it is the wrong one — phpunit there runs only inside Docker, so
-  // the bare host command would not execute at all. `composer test` is whatever
-  // that project decided it is.
-  // The project naming its own test script is the project SPEAKING, like the
-  // declared `check` above and unlike a manifest guess.
-  const composed = composerScriptCommand(root)
-  if (composed) return { command: composed, origin: 'declared' }
+  // the bare host command would not execute at all.
+  //
+  // ⚠ THE `composer test` RUNG IS GONE, and removing it is the SAFE way to satisfy
+  // the invariant it broke. It offered `composer test` as the project's own check
+  // while the evidence check refused that string, and the two attempts to fix
+  // that by ACCEPTING more each produced a P1 in review: first `--help` and
+  // `test-data` passing the publish guard, then a whole `composer` family turning
+  // `composer update` — which writes composer.lock — from `unrecognised` into
+  // `neither`. Section 16 is explicit that a classifier permitting more needs
+  // stronger evidence than one permitting less, and this rung was the demand for
+  // it.
+  //
+  // Offering LESS satisfies the same invariant with none of that risk, and it
+  // gives a Laravel project the BETTER answer anyway: it falls through to the
+  // phpunit rung below, which a session running a real Laravel 11 tree confirmed
+  // names the command they would actually run, with the inference caveat leading.
+  // The rung also read a `laravel new` skeleton default as the project SPEAKING,
+  // which it is not.
   for (const candidate of PROJECT_CHECKS) {
     if (existsSync(path.join(root, candidate.file))) {
       return { command: candidate.command, origin: 'inferred' }

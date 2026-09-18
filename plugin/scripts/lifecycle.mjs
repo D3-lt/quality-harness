@@ -2770,9 +2770,21 @@ function statusPaths(root) {
 // "authored here": a fetch, a merge or a checkout makes commits reachable too,
 // and this says only that no check has passed on their trees.
 function sessionCommits(log, root, head) {
-  const first = log.find(entry => entry.event === 'session.started')?.observation?.head
-  if (!root || typeof first !== 'string' || typeof head !== 'string' || first === head) return mark([], true)
-  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', `${first}..${head}`])
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const first = baseline?.head
+  if (!root || typeof head !== 'string') return mark([], true)
+  // ⚠ AN UNBORN BASELINE IS OBSERVED-AND-EMPTY, NOT UNKNOWN. `observe()` records a
+  // repository with no commits as `{ ok: true, head: null }` — looked at, and
+  // positively empty. Requiring a STRING baseline here collapsed that into "no
+  // information", so a session that started in a fresh repository and then gained
+  // its whole history reported NO new commits: R2 silent in the one case where
+  // every commit is new. `git init` then work is how a project starts, and a
+  // scaffold that commits as it goes reaches it every time.
+  const unborn = baseline?.ok === true && first === null
+  if (!unborn && (typeof first !== 'string' || first === head)) return mark([], true)
+  // Everything reachable from HEAD is new when the session began with nothing.
+  const range = unborn ? [head] : [`${first}..${head}`]
+  const lines = gitLines(root, ['log', '--format=%H%x09%T%x09%s', ...range])
   return mark(lines.map(line => {
     const [sha, tree, ...subject] = line.split('\t')
     return { sha, tree, subject: subject.join('\t') }
@@ -2874,12 +2886,19 @@ function artifactBudgetMs(eventName) {
 function artifactRule(input, recorded) {
   if (typeof input.session_id !== 'string' || !input.session_id) return
   const log = readEvents(input.cwd, input.session_id)
-  const first = log.find(entry => entry.event === 'session.started')?.observation?.head
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const first = baseline?.head
   const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
   const root = directory ? gitRepositoryRoot(directory) : null
   const paths = new Set()
   if (root && typeof first === 'string') {
     for (const relative of gitLines(root, ['diff', '--name-only', first])) paths.add(path.join(root, relative))
+  } else if (root && baseline?.ok === true && first === null) {
+    // The session began with an unborn HEAD, so every tracked path at HEAD arrived
+    // during it and every one of them is a candidate. `diff` has no base to take.
+    for (const relative of gitLines(root, ['ls-tree', '-r', '--name-only', 'HEAD'])) {
+      paths.add(path.join(root, relative))
+    }
   }
   if (root) for (const relative of statusPaths(root)) paths.add(path.join(root, relative))
   for (const entry of log) {

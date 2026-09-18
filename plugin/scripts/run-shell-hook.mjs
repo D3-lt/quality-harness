@@ -58,6 +58,32 @@ export function hookFilePathFromPayload(raw, platform = process.platform) {
   return typeof candidate === 'string' && candidate.length > 0 ? candidate : null
 }
 
+/**
+ * The spelling a path gets when it is PERSISTED as an event key.
+ *
+ * ⚠ `windowsPathForBash` rewrites `C:\x` to `C:/x` (and `\\server\share` to
+ * `//server/share`) so a path can be handed to a bash gate. That is correct at
+ * the shell boundary and must stay. What must NOT happen is that bash-shaped
+ * string escaping into durable state — and it did: `runEditGate` recorded it
+ * verbatim as an `artifact.gated` key, while rule A at the turn end rebuilds its
+ * candidates with `path.join(root, relative)`, which is NATIVE. The two spellings
+ * never compare equal, so `answered` was always empty and EVERY artifact a
+ * per-edit gate had already answered COMPLETE was re-gated and re-reported. The
+ * dedup rule A exists to provide has never worked on Windows.
+ *
+ * Reported and root-caused 2026-09-18 by two Windows sessions, who also found the
+ * precedent: `recordFileWritten` (lifecycle.mjs) already does `path.resolve` before
+ * recording, which is exactly why `file.written` is immune and this was not.
+ * `path.win32.resolve` re-normalizes both separators and the UNC form, so the
+ * mapped-drive case nobody can test is covered by the same line.
+ *
+ * `platform` is a parameter because the whole defect is win32-only and a
+ * win32-only branch with no injectable seam has no test (CLAUDE.md §7).
+ */
+export function persistedEventPath(file, cwd, platform = process.platform) {
+  return (platform === 'win32' ? path.win32 : path.posix).resolve(cwd, file)
+}
+
 export function hookArguments(scriptName, raw, platform) {
   const payload = parsedHookPayload(raw, platform)
   const filePath = hookFilePathFromPayload(raw, platform) ?? ''
@@ -568,8 +594,11 @@ export async function runEditGate(raw) {
   let parsed
   try { parsed = JSON.parse(payload) } catch {}
   if (file && typeof parsed?.session_id === 'string' && typeof parsed?.cwd === 'string') {
+    // The key is the NATIVE spelling, never the bash-shaped one this payload was
+    // normalized into; rule A looks it up against `path.join(root, relative)`.
+    const key = persistedEventPath(file, parsed.cwd)
     appendEvent(parsed.cwd, parsed.session_id, {
-      event: 'artifact.gated', path: file, blob: contentId(file), complete: verdict.complete === true,
+      event: 'artifact.gated', path: key, blob: contentId(key), complete: verdict.complete === true,
     })
   }
   return status

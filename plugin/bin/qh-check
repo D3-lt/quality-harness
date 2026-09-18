@@ -23,6 +23,20 @@ plugin/scripts/qh-check.mjs is not beside this gate's bin/.
 `--version` prints this gate's name, the version read from the manifest beside
 IT, and that root (ADR-031).
 """
+
+# Windows defaults stdout/stderr to the ANSI codepage, and this gate prints `—`
+# and `·`. Under cp1252 they reach the terminal as mojibake: a Windows 11 session
+# on 2026-09-18 read `qh-check ? run this project's check` from `--help`.
+# ⚠ THIS GATE EXISTS ONLY ON THIS BRANCH, which is why it was the one file the
+# same fix on `main` could not reach — adr-judge, qh-mcp and qh-root got it there
+# and qh-check is not there to get it. A merge without this line reintroduces the
+# defect in the file that produced the report.
+import sys as _sys
+for _s in (_sys.stdout, _sys.stderr):
+    try:
+        _s.reconfigure(encoding="utf-8", errors="replace")
+    except Exception:
+        pass
 import json
 import os
 import shutil

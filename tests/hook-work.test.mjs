@@ -300,8 +300,14 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   if (process.platform === 'win32' && /cleanup could not be confirmed/.test(result.finding)) {
     assert.doesNotMatch(result.finding, /CHECKED .*last\.ts/)
     assert.match(result.finding, /batch stopped after unconfirmed process cleanup/)
+    // UNRUN means NOT ATTEMPTED. `slow.ts` is files[1] and it is the one that was
+    // attempted and timed out, so production is right to report only what comes
+    // after it — `batch.paths.slice(index + 1)`, i.e. `[last.ts]`. The test asked
+    // for `slice(1)` and so demanded that the timed-out file be called unrun,
+    // which contradicts the word the rename in this branch chose. Reported
+    // 2026-09-18 by a Windows session; only win32 reaches this arm.
     const remaining = result.finding.split('UNRUN artifacts:\n')[1]
-    assert.equal(remaining?.replaceAll('\\', '/'), files.slice(1).join('\n').replaceAll('\\', '/'))
+    assert.equal(remaining?.trim().replaceAll('\\', '/'), files.slice(2).join('\n').replaceAll('\\', '/'))
   } else {
     assert.match(result.finding, /CHECKED .*last\.ts/, 'confirmed cleanup must preserve later findings')
     assert.ok(result.finding.indexOf('budget, not a finding') < result.finding.lastIndexOf('CHECKED'),

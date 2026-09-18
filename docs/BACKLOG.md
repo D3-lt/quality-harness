@@ -13190,3 +13190,24 @@ an unchecked COMMIT, because the log holds no commit history — so a session wh
 whose new commit is not renders `QH ✓ checked` while R2 has something to say at the next turn end.
 Storing the last completion's evidence in the log would close it, at the cost of putting a verdict
 into a file of observations.
+
+## 230. §213, §216, §217, §218, §219, §220 and §221 close with the classifiers (2026-09-18)
+
+ADR-060 T7 deleted every rule that read a command's text to decide what happened, so seven entries
+have nothing left to fix. Closed here rather than edited in place, because the entries are history
+and what closed them is a decision, not a repair:
+
+- **§213** (a wrapped selftest missed, `mrw read` counted as a write) and **§216** (the same, sighted
+  live in workflow-spawned reviewers): there is no command classifier to miss a wrapper. A check is
+  an event `qh-check` writes, and a write is a `file.written` event or a tree that moved.
+- **§217** (a per-session counter for repeated advisories): replaced by one advisory per rule and
+  evidence state. The key carries the tree, the evidence revision and the count of writes git cannot
+  see, so the same finding is made once and re-opens when the state moves.
+- **§218** (shell grammar words make a loop or a conditional an unrecognised family) and **§219**
+  (the foreign-shell check survives its deletion): nothing classifies a family any more.
+- **§220** (arguments of read-only families read as changed paths) and **§221**: changed paths come
+  from `git status --porcelain` and from Edit/Write events, so a command's arguments reach no list.
+
+⚠ **These closures are on the ADR-060 trial branch and describe its tree.** Four of the defects
+(§223's over-reports, §224, §227, §228) are about the released 2.99.7 classifiers and stay open
+there until ADR-060 is accepted and released.

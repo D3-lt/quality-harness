@@ -5217,8 +5217,8 @@
       "tests": [
         "tests/branch-state.test.mjs"
       ],
-      "from": "    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, env, timeout, encoding: 'utf8' }).trim() }",
-      "to": "    return { ok: true, out: execFileSync(argv[0], argv.slice(1), { cwd, timeout, encoding: 'utf8' }).trim() }"
+      "from": "      { cwd, env, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }",
+      "to": "      { cwd, timeout, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim() }"
     },
     {
       "label": "branch-state: gh is not asked where no remote names a GitHub host",

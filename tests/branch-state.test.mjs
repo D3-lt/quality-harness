@@ -658,3 +658,46 @@ test('a refresh that still renders the same brief line is not reprinted', t => {
   const control = run()
   assert.match(control.stdout, /every job concluded success/, 'without said, a refresh still prints')
 })
+
+test('a reader that decides to stay silent is not drowned out by its own children', () => {
+  // ⚠ THE REVERSE OF ADR-005'S USUAL FAILURE, and that is why it is worth a test.
+  // Everywhere else the danger is a reader SAYING more than it observed. Here the
+  // reader is careful: `describeTag` positively decides that a repository with no
+  // tags may be silent, and the CI arm decides that a non-GitHub remote means
+  // `gh` is not asked. Then git writes its own diagnostics straight to the
+  // parent's stderr, above the header, and an operator cannot tell a working
+  // reader from a crashed one.
+  //
+  // `execFileSync` without an explicit `stdio` passes the child's stderr THROUGH
+  // as well as capturing it into `error.stderr` — so the careful `catch` that
+  // turns a failure into a quiet `{ ok: false, note }` was never the only thing
+  // the user saw. Reported 2026-09-18 by a session running these readers against
+  // an Ansible repository with a Bitbucket remote; reproduced here verbatim:
+  //
+  //   fatal: ambiguous argument 'origin/master...HEAD': unknown revision ...
+  //   fatal: No names found, cannot describe anything.
+  //
+  // `statusline.mjs` imports the same exported `shell`, so this is not one
+  // reader's problem.
+  const dir = mkdtempSync(path.join(os.tmpdir(), 'qh-silent-'))
+  try {
+    const git = (...args) => spawnSync('git', ['-C', dir, '-c', 'user.name=t',
+      '-c', 'user.email=t@e.invalid', ...args], { encoding: 'utf8', timeout: 60_000 })
+    git('init', '-q')
+    git('commit', '-q', '--allow-empty', '-m', 'base', '--no-gpg-sign')
+    // No tags and no remote: both arms the reader answers by staying quiet.
+    const run = spawnSync(process.execPath,
+      [fileURLToPath(new URL('../plugin/scripts/branch-state.mjs', import.meta.url))],
+      { cwd: dir, encoding: 'utf8', timeout: 60_000 })
+    assert.equal(run.status, 0, 'the reader blocks nothing and exits 0 whatever it finds')
+    assert.equal(run.stderr, '',
+      `a child's diagnostics must not reach the user when the reader chose silence:\n${run.stderr}`)
+    // ...and it still SAYS its could-not-look, so the assertion above is not
+    // satisfied by a reader that has simply gone quiet altogether (CLAUDE.md §4).
+    assert.match(run.stdout, /COULD NOT LOOK/,
+      `the honest could-not-look must survive the silencing:\n${run.stdout}`)
+    assert.match(run.stdout, /branch-state:/, 'and the header must still print')
+  } finally {
+    rmSync(dir, { recursive: true, force: true })
+  }
+})

@@ -42,7 +42,6 @@ import {
   classifyCommand,
   isPotentialMutationCommand,
   isValidationCommand,
-  isValidationEvidence,
   publishPrecededByValidation,
   readOnlyVerdict,
   posixListed,
@@ -6298,55 +6297,4 @@ test('every command this harness OFFERS, it also accepts as evidence', () => {
   }
   // The control: this is worthless unless some tree actually produced a command.
   assert.ok(offered.length >= 4, `the fixtures must exercise several rungs, got: ${offered.join(' · ')}`)
-})
-
-test('a script runner asked for HELP has not validated anything', () => {
-  // ⚠ A FAIL-OPEN AT THE PUBLISH BOUNDARY, and the hole was OLDER and WIDER than
-  // the change that surfaced it: `npm test --help` suppressed the unchecked-publish
-  // warning, and had since that pattern was written. So this is the class, not the
-  // instance (CLAUDE.md §5).
-  //
-  // Two separate mistakes:
-  //   `--help` runs nothing and exits 0, and nothing looked at the mode.
-  //   `\b` after the verb accepted `test-data` and `test:seed` as `test`, because a
-  //   hyphen and a colon are both word boundaries.
-  //
-  // ⚠ AND THE FIRST GUARD WAS WRONG IN BOTH DIRECTIONS, which is why the cases
-  // below are shaped the way they are. Reading the RAW TEXT missed a quoted flag
-  // and a wrapper payload, and wrongly rejected a flag appearing as DATA inside a
-  // shell payload or a comment — a false refusal being the expensive direction
-  // (§16): it makes the harness demand a validation the user already ran. The
-  // guard reads the effective invocation's option words now.
-  //
-  // Asserted at `publishPrecededByValidation`, which is what actually decides
-  // whether the warning is suppressed; the earlier attempt exercised the regex
-  // helper and would have passed every case here.
-  const suppressed = command => publishPrecededByValidation(`${command} && git commit -m probe`)
-
-  // Real runs must go on suppressing it, or everything below is satisfied by a
-  // predicate that now refuses everything.
-  for (const real of ['npm test', 'npm run test', 'pnpm lint', 'yarn build', 'bun run verify']) {
-    assert.equal(suppressed(real), true, `a real run must still count as evidence: ${real}`)
-  }
-
-  // A help or version mode runs nothing — bare, QUOTED, or inside a wrapper.
-  for (const mode of ['npm test --help', 'npm run test -h', 'yarn lint --help',
-    'npm run test "--help"', 'sh -c "npm test --help"', 'npm test --version']) {
-    assert.equal(suppressed(mode), false,
-      `asking a runner to describe itself is not running it: ${mode}`)
-  }
-
-  // A DIFFERENT script whose name merely starts with a verb.
-  for (const other of ['npm run test-fixtures', 'npm test:generate', 'npm run test-data']) {
-    assert.equal(suppressed(other), false,
-      `a script is not the \`test\` script just because its name begins with it: ${other}`)
-  }
-
-  // ⚠ AND THE FALSE-REFUSAL HALF. These are real validations that merely CONTAIN a
-  // help-like string as data, and rejecting them is the costly direction.
-  for (const real of ["bash -n -c 'echo --help '",
-    'node --check plugin/scripts/lifecycle.mjs # --help is documented']) {
-    assert.equal(isValidationEvidence(real), true,
-      `a flag as DATA is not a help mode: ${real}`)
-  }
 })

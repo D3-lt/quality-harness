@@ -1848,6 +1848,14 @@ export function observedFacts(log, root, observation) {
     files: root ? status.map(relative => path.join(root, relative)) : [],
     other: writes.length,
     pending: treeUnchecked || writes.length > 0,
+    // ⚠ THREE QUESTIONS, NOT ONE. `pending` answers "is there outstanding work".
+    // It was also doing duty for "did a check pass" and for "was anything
+    // observed", and it answers neither: an INHERITED dirty tree is not
+    // `treeUnchecked` (its tree equals the baseline's), so `pending` was false
+    // with no check ever run, and an unobservable tree yields an empty file list,
+    // which read as stillness. Found by a different-lineage review, 2026-09-18.
+    checked: check?.event === 'check.passed' && treeChecked(log, observation?.tree),
+    observed: observation?.ok === true,
     lastCheck: check ? { command: check.command ?? null, verdict: check.event.slice('check.'.length) } : null,
   }
 }
@@ -1861,13 +1869,27 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   // Three states, not two: 'neutral' is a session that changed nothing, which
   // says nothing about what an EARLIER session left — a reader walking back must
   // not stop on it (Codex review, 2026-09-05).
-  const status = files.length === 0 && other === 0 ? 'neutral' : pending ? 'unverified' : 'verified'
+  // A tree nothing could observe is never 'neutral' and never 'verified': those
+  // are claims about a tree that was looked at.
+  const observed = facts?.observed !== false
+  // Credit a check only when one is ON RECORD as having passed. `pending` being
+  // false is not evidence that anything ran — an inherited dirty tree is not
+  // `treeUnchecked`, so it arrives here with pending false and no check at all.
+  const passed = facts?.checked === true || facts?.lastCheck?.verdict === 'passed'
+  const status = !observed ? 'unverified'
+    : files.length === 0 && other === 0 ? 'neutral'
+      : pending || !passed ? 'unverified' : 'verified'
   const parts = []
   if (files.length) {
+    const verdict = pending ? 'no `qh-check` has passed on them'
+      : passed ? 'a `qh-check` passed on them'
+        : 'nothing here changed them since the session began, and no `qh-check` has passed on them'
     parts.push(`${files.length} changed path(s)${other ? ` and ${other} write(s) git cannot see` : ''}; `
-      + `${pending ? 'no `qh-check` has passed on them' : 'a `qh-check` passed on them'}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
+      + `${verdict}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
   } else if (other) {
     parts.push(`${other} write(s) git cannot see since the last passing check.`)
+  } else if (!observed) {
+    parts.push('the working tree could not be observed, so what changed here is unknown.')
   } else {
     parts.push('nothing has changed in the working tree.')
   }

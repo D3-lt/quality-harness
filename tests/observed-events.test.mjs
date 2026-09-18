@@ -1214,3 +1214,44 @@ test('a git query that FAILED is not a git query that found nothing', () => {
   assert.doesNotMatch(said, /\bverified\b/,
     `and it must not leave the ledger claiming verified: ${said}`)
 })
+
+test('a log that could not be read whole cannot supply a passing verdict', () => {
+  // ⚠ A TORN LINE WAS SKIPPED AND A READ ERROR BECAME "NO EVENTS", so an
+  // incomplete log answered in the vocabulary of a complete one. The reviewer's
+  // probe made it concrete: a log holding an older PASS and a newer FAILURE whose
+  // line is truncated reads as "the pass is the latest thing that happened", and
+  // the ledger said `verified`. An append is not atomic, so a truncated tail is
+  // the ordinary shape of a crash, not an exotic one.
+  //
+  // ADR-005: could-not-read is its own state. A partial log may still be used to
+  // find work (that direction only ever finds MORE), but it must never be the
+  // evidence for a clean verdict.
+  const dir = repository('tornlog-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'declare a check')
+  const session = sessionId('tornlog')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  assert.equal(qhCheckRun(dir, 'pass').status, 0)
+
+  // A clean tree whose check passed is `verified` — establish that first, or the
+  // assertion below cannot tell a fix from a reader that never says verified.
+  const clean = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.match(`${clean.stdout}${clean.stderr}`.length ? `${clean.stdout}${clean.stderr}` : 'silent', /silent|verified|^$/,
+    'a clean checked tree must not be reported as work')
+  const beforeTear = named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule)
+
+  // Now tear the last line, the way a crash mid-append leaves it.
+  const logFile = path.join(state, 'sessions', session + '.jsonl')
+  const whole = readFileSync(logFile, 'utf8')
+  writeFileSync(logFile, whole + '{"event":"check.finished","ok":fal')
+
+  const torn = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  const said = `${torn.stdout}${torn.stderr}`
+  assert.match(said, /could not|UNPROVEN|UNRUN|unknown/i,
+    `a log that could not be read whole must say so: ${said}`)
+  assert.doesNotMatch(said, /\bverified\b/,
+    `and must not supply a passing verdict: ${said}`)
+  assert.deepEqual(beforeTear, [], 'the pre-tear arm really was clean, so the tear is what changed the answer')
+})

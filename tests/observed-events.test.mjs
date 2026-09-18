@@ -1039,3 +1039,30 @@ test('the harness does not observe its own ledger', () => {
   const again = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' }, inside)
   assert.equal(again.stdout.trim(), '', again.stdout)
 })
+
+// Found by a second peer session's test of this branch, 2026-09-18: after a
+// commit, R1 said "work no `qh-check` has passed on" AND "Git reports no changed
+// path in the working tree" — both true, and together they read as a bug. The
+// tree IS unchecked and it IS the commit's tree, so the finding must name the
+// commit. R2 stays silent here on purpose: R1 speaks for the observed tree.
+const COMMITTED_TREE = /the tree at HEAD, committed as/
+
+test('a turn that ended in a commit names the commit, not a change that is not there', () => {
+  const dir = repository('peer-commit-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('committed-turn')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  writeFileSync(path.join(dir, 'README.md'), 'edited\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'work')
+  const ended = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
+  const said = ended.stdout
+  assert.deepEqual(named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule), ['R1'])
+  assert.match(said, COMMITTED_TREE, said)
+  assert.ok(said.includes('work'), said)
+  assert.equal(said.includes('no changed path'), false, said)
+  assert.equal(said.includes('Changed paths:'), false, said)
+})

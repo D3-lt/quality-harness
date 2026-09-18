@@ -13171,7 +13171,628 @@ entries:
 Open: `printf \" > "$T"`, `printf a\"b > "$T"` and `echo \" >> "x.md"` stay unrecorded. A fix should
 tokenise the command as the shell does, not extend the regular expression; ADR-060 removes the need.
 
-## 229. The status line's header says it never spawns a process, and it does (2026-09-17)
+## 229. A space in the checkout path made a run where NO test ran a passing baseline (2026-09-18) — FIXED
+
+`scripts/mutate.mjs`'s `leafTestsRun` discounted node's file-level reporter line by ABSENCE OF
+WHITESPACE: `/^\S+$/.test(name) && /\.(mjs|js|py|cjs)$/.test(name)`. A checkout path containing a
+space stops looking like a path, so the wrapper line survived the filter and counted as a leaf test
+that passed. `baselineOf` then reported `pass` for a run in which nothing executed, and `classify`
+never reaches `UNPROVEN` — every mutant graded against that baseline reads GREEN or RED. That is the
+precise failure ADR-005 exists to prevent, in the tool whose whole job is catching
+green-for-the-wrong-reason, and the invariant is stated in `baselineOf`'s own comment.
+
+REPORTED by a Windows session running this suite from `Y:\qh with spaces` (1,168 tests, 7 fail),
+which flagged its own platform-independence as INFERENCE rather than measurement and asked for it to
+be confirmed elsewhere. CONFIRMED ON macOS the same day, identical trees, name pattern matching
+nothing:
+
+    nospace/x.test.mjs        leafTestsRun 0 -> state unrun    correct
+    "space probe"/x.test.mjs  leafTestsRun 1 -> state pass     false baseline
+
+So it was never a Windows defect: `~/My Projects/`, anything under `Application Support`, a Dropbox
+or OneDrive folder with a space reproduces it. CI never saw it because this repository's own
+checkout path has no space, on any runner.
+
+FIXED here: `leafTestsRun(stdout, files)` and `baselineOf(run, files)` take the file list the runner
+actually passed (`testArgs` built it), so the wrapper line is KNOWN rather than inferred from its
+shape. The shape rule stays as a fallback for a caller that passes no files — it under-discounts,
+never over-discounts. Pinned by `a checkout path with a space is still an unrun baseline when nothing
+matched`, which runs real node output from a real spaced directory.
+
+## 230. Six tests fail on a stock Windows account, where three others already skip (2026-09-18) — FIXED
+
+Creating a symlink on Windows needs SeCreateSymbolicLinkPrivilege: Developer Mode off, shell not
+elevated, `AllowDevelopmentWithoutDevLicense = 0`, and `fs.symlinkSync` is EPERM -4048. That is the
+DEFAULT configuration; GitHub's `windows-latest` runner holds the privilege, so CI cannot see it.
+Measured 2026-09-18 on Windows 11 Pro (26200): 1,168 tests, 1,141 pass, 6 fail, 21 skipped — every
+failure this, in `tests/adr-next`, `tests/standalone-link` (x3), `tests/statusline` and `tests/sweep`.
+
+⚠ THE GUARD ALREADY EXISTED AND WAS APPLIED INCONSISTENTLY. Three tests skip this with a stated
+reason, and `tests/event-analyser` uses a JUNCTION, which needs no privilege at all — one platform
+fact, three handling strategies in one suite. FIXED with `tests/symlink-support.mjs`: `linkDirectory`
+(a junction on Windows, so the test RUNS rather than skipping) for every directory link, and
+`symlinkOrSkip` for a file link or a deliberately dangling one, where only a real symlink will do.
+A skip with a reason is the fallback, not the goal.
+
+## 231. The repository cannot be cloned on Windows from a deep root (2026-09-18) — DOCUMENTED, not fixed
+
+Default Git for Windows does not set `core.longpaths`, and the longest tracked path here is 149
+characters, so MAX_PATH leaves **110 characters for the checkout root**. A clone under a longer root
+fails with `Filename too long ... unable to checkout working tree`. Measured 2026-09-18: a
+115-character scratch root fails, `Y:\qh` succeeds, `-c core.longpaths=true` fixes the deep root
+(583 files, clean). A `windows-latest` runner checks out at about 36 characters, so CI never sees it.
+
+DOCUMENTED in `docs/INSTALL.md` rather than fixed by renaming: the longest paths are task files
+inside ACCEPTED records, and records are history (CLAUDE.md §10). ⚠ The documentation only reaches
+people who read it BEFORE cloning, and cloning is how they get it — so the real repair, when a
+future record makes it cheap, is a path-length rule for NEW task filenames so the ceiling stops
+rising. ADR-060's longest is 134; ADR-059's T10 at 149 is the current ceiling.
+
+## 232. `node --test` cannot find test files through a UNC path (2026-09-18)
+
+From `\\localhost\Y$\qh` (the same tree over SMB loopback), `bash scripts/selftest.sh` exits 1 with
+`Could not find '//localhost/Y$/qh/tests/adr-next.test.mjs, ...'` — all 59 files, comma-joined into
+one quoted string — after printing three `✔ Validation passed` lines. Isolated by the reporter: the
+glob expands to 59 separate argv entries and `fs.existsSync` resolves the UNC path fine, but `node
+--test` given that absolute path says "Could not find", while the same file via the drive letter runs
+20 tests, 20 pass. So it is node's test-runner path resolution, not this repository's globbing.
+
+Two things here ARE ours. It exits 1, which is right — it fails loudly rather than going green. But a
+run that executed ZERO tests is exactly the shape this project already has a word for: `selftest.sh`
+could notice that nothing ran and say UNRUN with a reason, instead of passing node's message through
+— and the three `✔ Validation passed` lines before it read as success to anyone skimming.
+
+NOT tested, and named so nobody assumes it: a genuine mapped network drive to another host.
+`\\localhost\Y$` is SMB loopback to a local disk, so it exercises UNC path handling but not network
+latency, reconnection, or a drive letter that is actually remote.
+
+## 233. Three green signals, each blind for a different reason (2026-09-18)
+
+The junction fix in `1e5fae2` regressed the dangling case and reached `main`. `statSync(points)`
+was written INSIDE `archive()`'s try; a dangling target makes it throw ENOENT, and that catch means
+one specific thing — "Windows refused the symlink, write the target as text". So the archive
+silently stopped being a link. CI run 35323591833's `windows` job caught it; `5be1280` fixed it by
+extracting `linkTypeFor`, whose stat catches its own failure and answers UNTYPED.
+
+What is worth keeping is not the bug, it is the signal structure. Four observers, none of which
+could see it:
+
+- **macOS** never reaches the branch — `platform === 'win32' &&` short-circuits, so `statSync` is
+  not called at all. Local `selftest.sh` was green through the whole thing.
+- **Two real Windows 11 boxes**, ordinary accounts, no `SeCreateSymbolicLinkPrivilege`. The test
+  that would look builds its fixture with a real symlink, so it SKIPS there. Both reported all five
+  fixes closed, from a spaced checkout and a cp1252 console — configurations CI cannot produce.
+- **The GitHub runner** HOLDS the privilege, so the test runs — but it checks out at a short
+  unspaced path with a UTF-8 console, so it could see none of what the real boxes found.
+
+Neither Windows configuration is a superset of the other, and "green on macOS + green on two real
+Windows machines + green on three of four CI jobs" was still wrong. A fix is verified by the
+observer that can distinguish it, and naming that observer is part of the fix.
+
+The repair that generalises is the seam, not the fix: `linkTypeFor(linkPath, rawTarget, platform)`
+takes `platform` as an argument, so the win32-only logic is now exercised on every host — and both
+Windows reporters confirmed that test RUNS and PASSES on an unprivileged account. CLAUDE.md §7 said
+this already ("a Windows-only branch with no injectable seam has no test"); an inline expression
+inside a `try` was the form that evaded it.
+
+## 234. A dangling link still archives as a plain file on an ordinary Windows account (2026-09-18)
+
+⚠ OPEN, and it is a decision rather than a defect to go and fix. Reproduced end to end and
+INDEPENDENTLY by two Windows sessions on separate accounts, through the real `archive()`:
+
+```
+fixture: dangling junction, lstat.isSymbolicLink = true
+linkTypeFor(brokenLink, readlink, 'win32') -> undefined        (correct)
+archive(...) -> isSymbolicLink = false, isFile = true
+kept is a PLAIN FILE containing "C:\Users\...\moved-away\n"
+```
+
+The chain: dangling target → `linkTypeFor` correctly returns undefined → `makeLink` is called
+untyped → Windows defaults to a FILE symlink → EPERM -4048 unprivileged → `archive()`'s catch →
+text fallback. `linkTypeFor` is right on every input; the degradation is one layer below it.
+
+Measured, and it is what makes this a choice: **`symlinkSync(missingTarget, link, 'junction')`
+SUCCEEDS on Windows without privilege.** So "text is the only option" is false, and a third state
+exists that `5be1280` does not use.
+
+The argument against taking it is in `archive()`'s own comment: a junction cannot express a file
+link, and for a dangling link NOTHING can tell you which it was. Returning `'junction'` when the
+stat fails converts an unknown into a confident wrong type on exactly the path that cannot be
+tested from here. §16 — a stronger action needs stronger evidence — so it is not being taken on two
+measurements this machine cannot reproduce.
+
+⚠ AND THE TWO HALVES ARE COUPLED, which is the part that is easy to get wrong. The obvious cheap
+half is to rebuild the fixture as a dangling JUNCTION so the guard runs on real machines instead of
+only where CI holds the privilege — `archive()` branches on `isSymbolicLink()`, true for a junction,
+so it drives the identical path. But adopting the fixture WITHOUT the third state makes that test
+FAIL on both real Windows boxes, because the behaviour there genuinely is the text fallback. So it
+is one decision with two parts, not two independent tidy-ups:
+
+- keep the symlink fixture and `undefined` — today's behaviour, guarded only on a privileged runner;
+- junction fixture AND `'junction'`-on-stat-failure — guarded where users are, at the cost of typing
+  an unknown link.
+
+Whoever rules on this should rule on both at once.
+
+## 235. Nothing anywhere executes a `.cmd` forwarder (2026-09-18)
+
+`forwarderCmd` is asserted as TEXT at six sites (`tests/standalone-link.test.mjs` 75, 161, 338,
+1079, 1108; `tests/lifecycle.test.mjs` 2288). Nothing EXECUTES one, on any platform. The only
+end-to-end forwarder execution tests are the two POSIX ones, and those skip on Windows by
+construction (they exec a `#!` script). So the forwarder Windows users actually run has no
+execution coverage at all.
+
+**This is a coverage gap, not a defect.** A Windows session executed all three arms by hand — the
+first time anything has — against `1e5fae2` on Windows 11 / node v24.20.0, and every arm is correct:
+
+```
+A  PATH=C:\Windows\System32 (node absent, System32 kept so `where` exists) -> exit 5
+   "node is not on PATH, so the plugin resolver did NOT run." / "this is not a pass"
+B  node on PATH, USERPROFILE = empty temp dir                              -> exit 4
+   "so this gate did NOT run." / "this is not a pass - an absent checker certifies nothing."
+C  node on PATH, real USERPROFILE                                          -> exit 0
+   "adr-lint 2.99.7 (C:\Users\...\cache\quality-harness\quality-harness\2.99.7)"
+```
+
+Arm A is the BACKLOG §94 regression guard (NODE-FIRST `where /q node`); it does NOT reproduce.
+Distinguishing 5 from 4 is the point — assert the exit code AND that the 4-text is absent in A.
+
+Two traps recorded so nobody rediscovers them:
+
+1. **Do not build a quoted command string.** From MSYS bash with escaped quotes it fails as
+   `'"C:\...\adr-lint.cmd"' is not recognized as an internal or external command` — the escapes
+   reach cmd literally, and that error looks exactly like a missing forwarder, so the test would
+   fail for an unrelated reason. Spawn `cmd.exe` with an argv ARRAY: `['/c', cmdPath, '--version']`.
+2. **Arm C is environment-coupled.** With no plugin cache it silently becomes arm B. Either assert
+   C only when the cache exists and say UNRUN otherwise, or stage a fake cache. "No plugin
+   installed" must not read as a pass (ADR-005).
+
+`forwarderCmd(gate, homeDirectory)` bakes the cache path with `homeDirectory` replaced by the
+LITERAL `%USERPROFILE%`, so the cache resolves at RUN time from the environment. That is what makes
+arms B and C selectable by env alone, and it is itself worth asserting: the forwarder's "resolves
+the newest installed plugin at call time" claim rests on it.
+
+## 236. Windows + a real symlink + a relative target, in the archive type probe (2026-09-18)
+
+`readlinkSync` returns a link's target VERBATIM, so it can be relative, and a relative target
+resolves against the LINK's own directory rather than `process.cwd()`. `linkTypeFor` now does
+`path.resolve(path.dirname(linkPath), rawTarget)` and a test covers the relative arm through the
+platform seam.
+
+Recorded because the REACH was narrowed by measurement after being reported broadly, and the
+narrowing is the useful part. A Windows junction always stores an ABSOLUTE target — `readlinkSync`
+on one returns `C:\...` even when a relative path was passed to create it — and on POSIX the
+`platform === 'win32' &&` guard short-circuits before the stat. So the live exposure is exactly:
+Windows + a REAL symlink (Developer Mode or an elevated shell) + a relative target. Neither Windows
+account available to this project has that privilege, so nobody can build the fixture. The reporter
+withdrew the broader claim themselves rather than leave it standing.
+
+## 237. What no configuration available to this project can test (2026-09-18)
+
+Stated together so none of them reads as merely unattempted:
+
+- **A genuine mapped network drive.** Two Windows sessions checked their own boxes independently:
+  both `Y:` volumes are `Win32_LogicalDisk` DriveType 3, empty `ProviderName`, nothing in `subst`,
+  no `DisplayRoot` — plain local NTFS. §232's `\\localhost\Y$` is SMB loopback, which exercises UNC
+  path handling but not latency, reconnection, or a drive letter that is actually remote. This is
+  known-untestable here, not unattempted.
+- **Windows + a real symlink + a relative target** (§236) — needs a privilege neither account holds.
+- **A live `--plugin-dir` session**, and with it the double-hook question.
+- ⚠ **Three session names were never three environments.** Two of the three Windows reporters are on
+  the SAME machine, and assuming otherwise manufactured the concurrency artefact in the first round
+  of reports: three concurrent suite runs on 16 CPUs produced timeout-kills that were read as code
+  defects. `test-lock` then passed alone on a quiet box — 49.8s standalone against a 120s budget, so
+  no hasher bug, but a 2.4x margin with `selftest.sh:81` running `node --test` at 16-way. The budget
+  is thin; widening it is a separate decision from the Windows work and was deliberately not slipped
+  into a Windows commit.
+
+## 238. Re-announce per RUN, not once per session — §237's rule was too weak (2026-09-18)
+
+§237 recorded that two of three Windows "sessions" were one machine, and that assuming otherwise
+manufactured the first round's timeout-kill data. That is the observation. The OPERATIONAL rule it
+implies was written too weakly, and the same day produced the proof.
+
+After both sessions had read and agreed §237, one of them claimed the box before its first run,
+then started a second suite run AND a separate reproduction without re-announcing — while the
+other was mid-suite. The result was a `test-lock` timeout at 120013ms in the other's run, which
+re-ran alone at 48.2s. §237's artefact reproducing after both parties had written it up.
+
+So: **a claim is per RUN, not per session.** Announcing once and then running repeatedly is the
+failure mode, and it is not prevented by everyone understanding the hazard — both parties did.
+The reporter volunteered this against their own session, which is why it is worth recording: the
+finding is about the coordination protocol, not about anyone's care.
+
+Two corollaries for reading any contended number:
+- A contended result is unattributable in BOTH directions. The 120013ms timeout was not a hasher
+  defect, and a PASS taken under contention would not have been evidence either.
+- `test-lock`'s margin is the standing question underneath: ~50s standalone against a 120s budget,
+  with `scripts/selftest.sh` running `node --test` at full width. Nothing is broken; the margin is
+  thin enough that contention reaches it first. Widening the budget, or bounding concurrency, is a
+  deliberate change and was kept out of the Windows commits on purpose.
+
+## 239. A different-lineage ruling on §234 picked an option neither side had (2026-09-18)
+
+§234 put the dangling-link archive as a two-way choice: keep today's silent text fallback (A), or
+return `'junction'` on a failed stat and rebuild the fixture (B). A Codex review at `6290a95`,
+scoped to that one decision, ruled **C** and REQUEST CHANGES on both.
+
+**The ruling.** Keep a failed type probe UNKNOWN — do not guess a type — but stop writing the text
+fallback. Make a failed link recreation an explicit archive FAILURE that names the original path and
+the underlying error, and leave the original unreplaced.
+
+**What decides it is the contract, not the platform.** `archive()` copies what is about to be
+replaced so that work is not lost. A restore must recover the original link's BEHAVIOUR at its
+original location, and `isSymbolicLink() === true` is not sufficient for that — a directory junction
+cannot restore a file link. So B buys link-ness at the price of the property the backup exists for.
+
+**The text fallback is lossier than its own comment claims.** That comment says a plain file holding
+the target "loses nothing". It loses the object's identity as a link, its Windows link kind, and
+ordinary copy-back restoration — and with no metadata it is indistinguishable from an original plain
+file that happened to contain a path. A restorer cannot tell the two apart.
+
+**Refusing is safe HERE because of the ordering, which was checked rather than assumed:** `write()`
+calls `archive()` BEFORE removing anything, so an exception preserves that entry's original. It does
+not roll back earlier entries, and that limit is part of the ruling rather than a gap in it.
+
+**The coupling in §234 is CONFIRMED** — changing only the fixture cannot keep the current passing
+assertion — **but it does not force B.** §234 framed the space as two options when the failure
+contract itself was the third variable.
+
+⚠ **ONE PREMISE OF §234 IS CORRECTED: "nothing can tell you which kind it was" is too strong.** That
+is true of a probe that stats the TARGET, which is all this code does. Windows exposes the link
+itself through `FindFirstFile` — attributes plus a reparse tag — so there is a documented route to
+the original link's kind without resolving a missing target. That is a route, not a result: nothing
+here has implemented or measured it, and the ruling explicitly declines to add a native metadata
+adapter before someone does.
+
+**On the two rules §234 invoked.** Returning `'junction'` after ANY failed stat treats missing
+evidence as directory evidence — and the catch covers more failures than a missing target — which is
+what §16 forbids. But §3 was invoked slightly wrong by §234: `archive()` is an OPERATION, not a gate,
+so "could-not-look must not wear a verdict's vocabulary" is not the direct charge. The direct charge
+is simpler and worse: the backup does not satisfy its own contract, and says nothing.
+
+**The regression is constructible UNPRIVILEGED**, which is what makes this actionable where §234 was
+not: create a dangling junction, call `write()` with a stamp and force its existing `makeLink` seam
+to throw EPERM, then assert the call reports archive failure, the original is still a link with the
+same target, and no plain-text backup appears. HEAD fails that today because it swallows the error
+and writes text. The existing privilege-dependent success test stays — it answers a different
+question.
+
+NOT DONE: none of this is implemented. It changes `archive()` from always-succeeds to can-throw,
+which reaches every caller of `write()`, so it is a decision for the owner rather than a fix to slip
+in behind a Windows commit. Recorded so the ruling is not lost with the session.
+
+## 240. A defect that switched off its own regression guard, and the tooling that nearly hid it (2026-09-18)
+
+Two findings from the same thread, and the first is the sharpest version of this whole day.
+
+### The guard the defect disabled
+
+`a checkout path with a space is still an unrun baseline when nothing matched` was registered
+INSIDE the callback of `end to end: a nonsense pattern under an inherited dot reporter is unrun, and
+a matching one passes` — a missing `})`, so it was a SUBTEST rather than a sibling. A different-
+lineage review found the nesting; two Windows sessions independently found what it caused.
+
+**The parent is the test that fails on a spaced checkout, because of the `leafTestsRun` whitespace
+bug. The child is the regression guard FOR that bug.** So on a spaced checkout the parent failed,
+the child never ran, and the only test that would have caught the spaced-path defect was switched
+off BY the spaced-path defect. Measured three runs each way:
+
+```
+3 × spaced   : subtest present 0 times, indented TAP result marks 1
+3 × unspaced : subtest present 1 time,  indented TAP result marks 2
+```
+
+The only outward sign was a test COUNT one lower on a spaced checkout — 1067 against 1068 — which
+is exactly the kind of number that reads as noise and that nobody chases. It was pursued for hours
+across three sessions as suspected path-conditional registration before it resolved into this.
+
+Both causes are now fixed: the nesting on `main` (6290a95) and on `adr-060-trial` (df3046f), and
+the `leafTestsRun` guard carried onto the branch in the same commit.
+
+⚠ **The general form, which is what to keep:** a regression guard nested under a test that the same
+defect fails is a guard that is absent exactly when it is needed. Ask of any new guard whether
+anything it depends on can be broken by the thing it is guarding against — and register it as a
+SIBLING, never inside another test's body. A focused run by name is the cheap check: a nested test
+selected by its own name reports the FILE as a pass and runs none of its assertions.
+
+### Four verification-tooling failures in one session, all silent, all returning a number
+
+Every one of these was inside a command written to VERIFY another finding, and every one returned a
+plausible wrong answer rather than an error. Two sessions, one working day:
+
+1. `grep -c '^[✔✖﹣] '` returned a confident **0**. A bracket expression matches BYTES outside a
+   UTF-8 locale, so a three-byte marker never matches as a class — while `^[✔✖﹣].*text` still
+   matches, which is what makes the zero convincing.
+2. The fix proposed for it, `sed -E 's/^. //'`, strips one BYTE. Every name kept a UTF-8
+   continuation byte and the resulting histogram was two buckets of mojibake.
+3. The same byte-class trap again, in a third extraction.
+4. **Under MSYS, `/tmp` IS `%TEMP%`.** An intermediate written to `/tmp/x` while reading `%TEMP%/x`
+   truncated its own source before the pipeline read it, destroying both transcripts. "Write the
+   intermediate somewhere neutral" is the CAREFUL habit, and on that platform the neutral place is
+   the same place.
+
+**And the instrument existed.** `scripts/selftest.sh` already emits TAP under
+`QUALITY_HARNESS_TAP` — `ok N - <name>`, one line per test, ASCII markers, nothing to mis-match —
+and both sessions hand-rolled a worse parser instead of reaching for it. Even then the first TAP
+grep was anchored `^(ok|not ok)` and silently dropped the INDENTED lines, which is what produced a
+1066 that disagreed with node and started a second false trail. `^[[:space:]]*(ok|not ok) N - `
+matches node exactly.
+
+The class is worth more than any of the four: **ad-hoc verification tooling fails silently and
+returns a number, and it is reached for precisely when someone is being careful.** Prefer the
+project's own machine-readable output over a parser written in the moment, and when a verification
+command produces a surprising count, suspect the command before the finding.
+
+## 241. The suite runs a real mutation campaign against its own tracked files (2026-09-18)
+
+⚠ OPEN. A Windows session reported `every catalogue entry still matches the source it mutates,
+exactly once` failing with `plugin/scripts/post-edit-check.sh matches 0x`, then passing on the next
+run, with the file byte-identical between two clones and all six patterns matching exactly 1x in
+both. A different-lineage diagnosis established the mechanism from the source. **The reporter's
+exact interleaving is UNPROVEN** — nobody captured the buffer that was read — but the race is real
+and reachable without it.
+
+**The writer.** `tests/gate-rules.test.mjs` ("the mutation runner refuses to run over an editor, or
+beside another runner") invokes a REAL campaign, and `scripts/mutate.mjs` resolves its source root
+from its own `import.meta.url`, so pointing the test's lock somewhere temporary does not isolate the
+FILES. The runner rewrites `plugin/scripts/post-edit-check.sh` in place, leaves the mutant installed
+while its child tests run, then restores it. The same test also writes and restores
+`plugin/scripts/adr-state.mjs` directly, and an ordinary `writeFileSync` truncates before writing,
+so a concurrent reader can see empty or partial content.
+
+**The reader.** `tests/package.test.mjs` re-reads the real tracked file for every catalogue entry.
+`selftest.sh` runs `node --test` at default concurrency — 16 files at once on a 16-core box. So the
+integrity check can read the file while the campaign has the mutant installed, and the original
+pattern genuinely occurs zero times *in that mutant*. No stale entry, no CRLF, no encoding involved.
+
+**This is CLAUDE.md §9 and §2 in one place, inside one suite** — a test writing into the repository
+it tests, and a mutation tool running while the tree is edited. The private lock also lets this
+runner bypass another campaign's repository lock, which is the coordination §2 exists to provide.
+
+**The false-pass direction, which is the one that matters.** A false finding gets chased; a false
+pass never does. Because the reader re-reads per entry, it can accept MUTUALLY EXCLUSIVE patterns as
+one clean result: read entry A against the original (1 match), the campaign installs its mutant,
+read a stale entry B whose `from` is that replacement (1 match, though it has 0 in HEAD), restore.
+Neither version satisfies the whole catalogue and the check passes. That is a string-level
+counterexample, not a claim that such an entry exists today.
+
+Two more boundaries worth knowing: entries removed from the catalogue while it stays above the
+`> 50` floor are not detected, because expected and observed lengths come from the same shortened
+input; and the "shown capable of firing" control asserts over a separate hardcoded array, so a
+regression assigning `matches: 1` to every enumerated entry would survive it.
+
+**The fix, in order.** Fix the WRITER first: move every arm of that guard test into a disposable git
+repository, copying the runner and its catalogue/test/source inputs in and committing them so the
+dirty-tree guard still means something. Changing only `cwd` or the lock path is insufficient.
+`tests/mutation-cache-merge.test.mjs` already does exactly this and is the precedent to copy.
+
+Then, if the integrity claim should be deterministic about HEAD rather than the working tree, read
+both the catalogue and each target through `git cat-file blob <commit>:<path>` from ONE pinned
+commit, rejecting spawn errors, timeouts, nonzero status and output-limit failures, with no
+working-tree fallback and no skipped entries. ⚠ Do NOT quietly make the ordinary authoring check
+read HEAD — that would hide uncommitted stale entries, which is the opposite failure. Name the
+revision being checked.
+
+NOT DONE. Recorded rather than fixed: it is a test-isolation change with a real chance of hiding the
+behaviour it is meant to keep, and it deserves its own red test rather than being folded into a day
+of Windows work.
+
+## 242. The containment property is measured true and guarded by nothing (2026-09-18)
+
+⚠ OPEN, and it is the clause §239's reversal rests on. `archive()` now REFUSES rather than writing a
+text stand-in it cannot restore from (4501999). The argument that made that safe is that
+`sync-standalone.mjs:188-195` already wraps each entry's write in its own try/catch and continues,
+so a refusal costs ONE entry and names it — the property August's incident actually needed.
+
+**Two Windows sessions read the guard for that claim and found it hollow.** The test was called
+`a refused archive stops THIS entry and nothing else`; its body builds ONE entry, calls `write()` on
+it directly, and never invokes the sync loop. Nothing in it asserts that another entry still
+installs, that the run continues, or that a partial install exits 1. On macOS it passed while
+covering the first clause of its own name; on Windows it did not run at all, and the skip made a
+TOTAL gap look platform-shaped. It is renamed to `a refused archive leaves this entry exactly as it
+found it`, which is what it does assert — a name that claims more than its body is the defect this
+project exists to demonstrate the absence of.
+
+**The property itself is TRUE, and was measured end to end** on an unprivileged Windows account
+against a fake home, driving the published CLI:
+
+```
+EXIT 1
+stderr: could not write …\.claude\bin\adr-verify: … it was NOT replaced … failed: EPERM
+stdout: Installed 21 of 22 entry(s).
+original still a link, still pointing into the 1.0.0 cache, no forwarder written,
+no text stand-in in the backup, and a sibling entry DID install
+```
+
+⚠ **A measurement is not a test.** The property is now known-true and nothing catches a regression,
+which is worse than the gap it replaced: the next reader finds a rename and a BACKLOG note where
+they would have found a green test, and only this entry says the guard is missing.
+
+**The fixture is known and needs neither privilege nor injection**, which removes the reason it
+"could not" be tested: a junction pointing INSIDE the plugin cache
+(`cache/quality-harness/quality-harness/<version>/bin`) whose target is then DELETED. Dangling, so
+`linkTypeFor` returns undefined, so `makeLink` is untyped, so EPERM, so the refusal fires naturally.
+⚠ The trap that cost one attempt: a junction to an ARBITRARY missing path is classified `skipped — a
+symlink to something outside this plugin`, never reaches `archive`, and the run looks fine while
+testing nothing — a false green in the fixture itself.
+
+⚠ **On macOS the refusal cannot be reached naturally at all**: every entry shares `~/.claude/bin`, so
+no per-entry failure can be isolated there, and a dangling symlink succeeds rather than refusing. The
+loop takes no `makeLink` seam, so the honest options are to export the install loop for testing or to
+write this as a Windows-reachable test. That is why it is recorded rather than rushed.
+
+**The fourth stated impossibility today that described a probe rather than a requirement**, after
+"nothing can tell which kind it was", "no unprivileged file symlink" and "no subtests anywhere". The
+rule worth keeping: when a skip names a platform limit, check whether the test depends on the limit
+or on something its fixture merely happens to use.
+
+### The accidental protection beside it
+
+Nothing in the suite currently writes to a real home: both `--link` spawn sites set `HOME` and
+`USERPROFILE` together, and the two `HOME`-only sites are POSIX-forwarder tests that skip on Windows.
+⚠ But they are safe for an UNRELATED reason — a shebang Windows cannot exec — and nothing about home
+redirection is protecting anything. Today's whole direction has been converting Windows skips into
+Windows runs (junctions for directory links, the un-nesting, "the guard was applied inconsistently"),
+so the next person doing the encouraged thing arms this as a side effect. A dormant trap whose safety
+catch is a skip people are actively being asked to remove.
+
+## 243. The mutation gate's granularity is the FILE; the risk is the MECHANISM (2026-09-18)
+
+⚠ OPEN. `tests/package.test.mjs::every shipped gate carries at least one mutation` asserts that a
+FILE has a catalogue entry. It does exactly that and nothing more — and a file that already has
+ninety-five of them satisfies it for ever, whatever is added inside.
+
+Measured on `adr-060-trial` at 6e7eeda, and independently confirmed by a Windows session that
+checked three symbols this machine had not named:
+
+```
+890 catalogue entries total
+
+plugin/scripts/lifecycle.mjs       95 entries   (4th most-covered file in the catalogue)
+plugin/scripts/run-shell-hook.mjs  17
+plugin/scripts/event-log.mjs        1
+
+contentId 0 · treeChecked 0 · gitLines 0 · readEvents 0 · observedFacts 0
+latestCheckFor 0 · alreadyAnswered 0 · persistedEventPath 0
+```
+
+**112 mutants across the two files, and not one intersects any of the seven fail-opens fixed that
+day.** That is a stronger statement than "new functions in an already-covered file": those files are
+not incidentally covered, they are among the most heavily covered in the repository. A reader asking
+whether the fail-open fixes are mutation-tested would see 95 entries against `lifecycle.mjs` and
+reasonably conclude yes.
+
+**So the gap is invisible exactly where coverage looks best**, and it widens as a file accumulates
+entries. The gate is not wrong; its granularity is the file and the risk is per-mechanism, and
+nothing measures the distance between them.
+
+It is the fourth member of the family §240 and §242 describe — a check that is present, readable,
+and does not intersect the thing it is for — and it is the one that SCALES WITH GOOD COVERAGE, which
+is what makes it the least likely to be noticed.
+
+⚠ **The practical consequence, which is why this is recorded before the entries are written rather
+than after:** the eight guards added for those fail-opens are currently unproven. `mutate.mjs
+--case` runs catalogue entries, and there were none, so a mutation campaign would not have answered
+"can these tests fail" either — there was no mutant to run. The same day, three tests written by the
+same session turned out to be incapable of failing, so this is not a hypothetical worry about that
+particular set.
+
+Two things to decide, neither done here:
+
+- **Author one entry per mechanism** for the seven fixes, breaking the mechanism rather than a
+  downstream effect, and require RED. That is what §4 wants beside a `done`.
+- **Whether a gate should fail when a NEW exported mechanism in an already-catalogued file has no
+  entry of its own.** Raised by the reporter, who explicitly declined to propose a design: the
+  observation is worth attaching to the entries rather than losing once the number goes from 0 to 7
+  and the file looks covered again. ⚠ Any such gate is itself a classifier over an open input space
+  (§16) — "exported symbol with no entry naming it" will have false positives, and a gate that
+  refuses correct work is one people turn off (§3).
+
+## 244. The inferred check can be NARROWER than the project's real gate (2026-09-18)
+
+⚠ OPEN, and it is a fail-open in the adopter's view rather than in this repository's. Reported by a
+session running a real React SPA after being asked to look at the inference specifically.
+
+**What the plugin does right, and this matters for reading the rest:** it does NOT present the guess
+as declared. Its SessionStart wording labels itself, verbatim from that repository:
+
+> no `check` is declared in `.quality-harness.json`; inferred `npm run test` from a manifest — that
+> is not this project's own check. The completion and commit gates accept it as evidence when it
+> runs after your last edit.
+
+So the defect class this was checked against — a guess wearing the project's authority — is not
+live. The second sentence is where the problem is.
+
+**The project's real gate is two commands, and the inference found one.** That repository declares
+`bun run test` in its `AGENTS.md`, and its husky pre-push hook runs:
+
+```
+bun run typecheck:gate && bun run test
+```
+
+The manifest yields `npm run test` alone. The npm-versus-bun spelling is harmless there — the
+reporter verified `npm run test` executes correctly in that tree — but **the missing half is a
+typecheck gate**, a whole crash class the completion gate would then treat as covered. An inferred
+pass satisfies "a check ran after your last edit" while the thing most likely to catch a broken build
+never ran.
+
+**So "inferred" is doing two jobs and only one of them is disclosed.** The notice says the command is
+a guess about IDENTITY. It says nothing about the guess being a SUBSET — and a subset that passes is
+indistinguishable, from the gate's side, from the real gate passing.
+
+⚠ The repair the reporter points at is not a better manifest heuristic: **the husky pre-push hook is
+right there and names the real gate.** A repository that wires a pre-push hook has already written
+down what it considers sufficient before publishing, which is exactly the question the completion
+gate is asking. Reading `.husky/`, `.git/hooks/pre-push` or the equivalent would have got that
+repository right where the manifest could not.
+
+NOT DONE, and two cautions against rushing it:
+- Any such reader is a classifier over an open input space (§16). A pre-push hook can run things a
+  completion gate should not — a push to a remote, a deploy, an interactive prompt — so "the hook's
+  commands" is not simply a better answer, it is a different open set with its own wrong cases.
+- The honest cheap alternative may be wording rather than inference: say that an inferred command may
+  be NARROWER than the project's own gate, so a reader knows a pass does not mean what it looks like.
+  That costs nothing and cannot be wrong.
+
+## 245. Three rounds of review, three rounds of my fixes introducing new defects (2026-09-18)
+
+A release gate refused the same release three times. Round one found seven issues; round two found
+that two of my three fixes had introduced NEW defects; round three found that my replacement for one
+of those was **worse than the code it replaced in four measured cases, in both directions**:
+
+```
+npm test "#fixture" --help         base rejected ✓   mine accepted ✗
+sh -c 'sh -c "npm test --help "'   base rejected ✓   mine accepted ✗
+node --check x.mjs "--help"        base accepted ✓   mine rejected ✗
+bash -n -c 'echo ok' "--help"      base accepted ✓   mine rejected ✗
+```
+
+⚠ **REVERTED, not fixed a fourth time.** Shell argument semantics — quoting that turns `#` from a
+comment into data, `--` scoping to one invocation rather than a line, nested wrappers, a shell
+payload's `$0` — are not a thing to approximate with a regex, and three attempts is enough evidence
+that this particular hole needs a real argument parser or nothing.
+
+**What made reverting safe is that the defect it was written for is moot.** The original finding was
+`composer run-script test --help` suppressing the unchecked-publish warning; with `composer` removed
+from `VALIDATION_PATTERNS`, that command matches no pattern at all. What remains — `npm test --help`
+counting as evidence — is PRE-EXISTING base behaviour this release does not introduce, alongside
+siblings the reviewer measured: `npm test $'--help'`, `npm test --help=true`, and an assignment
+followed by `npm test "$HELP"`. Conversely, valid checks inside assignment- or timeout-prefixed
+wrappers are NOT recognised. Both directions are open, and both are older than this release.
+
+### The rule this is evidence for
+
+**A classifier over shell text is an empirical claim (§16), and the cost of getting it wrong is
+symmetric — which is what I kept forgetting.** Each round I fixed the direction the reviewer named
+and broke the other one. Accepting too much lets an unvalidated publish through; refusing too much
+makes the harness demand a validation the user already ran, which is how a gate becomes one people
+turn off (§3). A change that moves a predicate must measure BOTH directions against the code it
+replaces, on real commands, before it ships.
+
+**And "offer less" beats "accept more" whenever both satisfy an invariant.** The composer defect was
+that the harness offered a command it would then refuse. Two attempts to satisfy that by accepting
+more each produced a P1; removing the rung closed it with no classifier change at all, and gave
+Laravel projects the better answer besides.
+
+### Still open, all pre-existing
+
+- `.quality-harness.json` DECLARING `{"check": "composer test"}` still offers that command and still
+  refuses it as evidence. Removing automatic discovery did not establish "nothing offers composer" —
+  a user can declare one. The honest repair is to say so when a declared check is not recognised,
+  rather than to widen the classifier.
+- The help-mode holes and false refusals listed above.
+
+### The skill was pulled from this release
+
+`codebase-audit` is not shipped. Three rounds of stripping another repository's corpus out of it left
+incident narratives and outcome predictions phrased as general advice — sub-agents needing repeat
+requests, a retracted linter incident, an audit's completeness-loop results. §6 forbids committing
+material derived from another repository's corpus, and rounding a figure hides its origin without
+removing it. The methods in it are good and the contributor's work is real; it needs a rewrite from
+the procedures alone, by someone who did not read that audit, and that is not a release-day edit.
+
+## 246. The status line's header says it never spawns a process, and it does (2026-09-17)
 
 `plugin/scripts/statusline.mjs` opens with "NEVER spawns a process: a status line renders constantly
 and a command that waits on git or a gate freezes the prompt for as long as they take". Found while
@@ -13191,7 +13812,7 @@ whose new commit is not renders `QH ✓ checked` while R2 has something to say a
 Storing the last completion's evidence in the log would close it, at the cost of putting a verdict
 into a file of observations.
 
-## 230. §213, §216, §217, §218, §219, §220 and §221 close with the classifiers (2026-09-18)
+## 247. §213, §216, §217, §218, §219, §220 and §221 close with the classifiers (2026-09-18)
 
 ADR-060 T7 deleted every rule that read a command's text to decide what happened, so seven entries
 have nothing left to fix. Closed here rather than edited in place, because the entries are history
@@ -13212,7 +13833,7 @@ and what closed them is a decision, not a repair:
 (§223's over-reports, §224, §227, §228) are about the released 2.99.7 classifiers and stay open
 there until ADR-060 is accepted and released.
 
-## 231. A Windows install sat twenty minors behind, and nothing said so (2026-09-18)
+## 248. A Windows install sat twenty minors behind, and nothing said so (2026-09-18)
 
 Asked to test, a Windows 11 Pro (26200) session reported `quality-harness` at **2.79.0** while the
 published release was **2.99.7**. `claude plugin update quality-harness` fetched cleanly from the
@@ -13238,7 +13859,7 @@ updated.
 Recorded because it is an ADOPTION fact, not a code defect: the corpus can only be judged against
 what people are actually running.
 
-## 232. The Windows fixes from a real machine, carried onto this branch (2026-09-18)
+## 249. The Windows fixes from a real machine, carried onto this branch (2026-09-18)
 
 Three defects a Windows 11 Pro session found by running the suite on a real machine, fixed on `main`
 as `f266411` and cherry-picked here so this branch can be tested on Windows without drowning in them.

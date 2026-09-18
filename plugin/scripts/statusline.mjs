@@ -19,7 +19,7 @@
 // transcript is not parsed here any more, and the log is located without
 // starting a process (`stateDir(cwd, {spawn: false})`), because a status line
 // renders constantly. ⚠ `projectCheckCommand` DOES spawn `git rev-parse`
-// (docs/BACKLOG.md §229); the cache below is what keeps that off most renders.
+// (docs/BACKLOG.md §246); the cache below is what keeps that off most renders.
 //
 // Keep that command (and any refreshInterval). Feed the same $input to this
 // script and append its stdout — one line, or empty.

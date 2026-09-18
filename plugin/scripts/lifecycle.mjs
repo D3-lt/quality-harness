@@ -1877,7 +1877,11 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   // Credit a check only when one is ON RECORD as having passed. `pending` being
   // false is not evidence that anything ran — an inherited dirty tree is not
   // `treeUnchecked`, so it arrives here with pending false and no check at all.
-  const passed = facts?.checked === true || facts?.lastCheck?.verdict === 'passed'
+  // ⚠ ONLY the check for THIS tree can credit it. `lastCheck` is the newest check
+  // event whatever tree it was about, so `|| lastCheck.verdict === 'passed'` let a
+  // pass for an UNRELATED tree certify these paths. It stays descriptive — the
+  // note prints it as "Last check:" — and certifies nothing.
+  const passed = facts?.checked === true
   const status = !observed ? 'unverified'
     : files.length === 0 && other === 0 ? 'neutral'
       : pending || !passed ? 'unverified' : 'verified'
@@ -2458,13 +2462,22 @@ function importCheckRecords(cwd, session) {
   try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch { return 0 }
   const seen = new Set(readEvents(cwd, session).filter(entry => typeof entry.record === 'string').map(entry => entry.record))
   let imported = 0
+  // ⚠ `checks.jsonl` IS THE AUTHORITY ON THE ORDER CHECKS RAN. It is append-only,
+  // written by qh-check, so a record's INDEX in it is the one ordering nothing can
+  // race. Stamping it here is what lets `latestCheckFor` refuse to be fooled by the
+  // order two interleaved importers happen to append in — a wall clock can tie and
+  // can run backwards, so `startedAt` could never be the authority.
+  let sequence = 0
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
     let record
     try { record = JSON.parse(line) } catch { continue }
-    if (typeof record?.id !== 'string' || seen.has(record.id)) continue
+    if (typeof record?.id !== 'string') continue
+    sequence += 1
+    if (seen.has(record.id)) continue
     appendEvent(cwd, session, {
-      event: checkEventName(record), record: record.id, startedAt: record.before?.at ?? null,
+      event: checkEventName(record), record: record.id, seq: sequence,
+      startedAt: record.before?.at ?? null,
       before: record.before ?? null, after: record.after ?? null, exit: record.exit ?? null,
       signal: record.signal ?? null, command: record.command ?? null, origin: record.origin ?? null,
     })
@@ -2620,20 +2633,47 @@ function checkEventsFor(log, tree) {
  * carry no timestamps behaves exactly as before rather than worse.
  * Found by a different-lineage review of this branch, 2026-09-18.
  */
-function latestCheckFor(log, tree) {
+export function latestCheckFor(log, tree) {
   const events = checkEventsFor(log, tree)
-  let best = null
-  let bestAt = ''
-  let bestIndex = -1
-  events.forEach((entry, index) => {
-    const at = typeof entry.startedAt === 'string' ? entry.startedAt : ''
-    if (best === null || at > bestAt || (at === bestAt && index > bestIndex)) {
-      best = entry
-      bestAt = at
-      bestIndex = index
-    }
-  })
-  return best
+  if (!events.length) return null
+
+  // 1. A RE-IMPORT IS NOT A NEW CHECK. Two hooks reading the same `checks.jsonl`
+  //    can each append the same record, so dedupe by the record it came from.
+  const seen = new Set()
+  const unique = []
+  for (const entry of events) {
+    const id = typeof entry.record === 'string' && entry.record ? entry.record : null
+    if (id !== null && seen.has(id)) continue
+    if (id !== null) seen.add(id)
+    unique.push(entry)
+  }
+  if (unique.length === 1) return unique[0]
+
+  // 2. ORDER BY THE AUTHORITY. `checks.jsonl` is append-only and its order IS the
+  //    order the checks ran, so the importer stamps each event with that index as
+  //    `seq`. `startedAt` is the fallback for logs written before `seq` existed —
+  //    a wall clock can tie, and it can go BACKWARDS, so it is not the authority.
+  const rankOf = entry => {
+    if (Number.isInteger(entry.seq)) return ['seq', entry.seq]
+    if (typeof entry.startedAt === 'string' && entry.startedAt) return ['at', entry.startedAt]
+    return null
+  }
+  const ranks = unique.map(rankOf)
+  const kinds = new Set(ranks.map(rank => rank?.[0] ?? 'none'))
+  let candidates = unique
+  if (kinds.size === 1 && !kinds.has('none')) {
+    let best = null
+    for (const rank of ranks) if (best === null || rank[1] > best) best = rank[1]
+    candidates = unique.filter((_, index) => ranks[index][1] === best)
+  }
+  if (candidates.length === 1) return candidates[0]
+
+  // ⚠ AN ORDER WE CANNOT ESTABLISH MUST NOT CERTIFY. Ties, a mix of stamped and
+  // unstamped events, or nothing to order by at all: any of these could be the
+  // newest, so if they disagree the one that is NOT a pass is the answer. Taking
+  // the last-appended instead is what let a stale re-import beat a real failure
+  // (ADR-005 — an unresolved order is could-not-look, not a verdict).
+  return candidates.find(entry => entry.event !== 'check.passed') ?? candidates[0]
 }
 
 function treeChecked(log, tree) {

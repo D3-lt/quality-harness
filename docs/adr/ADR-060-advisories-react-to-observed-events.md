@@ -296,6 +296,7 @@ See `docs/adr/ADR-060-advisories-react-to-observed-events/tasks/README.md`.
     - A check counts only when run through `qh-check`; focused or wrapped checks and `mrw --check` no longer clear the finding.
     - A declared check that masks its own failure is recorded as it returns.
     - A check the host kills with SIGKILL leaves no record.
+    - Outside a git repository nothing can be observed, so a pass clears the unobservable writes recorded before it started without confirming the tree held while it ran. Inside one that case is `check.unproven`; outside there is no observation to compare it against, so the import step does not apply. Never clearing was the alternative and was rejected: it leaves a finding nothing can close in a directory the harness cannot read. Named here because revision 5 changed the Decision rather than the test, and a Decision changed to permit something must say what it now permits.
   - **Reviewers:**
     - A reviewer's Bash writes whose text contains neither word are reported after the review, not refused; today refuses most of them.
     - A change that leaves tree, index and HEAD as they were is not reported: a write restored before the reviewer ends, a permission change, or a write outside the repository or into an ignored or submodule path.

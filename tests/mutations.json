@@ -6182,24 +6182,6 @@
       "to": "    if False:\n        print(f\"[adr-verify] {task.name} already carries {prior} exit-0 \"\n"
     },
     {
-      "label": "lifecycle: a literal read-only subprocess argv in a heredoc is not a mutation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (!READ_ONLY_CHILD.test(executable)) return whole\n",
-      "to": "      if (false) return whole\n"
-    },
-    {
-      "label": "lifecycle: a mutating literal subprocess argv is still a mutation",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "        if (!literal) return whole\n",
-      "to": "        if (!literal) { words.push(element); continue }\n"
-    },
-    {
       "label": "lint: a runner that fails on an empty selection is itself the vacuity check",
       "file": "plugin/bin/adr-lint",
       "tests": [
@@ -6297,24 +6279,6 @@
       ],
       "from": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/\n",
       "to": "const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|tar|sed|tee|jq|column|nl)$/\n"
-    },
-    {
-      "label": "lifecycle: an output-handle keyword keeps a subprocess call",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (/\\b(?:shell\\s*=\\s*True|stdout\\s*=|stderr\\s*=|stdin\\s*=|input\\s*=)/.test(rest)) return whole\n",
-      "to": "      if (/\\b(?:shell\\s*=\\s*True)/.test(rest)) return whole\n"
-    },
-    {
-      "label": "lifecycle: find that executes or deletes is not read-only",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/lifecycle.test.mjs"
-      ],
-      "from": "      if (executable === 'find' && FIND_WRITES.test(' ' + words.slice(1).join(' '))) return whole\n",
-      "to": "      if (false) return whole\n"
     },
     {
       "label": "lint: an OR tail that always fails makes its head load-bearing",

@@ -42,7 +42,15 @@ const UNRESOLVED_DELETION_MUTATION = '<Unresolved Bash deletion>'
 const ARTIFACT_GATE_TIMEOUT_MS = 30_000
 export const ARTIFACT_GATE_KILL_MARGIN_MS = 5_000
 const VALIDATION_PATTERNS = [
-  /^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
+  // ⚠ `composer` BELONGS HERE AND WAS MISSING, which broke this list's own
+  // contract with the resolver below: `composer test` was OFFERED as the project's
+  // check and then REFUSED as evidence. A Laravel session measured it on a real
+  // tree 2026-09-18, and the trigger is the `laravel new` skeleton, which ships a
+  // `scripts.test` by default — so an app created today hit it without its author
+  // choosing anything. `composer run-script <name>` is the long form of the same
+  // thing. Anything not in the verb list (install, update, dump-autoload) stays
+  // refused, exactly as it does for npm.
+  /^(?:npm|pnpm|yarn|bun|composer)\s+(?:run(?:-script)?\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
   /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,
   // `php artisan test` is how a Laravel project runs its tests, and it was not
   // here: a session with 286 passing tests kept being asked for a check.

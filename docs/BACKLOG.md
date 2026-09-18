@@ -13523,3 +13523,57 @@ The class is worth more than any of the four: **ad-hoc verification tooling fail
 returns a number, and it is reached for precisely when someone is being careful.** Prefer the
 project's own machine-readable output over a parser written in the moment, and when a verification
 command produces a surprising count, suspect the command before the finding.
+
+## 241. The suite runs a real mutation campaign against its own tracked files (2026-09-18)
+
+⚠ OPEN. A Windows session reported `every catalogue entry still matches the source it mutates,
+exactly once` failing with `plugin/scripts/post-edit-check.sh matches 0x`, then passing on the next
+run, with the file byte-identical between two clones and all six patterns matching exactly 1x in
+both. A different-lineage diagnosis established the mechanism from the source. **The reporter's
+exact interleaving is UNPROVEN** — nobody captured the buffer that was read — but the race is real
+and reachable without it.
+
+**The writer.** `tests/gate-rules.test.mjs` ("the mutation runner refuses to run over an editor, or
+beside another runner") invokes a REAL campaign, and `scripts/mutate.mjs` resolves its source root
+from its own `import.meta.url`, so pointing the test's lock somewhere temporary does not isolate the
+FILES. The runner rewrites `plugin/scripts/post-edit-check.sh` in place, leaves the mutant installed
+while its child tests run, then restores it. The same test also writes and restores
+`plugin/scripts/adr-state.mjs` directly, and an ordinary `writeFileSync` truncates before writing,
+so a concurrent reader can see empty or partial content.
+
+**The reader.** `tests/package.test.mjs` re-reads the real tracked file for every catalogue entry.
+`selftest.sh` runs `node --test` at default concurrency — 16 files at once on a 16-core box. So the
+integrity check can read the file while the campaign has the mutant installed, and the original
+pattern genuinely occurs zero times *in that mutant*. No stale entry, no CRLF, no encoding involved.
+
+**This is CLAUDE.md §9 and §2 in one place, inside one suite** — a test writing into the repository
+it tests, and a mutation tool running while the tree is edited. The private lock also lets this
+runner bypass another campaign's repository lock, which is the coordination §2 exists to provide.
+
+**The false-pass direction, which is the one that matters.** A false finding gets chased; a false
+pass never does. Because the reader re-reads per entry, it can accept MUTUALLY EXCLUSIVE patterns as
+one clean result: read entry A against the original (1 match), the campaign installs its mutant,
+read a stale entry B whose `from` is that replacement (1 match, though it has 0 in HEAD), restore.
+Neither version satisfies the whole catalogue and the check passes. That is a string-level
+counterexample, not a claim that such an entry exists today.
+
+Two more boundaries worth knowing: entries removed from the catalogue while it stays above the
+`> 50` floor are not detected, because expected and observed lengths come from the same shortened
+input; and the "shown capable of firing" control asserts over a separate hardcoded array, so a
+regression assigning `matches: 1` to every enumerated entry would survive it.
+
+**The fix, in order.** Fix the WRITER first: move every arm of that guard test into a disposable git
+repository, copying the runner and its catalogue/test/source inputs in and committing them so the
+dirty-tree guard still means something. Changing only `cwd` or the lock path is insufficient.
+`tests/mutation-cache-merge.test.mjs` already does exactly this and is the precedent to copy.
+
+Then, if the integrity claim should be deterministic about HEAD rather than the working tree, read
+both the catalogue and each target through `git cat-file blob <commit>:<path>` from ONE pinned
+commit, rejecting spawn errors, timeouts, nonzero status and output-limit failures, with no
+working-tree fallback and no skipped entries. ⚠ Do NOT quietly make the ordinary authoring check
+read HEAD — that would hide uncommitted stale entries, which is the opposite failure. Name the
+revision being checked.
+
+NOT DONE. Recorded rather than fixed: it is a test-isolation change with a real chance of hiding the
+behaviour it is meant to keep, and it deserves its own red test rather than being folded into a day
+of Windows work.

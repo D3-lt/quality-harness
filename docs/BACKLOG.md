@@ -13636,3 +13636,55 @@ redirection is protecting anything. Today's whole direction has been converting 
 Windows runs (junctions for directory links, the un-nesting, "the guard was applied inconsistently"),
 so the next person doing the encouraged thing arms this as a side effect. A dormant trap whose safety
 catch is a skip people are actively being asked to remove.
+
+## 243. The mutation gate's granularity is the FILE; the risk is the MECHANISM (2026-09-18)
+
+⚠ OPEN. `tests/package.test.mjs::every shipped gate carries at least one mutation` asserts that a
+FILE has a catalogue entry. It does exactly that and nothing more — and a file that already has
+ninety-five of them satisfies it for ever, whatever is added inside.
+
+Measured on `adr-060-trial` at 6e7eeda, and independently confirmed by a Windows session that
+checked three symbols this machine had not named:
+
+```
+890 catalogue entries total
+
+plugin/scripts/lifecycle.mjs       95 entries   (4th most-covered file in the catalogue)
+plugin/scripts/run-shell-hook.mjs  17
+plugin/scripts/event-log.mjs        1
+
+contentId 0 · treeChecked 0 · gitLines 0 · readEvents 0 · observedFacts 0
+latestCheckFor 0 · alreadyAnswered 0 · persistedEventPath 0
+```
+
+**112 mutants across the two files, and not one intersects any of the seven fail-opens fixed that
+day.** That is a stronger statement than "new functions in an already-covered file": those files are
+not incidentally covered, they are among the most heavily covered in the repository. A reader asking
+whether the fail-open fixes are mutation-tested would see 95 entries against `lifecycle.mjs` and
+reasonably conclude yes.
+
+**So the gap is invisible exactly where coverage looks best**, and it widens as a file accumulates
+entries. The gate is not wrong; its granularity is the file and the risk is per-mechanism, and
+nothing measures the distance between them.
+
+It is the fourth member of the family §240 and §242 describe — a check that is present, readable,
+and does not intersect the thing it is for — and it is the one that SCALES WITH GOOD COVERAGE, which
+is what makes it the least likely to be noticed.
+
+⚠ **The practical consequence, which is why this is recorded before the entries are written rather
+than after:** the eight guards added for those fail-opens are currently unproven. `mutate.mjs
+--case` runs catalogue entries, and there were none, so a mutation campaign would not have answered
+"can these tests fail" either — there was no mutant to run. The same day, three tests written by the
+same session turned out to be incapable of failing, so this is not a hypothetical worry about that
+particular set.
+
+Two things to decide, neither done here:
+
+- **Author one entry per mechanism** for the seven fixes, breaking the mechanism rather than a
+  downstream effect, and require RED. That is what §4 wants beside a `done`.
+- **Whether a gate should fail when a NEW exported mechanism in an already-catalogued file has no
+  entry of its own.** Raised by the reporter, who explicitly declined to propose a design: the
+  observation is worth attaching to the entries rather than losing once the number goes from 0 to 7
+  and the file looks covered again. ⚠ Any such gate is itself a classifier over an open input space
+  (§16) — "exported symbol with no entry naming it" will have false positives, and a gate that
+  refuses correct work is one people turn off (§3).

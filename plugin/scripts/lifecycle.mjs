@@ -2457,11 +2457,32 @@ export function checkEventName(record) {
   return 'check.passed'
 }
 
+/**
+ * Import what `qh-check` wrote, and say whether the source could be read WHOLE.
+ *
+ * ⚠ THE SIBLING READER OF THE OTHER APPEND-ONLY FILE. `readEvents` was taught that
+ * an incomplete read must not supply a positive verdict; this one still swallowed
+ * a torn line with `catch { continue }` and had its return value discarded by the
+ * caller. So a newer FAILURE whose line is truncated never reached the session log
+ * at all — and `latestCheckFor` cannot refuse an order it cannot establish when
+ * the event is simply absent. The older pass stood, and the note said a check had
+ * passed. Found by a re-review and independently by an adversarial reader, both on
+ * 2026-09-18.
+ *
+ * ⚠ A TORN APPEND LOSES TWO RECORDS, NOT ONE, and the file never repairs: a
+ * truncated write leaves no trailing newline, so the NEXT record lands on the same
+ * line and is unparseable with it. Measured by the reader. That is why this
+ * reports a state rather than trying to recover the tail.
+ */
 function importCheckRecords(cwd, session) {
   let text
-  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch { return 0 }
+  try { text = readFileSync(path.join(stateDir(cwd), 'checks.jsonl'), 'utf8') } catch (error) {
+    // Never written is not the same as could-not-read.
+    return { imported: 0, complete: error?.code === 'ENOENT' }
+  }
   const seen = new Set(readEvents(cwd, session).filter(entry => typeof entry.record === 'string').map(entry => entry.record))
   let imported = 0
+  let whole = true
   // ⚠ `checks.jsonl` IS THE AUTHORITY ON THE ORDER CHECKS RAN. It is append-only,
   // written by qh-check, so a record's INDEX in it is the one ordering nothing can
   // race. Stamping it here is what lets `latestCheckFor` refuse to be fooled by the
@@ -2471,8 +2492,8 @@ function importCheckRecords(cwd, session) {
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
     let record
-    try { record = JSON.parse(line) } catch { continue }
-    if (typeof record?.id !== 'string') continue
+    try { record = JSON.parse(line) } catch { whole = false; continue }
+    if (typeof record?.id !== 'string') { whole = false; continue }
     sequence += 1
     if (seen.has(record.id)) continue
     appendEvent(cwd, session, {
@@ -2484,7 +2505,7 @@ function importCheckRecords(cwd, session) {
     seen.add(record.id)
     imported += 1
   }
-  return imported
+  return { imported, complete: whole }
 }
 
 export function sameObservation(a, b) {
@@ -2554,7 +2575,22 @@ export function recordHookEvent(input) {
   }
   if (!name) return null
   const entry = { event: name, ...extra, observation: observe(input.cwd) }
-  importCheckRecords(input.cwd, session)
+  // ⚠ A TORN CHECK SOURCE IS RECORDED, not returned and dropped. The readers all
+  // consult the session log, so that is where the fact has to live — and it is
+  // durable, because the file does not repair itself: the next boundary would
+  // otherwise re-discover it and nothing downstream would ever hear. Deduped on
+  // the source's size so a growing-but-still-torn file says it once per change
+  // rather than once per boundary.
+  const source = importCheckRecords(input.cwd, session)
+  if (source.complete === false) {
+    let size = null
+    try { size = statSync(path.join(stateDir(input.cwd), 'checks.jsonl')).size } catch { size = null }
+    const key = `checks.jsonl:${size}`
+    const log = readEvents(input.cwd, session)
+    if (!log.some(event => event.event === 'check.source-unreadable' && event.key === key)) {
+      appendEvent(input.cwd, session, { event: 'check.source-unreadable', key })
+    }
+  }
   if (!appendEvent(input.cwd, session, entry)) {
     return { ...entry, observation: { ok: false, reason: 'the event log could not be appended' } }
   }
@@ -2920,6 +2956,19 @@ function couldNotLookReason(cwd, reason) {
 // The ledger's evidence, computed from the tree, the commits and the writes
 // THEMSELVES — never from whether a rule spoke. A P warning, a dedupe or a
 // suppression must not be able to turn an unchecked state into `verified`
+/**
+ * Whether this session ever found `checks.jsonl` unreadable in part.
+ *
+ * Recorded as an event rather than returned, because every reader consults the
+ * session log and the condition is DURABLE: a torn append leaves no trailing
+ * newline, so the next record lands on the same line and the file never repairs
+ * itself. A check history missing records cannot support a positive verdict, for
+ * the same reason a torn session log cannot (ADR-005).
+ */
+function checkSourceTorn(log) {
+  return Array.isArray(log) && log.some(event => event?.event === 'check.source-unreadable')
+}
+
 // (ADR-035, ADR-060 revision 4 review).
 function ledgerEvidence(log, observation, baseline, commits, writes, check, status) {
   if (observation?.ok !== true) return 'could-not-look'
@@ -2934,7 +2983,7 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check, stat
   // log with a torn line it can only answer from what survived, so an older pass
   // outliving a newer failure reads as `verified`. `complete === false` is set
   // only by a read that really happened and really lost something.
-  if (log?.complete === false) return 'could-not-look'
+  if (log?.complete === false || checkSourceTorn(log)) return 'could-not-look'
   if (!check) return 'no-check'
   const treeUnchecked = !treeChecked(log, observation.tree)
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
@@ -3095,7 +3144,8 @@ function completionRules(input, ended) {
       text: uncheckedCommitsReason(input.cwd, unchecked),
     })
   }
-  if (observation?.ok !== true || status?.ok === false || commits?.ok === false || log?.complete === false) {
+  if (observation?.ok !== true || status?.ok === false || commits?.ok === false
+    || log?.complete === false || checkSourceTorn(log)) {
     // Once per session and cwd, read from the log rather than from a marker file
     // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
     const key = canonical(root ?? path.resolve(input.cwd ?? process.cwd()))

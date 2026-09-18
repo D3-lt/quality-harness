@@ -161,6 +161,19 @@ Codex session can *develop the plugin*; it is not a surface the plugin offers to
 Every gate in `bin/` is a plain `python3` or `node` program with a meaningful exit code. Clone the
 repository, or point at the installed copy, and run them directly:
 
+⚠ **On Windows, clone with `core.longpaths`:**
+
+```cmd
+git clone -c core.longpaths=true https://github.com/D3-lt/quality-harness.git
+```
+
+Measured 2026-09-18 on Windows 11 with a default Git for Windows (which does not set `core.longpaths`):
+the longest tracked path in this repository is 149 characters, so MAX_PATH leaves **110 characters for
+the checkout root**, and a clone under a longer root fails with `Filename too long ... unable to
+checkout working tree`. A GitHub `windows-latest` runner checks out at `D:\a\quality-harness\quality-harness`
+— about 36 characters — so CI cannot see this; a profile path, an OneDrive-redirected Documents folder
+or any nested workspace can. The flag is per-clone and needs no global configuration.
+
 ```bash
 python3 plugin/bin/adr-lint docs/adr/ADR-001-skills-are-never-linked.md          # from a clone
 python3 "$(qh-root)/bin/adr-lint" docs/adr/ADR-001-skills-are-never-linked.md    # from an install, in a shell that has qh-root

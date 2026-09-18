@@ -164,14 +164,28 @@ function dirtyTargets(selected) {
  * uses (BACKLOG §53); a test whose NAME looks like a path is discounted with it,
  * which is the documented limit of that rule.
  */
-export function leafTestsRun(stdout) {
+export function leafTestsRun(stdout, files = []) {
   const text = stdout ?? ''
   if (!/^\s*(?:[✔✖﹣]|ℹ tests) /m.test(text)) return null
+  // ⚠ WHICH LINE IS THE FILE WRAPPER IS KNOWN, NOT GUESSED. `files` is what
+  // testArgs handed the child, so the wrapper's name is one of those paths and
+  // nothing has to be inferred from its shape. The old rule keyed on ABSENCE OF
+  // WHITESPACE, and a checkout path containing a space stopped looking like a
+  // path: the wrapper survived the filter, counted as a leaf test that passed,
+  // and a run in which NOTHING executed became a passing baseline — so every
+  // mutant graded against it read GREEN or RED where ADR-005 requires UNPROVEN.
+  // Reported by a Windows session from `Y:\qh with spaces` and reproduced on
+  // macOS the same day, 2026-09-18; it was never platform-specific.
+  const wrappers = new Set(files.flatMap(file => [file, path.resolve(file)]))
   return [...text.matchAll(/^\s*[✔✖] (.+?) \(\d[\d.]*ms\)\s*$/gm)]
+    .filter(m => !wrappers.has(m[1]) && !wrappers.has(path.resolve(m[1])))
+    // The shape rule stays as a FALLBACK for a caller that passes no files: it
+    // discounts less than it should (this defect) and never more, and a test
+    // whose name looks like a path is discounted with it (BACKLOG §53).
     .filter(m => !(/^\S+$/.test(m[1]) && /\.(mjs|js|py|cjs)$/.test(m[1]))).length
 }
 
-export function baselineOf(run) {
+export function baselineOf(run, files = []) {
   if (run.signal || run.status === null) return { state: 'unrun', why: run.signal || 'no exit status' }
   // A run in which NO test executed is not a passing baseline, whatever its exit
   // status: a mutant measured against it reads GREEN — "the tests did not
@@ -180,7 +194,7 @@ export function baselineOf(run) {
   // the reporter (testArgs, childEnv), so their absence means the run did not
   // happen the way this reads it — an inherited `--test-reporter=dot` did
   // exactly that before the child's environment was scrubbed.
-  const ran = leafTestsRun(run.stdout)
+  const ran = leafTestsRun(run.stdout, files)
   if (ran === null) return { state: 'unrun', why: 'the test output carried no spec reporter lines' }
   if (ran === 0) return run.status === 0 ? { state: 'unrun', why: 'no test ran — the name pattern selected nothing' } : { state: 'fail' }
   return run.status === 0 ? { state: 'pass' } : { state: 'fail' }
@@ -615,7 +629,7 @@ export function main(argv) {
     // would be measuring a different thing than the one it licenses.
     const run = spawnSync(process.execPath, testArgs(root, set),
       { cwd: root, encoding: 'utf8', timeout: timeoutMs, env: childEnv() })
-    baselines.set(setKeyOf(set), baselineOf(run))
+    baselines.set(setKeyOf(set), baselineOf(run, [...set.tests].sort().map(t => path.join(root, t))))
   }
 
   const results = []

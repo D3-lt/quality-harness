@@ -4712,8 +4712,8 @@
       "tests": [
         "tests/qh-doctor.test.mjs"
       ],
-      "from": "  if (!home.looked || !moved.looked || !ledger.looked || !release.looked) {",
-      "to": "  if (!home.looked || !moved.looked || !release.looked) {"
+      "from": "  if (!home.looked || !moved.looked || !ledger.looked || !release.looked\n    || (moved.unidentified ?? 0) > 0) {",
+      "to": "  if (!home.looked || !moved.looked || !release.looked\n    || (moved.unidentified ?? 0) > 0) {"
     },
     {
       "label": "rate: a value outside the vocabulary is excluded, never counted as held",

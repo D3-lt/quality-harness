@@ -339,6 +339,32 @@ test('a match with unidentifiable files is not a clean bill', () => {
   assert.equal(answer.unidentified, 12, 'the count the subtool printed must survive')
   assert.notEqual(answer.clean, true,
     'twelve files it could not identify is not "the standalone install matches this plugin"')
+
+  // ⚠ AND IT MUST SURVIVE `report()`, WHICH IS WHERE THE USER READS IT. The first
+  // version of this test stopped at `driftReading` — and a different-lineage
+  // review found that the render then folded the partial answer into `differs`
+  // and still exited 0: a FALSE drift diagnosis, promising a repair the sync tool
+  // explicitly will not perform, with the count gone and "Nothing to act on"
+  // underneath. Fixing a missing qualifier by inventing a wrong verdict is not a
+  // fix, and only the boundary shows it.
+  const rendered = report({
+    counted: COUNTED, home: CLEAN_HOME, moved: answer, gateSource: '',
+  })
+  const text = rendered.lines.join('\n')
+  assert.match(text, /12 file\(s\) could not be identified/, `the count must reach the reader:\n${text}`)
+  assert.doesNotMatch(text, /differs/,
+    `files it could not attribute are not drift, and offering a repair for them is a false promise:\n${text}`)
+  assert.doesNotMatch(text, /Nothing to act on/, `a partial look is not a clean bill:\n${text}`)
+  assert.notEqual(rendered.exit, 0, 'and an incomplete section must not exit 0')
+
+  // The control, through the same boundary: a genuinely whole match still reads
+  // clean and still exits 0, so none of the above is satisfied by a report that
+  // has simply stopped saying anything good.
+  const wholeReport = report({
+    counted: COUNTED, home: CLEAN_HOME, moved: driftReading(matched(whole)), gateSource: '',
+  })
+  assert.match(wholeReport.lines.join('\n'), /the standalone install matches this plugin/)
+  assert.equal(wholeReport.exit, 0, 'a whole clean run still exits 0')
 })
 
 // The same zero, one layer up: qh-doctor points a reader at claims-rate, so

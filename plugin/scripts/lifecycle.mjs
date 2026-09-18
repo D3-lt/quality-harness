@@ -50,7 +50,13 @@ const VALIDATION_PATTERNS = [
   // choosing anything. `composer run-script <name>` is the long form of the same
   // thing. Anything not in the verb list (install, update, dump-autoload) stays
   // refused, exactly as it does for npm.
-  /^(?:npm|pnpm|yarn|bun|composer)\s+(?:run(?:-script)?\s+)?(?:test|lint|check|typecheck|build|verify|validate)\b/i,
+  //
+  // ⚠ THE VERB IS A WHOLE TOKEN. It ended `\b`, and a hyphen and a colon are both
+  // word boundaries — so `test-data`, `test:seed` and `test-fixtures` all counted
+  // as the `test` script. A different script is a different command; a name that
+  // merely BEGINS with a verb has not run that verb. Found by a different-lineage
+  // review of the composer change, and it was wrong for npm all along.
+  /^(?:npm|pnpm|yarn|bun|composer)\s+(?:run(?:-script)?\s+)?(?:test|lint|check|typecheck|build|verify|validate)(?:\s|$)/i,
   /^(?:cargo\s+(?:test|check|build|clippy)|go\s+(?:test|build|vet)|dotnet\s+(?:test|build)|swift\s+test)\b/i,
   // `php artisan test` is how a Laravel project runs its tests, and it was not
   // here: a session with 286 passing tests kept being asked for a check.
@@ -853,6 +859,31 @@ function lastSilentPublishJoiner(command) {
   return { at: last, len: lastLen }
 }
 
+/**
+ * A validation command that was actually RUN, rather than asked to describe itself.
+ *
+ * ⚠ SEPARATE FROM `isValidationCommand`, and the separation is the point. That
+ * predicate answers "is this the kind of command that validates", and it is ALSO
+ * used to decide a command is READ-ONLY and may be peeled off as a probe prefix —
+ * `adr-lint --version; node work-next.mjs` peels to the second half precisely
+ * because the first is recognised and harmless. Putting the help guard THERE made
+ * `--version` look like a mutation and broke that peeling; the suite caught it
+ * within the minute, which is the only reason this is two functions.
+ *
+ * So the guard lives at the EVIDENCE question. `npm test --help` and
+ * `composer run-script test --help` exit 0 having run nothing, and both suppressed
+ * the unchecked-publish warning — found by a different-lineage review of the
+ * composer pattern, and true for every runner in that list long before it.
+ *
+ * Bounded to modes that PRINT AND EXIT. A `help` SUBCOMMAND is not matched:
+ * `<tool> help` is a different command and never reaches these patterns anyway.
+ */
+export function isValidationEvidence(command) {
+  if (typeof command !== 'string') return false
+  if (/(?:^|\s)(?:--help|-h|--version|-V)(?:\s|$)/.test(command)) return false
+  return isValidationCommand(command)
+}
+
 export function publishPrecededByValidation(command) {
   if (typeof command !== 'string' || !isGitPublishCommand(command)) return false
   let rest = command.trim()
@@ -870,10 +901,10 @@ export function publishPrecededByValidation(command) {
     }
   }
   if (!stripped || !rest) return false
-  if (isValidationCommand(rest)) return true
+  if (isValidationEvidence(rest)) return true
   const lastLine = rest.split(/\r?\n/).filter(Boolean).at(-1) ?? ''
   const lastAnd = lastLine.split(/\s*&&\s*/).filter(Boolean).at(-1) ?? ''
-  return isValidationCommand(lastAnd)
+  return isValidationEvidence(lastAnd)
 }
 
 
@@ -2517,7 +2548,12 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       }
 
     }
+    // ⚠ `isValidationEvidence`, not the read-only predicate: a runner asked for
+    // `--help` is classified `validation` by shape and ran nothing. The transcript
+    // is the other place that turns a command into evidence, so it takes the same
+    // guard as the publish boundary.
     if (use.name === 'Bash' && classifyCommand(use.input.command) === 'validation'
+        && isValidationEvidence(use.input.command)
         && use.input.run_in_background !== true) {
       lastValidation = Math.max(lastValidation, use.position)
       if (results.has(use.id)) {

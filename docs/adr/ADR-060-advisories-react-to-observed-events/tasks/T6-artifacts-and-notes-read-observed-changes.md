@@ -23,6 +23,9 @@ Rule A replaces the old artifact calls. It runs the artifact gates over the path
 | `tests/mutations.json` | edit | entries whose `from` lives in the removed artifact calls or the old note inputs are retired |
 | `plugin/scripts/run-shell-hook.mjs` | edit | `archiveHistory` looks up each base in order instead of `HEAD`; after the per-edit gate it appends `artifact.gated` for the edited path and blob, `complete` only when the gate returned a verdict |
 | `plugin/scripts/facts-gate-dispatch.sh` | edit | the archive lookup reads the bases in order instead of `HEAD` |
+| `plugin/scripts/event-log.mjs` | create | found while implementing: the per-edit gate must append `artifact.gated`, and `run-shell-hook.mjs` importing `lifecycle.mjs` — which imports it — would be a module cycle. The state directory, the log and `contentId` move to a leaf both import; `lifecycle.mjs` re-exports them |
+| `tests/hook-work.test.mjs`, `tests/staged-product.test.mjs` | edit | found by the selftest: their staged partial plugins copy the runner, so they now copy `event-log.mjs` and `git-directory.mjs` too; the batch's stdout carries the per-path results, so the probe's own report is its last line |
+| `tests/performance-trace.test.mjs` | edit | found by the selftest: the budget message names its paths `UNRUN` |
 
 ## Ordered Steps
 
@@ -55,7 +58,7 @@ for name in 'a committed artifact is still validated' 'a compaction note sees th
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `a committed artifact is still validated` | `tests/observed-events.test.mjs` | Temp repository without a check.<br>• A malformed record under `docs/adr/` written by Bash and committed before Stop gets A's message; uncommitted, it does too.<br>• Two records of a frozen archive, deleted and committed during the session, produce no finding through the batch lookup; one produces none through the single-file lookup. The same deletions looked up at `HEAD` alone produce the dispatcher's finding.<br>• A malformed record written with Edit is reported by the per-edit gate and not again at Stop. When that gate times out instead, Stop gates the record.<br>• A second Stop with every path complete runs no gates.<br>• With a PreCompact budget of zero, the message names the unchecked paths as `UNRUN`, and the next Stop gates them. | — | S1, S2, S3 |
+| `a committed artifact is still validated` | `tests/observed-events.test.mjs` | Temp repository without a check.<br>• A malformed record under `docs/adr/` written by Bash and committed before Stop gets A's message; uncommitted, it does too.<br>• A frozen archive whose records AND catalog are retired in this session: with the session's first HEAD the gate reaches `adr-retire-check`, and at HEAD alone the same paths are `UNPROVEN: could not classify` and not complete. The single-path case drives the dispatcher's own lookup, since two paths take the batch history read. ⚠ **Corrected during execution.** This cell said the deletions produce NO finding through the batch lookup; measured, a catalog still at HEAD makes both lookups agree and report nothing, so the base decides nothing there, and once the catalog is gone the answer is a verdict rather than silence.<br>• A malformed record written with Edit is reported by the per-edit gate and not again at Stop. When that gate times out instead, Stop gates the record.<br>• A second Stop with every path complete runs no gates.<br>• With a PreCompact budget of zero, the message names the unchecked paths as `UNRUN`, and the next Stop gates them. | — | S1, S2, S3 |
 | `a compaction note sees the latest edit` | `tests/observed-events.test.mjs` | SessionStart, an edit, then PreCompact with no Stop between: the note names the edit and not a clean state; the same for SessionEnd's ledger row | — | S1, S4 |
 
 ## Reachability
@@ -68,12 +71,25 @@ for name in 'a committed artifact is still validated' 'a compaction note sees th
 | 4 — it is used | every artifact change and every compaction |
 
 ## Mutation Log
+- 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · rule A uses only uncommitted paths, so a record committed during the session is never gated · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+- 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · rule A is gated on the check opt-in, so a project that named no check has its records ungated · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+- 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/run-shell-hook.mjs` · the batch archive lookup reads HEAD, so a catalog retired this session cannot be found · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+- 2026-09-18 · 36a7d7d* · mutant survived · exit 0 · `plugin/scripts/facts-gate-dispatch.sh` · the dispatcher's own lookup reads HEAD, so a single deleted record cannot be classified · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+  ```
+  the fence passed with the mechanism broken; it may not materialize, compile, load, or assert on the changed path
+  ```
+- 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · an incomplete gate result skips the path, so a timed-out per-edit gate leaves a record ungated · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+- 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/facts-gate-dispatch.sh` · the dispatcher's own lookup reads HEAD, so a single deleted record cannot be classified · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+- 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · a path the budget cut is recorded as gated, so the next boundary never retries it · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
+- 2026-09-18 · 36a7d7d* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the note reads the last Stop's observation instead of this hook's, so a compaction mid-turn reports stale state · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2
 
 ## Invariants
 
 - `facts-gate-dispatch.sh`'s exit-code contract is unchanged, and it reads `HEAD` when no bases are given.
 - A has no check gate.
 - Every `tests/mutations.json` entry matches exactly once after this task.
+- Stop now runs the artifact gates, which it did not before this task: rule A's boundaries include the turn end (ADR-060's Decision), so `Stop stays Node-only while strict completion boundaries run artifact gates` is deleted rather than kept.
+- The artifact batch's stdout carries one `{"gated": path, "complete": bool}` line per path; its findings stay on stderr.
 
 ## Risks
 
@@ -88,3 +104,26 @@ Stop and ask if the dispatcher cannot take deletion bases without changing its c
 - New artifact gate kinds (permanent: boundary: this task changes their inputs, not the gates)
 
 ## Verification Log
+- 2026-09-18 · 36a7d7d* · exit 1 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:735 · test-lock-sha256:9c0fe2fc6a6f283422fb01d50554bde1eefcea46fddc2bfe45303e13a1b0eabe · test-lock-b64:Y2hlY2sJZjdlMjUxYjUwM2NhZWZlY2JhMTEyMjFhZDJjYzIyMjc3MDYxNDA1NzNiZWEyMGQ2MWQ5OTg3ZGE3YjYwNTI1Ngpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGNoZWNrIGV2ZW50IGlzIHdyaXR0ZW4gYnkgcWgtY2hlY2sJZjgwMzk5YmMxY2EyZTlkMDI5MTRjYWM2NDlkNzYwNWEzMzljZTU4YTY0MTFkNDZiOGU0MWRkOWZiNGI1ZTc4Ywpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlhIGNvbW1hbmQgbmFtaW5nIGNvbW1pdCBvciBwdXNoIGlzIHdhcm5lZCBiZWZvcmUgaXQgcnVucwk5MDE3ZmIxMzdiZGYzMTRkNmM4MGI0N2ExOGExN2RhZGNiOWQ1OTBiYTRmNzg2MTNjNzBlY2I2MDRhNGNmNmU1CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY29tbWl0dGVkIGFydGlmYWN0IGlzIHN0aWxsIHZhbGlkYXRlZAk2Y2NlZGU2MDI0MmJjZDY4MzA0MzM5NjNiZjA2OTlmNjRiZGM0OTA3NWM4MWE0MjI2MmFiN2YxNTFjOGJkMjNhCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgY29tcGFjdGlvbiBub3RlIHNlZXMgdGhlIGxhdGVzdCBlZGl0CTJiNTZiMDQxYTc3ZDExODE0YjBmMWFjOWQ0NzM1NzViNzAyOGI1NzNlMTdhNzJkZGI3MDA3N2M0MGMzYThjYTMKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYSByZWFkLW9ubHkgcm9sZSBjYW5ub3QgY29tbWl0IG9yIHB1c2ggYW5kIGl0cyBvdGhlciBjaGFuZ2VzIGFyZSByZXBvcnRlZAk5ZWI2NmZlOWZiNmE1ZmJiNDliMTgwNTg4MTNhN2Y0NGNhYTQ4ODZkMmYxYjI2NGFkZDViMzIyMTI2ZjQ0MTVhCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgcmVwb3NpdG9yeSB3aXRob3V0IGEgY2hlY2sgaGVhcnMgbm8gY29tcGxldGlvbiBhZHZpc29yeQk2YmFjMTUxNTg1MmM5MzA2NzBkNmQzN2M3ZWZjODk4NzBiNjA3Mzg0ZDQzMDUzODUyZjc2YjBkN2MzNjg1MTc2CmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgdHJlZSB0aGUgcHVibGlzaCB3YXJuaW5nIG5hbWVkIHN0aWxsIHJlY29yZHMgdW52ZXJpZmllZAk5NWJhMDhkNmNlODE1ZTQ0ZTA2YTYxNGE3ZjlkMWFjZTVjYzQ3YWY2YjFmYmJmZjY5YWM2ZWI5OThkOTdjOGVkCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCWEgdHVybiBlbmQgb2JzZXJ2ZXMgdGhlIHRyZWUgd2l0aG91dCByZWFkaW5nIGFueSBjb21tYW5kCWQ3OGQ0MmNjMGY4YmFjN2FmZGI4MWJhNzdjNTM5ZDJmNGFmYzhlYWQxZDk1NzA2Y2JmMmM0M2NiMTdlODNmZmEKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJYW4gdW5jaGVja2VkIGNvbW1pdCBpcyBuYW1lZCBldmVuIHdoZW4gaXRzIHRyZWUgZXF1YWxzIHRoZSBzZXNzaW9uIHN0YXJ0CWYzNjc2MzhhYjFmNzg4NDRkMWZmZGU3YTMzZjNkOTUwZWY1NGJiOGZiOGMwNTZjMjI5NTJjZWU3ZGFmMGNmMzYKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJbWFueSB1bmNoZWNrZWQgY29tbWl0cyBhcmUgb25lIGZpbmRpbmcJYjQ0MDg3YWRhZmFkYjE0NDU5ZDgwZjhiMzVlZGVhYjFiMjk3OWE2NDUwMmFjODA5NmNiZDE1MmIzZjhkZjJmMQpib2R5CXRlc3RzL29ic2VydmVkLWV2ZW50cy50ZXN0Lm1qcwlvYnNlcnZpbmcgd3JpdGVzIG5vdGhpbmcgaW50byB0aGUgcmVwb3NpdG9yeQlkNjVlMmY0Njc0MzcyNDgzZmZmMDM4ZDRmZWJhZWEyZDgyYWE3MzQwNGEyZDVhZjlhMjEwZWQ4YjAzMTJmNmJhCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCW9uZSBob29rIGRlbGl2ZXJzIGV2ZXJ5IGFjdGlvbiBpdCByZWNvcmRzCTc4ZWZhNTY4ZjMxZThhOTE0YzdkZDRkMGYyNmFmNDgzODFlNDhjMWUzZmFlMmFjNGM1NTZmNDI4MzRmZjQ0MmQKYm9keQl0ZXN0cy9vYnNlcnZlZC1ldmVudHMudGVzdC5tanMJdGhlIHNjcmlwdGVkIHNlc3Npb24gYWR2aXNlcyBhcyBpdHMgc3RlcCB0YWJsZSBsaXN0cwljYzVmMmM3ZTRlNDc2NjBjMjcwMWM1MmNiNTM3ZTBhMzMwYzVjMTE5MDcyYWVkODU4ZmZjOGM3ODU4ZDE1MTgzCmJvZHkJdGVzdHMvb2JzZXJ2ZWQtZXZlbnRzLnRlc3QubWpzCXdyaXRlcyB0aGUgdHJlZSBjYW5ub3Qgc2VlIHJlLW9wZW4gdGhlIGZpbmRpbmcJZjEzZmZiNDE2NWZhZDc0NWQyNDlmNzI3NzI4MmVkNGYyMmUwMjViYzE0YjlmY2M5YjcxZjMxNmJmMGIyM2ZkYg
+  ```
+  --- last 10 line(s) of stdout (of 54 after folding 54 raw)
+    ...
+  1..2
+  # tests 2
+  # suites 0
+  # pass 0
+  # fail 2
+  # cancelled 0
+  # skipped 0
+  # todo 0
+  # duration_ms 669.096666
+  ```
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27655
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27922
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27523
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:28199
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27701
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:28303
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27774
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27976
+- 2026-09-18 · 36a7d7d* · exit 0 · `set -o pipefail …` · acceptance-sha256:b8255ef1e3dad7644c030b0d3500d592b795195e74e3c33b849d699cd39fe0a2 · ms:27421

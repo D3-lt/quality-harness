@@ -45,6 +45,8 @@ import {
   posixListed,
   readyTaskLines,
   runArtifactGates,
+  observe,
+  appendEvent,
   surfaceReadyLines,
   shellSegments,
   ASSERTION_ARM_WITHDRAWN,
@@ -726,15 +728,11 @@ test('successful negative-control suites are not rejected by their output text',
 })
 
 test('command hook advises on subagent completion without later evidence', async () => {
-  const dir = await checkedProject('quality-hook-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }),
-    toolResult('e1'),
-  ]))
-
+  // A subagent end that is not a read-only reviewer is a completion boundary
+  // like any other: ADR-060's R1 speaks for the work it leaves unchecked.
+  const { dir, session } = await unheldRepository('quality-hook-')
   const run = runLifecycleHook({
-    hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir,
+    hook_event_name: 'SubagentStop', cwd: dir, session_id: session, agent_id: 'a1',
   })
   assert.equal(run.status, 0)
   assert.match(run.stdout, /"systemMessage"/)
@@ -1015,86 +1013,26 @@ test('the publish warning reads commit or push through wrappers and quoting', as
 // A: before a command that names commit or push, a malformed record this session
 // wrote is still reported. A surviving mutant showed nothing pinned it (§4).
 test('the pre-publish artifact pass still gates a malformed record', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-prepublish-artifact-'))
-  const artifact = path.join(dir, 'invalid-spec.md')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: artifact }), toolResult('e1'),
-  ]))
-  const run = runLifecycleHook({
-    hook_event_name: 'PreToolUse', tool_name: 'Bash', cwd: dir,
-    tool_input: { command: 'git commit -m x' }, transcript_path: file,
-  })
+  // Rule A runs before a command that names commit or push, over what the
+  // session changed — here a malformed record nobody has gated (ADR-060 T6).
+  const { dir, session } = await unheldRepository('quality-prepublish-artifact-', 'invalid-spec.md')
+  await writeFile(path.join(dir, 'invalid-spec.md'), '# Invalid\n\n## Facts\n\n## Grill Log\n')
+  const run = publishAttempt('git commit -m x', dir, session)
   assert.equal(run.status, 0, run.stderr)
   assert.match(run.stderr, /Artifact validation failed/)
 })
 
 test('subagent evidence gate remains active while the parent has background work', async () => {
-  const dir = await checkedProject('quality-hook-')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Edit', { file_path: '/repo/a.js' }), toolResult('e1'),
-  ]))
+  // The background-work skip is Stop's alone: a subagent that has finished has
+  // finished, whatever the parent still has running.
+  const { dir, session } = await unheldRepository('quality-hook-background-')
   const run = runLifecycleHook({
-    hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir,
+    hook_event_name: 'SubagentStop', cwd: dir, session_id: session, agent_id: 'a1',
     background_tasks: [{ id: 'parent-task' }],
   })
   assert.match(run.stdout, /"systemMessage"/)
 })
 
-test('Stop stays Node-only while strict completion boundaries run artifact gates', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-'))
-  const artifact = path.join(dir, 'invalid-spec.md')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: artifact }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const stop = runLifecycleHook({ hook_event_name: 'Stop', transcript_path: file })
-  assert.equal(stop.status, 0, stop.stderr)
-  assert.equal(stop.stdout, '')
-
-  const subagent = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file })
-  assert.match(subagent.stdout, /Artifact validation failed/)
-
-  const task = runLifecycleHook({ hook_event_name: 'TaskCompleted', transcript_path: file })
-  assert.equal(task.status, 0)
-  assert.match(task.stderr, /Artifact validation failed/)
-})
-
-test('an invalid Markdown artifact written through Bash is still gated', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-bash-md-'))
-  const artifact = path.join(dir, 'invalid-spec.md')
-  const file = path.join(dir, 'agent.jsonl')
-  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `printf content > "${bashPath(artifact)}"` }), toolResult('b1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir })
-  assert.match(run.stdout, /Artifact validation failed/)
-})
-
-test('globbed Markdown Bash mutations gate the files that actually exist without poisoning prose', async () => {
-  const dir = await mkdtemp(path.join(testTmp, 'quality-hook-bash-glob-'))
-  const file = path.join(dir, 'agent.jsonl')
-  const specs = path.join(dir, 'docs', 'specs')
-  const artifact = path.join(specs, 'invalid.md')
-  await mkdir(specs, { recursive: true })
-  await writeFile(artifact, '# Invalid\n\n## Facts\n\n## Grill Log\n')
-  await writeFile(file, transcript([
-    toolUse('b1', 'Bash', { command: `sed -i '' "${bashPath(specs)}/*.md"` }), toolResult('b1'),
-    toolUse('t1', 'Bash', { command: 'node --test tests/unit.test.mjs' }),
-    toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  const run = runLifecycleHook({ hook_event_name: 'SubagentStop', agent_transcript_path: file, cwd: dir })
-  assert.match(run.stdout, /Artifact validation failed/)
-  assert.doesNotMatch(run.stdout, /unresolved path/i)
-})
 
 test('an unresolved Bash deletion is answered by the repository, not held against the session', async () => {
   // The sentinel comes from the public classifier so the test cannot drift from it.
@@ -1484,20 +1422,13 @@ test('a slow hook names itself; a fast one says nothing about its time', async (
 
 test('PreCompact records what the gates measured, and the compact SessionStart hands it back', async () => {
   // Compaction keeps the model's summary and drops the state the gates measured.
-  // PreCompact writes a note — paths since the last publish, whether a
-  // recognised check passed after them, the last check, task in flight — and
-  // the compact-source SessionStart injects it alongside the orientation. A
+  // PreCompact OBSERVES, then writes a note — the changed paths, whether a
+  // `qh-check` has passed on them, the last check event, the task in flight —
+  // and the compact-source SessionStart injects it beside the orientation. A
   // resume does not: that context is still there.
-  const repo = await checkedProject('quality-precompact-')
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
+  const { dir: repo, session } = await unheldRepository('quality-precompact-', 'service.py')
   await writeFile(path.join(repo, 'other.py'), 'print(1)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('e2', 'Write', { file_path: path.join(repo, 'other.py') }), toolResult('e2'),
-  ]))
-  const session = `precompact-${Date.now()}-${process.pid}`
-  const pre = runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'auto', cwd: repo, session_id: session, transcript_path: file })
+  const pre = runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'auto', cwd: repo, session_id: session })
   assert.equal(pre.status, 0, pre.stderr)
   assert.equal(pre.stdout.trim(), '', 'PreCompact has nothing to say to the model; it writes')
 
@@ -1505,58 +1436,59 @@ test('PreCompact records what the gates measured, and the compact SessionStart h
   assert.equal(compact.status, 0, compact.stderr)
   const context = JSON.parse(compact.stdout).hookSpecificOutput.additionalContext
   assert.match(context, /What this session was doing before compaction/, 'the note is handed back')
-  assert.match(context, /2 path\(s\) edited since the last publish; no recognised check has passed since: (service\.py, other\.py|other\.py, service\.py)/)
+  assert.match(context, /2 changed path\(s\); no `qh-check` has passed on them: /)
+  assert.match(context, /service\.py/)
   assert.match(context, /No check has run this session/)
 
   const resume = runLifecycleHook({ hook_event_name: 'SessionStart', source: 'resume', cwd: repo, session_id: session })
   assert.doesNotMatch(resume.stdout, /before compaction/, 'a resume still has its context')
 
-  // A checked session says so, narrowly, with the check named.
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'npm run test' }), toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'manual', cwd: repo, session_id: session, transcript_path: file })
+  // A checked session says so, with the check named. The event is the one
+  // `qh-check` writes: it belongs to the tree it observed.
+  const observed = observe(repo)
+  appendEvent(repo, session, {
+    event: 'check.passed', startedAt: new Date().toISOString(), command: 'sh check.sh',
+    origin: 'declared', before: observed, after: observed, exit: 0,
+  })
+  runLifecycleHook({ hook_event_name: 'PreCompact', trigger: 'manual', cwd: repo, session_id: session })
   const checked = JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout)
-  assert.match(checked.hookSpecificOutput.additionalContext, /1 path\(s\) edited since the last publish; a recognised check passed after them: service\.py\. Last check: `npm run test` passed/)
+  assert.match(checked.hookSpecificOutput.additionalContext, /a `qh-check` passed on them/)
+  assert.match(checked.hookSpecificOutput.additionalContext, /Last check: `sh check\.sh` passed/)
 
-  // A PreCompact that cannot read the transcript says so, and the note from the
-  // EARLIER compaction is not handed back as current: the old note goes first.
-  const blind = runLifecycleHook({ hook_event_name: 'PreCompact', cwd: repo, session_id: session, transcript_path: path.join(repo, 'missing.jsonl') })
-  assert.equal(blind.status, 0)
-  assert.match(blind.stderr, /transcript could not be read/)
-  assert.doesNotMatch(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout, /before compaction/,
-    'a failed PreCompact must not leave the previous note to be handed back')
+  // Every PreCompact replaces the note, so a later one is never read as the
+  // earlier one's state (Codex review, 2026-09-05).
+  await writeFile(path.join(repo, 'third.py'), 'print(2)\n')
+  runLifecycleHook({ hook_event_name: 'PreCompact', cwd: repo, session_id: session })
+  const fresh = JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'compact', cwd: repo, session_id: session }).stdout)
+  assert.match(fresh.hookSpecificOutput.additionalContext, /3 changed path\(s\); no `qh-check` has passed on them/)
 })
 
 test('SessionEnd records what was left unverified, and the next startup here says so', async () => {
   // The ledger row is what lets a NEW session in the same place start knowing
-  // the last one ended with unchecked edits. A neutral session (nothing edited)
+  // the last one ended with unchecked work. A neutral session (nothing changed)
   // does not mask it; a checked end clears it; a different place is not here;
   // a subdirectory of the same repository is.
-  const repo = await checkedProject('quality-sessionend-')
-  // A repository, so "here" is the repository root and a subdirectory is the
-  // same place; only ever spawned in a directory this test created (CLAUDE.md §9).
-  assert.equal(spawnSync('git', ['init', '-q'], { cwd: repo, encoding: 'utf8', timeout: 60_000 }).status, 0)
-  const file = path.join(repo, 'agent.jsonl')
-  await writeFile(path.join(repo, 'service.py'), 'print(0)\n')
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('b1', 'Bash', { command: 'printf x > notes.txt' }), toolResult('b1'),
-  ]))
-  const end = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'prompt_input_exit', cwd: repo, session_id: 'ended-1', transcript_path: file })
+  const { dir: repo, session } = await unheldRepository('quality-sessionend-', 'service.py')
+  // A write git cannot see, so the row counts it beside the tree's own paths.
+  const outside = path.join(testTmp, `sessionend-outside-${process.pid}.bin`)
+  await writeFile(outside, 'x')
+  runLifecycleHook({
+    hook_event_name: 'PostToolUse', tool_name: 'Write', cwd: repo, session_id: session,
+    tool_input: { file_path: outside },
+  })
+  const end = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'prompt_input_exit', cwd: repo, session_id: session })
   assert.equal(end.status, 0, end.stderr)
   const rows = () => readFileSync(path.join(ledgerHome, 'sessions.jsonl'), 'utf8').trim().split('\n').map(line => JSON.parse(line))
   const row = rows().findLast(entry => entry.cwd === repo)
   assert.ok(row, 'a row for this place')
   assert.equal(row.status, 'unverified')
   assert.deepEqual(row.files, [path.join(repo, 'service.py')])
-  assert.equal(row.other, 1, 'the shell mutation is counted, not dropped')
+  assert.equal(row.other, 1, 'the write git cannot see is counted, not dropped')
   assert.equal(row.reason, 'prompt_input_exit')
   assert.equal(typeof row.location, 'string')
 
-  const notice = cwd => JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd }).stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
-  assert.match(notice(repo), /The previous session in this directory ended \(prompt_input_exit, .*\) with 1 edit\(s\) and 1 shell mutation\(s\) after which no recognised check passed: service\.py\. Run `npm run test` before building on them\./)
+  const notice = cwd => JSON.parse(runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd, session_id: `after-${Date.now()}` }).stdout || '{}').hookSpecificOutput?.additionalContext ?? ''
+  assert.match(notice(repo), /The previous session in this directory ended \(prompt_input_exit, .*\) with/)
 
   // A subdirectory of the same repository is the same place.
   await mkdir(path.join(repo, 'src'), { recursive: true })
@@ -1566,32 +1498,35 @@ test('SessionEnd records what was left unverified, and the next startup here say
   const other = await checkedProject('quality-sessionend-other-')
   assert.doesNotMatch(notice(other), /previous session/)
 
-  // A neutral session in between — nothing edited — does not mask the finding.
-  await writeFile(file, transcript([toolUse('r1', 'Read', { file_path: path.join(repo, 'service.py') }), toolResult('r1')]))
-  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-neutral', transcript_path: file })
+  // A neutral session in between — nothing changed, because the work is
+  // committed — does not mask the finding.
+  const git = (...args) => spawnSync('git', ['-C', repo, '-c', 'user.name=qh', '-c', 'user.email=qh@example.invalid', ...args],
+    { encoding: 'utf8', timeout: 60_000 })
+  assert.equal(git('add', '-A').status, 0)
+  assert.equal(git('commit', '-q', '-m', 'work', '--no-gpg-sign').status, 0)
+  const neutral = `ended-neutral-${Date.now()}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo, session_id: neutral })
+  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: neutral })
   assert.equal(rows().findLast(entry => entry.cwd === repo).status, 'neutral')
-  assert.match(notice(repo), /previous session in this directory/, 'a neutral session says nothing about what was left')
-
-  // A transcript that cannot be read writes NO row — a could-not-look row would be
-  // walked over as if it had looked.
-  const before = rows().length
-  const blind = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-blind', transcript_path: path.join(repo, 'missing.jsonl') })
-  assert.match(blind.stderr, /transcript could not be read/)
-  assert.equal(rows().length, before, 'nothing written for a session that could not be read')
-  assert.match(notice(repo), /previous session in this directory/)
+  assert.match(notice(repo), /previous session in this directory/, 'a neutral session says nothing about an earlier one')
 
   // A checked end clears it.
-  await writeFile(file, transcript([
-    toolUse('e1', 'Write', { file_path: path.join(repo, 'service.py') }), toolResult('e1'),
-    toolUse('t1', 'Bash', { command: 'npm run test' }), toolResult('t1', false, 'tests 1\npass 1'),
-  ]))
-  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-2', transcript_path: file })
+  const checked = `ended-checked-${Date.now()}`
+  runLifecycleHook({ hook_event_name: 'SessionStart', source: 'startup', cwd: repo, session_id: checked })
+  await writeFile(path.join(repo, 'later.py'), 'print(3)\n')
+  const observed = observe(repo)
+  appendEvent(repo, checked, {
+    event: 'check.passed', startedAt: new Date().toISOString(), command: 'sh check.sh',
+    origin: 'declared', before: observed, after: observed, exit: 0,
+  })
+  runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: checked })
+  assert.equal(rows().findLast(entry => entry.cwd === repo).status, 'verified')
   assert.doesNotMatch(notice(repo), /previous session/)
 
   // No data home: said on stderr, nothing written, nothing invented.
   const env = { ...process.env }
   delete env.CLAUDE_PLUGIN_DATA
-  const homeless = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-3', transcript_path: file }, { env })
+  const homeless = runLifecycleHook({ hook_event_name: 'SessionEnd', reason: 'other', cwd: repo, session_id: 'ended-homeless' }, { env })
   assert.equal(homeless.status, 0)
   assert.match(homeless.stderr, /CLAUDE_PLUGIN_DATA is not set/)
 })

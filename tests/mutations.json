@@ -6211,8 +6211,8 @@
       "label": "hook-work: an incidental historical marker is not an archive",
       "file": "plugin/scripts/facts-gate-dispatch.sh",
       "only": "historical archive discovery",
-      "from": "-e '^\\*\\*Lifecycle:\\*\\* Frozen historical ADR records$' HEAD",
-      "to": "-e '\\*\\*Lifecycle:\\*\\* Frozen historical ADR records' HEAD",
+      "from": "-e '^\\*\\*Lifecycle:\\*\\* Frozen historical ADR records$' \"$base\"",
+      "to": "-e '\\*\\*Lifecycle:\\*\\* Frozen historical ADR records' \"$base\"",
       "tests": [
         "tests/hook-work.test.mjs"
       ]
@@ -6281,8 +6281,8 @@
       "label": "hook-work: the deadline identifies all remaining artifacts",
       "file": "plugin/scripts/run-shell-hook.mjs",
       "only": "artifact batch input",
-      "from": "+ 'All remaining artifacts were not checked:\\n' + batch.paths.slice(index).join('\\n')",
-      "to": "+ 'All remaining artifacts were not checked:\\n' + filePath",
+      "from": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + batch.paths.slice(index).join('\\n')",
+      "to": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + filePath",
       "tests": [
         "tests/hook-work.test.mjs"
       ]
@@ -6291,8 +6291,8 @@
       "label": "hook-work: a pre-start deadline identifies every unchecked artifact",
       "file": "plugin/scripts/lifecycle.mjs",
       "only": "artifact batch input",
-      "from": "+ 'All remaining artifacts were not checked:\\n' + uniqueTargets.join('\\n')",
-      "to": "+ 'All remaining artifacts were not checked:\\n' + uniqueTargets[0]",
+      "from": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets.join('\\n')",
+      "to": "+ 'UNRUN — all remaining artifacts were not checked:\\n' + uniqueTargets[0]",
       "tests": [
         "tests/hook-work.test.mjs"
       ]
@@ -8668,6 +8668,15 @@
       ],
       "from": "  const age = typeof value?.ageMs === 'number' ? `last observed ${renderAge(value.ageMs)} ago` : null",
       "to": "  const age = null"
+    },
+    {
+      "label": "event-log: an event that is not appended is an event no rule can read",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/observed-events.test.mjs"
+      ],
+      "from": "    appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\\n`, 'utf8')",
+      "to": "    void file"
     }
   ]
 }

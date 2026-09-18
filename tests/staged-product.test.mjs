@@ -620,6 +620,10 @@ test('session_id from the payload reaches the facts-gate dispatcher', () => {
   mkdirSync(scripts, { recursive: true })
   cpSync(path.join(pluginDir, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginDir, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  // ADR-060 T6: the runner records what the per-edit gate answered, so a staged
+  // copy needs the event log's module and the git-directory walk it uses.
+  cpSync(path.join(pluginDir, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
+  cpSync(path.join(pluginDir, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'printf "session=%s\\n" "${QUALITY_HARNESS_SESSION_ID-UNSET}"',

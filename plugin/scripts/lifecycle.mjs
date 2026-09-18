@@ -17,6 +17,13 @@ import {
 
 import { ARTIFACT_OUTPUT_LIMIT } from './run-shell-hook.mjs'
 import { findGitDir } from './git-directory.mjs'
+// ADR-060's event log is shared with run-shell-hook.mjs's per-edit gate, so it
+// lives in a leaf module both can import (T6).
+import {
+  appendEvent, canonical, nearestExistingDirectory, readEvents, sessionLogFile, stateDir,
+} from './event-log.mjs'
+export { appendEvent, readEvents, sessionLogFile, stateDir } from './event-log.mjs'
+import { contentId } from './event-log.mjs'
 import {
   classifyCommand as classifyCommandWithHooks,
   POSIX_NESTED_SHELLS,
@@ -137,20 +144,6 @@ function reportsZeroTestWork(text, command) {
   return /\b(?:no tests? (?:found|ran|collected|matched|to run)|ran 0 tests?|running 0 tests?|collected 0 items|0 tests? (?:run|executed|collected|passed)|0 passing|tests\s+0|no test files)\b/i.test(text)
 }
 
-function nearestExistingDirectory(candidate) {
-  let current = candidate
-  try {
-    if (!statSync(current).isDirectory()) current = path.dirname(current)
-  } catch {
-    current = path.dirname(current)
-  }
-  while (!existsSync(current)) {
-    const parent = path.dirname(current)
-    if (parent === current) return null
-    current = parent
-  }
-  return current
-}
 
 function resolveToolPath(value, cwd) {
   if (typeof value !== 'string' || value.length === 0 || value.includes('\0')) return null
@@ -1643,20 +1636,6 @@ function isDirectory(candidate) {
   }
 }
 
-// outside. Falls back to the lexical path when it cannot be resolved.
-function canonical(candidate) {
-  try {
-    // Native first: the JS realpath leaves Windows 8.3 names in place while
-    // Git answers with the long form (run-shell-hook.mjs; BACKLOG §188).
-    let resolved
-    try { resolved = realpathSync.native(candidate) } catch { resolved = realpathSync(candidate) }
-    if (resolved.startsWith('\\\\?\\UNC\\')) return '\\\\' + resolved.slice(8)
-    if (resolved.startsWith('\\\\?\\')) return resolved.slice(4)
-    return resolved
-  } catch {
-    return candidate
-  }
-}
 
 // ⚠ LEXICAL CONTAINMENT IS NOT ENOUGH ON ITS OWN. `path.relative` is sound only
 // for canonical absolute paths under the right root, so both sides are resolved
@@ -2435,7 +2414,7 @@ export function budgetExhausted(detail, error) {
   return /timed out after \d+ms/.test(detail) || error?.code === 'ETIMEDOUT'
 }
 
-export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000) {
+export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000, { bases = [], gated = null } = {}) {
   const hook = path.join(PLUGIN_ROOT, 'scripts', 'facts-gate-dispatch.sh')
   if (!existsSync(hook)) return null
   const runner = path.join(PLUGIN_ROOT, 'scripts', 'run-shell-hook.mjs')
@@ -2480,7 +2459,7 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
       if (remaining < 1_000) {
         failures.push(`The boundary's ${Math.round(windowMs / 1000)}s window was exhausted before ${uniqueTargets[0]} was gated. `
           + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.\n'
-          + 'All remaining artifacts were not checked:\n' + uniqueTargets.join('\n'))
+          + 'UNRUN — all remaining artifacts were not checked:\n' + uniqueTargets.join('\n'))
       } else {
         const timeoutMs = artifactGateTimeoutMs()
         const run = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh', '--batch'], {
@@ -2488,9 +2467,22 @@ export function runArtifactGates(paths, cwd = process.cwd(), windowMs = 100_000)
           encoding: 'utf8',
           // Each shell is capped separately; leave room for its diagnostic framing too.
           maxBuffer: uniqueTargets.length * ARTIFACT_OUTPUT_LIMIT * 2,
-          env: { ...process.env, QUALITY_HARNESS_ADR_LEDGER: ledger },
+          env: { ...process.env, QUALITY_HARNESS_ADR_LEDGER: ledger,
+            // The revisions a deleted path is looked up in, nearest first
+            // (ADR-060 T6). Unset means HEAD, in both lookups.
+            ...(bases.length ? { QUALITY_HARNESS_HISTORY_BASES: bases.join(' ') } : {}) },
           timeout: remaining + ARTIFACT_GATE_KILL_MARGIN_MS,
         })
+        // Which paths the pass actually answered for. The findings are on
+        // stderr; this is the per-path record rule A keeps.
+        if (gated) {
+          for (const line of (run.stdout || '').split('\n')) {
+            if (!line.trim()) continue
+            let result
+            try { result = JSON.parse(line) } catch { continue }
+            if (typeof result?.gated === 'string') gated.set(result.gated, result.complete === true)
+          }
+        }
         // Advisory findings arrive on stderr with exit zero; status alone loses them.
         const said = (run.stderr || '').trim()
         if (run.status !== 0 || said) {
@@ -3866,38 +3858,52 @@ export function bumpSessionGeneration(sessionId) {
   return next
 }
 
-// What a session was doing, in the words the NEXT context needs: paths edited
-// since the last publish and whether anything has checked them, the last check
-// and its verdict, the ADR task in flight. Written at PreCompact and handed back
-// by the compact SessionStart — compaction keeps the summary the model wrote
-// and drops the state the gates measured, and the two are not the same thing.
-// Also the row SessionEnd writes, so the next session in the same directory
-// starts knowing what the last one left unverified.
-export function sessionStateNote(state, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
-  const edited = state.mutationPathsSince(state.lastPublish)
-  const files = provenMutationPaths(edited, cwd)
-  const other = edited.length - files.length
+// What a session was doing, in the words the NEXT context needs: the paths that
+// changed and whether a `qh-check` has passed on them, the last check event, the
+// ADR task in flight. Written at PreCompact and handed back by the compact
+// SessionStart — compaction keeps the summary the model wrote and drops the
+// state the gates measured, and the two are not the same thing. Also the row
+// SessionEnd writes, so the next session in the same directory starts knowing
+// what the last one left unchecked.
+//
+// ADR-060 T6: its input is the event log's reading of the tree, not a
+// transcript, so what it reports is what git and the tool events show.
+export function observedFacts(log, root, observation) {
+  const writes = unobservableWrites(log)
+  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const status = observation?.ok === true ? statusPaths(root) : []
+  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)
+  const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
+    && (baseline?.ok !== true || observation.tree !== baseline.tree)
+  return {
+    files: root ? status.map(relative => path.join(root, relative)) : [],
+    other: writes.length,
+    pending: treeUnchecked || writes.length > 0,
+    lastCheck: check ? { command: check.command ?? null, verdict: check.event.slice('check.'.length) } : null,
+  }
+}
+
+export function sessionStateNote(facts, cwd, root, insideRepository, now = new Date(), { tasks = true } = {}) {
+  const files = Array.isArray(facts?.files) ? facts.files : []
+  const other = Number(facts?.other) || 0
   const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
   if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
-  const unprovenWrite = state.unprovenWritePending()
-  const pending = state.unverifiedSince(state.lastPublish) || unprovenWrite
-  // Three states, not two: 'neutral' is a session that edited nothing since its
-  // last publish, which says nothing about what an EARLIER session left — a
-  // reader walking back must not stop on it (Codex review, 2026-09-05).
-  const status = edited.length === 0 && !unprovenWrite ? 'neutral' : pending ? 'unverified' : 'verified'
+  const pending = facts?.pending === true
+  // Three states, not two: 'neutral' is a session that changed nothing, which
+  // says nothing about what an EARLIER session left — a reader walking back must
+  // not stop on it (Codex review, 2026-09-05).
+  const status = files.length === 0 && other === 0 ? 'neutral' : pending ? 'unverified' : 'verified'
   const parts = []
-  if (edited.length) {
-    // The observation, narrowly: whether a recognised check passed after the
-    // edits. The commit gate also runs artifact gates, so this is not its verdict.
-    parts.push(`${files.length} path(s) edited since the last publish${other ? ` and ${other} shell mutation(s)` : ''}; `
-      + `${pending ? 'no recognised check has passed since' : 'a recognised check passed after them'}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
-  } else if (unprovenWrite) {
-    parts.push('UNPROVEN write since the last publish; no recognised check has proven it.')
+  if (files.length) {
+    parts.push(`${files.length} changed path(s)${other ? ` and ${other} write(s) git cannot see` : ''}; `
+      + `${pending ? 'no `qh-check` has passed on them' : 'a `qh-check` passed on them'}${shown.length ? `: ${shown.join(', ')}` : ''}.`)
+  } else if (other) {
+    parts.push(`${other} write(s) git cannot see since the last passing check.`)
   } else {
-    parts.push('nothing edited since the last publish.')
+    parts.push('nothing has changed in the working tree.')
   }
-  parts.push(state.lastVerdictCommand
-    ? `Last check: \`${state.lastVerdictCommand}\` ${state.lastVerdict ?? 'unknown'}.`
+  parts.push(facts?.lastCheck
+    ? `Last check: \`${facts.lastCheck.command ?? 'qh-check'}\` ${facts.lastCheck.verdict}.`
     : 'No check has run this session.')
   if (tasks) {
     const listing = insideRepository ? trackedPaths(root) : null
@@ -4384,62 +4390,7 @@ export function readOnlyRole(agentType) {
 }
 
 // ---- ADR-060: hooks are named events, each observed and appended to a log.
-//
-// The state directory belongs to one worktree (`--absolute-git-dir`), so a check
-// recorded in one worktree never clears another's findings. Outside a repository
-// it is keyed by the canonical directory under the system temp directory.
-const stateDirectories = new Map()
-export function stateDir(cwd, { spawn = true } = {}) {
-  const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))
-  const key = `${directory ?? String(cwd)}:${spawn}`
-  if (stateDirectories.has(key)) return stateDirectories.get(key)
-  let resolved = null
-  if (directory) {
-    // findGitDir walks the checkout without starting a process, and answers a
-    // linked worktree with its OWN git directory, which is what makes one
-    // worktree's check unable to clear another's findings. The spawn is the
-    // second rung for the cases it cannot see (a GIT_DIR in the environment);
-    // a reader that must not start a process asks for it to be skipped.
-    resolved = findGitDir(directory)
-    if (resolved) resolved = path.join(canonical(resolved), 'quality-harness')
-    if (!resolved && spawn) {
-      const run = spawnSync('git', ['-C', directory, 'rev-parse', '--absolute-git-dir'], { encoding: 'utf8', timeout: 5_000 })
-      if (!run.error && run.status === 0 && run.stdout.trim()) resolved = path.join(canonical(run.stdout.trim()), 'quality-harness')
-    }
-  }
-  resolved ??= path.join(os.tmpdir(), 'quality-harness',
-    createHash('sha256').update(directory ? canonical(directory) : String(cwd)).digest('hex'))
-  stateDirectories.set(key, resolved)
-  return resolved
-}
-
-export function sessionLogFile(cwd, session, options) {
-  return path.join(stateDir(cwd, options), 'sessions', `${String(session).replace(/[^A-Za-z0-9._-]/g, '_')}.jsonl`)
-}
-
-export function appendEvent(cwd, session, entry) {
-  if (typeof session !== 'string' || !session) return false
-  try {
-    const file = sessionLogFile(cwd, session)
-    mkdirSync(path.dirname(file), { recursive: true })
-    appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\n`, 'utf8')
-    return true
-  } catch {
-    return false
-  }
-}
-
-export function readEvents(cwd, session, options) {
-  if (typeof session !== 'string' || !session) return []
-  let text
-  try { text = readFileSync(sessionLogFile(cwd, session, options), 'utf8') } catch { return [] }
-  const entries = []
-  for (const line of text.split('\n')) {
-    if (!line.trim()) continue
-    try { entries.push(JSON.parse(line)) } catch { /* a torn line is skipped, not fatal */ }
-  }
-  return entries
-}
+// The state directory and the log itself are in `event-log.mjs`, imported above.
 
 // The working tree, the index and HEAD as content hashes. Both hashes are taken
 // over a COPY of the index with objects written to a temporary directory, the
@@ -4841,6 +4792,68 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check) {
   return 'verified'
 }
 
+// Rule A `artifact-invalid` (ADR-060): the artifact gates over everything this
+// session changed — committed since its first HEAD, uncommitted, and written by
+// a tool — minus every path a gate has already answered for THIS content. It has
+// no check gate: a malformed record is malformed whether or not the project
+// named a test command.
+const ARTIFACT_BUDGETS = { 'publish.requested': 45_000, 'context.compacting': 20_000 }
+function artifactBudgetMs(eventName) {
+  // The seam the zero-budget case needs; anything but a number of milliseconds
+  // is ignored, so a typo cannot silently disable the pass.
+  const configured = Number(process.env.QUALITY_HARNESS_ARTIFACT_BUDGET_MS)
+  if (Number.isFinite(configured) && configured >= 0) return configured
+  return ARTIFACT_BUDGETS[eventName] ?? 90_000
+}
+
+function artifactRule(input, recorded) {
+  if (typeof input.session_id !== 'string' || !input.session_id) return
+  const log = readEvents(input.cwd, input.session_id)
+  const first = log.find(entry => entry.event === 'session.started')?.observation?.head
+  const directory = nearestExistingDirectory(path.resolve(input.cwd ?? process.cwd()))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  const paths = new Set()
+  if (root && typeof first === 'string') {
+    for (const relative of gitLines(root, ['diff', '--name-only', first])) paths.add(path.join(root, relative))
+  }
+  if (root) for (const relative of statusPaths(root)) paths.add(path.join(root, relative))
+  for (const entry of log) {
+    if (entry.event === 'file.written' && entry.observable === true && typeof entry.path === 'string') {
+      paths.add(entry.path)
+    }
+  }
+  // A COMPLETE result about the same content is the only reason to leave a path
+  // out: a timeout, an UNRUN or an UNPROVEN is not an answer, so the next
+  // boundary asks again (ADR-005).
+  const answered = new Map()
+  for (const entry of log) {
+    if (entry.event === 'artifact.gated' && typeof entry.path === 'string' && entry.complete === true) {
+      answered.set(entry.path, entry.blob ?? null)
+    }
+  }
+  const targets = [...paths].filter(file => !(answered.has(file) && answered.get(file) === contentId(file)))
+  if (!targets.length) return
+  // Nearest first: the session's own starting point, then HEAD. A record deleted
+  // and committed during the session is in neither the working tree nor HEAD.
+  const head = recorded?.observation?.ok === true ? recorded.observation.head : null
+  const bases = [...new Set([first, head, 'HEAD'].filter(base => typeof base === 'string' && base))]
+  const gated = new Map()
+  const failure = runArtifactGates(targets, input.cwd, artifactBudgetMs(recorded?.event), { bases, gated })
+  for (const file of targets) {
+    // Only an answer is recorded. A path the budget cut gets no event, which is
+    // exactly what makes the next boundary retry it.
+    if (gated.get(file) !== true) continue
+    appendEvent(input.cwd, input.session_id, {
+      event: 'artifact.gated', path: file, blob: contentId(file), complete: true,
+    })
+  }
+  if (!failure) return
+  const tree = recorded?.observation?.ok === true ? recorded.observation.tree : 'unobserved'
+  const key = `${tree}:${createHash('sha256').update(failure).digest('hex').slice(0, 16)}`
+  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'A' && entry.key === key)) return
+  queueAction({ rule: 'A', key, text: failure })
+}
+
 function completionRules(input, ended) {
   if (!ended || typeof input.session_id !== 'string' || !input.session_id) return
   const log = readEvents(input.cwd, input.session_id)
@@ -4947,43 +4960,36 @@ export async function handleHook(input) {
   }
 
   if (event === 'PreCompact' || event === 'SessionEnd') {
-    // Both read the transcript the way the completion gates do — ONCE. A
-    // transcript this hook cannot read is said and nothing is written (ADR-005):
-    // a row that says "could not look" would be walked over as if it had, and
-    // a note left from an earlier compaction would be handed back as current.
-    // Neither event has a decision to make, so neither blocks.
-    if (event === 'PreCompact' && typeof input.session_id === 'string' && input.session_id) {
-      // The old note goes first, so a PreCompact that fails below cannot leave
-      // a stale one behind to be handed back (Codex review, 2026-09-05).
-      try { unlinkSync(sessionNotePath(input.session_id)) } catch {}
-    }
-    const raw = await readTranscript(input)
-    if (!raw) {
-      process.stderr.write(`[quality-harness] ${event}: the session transcript could not be read, so nothing was recorded about this session's state.\n`)
-      return
-    }
+    // ADR-060 T6: both observed above, before anything here writes, so the note
+    // is about the tree as it is NOW — not about the last turn end, which in a
+    // long turn may never have happened. Neither event has a decision to make,
+    // so neither blocks.
     const cwd = typeof input.cwd === 'string' ? input.cwd : process.cwd()
     const directory = nearestExistingDirectory(path.resolve(cwd))
     const repositoryRoot = directory ? gitRepositoryRoot(directory) : null
     const root = repositoryRoot ?? directory ?? cwd
-    const state = analyzeTranscript(raw, cwd)
+    const facts = observedFacts(readEvents(cwd, input.session_id), repositoryRoot, recorded?.observation)
     if (event === 'PreCompact') {
-      const note = sessionStateNote(state, cwd, root, repositoryRoot !== null)
       if (typeof input.session_id === 'string' && input.session_id) {
+        // The old note goes first, so a PreCompact that fails below cannot leave
+        // a stale one behind to be handed back (Codex review, 2026-09-05).
+        try { unlinkSync(sessionNotePath(input.session_id)) } catch {}
+        const note = sessionStateNote(facts, cwd, root, repositoryRoot !== null)
         try { writeFileSync(sessionNotePath(input.session_id), JSON.stringify(note)) } catch (failure) {
           process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message}).\n`)
         }
       }
+      artifactRule(input, recorded)
       return
     }
     // SessionEnd runs under the host's own short budget, so nothing here spawns
-    // a gate: the row is the transcript's reading and the location key, no more.
+    // a gate: the row is the log's reading and the location key, no more.
     const home = process.env.CLAUDE_PLUGIN_DATA
     if (!home) {
-      process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this session\'s end was NOT recorded; the next session here starts knowing nothing about it.\n')
+      process.stderr.write('[quality-harness] CLAUDE_PLUGIN_DATA is not set, so this session\'s end was NOT recorded.\n')
       return
     }
-    const note = sessionStateNote(state, cwd, root, false, new Date(), { tasks: false })
+    const note = sessionStateNote(facts, cwd, root, false, new Date(), { tasks: false })
     try {
       mkdirSync(home, { recursive: true })
       appendFileSync(path.join(home, 'sessions.jsonl'), `${JSON.stringify({
@@ -4995,7 +5001,7 @@ export async function handleHook(input) {
         status: note.status,
         files: note.files,
         other: note.other,
-        lastVerdict: state.lastVerdict ?? null,
+        lastVerdict: facts.lastCheck?.verdict ?? null,
       })}\n`, 'utf8')
     } catch (failure) {
       process.stderr.write(`[quality-harness] could not append to the sessions ledger (${failure.code ?? failure.message}).\n`)
@@ -5056,20 +5062,9 @@ export async function handleHook(input) {
     // guard fired on a command whose FIRST act was `git switch -c task/…`, the
     // very escape it was demanding.
     if (input.tool_name !== 'Bash') return
-    const command = input.tool_input?.command
-    if (!containsCommitOrPush(command)) return
+    if (!containsCommitOrPush(input.tool_input?.command)) return
     publishUnchecked(input, recorded)
-    // The pre-publish artifact pass stays until ADR-060 T6 replaces it with rule A.
-    if (!isGitPublishCommand(command) || gitPublishTargetsOnlyOtherRepositories(command, input.cwd)) return
-    const raw = await readTranscript(input)
-    if (!raw) return
-    const state = analyzeTranscript(raw, input.cwd)
-    // The PreToolUse hook has a 60s deadline (hooks.json) and a hook killed on
-    // its deadline blocks nothing, so the artifact pass gets a window that fits
-    // inside it. What is being published now, not everything the session has
-    // touched.
-    const artifactFailure = runArtifactGates(state.mutationPathsSince(state.lastPublish), input.cwd, 45_000)
-    if (artifactFailure) advise(artifactFailure, input)
+    artifactRule(input, recorded)
     return
   }
 
@@ -5079,16 +5074,7 @@ export async function handleHook(input) {
   // session's own work, and a reviewer authored none of it.
   if (event === 'SubagentStop' && readOnlyRole(input.agent_type)) return
   completionRules(input, recorded)
-  // The completion artifact pass stays until ADR-060 T6 replaces it with rule A.
-  if (event === 'Stop') return
-  const raw = await readTranscript(input)
-  if (!raw) return
-  const state = analyzeTranscript(raw, input.cwd)
-  const artifactFailure = runArtifactGates(state.mutationPaths, input.cwd, 100_000)
-  if (artifactFailure) {
-    if (event === 'TaskCompleted') advise(artifactFailure)
-    else emitJson({ systemMessage: artifactFailure })
-  }
+  artifactRule(input, recorded)
 }
 
 async function readStdin() {

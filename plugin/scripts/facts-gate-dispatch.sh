@@ -164,12 +164,20 @@ git_archive_catalog_for() {
     candidates+=("$rel_dir/README.md")
     rel_dir=$(dirname "$rel_dir")
   done
-  # One history read, scoped to these exact paths. NUL framing and literal
-  # pathspecs preserve spaces, brackets and non-ASCII names without Git quoting.
-  while IFS= read -r -d '' match; do
-    matches+=("${match#HEAD:}")
-  done < <(git -C "$repo" --literal-pathspecs grep -l -z -G --threads=1 --no-textconv \
-    -e '^\*\*Lifecycle:\*\* Frozen historical ADR records$' HEAD -- "${candidates[@]}" 2>/dev/null)
+  # One history read per base, scoped to these exact paths. NUL framing and
+  # literal pathspecs preserve spaces, brackets and non-ASCII names without Git
+  # quoting. The bases are the session's first HEAD and then HEAD (ADR-060 T6):
+  # a record deleted AND COMMITTED this session is gone from HEAD, and only an
+  # earlier revision can still say which archive owned it. Unset means HEAD, so
+  # every caller that passes nothing keeps the behaviour it had.
+  local bases="${QUALITY_HARNESS_HISTORY_BASES:-HEAD}" base
+  for base in $bases; do
+    while IFS= read -r -d '' match; do
+      matches+=("${match#"$base":}")
+    done < <(git -C "$repo" --literal-pathspecs grep -l -z -G --threads=1 --no-textconv \
+      -e '^\*\*Lifecycle:\*\* Frozen historical ADR records$' "$base" -- "${candidates[@]}" 2>/dev/null)
+    [ "${#matches[@]}" -gt 0 ] && break
+  done
   [ "${#matches[@]}" -gt 0 ] || return 1
   # git grep orders paths lexically; ownership still belongs to the nearest catalog.
   for candidate in "${candidates[@]}"; do

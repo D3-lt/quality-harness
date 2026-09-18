@@ -1621,3 +1621,52 @@ test('a file edited while the BATCH gated it is not recorded as answered either'
   assert.equal(gated.complete, false,
     'and a gate whose bytes moved underneath it has not answered about them')
 })
+
+test('a torn checks.jsonl cannot leave an older pass standing as the verdict', () => {
+  // ⚠ THE SIBLING READER OF THE OTHER APPEND-ONLY FILE. `readEvents` was taught
+  // that an incomplete read must not supply a positive verdict; `importCheckRecords`
+  // still swallowed a torn line in `checks.jsonl` with `catch { continue }` and had
+  // its return value discarded at the call site. So a newer FAILURE whose line is
+  // truncated never reaches the session log at all — and `latestCheckFor` cannot
+  // refuse an order it cannot establish when the event is simply absent. The older
+  // pass stands, and the note says "a `qh-check` passed on them".
+  //
+  // Found by Codex's re-review and independently by an adversarial reader. The
+  // reader added the sharpening that makes the fixture realistic: a truncated
+  // append leaves NO newline, so the NEXT record lands on the same line and is
+  // unparseable too — one bad write loses two records, and the file never repairs.
+  //
+  // ⚠ PRECONDITION, also from that reader: the surviving PASS must be about the
+  // CURRENT tree, or `treeUnchecked` goes true on its own and the test passes for
+  // the wrong reason. So the check runs on a clean tree and nothing is edited
+  // after it — the realistic shape is two checks with no edit between them, which
+  // is a flaky or time-dependent test.
+  const dir = repository('tornsource-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'declare a check')
+  const session = sessionId('tornsource')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  assert.equal(qhCheckRun(dir, 'pass').status, 0)
+
+  // The control: with a whole source this tree really is verified, so the
+  // assertion below cannot be satisfied by a reader that never says verified.
+  const clean = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.equal(`${clean.stdout}${clean.stderr}`.trim(), '',
+    `a clean checked tree says nothing: ${clean.stdout}${clean.stderr}`)
+
+  // Now a second check is written and its line is torn, exactly as a truncated
+  // append leaves it: no trailing newline.
+  const source = path.join(state, 'checks.jsonl')
+  const before = readFileSync(source, 'utf8')
+  assert.match(before, /"id"/, 'the fixture must have a real check record to build on')
+  writeFileSync(source, before + '{"id":"torn-2","exit":1,"after":{"tree"')
+
+  const torn = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  const said = `${torn.stdout}${torn.stderr}`
+  assert.match(said, /could not|UNPROVEN|UNRUN|unknown/i,
+    `a check source that could not be read whole must say so: ${said}`)
+  assert.doesNotMatch(said, /\bverified\b/,
+    `and the older pass must not stand as the verdict: ${said}`)
+})

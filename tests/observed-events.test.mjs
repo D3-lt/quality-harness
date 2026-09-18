@@ -1290,7 +1290,12 @@ test('a session note never invents a check, and never reports silence as stillne
 
   // ...and the same shape WITH a real passing check still credits it, or the
   // assertion above is satisfied by a note that never credits a check at all.
-  const passed = { ...inheritedFacts, lastCheck: { command: 'sh check.sh', verdict: 'passed' } }
+  // ⚠ The control CARRIES `checked: true`, not just a `lastCheck` that says
+  // passed. This arm used to set only `lastCheck`, which is how it was green
+  // while a pass for an UNRELATED tree could certify these paths — the control
+  // for one defect was resting on another. `lastCheck` is descriptive now: it
+  // prints as "Last check:" and certifies nothing (re-review, 2026-09-18).
+  const passed = { ...inheritedFacts, checked: true, lastCheck: { command: 'sh check.sh', verdict: 'passed' } }
   const passedNote = lifecycle.sessionStateNote(passed, process.cwd(), null, true).text
   assert.match(passedNote, /a `qh-check` passed/, `a real check must still be creditable: ${passedNote}`)
   assert.equal(lifecycle.observedFacts(inherited, null, dirty).pending, false,
@@ -1485,4 +1490,68 @@ test('which check is latest is decided by when it RAN, not by where it landed in
   const repaired = [...raced, { event: 'check.passed', record: 'r3', startedAt: '2026-09-18T10:09:00.000Z', after: { tree } }]
   assert.equal(lifecycle.observedFacts(repaired, null, observation).checked, true,
     'a check that really is the newest still counts')
+})
+
+// ⚠ ONE CHECK SELECTION, ASSERTED AT EVERY CONSUMER. A re-review found that the
+// previous repair fixed `treeChecked` and left its siblings alone: statusline.mjs
+// kept its OWN positional copy under a comment claiming "the same rule the
+// advisories use", and the session note credited `lastCheck` positionally. The
+// ordering test written for that repair also passed with `treeChecked` reverted,
+// because it exercised a helper the production consumer does not go through.
+//
+// So these drive the CONSUMERS — the status line's reading and the session note —
+// rather than the helper, and every case is stated once per consumer.
+const STALE_TREE = 'TREE-STALE'
+function staleCheckLog({ sameInstant = false } = {}) {
+  const at = n => sameInstant ? '2026-09-18T10:00:00.000Z' : `2026-09-18T10:0${n}:00.000Z`
+  return [
+    { event: 'session.started', at: at(0), observation: { ok: true, head: 'h0', tree: 'T0' } },
+    { event: 'check.passed', record: 'r1', seq: 1, startedAt: at(1), after: { tree: STALE_TREE } },
+    { event: 'check.failed', record: 'r2', seq: 2, startedAt: at(2), after: { tree: STALE_TREE } },
+    // The stale re-append a racing import produces: same record, arriving last.
+    { event: 'check.passed', record: 'r1', seq: 1, startedAt: at(1), after: { tree: STALE_TREE } },
+    { event: 'turn.ended', at: at(3), observation: { ok: true, head: 'h1', tree: STALE_TREE } },
+  ]
+}
+
+test('the status line does not read checked from a stale re-imported pass', () => {
+  for (const sameInstant of [false, true]) {
+    const log = staleCheckLog({ sameInstant })
+    const value = statusline.reading(
+      { session_id: sessionId('stale-status'), cwd: testTmp },
+      { read: () => log })
+    assert.notEqual(value?.kind, 'checked',
+      `a failure stands between the pass and now, so the tree is not checked `
+      + `(sameInstant=${sameInstant}): ${JSON.stringify(value)}`)
+  }
+})
+
+test('the session note does not credit a stale re-imported pass', () => {
+  for (const sameInstant of [false, true]) {
+    const log = staleCheckLog({ sameInstant })
+    const observation = { ok: true, head: 'h1', tree: STALE_TREE }
+    const facts = lifecycle.observedFacts(log, null, observation)
+    assert.equal(facts.checked, false, `checked must be false (sameInstant=${sameInstant})`)
+    const note = lifecycle.sessionStateNote(facts, process.cwd(), null, true)
+    assert.notEqual(note.status, 'verified',
+      `and the note must not write a verified row (sameInstant=${sameInstant}): ${note.text}`)
+  }
+})
+
+test('a check that passed on a DIFFERENT tree certifies nothing here', () => {
+  // `lastCheck` was the last check.* event in the log whatever tree it was about,
+  // and the note credited it. So a pass for an unrelated tree told the reader "a
+  // `qh-check` passed on them" about paths it had never seen.
+  const observation = { ok: true, head: 'h1', tree: 'TREE-MINE' }
+  const log = [
+    { event: 'session.started', observation: { ok: true, head: 'h0', tree: 'TREE-MINE' } },
+    { event: 'check.passed', record: 'other', seq: 1, startedAt: '2026-09-18T10:01:00.000Z',
+      after: { tree: 'TREE-SOMEWHERE-ELSE' } },
+  ]
+  const facts = lifecycle.observedFacts(log, null, observation)
+  assert.equal(facts.checked, false, 'a pass about another tree is not a pass about this one')
+  const note = lifecycle.sessionStateNote({ ...facts, files: ['/x/a.md'] }, process.cwd(), null, true)
+  assert.doesNotMatch(note.text, /a `qh-check` passed/,
+    `no check has passed on THESE paths: ${note.text}`)
+  assert.notEqual(note.status, 'verified', `and the row must not be verified: ${note.text}`)
 })

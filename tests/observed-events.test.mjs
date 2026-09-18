@@ -59,9 +59,9 @@ function sessionId(label) {
   return 'events-' + label + '-' + process.pid + '-' + sessionCount
 }
 
-function hook(payload) {
+function hook(payload, env = {}) {
   const run = spawnSync(process.execPath, [lifecycleScript], {
-    cwd: testTmp, input: JSON.stringify(payload), encoding: 'utf8', timeout: 60_000, env: HOOK_ENV,
+    cwd: testTmp, input: JSON.stringify(payload), encoding: 'utf8', timeout: 120_000, env: { ...HOOK_ENV, ...env },
   })
   assert.equal(run.status, 0, run.stderr)
   return run
@@ -747,4 +747,185 @@ test('writes the tree cannot see re-open the finding', () => {
   const rendered = statusline.render(statusline.reading({ session_id: session, cwd: dir }))
   assert.match(rendered, LAST_OBSERVED)
   assert.match(statusline.render(statusline.reading({ session_id: sessionId('never'), cwd: dir })), /unknown/)
+})
+
+// ---- T6: artifacts and notes read observed changes.
+const ARTIFACT_FAILURE = 'Artifact validation failed'
+const RETIRE_FINDING = 'adr-retire-check'
+const ARCHIVE_CATALOG = '# ADR Archive\n\n**Lifecycle:** Frozen historical ADR records\n'
+const BAD_RECORD = '# ADR-900: a record with no sections\n'
+const runner = path.join(repoRoot, 'plugin', 'scripts', 'run-shell-hook.mjs')
+
+function editGate(file, dir, session, env = {}) {
+  return spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
+    cwd: dir, encoding: 'utf8', timeout: 120_000, env: { ...HOOK_ENV, ...env },
+    input: JSON.stringify({
+      hook_event_name: 'PostToolUse', tool_name: 'Edit',
+      tool_input: { file_path: file }, session_id: session, cwd: dir,
+    }),
+  })
+}
+
+function gatedPaths(log) {
+  return named(log, 'artifact.gated').map(entry => entry.path)
+}
+
+test('a committed artifact is still validated', () => {
+  // No check is declared here: rule A is not gated on the opt-in, because an
+  // artifact is malformed whether or not this project named a test command.
+  const dir = repository('t6a-')
+  mkdirSync(path.join(dir, 'docs', 'adr'), { recursive: true })
+  mkdirSync(path.join(dir, 'docs', 'adr-archive', 'ADR-001'), { recursive: true })
+  writeFileSync(path.join(dir, 'docs', 'adr-archive', 'README.md'), ARCHIVE_CATALOG)
+  const archived = ['ADR-001-one.md', 'ADR-002-two.md']
+    .map(name => path.join(dir, 'docs', 'adr-archive', 'ADR-001', name))
+  for (const file of archived) writeFileSync(file, '# archived\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'archive')
+  const session = sessionId('artifacts')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  assert.equal(lifecycle.projectCheckCommand(dir), null, 'the fixture must declare no check')
+
+  // A record written outside any tool and COMMITTED before the turn ended is
+  // still what the session changed, so it is still gated.
+  const committedRecord = path.join(dir, 'docs', 'adr', 'ADR-900-bad.md')
+  writeFileSync(committedRecord, BAD_RECORD)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'record')
+  const first = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.ok(first.stdout.includes(ARTIFACT_FAILURE), first.stdout)
+  assert.ok(gatedPaths(eventsIn(state, session)).includes(committedRecord), JSON.stringify(gatedPaths(eventsIn(state, session))))
+
+  // An uncommitted one is gated too.
+  const looseRecord = path.join(dir, 'docs', 'adr', 'ADR-901-bad.md')
+  writeFileSync(looseRecord, BAD_RECORD)
+  const loose = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.ok(loose.stdout.includes('ADR-901-bad.md'), loose.stdout)
+
+  // Retiring a frozen archive — its records AND its catalog — in this session.
+  // At HEAD there is nothing left to say which archive owned those paths, so the
+  // dispatcher cannot classify them at all; the session's first HEAD still can,
+  // and the gate reaches a verdict instead of a could-not-look (ADR-005).
+  //
+  // ⚠ CORRECTED DURING EXECUTION. T6 said this case produces NO finding through
+  // the batch lookup. Measured on this fixture: with the catalog still at HEAD
+  // both lookups already agree and neither reports anything, so that spelling
+  // tested nothing; the base only decides anything once the catalog is gone, and
+  // then the answer is a verdict about the retirement, not silence.
+  for (const file of archived) git(dir, 'rm', '-q', file)
+  git(dir, 'rm', '-q', path.join(dir, 'docs', 'adr-archive', 'README.md'))
+  git(dir, 'commit', '-q', '-m', 'retire')
+  const deleted = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  const deletedSaid = `${deleted.stdout}${deleted.stderr}`
+  assert.ok(deletedSaid.includes(RETIRE_FINDING), deletedSaid)
+  assert.equal(deletedSaid.includes(`could not classify ${archived[0]}`), false, deletedSaid)
+
+  // The same two deletions looked up at HEAD alone — what the dispatcher did
+  // before the bases were passed — cannot be classified at all.
+  const atHead = spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh', '--batch'], {
+    cwd: dir, encoding: 'utf8', timeout: 120_000, env: HOOK_ENV,
+    input: JSON.stringify({ paths: archived, deadline: Date.now() + 90_000, windowMs: 90_000, timeoutMs: 30_000 }),
+  })
+  assert.ok(atHead.stderr.includes(`could not classify ${archived[0]}`), atHead.stderr)
+  assert.equal(atHead.stderr.includes(RETIRE_FINDING), false, atHead.stderr)
+  // And a path nothing could classify is not a verdict, so it is not complete.
+  assert.ok(atHead.stdout.includes('"complete":false'), atHead.stdout)
+
+  // ONE path skips the batch history read entirely (it needs two to be worth a
+  // scoped query), so the dispatcher's own lookup answers — and it reads the
+  // same bases. Driven as a one-path batch, because that is the only way to
+  // reach that lookup: rule A's own pass here would carry both deletions.
+  const alone = repository('t6d-')
+  mkdirSync(path.join(alone, 'docs', 'adr-archive', 'ADR-001'), { recursive: true })
+  writeFileSync(path.join(alone, 'docs', 'adr-archive', 'README.md'), ARCHIVE_CATALOG)
+  const single = path.join(alone, 'docs', 'adr-archive', 'ADR-001', 'ADR-003-three.md')
+  writeFileSync(single, '# archived\n')
+  git(alone, 'add', '-A')
+  git(alone, 'commit', '-q', '-m', 'archive')
+  const aloneFirst = git(alone, 'rev-parse', 'HEAD')
+  git(alone, 'rm', '-q', single)
+  git(alone, 'rm', '-q', path.join(alone, 'docs', 'adr-archive', 'README.md'))
+  git(alone, 'commit', '-q', '-m', 'retire')
+  const oneBatch = bases => spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh', '--batch'], {
+    cwd: alone, encoding: 'utf8', timeout: 120_000,
+    env: bases ? { ...HOOK_ENV, QUALITY_HARNESS_HISTORY_BASES: bases } : HOOK_ENV,
+    input: JSON.stringify({ paths: [single], deadline: Date.now() + 90_000, windowMs: 90_000, timeoutMs: 30_000 }),
+  })
+  const withBase = oneBatch(`${aloneFirst} HEAD`)
+  assert.ok(withBase.stderr.includes(RETIRE_FINDING), withBase.stderr)
+  assert.equal(withBase.stderr.includes(`could not classify ${single}`), false, withBase.stderr)
+  const headOnly = oneBatch(null)
+  assert.ok(headOnly.stderr.includes(`could not classify ${single}`), headOnly.stderr)
+
+  // The per-edit gate already gave this path a verdict, so the turn end does not
+  // gate it again.
+  const edited = path.join(dir, 'docs', 'adr', 'ADR-902-bad.md')
+  writeFileSync(edited, BAD_RECORD)
+  hook({
+    hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: edited },
+    session_id: session, cwd: dir,
+  })
+  const perEdit = editGate(edited, dir, session)
+  assert.ok(`${perEdit.stdout}${perEdit.stderr}`.includes('ADR-902-bad.md'), `${perEdit.stdout}${perEdit.stderr}`)
+  const afterEdit = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.equal(afterEdit.stdout.includes('ADR-902-bad.md'), false, afterEdit.stdout)
+
+  // A per-edit gate that never reached a verdict leaves the path for the turn end.
+  const timedOut = path.join(dir, 'docs', 'adr', 'ADR-903-bad.md')
+  writeFileSync(timedOut, BAD_RECORD)
+  hook({
+    hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: timedOut },
+    session_id: session, cwd: dir,
+  })
+  editGate(timedOut, dir, session, { QUALITY_HARNESS_SHELL_TIMEOUT_MS: '100' })
+  const afterTimeout = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.ok(afterTimeout.stdout.includes('ADR-903-bad.md'), afterTimeout.stdout)
+
+  // Everything now carries a complete result, so the next turn end gates nothing.
+  const before = gatedPaths(eventsIn(state, session)).length
+  const quiet = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.equal(quiet.stdout.trim(), '', quiet.stdout)
+  assert.equal(gatedPaths(eventsIn(state, session)).length, before, 'no path is gated twice for the same content')
+
+  // A budget that ends before the gates run names what it did not check, and the
+  // next boundary retries exactly those paths.
+  const retried = path.join(dir, 'docs', 'adr', 'ADR-904-bad.md')
+  writeFileSync(retried, BAD_RECORD)
+  const compacted = hook({
+    hook_event_name: 'PreCompact', session_id: session, cwd: dir,
+  }, { QUALITY_HARNESS_ARTIFACT_BUDGET_MS: '0' })
+  assert.ok(`${compacted.stdout}${compacted.stderr}`.includes('UNRUN'), compacted.stdout)
+  assert.equal(gatedPaths(eventsIn(state, session)).includes(retried), false, 'a path the budget cut is not recorded as gated')
+  const retry = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  assert.ok(retry.stdout.includes('ADR-904-bad.md'), retry.stdout)
+})
+
+test('a compaction note sees the latest edit', () => {
+  const dir = repository('t6n-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('note')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  const edited = path.join(dir, 'late.md')
+  writeFileSync(edited, 'late\n')
+  hook({
+    hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: edited },
+    session_id: session, cwd: dir,
+  })
+
+  // PreCompact observes before it writes, so the note is about the tree as it is
+  // now — not about the last turn end, which never happened here.
+  hook({ hook_event_name: 'PreCompact', session_id: session, cwd: dir })
+  const handedBack = hook({ hook_event_name: 'SessionStart', source: 'compact', session_id: session, cwd: dir })
+  assert.ok(handedBack.stdout.includes('late.md'), handedBack.stdout)
+  assert.equal(handedBack.stdout.includes('nothing edited'), false, handedBack.stdout)
+
+  // SessionEnd's row says the same thing, for the next session in this directory.
+  hook({ hook_event_name: 'SessionEnd', session_id: session, cwd: dir, reason: 'clear' })
+  const rows = readFileSync(path.join(HOOK_ENV.CLAUDE_PLUGIN_DATA, 'sessions.jsonl'), 'utf8')
+    .split('\n').filter(Boolean).map(line => JSON.parse(line)).filter(row => row.session === session)
+  assert.equal(rows.at(-1)?.status, 'unverified', JSON.stringify(rows.at(-1)))
+  assert.ok(JSON.stringify(rows.at(-1)?.files ?? []).includes('late.md'), JSON.stringify(rows.at(-1)))
 })

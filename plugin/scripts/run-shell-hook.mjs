@@ -5,6 +5,7 @@ import { existsSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startPerformanceTrace } from './performance-trace.mjs'
+import { appendEvent, contentId } from './event-log.mjs'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const HOOK_SCRIPTS = new Set(['facts-gate-dispatch.sh', 'post-edit-check.sh'])
@@ -278,7 +279,13 @@ export async function runShellHook(scriptName, raw, options = {}) {
     return 2
   }
 
-  const { timeoutMs = shellHookTimeoutMs(), maxOutputBytes, windowMs } = options
+  const { timeoutMs = shellHookTimeoutMs(), maxOutputBytes, windowMs, verdict } = options
+  // ADR-060 T6: `verdict.complete` says whether the gate REACHED a verdict about
+  // this content. Every arm below that is the harness failing to run — a
+  // timeout, a truncated report, a crashed shell, unconfirmed cleanup — leaves
+  // it false, so the next boundary asks again instead of treating silence as a
+  // pass (ADR-005). It defaults to false and is set true only at the end.
+  if (verdict) verdict.complete = false
   const scriptPath = process.platform === 'win32'
     ? windowsPathForBash(path.join(SCRIPT_DIR, scriptName))
     : path.join(SCRIPT_DIR, scriptName)
@@ -335,6 +342,9 @@ export async function runShellHook(scriptName, raw, options = {}) {
   // Direct hooks stay advisory. A batch must stop if the prior shell may still
   // be running, especially because its completed-command ledger is shared.
   const batchStatus = run.cleanupConfirmed === false && windowMs !== undefined ? 1 : 0
+  // `UNPROVEN` and `UNRUN` are the dispatcher's own words for a gate that could
+  // not answer, so a report carrying either is not a verdict about this content.
+  const unproven = /\b(?:UNPROVEN|UNRUN)\b/.test(`${run.stderr ?? ''}${run.stdout ?? ''}`)
   if (run.cleanupConfirmed === false) {
     process.stderr.write(`\nquality-harness: process cleanup could not be confirmed for `
       + `${hookFilePathFromPayload(raw) || 'this edit'}; its checker may still be running.\n`)
@@ -376,8 +386,22 @@ export async function runShellHook(scriptName, raw, options = {}) {
   if (Number.isInteger(run.status) && run.status !== 0) {
     process.stderr.write(`quality-harness: ${scriptName} exited ${run.status}, which it should `
       + 'never do — the gates report, they do not refuse. Nothing is blocked; please report this.\n')
+    return 0
   }
+  if (verdict) verdict.complete = run.cleanupConfirmed !== false && !unproven
   return 0
+}
+
+/**
+ * historyBases reads the revisions a deletion is looked up in, nearest first.
+ * ADR-060 T6: a record deleted AND COMMITTED during a session is gone from HEAD,
+ * so HEAD alone cannot say which archive owned it — the session's first HEAD can.
+ * Defaults to HEAD, which is what every caller that sets nothing still gets.
+ */
+export function historyBases(env = process.env) {
+  const raw = typeof env.QUALITY_HARNESS_HISTORY_BASES === 'string' ? env.QUALITY_HARNESS_HISTORY_BASES : ''
+  const bases = raw.split(/[\s,]+/).filter(base => /^[A-Za-z0-9._/^~-]{1,200}$/.test(base))
+  return bases.length ? bases : ['HEAD']
 }
 
 /**
@@ -432,16 +456,23 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
     // Keep the optimization within Windows argv limits; large sets keep the
     // original scoped lookup rather than widening to a repository-wide scan.
     if (candidates.join(' ').length > 16_000) continue
-    const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', 'HEAD', '--', ...candidates])
-    if (tree === null || (tree.length && tree.at(-1) !== 0)) continue
     const blobs = new Map()
     let valid = true
-    for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
-      const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
-      if (!entry) { valid = false; break }
-      if (entry[2] === 'blob' && /^100/.test(entry[1])) blobs.set(entry[4], entry[3])
+    let answered = false
+    // Nearest base first, and the first base that knows a candidate owns it: the
+    // session's own history is what a deletion has to be read against.
+    for (const base of historyBases()) {
+      const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', base, '--', ...candidates])
+      if (tree === null || (tree.length && tree.at(-1) !== 0)) continue
+      answered = true
+      for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
+        const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
+        if (!entry) { valid = false; break }
+        if (entry[2] === 'blob' && /^100/.test(entry[1]) && !blobs.has(entry[4])) blobs.set(entry[4], entry[3])
+      }
+      if (!valid) break
     }
-    if (!valid) continue
+    if (!valid || !answered) continue
     const ids = [...new Set(blobs.values())]
     const catalogs = new Set()
     if (ids.length) {
@@ -488,6 +519,9 @@ export async function runArtifactBatch(raw) {
     return 2
   }
   const finish = startPerformanceTrace('artifact-batch', raw, process.env, batch.paths)
+  // The per-path result the caller records as `artifact.gated` (ADR-060 T6).
+  // stdout, because the findings themselves own stderr.
+  const report = (filePath, complete) => process.stdout.write(`${JSON.stringify({ gated: filePath, complete })}\n`)
   const history = archiveHistory(batch.paths, batch.deadline)
   for (const [index, filePath] of batch.paths.entries()) {
     const remaining = batch.deadline - Date.now()
@@ -495,19 +529,24 @@ export async function runArtifactBatch(raw) {
       process.stderr.write('The boundary\'s ' + Math.round(batch.windowMs / 1000)
         + 's window was exhausted before ' + filePath + ' was gated. '
         + 'This is a budget, not a finding: gate fewer artifacts per boundary, or commit in smaller sets.\n'
-        + 'All remaining artifacts were not checked:\n' + batch.paths.slice(index).join('\n') + '\n')
+        + 'UNRUN — all remaining artifacts were not checked:\n' + batch.paths.slice(index).join('\n') + '\n')
+      for (const unchecked of batch.paths.slice(index)) report(unchecked, false)
       finish('budget-exhausted', { status: 0 })
       break
     }
+    const verdict = {}
     const status = await runShellHook('facts-gate-dispatch.sh',
       JSON.stringify({ tool_input: { file_path: filePath } }), {
         timeoutMs: Math.min(batch.timeoutMs, remaining), maxOutputBytes: ARTIFACT_OUTPUT_LIMIT,
         windowMs: batch.windowMs,
         archiveCatalog: history.get(filePath),
+        verdict,
       })
+    report(filePath, verdict.complete === true)
     if (status !== 0) {
-      process.stderr.write('The batch stopped after unconfirmed process cleanup. Unchecked artifacts:\n'
-        + batch.paths.slice(index).join('\n') + '\n')
+      process.stderr.write('The batch stopped after unconfirmed process cleanup. UNRUN artifacts:\n'
+        + batch.paths.slice(index + 1).join('\n') + '\n')
+      for (const unchecked of batch.paths.slice(index + 1)) report(unchecked, false)
       finish('cleanup-unconfirmed', { status, cleanupConfirmed: false })
       break
     }
@@ -517,8 +556,29 @@ export async function runArtifactBatch(raw) {
   return 0
 }
 
+// ADR-060 T6: the per-edit gate records what it gated, so rule A does not gate
+// the same content again at the turn end — and DOES when this gate reached no
+// verdict. The event is written here rather than by the lifecycle hook because
+// this process is the only one that knows what the gate answered.
+export async function runEditGate(raw) {
+  const payload = raw ?? await readStdin()
+  const verdict = {}
+  const status = await runShellHook('facts-gate-dispatch.sh', payload, { verdict })
+  const file = hookFilePathFromPayload(payload)
+  let parsed
+  try { parsed = JSON.parse(payload) } catch {}
+  if (file && typeof parsed?.session_id === 'string' && typeof parsed?.cwd === 'string') {
+    appendEvent(parsed.cwd, parsed.session_id, {
+      event: 'artifact.gated', path: file, blob: contentId(file), complete: verdict.complete === true,
+    })
+  }
+  return status
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   process.exitCode = process.argv[3] === '--batch' && process.argv[2] === 'facts-gate-dispatch.sh'
     ? await runArtifactBatch(await readStdin())
-    : await runShellHook(process.argv[2])
+    : process.argv[2] === 'facts-gate-dispatch.sh'
+      ? await runEditGate()
+      : await runShellHook(process.argv[2])
 }

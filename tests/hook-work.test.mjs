@@ -247,6 +247,10 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   mkdirSync(scripts, { recursive: true })
   cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  // ADR-060 T6: the runner records what the per-edit gate answered, so a staged
+  // copy needs the event log and the git-directory walk it uses.
+  cpSync(path.join(pluginRoot, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
   writeFileSync(path.join(scripts, 'facts-gate-dispatch.sh'), [
     '#!/bin/bash',
     'if [ "${QH_TEST_BULK-}" = 1 ]; then printf "%600000s\\n" "" >&2; fi',
@@ -375,6 +379,8 @@ test('historical archive discovery uses one scoped Git query and preserves neare
 
   cpSync(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs'), path.join(scripts, 'run-shell-hook.mjs'))
   cpSync(path.join(pluginRoot, 'scripts', 'performance-trace.mjs'), path.join(scripts, 'performance-trace.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'event-log.mjs'), path.join(scripts, 'event-log.mjs'))
+  cpSync(path.join(pluginRoot, 'scripts', 'git-directory.mjs'), path.join(scripts, 'git-directory.mjs'))
   const files = [path.join(nested, 'first.md'), path.join(nested, 'second.md'), source,
     path.join(sourceDir, 'another.ts')]
   writeFileSync(trace, '')
@@ -493,7 +499,11 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
     pathToFileURL(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs')).href, root,
   ]) + ')'
-  const { direct, batch, confirmed } = JSON.parse(run([process.execPath, '--input-type=module', '-e', code], root).stdout)
+  // ADR-060 T6: the batch also writes one `{"gated":…}` line per path it
+  // answered for, so the probe's own report is the LAST line of stdout.
+  const said = run([process.execPath, '--input-type=module', '-e', code], root).stdout
+  const { direct, batch, confirmed } = JSON.parse(said.trim().split('\n').at(-1))
+  assert.match(said, /"gated":/, 'the per-path results reach the caller')
   assert.equal(direct.calls, 1, 'the control must exercise the injected child')
   assert.equal(direct.status, 0, 'direct edit hooks stay advisory')
   assert.equal(batch.status, 0, 'the batch reports unchecked work without blocking')
@@ -502,7 +512,7 @@ test('unconfirmed cleanup stops a batch while a direct hook stays advisory', t =
   assert.match(batch.stderr, /cleanup could not be confirmed/)
   assert.match(batch.stderr, /current\.md/)
   assert.match(batch.stderr, /remaining\.md/)
-  assert.match(batch.stderr, /Unchecked artifacts/)
+  assert.match(batch.stderr, /UNRUN artifacts/)
   assert.equal(confirmed.status, 0)
   assert.equal(confirmed.calls, 2, 'an observed close permits the next artifact on every platform')
   assert.match(confirmed.stderr, /timed out after 100ms/)

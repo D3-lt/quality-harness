@@ -278,7 +278,7 @@ test('artifact batches use one runner and keep findings on both sides of a timed
       ? { length: finding?.length, last: /CHECKED .*last\.ts/.test(finding),
         unchecked: /may be unchecked/.test(finding), limited: /output limit/.test(finding), runners,
         stopped: /batch stopped after unconfirmed process cleanup/.test(finding),
-        remaining: finding?.split('Unchecked artifacts:\n')[1] ?? '' }
+        remaining: finding?.split('UNRUN artifacts:\n')[1] ?? '' }
       : { finding, runners }))
   }
   const code = '(' + probe.toString() + ')(...' + JSON.stringify([
@@ -300,7 +300,7 @@ test('artifact batches use one runner and keep findings on both sides of a timed
   if (process.platform === 'win32' && /cleanup could not be confirmed/.test(result.finding)) {
     assert.doesNotMatch(result.finding, /CHECKED .*last\.ts/)
     assert.match(result.finding, /batch stopped after unconfirmed process cleanup/)
-    const remaining = result.finding.split('Unchecked artifacts:\n')[1]
+    const remaining = result.finding.split('UNRUN artifacts:\n')[1]
     assert.equal(remaining?.replaceAll('\\', '/'), files.slice(1).join('\n').replaceAll('\\', '/'))
   } else {
     assert.match(result.finding, /CHECKED .*last\.ts/, 'confirmed cleanup must preserve later findings')

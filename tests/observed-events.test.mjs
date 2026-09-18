@@ -756,6 +756,15 @@ const ARCHIVE_CATALOG = '# ADR Archive\n\n**Lifecycle:** Frozen historical ADR r
 const BAD_RECORD = '# ADR-900: a record with no sections\n'
 const runner = path.join(repoRoot, 'plugin', 'scripts', 'run-shell-hook.mjs')
 
+// A path built with `path.join` is backslash-separated on Windows; the dispatcher
+// is a bash script and prints whatever it was handed, which is forward-slash. The
+// assertion is about the PATH, not its spelling, so normalize BOTH sides
+// (CLAUDE.md §7: never write a separator into a literal you will compare).
+// Reported 2026-09-18 by a Windows 11 session running this suite: four assertions
+// here compared the two spellings and could only ever fail there.
+const saysClassifyFailed = (said, file) =>
+  said.replaceAll('\\', '/').includes(`could not classify ${file.replaceAll('\\', '/')}`)
+
 function editGate(file, dir, session, env = {}) {
   return spawnSync(process.execPath, [runner, 'facts-gate-dispatch.sh'], {
     cwd: dir, encoding: 'utf8', timeout: 120_000, env: { ...HOOK_ENV, ...env },
@@ -819,7 +828,7 @@ test('a committed artifact is still validated', () => {
   const deleted = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
   const deletedSaid = `${deleted.stdout}${deleted.stderr}`
   assert.ok(deletedSaid.includes(RETIRE_FINDING), deletedSaid)
-  assert.equal(deletedSaid.includes(`could not classify ${archived[0]}`), false, deletedSaid)
+  assert.equal(saysClassifyFailed(deletedSaid, archived[0]), false, deletedSaid)
 
   // The same two deletions looked up at HEAD alone — what the dispatcher did
   // before the bases were passed — cannot be classified at all.
@@ -827,7 +836,7 @@ test('a committed artifact is still validated', () => {
     cwd: dir, encoding: 'utf8', timeout: 120_000, env: HOOK_ENV,
     input: JSON.stringify({ paths: archived, deadline: Date.now() + 90_000, windowMs: 90_000, timeoutMs: 30_000 }),
   })
-  assert.ok(atHead.stderr.includes(`could not classify ${archived[0]}`), atHead.stderr)
+  assert.ok(saysClassifyFailed(atHead.stderr, archived[0]), atHead.stderr)
   assert.equal(atHead.stderr.includes(RETIRE_FINDING), false, atHead.stderr)
   // And a path nothing could classify is not a verdict, so it is not complete.
   assert.ok(atHead.stdout.includes('"complete":false'), atHead.stdout)
@@ -854,9 +863,9 @@ test('a committed artifact is still validated', () => {
   })
   const withBase = oneBatch(`${aloneFirst} HEAD`)
   assert.ok(withBase.stderr.includes(RETIRE_FINDING), withBase.stderr)
-  assert.equal(withBase.stderr.includes(`could not classify ${single}`), false, withBase.stderr)
+  assert.equal(saysClassifyFailed(withBase.stderr, single), false, withBase.stderr)
   const headOnly = oneBatch(null)
-  assert.ok(headOnly.stderr.includes(`could not classify ${single}`), headOnly.stderr)
+  assert.ok(saysClassifyFailed(headOnly.stderr, single), headOnly.stderr)
 
   // The per-edit gate already gave this path a verdict, so the turn end does not
   // gate it again.

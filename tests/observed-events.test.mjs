@@ -207,7 +207,7 @@ const CHECK_SCRIPT = [
   '  missing) qh_probe_missing_command_zz ;;',
   '  timeout) exit 124 ;;',
   '  sleep) sleep 30 ;;',
-  '  pause) : > started.flag; i=0; while [ ! -f go.flag ] && [ $i -lt 600 ]; do sleep 0.1; i=$((i+1)); done ;;',
+  '  pause) F="${QH_PROBE_FLAGS:-.}"; : > "$F/started.flag"; i=0; while [ ! -f "$F/go.flag" ] && [ $i -lt 600 ]; do sleep 0.1; i=$((i+1)); done ;;',
   'esac',
 ].join('\n') + '\n'
 const CHECK_RUNS = [
@@ -1065,4 +1065,55 @@ test('a turn that ended in a commit names the commit, not a change that is not t
   assert.ok(said.includes('work'), said)
   assert.equal(said.includes('no changed path'), false, said)
   assert.equal(said.includes('Changed paths:'), false, said)
+})
+// The second shape quality-blueprints-07 named: a check inside a backgrounded
+// Bash call that finishes in a LATER turn. The record is imported at the next
+// hook, so the turn that ends while it runs is still unchecked and the turn
+// after it is not — no special case, but it had no test.
+test('a check that finishes in a later turn clears the finding then', () => {
+  const dir = repository('peer-bg-')
+  projectWithCheck(dir)
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'check')
+  const session = sessionId('later-turn')
+  const state = path.join(dir, '.git', 'quality-harness')
+  const rules = () => named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule)
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+  writeFileSync(path.join(dir, 'README.md'), 'edited\n')
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
+  assert.deepEqual(rules(), ['R1'])
+
+  const records = () => {
+    try { return readFileSync(path.join(state, 'checks.jsonl'), 'utf8').split('\n').filter(Boolean).length }
+    catch { return 0 }
+  }
+  const before = records()
+  // ⚠ The flags live OUTSIDE the repository. A probe that drops a file into the
+  // tree it is measuring changes that tree, and the finding it then reads is its
+  // own — the same mistake a peer session caught in the plugin itself, made here
+  // in a fixture (2026-09-18).
+  const flags = mkdtempSync(path.join(testTmp, 'bg-flags-'))
+  spawn('python3', [qhCheck], {
+    cwd: dir, env: { ...HOOK_ENV, QH_PROBE_MODE: 'pause', QH_PROBE_FLAGS: flags }, stdio: 'ignore',
+    timeout: 120_000, killSignal: 'SIGKILL',
+  }).unref()
+  waitFor(() => existsSync(path.join(flags, PAUSE_STARTED)), 'the backgrounded check to start')
+  // The turn ends while it is still running: nothing has passed yet, and the
+  // finding already stands, so this turn says nothing new.
+  const during = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
+  assert.equal(during.stdout.trim(), '', during.stdout)
+  assert.deepEqual(rules(), ['R1'])
+
+  writeFileSync(path.join(flags, PAUSE_RELEASE), 'go\\n')
+  waitFor(() => records() > before, 'the backgrounded check to record its run')
+  // The next turn imports it, and the tree it passed on is this one.
+  const after = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
+  assert.equal(after.stdout.trim(), '', after.stdout)
+  assert.deepEqual(rules(), ['R1'])
+  assert.ok(checkEvents(eventsIn(state, session)).some(entry => entry.event === 'check.passed'),
+    'the record became a check.passed event at the next hook')
+  // And a new edit after it is a new finding, so the clearance was real.
+  writeFileSync(path.join(dir, 'README.md'), 'edited again\n')
+  hook({ hook_event_name: 'Stop', session_id: session, cwd: dir, last_assistant_message: 'done' })
+  assert.deepEqual(rules(), ['R1', 'R1'])
 })

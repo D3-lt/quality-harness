@@ -251,12 +251,36 @@ test('no acceptance fence discards its runner exit status', () => {
 
 test('a fence whose runner never starts must fail', () => {
   // The behavioural half: run both forms against a runner that does not exist.
+  // ⚠ QUOTED, AND THE QUOTING IS THE POINT. A Windows absolute path interpolated
+  // bare into a `bash -c` string loses its backslashes: `tee` then wrote a file
+  // literally named `C:UserszydruAppDataLocalTempqh-fence-…` into the REPOSITORY
+  // ROOT, the test still passed because tee and grep agreed on the same mangled
+  // relative path, and it left an untracked file behind that this project's own
+  // commit gates would trip on. Found unprompted by a Windows session on
+  // 2026-09-18 — the same root cause as the spaced-path defect: a Windows path
+  // crossing into bash without quotes.
   const out = join(mkdtempSync(join(tmpdir(), 'qh-fence-')), 'o')
-  const broken = `nosuchrunner --test x 2>&1 | tee ${out}; ! grep -qE "no tests to run|^FAIL" ${out}`
-  const fixed = `set -o pipefail\nnosuchrunner --test x 2>&1 | tee ${out} && ! grep -qE "no tests to run|^FAIL" ${out}`
+  const broken = `nosuchrunner --test x 2>&1 | tee "${out}"; ! grep -qE "no tests to run|^FAIL" "${out}"`
+  const fixed = `set -o pipefail\nnosuchrunner --test x 2>&1 | tee "${out}" && ! grep -qE "no tests to run|^FAIL" "${out}"`
   const run = f => spawnSync('bash', ['-c', f], { encoding: 'utf8', timeout: 60_000 }).status
   assert.equal(run(broken), 0, 'the old form passes with the runner absent — that is the defect')
   assert.notEqual(run(fixed), 0, 'the form this project now uses does not')
+})
+
+// ⚠ A CONVENTION IS ONLY A CONVENTION IF SOMETHING APPLIES IT. Windows defaults
+// Python's stdout to the ANSI codepage, so a gate printing `—` or `·` reaches a
+// UTF-8 terminal as mojibake. Eight gates carried the two-line reconfigure and
+// four did not — including `qh-check`, added days earlier, and `adr-judge`,
+// which mangled 34 lines. Measured on Windows 11, 2026-09-18, by a session that
+// was not asked to look for it. Nothing failed; it just looked broken.
+test('every Python gate says its output is UTF-8, whatever the console codepage is', () => {
+  const missing = gates
+    .map(gate => ({ gate, text: readFileSync(join(root, 'bin', gate), 'utf8') }))
+    .filter(({ text }) => text.startsWith('#!') && /python/.test(text.split('\n')[0]))
+    .filter(({ text }) => !/_s\.reconfigure\(encoding="utf-8", errors="replace"\)/.test(text))
+    .map(({ gate }) => gate)
+  assert.deepEqual(missing, [],
+    `these print to a Windows console in the ANSI codepage:\n  ${missing.join('\n  ')}`)
 })
 
 test('the plugin contains the complete reusable decision lifecycle', () => {

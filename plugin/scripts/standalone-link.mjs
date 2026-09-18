@@ -28,7 +28,7 @@
 // calls it, and it reports unless asked to write.
 import { createHash } from 'node:crypto'
 import {
-  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync,
+  cpSync, existsSync, lstatSync, mkdirSync, readFileSync, readdirSync, readlinkSync, rmSync, statSync,
   symlinkSync, writeFileSync,
 } from 'node:fs'
 import os from 'node:os'
@@ -964,7 +964,15 @@ export function archive(entry, stamp, homeDirectory = os.homedir(), makeLink = s
   if (info.isSymbolicLink()) {
     const points = readlinkSync(entry.to)
     try {
-      makeLink(points, kept)
+      // ⚠ A DIRECTORY LINK IS RECREATED AS A JUNCTION ON WINDOWS, because that
+      // needs no privilege at all. Untyped `symlinkSync` defaults to a FILE
+      // link, which is EPERM for an ordinary Windows account — so this branch
+      // always fell through to the text fallback there, and the archive stopped
+      // being a link at all. Measured on two real Windows 11 machines
+      // 2026-09-18: untyped threw EPERM, `'junction'` succeeded, and the result
+      // lstats as a symbolic link on Node 24. The fallback below stays for file
+      // links, which a junction cannot express.
+      makeLink(points, kept, process.platform === 'win32' && statSync(points).isDirectory() ? 'junction' : undefined)
     } catch {
       // Windows refuses symlink creation to an unprivileged account, and this
       // threw EPERM on a real machine on 2026-08-27 — so the archive failed, so

@@ -1854,7 +1854,9 @@ export function observedFacts(log, root, observation) {
     // `treeUnchecked` (its tree equals the baseline's), so `pending` was false
     // with no check ever run, and an unobservable tree yields an empty file list,
     // which read as stillness. Found by a different-lineage review, 2026-09-18.
-    checked: check?.event === 'check.passed' && treeChecked(log, observation?.tree),
+    // The LAST check about this tree by when it RAN, for the same reason
+    // `treeChecked` no longer trusts log position.
+    checked: latestCheckFor(log, observation?.tree)?.event === 'check.passed',
     observed: observation?.ok === true,
     lastCheck: check ? { command: check.command ?? null, verdict: check.event.slice('check.'.length) } : null,
   }
@@ -2602,8 +2604,40 @@ function checkEventsFor(log, tree) {
   return log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.') && entry.after?.tree === tree)
 }
 
+/**
+ * The check that ran LAST about this tree.
+ *
+ * ⚠ NOT `.at(-1)`. Two hooks importing the same `checks.jsonl` are not atomic:
+ * the importer reads what it has already seen, then appends what it has not, and
+ * an interleaving lands them in an order the checks never happened in. The
+ * review's probe produced `older-pass, newer-fail, older-pass` and `checked:
+ * true` — a stale re-append beat a real failure purely by arriving later.
+ *
+ * `checks.jsonl` is the authority on when a check ran, and every imported event
+ * carries that check's `startedAt`. Ordering by it means a duplicate import can
+ * never change WHICH check is latest, which is the guarantee a lock would have
+ * bought, without one. Log position remains the tie-break, so a log whose events
+ * carry no timestamps behaves exactly as before rather than worse.
+ * Found by a different-lineage review of this branch, 2026-09-18.
+ */
+function latestCheckFor(log, tree) {
+  const events = checkEventsFor(log, tree)
+  let best = null
+  let bestAt = ''
+  let bestIndex = -1
+  events.forEach((entry, index) => {
+    const at = typeof entry.startedAt === 'string' ? entry.startedAt : ''
+    if (best === null || at > bestAt || (at === bestAt && index > bestIndex)) {
+      best = entry
+      bestAt = at
+      bestIndex = index
+    }
+  })
+  return best
+}
+
 function treeChecked(log, tree) {
-  return checkEventsFor(log, tree).at(-1)?.event === 'check.passed'
+  return latestCheckFor(log, tree)?.event === 'check.passed'
 }
 
 function checkRevision(log, tree) {

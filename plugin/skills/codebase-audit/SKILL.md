@@ -199,7 +199,15 @@ prose is not corroboration.
 - Comments naming fields or behaviour that no longer exist; doc comments detached by a blank line
   (ask the doc tool, not your eyes).
 - The tool versions the records reason about versus the ones installed; whether a gate's **exit
-  code** carries its verdict at all (measured: a linter printing FAIL and exiting 0).
+  code** carries its verdict at all — and READ THAT EXIT CODE WITHOUT A PIPE. ⚠ This bullet said
+  "measured: a linter printing FAIL and exiting 0" for one commit, and the author RETRACTED it the
+  same day: re-measured as `gate <record> > out 2>&1; echo $?`, the gate exits 1 on every `[FAIL]`
+  and 0 on every `[PASS]`. The exit code was carrying the verdict the whole time. What produced the
+  false finding is the trap this lens is about — a sub-agent's unverified claim, then confirming
+  runs of the form `gate … | grep …; echo $?`, which reports GREP's status. So the honest version
+  is: an exit code read through a pipe made a working gate look broken for a day, and it reached a
+  ledger, a memory and this file before anyone re-ran it. Re-measure a gate's exit code yourself,
+  from the same shell, with no pipe, before you record that it is broken.
 - When a frozen record points at something you must delete, do not edit the record: keep a
   retired-pointer table in the new record, and let the gate accept a retired pointer only while
   its replacement exists.

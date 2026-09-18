@@ -1317,7 +1317,7 @@ test('the artifact gate budget is raisable, and running out of it names the budg
   assert.doesNotMatch(judged, /timed out/)
 })
 
-test('scratch writes under the temp root are not the repository\'s edits', async t => {
+test('scratch writes under the temp root are not the repository\'s edits', async () => {
   // pluginDir stands in for a real (non-temp) project checkout; the scratch
   // base comes from the platform so the truths hold off-macOS too.
   const scratch = path.join(os.tmpdir(), 'qh-scratch')
@@ -1349,20 +1349,19 @@ test('scratch writes under the temp root are not the repository\'s edits', async
   assert.equal(mutatesOnlyTempPaths(`S=docs\nprintf x > $S/f.md\nS="${scratch}"\nprintf y > $S/g`, pluginDir), false)
   // ...a glued redirect writes even where the mutation classifier is blind...
   assert.equal(mutatesOnlyTempPaths(`echo y > "${scratch}/ok"; echo x>scripts/f`, pluginDir), false)
-  // ...and a symlink under the temp root is judged by where it lands, whether
-  // it points at a directory, a file, or nothing yet.
+  // ...and a DIRECTORY symlink under the temp root is judged by where it lands.
+  // The FILE and dangling arms are the test below, split out 2026-09-18: they
+  // need a real symlink, which is EPERM for an ordinary Windows account, and
+  // keeping them here meant that one skip discarded every assertion after this
+  // point. §7: split a test so its portable half keeps running. Found when two
+  // Windows sessions observed that converting the directory link moved this
+  // test's skip rather than removing it.
   const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-link-'))
   const directoryLink = path.join(linkDir, 'repo-link')
   // A DIRECTORY link: a junction needs no privilege, so this runs on Windows
   // rather than skipping (tests/symlink-support.mjs).
   linkDirectory(pluginDir, directoryLink)
   assert.equal(mutatesOnlyTempPaths(`printf x > "${directoryLink}/smuggled.txt"`, pluginDir), false)
-  const fileLink = path.join(linkDir, 'file-link')
-  if (!await symlinkOrSkip(t, path.join(repoRoot, 'README.md'), fileLink)) return
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${fileLink}"`, pluginDir), false)
-  const danglingLink = path.join(linkDir, 'dangling-link')
-  await symlink(path.join(repoRoot, 'does-not-exist-yet.md'), danglingLink)
-  assert.equal(mutatesOnlyTempPaths(`printf x > "${danglingLink}"`, pluginDir), false)
 
   // A scratch write is invisible to the evidence gate; a repo write is not.
   const scratchOnly = analyzeTranscript(transcript([
@@ -1375,6 +1374,16 @@ test('scratch writes under the temp root are not the repository\'s edits', async
     toolUse('b1', 'Bash', { command: `cat > "${scratch}/notes.txt"` }), toolResult('b1'),
   ]), pluginDir)
   assert.equal(verifiedThenScratch.verifiedAfterLastMutation, true)
+})
+
+test('a symlink under the temp root is judged by where it lands, not by what it is', async t => {
+  const linkDir = await mkdtemp(path.join(testTmp, 'quality-scratch-file-link-'))
+  const fileLink = path.join(linkDir, 'file-link')
+  if (!await symlinkOrSkip(t, path.join(repoRoot, 'README.md'), fileLink)) return
+  assert.equal(mutatesOnlyTempPaths(`printf x > "${fileLink}"`, pluginDir), false)
+  const danglingLink = path.join(linkDir, 'dangling-link')
+  await symlink(path.join(repoRoot, 'does-not-exist-yet.md'), danglingLink)
+  assert.equal(mutatesOnlyTempPaths(`printf x > "${danglingLink}"`, pluginDir), false)
 })
 
 test('a deletion and a commit in one command cannot hide what was removed', async () => {

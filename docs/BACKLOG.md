@@ -13734,3 +13734,60 @@ NOT DONE, and two cautions against rushing it:
 - The honest cheap alternative may be wording rather than inference: say that an inferred command may
   be NARROWER than the project's own gate, so a reader knows a pass does not mean what it looks like.
   That costs nothing and cannot be wrong.
+
+## 245. Three rounds of review, three rounds of my fixes introducing new defects (2026-09-18)
+
+A release gate refused the same release three times. Round one found seven issues; round two found
+that two of my three fixes had introduced NEW defects; round three found that my replacement for one
+of those was **worse than the code it replaced in four measured cases, in both directions**:
+
+```
+npm test "#fixture" --help         base rejected ✓   mine accepted ✗
+sh -c 'sh -c "npm test --help "'   base rejected ✓   mine accepted ✗
+node --check x.mjs "--help"        base accepted ✓   mine rejected ✗
+bash -n -c 'echo ok' "--help"      base accepted ✓   mine rejected ✗
+```
+
+⚠ **REVERTED, not fixed a fourth time.** Shell argument semantics — quoting that turns `#` from a
+comment into data, `--` scoping to one invocation rather than a line, nested wrappers, a shell
+payload's `$0` — are not a thing to approximate with a regex, and three attempts is enough evidence
+that this particular hole needs a real argument parser or nothing.
+
+**What made reverting safe is that the defect it was written for is moot.** The original finding was
+`composer run-script test --help` suppressing the unchecked-publish warning; with `composer` removed
+from `VALIDATION_PATTERNS`, that command matches no pattern at all. What remains — `npm test --help`
+counting as evidence — is PRE-EXISTING base behaviour this release does not introduce, alongside
+siblings the reviewer measured: `npm test $'--help'`, `npm test --help=true`, and an assignment
+followed by `npm test "$HELP"`. Conversely, valid checks inside assignment- or timeout-prefixed
+wrappers are NOT recognised. Both directions are open, and both are older than this release.
+
+### The rule this is evidence for
+
+**A classifier over shell text is an empirical claim (§16), and the cost of getting it wrong is
+symmetric — which is what I kept forgetting.** Each round I fixed the direction the reviewer named
+and broke the other one. Accepting too much lets an unvalidated publish through; refusing too much
+makes the harness demand a validation the user already ran, which is how a gate becomes one people
+turn off (§3). A change that moves a predicate must measure BOTH directions against the code it
+replaces, on real commands, before it ships.
+
+**And "offer less" beats "accept more" whenever both satisfy an invariant.** The composer defect was
+that the harness offered a command it would then refuse. Two attempts to satisfy that by accepting
+more each produced a P1; removing the rung closed it with no classifier change at all, and gave
+Laravel projects the better answer besides.
+
+### Still open, all pre-existing
+
+- `.quality-harness.json` DECLARING `{"check": "composer test"}` still offers that command and still
+  refuses it as evidence. Removing automatic discovery did not establish "nothing offers composer" —
+  a user can declare one. The honest repair is to say so when a declared check is not recognised,
+  rather than to widen the classifier.
+- The help-mode holes and false refusals listed above.
+
+### The skill was pulled from this release
+
+`codebase-audit` is not shipped. Three rounds of stripping another repository's corpus out of it left
+incident narratives and outcome predictions phrased as general advice — sub-agents needing repeat
+requests, a retracted linter incident, an audit's completeness-loop results. §6 forbids committing
+material derived from another repository's corpus, and rounding a figure hides its origin without
+removing it. The methods in it are good and the contributor's work is real; it needs a rewrite from
+the procedures alone, by someone who did not read that audit, and that is not a release-day edit.

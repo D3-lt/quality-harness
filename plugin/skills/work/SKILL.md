@@ -100,12 +100,6 @@ A nonzero command stops the chain. `unavailable` makes the result evidence-limit
 Guard against false green: confirm the check ran something and, for load-bearing custom gates,
 that a relevant rejected fixture or mutation can make it fail — `/quality-harness:mutation-audit`
 measures exactly that.
-
-When the question is not "is this change right" but "what is wrong in here that nothing reports" —
-a full audit, a component about to be frozen, or a green suite on code nobody here wrote —
-`/quality-harness:codebase-audit` is the one that has no diff and produces a committed ledger
-rather than a verdict. It calls `mutation-audit` for the measuring rather than restating it.
-
 For an explicit until-clean request, invoke `/quality-harness:review-ring` with this evidence. The workflow may make
 one minimal fix and then returns `revalidation-required`; rerun the command in the coordinator and
 invoke the ring once more with fresh evidence. If a material finding remains or repeats without new

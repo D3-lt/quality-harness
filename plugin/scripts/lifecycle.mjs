@@ -858,49 +858,6 @@ function lastSilentPublishJoiner(command) {
   return { at: last, len: lastLen }
 }
 
-/** Modes that print and exit. A `help` SUBCOMMAND is not here: `<tool> help` is a
- * different command and never reaches the validation patterns anyway. */
-const DESCRIBE_ONLY_FLAGS = new Set(['--help', '-h', '--version', '-V'])
-
-/**
- * A validation command that was actually RUN, rather than asked to describe itself.
- *
- * ⚠ SEPARATE FROM `isValidationCommand`, and the separation is the point. That
- * predicate answers "is this the kind of command that validates", and it is ALSO
- * how the hooks decide a command is READ-ONLY and may be peeled off as a probe
- * prefix — `adr-lint --version; node work-next.mjs` peels to the second half
- * precisely because the first is recognised and harmless. Putting this guard THERE
- * made `--version` look like a mutation and broke that peeling; the suite caught it
- * within the minute, which is the only reason this is two functions.
- *
- * ⚠ IT READS THE EFFECTIVE INVOCATION'S OPTION WORDS, NOT THE RAW TEXT, and the
- * first version read the raw text — which a review broke in both directions at
- * once. It MISSED `composer run-script test "--help"` and `sh -c "npm test
- * --help"`, because a quoted flag and a wrapper payload are not bare whitespace-
- * delimited words. And it wrongly REJECTED `bash -n -c 'echo --help '`, which is a
- * real syntax check that exits 0, and `node --check x.mjs # --help is documented`,
- * because the flag appeared inside a shell payload and inside a comment. §16 names
- * that second direction as the expensive one: a false refusal makes the harness ask
- * for a validation the user already ran.
- *
- * So: decode the words, peel the wrappers the same way `isValidationCommand` does,
- * and look only at the ARGUMENTS OF THE INVOCATION ITSELF — stopping at `--`,
- * after which everything is data, and at a comment.
- */
-export function isValidationEvidence(command) {
-  if (typeof command !== 'string') return false
-  if (!isValidationCommand(command)) return false
-  const inner = commandInsideWrappers(command)
-  const effective = inner && inner !== command.trim() ? inner : command
-  const invocation = commandInvocation(effective)
-  if (!invocation) return true
-  for (const word of invocation.words.slice(invocation.index + 1)) {
-    if (word === '--' || word.startsWith('#')) break
-    if (DESCRIBE_ONLY_FLAGS.has(word)) return false
-  }
-  return true
-}
-
 export function publishPrecededByValidation(command) {
   if (typeof command !== 'string' || !isGitPublishCommand(command)) return false
   let rest = command.trim()
@@ -918,10 +875,10 @@ export function publishPrecededByValidation(command) {
     }
   }
   if (!stripped || !rest) return false
-  if (isValidationEvidence(rest)) return true
+  if (isValidationCommand(rest)) return true
   const lastLine = rest.split(/\r?\n/).filter(Boolean).at(-1) ?? ''
   const lastAnd = lastLine.split(/\s*&&\s*/).filter(Boolean).at(-1) ?? ''
-  return isValidationEvidence(lastAnd)
+  return isValidationCommand(lastAnd)
 }
 
 
@@ -2565,12 +2522,7 @@ export function analyzeTranscript(raw, cwd = process.cwd()) {
       }
 
     }
-    // ⚠ `isValidationEvidence`, not the read-only predicate: a runner asked for
-    // `--help` is classified `validation` by shape and ran nothing. The transcript
-    // is the other place that turns a command into evidence, so it takes the same
-    // guard as the publish boundary.
     if (use.name === 'Bash' && classifyCommand(use.input.command) === 'validation'
-        && isValidationEvidence(use.input.command)
         && use.input.run_in_background !== true) {
       lastValidation = Math.max(lastValidation, use.position)
       if (results.has(use.id)) {

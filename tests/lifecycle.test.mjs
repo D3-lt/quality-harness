@@ -6234,3 +6234,54 @@ test('a guard that cannot be written stops the sweep instead of running unbounde
   assert.match(report.unreadable.join(' '), /guard: E/, 'and the failure is named')
   assert.equal(existsSync(marker), true, 'the stale marker is left, which is only the state §146 described')
 })
+
+test('every command this harness OFFERS, it also accepts as evidence', () => {
+  // ⚠ THE INVARIANT lifecycle.mjs STATES ABOUT ITSELF, asserted for the first
+  // time. Its own comment: "Only commands VALIDATION_PATTERNS already accepts as
+  // evidence are offered — telling someone to run something the gate would then
+  // refuse is worse than saying nothing."
+  //
+  // It was broken on PHP. A session running a real Laravel 11 tree found that a
+  // composer manifest with a `test` script yields
+  // `{command: 'composer test', origin: 'declared'}`, that `runTheCheckSentence`
+  // names it with NO caveat as "this project's own check" — and that
+  // `isValidationCommand('composer test')` is FALSE. The harness told you to run
+  // something it would then refuse, which is precisely the thing the comment
+  // forbids, and it OUTRANKS the carefully-caveated phpunit rung below it, so the
+  // good inference was suppressed by the bad one.
+  //
+  // ⚠ AND THE TRIGGER IS NOT SYNTHETIC: the current `laravel new` skeleton ships
+  // a `scripts.test` by default, so an app created today hits this without its
+  // author deciding anything.
+  //
+  // This asserts the CLASS rather than the instance: whatever a tree's manifests
+  // look like, if a command is named then it must be evidence. A new rung added
+  // later fails here rather than in somebody's repository.
+  const trees = [
+    ['composer with a test script (the Laravel skeleton default)',
+      { 'composer.json': '{"scripts":{"test":["@php artisan test"]},"require":{"laravel/framework":"^13.8"}}' }],
+    ['composer with phpunit and no script',
+      { 'composer.json': '{"require-dev":{"phpunit/phpunit":"^11"}}', 'phpunit.xml': '<phpunit/>\n' }],
+    ['npm with a test script', { 'package.json': '{"scripts":{"test":"vitest run"}}' }],
+    ['a Makefile with a test target', { Makefile: 'test:\n\techo hi\n' }],
+    ['cargo', { 'Cargo.toml': '[package]\nname = "x"\n' }],
+    ['go', { 'go.mod': 'module x\n' }],
+  ]
+  const offered = []
+  for (const [label, files] of trees) {
+    const dir = mkdtempSync(path.join(testTmp, 'offers-'))
+    for (const [name, body] of Object.entries(files)) writeFileSync(path.join(dir, name), body)
+    const { command, origin } = checkCommandOrigin(dir)
+    if (command === null) continue
+    offered.push(`${label}: ${command} (${origin})`)
+    assert.ok(isValidationCommand(command),
+      `${label}: the harness offers \`${command}\` as the check to run, so it must also accept it `
+      + 'as evidence — offering a command it would then refuse is worse than saying nothing')
+    // ...and the sentence it prints names that same command, so the two cannot
+    // drift apart without this failing.
+    assert.match(runTheCheckSentence(dir), new RegExp(command.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')),
+      `${label}: the sentence must name the command the resolver chose`)
+  }
+  // The control: this is worthless unless some tree actually produced a command.
+  assert.ok(offered.length >= 4, `the fixtures must exercise several rungs, got: ${offered.join(' · ')}`)
+})

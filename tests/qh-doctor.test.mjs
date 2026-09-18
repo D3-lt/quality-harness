@@ -17,7 +17,7 @@ import test from 'node:test'
 import { fileURLToPath } from 'node:url'
 
 import {
-  classifyBinEntry, drift, homeReport, inventory, ledgerReport, releaseReport, report, severitySplit,
+  classifyBinEntry, drift, driftReading, homeReport, inventory, ledgerReport, releaseReport, report, severitySplit,
 } from '../plugin/scripts/qh-doctor.mjs'
 
 const testDir = dirname(fileURLToPath(import.meta.url))
@@ -305,6 +305,40 @@ test('drift reports that it could not look rather than that nothing differs', ()
   const answer = drift(join(testDir, 'fixtures', 'definitely-not-a-plugin-root'))
   assert.equal(answer.looked, false)
   assert.notEqual(answer.clean, true)
+})
+
+test('a match with unidentifiable files is not a clean bill', () => {
+  // ⚠ `drift` REDUCED ITS SUBTOOL'S ANSWER TO A BOOLEAN AND DROPPED THE QUALIFIER
+  // THE SUBTOOL WAS CAREFUL TO PRINT. `sync-standalone.mjs` says, in the same
+  // breath as "already matches this plugin", how many files it could NOT identify
+  // either way — and `clean` was a bare `/already matches this plugin/.test(out)`,
+  // so that number never reached the reader.
+  //
+  // `looked` stayed TRUE, because the subprocess ran and exited 0, which meant
+  // drift could never reach the incomplete-bill gate qh-doctor applies to every
+  // other section. A PARTIAL answer arrived as a WHOLE one.
+  //
+  // ⚠ THIS HAS ALREADY PROPAGATED INTO USER-AUTHORED DOCUMENTATION. A session
+  // reported 2026-09-18 that the hazard is written verbatim into a global
+  // instruction file on that machine — with a warning not to read the line as "no
+  // duplicate exists", and a count that no longer matches the tool's. Somebody had
+  // to discover this by reading the subtool directly and then write the caveat by
+  // hand, which is the cost of a gate that under-reports.
+  const matched = out => ({ looked: true, clean: /already matches this plugin/.test(out), out })
+  const whole = 'The standalone install already matches this plugin. Nothing to do.\n'
+  const partial = whole
+    + '\nNo longer shipped by this plugin:\n  none this tool can prove it wrote\n'
+    + '  12 further file(s) could not be identified either way, and are not listed.\n'
+
+  // The control: a genuinely whole answer must still read as clean, or the
+  // assertion below is satisfied by a reader that never says clean (CLAUDE.md §4).
+  assert.equal(driftReading(matched(whole)).clean, true, 'a whole match is still clean')
+  assert.equal(driftReading(matched(whole)).unidentified, 0)
+
+  const answer = driftReading(matched(partial))
+  assert.equal(answer.unidentified, 12, 'the count the subtool printed must survive')
+  assert.notEqual(answer.clean, true,
+    'twelve files it could not identify is not "the standalone install matches this plugin"')
 })
 
 // The same zero, one layer up: qh-doctor points a reader at claims-rate, so

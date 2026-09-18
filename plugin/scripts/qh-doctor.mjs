@@ -141,14 +141,44 @@ export function homeReport(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROO
   return { entries, looked: true, note: null }
 }
 
+/**
+ * Qualify what `sync-standalone.mjs` said, instead of reducing it to a boolean.
+ *
+ * ⚠ THE SUBTOOL IS CAREFUL AND THIS READER THREW THE CARE AWAY. It prints, in the
+ * same breath as "already matches this plugin", how many files it could NOT
+ * identify either way — orphans under the user's home configuration directory it
+ * cannot ATTRIBUTE, not shipped
+ * files it failed to verify. `clean` was a bare regex test for the headline, so
+ * that number never reached anyone. Worse, `looked` stayed TRUE (the subprocess
+ * ran and exited 0), so drift could never reach the incomplete-bill gate this tool
+ * applies to every other section: a PARTIAL answer arrived as a WHOLE one, in the
+ * one section whose whole job is drift.
+ *
+ * ⚠ IT HAD ALREADY PROPAGATED INTO USER-AUTHORED DOCUMENTATION. Two sessions
+ * reported it independently on 2026-09-18, and both noted the same thing: a global
+ * instruction file on that machine carries the caveat by hand, warning not to read
+ * the line as "no duplicate exists", with a count that no longer matches the
+ * tool's. Somebody had to read the subtool to learn what this gate would not tell
+ * them — which is the cost of a gate that under-reports (ADR-005).
+ */
+export function driftReading(raw) {
+  const out = String(raw?.out ?? '')
+  const unidentified = Number(out.match(/(\d+)\s+further file\(s\) could not be identified/)?.[1] ?? 0)
+  return {
+    ...raw,
+    unidentified,
+    clean: raw?.looked === true && /already matches this plugin/.test(out) && unidentified === 0,
+  }
+}
+
 /** What `sync-standalone.mjs` says differs, without re-deriving it here. */
 export function drift(pluginRoot = PLUGIN_ROOT) {
   try {
     const out = execFileSync(process.execPath, [join(pluginRoot, 'scripts', 'sync-standalone.mjs')],
       { encoding: 'utf8', timeout: 60_000 })
-    return { looked: true, clean: /already matches this plugin/.test(out), out }
+    return driftReading({ looked: true, out })
   } catch (error) {
-    return { looked: false, clean: null, out: error.message }
+    return { looked: false, clean: null, unidentified: 0, out: error.message }
   }
 }
 

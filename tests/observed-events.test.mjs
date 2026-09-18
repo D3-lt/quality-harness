@@ -1448,3 +1448,41 @@ test('a file edited while its gate ran is not recorded as answered', t => {
   assert.equal(gated.complete, false,
     'and a gate whose bytes moved underneath it has not answered about them')
 })
+
+test('which check is latest is decided by when it RAN, not by where it landed in the log', () => {
+  // ⚠ TWO HOOKS IMPORTING THE SAME checks.jsonl ARE NOT ATOMIC. The importer reads
+  // what it has already seen, then appends what it has not. Interleave two hooks
+  // and the appends can land in an order the checks never happened in: hook A
+  // snapshots an older PASS, hook B imports that pass AND a newer FAILURE, then A
+  // appends its stale pass on top. `treeChecked` took `.at(-1)` — the LAST thing
+  // appended — so the older pass won and the tree read as checked.
+  //
+  // The reviewer's deterministic probe produced exactly `older-pass, newer-fail,
+  // older-pass` and `checked: true`. Reproduced here as that log, because the log
+  // is what the reader sees and the interleaving that built it does not matter.
+  //
+  // The repair is ordering rather than locking: each imported event carries the
+  // `startedAt` of the check it came from, and checks.jsonl is the authority on
+  // when they ran. A duplicate import can then never change WHICH check is latest
+  // (ADR-005 — the newest observation wins, and a re-import is not an observation).
+  const tree = 'TREE-1'
+  const observation = { ok: true, head: 'h', tree }
+  const ordered = [
+    { event: 'session.started', observation: { ok: true, head: 'h', tree: 'T0' } },
+    { event: 'check.passed', record: 'r1', startedAt: '2026-09-18T10:00:00.000Z', after: { tree } },
+    { event: 'check.failed', record: 'r2', startedAt: '2026-09-18T10:05:00.000Z', after: { tree } },
+  ]
+  assert.equal(lifecycle.observedFacts(ordered, null, observation).checked, false,
+    'a newer failure beats an older pass when they land in order')
+
+  // The same two checks, plus the stale re-append a racing import produces.
+  const raced = [...ordered, { ...ordered[1] }]
+  assert.equal(lifecycle.observedFacts(raced, null, observation).checked, false,
+    'and it still beats it when the older pass is appended LAST — this is the defect')
+
+  // ...and a genuinely newer pass still wins, or the assertions above are
+  // satisfied by a reader that has stopped crediting passes at all.
+  const repaired = [...raced, { event: 'check.passed', record: 'r3', startedAt: '2026-09-18T10:09:00.000Z', after: { tree } }]
+  assert.equal(lifecycle.observedFacts(repaired, null, observation).checked, true,
+    'a check that really is the newest still counts')
+})

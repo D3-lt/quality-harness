@@ -91,16 +91,39 @@ export function appendEvent(cwd, session, entry) {
   }
 }
 
+// ⚠ AN INCOMPLETE READ MUST NOT ANSWER LIKE A COMPLETE ONE. A torn line was
+// skipped and a read error became "no events", so a log holding an older PASS and
+// a newer FAILURE whose line is truncated read as "the pass is the latest thing
+// that happened", and the ledger said `verified`. An append is not atomic, so a
+// truncated tail is the ordinary shape of a crash rather than an exotic one.
+// Found by a different-lineage review of this branch, 2026-09-18.
+//
+// The result is still an array, so every existing caller keeps working. It
+// carries `complete` beside the entries: false means SOME events are missing and
+// the reader may not build a positive verdict on it. A partial log is still
+// usable for FINDING work, because that direction can only ever find more
+// (ADR-005).
 export function readEvents(cwd, session, options) {
-  if (typeof session !== 'string' || !session) return []
+  if (typeof session !== 'string' || !session) return complete([], true)
   let text
-  try { text = readFileSync(sessionLogFile(cwd, session, options), 'utf8') } catch { return [] }
+  try { text = readFileSync(sessionLogFile(cwd, session, options), 'utf8') } catch (error) {
+    // ENOENT is a session that has written nothing yet — genuinely no events.
+    // Anything else is a log we could not read, which is not the same answer.
+    return complete([], error?.code === 'ENOENT')
+  }
   const entries = []
+  let whole = true
   for (const line of text.split('\n')) {
     if (!line.trim()) continue
-    try { entries.push(JSON.parse(line)) } catch { /* a torn line is skipped, not fatal */ }
+    try { entries.push(JSON.parse(line)) } catch { whole = false }
   }
-  return entries
+  return complete(entries, whole)
+}
+
+function complete(entries, whole) {
+  const out = [...entries]
+  out.complete = whole
+  return out
 }
 
 /**

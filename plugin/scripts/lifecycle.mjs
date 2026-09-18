@@ -2821,6 +2821,12 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check, stat
   // became `verified` (ADR-005). `ok === false` is set only by a query that really
   // ran and really failed; an absent `ok` is a caller that asked git nothing.
   if (commits?.ok === false || status?.ok === false) return 'could-not-look'
+  // ⚠ AND A LOG READ WHOLE IS A PRECONDITION OF EVERY POSITIVE ANSWER BELOW.
+  // `treeChecked` asks the log whether a check passed on these bytes; asked of a
+  // log with a torn line it can only answer from what survived, so an older pass
+  // outliving a newer failure reads as `verified`. `complete === false` is set
+  // only by a read that really happened and really lost something.
+  if (log?.complete === false) return 'could-not-look'
   if (!check) return 'no-check'
   const treeUnchecked = !treeChecked(log, observation.tree)
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
@@ -2939,7 +2945,7 @@ function completionRules(input, ended) {
       text: uncheckedCommitsReason(input.cwd, unchecked),
     })
   }
-  if (observation?.ok !== true || status?.ok === false || commits?.ok === false) {
+  if (observation?.ok !== true || status?.ok === false || commits?.ok === false || log?.complete === false) {
     // Once per session and cwd, read from the log rather than from a marker file
     // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
     const key = canonical(root ?? path.resolve(input.cwd ?? process.cwd()))
@@ -2949,7 +2955,9 @@ function completionRules(input, ended) {
       // and "no reason was recorded" would report the wrong could-not-look.
       const why = observation?.ok !== true
         ? (observation?.reason ?? 'no reason was recorded')
-        : (status?.why || commits?.why || 'a git query failed without saying why')
+        : log?.complete === false
+          ? 'this session’s event log could not be read whole — at least one record is torn or unreadable'
+          : (status?.why || commits?.why || 'a git query failed without saying why')
       queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, why) })
     }
   }

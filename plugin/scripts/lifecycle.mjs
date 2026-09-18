@@ -3011,7 +3011,15 @@ function artifactRule(input, recorded) {
       answered.set(entry.path, entry.blob ?? null)
     }
   }
-  const targets = [...paths].filter(file => !alreadyAnswered(answered, file, contentId(file)))
+  // ⚠ IDENTITIES BEFORE THE GATES RUN, for the same reason the per-edit gate takes
+  // its identity first: a file edited WHILE the batch is gating it would otherwise
+  // be filed under the NEW content carrying the OLD content's verdict, and rule A
+  // would suppress the one edit nothing had looked at. Computed once here and
+  // reused below, so the filter and the record cannot disagree about what was
+  // gated. Found by a re-review, 2026-09-18 — the per-edit fix had left this
+  // sibling untouched (CLAUDE.md §5).
+  const identities = new Map([...paths].map(file => [file, contentId(file)]))
+  const targets = [...paths].filter(file => !alreadyAnswered(answered, file, identities.get(file) ?? null))
   if (!targets.length) return
   // Nearest first: the session's own starting point, then HEAD. A record deleted
   // and committed during the session is in neither the working tree nor HEAD.
@@ -3023,8 +3031,13 @@ function artifactRule(input, recorded) {
     // Only an answer is recorded. A path the budget cut gets no event, which is
     // exactly what makes the next boundary retry it.
     if (gated.get(file) !== true) continue
+    const before = identities.get(file) ?? null
+    const after = contentId(file)
     appendEvent(input.cwd, input.session_id, {
-      event: 'artifact.gated', path: file, blob: contentId(file), complete: true,
+      event: 'artifact.gated', path: file, blob: before,
+      // If the bytes moved under the gate, its verdict is about content that is
+      // no longer there, so the next boundary asks again (ADR-005).
+      complete: before !== null && before === after,
     })
   }
   if (!failure) return

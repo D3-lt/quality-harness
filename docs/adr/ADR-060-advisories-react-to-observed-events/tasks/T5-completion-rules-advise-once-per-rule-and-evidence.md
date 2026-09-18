@@ -55,9 +55,9 @@ At turn, task and non-read-only subagent end, R1, R2 and R4 are the only complet
 
 ```bash
 set -o pipefail
-out=$(node --test --test-reporter=tap --test-name-pattern '^(the scripted session advises as its step table lists|a repository without a check hears no completion advisory|an unchecked commit is named even when its tree equals the session start|writes the tree cannot see re-open the finding|a tree the publish warning named still records unverified|many unchecked commits are one finding)$' tests/observed-events.test.mjs 2>&1) \
+out=$(node --test --test-reporter=tap --test-name-pattern '^(the scripted session advises as its step table lists|a repository without a check hears no completion advisory|an unchecked commit is named even when its tree equals the session start|writes the tree cannot see re-open the finding|a tree the publish warning named still records unverified|many unchecked commits are one finding|a turn that ended in a commit names the commit, not a change that is not there)$' tests/observed-events.test.mjs 2>&1) \
   || { printf '%s\n' "$out"; exit 1; }
-for name in 'the scripted session advises as its step table lists' 'a repository without a check hears no completion advisory' 'an unchecked commit is named even when its tree equals the session start' 'writes the tree cannot see re-open the finding' 'a tree the publish warning named still records unverified' 'many unchecked commits are one finding'; do printf '%s\n' "$out" | grep -qxE "ok [0-9]+ - $name" || { printf '%s\n' "$out"; echo "did not run: $name"; exit 1; }; done \
+for name in 'the scripted session advises as its step table lists' 'a repository without a check hears no completion advisory' 'an unchecked commit is named even when its tree equals the session start' 'writes the tree cannot see re-open the finding' 'a tree the publish warning named still records unverified' 'many unchecked commits are one finding' 'a turn that ended in a commit names the commit, not a change that is not there'; do printf '%s\n' "$out" | grep -qxE "ok [0-9]+ - $name" || { printf '%s\n' "$out"; echo "did not run: $name"; exit 1; }; done \
   && node --test tests/observed-events.test.mjs tests/lifecycle.test.mjs tests/claims-rate.test.mjs tests/statusline.test.mjs
 ```
 
@@ -71,6 +71,7 @@ for name in 'the scripted session advises as its step table lists' 'a repository
 | `writes the tree cannot see re-open the finding` | `tests/observed-events.test.mjs` | • **Repository with a check:** an Edit outside the repository, then Stop, gives R1 with a count and no path. A second outside Edit, then Stop, gives R1 again. `qh-check` passes, then Stop gives nothing.<br>• **Two worktrees of one repository:** an Edit outside the repository from worktree A, then `qh-check` passing in worktree B, then Stop in A gives R1.<br>• **Non-git directory with a declared check:** an Edit, then Stop, gives R4 and R1; a second Stop gives nothing; `qh-check` passes, then Stop gives nothing; an Edit during a passing `qh-check` still gives R1 at the next Stop.<br>• **Statusline:** from these logs it renders "last observed" with an age, and "unknown" without a log. | — | S1, S2, S4 |
 | `a tree the publish warning named still records unverified` | `tests/observed-events.test.mjs` | found by this task's mutation pass: with P suppressing R1 and nothing committed, the ledger must still record `unverified`. The scripted session could not see it, because at step 9′ an unchecked commit kept the row honest whatever the tree contributed | — | S1, S2, S3 |
 | `many unchecked commits are one finding` | `tests/observed-events.test.mjs` | found in review of this task: seven unchecked commits deliver ONE R2 action naming the newest five and counting the rest, and the second turn end repeats none of them. A message per commit would be dozens of joined advisories in one hook after a fetch or a merge | — | S1, S2, S3 |
+| `a turn that ended in a commit names the commit, not a change that is not there` | `tests/observed-events.test.mjs` | found by a peer session's test of this branch, 2026-09-18: after a commit the tree is unchecked and nothing is uncommitted, and R1 said both "work no `qh-check` has passed on" and "git reports no changed path" — the old commit-loop shape in a quieter form. R2 is silent for that commit by design (its tree is the observed tree), so R1 names it | — | S1, S2, S3 |
 
 ## Reachability
 
@@ -97,6 +98,7 @@ for name in 'the scripted session advises as its step table lists' 'a repository
 - 2026-09-17 · bdb6dde* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the ledger takes R1's P skip, so a tree the publish warning already named records verified · acceptance-sha256:5b0765d5af4d8ce5bf9c73a79ff1ef2db731777cef1ea970871bd1dfbc10c28d
 - 2026-09-17 · 555c7bc* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R2 names every commit it found, so a fetch of dozens puts all of them in one message · acceptance-sha256:aa96a9368d960db3682d930cf47c1a6a6b73534a2a61ea17ca333fa76a167eb3
 - 2026-09-17 · 555c7bc* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the ledger takes R1's P skip, so a tree the publish warning already named records verified · acceptance-sha256:aa96a9368d960db3682d930cf47c1a6a6b73534a2a61ea17ca333fa76a167eb3
+- 2026-09-18 · dceba5e* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · R1 stops naming the commit it speaks for, so a committed turn is told it has changed work with no changed path · acceptance-sha256:7d9e9a12fb36759304990274eaf79a884eb1c1b12a94c6ec8e45c4d6c0a111b5
 
 ## Invariants
 
@@ -144,3 +146,5 @@ Stop and ask if the scenario needs a different step table to describe a real sta
 - 2026-09-17 · bdb6dde* · exit 0 · `set -o pipefail …` · acceptance-sha256:5b0765d5af4d8ce5bf9c73a79ff1ef2db731777cef1ea970871bd1dfbc10c28d · ms:29105
 - 2026-09-17 · 555c7bc* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa96a9368d960db3682d930cf47c1a6a6b73534a2a61ea17ca333fa76a167eb3 · ms:29622
 - 2026-09-17 · 555c7bc* · exit 0 · `set -o pipefail …` · acceptance-sha256:aa96a9368d960db3682d930cf47c1a6a6b73534a2a61ea17ca333fa76a167eb3 · ms:29530
+- 2026-09-18 · dceba5e* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d9e9a12fb36759304990274eaf79a884eb1c1b12a94c6ec8e45c4d6c0a111b5 · ms:39690
+- 2026-09-18 · dceba5e* · exit 0 · `set -o pipefail …` · acceptance-sha256:7d9e9a12fb36759304990274eaf79a884eb1c1b12a94c6ec8e45c4d6c0a111b5 · ms:39545

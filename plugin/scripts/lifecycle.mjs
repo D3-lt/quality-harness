@@ -2260,8 +2260,15 @@ export function sessionOrientation(cwd) {
       ? `this project's own check is \`${check}\``
       : `no \`check\` is declared in \`.quality-harness.json\`; inferred \`${check}\` from a manifest — that is not this project's own check`
     lines.push(`Verification: ${named}. `
-      + 'The completion and commit gates accept it as evidence when it runs after your last edit; '
-      + 'a piped or `|| true` run does not count, because it hides the exit code.')
+      // ADR-060: a check is an EVENT `qh-check` writes, so how the command is
+      // spelled, piped or redirected no longer decides anything — but running it
+      // any other way now leaves no record at all, and the orientation has to say
+      // so. A peer session testing this branch ran its check directly and was
+      // still told the tree was unchecked, which is correct and was not said
+      // anywhere (2026-09-18).
+      + 'Run it through `qh-check`: that is what records the result where the '
+      + 'completion and commit advisories read it. The same command run any other '
+      + 'way still proves the work to you, and leaves them nothing to see.')
   }
 
   const stale = staleVersionNotice()
@@ -2731,12 +2738,25 @@ function unseenPathNote(count) {
     + `${count === 1 ? 'is' : 'are'} not named here.`
 }
 
-function uncheckedWorkReason(cwd, paths, outside) {
+// ⚠ NAME WHAT IS ACTUALLY UNCHECKED. A turn that ended in a commit has an
+// unchecked tree and NO uncommitted change, and saying "work no `qh-check` has
+// passed on" beside "git reports no changed path" made a reader decide which
+// half to believe — reported by a peer session testing this branch, 2026-09-18,
+// as the old commit-loop shape surviving in a quieter form. R2 is silent for
+// that commit on purpose (its tree is the observed tree, which is R1's to speak
+// for), so R1 is the one that has to say the commit.
+function uncheckedWorkReason(cwd, paths, outside, commits = []) {
   const shown = paths.slice(0, 8)
+  const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
     ? `Changed paths: ${shown.join(', ')}${paths.length > shown.length ? `, and ${paths.length - shown.length} more` : ''}.`
-    : 'Git reports no changed path in the working tree.'
-  return `quality-harness: this turn ends with work no \`qh-check\` has passed on. ${listed}`
+    : held
+      ? `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`
+      : 'Git reports no changed path in the working tree.'
+  const opening = paths.length || !held
+    ? 'this turn ends with work no `qh-check` has passed on.'
+    : 'this turn ends on an unchecked tree.'
+  return `quality-harness: ${opening} ${listed}`
     + `${unseenPathNote(outside)} ${runTheCheckSentence(cwd)}`
 }
 
@@ -2867,7 +2887,9 @@ function completionRules(input, ended) {
   if (!quiet && ((treeUnchecked && !namedByPublish(log, observation.tree, revision)) || writes.length > 0)) {
     const key = `${observation?.ok === true ? observation.tree : 'unobserved'}:${revision}:${writes.length}`
     if (!emittedFor(log, 'R1', key)) {
-      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length) })
+      // The commits R2 leaves to R1: their tree IS the tree being reported.
+      const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
+      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor) })
     }
   }
   const unchecked = commits.filter(commit => {

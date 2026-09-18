@@ -19,7 +19,8 @@
 | File | Change | Why |
 |------|--------|-----|
 | `tests/observed-events.test.mjs` | edit | the test below |
-| `plugin/scripts/classify-command.mjs` | delete | no command is classified |
+| `plugin/scripts/classify-command.mjs` | empty | no command is classified. ⚠ **Emptied, not deleted — decided with the owner during execution.** ADR-041 and ADR-047 declare this path in `Governs:`, and a `Governs:` path no tracked file matches makes `adr-lint` advise that the decision governs nothing, which this repository's regression probe asserts never happens here. Records are history (CLAUDE.md §10) and retiring them belongs to ADR-060's acceptance, not to T7 (Out of Scope). The file ships as comments only, exports nothing, and is named in `trivial` in `tests/package.test.mjs` |
+| `tests/unread-advice.test.mjs`, `tests/unread-advice-followon.test.mjs`, `tests/advice-accuracy.test.mjs`, `tests/read-only-arguments.test.mjs` | empty | the same, for ADR-053, ADR-058 and ADR-059: each keeps its path and asserts that what it covered is proved against observed events in `tests/observed-events.test.mjs` |
 | `plugin/scripts/lifecycle.mjs` | edit | delete the parsing symbols left uncalled, including `isGitPublishCommand` and the shell helpers |
 | `tests/classify.test.mjs`, `tests/read-only-arguments.test.mjs`, `tests/adr053-stress.mjs`, `tests/advice-accuracy.test.mjs`, `tests/leftovers-after-adr053.test.mjs`, `tests/unread-advice.test.mjs`, `tests/unread-advice-followon.test.mjs`, `tests/lifecycle.test.mjs`, `tests/staged-product.test.mjs`, `tests/event-analyser.test.mjs` | edit/delete | tests of deleted symbols go |
 | `tests/mutations.json` | edit | entries whose `from` lives only in deleted code are retired |
@@ -51,7 +52,7 @@ for name in 'the command classifiers are gone'; do printf '%s\n' "$out" | grep -
 
 | Test name | File | Verifies | Covers | Steps |
 |-----------|------|----------|--------|-------|
-| `the command classifiers are gone` | `tests/observed-events.test.mjs` | `plugin/scripts/classify-command.mjs` does not exist on disk. No file under `plugin/` defines or imports any of `classifyCommand`, `classifyCommandWithHooks`, `isPotentialMutationCommand`, `isValidationCommand`, `bashMarkdownMutationPaths`, `bashDeletionMutationPaths`, `analyzeTranscript`, `isGitPublishCommand`, `gitSubcommand`, `shellCommandRegions`, `shellSegments`, `commandInvocation`, `heredocBodies`, `writeChannelOf` or `readsOnlyItsArguments`, while `readOnlyVerdict` and `containsCommitOrPush` remain. | — | S1, S2 |
+| `the command classifiers are gone` | `tests/observed-events.test.mjs` | `plugin/scripts/classify-command.mjs` exists and exports nothing (the tombstone above). No OTHER file under `plugin/` defines or imports any of `classifyCommand`, `classifyCommandWithHooks`, `isPotentialMutationCommand`, `isValidationCommand`, `bashMarkdownMutationPaths`, `bashDeletionMutationPaths`, `analyzeTranscript`, `isGitPublishCommand`, `gitSubcommand`, `shellCommandRegions`, `shellSegments`, `commandInvocation`, `heredocBodies`, `writeChannelOf` or `readsOnlyItsArguments`, while `readOnlyVerdict` and `containsCommitOrPush` remain. | — | S1, S2 |
 
 ## Reachability
 
@@ -63,10 +64,14 @@ for name in 'the command classifiers are gone'; do printf '%s\n' "$out" | grep -
 | 4 — it is used | n/a: deletion |
 
 ## Mutation Log
+- 2026-09-18 · dcb9512* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the transcript analyser is back in the plugin, and the absence check must fail · acceptance-sha256:d26897303d28b1c61f1ad122647a0d046de51713d5a33c2e191243334cb29e74
+- 2026-09-18 · dcb9512* · mutant killed · exit 1 · `plugin/scripts/lifecycle.mjs` · the shell segmenter is back in the plugin, and the absence check must fail · acceptance-sha256:d26897303d28b1c61f1ad122647a0d046de51713d5a33c2e191243334cb29e74
 
 ## Invariants
 
 - Every remaining `tests/mutations.json` entry matches exactly once.
+- Five paths accepted records govern stay tracked, holding no code: the decisions that own them are retired under ADR-060, not here.
+- The orphan sweep reads HEAD, so a deletion it must judge is judged after the commit that makes it — five orphans were named and removed that way (the T7 follow-up commit).
 - ADR-035 and ADR-044 tests still pass.
 
 ## Risks
@@ -96,3 +101,6 @@ Stop and ask if a symbol on the list still has a caller outside the deleted code
   # todo 0
   # duration_ms 48.132917
   ```
+- 2026-09-18 · dcb9512* · exit 0 · `set -o pipefail …` · acceptance-sha256:d26897303d28b1c61f1ad122647a0d046de51713d5a33c2e191243334cb29e74 · ms:69583
+- 2026-09-18 · dcb9512* · exit 0 · `set -o pipefail …` · acceptance-sha256:d26897303d28b1c61f1ad122647a0d046de51713d5a33c2e191243334cb29e74 · ms:72353
+- 2026-09-18 · dcb9512* · exit 0 · `set -o pipefail …` · acceptance-sha256:d26897303d28b1c61f1ad122647a0d046de51713d5a33c2e191243334cb29e74 · ms:73445

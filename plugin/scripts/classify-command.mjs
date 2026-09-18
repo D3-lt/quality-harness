@@ -25,7 +25,15 @@ export const MEASURED_FAMILIES = new Set([
   'ls', 'find', 'stat', 'file', 'which', 'echo', 'printf', 'true', 'pwd', 'date',
   'basename', 'dirname', 'realpath', 'readlink', 'diff', 'cmp', 'md5sum',
   'sha256sum', 'jq', 'column', 'nl',
-  'git', 'npm', 'pnpm', 'yarn', 'bun', 'npx',
+  // ⚠ `composer` was missing while `npm` was present, so a SUCCESSFUL composer run
+  // was classified `unrecognised` and a transcript containing it recorded no
+  // validation at all — `lastSuccessfulValidation: -1`, authorship UNPROVEN — where
+  // the same transcript with `npm test` recorded one. Found by a different-lineage
+  // review the day `composer` was added to VALIDATION_PATTERNS: adding it in one
+  // list and not the other made the harness accept the command as evidence and
+  // then fail to SEE it having run. It is the same family of tool as the four
+  // beside it (CLAUDE.md §5).
+  'git', 'npm', 'pnpm', 'yarn', 'bun', 'npx', 'composer',
   'cargo', 'go', 'gofmt', 'black', 'ruff', 'prettier',
   'docker', 'podman', 'make', 'just', 'sed',
   'cd', 'pushd', 'popd',

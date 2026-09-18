@@ -42,6 +42,7 @@ import {
   classifyCommand,
   isPotentialMutationCommand,
   isValidationCommand,
+  publishPrecededByValidation,
   readOnlyVerdict,
   posixListed,
   readyTaskLines,
@@ -6284,4 +6285,76 @@ test('every command this harness OFFERS, it also accepts as evidence', () => {
   }
   // The control: this is worthless unless some tree actually produced a command.
   assert.ok(offered.length >= 4, `the fixtures must exercise several rungs, got: ${offered.join(' · ')}`)
+})
+
+test('a script runner asked for HELP has not validated anything', () => {
+  // ⚠ A FAIL-OPEN AT THE PUBLISH BOUNDARY, found by a different-lineage review of
+  // the composer pattern I added the same day — and the hole turned out to be
+  // OLDER and WIDER than the change that surfaced it. `npm test --help` suppressed
+  // the unchecked-publish warning too. So this is the class, not the instance
+  // (CLAUDE.md §5): every runner in that alternation had it.
+  //
+  // Two separate mistakes in one pattern:
+  //   `--help` runs no tests and exits 0, and nothing looked at the mode.
+  //   `\b` after the verb accepted `test-data` and `test:seed` as `test`, because
+  //   a hyphen and a colon are both word boundaries.
+  //
+  // Asserted at `publishPrecededByValidation`, which is what actually decides
+  // whether the warning is suppressed. The previous test for this pattern
+  // exercised the regex helper and would have passed through every case below.
+  const suppressed = command => publishPrecededByValidation(`${command} && git commit -m probe`)
+
+  // The control, first: these are real runs and must go on suppressing it, or
+  // everything below is satisfied by a predicate that now refuses everything.
+  for (const real of ['npm test', 'npm run test', 'composer test', 'composer run-script test',
+    'pnpm lint', 'yarn build', 'bun run verify']) {
+    assert.equal(suppressed(real), true, `a real run must still count as evidence: ${real}`)
+  }
+
+  // A help or version mode runs nothing.
+  for (const mode of ['npm test --help', 'composer run-script test --help', 'npm run test -h',
+    'composer test --version', 'yarn lint --help']) {
+    assert.equal(suppressed(mode), false,
+      `asking a runner to describe itself is not running it: ${mode}`)
+  }
+
+  // A DIFFERENT script whose name merely starts with a verb.
+  for (const other of ['composer test-data', 'composer run-script test:seed',
+    'npm run test-fixtures', 'npm test:generate']) {
+    assert.equal(suppressed(other), false,
+      `a script is not the \`test\` script just because its name begins with it: ${other}`)
+  }
+})
+
+test('a composer run that PASSED is seen to have passed, not merely permitted', () => {
+  // ⚠ ACCEPTED AS EVIDENCE BUT INVISIBLE WHEN IT RAN. Adding `composer` to
+  // VALIDATION_PATTERNS and not to the production classifier's MEASURED_FAMILIES
+  // meant the harness would tell you to run `composer test`, accept the string as
+  // the kind of thing that counts — and then fail to SEE it having succeeded: the
+  // transcript recorded `lastSuccessfulValidation: -1` and authorship UNPROVEN,
+  // while the identical transcript with `npm test` recorded a validation.
+  //
+  // Found by a different-lineage review, which also named why my first test
+  // missed it: it exercised the regex helper, and the regex was never the half
+  // that was broken. This asserts through `analyzeTranscript`, the boundary the
+  // hooks actually go through.
+  const ran = command => analyzeTranscript(transcript([
+    toolUse('e1', 'Edit', { file_path: path.join(pluginDir, 'a.ts') }), toolResult('e1'),
+    toolUse('v1', 'Bash', { command }), toolResult('v1', false, 'OK (12 tests)'),
+  ]), pluginDir)
+
+  // The control is npm, which has always worked — so a regression that blinded
+  // BOTH runners could not satisfy this test.
+  const npm = ran('npm test')
+  assert.equal(npm.verifiedAfterLastMutation, true, 'npm test is seen; the fixture shape is right')
+
+  for (const command of ['composer test', 'composer run-script test']) {
+    const answer = ran(command)
+    assert.equal(answer.verifiedAfterLastMutation, true,
+      `a passing \`${command}\` must be seen to have validated the edit above it`)
+  }
+
+  // ...and the help mode is still not a run, at this boundary too.
+  assert.equal(ran('composer test --help').verifiedAfterLastMutation, false,
+    'asking composer to describe its script validates nothing')
 })

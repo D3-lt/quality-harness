@@ -164,10 +164,19 @@ export function homeReport(homeDirectory = os.homedir(), pluginRoot = PLUGIN_ROO
 export function driftReading(raw) {
   const out = String(raw?.out ?? '')
   const unidentified = Number(out.match(/(\d+)\s+further file\(s\) could not be identified/)?.[1] ?? 0)
+  // THREE STATES, NOT TWO. `clean` and `differs` are no longer each other's
+  // negation: a run can match on everything it could identify and still have left
+  // files it could not attribute. Collapsing that into `differs` announces drift
+  // that is not there and offers a repair the sync tool explicitly will not
+  // perform; collapsing it into `clean` is the missing qualifier this function was
+  // written to fix. `unidentified` is the third answer and the renderer says it
+  // separately.
+  const matched = raw?.looked === true && /already matches this plugin/.test(out)
   return {
     ...raw,
     unidentified,
-    clean: raw?.looked === true && /already matches this plugin/.test(out) && unidentified === 0,
+    clean: matched && unidentified === 0,
+    differs: raw?.looked === true && !matched,
   }
 }
 
@@ -275,8 +284,19 @@ export function report({
 
   lines.push('\ndrift')
   if (!moved.looked) lines.push(`  COULD NOT LOOK — ${String(moved.out).split('\n')[0]}`)
-  else lines.push(moved.clean ? '  the standalone install matches this plugin'
-    : '  differs — `sync-standalone.mjs --link --apply` repairs it')
+  else if (moved.differs) lines.push('  differs — `sync-standalone.mjs --link --apply` repairs it')
+  else lines.push('  the standalone install matches this plugin')
+  // ⚠ SAY THE COUNT, AND DO NOT CALL IT DRIFT. These files are ones the sync tool
+  // could not ATTRIBUTE — it says so itself and says it will not touch them — so
+  // reporting them as `differs` would promise a repair that will not happen, and
+  // reporting them as a match would be the clean bill this whole function exists
+  // to avoid. They are their own state. The first attempt at this fix folded them
+  // into `differs`, which a different-lineage review caught before release: a
+  // false diagnosis is not an improvement on a missing qualifier.
+  if (moved.looked && moved.unidentified > 0) {
+    lines.push(`  ⚠ ${moved.unidentified} file(s) could not be identified either way, and this tool `
+      + 'does not touch them — so this section is a partial look, not a clean bill')
+  }
 
   const copies = home.entries.filter(entry => entry.kind === 'copy')
   lines.push('')
@@ -316,7 +336,10 @@ export function report({
   // A COPY outranks an unreadable read: a finding you can act on is more useful
   // than "some of this could not be seen", and reporting the weaker verdict would
   // hide the stronger one.
-  if (!home.looked || !moved.looked || !ledger.looked || !release.looked) {
+  // An unidentified file makes the drift section incomplete in exactly the sense
+  // this gate means, so it belongs in the same condition rather than beside it.
+  if (!home.looked || !moved.looked || !ledger.looked || !release.looked
+    || (moved.unidentified ?? 0) > 0) {
     lines.push('Some of this could not be read, so this is not a clean bill — only an incomplete one.')
     return { lines, exit: 2 }
   }

@@ -15,11 +15,15 @@ reads a diff and gives a verdict. An audit has no diff and gives no verdict. Its
 ledger: every defect, where it is, how it is known, what fixes it, what proves the fix — written
 down so that nothing depends on anyone remembering a conversation.
 
-Contributed 2026-09-18 and built from one measured audit of a Go repository: its suite was green
-under `-race`, its records said "closed, nothing pending", and in it 20 of 21 applied mutants
-survived, two flows failed for ever, and the README quick start did not compile. Every rule below
-is here because skipping it hid something in that audit. Where a rule carries a number, that
-number was measured on that repository on that day — re-measure before reusing it.
+Contributed 2026-09-18, distilled from one exhaustive audit of a repository whose suite was green,
+whose records said "closed, nothing pending", and in which most applied mutants survived, two flows
+failed for ever, and the README quick start did not compile. Every rule below is here because
+skipping it hid something real.
+
+⚠ **This file carries no measurements from that audit, deliberately.** The figures were about
+another project's code, and a number borrowed from a repository you are not auditing is worse than
+no number: it reads as evidence about YOUR tree. Where a rule below once cited a count, it now
+states the mechanism and leaves the measuring to you — which is the only form that transfers.
 
 ## The effort contract — read this before anything else
 
@@ -43,8 +47,12 @@ default only: the habit of doing the smallest plausible amount of work. If a con
 stops you from covering something (no access, a tool that fails, a budget the user set), that is
 not a reason to narrow the audit quietly — it is a row in the ledger under "not audited".
 
-⚠ **This contract is not a licence to burn the machine.** `costly-runs` still governs every heavy
-command, and the audit is bounded by what the user agreed to pay. Exhaustive means nothing is
+⚠ **This contract is not a licence to burn the machine.** Before any command that costs real
+wall-clock — a full build, a whole suite, a container or simulator, anything repeated in a loop —
+say in one line what it runs, how many times, and roughly how long, and check what else is already
+running. A shared machine's load does not appear in your own output. If your setup provides a
+resource-discipline skill, load it; this file does not assume one exists, because a prerequisite an
+adopter cannot obtain is an instruction that silently does not apply. Exhaustive means nothing is
 skipped silently; it does not mean every suite runs on every pass.
 
 ## What a finished audit contains
@@ -63,10 +71,11 @@ skipped silently; it does not mean every suite runs on every pass.
 
 - Load the project's intent sources, its records, its memory. Know what "closed", "done" and
   "accepted" mean here before you contradict them.
-- Price and run the project's own check once (load `costly-runs` first). Record command and exit
-  code. **Never read an exit code through a pipe** — `cmd | tail; echo $?` reports `tail`.
-  Under `set -o pipefail`, `cmd | head -1` can exit 141 when the producer keeps writing; use
-  `awk 'NR==1'`.
+- Price and run the project's own check once (see the resource note above). Record the command and
+  its exit code. **Never read an exit code through a pipe** — `cmd | tail; echo $?` reports `tail`.
+  ⚠ And do not reach for a first-line filter to work around that: `head -1` and `awk 'NR==1'` both
+  DISCARD every finding after the first, which is the thing an audit least wants. Redirect the whole
+  output to a file, read the exit code directly, then read the file.
 - A green baseline is the starting point of an audit, not evidence against one.
 
 ## Phase 1 — Inventory, by command
@@ -107,7 +116,8 @@ One read-only leaf agent per scope, all launched together. Each prompt carries:
   CONFIRMED separated from PLAUSIBLE.
 - **"A reply to me IS the deliverable."** A sub-agent's final message is often a note that it
   filed something to memory, and only that last message reaches the coordinator. Say this up
-  front, or ask again — measured: four of five auditors needed a second request.
+  front, or ask again — most sub-agents in that audit needed a second request before their
+  findings, rather than a note about them, reached the coordinator.
 
 Read-only agents still leave artifacts: a toolchain command can create files (a workspace sum
 file, caches, `.db` files in the package dir). Check `git status --porcelain -uall` when they
@@ -124,7 +134,8 @@ finish, and ask before removing anything you did not create.
   id) trusts anything that matches them. Check what the datastore reuses: SQLite hands a deleted
   top rowid out again, so count AND max rowid can match a different row. Ask: what binds this
   cache to *these* rows, and what detects a changed body? Flip every byte of a small valid file
-  and count how many still load (measured: 103 of 309).
+  and count how many still load. A third of a corpus surviving a flipped byte is not an unusual
+  result; measure yours rather than assuming either way.
 - **A dependency's limits versus how callers batch.** Read the dependency's own log or `/info`:
   a server that caps a batch at 32 and a caller that sends everything in one request is a flow
   that fails for every large input, for ever, and no retry helps. Fakes never have the limit.
@@ -135,8 +146,9 @@ finish, and ask before removing anything you did not create.
 - **Errors after the commit:** a fallible step after a transaction commits tells the caller it
   failed when it succeeded.
 - **Undefined arithmetic at the edges:** time outside the representable range, zero values,
-  widths of zero. Run the extremes; do not reason about them (measured: an as-of year 1000
-  returned *current* rows and year 3000 returned none — exactly backwards).
+  widths of zero. Run the extremes; do not reason about them — an as-of query outside the
+  representable range returned *current* rows at one end and none at the other, exactly backwards,
+  and no amount of reading the code would have said so.
 - **A transform that escapes the boundary it was scoped to.** A value rewritten for one consumer
   (a path made POSIX so a shell can read it) and then PERSISTED in that shape, while a second site
   builds the same key natively, is a lookup that never matches and a dedup that never fires.
@@ -255,17 +267,18 @@ three:
    closes, ordering gaps, fences that pass before the work or can never pass, and contradictions
    with frozen records. Expect it to find a defect in your own new gates.
 
-What step 2 actually finds is **not** missing findings — measured: five auditors, zero of their
-own findings missing — it is three classes nothing else sees:
+What step 2 actually finds is **not** missing findings — in that audit no auditor reported one of
+its own as missing — it is three classes nothing else sees:
 
-- **Breakage the plan itself causes.** A KEPT test coupled to production by a *string*
-  (`t.Fatal("readAnnFile missing")`) dies when the plan deletes that name, and no tool that lists
+- **Breakage the plan itself causes.** A KEPT test coupled to production by a *string* — say a
+  `t.Fatal("<helper> missing")` naming a function by name — dies when the plan deletes that name,
+  and no tool that lists
   affected files sees it: before deleting an identifier, grep the tests for it **as text**. A doc
   needle that occurs **once** in a file a task rewrites is a scheduled failure: count occurrences of
   every needle older tests require in every document the plan edits. A test that greps a **frozen**
   record stays green while the behaviour it pinned moves — list those and retire them on purpose.
   And every "sole caller", "the only test", "one follow-up" in the plan is a claim: re-run the grep
-  (measured: one was false at six callers, not one; another at three follow-up texts, not one).
+  At least one such claim was false: a "sole caller" had several, and a "one follow-up" had more.
 - **The new tests repeating the defect they replace.** Ask each auditor to audit the tests and
   fakes written *for the fix* with the same lenses. Found in tests written an hour earlier by the
   auditing session: a vector-count check nothing forced to be **per batch** (a +1/−1 pair sums
@@ -273,8 +286,9 @@ own findings missing — it is three classes nothing else sees:
   fixture set the client's size equal to the server's limit; a request field asserted, and the
   refusal it exists to cause never driven through the real call path.
 - **The ledger committing the faults it records.** Sweep every `file:line` in the ledger
-  mechanically. Point by path **and function or test name**, never by line number alone (measured:
-  24 of 147 line refs drifted in one day, task files pointing by name drifted none), and never by a
+  mechanically. Point by path **and function or test name**, never by line number alone — a sixth of
+  the line references in that ledger drifted within a day, while the ones pointing by name drifted
+  none — and never by a
   bare file name — check whether the basename is unique first. State the commit the line numbers
   were taken at.
 

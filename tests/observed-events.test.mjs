@@ -1255,3 +1255,52 @@ test('a log that could not be read whole cannot supply a passing verdict', () =>
     `and must not supply a passing verdict: ${said}`)
   assert.deepEqual(beforeTear, [], 'the pre-tear arm really was clean, so the tear is what changed the answer')
 })
+
+test('a session note never invents a check, and never reports silence as stillness', () => {
+  // ⚠ TWO FALSE STATEMENTS FROM ONE FIELD. The note derived "a `qh-check` passed
+  // on them" from `pending === false`, and `pending` is false in cases that have
+  // nothing to do with a check having run:
+  //
+  //   1. AN INHERITED DIRTY TREE. `treeUnchecked` requires the tree to differ from
+  //      the session's baseline, so a tree that was already dirty at SessionStart
+  //      and unchanged since is not "unchecked" by that test — and the note then
+  //      told the reader a check had passed on paths no check had ever seen. Worse,
+  //      the row it writes is `verified`, which hides the previous unverified row.
+  //   2. A FAILED OBSERVATION. With nothing observable, the file list is empty, so
+  //      the note said "nothing has changed in the working tree" — a verdict about
+  //      a tree it could not look at (ADR-005, CLAUDE.md §3).
+  //
+  // Found by a different-lineage review of this branch. `pending` answers "is
+  // there outstanding work"; it was doing duty for "did a check pass" and for
+  // "was anything observed", and those are three questions.
+  const inherited = [
+    { event: 'session.started', observation: { ok: true, head: 'h', tree: 'T1' } },
+  ]
+  const dirty = { ok: true, head: 'h', tree: 'T1' }
+  // Facts are built directly here rather than through `observedFacts`, because
+  // the defect is in how the NOTE reads them: an inherited dirty tree reaches it
+  // as changed paths with `pending: false` and no check on record at all.
+  const inheritedFacts = { files: ['/x/a.md', '/x/b.md'], other: 0, pending: false, lastCheck: null }
+  const note = lifecycle.sessionStateNote(inheritedFacts, process.cwd(), null, true).text
+  assert.doesNotMatch(note, /a `qh-check` passed/,
+    `no check is on record, so the note must not say one passed: ${note}`)
+  assert.notEqual(lifecycle.sessionStateNote(inheritedFacts, process.cwd(), null, true).status, 'verified',
+    'and the row it writes must not be `verified`, which would hide an earlier unverified one')
+
+  // ...and the same shape WITH a real passing check still credits it, or the
+  // assertion above is satisfied by a note that never credits a check at all.
+  const passed = { ...inheritedFacts, lastCheck: { command: 'sh check.sh', verdict: 'passed' } }
+  const passedNote = lifecycle.sessionStateNote(passed, process.cwd(), null, true).text
+  assert.match(passedNote, /a `qh-check` passed/, `a real check must still be creditable: ${passedNote}`)
+  assert.equal(lifecycle.observedFacts(inherited, null, dirty).pending, false,
+    'the inherited-tree shape really does reach the note with pending false')
+
+  // A tree nothing could observe is not a tree that did not change.
+  const blind = lifecycle.sessionStateNote(
+    lifecycle.observedFacts(inherited, null, { ok: false, reason: 'not a repository' }),
+    process.cwd(), null, true).text
+  assert.doesNotMatch(blind, /nothing has changed/,
+    `could-not-look must not be reported as stillness: ${blind}`)
+  assert.match(blind, /could not|unknown|UNPROVEN/i,
+    `and it must say what it could not do: ${blind}`)
+})

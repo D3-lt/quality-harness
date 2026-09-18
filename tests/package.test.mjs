@@ -251,9 +251,22 @@ test('no acceptance fence discards its runner exit status', () => {
 
 test('a fence whose runner never starts must fail', () => {
   // The behavioural half: run both forms against a runner that does not exist.
+  //
+  // ⚠ QUOTE `out`. Unquoted, MSYS bash eats the backslashes of a Windows temp path
+  // and `tee` writes a RELATIVE file into the REPOSITORY ROOT, literally named
+  // `C:Users<user>AppDataLocalTempqh-fence-XXXo` with the colon stored as
+  // U+F03A because NTFS cannot hold a real one. The test still PASSED, because tee
+  // and grep agreed on the same mangled name — the assertion was satisfied by a
+  // file neither of them meant to create — and it left an untracked file behind on
+  // every run, which this project's own commit gates would trip on (CLAUDE.md §9:
+  // a test must not write into the tree it is testing).
+  // Fixed on main 2026-09-18 and carried here after a Windows session found the
+  // branch still creating them: three untracked copies in one worktree, a third
+  // produced while investigating. Same root cause as the spaced-path defect — a
+  // Windows path crossing into bash without quotes.
   const out = join(mkdtempSync(join(tmpdir(), 'qh-fence-')), 'o')
-  const broken = `nosuchrunner --test x 2>&1 | tee ${out}; ! grep -qE "no tests to run|^FAIL" ${out}`
-  const fixed = `set -o pipefail\nnosuchrunner --test x 2>&1 | tee ${out} && ! grep -qE "no tests to run|^FAIL" ${out}`
+  const broken = `nosuchrunner --test x 2>&1 | tee "${out}"; ! grep -qE "no tests to run|^FAIL" "${out}"`
+  const fixed = `set -o pipefail\nnosuchrunner --test x 2>&1 | tee "${out}" && ! grep -qE "no tests to run|^FAIL" "${out}"`
   const run = f => spawnSync('bash', ['-c', f], { encoding: 'utf8', timeout: 60_000 }).status
   assert.equal(run(broken), 0, 'the old form passes with the runner absent — that is the defect')
   assert.notEqual(run(fixed), 0, 'the form this project now uses does not')

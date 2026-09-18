@@ -179,10 +179,18 @@ export function leafTestsRun(stdout, files = []) {
   const wrappers = new Set(files.flatMap(file => [file, path.resolve(file)]))
   return [...text.matchAll(/^\s*[✔✖] (.+?) \(\d[\d.]*ms\)\s*$/gm)]
     .filter(m => !wrappers.has(m[1]) && !wrappers.has(path.resolve(m[1])))
-    // The shape rule stays as a FALLBACK for a caller that passes no files: it
-    // discounts less than it should (this defect) and never more, and a test
-    // whose name looks like a path is discounted with it (BACKLOG §53).
-    .filter(m => !(/^\S+$/.test(m[1]) && /\.(mjs|js|py|cjs)$/.test(m[1]))).length
+    // The shape rule stays as a FALLBACK for a caller that passes no files — and
+    // that fallback still has to be safe. Node prints the file wrapper ONLY when
+    // nothing matched, at column 0, with the path exactly as argv gave it, so
+    // nothing about its SHAPE distinguishes it from a leaf whose name happens to
+    // look like a path. Measured 2026-09-18 on Windows from a spaced checkout and
+    // on macOS from a spaced directory: with the old `/^\S+$/` the wrapper
+    // survived and a run in which NOTHING executed graded as a passing baseline.
+    // Discounting by extension alone can only discount MORE, which turns a `pass`
+    // into `unrun` and never the reverse — the safe direction for ADR-005, at the
+    // documented cost that a test NAMED like a source file is discounted with it
+    // (BACKLOG §53). Carried from main, where it landed as 1e5fae2.
+    .filter(m => !/\.(mjs|js|py|cjs)$/.test(m[1])).length
 }
 
 export function baselineOf(run, files = []) {

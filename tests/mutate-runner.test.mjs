@@ -1,7 +1,9 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { spawnSync } from 'node:child_process'
-import { dirname, resolve } from 'node:path'
+import { dirname, join, resolve } from 'node:path'
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 
 import { baselineOf, cacheKey, childEnv, classify, killedBy, leafTestsRun, renderLine, reusable, setKeyOf, shardByCost, summarise, testArgs, testSets } from '../scripts/mutate.mjs'
@@ -512,5 +514,47 @@ test('end to end: a nonsense pattern under an inherited dot reporter is unrun, a
   const one = runNode('^a stale entry is decided before any baseline')
   assert.equal(one.status, 0, one.stderr)
   assert.equal(leafTestsRun(one.stdout), 1, `exactly the matching test ran: ${one.stdout.slice(0, 300)}`)
+
+// ⚠ A CHECKOUT PATH WITH A SPACE TURNED "NO TEST RAN" INTO A PASSING BASELINE.
+// Reported by a Windows session running this suite from `Y:\qh with spaces`,
+// 2026-09-18, and CONFIRMED HERE ON macOS the same day from a directory with a
+// space in its name — so it was never a Windows defect. `leafTestsRun`
+// discounted node's file-level reporter line by ABSENCE OF WHITESPACE, and a
+// path with a space stopped looking like a path, survived the filter, and was
+// counted as a leaf test that passed. classify() then never reaches UNPROVEN:
+// every mutant is graded GREEN or RED against a baseline in which nothing ran,
+// which is the exact failure ADR-005 exists to prevent, in the tool whose whole
+// job is catching green-for-the-wrong-reason.
+//
+// Real node output, from a real spaced directory. Hand-written stdout would
+// only prove the regex, and the peer's first synthetic probes were mangled by
+// their own quoting — the numbers that mattered came from captured output.
+test('a checkout path with a space is still an unrun baseline when nothing matched', () => {
+  const spaced = mkdtempSync(join(tmpdir(), 'qh mutate spaces-'))
+  try {
+    const file = join(spaced, 'probe.test.mjs')
+    writeFileSync(file, "import test from 'node:test'\ntest('a real leaf test', () => {})\n")
+    const run = only => spawnSync(process.execPath,
+      testArgs(spaced, { tests: ['probe.test.mjs'], only }),
+      { cwd: spaced, encoding: 'utf8', env: childEnv(), timeout: 120_000 })
+    assert.match(join(spaced, 'probe.test.mjs'), / /, 'the fixture path must contain a space')
+
+    const nothing = run('zzz-no-such-test-zzz')
+    assert.equal(nothing.status, 0, nothing.stderr)
+    const files = [join(spaced, 'probe.test.mjs')]
+    assert.equal(leafTestsRun(nothing.stdout, files), 0,
+      `the file-level line is not a leaf test: ${nothing.stdout.slice(0, 300)}`)
+    assert.equal(baselineOf(nothing, files).state, 'unrun',
+      `a no-match run from a spaced path is not a passing baseline: ${nothing.stdout.slice(0, 300)}`)
+
+    // And the real test still counts, or the discount would have eaten it.
+    const one = run('^a real leaf test$')
+    assert.equal(one.status, 0, one.stderr)
+    assert.equal(leafTestsRun(one.stdout, files), 1, one.stdout.slice(0, 300))
+    assert.equal(baselineOf(one, files).state, 'pass')
+  } finally {
+    rmSync(spaced, { recursive: true, force: true })
+  }
+})
   assert.equal(baselineOf(one).state, 'pass')
 })

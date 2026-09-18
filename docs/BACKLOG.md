@@ -13237,3 +13237,24 @@ updated.
 
 Recorded because it is an ADOPTION fact, not a code defect: the corpus can only be judged against
 what people are actually running.
+
+## 232. The Windows fixes from a real machine, carried onto this branch (2026-09-18)
+
+Three defects a Windows 11 Pro session found by running the suite on a real machine, fixed on `main`
+as `f266411` and cherry-picked here so this branch can be tested on Windows without drowning in them.
+Their evidence and reasoning are in `main`'s §229-§232; this entry exists so a reader of THIS branch
+knows the fixes are here and where the argument lives.
+
+- **A space in the checkout path made a run where NO test ran a passing baseline.** `leafTestsRun`
+  discounted node's file-level line by absence of whitespace. Confirmed on macOS, so never a Windows
+  defect: `~/My Projects/` does it. `leafTestsRun(stdout, files)` and `baselineOf(run, files)` now
+  take the file list `testArgs` passed, so the wrapper line is known rather than inferred.
+- **Six tests failed on a stock Windows account** (symlink EPERM, no Developer Mode) where three
+  others already skipped with a stated reason. `tests/symlink-support.mjs`: a junction for every
+  directory link, so the test RUNS; a stated skip only where a real symlink is the fixture.
+- **MAX_PATH**: documented in `docs/INSTALL.md` (`git clone -c core.longpaths=true`), not fixed by
+  renaming, because the longest paths are task files inside accepted records.
+
+⚠ THE PATH CEILING IS THIS BRANCH'S PROBLEM TOO. ADR-060's longest task filename is 134 characters
+against ADR-059's ceiling of 149, so this branch does not raise it — but every new task file written
+here spends the same 110-character budget a Windows clone has for its checkout root.

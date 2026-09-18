@@ -1555,3 +1555,69 @@ test('a check that passed on a DIFFERENT tree certifies nothing here', () => {
     `no check has passed on THESE paths: ${note.text}`)
   assert.notEqual(note.status, 'verified', `and the row must not be verified: ${note.text}`)
 })
+
+test('a file edited while the BATCH gated it is not recorded as answered either', () => {
+  // ⚠ THE SAME DEFECT AS THE PER-EDIT GATE, IN THE SIBLING NOBODY FIXED. A
+  // re-review found that closing it in `runEditGate` left `artifactRule` hashing
+  // AFTER `runArtifactGates` returned: the batch computed each identity for its
+  // filter, ran the gates, then computed the identity AGAIN to record it. A file
+  // edited while the batch was gating it was therefore filed under its NEW
+  // content carrying the OLD content's verdict, and rule A suppressed the one
+  // edit nothing had looked at.
+  //
+  // This is CLAUDE.md §5 — I fixed the instance the counterexample took and left
+  // the class open one function away.
+  const dir = repository('batchmoved-')
+  projectWithCheck(dir)
+  mkdirSync(path.join(dir, 'docs', 'adr'), { recursive: true })
+  const record = path.join(dir, 'docs', 'adr', 'ADR-904-batch.md')
+  writeFileSync(record, '# ADR-904: before the batch\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'a record for the batch to gate')
+  const session = sessionId('batchmoved')
+
+  const probe = async (moduleUrl, file, cwd, sessionId) => {
+    const cp = await import('node:child_process')
+    const fs = await import('node:fs')
+    const { syncBuiltinESMExports } = await import('node:module')
+    const original = cp.default.spawnSync
+    // Intercept ONLY the artifact runner — git and the observation still need the
+    // real thing, and mocking those would test a different program.
+    cp.default.spawnSync = (command, args, options) => {
+      if (Array.isArray(args) && args.some(a => typeof a === 'string' && a.endsWith('run-shell-hook.mjs'))) {
+        fs.writeFileSync(file, '# ADR-904: CHANGED while the batch was gating it\n')
+        // The batch keeps its per-path record from the runner's stdout, so the
+        // fake gate must answer in that shape or nothing is recorded at all.
+        return {
+          status: 0, stderr: '', error: null, signal: null,
+          stdout: JSON.stringify({ gated: file, complete: true }) + '\n',
+        }
+      }
+      return original(command, args, options)
+    }
+    syncBuiltinESMExports()
+    const lifecycle = await import(moduleUrl)
+    await lifecycle.handleHook({
+      hook_event_name: 'SessionStart', source: 'startup', session_id: sessionId, cwd,
+    })
+    fs.writeFileSync(file, '# ADR-904: edited by the session\n')
+    await lifecycle.handleHook({ hook_event_name: 'Stop', session_id: sessionId, cwd })
+    process.stdout.write('done')
+  }
+  const code = '(' + probe.toString() + ')(...' + JSON.stringify([
+    pathToFileURL(path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')).href,
+    record, dir, session,
+  ]) + ')'
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', code],
+    { encoding: 'utf8', timeout: 120_000, cwd: dir, env: HOOK_ENV })
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
+
+  const state = path.join(dir, '.git', 'quality-harness')
+  const gated = named(eventsIn(state, session), 'artifact.gated').filter(entry => entry.path === record).at(-1)
+  assert.ok(gated, `the batch must have recorded something for this path: ${JSON.stringify(eventsIn(state, session).map(e => e.event))}`)
+  const after = createHash('sha256').update(readFileSync(record)).digest('hex')
+  assert.notEqual(gated.blob, after,
+    'the identity must be the content the batch was GIVEN, not what the file holds after it')
+  assert.equal(gated.complete, false,
+    'and a gate whose bytes moved underneath it has not answered about them')
+})

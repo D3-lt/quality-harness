@@ -15,15 +15,15 @@ reads a diff and gives a verdict. An audit has no diff and gives no verdict. Its
 ledger: every defect, where it is, how it is known, what fixes it, what proves the fix — written
 down so that nothing depends on anyone remembering a conversation.
 
-Contributed 2026-09-18, distilled from one exhaustive audit of a repository whose suite was green,
-whose records said "closed, nothing pending", and in which most applied mutants survived, two flows
-failed for ever, and the README quick start did not compile. Every rule below is here because
-skipping it hid something real.
+Contributed 2026-09-18, distilled from one exhaustive audit whose findings are not reproduced here.
+Every rule below exists because skipping it hid something; what it hid was in a repository you are
+not auditing, so this file states the MECHANISM and leaves the measuring to you.
 
-⚠ **This file carries no measurements from that audit, deliberately.** The figures were about
-another project's code, and a number borrowed from a repository you are not auditing is worse than
-no number: it reads as evidence about YOUR tree. Where a rule below once cited a count, it now
-states the mechanism and leaves the measuring to you — which is the only form that transfers.
+⚠ **No figure here is a measurement, including the ones that sound like one.** A count borrowed from
+another codebase is worse than no count: it reads as evidence about YOUR tree, and rounding it —
+"a third", "a sixth" — hides its origin without removing it. An earlier draft of this file claimed
+to carry no measurements while still carrying rounded ones, which is the same defect the file
+warns about, committed by the file itself.
 
 ## The effort contract — read this before anything else
 
@@ -93,8 +93,9 @@ Resolve paths from `git ls-files`, never from the disk: a gate whose answer depe
 asking is not a gate, and untracked build output makes every run mean something different.
 
 Partition the inventory into scopes so that **every file is in exactly one scope** and no scope
-is too large to read end to end (about 3–4k lines of tests per auditor worked; 11k lines of tests
-needed four). Production code small enough to read yourself (a few thousand lines): read all of it
+is too large to read end to end. A few thousand lines of tests is a workable scope for one auditor;
+size yours by what a reader can actually hold, and say in the ledger how you split it.
+Production code small enough to read yourself (a few thousand lines): read all of it
 yourself first — the coordinator who has not read the code cannot judge what comes back.
 
 Typical scopes: core store/state · traversal/query logic · telemetry and protocol/doc tests ·
@@ -134,8 +135,8 @@ finish, and ask before removing anything you did not create.
   id) trusts anything that matches them. Check what the datastore reuses: SQLite hands a deleted
   top rowid out again, so count AND max rowid can match a different row. Ask: what binds this
   cache to *these* rows, and what detects a changed body? Flip every byte of a small valid file
-  and count how many still load. A third of a corpus surviving a flipped byte is not an unusual
-  result; measure yours rather than assuming either way.
+  and count how many still load. Expect a substantial share to survive; the point is that you cannot
+  guess the share, and a cache validated by a few numbers cannot tell you either.
 - **A dependency's limits versus how callers batch.** Read the dependency's own log or `/info`:
   a server that caps a batch at 32 and a caller that sends everything in one request is a flow
   that fails for every large input, for ever, and no retry helps. Fakes never have the limit.
@@ -286,9 +287,8 @@ its own as missing — it is three classes nothing else sees:
   fixture set the client's size equal to the server's limit; a request field asserted, and the
   refusal it exists to cause never driven through the real call path.
 - **The ledger committing the faults it records.** Sweep every `file:line` in the ledger
-  mechanically. Point by path **and function or test name**, never by line number alone — a sixth of
-  the line references in that ledger drifted within a day, while the ones pointing by name drifted
-  none — and never by a
+  mechanically. Point by path **and function or test name**, never by line number alone — line
+  references drift within days while names do not — and never by a
   bare file name — check whether the basename is unique first. State the commit the line numbers
   were taken at.
 

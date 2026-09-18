@@ -8,7 +8,8 @@
 import assert from 'node:assert/strict'
 import { createHash } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
-import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs'
+import { chmodSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { linkDirectory } from './symlink-support.mjs'
 import os from 'node:os'
 import { delimiter, dirname, join, resolve } from 'node:path'
 import test from 'node:test'
@@ -932,7 +933,7 @@ test('a symlinked record finds the record file beside the link, not beside its t
   const realTasks = join(elsewhere, 'ADR-050-linked', 'tasks')
   mkdirSync(realTasks, { recursive: true })
   writeFileSync(join(realTasks, 'T1-t.md'), task({ id: 'T1' }))
-  symlinkSync(join(elsewhere, 'ADR-050-linked'), join(dir, 'ADR-050-linked'))
+  linkDirectory(join(elsewhere, 'ADR-050-linked'), join(dir, 'ADR-050-linked'))
   // The record file sits beside the LINK, which is where a reader would put it.
   writeFileSync(join(dir, 'ADR-050-linked.md'),
     '# ADR-050: linked\n\n**Status:** Proposed\n')

@@ -2,8 +2,9 @@ import assert from 'node:assert/strict'
 import { spawnSync } from 'node:child_process'
 import {
   chmodSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, readdirSync, readlinkSync, rmSync,
-  symlinkSync, writeFileSync,
+  writeFileSync,
 } from 'node:fs'
+import { linkDirectory, symlinkOrSkip } from './symlink-support.mjs'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import test from 'node:test'
@@ -349,7 +350,7 @@ test('a real forwarder resolves and runs the gate it names', { skip: process.pla
   // A cache holding this very checkout, so the forwarder runs a real gate.
   const cache = path.join(cacheDirectory(directory), '9.9.9')
   mkdirSync(path.dirname(cache), { recursive: true })
-  symlinkSync(root, cache, 'dir')
+  linkDirectory(root, cache)
   try {
     const run = spawnSync(script, ['ADR-001-selftest.md', 'tasks'], {
       cwd: path.join(repoRoot, 'tests', 'fixtures', 'ok'),
@@ -415,11 +416,13 @@ test('a forwarder this tool wrote may be rewritten by it', () => {
   }
 })
 
-test('a symlink pointing outside this plugin is left alone', () => {
+test('a symlink pointing outside this plugin is left alone', t => {
   const directory = home({ 'elsewhere/adr-lint': 'not ours\n' })
   mkdirSync(path.join(directory, '.claude', 'bin'), { recursive: true })
-  symlinkSync(path.join(directory, 'elsewhere', 'adr-lint'),
-    path.join(directory, '.claude', 'bin', 'adr-lint'))
+  // A FILE link: only a real symlink will do, so this arm says when it cannot
+  // be built rather than failing as though the plan were wrong.
+  if (!symlinkOrSkip(t, path.join(directory, 'elsewhere', 'adr-lint'),
+    path.join(directory, '.claude', 'bin', 'adr-lint'))) return
   try {
     const entry = linkPlan(root, directory).find(e => e.to.endsWith(`bin${path.sep}adr-lint`))
     assert.equal(entry.state, 'skipped')
@@ -569,8 +572,8 @@ test('a symlink is archived as a symlink, not as what it points at', () => {
   // and call it an original.
   const directory = home({ 'elsewhere/SKILL.md': '---\nname: adr-write\n---\n' })
   mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
-  symlinkSync(path.join(directory, 'elsewhere'),
-    path.join(directory, '.claude', 'skills', 'adr-write'), 'dir')
+  linkDirectory(path.join(directory, 'elsewhere'),
+    path.join(directory, '.claude', 'skills', 'adr-write'))
   try {
     const kept = archive({
       to: path.join(directory, '.claude', 'skills', 'adr-write'),
@@ -582,7 +585,7 @@ test('a symlink is archived as a symlink, not as what it points at', () => {
   }
 })
 
-test('a dangling symlink is archived rather than throwing mid-run', () => {
+test('a dangling symlink is archived rather than throwing mid-run', t => {
   // The case the explicit branch exists for, and the one the first test missed:
   // cpSync preserves a live link but throws ENOENT on a broken one. A home
   // config directory collects broken links, because the checkout a skill points
@@ -591,7 +594,8 @@ test('a dangling symlink is archived rather than throwing mid-run', () => {
   const directory = home()
   mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
   const broken = path.join(directory, '.claude', 'skills', 'adr-write')
-  symlinkSync(path.join(directory, 'moved-away'), broken)
+  // Deliberately dangling: a junction to a missing target is not the same fixture.
+  if (!symlinkOrSkip(t, path.join(directory, 'moved-away'), broken)) return
   try {
     const kept = archive({ to: broken, relative: path.join('skills', 'adr-write') },
       'stamp', directory)
@@ -712,7 +716,7 @@ test('an archive that cannot create a symlink records its target instead', () =>
   const directory = home({ 'elsewhere/SKILL.md': '---\nname: adr-write\n---\n' })
   mkdirSync(path.join(directory, '.claude', 'skills'), { recursive: true })
   const link = path.join(directory, '.claude', 'skills', 'adr-write')
-  symlinkSync(path.join(directory, 'elsewhere'), link, 'junction')
+  linkDirectory(path.join(directory, 'elsewhere'), link)
   const refuse = () => { const error = new Error('EPERM'); error.code = 'EPERM'; throw error }
   try {
     const kept = archive({ to: link, relative: path.join('skills', 'adr-write') },
@@ -726,7 +730,7 @@ test('an archive that cannot create a symlink records its target instead', () =>
 
 test('the write still happens when the archive cannot make a link', {
   skip: process.platform === 'win32' ? 'no unprivileged file symlink' : false,
-}, () => {
+}, t => {
   // The failure that mattered: archive threw, so write threw, so the entry was
   // never installed. Thirteen of nineteen entries stayed on the previous release
   // and the run reported "6 of 19 installed". A gate left as a symlink by an
@@ -737,7 +741,7 @@ test('the write still happens when the archive cannot make a link', {
   writeFileSync(path.join(old, 'adr-verify'), 'last release\n')
   mkdirSync(path.join(directory, '.claude', 'bin'), { recursive: true })
   const link = path.join(directory, '.claude', 'bin', 'adr-verify')
-  symlinkSync(path.join(old, 'adr-verify'), link)
+  if (!symlinkOrSkip(t, path.join(old, 'adr-verify'), link)) return
   const refuse = () => { const error = new Error('EPERM'); error.code = 'EPERM'; throw error }
   try {
     const entry = linkPlan(root, directory).find(e => e.to.endsWith(`bin${path.sep}adr-verify`))

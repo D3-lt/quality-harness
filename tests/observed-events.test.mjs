@@ -1304,3 +1304,48 @@ test('a session note never invents a check, and never reports silence as stillne
   assert.match(blind, /could not|unknown|UNPROVEN/i,
     `and it must say what it could not do: ${blind}`)
 })
+
+test('a session that began before the first commit still sees the commits it gained', () => {
+  // ⚠ AN UNBORN HEAD IS AN OBSERVATION, NOT AN ABSENCE. `observe()` records a
+  // repository with no commits as `{ ok: true, head: null }` — positively looked
+  // at, positively empty. Both consumers then required a STRING baseline:
+  // `sessionCommits` returned early, and the artifact candidates skipped their
+  // `git diff --name-only <first>` entirely. So a session that started in a fresh
+  // repository and gained commits before the next boundary reported NO new
+  // commits and NO artifacts to gate — the whole point of R2, silent, in the one
+  // case where everything is new.
+  //
+  // `git init` then work is the ordinary start of a project, and a scaffold that
+  // commits as it goes is the ordinary way to reach this. Found by a
+  // different-lineage review of this branch, 2026-09-18.
+  const dir = mkdtempSync(path.join(testTmp, 'unborn-'))
+  git(dir, 'init', '-q')
+  projectWithCheck(dir)
+  const session = sessionId('unborn')
+  const state = path.join(dir, '.git', 'quality-harness')
+  hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+
+  // The premise, asserted rather than assumed: the session really did start with
+  // an unborn HEAD that was successfully observed.
+  const started = named(eventsIn(state, session), 'session.started').at(-1)
+  assert.equal(started?.observation?.ok, true, 'the empty repository must be observable')
+  assert.equal(started?.observation?.head, null, 'and its HEAD must be unborn')
+
+  // Now the repository gains its history, as a scaffold or a script would do.
+  // TWO commits, deliberately: R2 defers to R1 for a commit whose tree IS the
+  // working tree ("the observed working tree is R1's to speak for"), so a
+  // single-commit fixture would be silent for a legitimate reason and prove
+  // nothing about this defect.
+  writeFileSync(path.join(dir, 'docs.md'), 'first\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'the first commit, which nothing has checked')
+  writeFileSync(path.join(dir, 'more.md'), 'second\n')
+  git(dir, 'add', '-A')
+  git(dir, 'commit', '-q', '-m', 'and a second, so the first tree is not the working tree')
+  const run = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+  const said = `${run.stdout}${run.stderr}`
+
+  assert.match(said, /commit/i, `a commit nothing checked must be reported: ${said}`)
+  const rules = named(eventsIn(state, session), 'action.emitted').map(entry => entry.rule)
+  assert.ok(rules.includes('R2'), `R2 must fire for the commits gained since an unborn HEAD: ${rules}`)
+})

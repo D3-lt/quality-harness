@@ -561,3 +561,60 @@ test('archive prefetch keeps incomplete history unknown and respects the shared 
   }
   assert.equal(archiveHistory(files, Date.now() - 1, () => { throw new Error('budget spent') }).size, 0)
 })
+
+test('a gate the OS killed is not a gate that answered', t => {
+  // ⚠ A SIGNALLED CHILD HAS `status: null`, WHICH IS NOT AN INTEGER — and the
+  // completion guard tested `Number.isInteger(run.status) && run.status !== 0`.
+  // So a gate killed by SIGTERM or SIGKILL sailed past it and `verdict.complete`
+  // was set true, after which rule A treats the artifact as answered and does not
+  // gate it again. A gate that was killed has made NO observation; ADR-005 calls
+  // that could-not-look, and could-not-look must never wear a verdict's clothes
+  // (CLAUDE.md §3).
+  //
+  // Found by a different-lineage review of this branch, which reproduced it with
+  // a real `bash -c 'kill -TERM $$'`. Driven here through the spawn seam so it is
+  // deterministic and creates no OS process.
+  const probe = async moduleUrl => {
+    const cp = await import('node:child_process')
+    const { EventEmitter } = await import('node:events')
+    const { PassThrough } = await import('node:stream')
+    const { syncBuiltinESMExports } = await import('node:module')
+    let signalled = true
+    cp.default.spawn = () => {
+      const child = new EventEmitter()
+      child.stdout = new PassThrough()
+      child.stderr = new PassThrough()
+      child.stdin = new PassThrough()
+      child.unref = () => {}
+      // A signalled child: null status, and the signal beside it.
+      queueMicrotask(() => child.emit('close', signalled ? null : 0, signalled ? 'SIGTERM' : null))
+      return child
+    }
+    syncBuiltinESMExports()
+    const { runShellHook } = await import(moduleUrl)
+    let stderr = ''
+    const original = process.stderr.write
+    process.stderr.write = chunk => { stderr += chunk; return true }
+    const killed = {}
+    await runShellHook('facts-gate-dispatch.sh', JSON.stringify({ tool_input: { file_path: 'x.md' } }),
+      { verdict: killed, timeoutMs: 5_000 })
+    // ...and the same seam with a clean exit, so the assertion above is not
+    // satisfied by a `complete` that is never set at all (CLAUDE.md §4).
+    signalled = false
+    const clean = {}
+    await runShellHook('facts-gate-dispatch.sh', JSON.stringify({ tool_input: { file_path: 'x.md' } }),
+      { verdict: clean, timeoutMs: 5_000 })
+    process.stderr.write = original
+    process.stdout.write(JSON.stringify({ killed: killed.complete ?? null, clean: clean.complete ?? null, stderr }))
+  }
+  const code = '(' + probe.toString() + ')(...' + JSON.stringify([
+    pathToFileURL(path.join(pluginRoot, 'scripts', 'run-shell-hook.mjs')).href,
+  ]) + ')'
+  const run = spawnSync(process.execPath, ['--input-type=module', '-e', code],
+    { encoding: 'utf8', timeout: 60_000, cwd: scratch(t) })
+  assert.equal(run.status, 0, `${run.stdout}${run.stderr}`)
+  const result = JSON.parse(run.stdout)
+  assert.equal(result.killed, false, `a killed gate must not be complete: ${run.stdout}`)
+  assert.equal(result.clean, true, 'and a clean one still is, or the check above asserts nothing')
+  assert.match(result.stderr, /killed|signal/i, 'the kill is said out loud, not swallowed')
+})

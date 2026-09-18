@@ -240,11 +240,11 @@ export function runWithTimeout(executable, args, options = {}) {
     child.stderr?.on('data', chunk => capture('stderr', chunk))
     child.on('error', error => { spawnError = error })
 
-    const settle = (status, closed) => {
+    const settle = (status, closed, signal = null) => {
       clearTimeout(timer)
       clearTimeout(grace)
       resolve({
-        error: spawnError, status, stderr, stdout, timedOut, outputLimitExceeded, pid: child.pid,
+        error: spawnError, status, signal, stderr, stdout, timedOut, outputLimitExceeded, pid: child.pid,
         // `closed` is the only observation that the tree is gone; a kill that
         // was issued is not one that landed (ADR-005).
         cleanupConfirmed: timedOut || outputLimitExceeded ? closed : null,
@@ -270,7 +270,10 @@ export function runWithTimeout(executable, args, options = {}) {
       stop()
     }, timeoutMs)
 
-    child.on('close', status => settle(status, true))
+    // ⚠ KEEP THE SIGNAL. A child the OS killed closes with `status: null` and the
+    // signal name beside it; discarding the second argument left `null` standing in
+    // for "no status yet" and for "killed", which are not the same observation.
+    child.on('close', (status, signal) => settle(status, true, signal))
     child.stdin?.on('error', () => {})
     child.stdin?.end(input)
   })
@@ -406,6 +409,18 @@ export async function runShellHook(scriptName, raw, options = {}) {
       + 'could report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n')
     return 0
   }
+  // ⚠ A CHILD THE OS KILLED IS COULD-NOT-LOOK, NOT A CLEAN GATE. It closes with
+  // `status: null` and a signal name, so a guard written as
+  // `Number.isInteger(run.status) && run.status !== 0` never fires for it — and
+  // `complete` was then set from cleanup alone, after which rule A treats the
+  // artifact as answered and never gates it again. A gate that was killed made no
+  // observation (ADR-005; CLAUDE.md §3). Found by a different-lineage review of
+  // this branch, reproduced with a real `bash -c 'kill -TERM $$'`.
+  if (run.signal) {
+    process.stderr.write(`quality-harness: ${scriptName} was killed by ${run.signal} before it could `
+      + 'report, so treat this edit as unchecked rather than clean. Nothing is blocked.\n')
+    return 0
+  }
   // The hook scripts are advisory by construction and exit 0 even when they have
   // findings. A non-zero here is one of them breaking, which is still not a
   // reason to refuse the user's edit.
@@ -414,7 +429,9 @@ export async function runShellHook(scriptName, raw, options = {}) {
       + 'never do — the gates report, they do not refuse. Nothing is blocked; please report this.\n')
     return 0
   }
-  if (verdict) verdict.complete = run.cleanupConfirmed !== false && !unproven
+  // `complete` requires an OBSERVED zero exit. Anything else — a signal, a null
+  // from a grace-period settle, an undefined from a seam — is not an answer.
+  if (verdict) verdict.complete = run.status === 0 && run.cleanupConfirmed !== false && !unproven
   return 0
 }
 

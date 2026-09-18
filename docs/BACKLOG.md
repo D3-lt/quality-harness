@@ -13461,3 +13461,65 @@ question.
 NOT DONE: none of this is implemented. It changes `archive()` from always-succeeds to can-throw,
 which reaches every caller of `write()`, so it is a decision for the owner rather than a fix to slip
 in behind a Windows commit. Recorded so the ruling is not lost with the session.
+
+## 240. A defect that switched off its own regression guard, and the tooling that nearly hid it (2026-09-18)
+
+Two findings from the same thread, and the first is the sharpest version of this whole day.
+
+### The guard the defect disabled
+
+`a checkout path with a space is still an unrun baseline when nothing matched` was registered
+INSIDE the callback of `end to end: a nonsense pattern under an inherited dot reporter is unrun, and
+a matching one passes` — a missing `})`, so it was a SUBTEST rather than a sibling. A different-
+lineage review found the nesting; two Windows sessions independently found what it caused.
+
+**The parent is the test that fails on a spaced checkout, because of the `leafTestsRun` whitespace
+bug. The child is the regression guard FOR that bug.** So on a spaced checkout the parent failed,
+the child never ran, and the only test that would have caught the spaced-path defect was switched
+off BY the spaced-path defect. Measured three runs each way:
+
+```
+3 × spaced   : subtest present 0 times, indented TAP result marks 1
+3 × unspaced : subtest present 1 time,  indented TAP result marks 2
+```
+
+The only outward sign was a test COUNT one lower on a spaced checkout — 1067 against 1068 — which
+is exactly the kind of number that reads as noise and that nobody chases. It was pursued for hours
+across three sessions as suspected path-conditional registration before it resolved into this.
+
+Both causes are now fixed: the nesting on `main` (6290a95) and on `adr-060-trial` (df3046f), and
+the `leafTestsRun` guard carried onto the branch in the same commit.
+
+⚠ **The general form, which is what to keep:** a regression guard nested under a test that the same
+defect fails is a guard that is absent exactly when it is needed. Ask of any new guard whether
+anything it depends on can be broken by the thing it is guarding against — and register it as a
+SIBLING, never inside another test's body. A focused run by name is the cheap check: a nested test
+selected by its own name reports the FILE as a pass and runs none of its assertions.
+
+### Four verification-tooling failures in one session, all silent, all returning a number
+
+Every one of these was inside a command written to VERIFY another finding, and every one returned a
+plausible wrong answer rather than an error. Two sessions, one working day:
+
+1. `grep -c '^[✔✖﹣] '` returned a confident **0**. A bracket expression matches BYTES outside a
+   UTF-8 locale, so a three-byte marker never matches as a class — while `^[✔✖﹣].*text` still
+   matches, which is what makes the zero convincing.
+2. The fix proposed for it, `sed -E 's/^. //'`, strips one BYTE. Every name kept a UTF-8
+   continuation byte and the resulting histogram was two buckets of mojibake.
+3. The same byte-class trap again, in a third extraction.
+4. **Under MSYS, `/tmp` IS `%TEMP%`.** An intermediate written to `/tmp/x` while reading `%TEMP%/x`
+   truncated its own source before the pipeline read it, destroying both transcripts. "Write the
+   intermediate somewhere neutral" is the CAREFUL habit, and on that platform the neutral place is
+   the same place.
+
+**And the instrument existed.** `scripts/selftest.sh` already emits TAP under
+`QUALITY_HARNESS_TAP` — `ok N - <name>`, one line per test, ASCII markers, nothing to mis-match —
+and both sessions hand-rolled a worse parser instead of reaching for it. Even then the first TAP
+grep was anchored `^(ok|not ok)` and silently dropped the INDENTED lines, which is what produced a
+1066 that disagreed with node and started a second false trail. `^[[:space:]]*(ok|not ok) N - `
+matches node exactly.
+
+The class is worth more than any of the four: **ad-hoc verification tooling fails silently and
+returns a number, and it is reached for precisely when someone is being careful.** Prefer the
+project's own machine-readable output over a parser written in the moment, and when a verification
+command produces a surprising count, suspect the command before the finding.

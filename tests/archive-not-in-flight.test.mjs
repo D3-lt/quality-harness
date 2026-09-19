@@ -144,6 +144,14 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   assert.deepEqual(corpus([row('withdrawn', { link: 'https://example.invalid/../../ADR-007-x.md' })]), unproven, 'dot-dot cancels the host')
   assert.deepEqual(corpus([row('withdrawn', { link: '/ADR-007-x.md' })]), unproven, 'a rooted link whose root is dropped by splitting')
   assert.deepEqual(corpus([row('withdrawn', { link: 'ADR-007-x.md#decision' })]), { governs: 0, buried: 1, look: 'ok' }, 'a fragment is not part of the file')
+  // ⚠ AND THE FORMS A BLOCKLIST WALKED PAST. The guard was a list of things a link
+  // must NOT be, and a leading space and an angle-wrapped URL were not on it (fourth
+  // review). It is now a grammar a link must MATCH, so these fail by not being one.
+  assert.deepEqual(corpus([row('withdrawn', { link: ' https://example.invalid/../../ADR-007-x.md' })]), unproven, 'a leading space')
+  assert.deepEqual(corpus([row('withdrawn', { link: '<https://example.invalid/../../ADR-007-x.md#decision>' })]), unproven, 'angle-wrapped, with a fragment')
+  assert.deepEqual(corpus([row('withdrawn', { link: './/ADR-007-x.md' })]), unproven, 'an empty path segment')
+  assert.deepEqual(corpus([row('withdrawn', { link: '..\\docs\\adr-archive\\ADR-007-x.md' })]), unproven, 'backslashes are not link separators')
+  assert.deepEqual(corpus([row('withdrawn', { link: '../adr-archive/ADR-007-x.md' })]), { governs: 0, buried: 1, look: 'ok' }, 'the control: dot-dot that really does come back to the record')
   assert.deepEqual(corpus([row('withdrawn', { link: './ADR-007-x.md' })]), { governs: 0, buried: 1, look: 'ok' })
 
   // A README the listing spells `readme.md`. Where the exact name and the listed
@@ -156,10 +164,17 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   // `existsSync(exact)`, so an unlisted, unrelated `README.md` beside a listed
   // `readme.md` switched the listed one on. Driven through a stat stub, so the
   // two-distinct-files case is reachable on a filesystem that cannot hold both.
-  const stat = entries => file => { if (!(file in entries)) throw new Error('ENOENT'); return { dev: 1n, ino: entries[file] } }
+  const gone = Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
+  const stat = (entries, missing = gone) => file => { if (!(file in entries)) throw missing; return { dev: 1n, ino: entries[file] } }
   assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 7n, 'readme.md': 7n })), true, 'the control: one entry, two spellings')
   assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 8n, 'readme.md': 7n })), false, 'two files that both exist')
-  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'readme.md': 7n })), false, 'the exact name opens nothing')
+  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'readme.md': 7n })), false, 'the exact name opens nothing: proven different')
+  // ⚠ AND A THIRD ANSWER. An identity that could not be READ proves neither: EIO
+  // made a frozen record govern, and a filesystem reporting inode 0 for everything
+  // made two distinct files one — each with `look: ok` (fourth review).
+  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'readme.md': 7n }, Object.assign(new Error('EIO'), { code: 'EIO' }))), null)
+  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 0n, 'readme.md': 0n })), null, 'inode 0 identifies nothing')
+  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', sameEntry: () => null }), unproven, 'and unknown identity is UNPROVEN, in neither direction')
 
   // A README git does not list governs nothing (CLAUDE.md §8): the record's own
   // status stands, as it would on any other machine.

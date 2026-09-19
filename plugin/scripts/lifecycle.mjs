@@ -914,25 +914,31 @@ const README_UNKNOWN = Symbol('a README is listed here under another spelling')
 // found by probing the change before its review ran. The listed variant is read
 // under its LISTED spelling, which opens that file on any filesystem and needs no
 // folding at all: without the marker it is a README and nothing more.
-export function listedReadme(directory, isListed, variants, read) {
-  const exact = path.join(directory, 'README.md')
-  if (isListed(exact)) return exact
-  // EVERY variant, not the first: a case-sensitive checkout can track `Readme.md`
-  // and `readme.md` side by side, and `.find` stopped at an ordinary one while the
-  // other carried the marker (sixth review). Ordinary only when ALL of them are
-  // readable and unmarked.
-  // ⚠ AND TWO LISTED SPELLINGS ARE UNKNOWN OUTRIGHT. Checked out on a filesystem
-  // that folds case, both names open ONE file: a marked `Readme.md` and an ordinary
-  // `readme.md` were each "read", the ordinary content came back twice, and the
-  // frozen record governed with its task READY (seventh review). Reading cannot
-  // establish two contents through one file, and nothing here can tell which
-  // filesystem it is on — so it does not try.
-  const spellings = variants(directory).filter(name => name.toLowerCase() === 'readme.md')
+// ⚠ TOTAL OVER ONE TABLE, AND THE COUNT COMES FIRST. `names` is every basename the
+// listing holds in this directory; the READMEs among them are those that equal
+// `readme.md` ignoring case — the exact `README.md` INCLUDED:
+//
+//   none listed                      null      not an archive question
+//   more than one listed             UNKNOWN   on a filesystem that folds case they
+//                                              open ONE file, so which entry's bytes
+//                                              were read cannot be established —
+//                                              whichever spelling was asked for
+//   exactly `README.md`              its path  the caller reads it and decides
+//   one other spelling, marked       UNKNOWN   whether it is the catalog depends on
+//      or unreadable                           the filesystem; this does not guess
+//   one other spelling, ordinary     null      a README and nothing more
+//
+// It reached this shape one cell at a time, over five reviews: the first variant
+// only; an exact-name shortcut that returned BEFORE the collision count, so
+// `README.md` + `readme.md` gave a definite answer in either direction (eighth
+// review); and three ways of asking the filesystem, all deleted. Each cell is a
+// case in tests/archive-not-in-flight.test.mjs.
+export function listedReadme(directory, names, read) {
+  const spellings = names.filter(name => name.toLowerCase() === 'readme.md')
+  if (spellings.length === 0) return null
   if (spellings.length > 1) return README_UNKNOWN
-  for (const variant of spellings) {
-    try { if (read(path.join(directory, variant)).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)) return README_UNKNOWN } catch { return README_UNKNOWN }
-  }
-  return null
+  if (spellings[0] === 'README.md') return path.join(directory, 'README.md')
+  try { return read(path.join(directory, spellings[0])).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null } catch { return README_UNKNOWN }
 }
 
 // true, false, or 'unknown' — a listed README that could not be read is unknown
@@ -944,8 +950,7 @@ function underFrozenArchive(root, dirParts, cache, listed) {
     if (!cache.has(key)) {
       let frozen = false
       const readme = listedReadme(path.join(root, ...dirParts.slice(0, depth)),
-        () => listed.has(`${key}/README.md`),
-        () => [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)),
+        [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)),
         file => readFileSync(file, 'utf8'))
       if (readme === README_UNKNOWN) frozen = 'unknown'
       else if (readme !== null) {
@@ -1255,8 +1260,8 @@ function archiveDecisionEffect(file, reader, cache, listed) {
   const directory = path.dirname(file)
   if (!cache.has(directory)) {
     let rows = null
-    const readme = listedReadme(directory, candidate => listed.has(candidate),
-      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),
+    const readme = listedReadme(directory,
+      [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),
       candidate => reader.text(candidate))
     if (readme === README_UNKNOWN) rows = 'unknown-readme'
     else if (readme !== null) {

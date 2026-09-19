@@ -259,30 +259,42 @@ test('a directory named tasks that holds no Markdown is not an ADR task director
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
-// Two spellings tracked side by side — possible only on a case-sensitive checkout,
-// so it is driven through the function's own seams and runs on every platform.
-// `.find` stopped at the first variant: an ordinary `Readme.md` hid a marked
-// `readme.md` beside it, and the record governed (sixth review).
-test('every listed README variant is read, not the first one', () => {
+// `listedReadme` is total over one table, and this is that table, a row a cell.
+// Driven through the function's own seams: two spellings in one directory cannot
+// exist on a filesystem that folds case, which is two of the three platforms here.
+// It reached this shape a cell at a time over five reviews — the first variant only
+// (sixth); two variants read through one aliased file (seventh); and an exact-name
+// shortcut that returned BEFORE the collision count, so `README.md` + `readme.md`
+// gave a definite answer in whichever direction the surviving bytes pointed (eighth).
+test('which README a directory\'s archive marker is read from: every cell of the table', () => {
   const MARKED = '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n'
-  const look = files => listedReadme('/d', () => false, () => Object.keys(files), file => {
+  const ORDINARY = '# notes\n'
+  const look = files => listedReadme('/d', Object.keys(files), file => {
     const name = file.split(/[\\/]/).at(-1)
     if (files[name] === null) throw new Error('EIO')
     return files[name]
   })
-  // The controls: no variant at all, and ONE ordinary variant, are not an archive question.
+  const unknown = value => typeof value === 'symbol'
+  // None listed: not an archive question. Near-matches are not READMEs.
   assert.equal(look({ 'notes.md': 'x' }), null)
-  assert.equal(look({ 'readme.md': '# notes\n' }), null)
-  assert.equal(look({ 'readme.md.bak': MARKED, 'xreadme.md': MARKED }), null, 'near-matches are not READMEs')
-  assert.equal(typeof look({ 'readme.md': MARKED }), 'symbol')
-  assert.equal(typeof look({ 'ReadMe.MD': null }), 'symbol', 'unreadable')
-  // ⚠ TWO LISTED SPELLINGS ARE UNKNOWN WHATEVER THEY READ AS. On a filesystem that
-  // folds case both names open ONE file, so a marked `Readme.md` beside an ordinary
-  // `readme.md` reads as ordinary TWICE — this is that aliasing reader — and the
-  // frozen record governed with its task READY (seventh review).
-  const aliased = listedReadme('/d', () => false, () => ['Readme.md', 'readme.md'], () => '# ordinary notes\n')
-  assert.equal(typeof aliased, 'symbol', 'one file read twice establishes nothing about two entries')
-  assert.equal(typeof look({ 'Readme.md': '# notes\n', 'readme.md': MARKED }), 'symbol')
+  assert.equal(look({ 'readme.md.bak': MARKED, 'xreadme.md': MARKED }), null)
+  // Exactly `README.md`, alone: its path, whatever it holds — the CALLER reads it.
+  for (const body of [ORDINARY, MARKED, null]) assert.match(String(look({ 'README.md': body })), /README\.md$/)
+  // One other spelling: ordinary is a README and nothing more; marked or unreadable is unknown.
+  assert.equal(look({ 'readme.md': ORDINARY }), null)
+  assert.ok(unknown(look({ 'readme.md': MARKED })))
+  assert.ok(unknown(look({ 'ReadMe.MD': null })))
+  // ⚠ MORE THAN ONE LISTED SPELLING IS UNKNOWN BEFORE ANYTHING IS READ — and the
+  // exact name is one of the spellings. Where case folds, every name opens ONE file,
+  // so the bytes cannot be attributed to an entry. This reader is that filesystem:
+  // it answers every spelling with the same content.
+  let reads = 0
+  const folding = body => names => listedReadme('/d', names, () => { reads += 1; return body })
+  assert.ok(unknown(folding(ORDINARY)(['Readme.md', 'readme.md'])), 'two variants, both reading as ordinary')
+  assert.ok(unknown(folding(ORDINARY)(['README.md', 'readme.md'])), 'the exact name beside a variant, ordinary bytes surviving — it governed and offered READY')
+  assert.ok(unknown(folding(MARKED)(['README.md', 'readme.md'])), 'and with marked bytes surviving — it buried the record and hid its task')
+  assert.ok(unknown(look({ 'Readme.md': ORDINARY, 'readme.md': MARKED })), 'and on a filesystem that does keep them apart')
+  assert.equal(reads, 0, 'a collision is decided by the listing, before any read')
 })
 
 // "Nothing governs this file" and "could not tell what governs this file" were one

@@ -48,6 +48,10 @@ test('a check that could not start is `unstarted`, by its exit code or by the li
   assert.equal(verdict(1, 'Could not open input file: vendor/bin/phpunit', 'php vendor/bin/phpunit'), 'unstarted')
   // Windows shells exit 1 and say it in words; that is why the text is read at all.
   assert.equal(verdict(1, "'vitest' is not recognized as an internal or external command,\noperable program or batch file."), 'unstarted')
+  // Win32 error text, which is what most Windows tooling surfaces — Docker Desktop
+  // included, when its pipe is not there.
+  assert.equal(verdict(1, 'The system cannot find the file specified.'), 'unstarted')
+  assert.equal(verdict(1, 'The system cannot find the path specified.'), 'unstarted')
 })
 
 test('an explicit zero is a pass even when the output quotes an error', () => {

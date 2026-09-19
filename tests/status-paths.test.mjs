@@ -90,8 +90,14 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
     hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: repo })
     // Uncommitted AND committed, because rule A reads each through a different call.
     writeFileSync(join(repo, 'na\u00efve probe.md'), 'x\n')
-    writeFileSync(join(repo, 'committ\u00e9d.md'), 'y\n')
-    git('add', '--', 'committ\u00e9d.md')
+    // A MALFORMED RECORD under an awkward name, committed: rule A must gate it, so
+    // its failure text is proof the path ARRIVED at the gate intact. Without that,
+    // a path mangled into something nonexistent is simply dropped, and "no octal
+    // and no complaint" passes on a gate that was never reached (a GREEN mutant
+    // said so, 2026-09-19).
+    run('mkdir', ['-p', join(repo, 'docs', 'adr')])
+    writeFileSync(join(repo, 'docs', 'adr', 'ADR-900-committéd.md'), '# ADR-900: a record with no sections\n')
+    git('add', '--', 'docs/adr/ADR-900-committ\u00e9d.md')
     git('commit', '-q', '-m', 'a committed awkward name')
     const out = hook({ hook_event_name: 'Stop', session_id: session, cwd: repo })
     const said = `${out.stdout}${out.stderr}`
@@ -99,5 +105,6 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
     assert.match(said, /na\u00efve probe\.md/, `the uncommitted name is reported as it is spelled: ${said.slice(0, 600)}`)
     assert.doesNotMatch(said, /\\\\?30[0-9]/, `no octal escape reaches the user: ${said.slice(0, 600)}`)
     assert.doesNotMatch(said, /could not classify/, `and the gate is never sent after a path that is not there: ${said.slice(0, 600)}`)
+    assert.match(said, /Artifact validation failed[\s\S]*ADR-900-committ\u00e9d\.md/, `the committed awkward name reached the gate and was judged: ${said.slice(0, 900)}`)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

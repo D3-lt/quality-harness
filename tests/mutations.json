@@ -8581,8 +8581,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    const readme = listedReadme(directory, candidate => listed.has(candidate),",
-      "to": "    const readme = listedReadme(directory, () => true,"
+      "from": "      [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),",
+      "to": "      ['README.md'],"
     },
     {
       "label": "catalog: a row speaks for the file its link names",
@@ -8608,8 +8608,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "        () => listed.has(`${key}/README.md`),",
-      "to": "        () => true,"
+      "from": "        [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)),",
+      "to": "        ['README.md'],"
     },
     {
       "label": "orientation: a tasks directory with no Markdown is not an ADR task set",
@@ -8671,8 +8671,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": ".includes(ARCHIVE_LIFECYCLE_LINE)) return README_UNKNOWN }",
-      "to": ".includes(ARCHIVE_LIFECYCLE_LINE)) return null }"
+      "from": ".includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null } catch",
+      "to": ".includes(ARCHIVE_LIFECYCLE_LINE) ? null : null } catch"
     },
     {
       "label": "baseline: a SessionStart in the middle of a session is not its beginning",
@@ -8797,8 +8797,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "if (read(path.join(directory, variant)).split(/\\r?\\n/).includes(ARCHIVE_LIFECYCLE_LINE)) return",
-      "to": "if (read(path.join(directory, variant)).length >= 0) return"
+      "from": "return read(path.join(directory, spellings[0])).split(/\\r?\\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN",
+      "to": "return read(path.join(directory, spellings[0])).length >= 0 ? README_UNKNOWN"
     },
     {
       "label": "catalog: two listed README spellings are unknown outright, whatever they read as",
@@ -8853,6 +8853,15 @@
       ],
       "from": "        ...recordTasks.flatMap(task => { try { return affectedFiles(reader.text(task)) } catch { return [] } })])]",
       "to": "        ])]"
+    },
+    {
+      "label": "catalog: the exact README.md is one of the spellings, counted before it is returned",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (spellings.length > 1) return README_UNKNOWN\n  if (spellings[0] === 'README.md') return path.join(directory, 'README.md')",
+      "to": "  if (spellings.includes('README.md')) return path.join(directory, 'README.md')\n  if (spellings.length > 1) return README_UNKNOWN"
     }
   ]
 }

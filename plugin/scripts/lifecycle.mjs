@@ -914,12 +914,17 @@ const README_UNKNOWN = Symbol('a README is listed here under another spelling')
 // found by probing the change before its review ran. The listed variant is read
 // under its LISTED spelling, which opens that file on any filesystem and needs no
 // folding at all: without the marker it is a README and nothing more.
-function listedReadme(directory, isListed, variants, read) {
+export function listedReadme(directory, isListed, variants, read) {
   const exact = path.join(directory, 'README.md')
   if (isListed(exact)) return exact
-  const variant = variants(directory).find(name => name.toLowerCase() === 'readme.md')
-  if (!variant) return null
-  try { return read(path.join(directory, variant)).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null } catch { return README_UNKNOWN }
+  // EVERY variant, not the first: a case-sensitive checkout can track `Readme.md`
+  // and `readme.md` side by side, and `.find` stopped at an ordinary one while the
+  // other carried the marker (sixth review). Ordinary only when ALL of them are
+  // readable and unmarked.
+  for (const variant of variants(directory).filter(name => name.toLowerCase() === 'readme.md')) {
+    try { if (read(path.join(directory, variant)).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)) return README_UNKNOWN } catch { return README_UNKNOWN }
+  }
+  return null
 }
 
 // true, false, or 'unknown' — a listed README that could not be read is unknown
@@ -1646,7 +1651,11 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // has only two options, both wrong: treat them as executable (§48, where
       // the router offered an unaccepted record's tasks) or ignore them and
       // report a corpus with unfinished work as finished.
-      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader) })
+      // A frozen record whose effect could not be established still DECLARES what it
+      // would govern; `decisionsGoverning` needs that to say so where it matters.
+      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader),
+        ...(archived?.unproven ? { unproven: archived.unproven, governs: declaredGoverns(text).paths,
+          title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })
       continue
     }
     const declared = declaredGoverns(text)
@@ -1793,14 +1802,16 @@ export function decisionsGoverning(paths, root, corpus = adrCorpus(root)) {
   return {
     governing: corpus.filter(record => record.kind === 'governing' && hits(record)),
     graveyard: corpus.filter(record => record.kind === 'graveyard' && hits(record)),
+    // Records that DECLARE these paths and whose standing could not be established.
+    unproven: (corpus.unreadable ?? []).filter(record => typeof record.unproven === 'string' && Array.isArray(record.governs) && hits(record)),
     look: corpus.look ?? 'ok',
   }
 }
 
 /** The same answer as prose, or '' when the corpus has nothing to say. */
 export function decisionContext(paths, root) {
-  const { governing, graveyard } = decisionsGoverning(paths, root)
-  if (!governing.length && !graveyard.length) return ''
+  const { governing, graveyard, unproven } = decisionsGoverning(paths, root)
+  if (!governing.length && !graveyard.length && !unproven.length) return ''
   const lines = []
   const name = record => `${path.relative(root, record.file) || record.file} — ${record.title}`
   // The hook and `adr-context` render the SAME answer from the same resolver.
@@ -1820,6 +1831,16 @@ export function decisionContext(paths, root) {
       lines.push(`  ${name(record)} [${record.status}]`)
     }
     if (graveyard.length > 5) lines.push(`  (+${graveyard.length - 5} more)`)
+  }
+  // ⚠ "NOTHING GOVERNS THIS" AND "COULD NOT TELL WHAT GOVERNS THIS" ARE NOT ONE
+  // SILENCE. A frozen record whose catalog cannot establish its effect left both
+  // lists empty, and this returned '' — so the edit hook said nothing about a file a
+  // record DECLARES, where one commit earlier it had named a withdrawn decision
+  // (sixth review; ADR-005).
+  if (unproven.length) {
+    lines.push('UNPROVEN — these records declare what you are about to change, and whether they still govern could not be established:')
+    for (const record of unproven.slice(0, 5)) lines.push(`  ${name(record)} [${record.unproven}]`)
+    if (unproven.length > 5) lines.push(`  (+${unproven.length - 5} more)`)
   }
   const unresolved = [...new Set([...governing, ...graveyard].flatMap(record => record.unresolved))]
   if (unresolved.length) {

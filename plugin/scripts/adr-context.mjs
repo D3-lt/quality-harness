@@ -72,7 +72,7 @@ export function main(argv, root = process.cwd()) {
     else process.stdout.write('could-not-look: git could not list the tree (UNPROVEN).\n')
     return 0
   }
-  const { governing, graveyard } = decisionsGoverning(targets, root, corpus)
+  const { governing, graveyard, unproven } = decisionsGoverning(targets, root, corpus)
   const shape = record => ({
     file: path.relative(root, record.file) || record.file,
     title: record.title,
@@ -92,15 +92,29 @@ export function main(argv, root = process.cwd()) {
       read: corpus.length,
       governing: governing.map(shape),
       graveyard: graveyard.map(shape),
+      // Records that DECLARE these paths and whose standing could not be established.
+      unproven: unproven.map(record => ({ file: path.relative(root, record.file) || record.file, title: record.title, governs: record.governs, why: record.unproven })),
     }, null, 2)}\n`)
-  } else if (corpus.look === 'PARTIAL' || ((corpus.unreadable ?? []).length && !corpus.length)) {
-    process.stdout.write('could-not-look: a listed record could not be read (PARTIAL). '
-      + 'This is not "no decision records found".\n')
-  } else if (!corpus.length) {
-    process.stdout.write('No decision records found under this repository.\n')
-  } else if (!governing.length && !graveyard.length) {
-    process.stdout.write(`Read ${corpus.length} record(s); none governs ${targets.join(', ')}.\n`)
   } else {
+    // ⚠ PARTIAL QUALIFIES THE ANSWER; IT DOES NOT REPLACE IT. This was one arm of an
+    // else-if chain, so a corpus with ONE record it could not place printed the
+    // could-not-look line and then named none of the decisions it HAD read — and an
+    // archive catalog that cannot establish a record's effect now makes a corpus
+    // PARTIAL. One ambiguous archive must not blind the tool to everything else.
+    const partial = corpus.look === 'PARTIAL' || ((corpus.unreadable ?? []).length > 0 && !corpus.length)
+    if (partial) {
+      process.stdout.write('could-not-look: a listed record could not be read, or its standing could not be established (PARTIAL). '
+        + 'This is not "no decision records found".\n')
+      // The same records the edit hook names, from the same resolver (see decisionContext).
+      for (const record of unproven) {
+        process.stdout.write(`UNPROVEN  ${path.relative(root, record.file) || record.file} — ${record.title} [${record.unproven}]\n`)
+      }
+    }
+    if (!partial && !corpus.length) {
+      process.stdout.write('No decision records found under this repository.\n')
+    } else if (!partial && !governing.length && !graveyard.length) {
+      process.stdout.write(`Read ${corpus.length} record(s); none governs ${targets.join(', ')}.\n`)
+    }
     for (const record of governing) {
       // The enforcing check goes on the SAME line, because this arrives at the
       // moment an agent is about to edit the file and a second line is a second

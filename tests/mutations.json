@@ -1481,7 +1481,7 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader) })",
+      "from": "      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader),\n        ...(archived?.unproven ? { unproven: archived.unproven, governs: declaredGoverns(text).paths,\n          title: (text.match(/^#\\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })",
       "to": "      void status"
     },
     {
@@ -8671,8 +8671,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": ".includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null }",
-      "to": ".includes(ARCHIVE_LIFECYCLE_LINE) ? null : null }"
+      "from": ".includes(ARCHIVE_LIFECYCLE_LINE)) return README_UNKNOWN }",
+      "to": ".includes(ARCHIVE_LIFECYCLE_LINE)) return null }"
     },
     {
       "label": "baseline: a SessionStart in the middle of a session is not its beginning",
@@ -8797,8 +8797,53 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "read(path.join(directory, variant)).split(/\\r?\\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN",
-      "to": "read(path.join(directory, variant)).length >= 0 ? README_UNKNOWN"
+      "from": "if (read(path.join(directory, variant)).split(/\\r?\\n/).includes(ARCHIVE_LIFECYCLE_LINE)) return",
+      "to": "if (read(path.join(directory, variant)).length >= 0) return"
+    },
+    {
+      "label": "catalog: every listed README variant is read, not the first",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "filter(name => name.toLowerCase() === 'readme.md')) {",
+      "to": "filter(name => name.toLowerCase() === 'readme.md').slice(0, 1)) {"
+    },
+    {
+      "label": "context: a path only an UNPROVEN record declares is not answered with silence",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (!governing.length && !graveyard.length && !unproven.length) return ''",
+      "to": "  if (!governing.length && !graveyard.length) return ''"
+    },
+    {
+      "label": "context: an UNPROVEN record is named in the edit-time context",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (unproven.length) {\n    lines.push('UNPROVEN",
+      "to": "  if (false) {\n    lines.push('UNPROVEN"
+    },
+    {
+      "label": "adr-context: PARTIAL qualifies the answer and does not replace it",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    for (const record of governing) {",
+      "to": "    for (const record of partial ? [] : governing) {"
+    },
+    {
+      "label": "adr-context: an UNPROVEN record is named, in prose and in JSON",
+      "file": "plugin/scripts/adr-context.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "      for (const record of unproven) {",
+      "to": "      for (const record of []) {"
     }
   ]
 }

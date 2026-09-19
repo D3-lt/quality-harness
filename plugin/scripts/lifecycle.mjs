@@ -907,10 +907,19 @@ const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
 // where either would have been (fifth review; ADR-005).
 const README_UNKNOWN = Symbol('a README is listed here under another spelling')
 
-function listedReadme(directory, isListed, variants) {
+// ⚠ AND ONLY A VARIANT THAT CARRIES THE MARKER IS THE AMBIGUOUS CASE. The rule above
+// was first applied to every `readme.md`, and an ordinary project keeps one in
+// `docs/`: every task directory beneath it went UNPROVEN and every record beside it
+// governed nothing — a false could-not-look on each session of a normal repository,
+// found by probing the change before its review ran. The listed variant is read
+// under its LISTED spelling, which opens that file on any filesystem and needs no
+// folding at all: without the marker it is a README and nothing more.
+function listedReadme(directory, isListed, variants, read) {
   const exact = path.join(directory, 'README.md')
   if (isListed(exact)) return exact
-  return variants(directory).some(name => name.toLowerCase() === 'readme.md') ? README_UNKNOWN : null
+  const variant = variants(directory).find(name => name.toLowerCase() === 'readme.md')
+  if (!variant) return null
+  try { return read(path.join(directory, variant)).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null } catch { return README_UNKNOWN }
 }
 
 // true, false, or 'unknown' — a listed README that could not be read is unknown
@@ -923,7 +932,8 @@ function underFrozenArchive(root, dirParts, cache, listed) {
       let frozen = false
       const readme = listedReadme(path.join(root, ...dirParts.slice(0, depth)),
         () => listed.has(`${key}/README.md`),
-        () => [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)))
+        () => [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)),
+        file => readFileSync(file, 'utf8'))
       if (readme === README_UNKNOWN) frozen = 'unknown'
       else if (readme !== null) {
         try { frozen = readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) } catch { frozen = 'unknown' }
@@ -1233,7 +1243,8 @@ function archiveDecisionEffect(file, reader, cache, listed) {
   if (!cache.has(directory)) {
     let rows = null
     const readme = listedReadme(directory, candidate => listed.has(candidate),
-      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)))
+      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)),
+      candidate => reader.text(candidate))
     if (readme === README_UNKNOWN) rows = 'unknown-readme'
     else if (readme !== null) {
       try {

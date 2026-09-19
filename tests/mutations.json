@@ -8313,6 +8313,33 @@
       ],
       "from": "    lastCheck: check && !logIncomplete(log)",
       "to": "    lastCheck: check"
+    },
+    {
+      "label": "evidence-flip: a review whose opening bracket tore is not a review where nothing changed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  if (!started && logIncomplete(log)) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "evidence-flip: the completion rule does not accuse from a torn log",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  const opening = logTorn",
+      "to": "  const opening = false"
+    },
+    {
+      "label": "evidence-flip: the publish warning does not accuse from a torn log",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    text: (logIncomplete(log)",
+      "to": "    text: (false"
     }
   ]
 }

@@ -2777,7 +2777,11 @@ function publishUnchecked(input, requested) {
   if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'P' && entry.key === key)) return
   queueAction({
     rule: 'P', key, detail: { tree: now.tree, revision },
-    text: 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command '
+    // On a torn log this still warns — it must — but says UNKNOWN, not "no check
+    // has": a check may have succeeded and its record be what was lost (ADR-005).
+    text: (logIncomplete(log)
+      ? 'quality-harness: whether this repository is checked is unknown — the session log could not be read whole, so whether `qh-check` succeeded on its current tree cannot be shown — and the command '
+      : 'quality-harness: this repository is unchecked — no `qh-check` has passed on its current tree — and the command ')
       + 'about to run names commit or push. Run `qh-check` first. This says what state the repository is in, not what '
       + `the command publishes.${inferredCheckCaveat(input.cwd)}`,
   })
@@ -2823,6 +2827,21 @@ function reviewChangedState(input, ended) {
   const started = log.filter(entry => entry.event === 'subagent.started' && entry.agentId === input.agent_id).at(-1)
   const before = started?.observation
   const after = ended.observation
+  if (!started && logIncomplete(log)) {
+    // ⚠ A LOST BRACKET IS NOT A RUN WHERE NOTHING CHANGED (audit B5, confirmed by
+    // execution 2026-09-19). Tear the `subagent.started` line and `before` is
+    // undefined, so this returned — and a read-only role's end skips the
+    // completion rules, so R4 never spoke either. A state change during a review
+    // was reported NOWHERE. The torn line never repairs, so say it once per agent.
+    const unknownKey = `${input.agent_id}:unknown`
+    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === unknownKey)) {
+      queueAction({ rule: 'R3', key: unknownKey, text: `quality-harness: whether the repository changed during the ${role} `
+        + `run (agent ${input.agent_id}) is unknown — this session's event log could not be read whole, and the record of `
+        + 'where that run began may be among what was lost. That is a statement about what could be looked at, not about '
+        + 'the review (ADR-005).' })
+    }
+    return
+  }
   if (before?.ok !== true || after?.ok !== true || sameObservation(before, after)) return
   const key = input.agent_id
   if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === key)) return
@@ -2946,7 +2965,7 @@ function unseenPathNote(count) {
 // as the old commit-loop shape surviving in a quieter form. R2 is silent for
 // that commit on purpose (its tree is the observed tree, which is R1's to speak
 // for), so R1 is the one that has to say the commit.
-function uncheckedWorkReason(cwd, paths, outside, commits = []) {
+function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = false } = {}) {
   const shown = paths.slice(0, 8)
   const held = commits.slice(0, 3).map(commit => `\`${commit.sha.slice(0, 8)}\` ${commit.subject}`).join(', ')
   const listed = paths.length
@@ -2954,9 +2973,17 @@ function uncheckedWorkReason(cwd, paths, outside, commits = []) {
     : held
       ? `Nothing is uncommitted: what no \`qh-check\` has passed on is the tree at HEAD, committed as ${held}.`
       : 'Git reports no changed path in the working tree.'
-  const opening = paths.length || !held
-    ? 'this turn ends with work no `qh-check` has passed on.'
-    : 'this turn ends on an unchecked tree.'
+  // ⚠ A TORN LOG CANNOT SUPPORT "NO CHECK HAS", ONLY "NONE CAN BE SHOWN". Since a
+  // surviving record no longer certifies (`latestCheckFor`), this rule fires on a
+  // torn log where a check DID succeed — and its old opening then accused in the
+  // vocabulary of an observation. It must keep firing: R4 speaks once per session
+  // and a torn line never repairs, so silence here would be silence for good.
+  const opening = logTorn
+    ? 'this turn ends with work whose check state is unknown — the session log could not be read whole, '
+      + 'so whether `qh-check` succeeded on it cannot be shown.'
+    : paths.length || !held
+      ? 'this turn ends with work no `qh-check` has passed on.'
+      : 'this turn ends on an unchecked tree.'
   return `quality-harness: ${opening} ${listed}`
     + `${unseenPathNote(outside)} ${runTheCheckSentence(cwd)}`
 }
@@ -3160,7 +3187,7 @@ function completionRules(input, ended) {
     if (!emittedFor(log, 'R1', key)) {
       // The commits R2 leaves to R1: their tree IS the tree being reported.
       const speaksFor = commits.filter(commit => observation?.ok === true && commit.tree === observation.tree)
-      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor) })
+      queueAction({ rule: 'R1', key, text: uncheckedWorkReason(input.cwd, status, writes.length, speaksFor, { logTorn: logIncomplete(log) }) })
     }
   }
   const unchecked = commits.filter(commit => {

@@ -182,6 +182,9 @@ const NEVER_STARTED = new RegExp([
   'access is denied',
   // Docker on either platform
   'cannot connect to the docker daemon', 'is the docker daemon running',
+  // PHP, when the script it was handed is absent. Exit 1 and this one line —
+  // measured twice on 2026-09-19 by two Laravel sessions, in clones with no vendor/.
+  'could not open input file',
 ].join('|'), 'i')
 const KILLED_ON_TIME = new RegExp([
   'timed out', 'timeout exceeded', 'deadline exceeded', 'ETIMEDOUT',
@@ -192,6 +195,20 @@ const KILLED_ON_TIME = new RegExp([
 // "Command not found" as an exit code: 127 on POSIX, 9009 from cmd.exe. 126 is
 // POSIX's "found but not executable".
 const NEVER_STARTED_EXITS = new Set([126, 127, 9009])
+
+// ⚠ THESE PHRASES ARE READ ONLY FROM A PROCESS THAT SAID LITTLE. They are what a
+// shell or an interpreter prints when the thing it was asked to run is absent —
+// and also what any suite that TESTS file or permission errors prints all day. A
+// Go suite ran, failed forty-one tests and exited 1, and was recorded `unstarted`
+// because one failing assertion quoted "no such file or directory"; the next
+// session read "never checked" about a check that was red (peer-measured
+// 2026-09-19). A process that never started says almost nothing else; a suite that
+// ran says a great deal. The exit codes above need no such help and are not
+// subject to it.
+const SAID_LITTLE_LINES = 8
+function saidLittle(text) {
+  return String(text).split('\n').filter(line => line.trim()).length <= SAID_LITTLE_LINES
+}
 
 // `anyCommand`: the caller already knows the command is the project's check
 // (`qh-check`, ADR-060 T2), so a zero-test summary is read whatever the command is
@@ -221,8 +238,9 @@ export function validationVerdict(result, command, { anyCommand = false } = {}) 
   if (exitCode === 0) {
     return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'
   }
-  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'
-  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'
+  const terse = saidLittle(text)
+  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'
+  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'
   if (result.is_error === true || result.interrupted === true) return 'failed'
   if (exitCode !== null && exitCode !== 0) return 'failed'
   if (/["\']exit_code["\']\s*:\s*[1-9]\d*/i.test(serialized)

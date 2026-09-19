@@ -20,7 +20,6 @@ import {
   probedPythonVersion,
   resolvePython,
   adrCorpus,
-  validationVerdict,
   shadowInstallNotice,
   staleVersionNotice,
   decisionContext,

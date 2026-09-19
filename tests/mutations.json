@@ -947,28 +947,28 @@
       "label": "verdict: a command that never started is not a failure",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'",
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'",
       "to": "  if (false) return 'unstarted'"
     },
     {
       "label": "verdict: a killed run is not a failure either",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'",
+      "from": "  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'",
       "to": "  if (false) return 'timeout'"
     },
     {
       "label": "verdict: the environment is checked before the exit code",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
-      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'\n  if (exitCode === 124 || KILLED_ON_TIME.test(text)) return 'timeout'"
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'\n  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
+      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'\n  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'"
     },
     {
       "label": "verdict: Windows says none of what POSIX says",
@@ -8376,6 +8376,24 @@
       ],
       "from": "  if (nul) return mark(run.stdout.split('\\0').filter(Boolean), true)",
       "to": "  if (false) return mark(run.stdout.split('\\0').filter(Boolean), true)"
+    },
+    {
+      "label": "verdict: a suite that ran is not `unstarted` because an assertion quoted an error",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'",
+      "to": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'"
+    },
+    {
+      "label": "verdict: an interpreter that could not open its script did not run the tests",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  'could not open input file',",
+      "to": "  'qh-no-such-phrase',"
     }
   ]
 }

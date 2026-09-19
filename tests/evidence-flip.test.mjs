@@ -72,6 +72,13 @@ const DEGRADED = {
 const NEGATIONS = /no `qh-check` has passed|unverified/g
 const POSITIVE = /passed|verified|✓|nothing has changed|nothing edited|"checked":true|"status":"neutral"/
 const flatters = out => POSITIVE.test(JSON.stringify(out ?? null).replace(NEGATIONS, ''))
+// ⚠ AND THE OTHER DIRECTION, which a vocabulary of flattering words cannot see.
+// "No check has run this session" is not positive — and from a torn log it is
+// exactly as unobserved as "passed": the lost line may BE the check. A mutant
+// restoring that sentence survived the first version of this file (GREEN), one
+// commit after its message promised the note would not say it. ADR-005 is about
+// reporting what was not observed, in EITHER direction.
+const CLAIMS_ABSENCE = /No check has run/
 
 let sessions = 0
 const SURFACES = {
@@ -117,6 +124,9 @@ test('degrading the evidence changes the answer, at every surface that can give 
           const out = run(degrade(fixture.entries), fixture, name, dir)
           driven++
           if (positive(out)) ignored.push(`${surface} / ${name} / ${how} -> still ${JSON.stringify(out)}`)
+          if (CLAIMS_ABSENCE.test(JSON.stringify(out ?? null))) {
+            ignored.push(`${surface} / ${name} / ${how} -> claims an absence it could not observe: ${JSON.stringify(out)}`)
+          }
         }
       }
     }

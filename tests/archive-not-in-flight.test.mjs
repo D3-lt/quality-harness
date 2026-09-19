@@ -19,7 +19,7 @@ import test from 'node:test'
 import { adrCorpus, decisionsGoverning, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
 
 test('session orientation asks adr-next about the active corpus and never about a frozen archive', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qh-arc-flight-')))
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-flight-')))
   try {
     const write = (relative, text) => {
       mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
@@ -63,7 +63,7 @@ test('session orientation asks adr-next about the active corpus and never about 
 //
 // — a withdrawn decision presented as governing, enforced by a test that is gone.
 test('a retired record governs only if the archive catalog says it still does', () => {
-  const root = realpathSync(mkdtempSync(join(tmpdir(), 'qh-arc-effect-')))
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-effect-')))
   try {
     const write = (relative, text) => {
       mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })

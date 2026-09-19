@@ -20,7 +20,7 @@ import { findGitDir } from './git-directory.mjs'
 // ADR-060's event log is shared with run-shell-hook.mjs's per-edit gate, so it
 // lives in a leaf module both can import (T6).
 import {
-  appendEvent, canonical, nearestExistingDirectory, readEvents, sessionLogFile, stateDir,
+  appendEvent, canonical, canonicalFile, nearestExistingDirectory, readEvents, sessionLogFile, stateDir,
 } from './event-log.mjs'
 export { appendEvent, readEvents, sessionLogFile, stateDir } from './event-log.mjs'
 import { contentId } from './event-log.mjs'
@@ -92,56 +92,6 @@ function reportsZeroTestWork(text, command) {
     if (passed.length > 0) return passed.every(count => count === 0)
   }
   return /\b(?:no tests? (?:found|ran|collected|matched|to run)|ran 0 tests?|running 0 tests?|collected 0 items|0 tests? (?:run|executed|collected|passed)|0 passing|tests\s+0|no test files)\b/i.test(text)
-}
-
-
-function shellWords(command) {
-  const words = []
-  let word = ''
-  let wordStarted = false
-  let quote = null
-
-  const finishWord = () => {
-    if (!wordStarted) return
-    words.push(word)
-    word = ''
-    wordStarted = false
-  }
-
-  for (let index = 0; index < command.length; index += 1) {
-    const character = command[index]
-    if (quote === "'") {
-      if (character === "'") quote = null
-      else word += character
-      continue
-    }
-    if (quote === '"') {
-      if (character === '"') {
-        quote = null
-      } else if (character === '\\') {
-        const next = command[index + 1]
-        if (next && '$`"\\\n'.includes(next)) word += command[++index]
-        else word += character
-      } else {
-        word += character
-      }
-      continue
-    }
-    if (/\s/.test(character)) {
-      finishWord()
-      continue
-    }
-    wordStarted = true
-    if (character === "'" || character === '"') {
-      quote = character
-    } else if (character === '\\' && index + 1 < command.length) {
-      word += command[++index]
-    } else {
-      word += character
-    }
-  }
-  finishWord()
-  return words
 }
 
 
@@ -251,111 +201,6 @@ export function validationVerdict(result, command, { anyCommand = false } = {}) 
   return 'passed'
 }
 
-const CD_ONLY = /^cd\s+(?:"[^"]*"|'[^']*'|\S+)$/
-
-// A command substitution inside a `cd` argument still runs a command, so it
-// cannot be waved past the guard on faith — but `cd "$(git rev-parse
-// --show-toplevel)" && ./verify.sh` is how a script finds its own repository
-// root, and the whole-command guard rejected it as if the `$(` were hiding
-// something. The project's check had just run and the gate asked for it again.
-// Reported from blueprints, 2026-08-26. An explicit list of read-only idioms,
-// not an inference: anything else keeps failing the guard.
-const INERT_SUBSTITUTION = /^\s*(?:git\s+rev-parse\s+--show-toplevel|pwd|dirname\s+[^;&|`$()]*|realpath\s+[^;&|`$()]*|basename\s+[^;&|`$()]*)\s*$/
-
-// Everything the whole-command guard used to reject: a second command hiding
-// behind a separator, a redirect, a pipe, a background job, a substitution.
-// Applied per segment now rather than to the whole string, so navigation can be
-// dropped first without letting anything ride along with the validation itself.
-const UNSAFE_SEGMENT = /[;`>]|\|\||\$\(|(?:^|[^|])\|(?:[^|]|$)|(?:^|[^&])&(?:[^&]|$)/
-const ASSIGNMENT_ONLY = /^(?:[A-Za-z_][A-Za-z0-9_]*=(?:"[^"]*"|'[^']*'|\S*)\s*)+$/
-
-// A command run inside a container is still that command.
-//
-// `docker compose exec -T app php artisan test` was not validation, so a project
-// whose tests run in a container produced no evidence the gate could see — 286
-// passing tests, and the completion gate still asking for a check. Reported from
-// a live session on 2026-08-26.
-//
-// Peels one container-runner prefix and one `sh -c '…'` wrapper, which together
-// cover the shape people actually type:
-//   docker compose run --rm --no-deps node sh -c 'cd /var/www && npm run build'
-//
-// Deliberately narrow. The runner words are fixed, the flag skip stops at the
-// first non-flag token (the service or image), and only ONE layer of each is
-// peeled — guessing deeper is how a wrapper starts laundering a mutation.
-const CONTAINER_RUNNER = /^(?:sudo\s+)?(?:docker|podman)(?:\s+compose)?\s+(?:run|exec)\b/
-const FLAG_WITH_VALUE = /^(?:-e|--env|-u|--user|-w|--workdir|-v|--volume|--entrypoint|-p|--publish)$/
-
-
-const INTERPRETER_WORD = /\b(?:python3?|node|ruby|perl|php)\b/
-
-const VISIBLE_CODE_MUTATION_TOKENS = new RegExp([
-  'write_text', 'write_bytes', 'writeFile', 'appendFile', 'createWriteStream',
-  'unlink', 'remove', 'rmtree', 'rmdir', 'rmSync', 'mkdir', 'makedirs',
-  'copyfile', 'copytree', 'rename', 'replace', 'chmod', 'chown', 'shutil',
-  // A USE of subprocess, not its import: a read-only argv is stripped above,
-  // and `import re,pathlib,subprocess,json` on its own writes nothing.
-  'subprocess\\.', 'os\\.system', 'popen', '\\bexec\\b', '\\beval\\b',
-  '__import__', 'importlib', 'runpy', 'child_process', 'urlopen', 'requests',
-  '\\bfetch\\b', 'axios', '\\bsocket\\b', '\\bdump\\s*\\(', 'to_csv',
-  '\\bdel\\s+', '\\bunlink\\s+', '\\bFile\\.write\\b',
-].join('|'), 'i')
-const SAFE_VISIBLE_CALLS = new Set([
-  'all', 'any', 'bool', 'console.error', 'console.log', 'dict', 'enumerate',
-  'float', 'int', 'JSON.parse', 'JSON.stringify', 'json.dumps', 'json.loads',
-  'len', 'list', 'map', 'max', 'min', 'Object.entries', 'Object.keys',
-  'Object.values', 'Path', 'Path.cwd', 'Path.home', 'print', 'printf', 'puts',
-  'range', 'read_bytes', 'read_text', 'repr', 'set', 'sorted', 'str', 'sum',
-  'tuple', 'type', 'zip',
-  // Introspection. Asking an object what it is writes nothing, and the default
-  // here is "an unrecognised call is a mutation" — so `python -c "import
-  // inspect; print(inspect.signature(X.__init__))"` was authorship, and looking
-  // something up meant re-running the project's check. Reported 2026-08-26 from
-  // redash-api, where the whole command was a `print` of a signature.
-  'dir', 'getattr', 'hasattr', 'id', 'inspect.getmembers', 'inspect.getmodule',
-  'inspect.getsource', 'inspect.isclass', 'inspect.isfunction',
-  'inspect.signature', 'isinstance', 'issubclass', 'getmembers', 'getsource',
-  'isclass', 'isfunction', 'signature', 'vars',
-  // Pure string, regex, container and path-READ calls. Reported 2026-09-08 from
-  // an outside corpus (BACKLOG §175): a heredoc that grepped the tree and printed
-  // a JSON summary was a MUTATION on the strength of `re.findall(` and
-  // `s.strip(`, because the default here is that an unrecognised call writes.
-  'findall', 'search', 'match', 'fullmatch', 'compile', 'sub', 'split', 'strip',
-  'lstrip', 'rstrip', 'join', 'lower', 'upper', 'startswith', 'endswith', 'format',
-  'get', 'items', 'keys', 'values', 'append', 'extend', 'add', 'group', 'groups',
-  'count', 'index', 'splitlines', 'encode', 'decode', 'glob', 'rglob', 'iterdir',
-  'exists', 'is_file', 'is_dir', 'relative_to', 'resolve', 'stat', 'as_posix',
-  'read', 'readline', 'readlines', 'loads', 'setdefault', 'pop', 'sort', 'reversed',
-  'abs', 'round', 'hex', 'chr', 'ord', 'frozenset', 'filter', 'iter', 'next',
-])
-
-// Commands positively KNOWN to read and not write. ⚠ AN ALLOWLIST, NOT THE
-// ABSENCE OF A DENYLIST. The first version stripped any subprocess whose argv
-// the old mutation classifier did not recognise as mutating, which treats "I do
-// not know this command" as "it is safe" — the could-not-look-is-not-a-verdict
-// rule (ADR-005) inverted, inside the gate that enforces it. Codex found four
-// that slipped through: `tar -xf` extracts, `find -exec` runs anything, a
-// computed argv element hides the executable, and `stdout=open(...)` writes a
-// file the argv never names (BACKLOG §180).
-// ⚠ `sed`, `tee` and `awk` WERE IN THIS LIST AND ALL THREE WRITE. `sed -i` edits
-// in place, `tee` writes every file it is given, and an awk program can redirect
-// with `print > "f"`. They were typed here as "text utilities" — the exact error
-// CLAUDE.md §16 is about, made by the author of §16 in the same day's work, and
-// found by a different-lineage review (BACKLOG §187). A name is not a behaviour.
-const READ_ONLY_CHILD = /^(?:grep|rg|ag|cat|head|tail|wc|sort|uniq|cut|tr|ls|find|stat|file|which|echo|printf|true|pwd|date|basename|dirname|realpath|readlink|diff|cmp|md5sum|sha256sum|jq|column|nl)$/
-// `find` is read-only only while it neither executes nor deletes.
-const FIND_WRITES = /(?:^|\s)-(?:exec|execdir|ok|okdir|delete|fls|fprint|fprint0|fprintf|fputs)(?:\s|$)/
-
-
-// Canonical form of a directory, so a symlink cannot make an inside path look
-function isDirectory(candidate) {
-  try {
-    return statSync(candidate).isDirectory()
-  } catch {
-    return false
-  }
-}
-
 
 // The OS temp roots, symlink-resolved once per call. `/tmp` is a symlink to
 // `/private/tmp` on macOS and os.tmpdir() points into /var/folders, so the
@@ -386,8 +231,6 @@ function underTempRoot(candidate, depth = 0) {
   }
   return tempRoots().some(root => resolved === root || resolved.startsWith(root + path.sep))
 }
-
-const collapse = text => text.replace(/\s+/g, ' ').trim()
 
 // An unresolved deletion records that something was removed, not what. The
 // repository already knows: ask Git which tracked paths are now missing instead
@@ -993,40 +836,6 @@ function advisoryHeadline(reason) {
   // only a FULL STOP ends the sentence, since these messages use `:` and `—` mid-clause.
   const sentence = first.trim().replace(/^quality-harness:\s*/i, '').split(/(?<=\.)\s/)[0]
   return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
-}
-
-function advise(reason, input = null) {
-  // BOTH channels, because each alone can hide the finding. Exit-0 stderr is
-  // surfaced only in transcript view, so a finding written there alone reaches
-  // nobody — advisory-that-nobody-sees is concealment, which the owner has
-  // named as worse than having no plugin at all. stderr keeps it in the
-  // transcript; what the session shows depends on the event.
-  process.stderr.write(`${reason}\n`)
-  if (input?.hook_event_name !== 'PreToolUse') {
-    emitJson({ systemMessage: reason })
-    return
-  }
-  // At a tool boundary the reader is the agent, and `systemMessage` is rendered
-  // to the PERSON, one "PreToolUse:Bash says:" line per line of text — a
-  // twelve-line adr-lint report became twelve of them, on every commit attempt,
-  // in the owner's terminal (2026-09-05). So the instruction goes where the
-  // agent reads, `additionalContext`, and the person gets one line saying a
-  // finding was made and where the rest is. Said in full once per finding per
-  // session; a repeat of the same finding is one line for the agent and nothing
-  // for the person, because the second reading of an unchanged report is the
-  // nag every advisory here exists not to be.
-  const key = `advisory:${createHash('sha256').update(String(reason)).digest('hex').slice(0, 32)}`
-  const first = firstMentionThisSession(input.session_id, key)
-  const headline = advisoryHeadline(reason)
-  emitJson({
-    hookSpecificOutput: {
-      hookEventName: 'PreToolUse',
-      additionalContext: first
-        ? reason
-        : `quality-harness: the same finding as earlier this session still stands — ${headline}`,
-    },
-    ...(first ? { systemMessage: `quality-harness advised the agent: ${headline} (full text in the transcript)` } : {}),
-  })
 }
 
 const UNINTERESTING_DIRECTORY = /^(?:node_modules|vendor|target|dist|build|coverage|__pycache__|tests?|spec|fixtures?|testdata|examples?)$/i
@@ -2640,7 +2449,8 @@ const OBSERVED_HOOK_EVENTS = {
 function recordFileWritten(input) {
   const target = input.tool_input?.file_path ?? input.tool_input?.notebook_path
   if (typeof target !== 'string' || !target) return null
-  const absolute = path.resolve(input.cwd, target)
+  // Canonical, so this path and rule A's candidate for the same file are one key.
+  const absolute = canonicalFile(path.resolve(input.cwd, target))
   const entry = { event: 'file.written', path: absolute, observable: false }
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
   const root = directory ? gitRepositoryRoot(directory) : null

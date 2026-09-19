@@ -5,7 +5,7 @@ import { existsSync, realpathSync, statSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import { startPerformanceTrace } from './performance-trace.mjs'
-import { appendEvent, contentId } from './event-log.mjs'
+import { appendEvent, canonicalFile, contentId } from './event-log.mjs'
 
 const SCRIPT_DIR = path.dirname(fileURLToPath(import.meta.url))
 export const HOOK_SCRIPTS = new Set(['facts-gate-dispatch.sh', 'post-edit-check.sh'])
@@ -73,7 +73,10 @@ export function hookFilePathFromPayload(raw, platform = process.platform) {
  *
  * Reported and root-caused 2026-09-18 by two Windows sessions, who also found the
  * precedent: `recordFileWritten` (lifecycle.mjs) already does `path.resolve` before
- * recording, which is exactly why `file.written` is immune and this was not.
+ * recording. ⚠ THIS COMMENT THEN CALLED `file.written` "immune", AND THAT WAS
+ * MEASURED FALSE (audit 2026-09-18): resolving fixes the SEPARATOR and not the
+ * spelling, so a symlink or an 8.3 short name still produced a key rule A never
+ * looked up. The caller now passes this result through `canonicalFile`.
  * `path.win32.resolve` re-normalizes both separators and the UNC form, so the
  * mapped-drive case nobody can test is covered by the same line.
  *
@@ -608,7 +611,7 @@ export async function runEditGate(raw) {
   const file = hookFilePathFromPayload(payload)
   let parsed
   try { parsed = JSON.parse(payload) } catch {}
-  const key = file && typeof parsed?.cwd === 'string' ? persistedEventPath(file, parsed.cwd) : null
+  const key = file && typeof parsed?.cwd === 'string' ? canonicalFile(persistedEventPath(file, parsed.cwd)) : null
   // ⚠ HASH THE BYTES THE GATE IS ABOUT TO READ, NOT THE ONES LEFT AFTERWARDS.
   // This recorded `contentId` AFTER the gate ran, so a file edited while the gate
   // was running was filed under the NEW content with the OLD content's verdict —

@@ -890,65 +890,50 @@ const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
 // ⚠ ONLY A README THE LISTING HOLDS. This read whatever was on disk, so an
 // ignored or untracked README carrying the marker hid a tracked record's tasks
 // from every session on that machine and no other (CLAUDE.md §8).
-// The README a directory's archive marker is read from, as the LISTING spells it.
-// `README.md` exactly, or — where this filesystem folds case, so that the exact
-// name opens the listed file — a listed `readme.md`. A review listed the README in
-// lower case on a case-insensitive filesystem and the exact-case lookup missed it:
-// the frozen record came back `governing` and its tasks READY. On a filesystem
-// that does NOT fold case the variant is a different file and is left alone, which
-// is also what the bash dispatcher's `[ -f "$dir/README.md" ]` concludes.
-// ⚠ "FOLDS CASE" MEANS THE TWO NAMES ARE ONE FILE — not that the exact name opens
-// SOMETHING. The first version asked `existsSync(exact)`, so on a case-SENSITIVE
-// filesystem an unlisted, unrelated `README.md` dropped beside a listed
-// `readme.md` switched the listed one on: an ignored scratch file retired a tracked
-// record (third review; CLAUDE.md §8). `sameEntry` is the seam (§7): a test on
-// either kind of filesystem must be able to reach both arms.
-// ⚠ THREE ANSWERS, NOT TWO. `true`, `false`, and `null` for "could not tell": a
-// `stat` that failed for any reason but absence, or a filesystem that reports
-// inode 0 for everything (some network and FUSE mounts), establishes neither.
-// Both were verdicts at first — EIO made a frozen record govern, and two distinct
-// files at inode 0 retired one — each with `look: ok` (fourth review, ADR-005).
-export function sameFilesystemEntry(one, other, stat = statSync) {
-  let a
-  try { a = stat(one, { bigint: true }) } catch (failure) { return failure?.code === 'ENOENT' || failure?.code === 'ENOTDIR' ? false : null }
-  let b
-  try { b = stat(other, { bigint: true }) } catch { return null }
-  if (a.ino === 0n || b.ino === 0n) return null
-  return a.dev === b.dev && a.ino === b.ino
-}
+// The README a directory's archive marker is read from: `README.md`, exactly, as
+// the listing spells it — which is also all the bash dispatcher's
+// `[ -f "$dir/README.md" ]`, `adr-retire-check` and the archive template know.
+//
+// ⚠ A LISTED CASE-VARIANT (`readme.md`) IS UNKNOWN, AND THAT IS THE WHOLE RULE.
+// Whether it IS this directory's README depends on whether the filesystem folds
+// case, and this function spent three review passes trying to find out: first
+// `existsSync(exact)` (an unlisted scratch `README.md` switched the listed variant
+// on and retired a tracked record), then dev+inode identity (an EIO made a frozen
+// record govern; inode 0 made two files one), then a three-valued identity (a
+// variant absent from the working tree read as "proven different", and unknown
+// became "not frozen", which offered a frozen record's task as READY). Each repair
+// was a smaller guess. It does not guess now: the record's effect is UNPROVEN and
+// its tasks are UNPROVEN, with the remedy — name the catalog `README.md` — said
+// where either would have been (fifth review; ADR-005).
+const README_UNKNOWN = Symbol('a README is listed here under another spelling')
 
-// What `listedReadme` answers when a variant is listed and whether it IS the README
-// could not be established.
-const README_UNKNOWN = Symbol('whether the listed README variant is this directory\'s README.md is unknown')
-
-function listedReadme(directory, isListed, variants, sameEntry = sameFilesystemEntry) {
+function listedReadme(directory, isListed, variants) {
   const exact = path.join(directory, 'README.md')
   if (isListed(exact)) return exact
-  const variant = variants(directory).find(name => name.toLowerCase() === 'readme.md')
-  if (!variant) return null
-  const same = sameEntry(exact, path.join(directory, variant))
-  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN
+  return variants(directory).some(name => name.toLowerCase() === 'readme.md') ? README_UNKNOWN : null
 }
 
+// true, false, or 'unknown' — a listed README that could not be read is unknown
+// too: it may carry the marker, and `false` there offered retired work as READY.
 function underFrozenArchive(root, dirParts, cache, listed) {
+  let unknown = false
   for (let depth = 1; depth < dirParts.length; depth++) {
     const key = dirParts.slice(0, depth).join('/')
     if (!cache.has(key)) {
       let frozen = false
-      try {
-        const directory = path.join(root, ...dirParts.slice(0, depth))
-        const readme = listedReadme(directory,
-          () => listed.has(`${key}/README.md`),
-          () => [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)))
-        // Unknown identity freezes nothing: hiding a task set is silence, and showing
-        // one is a statement `adr-next` then checks for itself.
-        frozen = typeof readme === 'string' && readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
-      } catch {}
+      const readme = listedReadme(path.join(root, ...dirParts.slice(0, depth)),
+        () => listed.has(`${key}/README.md`),
+        () => [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)))
+      if (readme === README_UNKNOWN) frozen = 'unknown'
+      else if (readme !== null) {
+        try { frozen = readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE) } catch { frozen = 'unknown' }
+      }
       cache.set(key, frozen)
     }
-    if (cache.get(key)) return true
+    if (cache.get(key) === true) return true
+    if (cache.get(key) === 'unknown') unknown = true
   }
-  return false
+  return unknown ? 'unknown' : false
 }
 
 // ADR task directories from the git listing, not a disk walk. A gitignored
@@ -979,11 +964,13 @@ function taskDirectories(root, listing) {
     if (parts.length !== index + 2 || !/\.md$/i.test(parts[index + 1])) continue
     const dirParts = parts.slice(0, index + 1)
     if (dirParts.some((part, i) => i < dirParts.length - 1 && UNINTERESTING_DIRECTORY.test(part))) continue
-    if (underFrozenArchive(root, dirParts, frozen, listed)) continue
+    const archived = underFrozenArchive(root, dirParts, frozen, listed)
+    if (archived === true) continue
     const key = dirParts.join('/')
     if (seen.has(key)) continue
     seen.add(key)
-    found.push(listedAbsolute(root, key))
+    // `archive: 'unknown'` travels WITH the directory, as a field on the entry.
+    found.push({ directory: listedAbsolute(root, key), archive: archived === 'unknown' ? 'unknown' : 'no' })
   }
   return found
 }
@@ -1095,7 +1082,15 @@ export function readyTaskLines(root, insideRepository, listing, spawn = spawnGat
   const tool = path.join(PLUGIN_ROOT, 'bin', 'adr-next')
   if (!existsSync(tool)) return { look: 'ok', lines: [] }
   const lines = []
-  for (const directory of taskDirectories(root, listing)) {
+  for (const { directory, archive } of taskDirectories(root, listing)) {
+    if (archive === 'unknown') {
+      // No READY line for a directory that may be a frozen archive: `adr-next` reads
+      // the record and its tasks, never the catalog, so it cannot settle this.
+      lines.push(`  ${posixListed(path.relative(root, directory) || directory)}: UNPROVEN — a README above it is listed under another `
+        + 'spelling or could not be read, so whether this is a frozen archive is unknown. Name the catalog `README.md`. '
+        + 'Ready tasks there are not known.')
+      continue
+    }
     const run = spawn(tool, [directory, '--json'], { encoding: 'utf8', timeout: 10_000 })
     // posixListed: path.relative is native separators; SessionStart text and
     // the Windows CI structural-path rule need a listed form (ADR-046 T5).
@@ -1233,12 +1228,12 @@ function catalogCells(line) {
   return cells.slice(1, -1)
 }
 
-function archiveDecisionEffect(file, reader, cache, listed, sameEntry) {
+function archiveDecisionEffect(file, reader, cache, listed) {
   const directory = path.dirname(file)
   if (!cache.has(directory)) {
     let rows = null
     const readme = listedReadme(directory, candidate => listed.has(candidate),
-      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)), sameEntry)
+      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)))
     if (readme === README_UNKNOWN) rows = 'unknown-readme'
     else if (readme !== null) {
       try {
@@ -1278,7 +1273,7 @@ function archiveDecisionEffect(file, reader, cache, listed, sameEntry) {
   const rows = cache.get(directory)
   if (rows === null) return null
   if (rows === 'unread') return { unproven: 'the README beside it is listed and could not be read, so whether this is an archive is unknown' }
-  if (rows === 'unknown-readme') return { unproven: 'a README is listed beside it under another spelling, and whether that is this directory\'s README.md could not be established' }
+  if (rows === 'unknown-readme') return { unproven: 'a README is listed beside it under another spelling, and whether that is this directory\'s catalog is not something this reader guesses — name it `README.md`' }
   const effects = rows.get(file) ?? []
   if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }
   if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }
@@ -1582,7 +1577,7 @@ export function trackedPaths(root) {
  * resolution (ADR-005). An empty array means the tree was listed and held
  * no files. Nothing here writes, and nothing here runs a check.
  */
-export function adrCorpus(root, { tracked = trackedPaths(root), sameEntry } = {}) {
+export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   const archiveEffects = new Map()
   const records = []
   const unreadable = []
@@ -1620,7 +1615,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root), sameEntry } = {}
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
-    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles, sameEntry)
+    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles)
     if (archived?.unproven) records.look = 'PARTIAL'
     const effect = archived?.effect
     const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)

@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { adrCorpus, decisionsGoverning, readyTaskLines, sameFilesystemEntry } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionsGoverning, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
 
 test('session orientation asks adr-next about the active corpus and never about a frozen archive', () => {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-flight-')))
@@ -105,7 +105,7 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   const HEADER = ['# ADR Archive', '', '**Lifecycle:** Frozen historical ADR records', '',
     '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
     '|-----|-------|-----------------|---------|--------|-------------|---------|']
-  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive', readme = 'README.md', sameEntry } = {}) => {
+  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive', readme = 'README.md' } = {}) => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-strict-')))
     const write = (relative, text) => {
       mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
@@ -115,7 +115,7 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
     write(`${where}/${readme}`, [...HEADER, ...rows, ''].join('\n'))
     write('src/app.js', '// x\n')
     const tracked = [`${where}/ADR-007-x.md`, 'src/app.js', ...(listReadme ? [`${where}/${readme}`] : [])]
-    const records = adrCorpus(root, { tracked, sameEntry })
+    const records = adrCorpus(root, { tracked })
     const { governing, graveyard } = decisionsGoverning(['src/app.js'], root, records)
     rmSync(root, { recursive: true, force: true })
     return { governs: governing.length, buried: graveyard.length, look: records.look }
@@ -154,27 +154,15 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   assert.deepEqual(corpus([row('withdrawn', { link: '../adr-archive/ADR-007-x.md' })]), { governs: 0, buried: 1, look: 'ok' }, 'the control: dot-dot that really does come back to the record')
   assert.deepEqual(corpus([row('withdrawn', { link: './ADR-007-x.md' })]), { governs: 0, buried: 1, look: 'ok' })
 
-  // A README the listing spells `readme.md`. Where the exact name and the listed
-  // one are ONE FILE — a case-folding filesystem — it is the catalog; where they are
-  // not, it is a different file and freezes nothing. Which is a parameter, so both
-  // arms run on every platform rather than one arm per CI runner (CLAUDE.md §7).
-  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', sameEntry: () => true }), { governs: 0, buried: 1, look: 'ok' })
-  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', sameEntry: () => false }), { governs: 1, buried: 0, look: 'ok' })
-  // ⚠ "ONE FILE" IS AN IDENTITY, NOT AN EXISTENCE. The first predicate was
-  // `existsSync(exact)`, so an unlisted, unrelated `README.md` beside a listed
-  // `readme.md` switched the listed one on. Driven through a stat stub, so the
-  // two-distinct-files case is reachable on a filesystem that cannot hold both.
-  const gone = Object.assign(new Error('ENOENT'), { code: 'ENOENT' })
-  const stat = (entries, missing = gone) => file => { if (!(file in entries)) throw missing; return { dev: 1n, ino: entries[file] } }
-  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 7n, 'readme.md': 7n })), true, 'the control: one entry, two spellings')
-  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 8n, 'readme.md': 7n })), false, 'two files that both exist')
-  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'readme.md': 7n })), false, 'the exact name opens nothing: proven different')
-  // ⚠ AND A THIRD ANSWER. An identity that could not be READ proves neither: EIO
-  // made a frozen record govern, and a filesystem reporting inode 0 for everything
-  // made two distinct files one — each with `look: ok` (fourth review).
-  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'readme.md': 7n }, Object.assign(new Error('EIO'), { code: 'EIO' }))), null)
-  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 0n, 'readme.md': 0n })), null, 'inode 0 identifies nothing')
-  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', sameEntry: () => null }), unproven, 'and unknown identity is UNPROVEN, in neither direction')
+  // ⚠ A README THE LISTING SPELLS `readme.md` IS UNKNOWN — IN BOTH DIRECTIONS, ON
+  // EVERY FILESYSTEM. Whether it is this directory's catalog depends on whether the
+  // filesystem folds case, and three review passes each broke a cleverer way of
+  // finding out (existence, then inode identity, then a three-valued identity).
+  // The reader does not guess now. A withdrawn row in it retires nothing, and a
+  // governing row in it confirms nothing.
+  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md' }), unproven)
+  assert.deepEqual(corpus([row('governing')], { readme: 'readme.md' }), unproven)
+  assert.deepEqual(corpus([row('withdrawn')], { readme: 'ReadMe.MD' }), unproven)
 
   // A README git does not list governs nothing (CLAUDE.md §8): the record's own
   // status stands, as it would on any other machine.
@@ -196,6 +184,37 @@ test('a README git does not list cannot freeze a tracked task directory', () => 
     assert.doesNotMatch(lines(['docs/adr/ADR-002-current/tasks/T1-live.md', 'docs/adr/README.md']), /ADR-002-current/)
     assert.match(lines(['docs/adr/ADR-002-current/tasks/T1-live.md']), /ADR-002-current/,
       'an untracked README on this disk hides nothing')
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+// The same unknown, on the task side. `false` there offered a frozen record's task
+// as READY with the command to prove it; `true` would have hidden live work in
+// silence. `adr-next` cannot settle it — it reads the record and its tasks, never
+// the catalog (fifth review).
+test('a task directory that MAY be under a frozen archive gets an UNPROVEN line, not a ready one', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-unknown-')))
+  try {
+    const write = (relative, text) => {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), text)
+    }
+    const task = 'docs/old/ADR-002-x/tasks/T1-live.md'
+    write(task, '# x\n')
+    let asked = 0
+    const ready = () => { asked += 1; return { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: join(root, ...task.split('/')) }] }), stderr: '' } }
+    const lines = listing => readyTaskLines(root, true, listing, ready).lines.join('\n')
+    // The control: with no README above it, the directory IS asked about and IS offered.
+    assert.match(lines([task]), /T1 is ready/)
+    assert.equal(asked, 1)
+    // A case-variant README above it.
+    const variant = lines([task, 'docs/old/readme.md'])
+    assert.match(variant, /docs\/old\/ADR-002-x\/tasks: UNPROVEN/)
+    assert.doesNotMatch(variant, /is ready/)
+    // A listed README.md that cannot be read — it may well carry the marker.
+    const unreadable = lines([task, 'docs/old/README.md'])
+    assert.match(unreadable, /UNPROVEN/)
+    assert.doesNotMatch(unreadable, /is ready/)
+    assert.equal(asked, 1, 'adr-next is not asked about a directory whose standing is unknown')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 

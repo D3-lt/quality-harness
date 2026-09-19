@@ -8311,7 +8311,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    if (underFrozenArchive(root, dirParts, frozen, listed)) continue",
+      "from": "    if (archived === true) continue",
       "to": "    if (false) continue"
     },
     {
@@ -8608,8 +8608,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "          () => listed.has(`${key}/README.md`),",
-      "to": "          () => true,"
+      "from": "        () => listed.has(`${key}/README.md`),",
+      "to": "        () => true,"
     },
     {
       "label": "orientation: a tasks directory with no Markdown is not an ADR task set",
@@ -8666,22 +8666,13 @@
       "to": "            const href = link[1]"
     },
     {
-      "label": "catalog: a README listed in another case is the catalog where the filesystem folds case",
+      "label": "catalog: a README listed under another spelling is UNKNOWN, not absent",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN",
-      "to": "  return same === false ? null : README_UNKNOWN"
-    },
-    {
-      "label": "catalog: a README listed in another case is a different file where the filesystem does not fold",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN",
-      "to": "  return same === null ? README_UNKNOWN : path.join(directory, variant)"
+      "from": "  return variants(directory).some(name => name.toLowerCase() === 'readme.md') ? README_UNKNOWN : null",
+      "to": "  return null"
     },
     {
       "label": "baseline: a SessionStart in the middle of a session is not its beginning",
@@ -8756,15 +8747,6 @@
       "to": "            if (!href) continue"
     },
     {
-      "label": "catalog: two names are one file by identity, not because the exact name exists",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  return a.dev === b.dev && a.ino === b.ino",
-      "to": "  return true"
-    },
-    {
       "label": "note: a log that could not be read whole cannot say which compaction was last",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -8783,33 +8765,6 @@
       "to": "    const told = entry => entry.key === unobservedKey || entry.key === `${input.agent_id}:unknown`"
     },
     {
-      "label": "catalog: an identity that could not be established is UNPROVEN, not \"a different file\"",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN",
-      "to": "  return same === true ? path.join(directory, variant) : null"
-    },
-    {
-      "label": "identity: inode 0 identifies nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "  if (a.ino === 0n || b.ino === 0n) return null",
-      "to": "  void 0"
-    },
-    {
-      "label": "identity: a stat that failed for any reason but absence proves nothing",
-      "file": "plugin/scripts/lifecycle.mjs",
-      "tests": [
-        "tests/archive-not-in-flight.test.mjs"
-      ],
-      "from": "return failure?.code === 'ENOENT' || failure?.code === 'ENOTDIR' ? false : null }",
-      "to": "return false }"
-    },
-    {
       "label": "note: a note is served once",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
@@ -8817,6 +8772,24 @@
       ],
       "from": "        && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)",
       "to": "        && true"
+    },
+    {
+      "label": "orientation: a directory that may be under a frozen archive is UNPROVEN, never offered as ready",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (archive === 'unknown') {",
+      "to": "    if (false) {"
+    },
+    {
+      "label": "orientation: a listed README that cannot be read may be a catalog",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "catch { frozen = 'unknown' }",
+      "to": "catch { frozen = false }"
     }
   ]
 }

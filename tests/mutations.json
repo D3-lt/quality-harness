@@ -8340,6 +8340,42 @@
       ],
       "from": "    text: (logIncomplete(log)",
       "to": "    text: (false"
+    },
+    {
+      "label": "orientation: a frozen archive's tasks are not work in flight",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (underFrozenArchive(root, dirParts, frozen)) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "corpus: a retired record governs only if its archive catalog says so",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    const status = retired ? effect : recordStatus(text)",
+      "to": "    const status = recordStatus(text)"
+    },
+    {
+      "label": "advisory: the headline a person sees names the finding, not the prefix",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/advisory-headline.test.mjs"
+      ],
+      "from": "  const sentence = first.trim().replace(/^quality-harness:\\s*/i, '').split(/(?<=\\.)\\s/)[0]",
+      "to": "  const sentence = first.trim().split(/(?<=[.:])\\s/)[0]"
+    },
+    {
+      "label": "paths: a changed path is read NUL-terminated, never unquoted by hand",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/status-paths.test.mjs"
+      ],
+      "from": "  if (nul) return mark(run.stdout.split('\\0').filter(Boolean), true)",
+      "to": "  if (false) return mark(run.stdout.split('\\0').filter(Boolean), true)"
     }
   ]
 }

@@ -8527,7 +8527,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      if (stale) sections.push(",
+      "from": "      if (note && !tied) sections.push(",
       "to": "      if (false) sections.push("
     },
     {
@@ -8671,7 +8671,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return variant && foldsCase(exact) ? path.join(directory, variant) : null",
+      "from": "  return variant && sameEntry(exact, path.join(directory, variant)) ? path.join(directory, variant) : null",
       "to": "  return null"
     },
     {
@@ -8680,7 +8680,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return variant && foldsCase(exact) ? path.join(directory, variant) : null",
+      "from": "  return variant && sameEntry(exact, path.join(directory, variant)) ? path.join(directory, variant) : null",
       "to": "  return variant ? path.join(directory, variant) : null"
     },
     {
@@ -8716,7 +8716,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      + `${other ? ` ${other} write(s) git cannot see were recorded, and no check passed after them.` : ''} `",
+      "from": "      + `${other ? ` ${other} write(s) git cannot see were recorded, and no passing check after them is on record.` : ''} `",
       "to": "      + ' '"
     },
     {
@@ -8729,13 +8729,13 @@
       "to": "  if (record?.verdict === 'unproven') return 'check.unproven'\n  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'"
     },
     {
-      "label": "note: a note belongs to its compaction by count, not by wall clock",
+      "label": "note: a note is served only when it is tied to its compaction by id",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "      const stale = Number.isInteger(note?.compaction) && note.compaction !== compactions",
-      "to": "      const stale = false"
+      "from": "      const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner",
+      "to": "      const tied = true"
     },
     {
       "label": "note: an order that cannot be established is said so",
@@ -8745,6 +8745,42 @@
       ],
       "from": "  if (unresolved === 'say-so' && new Set(",
       "to": "  if (false && new Set("
+    },
+    {
+      "label": "catalog: a rooted or schemed link is refused before it is resolved",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "            if (!href || /^(?:[a-z][a-z0-9+.-]*:|[\\\\/])/i.test(href)) continue",
+      "to": "            if (!href) continue"
+    },
+    {
+      "label": "catalog: two names are one file by identity, not because the exact name exists",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    return a.dev === b.dev && a.ino === b.ino",
+      "to": "    return true"
+    },
+    {
+      "label": "note: a log that could not be read whole cannot say which compaction was last",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      const tied = !logIncomplete(events) && typeof owner === 'string'",
+      "to": "      const tied = typeof owner === 'string'"
+    },
+    {
+      "label": "R3: a session already told under the old key is not told again",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    const told = new Set([unobservedKey, `${input.agent_id}:unknown`])",
+      "to": "    const told = new Set([unobservedKey])"
     }
   ]
 }

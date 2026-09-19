@@ -8277,6 +8277,24 @@
       ],
       "from": "  const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'",
       "to": "  const kind = observation?.ok !== true ? 'could-not-look'"
+    },
+    {
+      "label": "lint: a record retired to the sibling archive is still a record a citation can name",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "    return number in archived_record_numbers(root, corpus_dir, tracked)",
+      "to": "    return False"
+    },
+    {
+      "label": "lint: a sibling directory without the Lifecycle marker is not part of the corpus",
+      "file": "plugin/bin/adr-lint",
+      "tests": [
+        "tests/gates.test.mjs"
+      ],
+      "from": "        if not ARCHIVE_LIFECYCLE_RE.search(catalog):",
+      "to": "        if False:"
     }
   ]
 }

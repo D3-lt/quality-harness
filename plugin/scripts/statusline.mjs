@@ -105,15 +105,17 @@ function observedReading(log, observed, check) {
   // the last-APPENDED event, so a stale re-imported pass still read `checked`
   // here after the advisories had stopped believing it. Two copies of one rule is
   // exactly what CLAUDE.md §5 is about, and the comment is what made it invisible.
-  const checked = observation?.ok === true
-    && latestCheckFor(log, observation.tree)?.event === 'check.passed'
+  const latest = observation?.ok === true ? latestCheckFor(log, observation.tree) : null
+  const checked = latest?.event === 'check.passed'
   // A log that could not be read whole says nothing positive: not `checked`, and
   // not `nothing edited` either — the lost line may be the write (audit B3).
   const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'
     : checked ? 'checked'
     : writes.length === 0 && baseline?.ok === true && observation.tree === baseline.tree ? 'nothing'
     : 'unverified'
-  return { kind, count: writes.length, check, observedAtMs: Number.isFinite(observedAt) ? observedAt : null }
+  // `inferred` rides with the verdict, because a tick earned by a command this
+  // tool GUESSED is worth less than one earned by the project's declared gate.
+  return { kind, count: writes.length, check, inferred: checked && latest?.origin === 'inferred', observedAtMs: Number.isFinite(observedAt) ? observedAt : null }
 }
 
 // The CI verdict, read from the cache the branch-state hook writes into `.git/`
@@ -158,7 +160,7 @@ export function render(value, ci = null) {
       : stale ? `QH ? ${age}`
       : value.kind === 'could-not-look' ? 'QH ? could not look'
       : value.kind === 'unverified' ? `QH ✗ ${value.count > 0 ? `${value.count} unverified` : 'unverified'}`
-      : value.kind === 'checked' ? 'QH ✓ checked'
+      : value.kind === 'checked' ? (value.inferred ? 'QH ✓ checked (inferred check)' : 'QH ✓ checked')
       : value.check ? 'QH · nothing edited'
       : null
     if (token) parts.push(!stale && age && value.kind !== 'unknown' ? `${token} · ${age}` : token)

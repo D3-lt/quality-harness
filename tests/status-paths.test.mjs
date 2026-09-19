@@ -109,5 +109,11 @@ test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
     assert.doesNotMatch(said, /\\\\?30[0-9]/, `no octal escape reaches the user: ${said.slice(0, 600)}`)
     assert.doesNotMatch(said, /could not classify/, `and the gate is never sent after a path that is not there: ${said.slice(0, 600)}`)
     assert.match(said, /Artifact validation failed[\s\S]*ADR-900-committ\u00e9d\.md/, `the committed awkward name reached the gate and was judged: ${said.slice(0, 900)}`)
+    // ⚠ AND IT ARRIVED AS ITSELF. The assertion above is a SUBSTRING match, and a
+    // mutant that split NUL-separated output on newlines survived it: the "path"
+    // became `…committéd.md\0<next>\0`, the gate failed on THAT, and the right
+    // filename was still in there to be found. A path with a NUL in it is not a path.
+    assert.doesNotMatch(said, /\u0000|\\u0000/, `no NUL reaches a path or a message: ${JSON.stringify(said.slice(0, 500))}`)
+    assert.match(said, /ADR-900-committ\u00e9d\.md(?![^\s"\\]*\\u0000)[\s":,.]/, 'the name ends where a name ends')
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

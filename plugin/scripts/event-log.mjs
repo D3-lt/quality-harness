@@ -50,6 +50,25 @@ export function canonical(candidate) {
   }
 }
 
+/**
+ * The ONE spelling a file gets when it is persisted as an event key.
+ *
+ * `canonical` needs a path that exists; a key is often recorded for a file that was
+ * just deleted, or does not exist yet. So the nearest existing ancestor is
+ * canonicalised and the remainder re-appended — the same walk `recordFileWritten`
+ * already did to ask git about the file, before recording the OTHER spelling.
+ *
+ * ⚠ THREE SITES BUILD THIS KEY AND ONLY ONE WAS CANONICAL. Rule A's candidates are
+ * `path.join(canonical(top), relative)`. The per-edit gate's `artifact.gated` key and
+ * the `file.written` path were merely resolved, so through a symlinked checkout or
+ * a Windows 8.3 short name the verdict was stored under one spelling and looked up
+ * under another, and the dedupe never fired (audit 2026-09-18, C1).
+ */
+export function canonicalFile(absolute) {
+  const parent = nearestExistingDirectory(absolute)
+  return parent ? path.join(canonical(parent), path.relative(parent, absolute)) : absolute
+}
+
 const stateDirectories = new Map()
 export function stateDir(cwd, { spawn = true } = {}) {
   const directory = nearestExistingDirectory(path.resolve(typeof cwd === 'string' ? cwd : process.cwd()))

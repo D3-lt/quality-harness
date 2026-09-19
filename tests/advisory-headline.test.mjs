@@ -24,7 +24,7 @@ const IDENTITY = { GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid'
   GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
 
 test('the headline a person sees at a publish warning names the finding', () => {
-  const top = realpathSync(mkdtempSync(join(tmpdir(), 'qh-headline-')))
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-headline-')))
   try {
     const repo = join(top, 'repo')
     const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
@@ -53,5 +53,13 @@ test('the headline a person sees at a publish warning names the finding', () => 
     assert.match(headline, /^quality-harness advised the agent: /)
     assert.match(headline, /unchecked/, `the person's line must say WHAT was found: ${headline}`)
     assert.doesNotMatch(headline, /advised the agent: quality-harness:/, `and must not be the prefix repeated: ${headline}`)
+    // ONE line for the person, the report for the agent: a twelve-line report
+    // rendered as twelve "PreToolUse:Bash says:" lines in the owner's terminal is
+    // why the two channels were split (2026-09-05).
+    assert.doesNotMatch(headline, /Run `qh-check` first/, `the person's line is a headline, not the instruction: ${headline}`)
+    assert.match(said.hookSpecificOutput.additionalContext, /Run `qh-check` first/, 'the instruction is where the agent reads')
+    // And the finding is on stderr too, so it survives in the transcript whatever
+    // the host does with the JSON — a finding in one channel only can be hidden.
+    assert.match(out.stderr, /this repository is unchecked/, 'never hidden: the full text is also on stderr')
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

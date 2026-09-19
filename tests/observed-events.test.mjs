@@ -6,7 +6,7 @@
 import assert from 'node:assert/strict'
 import { spawn, spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
-import { existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, realpathSync, rmSync, statSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
 import test, { after } from 'node:test'
@@ -19,7 +19,7 @@ import { persistedEventPath } from '../plugin/scripts/run-shell-hook.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const lifecycleScript = path.join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
-const testTmp = realpathSync(mkdtempSync(path.join(
+const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-events-')))
 after(() => {
   try { rmSync(testTmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }
@@ -889,7 +889,20 @@ test('a committed artifact is still validated', () => {
     hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: timedOut },
     session_id: session, cwd: dir,
   })
-  editGate(timedOut, dir, session, { QUALITY_HARNESS_SHELL_TIMEOUT_MS: '100' })
+  // ⚠ THE TIMEOUT IS MADE CERTAIN, NOT HOPED FOR. This arm set the smallest legal
+  // budget (100 ms) and assumed the gate would overrun it. On the machine that wrote
+  // it, it does. On a CI runner the gate FINISHES inside 100 ms, records a complete
+  // verdict, and the turn end rightly skips the path — so this passed on macOS and
+  // failed on Linux and Windows, the first time this branch ever had a CI run
+  // (2026-09-19). A stand-in `python3` that sleeps is first on PATH for this one
+  // call; the gates are `#!/usr/bin/env python3`, so the gate cannot answer in time
+  // on any machine.
+  const slow = mkdtempSync(path.join(testTmp, 'slow-python-'))
+  writeFileSync(path.join(slow, 'python3'), '#!/bin/sh\nsleep 20\n')
+  chmodSync(path.join(slow, 'python3'), 0o755)
+  editGate(timedOut, dir, session, {
+    QUALITY_HARNESS_SHELL_TIMEOUT_MS: '100', PATH: `${slow}${path.delimiter}${process.env.PATH ?? ''}`,
+  })
   const afterTimeout = hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
   assert.ok(afterTimeout.stdout.includes('ADR-903-bad.md'), afterTimeout.stdout)
 

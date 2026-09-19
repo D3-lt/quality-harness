@@ -65,7 +65,7 @@ function gitInit(dir) {
 // directories left per run, 1117 after twelve (2026-09-05), and the runner's
 // temp is no different. realpath'd, because /tmp is a symlink on macOS and the
 // judgements under test compare realpaths.
-const testTmp = realpathSync(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'quality-lifecycle-')))
+const testTmp = realpathSync.native(mkdtempSync(path.join(process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'quality-lifecycle-')))
 // Bounded retries for Windows handle locks. A failure here is SAID, loudly, and
 // never thrown: on 2026-09-05 (CI run 33970787579) the file failed at FILE level
 // on windows-latest with every subtest ok — the shape BACKLOG §49 had seen twice

@@ -27,7 +27,7 @@ const IDENTITY = { GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid'
   GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
 
 test('every changed path a session is told about is a path that exists', () => {
-  const repo = realpathSync(mkdtempSync(join(tmpdir(), 'qh-status-paths-')))
+  const repo = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-status-paths-')))
   try {
     const git = (...args) => {
       const run = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 30_000, env: { ...process.env, ...IDENTITY } })
@@ -42,8 +42,11 @@ test('every changed path a session is told about is a path that exists', () => {
 
     // One of each thing porcelain v1 quotes or decorates. A quote and a backslash
     // are legal in a POSIX name and not in a Windows one, so they are POSIX-only.
-    const awkward = ['naïve probe.md', 'with space.md', 'tab\there.md']
-    if (process.platform !== 'win32') awkward.push('has"quote.md', 'back\\slash.md')
+    // A TAB, a quote and a backslash are legal in a POSIX name and not in a Windows
+    // one — the tab was left in the portable list at first, and the Windows runner
+    // refused to create it (ENOENT), which is how this comment came to be.
+    const awkward = ['na\u00efve probe.md', 'with space.md']
+    if (process.platform !== 'win32') awkward.push('tab\there.md', 'has"quote.md', 'back\\slash.md')
     for (const name of awkward) writeFileSync(join(repo, name), 'x\n')
     writeFileSync(join(repo, 'plain.md'), 'changed\n')
     renameSync(join(repo, 'to-rename.md'), join(repo, 'renamed é.md'))
@@ -69,7 +72,7 @@ test('every changed path a session is told about is a path that exists', () => {
 // alone left the artifact gate chasing `…/na\303\257ve probe.md` — which is
 // how the field run read: "UNPROVEN: could not classify" a file that is right there.
 test('no hook names, or tries to gate, a path spelled in octal escapes', () => {
-  const top = realpathSync(mkdtempSync(join(tmpdir(), 'qh-status-hooks-')))
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-status-hooks-')))
   try {
     const repo = join(top, 'repo')
     const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }

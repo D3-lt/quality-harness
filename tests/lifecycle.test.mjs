@@ -3794,23 +3794,45 @@ test('every command this harness OFFERS, it also accepts as evidence', () => {
   // This asserts the CLASS rather than the instance: whatever a tree's manifests
   // look like, if a command is named then it must be evidence. A new rung added
   // later fails here rather than in somebody's repository.
+  // Each tree states the ORIGIN it must resolve to. Without that the loop below
+  // `continue`d past any tree that named nothing, so the Laravel fixture this
+  // test was written FOR asserted nothing at all — re-adding a `composer test`
+  // rung would have gone unnoticed (docs/audits/2026-09-18-adr-060.md, G4).
   const trees = [
-    ['composer with a test script (the Laravel skeleton default)',
+    ['composer with a test script (the Laravel skeleton default)', 'none',
       { 'composer.json': '{"scripts":{"test":["@php artisan test"]},"require":{"laravel/framework":"^13.8"}}' }],
-    ['composer with phpunit and no script',
+    ['composer with phpunit and no script', 'inferred',
       { 'composer.json': '{"require-dev":{"phpunit/phpunit":"^11"}}', 'phpunit.xml': '<phpunit/>\n' }],
-    ['npm with a test script', { 'package.json': '{"scripts":{"test":"vitest run"}}' }],
-    ['a Makefile with a test target', { Makefile: 'test:\n\techo hi\n' }],
-    ['cargo', { 'Cargo.toml': '[package]\nname = "x"\n' }],
-    ['go', { 'go.mod': 'module x\n' }],
+    ['npm with a test script', 'inferred', { 'package.json': '{"scripts":{"test":"vitest run"}}' }],
+    ['a Makefile with a test target', 'inferred', { Makefile: 'test:\n\techo hi\n' }],
+    ['cargo', 'inferred', { 'Cargo.toml': '[package]\nname = "x"\n' }],
+    ['go', 'inferred', { 'go.mod': 'module x\n' }],
+    // The one branch no fixture reached: a mutant that emptied the DECLARED arm
+    // of `runTheCheckSentence` survived the whole file (G3).
+    ['a declared check', 'declared', { '.quality-harness.json': '{"check":"sh check.sh"}' }],
   ]
   const offered = []
-  for (const [label, files] of trees) {
+  for (const [label, expected, files] of trees) {
     const dir = mkdtempSync(path.join(testTmp, 'offers-'))
     for (const [name, body] of Object.entries(files)) writeFileSync(path.join(dir, name), body)
     const { command, origin } = checkCommandOrigin(dir)
-    if (command === null) continue
+    assert.equal(origin, expected, `${label}: resolved \`${command}\``)
+    const sentence = runTheCheckSentence(dir)
+    if (command === null) {
+      // Nothing is offered, so nothing may be NAMED: no `qh-check` promise over a
+      // command that does not exist, and no manifest script quoted as if it were one.
+      assert.doesNotMatch(sentence, /qh-check|composer|artisan/, `${label}: ${sentence}`)
+      continue
+    }
     offered.push(`${label}: ${command} (${origin})`)
+    // Whose word the command is, said once and in the right arm only.
+    if (origin === 'declared') {
+      assert.match(sentence, /\(this project's own check\)/, `${label}: ${sentence}`)
+      assert.doesNotMatch(sentence, /No `check` is declared|inferred from this repository/, `${label}: ${sentence}`)
+    } else {
+      assert.match(sentence, /No `check` is declared/, `${label}: ${sentence}`)
+      assert.doesNotMatch(sentence, /\(this project's own check\)/, `${label}: ${sentence}`)
+    }
     // ⚠ THE INVARIANT SURVIVES ADR-060 IN A DIFFERENT SHAPE. There is no text
     // predicate for evidence any more: a check is an event `qh-check` writes, not
     // a command a classifier approves. So "the harness must accept what it

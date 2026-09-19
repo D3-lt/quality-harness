@@ -1,11 +1,11 @@
 # ADR-060: Advisories react to observed events, not to parsed commands
 
-**Status:** Proposed
+**Status:** Accepted
 **Date:** 2026-09-17
 **Owner:** zy
 **Spec:** None — no spec stage. The owner decided the direction on 2026-09-17: "use events … better event names for separation, then watch for events in our internal loop, then do the actions … simple". After Codex's loss review of revision 2, the owner kept a small publish guard. After Codex's review of revision 3 and the refusal rates measured below, the owner chose a guard that reads one thing from a command: whether it contains the word `commit` or `push`. Revision 5 answers two reviews of revision 4, and the owner chose to try it on a local branch before accepting.
 **Cross-references:** ADR-005, ADR-035, ADR-041, ADR-042, ADR-044, ADR-047, ADR-048, ADR-051, ADR-053, ADR-054, ADR-056, ADR-058, ADR-059, `docs/BACKLOG.md` §213, `docs/BACKLOG.md` §216, `docs/BACKLOG.md` §217, `docs/BACKLOG.md` §218, `docs/BACKLOG.md` §220, `docs/BACKLOG.md` §221
-**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/classify-command.mjs`, `plugin/scripts/reviewer-guard.mjs`, `plugin/scripts/statusline.mjs`, `plugin/scripts/run-shell-hook.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/hooks/hooks.json`, `plugin/bin/qh-check`, `plugin/bin/qh-check.cmd`, `plugin/scripts/qh-check.mjs`
+**Governs:** `plugin/scripts/lifecycle.mjs`, `plugin/scripts/event-log.mjs`, `plugin/scripts/classify-command.mjs`, `plugin/scripts/reviewer-guard.mjs`, `plugin/scripts/statusline.mjs`, `plugin/scripts/run-shell-hook.mjs`, `plugin/scripts/facts-gate-dispatch.sh`, `plugin/hooks/hooks.json`, `plugin/bin/qh-check`, `plugin/bin/qh-check.cmd`, `plugin/scripts/qh-check.mjs`
 
 Class: every advisory `lifecycle.mjs` derives from a Bash command's text rather than from what happened. Enumerated 2026-09-17 at `a7c5e57`:
 - `git grep -c "\bclassifyCommand(\|\bisPotentialMutationCommand(\|\bbashMarkdownMutationPaths(\|\bisValidationCommand(\|\banalyzeTranscript(\|\breadOnlyVerdict(" -- plugin` matches 23 lines in `lifecycle.mjs` and 4 in `classify-command.mjs`.
@@ -16,7 +16,7 @@ Class: every advisory `lifecycle.mjs` derives from a Bash command's text rather 
 
 One reading of command text stays, deliberately: whether a Bash command contains the word `commit` or `push` (T3, T4).
 
-**Enforced-by:** None — tests will be created in T1-T7
+**Enforced-by:** `tests/observed-events.test.mjs::the scripted session advises as its step table lists`, `tests/observed-events.test.mjs::a check event is written by qh-check`, `tests/observed-events.test.mjs::a read-only role cannot commit or push and its other changes are reported`, `tests/observed-events.test.mjs::the command classifiers are gone`, `tests/evidence-flip.test.mjs::degrading the evidence changes the answer, at every surface that can give a positive one`
 **Invalidates:**
 - **ADR-047:** an unrecognised command no longer matters to what is reported. The only command text read is the `commit`/`push` word rule.
 - **ADR-041, ADR-042, ADR-048:** markers, UNPROVEN authorship and its validation term go.

@@ -1,5 +1,6 @@
 # Task ADR-053-T3: A gitignored Write after a green check does not re-open the commit gate
 
+**Status:** superseded by ADR-060 — the clause this task proved read a command's text, which nothing does any more; its test was deleted with the classifier, so its fence now selects nothing
 **Depends-on:** T2
 **Covers:** none — no spec
 **Estimated scope:** S (single file)

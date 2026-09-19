@@ -8282,7 +8282,7 @@
       "label": "evidence-flip: a review whose opening bracket tore is not a review where nothing changed",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/evidence-flip.test.mjs"
+        "tests/review-2026-09-19.test.mjs"
       ],
       "from": "        ? (logIncomplete(log)\n          ? 'this session\\'s event log could not be read whole",
       "to": "        ? (false\n          ? 'this session\\'s event log could not be read whole"

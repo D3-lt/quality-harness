@@ -180,6 +180,9 @@ test('a review whose start or end could not be observed says so, instead of sayi
     assert.match(lines.at(-1), /"agentId":"torn"/, 'the control: the last line is the bracket about to be torn')
     writeFileSync(logFile, `${lines.slice(0, -1).join('\n')}\n${lines.at(-1).slice(0, 40)}`)
     assert.match(hook({ hook_event_name: 'SubagentStop', agent_type: REVIEWER, agent_id: 'torn' }), /could not be read whole/)
+    // A session upgraded mid-way was already told, under the key the old arm used.
+    appendFileSync(logFile, `\n${JSON.stringify({ at: new Date().toISOString(), event: 'action.emitted', rule: 'R3', key: 'told-before:unknown' })}\n`)
+    assert.doesNotMatch(hook({ hook_event_name: 'SubagentStop', agent_type: REVIEWER, agent_id: 'told-before' }), /told-before/)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
 
@@ -208,7 +211,7 @@ test('over a torn log a newly reachable commit is "not known to be checked", nev
 test('a state note older than the compaction it follows is not served as that compaction\'s', () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-review-stale-')))
   try {
-    const { hook, session } = fixture(top, 'stale')
+    const { hook, session, log, logFile } = fixture(top, 'stale')
     hook({ hook_event_name: 'SessionStart', source: 'startup' })
     hook({ hook_event_name: 'PreCompact' })
     // The control: the note PreCompact just kept is handed back.
@@ -216,19 +219,35 @@ test('a state note older than the compaction it follows is not served as that co
     const file = join(top, `quality-harness-note-${createHash('sha256').update(session).digest('hex').slice(0, 32)}`)
     assert.ok(existsSync(file), 'the note is where this test expects it')
     const kept = JSON.parse(readFileSync(file, 'utf8'))
-    assert.equal(kept.compaction, 1, 'the note says which compaction it belongs to')
+    const compacting = log().filter(entry => entry.event === 'context.compacting')
+    assert.equal(compacting.length, 1)
+    assert.equal(typeof kept.compaction, 'string')
+    assert.equal(kept.compaction, compacting[0].compactionId, 'the note carries the id of the compaction it was written for')
     // ⚠ NOT BY WALL CLOCK. The first version compared `note.at` with the event's
     // `at`, and a clock that stepped backwards between the two rejected the note
     // PreCompact had just written (second review). The same note, dated years
     // before its event, is still this compaction's.
     writeFileSync(file, JSON.stringify({ ...kept, at: '2020-01-01T00:00:00.000Z' }))
     assert.match(hook({ hook_event_name: 'SessionStart', source: 'compact' }), /What this session was doing before compaction/)
+    // ⚠ AND NOT BY COUNT. A note with NO owner — written by an older version, then
+    // left behind by a replace that failed — was served because nothing said it was
+    // stale; a count also survives a torn compacting line (third review).
+    writeFileSync(file, JSON.stringify({ at: kept.at, status: 'verified', text: 'LEGACY NOTE' }))
+    const legacy = hook({ hook_event_name: 'SessionStart', source: 'compact' })
+    assert.doesNotMatch(legacy, /LEGACY NOTE/)
+    assert.match(legacy, /could not be tied to this compaction/)
     // The note a failed replace would leave behind: an EARLIER compaction's.
     hook({ hook_event_name: 'PreCompact' })
     writeFileSync(file, JSON.stringify({ ...kept, text: 'OLD NOTE' }))
     const after = hook({ hook_event_name: 'SessionStart', source: 'compact' })
     assert.doesNotMatch(after, /OLD NOTE/)
-    assert.match(after, /older than this compaction/)
+    assert.match(after, /could not be tied to this compaction/)
+    // A log that could not be read whole cannot say which compaction was LAST — the
+    // torn line may be a newer one — so even a note whose id matches is not served.
+    hook({ hook_event_name: 'PreCompact' })
+    assert.match(hook({ hook_event_name: 'SessionStart', source: 'compact' }), /What this session was doing before compaction/, 'the control: a fresh note is served again')
+    appendFileSync(logFile, '{"event":"context.compacting","compactionId":"to')
+    assert.match(hook({ hook_event_name: 'SessionStart', source: 'compact' }), /could not be tied to this compaction/)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
 
@@ -363,5 +382,8 @@ test('an UNKNOWN previous session still says what was independently known to be 
     const next = hook(`unknown-b-${process.pid}`, { hook_event_name: 'SessionStart', source: 'startup' })
     assert.match(next, /UNKNOWN to this plugin/)
     assert.match(next, /1 write\(s\) git cannot see/, next.slice(0, 600))
+    // Worded as what is ON RECORD: the row may come from a log that lost a line.
+    assert.match(next, /no passing check after them is on record/)
+    assert.doesNotMatch(next, /no check passed after them/)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

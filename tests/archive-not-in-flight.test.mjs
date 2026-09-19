@@ -16,7 +16,7 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { adrCorpus, decisionsGoverning, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionsGoverning, readyTaskLines, sameFilesystemEntry } from '../plugin/scripts/lifecycle.mjs'
 
 test('session orientation asks adr-next about the active corpus and never about a frozen archive', () => {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-flight-')))
@@ -105,7 +105,7 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   const HEADER = ['# ADR Archive', '', '**Lifecycle:** Frozen historical ADR records', '',
     '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
     '|-----|-------|-----------------|---------|--------|-------------|---------|']
-  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive', readme = 'README.md', foldsCase } = {}) => {
+  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive', readme = 'README.md', sameEntry } = {}) => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-strict-')))
     const write = (relative, text) => {
       mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
@@ -115,7 +115,7 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
     write(`${where}/${readme}`, [...HEADER, ...rows, ''].join('\n'))
     write('src/app.js', '// x\n')
     const tracked = [`${where}/ADR-007-x.md`, 'src/app.js', ...(listReadme ? [`${where}/${readme}`] : [])]
-    const records = adrCorpus(root, { tracked, foldsCase })
+    const records = adrCorpus(root, { tracked, sameEntry })
     const { governing, graveyard } = decisionsGoverning(['src/app.js'], root, records)
     rmSync(root, { recursive: true, force: true })
     return { governs: governing.length, buried: graveyard.length, look: records.look }
@@ -138,15 +138,28 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   // this one — and a local link with a `#fragment` was refused (second review).
   assert.deepEqual(corpus([row('withdrawn', { link: '../other-archive/ADR-007-x.md' })]), unproven, 'the same basename in another directory')
   assert.deepEqual(corpus([row('withdrawn', { link: 'https://example.invalid/docs/ADR-007-x.md' })]), unproven, 'a remote link ending in the name')
+  // ⚠ AND THE TWO THAT NORMALISE ONTO THE RECORD. With the check above "a URL
+  // resolves to no local path" was believed and the scheme test removed; these are
+  // the inputs that belief did not survive (third review).
+  assert.deepEqual(corpus([row('withdrawn', { link: 'https://example.invalid/../../ADR-007-x.md' })]), unproven, 'dot-dot cancels the host')
+  assert.deepEqual(corpus([row('withdrawn', { link: '/ADR-007-x.md' })]), unproven, 'a rooted link whose root is dropped by splitting')
   assert.deepEqual(corpus([row('withdrawn', { link: 'ADR-007-x.md#decision' })]), { governs: 0, buried: 1, look: 'ok' }, 'a fragment is not part of the file')
   assert.deepEqual(corpus([row('withdrawn', { link: './ADR-007-x.md' })]), { governs: 0, buried: 1, look: 'ok' })
 
-  // A README the listing spells `readme.md`. Where the filesystem folds case the
-  // exact name opens that file, and it is the catalog; where it does not, it is a
-  // different file and freezes nothing. Folding is a parameter, so both arms run
-  // on every platform rather than one arm per CI runner (CLAUDE.md §7).
-  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', foldsCase: () => true }), { governs: 0, buried: 1, look: 'ok' })
-  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', foldsCase: () => false }), { governs: 1, buried: 0, look: 'ok' })
+  // A README the listing spells `readme.md`. Where the exact name and the listed
+  // one are ONE FILE — a case-folding filesystem — it is the catalog; where they are
+  // not, it is a different file and freezes nothing. Which is a parameter, so both
+  // arms run on every platform rather than one arm per CI runner (CLAUDE.md §7).
+  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', sameEntry: () => true }), { governs: 0, buried: 1, look: 'ok' })
+  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', sameEntry: () => false }), { governs: 1, buried: 0, look: 'ok' })
+  // ⚠ "ONE FILE" IS AN IDENTITY, NOT AN EXISTENCE. The first predicate was
+  // `existsSync(exact)`, so an unlisted, unrelated `README.md` beside a listed
+  // `readme.md` switched the listed one on. Driven through a stat stub, so the
+  // two-distinct-files case is reachable on a filesystem that cannot hold both.
+  const stat = entries => file => { if (!(file in entries)) throw new Error('ENOENT'); return { dev: 1n, ino: entries[file] } }
+  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 7n, 'readme.md': 7n })), true, 'the control: one entry, two spellings')
+  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'README.md': 8n, 'readme.md': 7n })), false, 'two files that both exist')
+  assert.equal(sameFilesystemEntry('README.md', 'readme.md', stat({ 'readme.md': 7n })), false, 'the exact name opens nothing')
 
   // A README git does not list governs nothing (CLAUDE.md §8): the record's own
   // status stands, as it would on any other machine.

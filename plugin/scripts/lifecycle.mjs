@@ -2,7 +2,7 @@
 
 import { readFile } from 'node:fs/promises'
 import { readFileSync } from 'node:fs'
-import { createHash } from 'node:crypto'
+import { createHash, randomUUID } from 'node:crypto'
 import { spawnSync } from 'node:child_process'
 import { appendFileSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readdirSync, readlinkSync, realpathSync, rmSync, statSync, unlinkSync, writeFileSync } from 'node:fs'
 import os from 'node:os'
@@ -897,14 +897,24 @@ const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
 // the frozen record came back `governing` and its tasks READY. On a filesystem
 // that does NOT fold case the variant is a different file and is left alone, which
 // is also what the bash dispatcher's `[ -f "$dir/README.md" ]` concludes.
-// `foldsCase` is the seam (CLAUDE.md §7): whether the exact name opens anything is
-// a fact about the filesystem, and a test on a case-sensitive one must still be
-// able to reach the folding arm.
-function listedReadme(directory, isListed, variants, foldsCase = existsSync) {
+// ⚠ "FOLDS CASE" MEANS THE TWO NAMES ARE ONE FILE — not that the exact name opens
+// SOMETHING. The first version asked `existsSync(exact)`, so on a case-SENSITIVE
+// filesystem an unlisted, unrelated `README.md` dropped beside a listed
+// `readme.md` switched the listed one on: an ignored scratch file retired a tracked
+// record (third review; CLAUDE.md §8). `sameEntry` is the seam (§7): a test on
+// either kind of filesystem must be able to reach both arms.
+export function sameFilesystemEntry(one, other, stat = statSync) {
+  try {
+    const [a, b] = [stat(one, { bigint: true }), stat(other, { bigint: true })]
+    return a.dev === b.dev && a.ino === b.ino
+  } catch { return false }
+}
+
+function listedReadme(directory, isListed, variants, sameEntry = sameFilesystemEntry) {
   const exact = path.join(directory, 'README.md')
   if (isListed(exact)) return exact
   const variant = variants(directory).find(name => name.toLowerCase() === 'readme.md')
-  return variant && foldsCase(exact) ? path.join(directory, variant) : null
+  return variant && sameEntry(exact, path.join(directory, variant)) ? path.join(directory, variant) : null
 }
 
 function underFrozenArchive(root, dirParts, cache, listed) {
@@ -1208,12 +1218,12 @@ function catalogCells(line) {
   return cells.slice(1, -1)
 }
 
-function archiveDecisionEffect(file, reader, cache, listed, foldsCase) {
+function archiveDecisionEffect(file, reader, cache, listed, sameEntry) {
   const directory = path.dirname(file)
   if (!cache.has(directory)) {
     let rows = null
     const readme = listedReadme(directory, candidate => listed.has(candidate),
-      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)), foldsCase)
+      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)), sameEntry)
     if (readme !== null) {
       try {
         const lines = reader.text(readme).split(/\r?\n/)
@@ -1228,9 +1238,14 @@ function archiveDecisionEffect(file, reader, cache, listed, foldsCase) {
             // shares a basename. Keyed by basename, `../b/ADR-001-x.md` and a remote
             // URL ending in the name both retired the local record, while the local
             // `ADR-001-x.md#decision` was refused. A fragment is dropped, as
-            // `adr-retire-check` drops it; a URL resolves to no local path and matches nothing.
+            // `adr-retire-check` drops it.
+            // ⚠ A CATALOG LINK IS RELATIVE, AND ANYTHING ELSE IS REFUSED BEFORE IT IS
+            // RESOLVED. This check was removed once as "redundant — a URL resolves to no
+            // local path". It does: `https://host/../../ADR-007-x.md` normalises onto
+            // the record, and splitting `/ADR-007-x.md` drops its root so it lands
+            // beside the catalog. Both retired the local record (third review).
             const href = link[1].split('#')[0]
-            if (!href) continue
+            if (!href || /^(?:[a-z][a-z0-9+.-]*:|[\\/])/i.test(href)) continue
             const target = path.resolve(directory, ...href.split(/[\\/]/))
             rows.set(target, [...(rows.get(target) ?? []), cells[2] ?? ''])
           }
@@ -1545,7 +1560,7 @@ export function trackedPaths(root) {
  * resolution (ADR-005). An empty array means the tree was listed and held
  * no files. Nothing here writes, and nothing here runs a check.
  */
-export function adrCorpus(root, { tracked = trackedPaths(root), foldsCase } = {}) {
+export function adrCorpus(root, { tracked = trackedPaths(root), sameEntry } = {}) {
   const archiveEffects = new Map()
   const records = []
   const unreadable = []
@@ -1583,7 +1598,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root), foldsCase } = {}
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
-    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles, foldsCase)
+    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles, sameEntry)
     if (archived?.unproven) records.look = 'PARTIAL'
     const effect = archived?.effect
     const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)
@@ -2035,8 +2050,10 @@ function previousSessionNotice(cwd, platform = process.platform) {
     return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with its state `
       + `UNKNOWN to this plugin — ${row.unknown}.${files.length ? ` Git listed: ${files.join(', ')}.` : ''}`
       // What IS known stays said: a write recorded with no passing check after it
-      // does not stop being outstanding because the tree could not be seen.
-      + `${other ? ` ${other} write(s) git cannot see were recorded, and no check passed after them.` : ''} `
+      // does not stop being outstanding because the tree could not be seen. Worded
+      // as what is ON RECORD — the row may come from a log that lost a line, and
+      // "no check passed" would be a verdict about the line that was lost.
+      + `${other ? ` ${other} write(s) git cannot see were recorded, and no passing check after them is on record.` : ''} `
       + (check ? `\`${check}\` is this project's check.` : 'No check is declared here.')
   }
   return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
@@ -2666,6 +2683,8 @@ export function recordHookEvent(input) {
     name = 'turn.ended'
   } else if (OBSERVED_HOOK_EVENTS[hook]) {
     name = OBSERVED_HOOK_EVENTS[hook]
+    // What ties a state note to THIS compaction (see SessionStart's compact arm).
+    if (hook === 'PreCompact') extra.compactionId = randomUUID()
     if (hook === 'SubagentStart' || hook === 'SubagentStop') {
       extra.agentId = typeof input.agent_id === 'string' ? input.agent_id : null
       extra.agentType = typeof input.agent_type === 'string' ? input.agent_type : null
@@ -2962,7 +2981,10 @@ function reviewChangedState(input, ended) {
     // survived in CI — this one answered for it. The torn line never repairs, so
     // each is said once per agent.
     const unobservedKey = `${input.agent_id}:unobserved`
-    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === unobservedKey)) {
+    // `:unknown` is the key the torn-bracket arm used before it was folded into this
+    // one; a session upgraded mid-way has already been told under that name.
+    const told = new Set([unobservedKey, `${input.agent_id}:unknown`])
+    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && told.has(entry.key))) {
       const why = !started
         ? (logIncomplete(log)
           ? 'this session\'s event log could not be read whole, and the record of where that run began may be among what was lost'
@@ -3429,15 +3451,18 @@ export async function handleHook(input) {
       // PreCompact measured, so the next context knows what is unverified and
       // what task was in flight without re-deriving either.
       const note = readSessionNote(input.session_id)
-      // A note that belongs to an EARLIER compaction is not this one's: a replace
-      // that failed twice can leave one behind. Ownership is the COUNT of
-      // compactions on record when the note was written — not a comparison of wall
-      // clocks, which rejected a correct note when the clock stepped backwards
-      // between the event and the note. A note with no count predates this check.
-      const compactions = readEvents(input.cwd, input.session_id).filter(entry => entry.event === 'context.compacting').length
-      const stale = Number.isInteger(note?.compaction) && note.compaction !== compactions
-      if (stale) sections.push('quality-harness: the state note kept for this session is older than this compaction, so what was '
-        + 'unverified before it is unknown here (ADR-005).')
+      // ⚠ A NOTE IS SERVED ONLY WHEN IT CAN BE TIED TO THIS COMPACTION. A replace that
+      // fails twice leaves an earlier note behind. Ownership was first a comparison
+      // of wall clocks (a clock stepping backwards refused a correct note), then a
+      // COUNT of compactions — which a torn compacting line, a note with no count,
+      // and two overlapping PreCompacts each defeated (third review). It is now the
+      // id PreCompact put on its own event, and it has to be the LAST compacting
+      // event in a log that was read whole. Anything else is unknown, not "older".
+      const events = readEvents(input.cwd, input.session_id)
+      const owner = events.filter(entry => entry.event === 'context.compacting').at(-1)?.compactionId
+      const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner
+      if (note && !tied) sections.push('quality-harness: the state note kept for this session could not be tied to this compaction, '
+        + 'so what was unverified before it is unknown here (ADR-005).')
       else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
     } else if (input.source === 'startup' || input.source === undefined) {
       const previous = previousSessionNotice(input.cwd)
@@ -3466,8 +3491,7 @@ export async function handleHook(input) {
     const facts = observedFacts(readEvents(cwd, input.session_id), repositoryRoot, recorded?.observation)
     if (event === 'PreCompact') {
       if (typeof input.session_id === 'string' && input.session_id) {
-        const compaction = readEvents(cwd, input.session_id).filter(entry => entry.event === 'context.compacting').length
-        replaceSessionNote(input.session_id, { ...sessionStateNote(facts, cwd, root, repositoryRoot !== null), compaction })
+        replaceSessionNote(input.session_id, { ...sessionStateNote(facts, cwd, root, repositoryRoot !== null), compaction: recorded?.compactionId ?? null })
       }
       artifactRule(input, recorded)
       return

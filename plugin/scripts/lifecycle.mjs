@@ -2653,6 +2653,17 @@ function recordFileWritten(input) {
   return entry
 }
 
+// Whether git lists nothing changed under an observation that succeeded. A listing
+// that FAILED is not a clean tree (ADR-005), so it answers false.
+function observedClean(cwd, observation) {
+  if (observation?.ok !== true) return false
+  const directory = nearestExistingDirectory(path.resolve(cwd))
+  const root = directory ? gitRepositoryRoot(directory) : null
+  if (!root) return false
+  const status = statusPaths(root)
+  return status.ok !== false && status.length === 0
+}
+
 // Translate one hook into its named event, observe, and append both. Reads no
 // command text. A payload without a session or a directory records nothing,
 // because the log is per session.
@@ -2684,6 +2695,28 @@ export function recordHookEvent(input) {
   }
   if (!name) return null
   const entry = { event: name, ...extra, observation: observe(input.cwd) }
+  // ⚠ A SESSION THIS PLUGIN BEGAN WATCHING LATE HAS NO `session.started`, and every
+  // "is this tree unchecked" test then read a missing baseline as "everything is
+  // unchecked" — so a Stop on a PRISTINE tree said "work no `qh-check` has passed
+  // on. Git reports no changed path", and asked a session that had edited nothing to
+  // boot its project's test suite. That is every adopter's first turn after
+  // installing or UPGRADING mid-session (peer-reproduced 2026-09-19). The first
+  // observation becomes the baseline, marked `late`.
+  // ONLY FROM A LOG READ WHOLE: a torn log that lost its real `session.started`
+  // must not be handed a new one — a baseline re-found after the work measures that
+  // work against itself. There the completeness guard answers instead.
+  // AND ONLY OVER A CLEAN TREE. The accusation was false only there. On a dirty
+  // tree "these paths changed and nothing has checked them" is simply true, and
+  // adopting that tree as the baseline would forgive it: the first version of this
+  // did, and a `git commit` over an edited file lost its publish warning.
+  let lateBaseline = false
+  if (name !== 'session.started') {
+    const log = readEvents(input.cwd, session)
+    if (!logIncomplete(log) && !log.some(event => event.event === 'session.started')
+      && observedClean(input.cwd, entry.observation)) {
+      lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false
+    }
+  }
   // ⚠ A TORN CHECK SOURCE IS RECORDED, not returned and dropped. The readers all
   // consult the session log, so that is where the fact has to live — and it is
   // durable, because the file does not repair itself: the next boundary would
@@ -2703,7 +2736,7 @@ export function recordHookEvent(input) {
   if (!appendEvent(input.cwd, session, entry)) {
     return { ...entry, observation: { ok: false, reason: 'the event log could not be appended' } }
   }
-  return entry
+  return lateBaseline ? { ...entry, lateBaseline: true } : entry
 }
 
 // ONE output per hook. A deny is delivered alone, and a legacy deny as well;
@@ -3351,6 +3384,16 @@ export async function handleHook(input) {
   let recorded = null
   try { recorded = recordHookEvent(input) } catch (failure) {
     process.stderr.write(`[quality-harness] the event log was not written (${failure?.message ?? failure}).\n`)
+  }
+  // What a late baseline leaves genuinely unknown, said ONCE and as a limit on what
+  // could be seen — never as an accusation about work nobody observed (ADR-005).
+  if (recorded?.lateBaseline && projectCheckCommand(input.cwd)) {
+    queueAction({
+      rule: 'R4', key: `late-baseline:${input.session_id}`,
+      text: 'quality-harness: began watching this session at this turn, not at its start — it was installed, enabled '
+        + 'or updated while the session was running. Anything changed or committed before now was not observed, so '
+        + 'nothing here speaks for it (ADR-005). From here on the working tree is measured against what it is now.',
+    })
   }
   if (event === 'SubagentStop') {
     try { reviewChangedState(input, recorded) } catch (failure) {

@@ -8394,6 +8394,24 @@
       ],
       "from": "  'could not open input file',",
       "to": "  'qh-no-such-phrase',"
+    },
+    {
+      "label": "baseline: a session watched from late does not accuse a tree nothing changed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "      lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false",
+      "to": "      lateBaseline = false"
+    },
+    {
+      "label": "baseline: a dirty tree is never adopted as a late baseline",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/late-baseline.test.mjs"
+      ],
+      "from": "      && observedClean(input.cwd, entry.observation)) {",
+      "to": "      && true) {"
     }
   ]
 }

@@ -309,6 +309,7 @@ See `docs/adr/ADR-060-advisories-react-to-observed-events/tasks/README.md`.
     - Bash writes outside git's view are invisible to every rule; Edit/Write writes there are tracked.
     - Other tools' writes, such as an MCP server's, are seen only through the tree.
     - A session whose changes return the tree to its starting state is not advised, even when a check then fails on it.
+    - A session the plugin began watching LATE — installed, enabled or upgraded mid-session — has no `session.started`. Over a clean tree the first observation becomes the baseline, marked `late`, and what happened before it is said once to be unobserved. Commits made earlier in that session are therefore never listed. Over a dirty tree no baseline is taken, and the changed paths keep being reported as unchecked.
   - **Attribution:**
     - A commit made on another branch and left there is not listed.
     - Edits by the user or another tool in the same tree count as unchecked work.

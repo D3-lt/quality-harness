@@ -168,17 +168,28 @@ test('a turn that committed its work is not a session where nothing is outstandi
   assert.match(at(true).text, /no `qh-check` has passed on/)
 })
 
-// How each function that reads the session log answers for itself. `driven`
-// names the SURFACES entry that covers it; anything else carries the reason a
-// lost line cannot make it say something positive.
+// How each function that reads the session log answers for itself: `driven`
+// names a SURFACES entry, `executed` names a BOUNDARIES entry run against every
+// tear. ⚠ THESE WERE PROSE — "it warns MORE, never less" — and one of them was
+// WRONG: `recordHookEvent` was called safe because a re-recorded baseline is
+// "the later and stricter one". It is the opposite. A baseline re-found after the
+// work was done measures that work against itself and finds nothing changed. What
+// actually holds is that the torn line never repairs, so the log stays incomplete
+// and the completeness guard answers. The outcome was right and the reason was
+// not, which is exactly what executing a claim is for.
 const READERS = {
   handleHook: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
-  completionRules: { safe: 'its verdict is `ledgerEvidence`, which returns could-not-look on an incomplete log; tests/observed-events.test.mjs tears a real log under it' },
-  publishUnchecked: { safe: 'a lost pass or a lost baseline both make the tree unchecked, so it warns MORE, never less' },
-  artifactRule: { safe: 'a lost `artifact.gated` re-gates and a lost `action.emitted` re-fires: repeated work, never a skipped gate' },
-  importCheckRecords: { safe: 'reads only record ids to avoid a duplicate import; a lost line re-imports, and `latestCheckFor` dedupes by record' },
-  recordHookEvent: { safe: 'reads only whether `session.started` exists; a lost line records a second baseline, which is the later and stricter one' },
-  reviewChangedState: { open: 'docs/audits/2026-09-18-adr-060.md B5 — a lost `subagent.started` makes R3 silent with no could-not-look' },
+  completionRules: { executed: 'Stop (completionRules)' },
+  publishUnchecked: { executed: 'PreToolUse naming commit (publishUnchecked)' },
+  reviewChangedState: { executed: 'SubagentStop of a read-only role (reviewChangedState)' },
+  // Both run inside every hook, so every row of the table runs them; the `head`
+  // tear is the one that loses the baseline `recordHookEvent` would re-find.
+  importCheckRecords: { executed: 'PreToolUse naming commit (publishUnchecked)' },
+  recordHookEvent: { executed: 'Stop (completionRules)' },
+  // NOT executed, and said so rather than dressed as safe: no fixture here holds
+  // an artifact, so nothing runs rule A against a torn log. The claim — a lost
+  // `artifact.gated` re-gates, a lost `action.emitted` re-fires — is still prose.
+  artifactRule: { unexecuted: 'docs/audits/2026-09-18-adr-060.md — needs a fixture with a gated artifact' },
 }
 
 test('every reader of the session log is driven above, or says why a lost line cannot flatter it', () => {
@@ -202,6 +213,8 @@ test('every reader of the session log is driven above, or says why a lost line c
     'a reader named here no longer reads the log — remove it, so this list stays the code\'s own')
   for (const [name, entry] of Object.entries(READERS)) {
     if (entry.driven) assert.ok(entry.driven in SURFACES, `${name} claims a surface that does not exist`)
+    if (entry.executed) assert.ok(entry.executed in BOUNDARIES, `${name} claims a boundary that does not exist`)
+    assert.ok(entry.driven || entry.executed || entry.unexecuted, `${name} must be driven, executed, or admit it is neither`)
   }
 
   // ⚠ AND THE TWO WAYS A READER ESCAPES A SWEEP FOR `readEvents(`. The first
@@ -287,5 +300,92 @@ test('a really torn log, read by the real hooks, does not persist a verified row
     const torn = persisted(true)
     assert.notEqual(torn.status, 'verified', JSON.stringify(torn))
     assert.equal(flatters(torn), false, `nothing positive may be persisted from a torn log: ${JSON.stringify(torn)}`)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// ---- The reader registry's `safe:` entries, executed instead of asserted.
+//
+// Each said in PROSE why a lost line cannot make its reader answer more kindly —
+// "it warns MORE, never less". That is a claim about direction, and a claim
+// nothing runs is what this whole file exists to distrust. So: every hook
+// boundary, against every way the file tears, through the real hooks.
+//
+// The tears are different defects, not one repeated. `tail` is a crash
+// mid-append. `head` loses `session.started` — the BASELINE, so a reader that
+// re-finds one would measure the work against itself. `last` loses whatever was
+// written most recently, which for a review is the bracket that opened it.
+const REVIEWER = 'quality-harness:qh-correctness-reviewer'
+const TEARS = {
+  tail: text => text + '{"event":"check.failed","rec',
+  head: text => { const lines = text.split('\n'); lines[0] = lines[0].slice(0, 40); return lines.join('\n') },
+  last: text => { const lines = text.trimEnd().split('\n'); lines[lines.length - 1] = lines.at(-1).slice(0, 40); return lines.join('\n') + '\n' },
+}
+const BOUNDARIES = {
+  'Stop (completionRules)': { payload: { hook_event_name: 'Stop' } },
+  'PreToolUse naming commit (publishUnchecked)': {
+    payload: { hook_event_name: 'PreToolUse', tool_name: 'Bash', tool_input: { command: 'git commit -m x' } } },
+  'SubagentStop of a read-only role (reviewChangedState)': {
+    review: true, payload: { hook_event_name: 'SubagentStop', agent_id: 'a1', agent_type: REVIEWER } },
+}
+
+test('at every hook boundary a torn log is never quieter than a whole one, however it tore', () => {
+  const top = mkdtempSync(join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), 'qh-flip-tbl-'))
+  try {
+    let count = 0
+    const said = (boundary, tear) => {
+      const label = `s${count++}`
+      const dir = join(top, label)
+      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: join(top, `${label}-data`), TMPDIR: top, TMP: top, TEMP: top }
+      const run = (command, args, options = {}) => {
+        const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
+        assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)
+        return out
+      }
+      const git = (...args) => run('git', ['-C', dir, ...args])
+      const hook = payload => run(process.execPath, [lifecycleScript], { cwd: top, input: JSON.stringify(payload) })
+      run('mkdir', ['-p', dir])
+      git('init', '-q')
+      writeFileSync(join(dir, 'a.md'), 'a\n')
+      writeFileSync(join(dir, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+      git('add', '-A')
+      git('commit', '-q', '-m', 'base')
+      const session = `flip-tbl-${label}-${process.pid}`
+      hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+      writeFileSync(join(dir, 'a.md'), 'changed\n')
+      run('python3', [qhCheck], { cwd: dir })
+      if (boundary.review) {
+        hook({ hook_event_name: 'SubagentStart', agent_id: 'a1', agent_type: REVIEWER, session_id: session, cwd: dir })
+        writeFileSync(join(dir, 'during.md'), 'during\n')
+      }
+      if (tear) {
+        const log = join(dir, '.git', 'quality-harness', 'sessions', `${session}.jsonl`)
+        writeFileSync(log, TEARS[tear](readFileSync(log, 'utf8')))
+      }
+      const out = hook({ ...boundary.payload, session_id: session, cwd: dir })
+      return `${out.stdout}${out.stderr}`.trim()
+    }
+    const quieter = []
+    for (const [name, boundary] of Object.entries(BOUNDARIES)) {
+      const whole = said(boundary, null)
+      // The controls. A checked change is SILENT at Stop and at a publish — that
+      // silence is the positive answer here — and a review that changed state says so.
+      if (boundary.review) assert.match(whole, /state changed during/, `${name}: the control must report the change`)
+      else assert.equal(whole, '', `${name}: the control must be silent over a checked tree, got ${whole.slice(0, 200)}`)
+      for (const tear of Object.keys(TEARS)) {
+        const torn = said(boundary, tear)
+        if (torn === '') quieter.push(`${name} / ${tear}: SILENT`)
+        else if (flatters(torn)) quieter.push(`${name} / ${tear}: ${torn.slice(0, 200)}`)
+        // And the accusation is as unobserved as the compliment: a check may have
+        // succeeded and its record be the line that tore. Warn, but as UNKNOWN.
+        else if (/no `qh-check` has passed/.test(torn)) quieter.push(`${name} / ${tear}: accuses from a torn log — ${torn.slice(0, 160)}`)
+        // ...unless it still makes the SAME report the whole log made. A review whose
+        // bracket survived the tear compared two real observations; that is observed,
+        // and demanding a could-not-look beside it would be demanding a false one.
+        else if (!/unknown|could not be read whole/.test(torn) && !(boundary.review && /state changed during/.test(torn))) {
+          quieter.push(`${name} / ${tear}: never says it could not look — ${torn.slice(0, 160)}`)
+        }
+      }
+    }
+    assert.deepEqual(quieter, [], `a torn log made a boundary quieter or kinder than a whole one:\n  ${quieter.join('\n  ')}`)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

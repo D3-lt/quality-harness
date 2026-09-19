@@ -8284,8 +8284,8 @@
       "tests": [
         "tests/evidence-flip.test.mjs"
       ],
-      "from": "  if (!started && logIncomplete(log)) {",
-      "to": "  if (false) {"
+      "from": "        ? (logIncomplete(log)\n          ? 'this session\\'s event log could not be read whole",
+      "to": "        ? (false\n          ? 'this session\\'s event log could not be read whole"
     },
     {
       "label": "evidence-flip: the completion rule does not accuse from a torn log",
@@ -8401,7 +8401,7 @@
       "tests": [
         "tests/content-id.test.mjs"
       ],
-      "from": "    if (!stat.isFile() || stat.size > CONTENT_ID_MAX_BYTES) return null",
+      "from": "    if (!opened.isFile() || opened.size > CONTENT_ID_MAX_BYTES) return null",
       "to": "    if (false) return null"
     },
     {
@@ -8482,8 +8482,8 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "event.event === 'session.started' || event.event === 'file.written')",
-      "to": "event.event === 'session.started')"
+      "from": " || (event.event === 'file.written' && event.observable !== false))",
+      "to": ")"
     },
     {
       "label": "note: Last check is ordered by when it ran",
@@ -8491,7 +8491,7 @@
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')))",
+      "from": "  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })",
       "to": "  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)"
     },
     {
@@ -8581,8 +8581,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    if (listed.has(readme)) {",
-      "to": "    if (true) {"
+      "from": "    const readme = listedReadme(directory, candidate => listed.has(candidate),",
+      "to": "    const readme = listedReadme(directory, () => true,"
     },
     {
       "label": "catalog: a row speaks for the file its link names",
@@ -8590,8 +8590,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "            const target = link[1].split(/[\\\\/]/).at(-1)",
-      "to": "            const target = path.basename(file)"
+      "from": "            const target = path.resolve(directory, ...href.split(/[\\\\/]/))",
+      "to": "            const target = file"
     },
     {
       "label": "catalog: an escaped pipe in a title is not a column",
@@ -8608,8 +8608,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "        frozen = listed.has(`${key}/README.md`)\n          && readFileSync(",
-      "to": "        frozen = readFileSync("
+      "from": "          () => listed.has(`${key}/README.md`),",
+      "to": "          () => true,"
     },
     {
       "label": "orientation: a tasks directory with no Markdown is not an ADR task set",
@@ -8655,6 +8655,96 @@
       ],
       "from": "      hash.update(chunk.subarray(0, read))",
       "to": "      hash.update(chunk)"
+    },
+    {
+      "label": "catalog: a fragment is not part of the file a row links to",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "            const href = link[1].split('#')[0]",
+      "to": "            const href = link[1]"
+    },
+    {
+      "label": "catalog: a README listed in another case is the catalog where the filesystem folds case",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  return variant && foldsCase(exact) ? path.join(directory, variant) : null",
+      "to": "  return null"
+    },
+    {
+      "label": "catalog: a README listed in another case is a different file where the filesystem does not fold",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  return variant && foldsCase(exact) ? path.join(directory, variant) : null",
+      "to": "  return variant ? path.join(directory, variant) : null"
+    },
+    {
+      "label": "baseline: a SessionStart in the middle of a session is not its beginning",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    if (existing.length > 0 || existing.complete !== true) return null",
+      "to": "    if (existing.some(entry => entry.event === 'session.started')) return null"
+    },
+    {
+      "label": "late baseline: a write git cannot see does not block it",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "(event.event === 'file.written' && event.observable !== false))",
+      "to": "(event.event === 'file.written'))"
+    },
+    {
+      "label": "statusline: covered is decided by position in the log, not by a timestamp that can tie",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "(entry.observable === false || index > observedIndex))",
+      "to": "(entry.observable === false || entry.at > observed.at))"
+    },
+    {
+      "label": "ledger: an UNKNOWN row still names the writes known to be outstanding",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      + `${other ? ` ${other} write(s) git cannot see were recorded, and no check passed after them.` : ''} `",
+      "to": "      + ' '"
+    },
+    {
+      "label": "verdict: a recorded signal outranks a phrase-derived unproven",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'",
+      "to": "  if (record?.verdict === 'unproven') return 'check.unproven'\n  if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'"
+    },
+    {
+      "label": "note: a note belongs to its compaction by count, not by wall clock",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      const stale = Number.isInteger(note?.compaction) && note.compaction !== compactions",
+      "to": "      const stale = false"
+    },
+    {
+      "label": "note: an order that cannot be established is said so",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (unresolved === 'say-so' && new Set(",
+      "to": "  if (false && new Set("
     }
   ]
 }

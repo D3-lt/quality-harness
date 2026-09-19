@@ -945,12 +945,19 @@ export function listedReadme(directory, names, read) {
 // too: it may carry the marker, and `false` there offered retired work as READY.
 function underFrozenArchive(root, dirParts, cache, listed) {
   let unknown = false
-  for (let depth = 1; depth < dirParts.length; depth++) {
+  // ⚠ FROM THE REPOSITORY ROOT, depth 0. The walk began one level down, so a
+  // repository whose root IS the archive — `README.md` with the marker beside
+  // `tasks/` — froze nothing: the record side called its record withdrawn while
+  // this side offered its task as READY (ninth review; the record side reads the
+  // root already, so the two disagreed about one directory). The root's prefix is
+  // the empty string, not `/`.
+  for (let depth = 0; depth < dirParts.length; depth++) {
     const key = dirParts.slice(0, depth).join('/')
+    const prefix = depth === 0 ? '' : `${key}/`
     if (!cache.has(key)) {
       let frozen = false
       const readme = listedReadme(path.join(root, ...dirParts.slice(0, depth)),
-        [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)),
+        [...listed].filter(rel => rel.startsWith(prefix) && !rel.slice(prefix.length).includes('/')).map(rel => rel.slice(prefix.length)),
         file => readFileSync(file, 'utf8'))
       if (readme === README_UNKNOWN) frozen = 'unknown'
       else if (readme !== null) {

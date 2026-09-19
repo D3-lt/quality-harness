@@ -8608,7 +8608,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "        [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)),",
+      "from": "        [...listed].filter(rel => rel.startsWith(prefix) && !rel.slice(prefix.length).includes('/')).map(rel => rel.slice(prefix.length)),",
       "to": "        ['README.md'],"
     },
     {
@@ -8862,6 +8862,15 @@
       ],
       "from": "  if (spellings.length > 1) return README_UNKNOWN\n  if (spellings[0] === 'README.md') return path.join(directory, 'README.md')",
       "to": "  if (spellings.includes('README.md')) return path.join(directory, 'README.md')\n  if (spellings.length > 1) return README_UNKNOWN"
+    },
+    {
+      "label": "orientation: the ancestor walk begins at the repository root",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  for (let depth = 0; depth < dirParts.length; depth++) {",
+      "to": "  for (let depth = 1; depth < dirParts.length; depth++) {"
     }
   ]
 }

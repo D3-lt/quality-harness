@@ -502,24 +502,32 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
     // Keep the optimization within Windows argv limits; large sets keep the
     // original scoped lookup rather than widening to a repository-wide scan.
     if (candidates.join(' ').length > 16_000) continue
-    const blobs = new Map()
+    // ⚠ PER BASE, NOT MERGED. This kept ONE map, "the first base that knows a
+    // candidate owns it" — the first base in which a README EXISTS. The dispatcher's
+    // `git_archive_catalog_for` breaks at the first base in which a README IS A
+    // CATALOG. They differ whenever a README lost its Lifecycle marker between the
+    // session's first HEAD and HEAD: bash then finds the historical catalog and runs
+    // `adr-retire-check`, this answered "none", and because this only engages in a
+    // batch the SAME record got a different gate at the boundary meant to be
+    // authoritative (audit 2026-09-18, B7; tests/archive-history-parity.test.mjs).
+    const perBase = []
     let valid = true
     let answered = false
-    // Nearest base first, and the first base that knows a candidate owns it: the
-    // session's own history is what a deletion has to be read against.
     for (const base of historyBases()) {
       const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', base, '--', ...candidates])
       if (tree === null || (tree.length && tree.at(-1) !== 0)) continue
       answered = true
+      const blobs = new Map()
       for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
         const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
         if (!entry) { valid = false; break }
-        if (entry[2] === 'blob' && /^100/.test(entry[1]) && !blobs.has(entry[4])) blobs.set(entry[4], entry[3])
+        if (entry[2] === 'blob' && /^100/.test(entry[1])) blobs.set(entry[4], entry[3])
       }
       if (!valid) break
+      perBase.push(blobs)
     }
     if (!valid || !answered) continue
-    const ids = [...new Set(blobs.values())]
+    const ids = [...new Set(perBase.flatMap(blobs => [...blobs.values()]))]
     const catalogs = new Set()
     if (ids.length) {
       // ls-tree and cat-file both exit zero for a completed empty answer. Unlike
@@ -541,7 +549,13 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
       if (!valid || offset !== data.length) continue
     }
     for (const { file, candidates: nearestFirst } of files) {
-      const catalog = nearestFirst.find(candidate => catalogs.has(blobs.get(candidate)))
+      // The nearest base in which ANY of this file's candidates is a catalog, and
+      // within it the nearest such candidate — the dispatcher's rule, in its order.
+      let catalog
+      for (const blobs of perBase) {
+        catalog = nearestFirst.find(candidate => catalogs.has(blobs.get(candidate)))
+        if (catalog) break
+      }
       answers.set(file, catalog ? path.join(root, catalog) : '')
     }
   }

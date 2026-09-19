@@ -166,8 +166,24 @@ export const ABSENT = 'absent'
  * absence out is what lets the null rule be strict without re-gating every
  * deletion at every boundary (ADR-005; a different-lineage review, 2026-09-18).
  */
+// Far above any record or task file, far below what would stall a hook: identities
+// are taken of EVERY changed path at every boundary, so an unbounded read is paid by
+// every turn of a session that touched one large file.
+export const CONTENT_ID_MAX_BYTES = 32 * 1024 * 1024
+
 export function contentId(file) {
-  try { return createHash('sha256').update(readFileSync(file)).digest('hex') } catch (error) {
+  try {
+    // ⚠ STAT BEFORE READ, AND ONLY A REGULAR FILE IS READ. `readFileSync` on a FIFO
+    // blocks until something writes to it — for ever, in a working tree — and
+    // `git status` lists an untracked FIFO, so the Stop hook hung until the host
+    // killed it and discarded its whole output (measured: exit 124; audit D1).
+    // `statSync` follows a symlink, so a link TO a pipe or a device is caught too,
+    // and answers without opening anything. A directory — a submodule gitlink —
+    // and an oversized file are UNKNOWN, never hashed and never guessed.
+    const stat = statSync(file)
+    if (!stat.isFile() || stat.size > CONTENT_ID_MAX_BYTES) return null
+    return createHash('sha256').update(readFileSync(file)).digest('hex')
+  } catch (error) {
     return error?.code === 'ENOENT' || error?.code === 'ENOTDIR' ? ABSENT : null
   }
 }

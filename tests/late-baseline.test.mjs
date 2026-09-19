@@ -55,7 +55,7 @@ function fixture(top, label) {
 }
 
 test('a first Stop with no SessionStart does not accuse a tree nothing changed', () => {
-  const top = realpathSync(mkdtempSync(join(tmpdir(), 'qh-late-')))
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-late-')))
   try {
     const { repo, hook, log } = fixture(top, 'clean')
     const first = hook({ hook_event_name: 'Stop' })
@@ -80,7 +80,7 @@ test('a DIRTY tree with no SessionStart is still unchecked work, and gets no lat
   // The narrowing that keeps the fix honest. The accusation was false only over a
   // clean tree; adopting a dirty one as the baseline would forgive real, unchecked
   // edits — and the first version of the fix did, silencing a publish warning.
-  const top = realpathSync(mkdtempSync(join(tmpdir(), 'qh-late-dirty-')))
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-late-dirty-')))
   try {
     const { repo, hook, log } = fixture(top, 'dirty')
     writeFileSync(join(repo, 'a.md'), 'edited before anyone was watching\n')
@@ -98,7 +98,7 @@ test('a DIRTY tree with no SessionStart is still unchecked work, and gets no lat
 })
 
 test('a session that did start normally gets no late baseline and no note about one', () => {
-  const top = realpathSync(mkdtempSync(join(tmpdir(), 'qh-late-ctl-')))
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-late-ctl-')))
   try {
     const { hook, log } = fixture(top, 'normal')
     hook({ hook_event_name: 'SessionStart', source: 'startup' })

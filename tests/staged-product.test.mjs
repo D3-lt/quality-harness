@@ -12,7 +12,7 @@ import { adrCorpus, decisionsGoverning } from '../plugin/scripts/lifecycle.mjs'
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..')
 const pluginDir = path.join(repoRoot, 'plugin')
-const testTmp = realpathSync(mkdtempSync(path.join(
+const testTmp = realpathSync.native(mkdtempSync(path.join(
   process.platform === 'darwin' ? '/private/tmp' : os.tmpdir(), 'qh-staged-')))
 after(() => {
   try { rmSync(testTmp, { recursive: true, force: true, maxRetries: 10, retryDelay: 200 }) }

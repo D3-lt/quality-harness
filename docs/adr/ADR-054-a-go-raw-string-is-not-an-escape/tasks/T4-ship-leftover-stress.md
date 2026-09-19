@@ -1,5 +1,6 @@
 # Task ADR-054-T4: Ship leftover stress with spec-oracle pools
 
+**Status:** superseded by ADR-060 — the clause this task proved read a command's text, which nothing does any more; its test was deleted with the classifier, so its fence now selects nothing
 **Depends-on:** T3
 **Covers:** F-4, UC4-S1, UC4-S2
 **Estimated scope:** M

@@ -921,7 +921,15 @@ export function listedReadme(directory, isListed, variants, read) {
   // and `readme.md` side by side, and `.find` stopped at an ordinary one while the
   // other carried the marker (sixth review). Ordinary only when ALL of them are
   // readable and unmarked.
-  for (const variant of variants(directory).filter(name => name.toLowerCase() === 'readme.md')) {
+  // ⚠ AND TWO LISTED SPELLINGS ARE UNKNOWN OUTRIGHT. Checked out on a filesystem
+  // that folds case, both names open ONE file: a marked `Readme.md` and an ordinary
+  // `readme.md` were each "read", the ordinary content came back twice, and the
+  // frozen record governed with its task READY (seventh review). Reading cannot
+  // establish two contents through one file, and nothing here can tell which
+  // filesystem it is on — so it does not try.
+  const spellings = variants(directory).filter(name => name.toLowerCase() === 'readme.md')
+  if (spellings.length > 1) return README_UNKNOWN
+  for (const variant of spellings) {
     try { if (read(path.join(directory, variant)).split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)) return README_UNKNOWN } catch { return README_UNKNOWN }
   }
   return null
@@ -1651,10 +1659,18 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       // has only two options, both wrong: treat them as executable (§48, where
       // the router offered an unaccepted record's tasks) or ignore them and
       // report a corpus with unfinished work as finished.
-      // A frozen record whose effect could not be established still DECLARES what it
-      // would govern; `decisionsGoverning` needs that to say so where it matters.
-      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader),
-        ...(archived?.unproven ? { unproven: archived.unproven, governs: declaredGoverns(text).paths,
+      // A frozen record whose effect could not be established still says what it
+      // would govern; `decisionsGoverning` needs that to name it where it matters.
+      // The SAME two sources a governing record's paths come from — its `Governs:`
+      // header and its tasks' Affected Files — because a record with task tables
+      // and no header matched nothing and was dropped in silence (seventh review).
+      // Every task file in its directories counts here, not only the attributed
+      // ones: naming an uncertain record once too often is the direction to err in.
+      const recordTasks = taskFilesFor(file, text, reader)
+      const wouldGovern = () => [...new Set([...declaredGoverns(text).paths,
+        ...recordTasks.flatMap(task => { try { return affectedFiles(reader.text(task)) } catch { return [] } })])]
+      unreadable.push({ file, status: status || null, taskFiles: recordTasks,
+        ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),
           title: (text.match(/^#\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })
       continue
     }

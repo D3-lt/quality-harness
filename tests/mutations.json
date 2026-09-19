@@ -508,7 +508,7 @@
       "label": "context: said once per path per session",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return error?.code !== 'EEXIST' }",
       "to": "  try { writeFileSync(marker, '', { flag: 'wx' }) } catch (error) { return true }"
@@ -4629,7 +4629,7 @@
       "label": "lifecycle: a once-per-session marker is scoped to the session's generation",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "  const generation = sessionGeneration(sessionId)\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)",
       "to": "  const generation = 0\n  const stamp = createHash('sha256').update(`${sessionId}#${generation}#${key}`)"
@@ -4638,7 +4638,7 @@
       "label": "lifecycle: compaction bumps the session generation; a resume does not",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
       "to": "    if (input.source === 'clear') bumpSessionGeneration(input.session_id)"
@@ -4647,7 +4647,7 @@
       "label": "lifecycle: /clear bumps the session generation too",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
       "from": "    if (input.source === 'compact' || input.source === 'clear') bumpSessionGeneration(input.session_id)",
       "to": "    if (input.source === 'compact') bumpSessionGeneration(input.session_id)"
@@ -4667,8 +4667,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "        try { writeFileSync(sessionNotePath(input.session_id), JSON.stringify(note)) } catch (failure) {",
-      "to": "        try { void note } catch (failure) {"
+      "from": "  try { write(sessionNotePath(sessionId), JSON.stringify(note)); return true } catch (failure) {",
+      "to": "  try { void note; return true } catch (failure) {"
     },
     {
       "label": "lifecycle: the compact SessionStart hands the note back",
@@ -4710,10 +4710,10 @@
       "label": "lifecycle: a PreCompact that fails leaves no earlier note to hand back",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
-        "tests/lifecycle.test.mjs"
+        "tests/said-once.test.mjs"
       ],
-      "from": "      try { unlinkSync(sessionNotePath(input.session_id)) } catch {}",
-      "to": "      void sessionNotePath"
+      "from": "  try { unlinkSync(sessionNotePath(sessionId)) } catch {}\n  if (note === null) return true",
+      "to": "  if (note === null) { try { unlinkSync(sessionNotePath(sessionId)) } catch {} return true }"
     },
     {
       "label": "reviewer-guard: a publish is refused inside a read-only role",

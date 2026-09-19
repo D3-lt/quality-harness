@@ -1481,8 +1481,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      unreadable.push({ file, status: status || null, taskFiles: taskFilesFor(file, text, reader),\n        ...(archived?.unproven ? { unproven: archived.unproven, governs: declaredGoverns(text).paths,\n          title: (text.match(/^#\\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })",
-      "to": "      void status"
+      "from": "      unreadable.push({ file, status: status || null, taskFiles: recordTasks,\n        ...(archived?.unproven ? { unproven: archived.unproven, governs: wouldGovern(),\n          title: (text.match(/^#\\s+(.+)$/m)?.[1] ?? path.basename(file, '.md')).trim() } : {}) })",
+      "to": "      void recordTasks"
     },
     {
       "label": "state: the unreadable list does not change the corpus shape",
@@ -8801,13 +8801,13 @@
       "to": "if (read(path.join(directory, variant)).length >= 0) return"
     },
     {
-      "label": "catalog: every listed README variant is read, not the first",
+      "label": "catalog: two listed README spellings are unknown outright, whatever they read as",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "filter(name => name.toLowerCase() === 'readme.md')) {",
-      "to": "filter(name => name.toLowerCase() === 'readme.md').slice(0, 1)) {"
+      "from": "  if (spellings.length > 1) return README_UNKNOWN",
+      "to": "  void 0"
     },
     {
       "label": "context: a path only an UNPROVEN record declares is not answered with silence",
@@ -8844,6 +8844,15 @@
       ],
       "from": "      for (const record of unproven) {",
       "to": "      for (const record of []) {"
+    },
+    {
+      "label": "context: an UNPROVEN record keeps the paths its task tables name",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "        ...recordTasks.flatMap(task => { try { return affectedFiles(reader.text(task)) } catch { return [] } })])]",
+      "to": "        ])]"
     }
   ]
 }

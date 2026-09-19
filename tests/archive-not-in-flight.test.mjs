@@ -270,12 +270,19 @@ test('every listed README variant is read, not the first one', () => {
     if (files[name] === null) throw new Error('EIO')
     return files[name]
   })
-  // The controls: no variant at all, and variants that are all ordinary, are not an archive question.
+  // The controls: no variant at all, and ONE ordinary variant, are not an archive question.
   assert.equal(look({ 'notes.md': 'x' }), null)
-  assert.equal(look({ 'Readme.md': '# notes\n', 'readme.md': '# more notes\n' }), null)
-  assert.equal(typeof look({ 'Readme.md': '# notes\n', 'readme.md': MARKED }), 'symbol', 'the marked one is second')
-  assert.equal(typeof look({ 'Readme.md': '# notes\n', 'readme.md': null }), 'symbol', 'the unreadable one is second')
-  assert.equal(typeof look({ 'readme.md': MARKED, 'Readme.md': '# notes\n' }), 'symbol')
+  assert.equal(look({ 'readme.md': '# notes\n' }), null)
+  assert.equal(look({ 'readme.md.bak': MARKED, 'xreadme.md': MARKED }), null, 'near-matches are not READMEs')
+  assert.equal(typeof look({ 'readme.md': MARKED }), 'symbol')
+  assert.equal(typeof look({ 'ReadMe.MD': null }), 'symbol', 'unreadable')
+  // ⚠ TWO LISTED SPELLINGS ARE UNKNOWN WHATEVER THEY READ AS. On a filesystem that
+  // folds case both names open ONE file, so a marked `Readme.md` beside an ordinary
+  // `readme.md` reads as ordinary TWICE — this is that aliasing reader — and the
+  // frozen record governed with its task READY (seventh review).
+  const aliased = listedReadme('/d', () => false, () => ['Readme.md', 'readme.md'], () => '# ordinary notes\n')
+  assert.equal(typeof aliased, 'symbol', 'one file read twice establishes nothing about two entries')
+  assert.equal(typeof look({ 'Readme.md': '# notes\n', 'readme.md': MARKED }), 'symbol')
 })
 
 // "Nothing governs this file" and "could not tell what governs this file" were one
@@ -296,6 +303,12 @@ test('an UNPROVEN record is named where its paths are edited, and PARTIAL hides 
     write('docs/old/readme.md', '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n\n| ADR | Title | Decision effect |\n|---|---|---|\n| [ADR-007](ADR-007-frozen.md) | frozen | withdrawn |\n')
     write('src/app.js', '// x\n')
     write('src/old.js', '// x\n')
+    // A record with NO `Governs:` header: what it would govern comes only from its
+    // task's Affected Files table. Matched on the header alone, it matched nothing
+    // and was dropped in silence (seventh review).
+    write('docs/old/ADR-008-tasks-only.md', '# ADR-008: tasks only\n\n**Status:** Accepted\n')
+    write('docs/old/ADR-008-tasks-only/tasks/T1-x.md', '# Task T1\n\n## Affected Files\n\n| File | Change |\n|---|---|\n| `src/task-only.js` | edit |\n')
+    write('src/task-only.js', '// x\n')
     const env = { ...process.env, GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid', GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
     for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-q', '-m', 'base']]) {
       const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 30_000, env })
@@ -310,6 +323,7 @@ test('an UNPROVEN record is named where its paths are edited, and PARTIAL hides 
     const alone = decisionContext(['src/old.js'], root)
     assert.doesNotMatch(alone, /ADR-004/, 'the control: nothing placeable declares this path')
     assert.match(alone, /UNPROVEN[\s\S]*ADR-007-frozen\.md/)
+    assert.match(decisionContext(['src/task-only.js'], root), /UNPROVEN[\s\S]*ADR-008-tasks-only\.md/)
 
     const script = join(realpathSync.native(join(import.meta.dirname, '..')), 'plugin', 'scripts', 'adr-context.mjs')
     const said = spawnSync(process.execPath, [script, 'src/app.js'], { cwd: root, encoding: 'utf8', timeout: 60_000, env })

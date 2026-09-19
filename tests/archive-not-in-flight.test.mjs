@@ -194,6 +194,38 @@ test('a README git does not list cannot freeze a tracked task directory', () => 
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
+// A repository whose ROOT is the archive. The ancestor walk began one level down, so
+// the record side called the record withdrawn while this side offered its task as
+// READY — two readers disagreeing about one directory (ninth review).
+test('an archive catalog at the repository root freezes the task directory beside it', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-root-')))
+  try {
+    const write = (relative, text) => {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), text)
+    }
+    write('tasks/T1.md', '# x\n')
+    write('README.md', '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n')
+    let asked = 0
+    const ready = () => { asked += 1; return { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: join(root, 'tasks', 'T1.md') }] }), stderr: '' } }
+    const lines = listing => readyTaskLines(root, true, listing, ready).lines.join('\n')
+    // The controls: an UNLISTED root README freezes nothing, and neither does an ordinary one.
+    assert.match(lines(['tasks/T1.md']), /T1 is ready/)
+    writeFileSync(join(root, 'README.md'), '# A project\n\nOrdinary.\n')
+    assert.match(lines(['tasks/T1.md', 'README.md']), /T1 is ready/)
+    assert.equal(asked, 2)
+    // Marked and listed: frozen — no line at all, and adr-next is not asked.
+    writeFileSync(join(root, 'README.md'), '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n')
+    assert.equal(lines(['tasks/T1.md', 'README.md']), '')
+    // Listed and unreadable: UNPROVEN, never ready.
+    rmSync(join(root, 'README.md'))
+    const gone = lines(['tasks/T1.md', 'README.md'])
+    assert.match(gone, /tasks: UNPROVEN/)
+    assert.doesNotMatch(gone, /is ready/)
+    assert.equal(asked, 2)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
 // The same unknown, on the task side. `false` there offered a frozen record's task
 // as READY with the command to prove it; `true` would have hidden live work in
 // silence. `adr-next` cannot settle it — it reads the record and its tasks, never

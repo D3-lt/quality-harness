@@ -67,7 +67,13 @@ test('the bulk lookup and the per-file lookup name the same archive catalog', ()
     // pre-computed answer, the dispatcher finds a catalog and runs the retire check.
     const bash = resolveBashExecutable()
     assert.ok(bash, 'bash is needed to run the dispatcher')
-    const perFile = spawnSync(bash, [dispatcher, records[0]], { encoding: 'utf8', timeout: 60_000,
+    // ⚠ IN THE SHAPE THE HOOK SENDS. `runShellHook` never hands bash a `C:\x`
+    // path: it rewrites to `C:/x` first, and the dispatcher's history walk only
+    // recognises that form as absolute. The first version of this test passed
+    // the native path, and the Windows job went red on a lookup production
+    // cannot reach (run 35431482347).
+    const forBash = file => process.platform === 'win32' ? file.split('\\').join('/') : file
+    const perFile = spawnSync(bash, [forBash(dispatcher), forBash(records[0])], { encoding: 'utf8', timeout: 60_000,
       env: { ...process.env, ...IDENTITY, QUALITY_HARNESS_HISTORY_BASES: bases } })
     const said = `${perFile.stdout}${perFile.stderr}`
     assert.match(said, /adr-retire-check/, `the control: the per-file lookup found the historical catalog — ${said.slice(0, 300)}`)

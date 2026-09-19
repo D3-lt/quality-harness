@@ -12,11 +12,12 @@
 // command to run. A peer session's transcript showed the same line from its own
 // archive on 2026-09-19, which is what sent anyone to look.
 import assert from 'node:assert/strict'
+import { spawnSync } from 'node:child_process'
 import { mkdirSync, mkdtempSync, realpathSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { adrCorpus, decisionsGoverning, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
+import { adrCorpus, decisionContext, decisionsGoverning, listedReadme, readyTaskLines } from '../plugin/scripts/lifecycle.mjs'
 
 test('session orientation asks adr-next about the active corpus and never about a frozen archive', () => {
   const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-flight-')))
@@ -255,5 +256,70 @@ test('a directory named tasks that holds no Markdown is not an ADR task director
     // The control: the real task directory is still found — after seven that sort before it.
     assert.match(lines, /ADR-002-current/, lines)
     assert.doesNotMatch(lines, /roles\//, `an Ansible role is not a record's task set:\n${lines}`)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+// Two spellings tracked side by side — possible only on a case-sensitive checkout,
+// so it is driven through the function's own seams and runs on every platform.
+// `.find` stopped at the first variant: an ordinary `Readme.md` hid a marked
+// `readme.md` beside it, and the record governed (sixth review).
+test('every listed README variant is read, not the first one', () => {
+  const MARKED = '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n'
+  const look = files => listedReadme('/d', () => false, () => Object.keys(files), file => {
+    const name = file.split(/[\\/]/).at(-1)
+    if (files[name] === null) throw new Error('EIO')
+    return files[name]
+  })
+  // The controls: no variant at all, and variants that are all ordinary, are not an archive question.
+  assert.equal(look({ 'notes.md': 'x' }), null)
+  assert.equal(look({ 'Readme.md': '# notes\n', 'readme.md': '# more notes\n' }), null)
+  assert.equal(typeof look({ 'Readme.md': '# notes\n', 'readme.md': MARKED }), 'symbol', 'the marked one is second')
+  assert.equal(typeof look({ 'Readme.md': '# notes\n', 'readme.md': null }), 'symbol', 'the unreadable one is second')
+  assert.equal(typeof look({ 'readme.md': MARKED, 'Readme.md': '# notes\n' }), 'symbol')
+})
+
+// "Nothing governs this file" and "could not tell what governs this file" were one
+// silence at the two places a session actually reads the answer: the edit hook's
+// context, and `adr-context`. The second was worse than silent — PARTIAL was one
+// arm of an else-if chain, so it also stopped naming the records it HAD read.
+test('an UNPROVEN record is named where its paths are edited, and PARTIAL hides nothing else', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-context-')))
+  try {
+    const write = (relative, text) => {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), text)
+    }
+    const record = (number, title) => `# ADR-00${number}: ${title}\n\n**Status:** Accepted\n**Governs:** \`src/app.js\`\n`
+    write('docs/adr/ADR-004-live.md', record(4, 'live'))
+    write('docs/old/ADR-007-frozen.md', '# ADR-007: frozen\n\n**Status:** Accepted\n**Governs:** `src/app.js`, `src/old.js`\n')
+    // A marked catalog under another spelling: the one case that is genuinely unknown.
+    write('docs/old/readme.md', '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n\n| ADR | Title | Decision effect |\n|---|---|---|\n| [ADR-007](ADR-007-frozen.md) | frozen | withdrawn |\n')
+    write('src/app.js', '// x\n')
+    write('src/old.js', '// x\n')
+    const env = { ...process.env, GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid', GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
+    for (const args of [['init', '-q'], ['add', '-A'], ['commit', '-q', '-m', 'base']]) {
+      const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 30_000, env })
+      assert.equal(run.status, 0, run.stderr)
+    }
+    const context = decisionContext(['src/app.js'], root)
+    // The control: the record that CAN be placed is still named.
+    assert.match(context, /ADR-004-live\.md/)
+    assert.match(context, /UNPROVEN/)
+    assert.match(context, /ADR-007-frozen\.md/)
+    // With ONLY the unplaceable record declaring the path, the answer used to be ''.
+    const alone = decisionContext(['src/old.js'], root)
+    assert.doesNotMatch(alone, /ADR-004/, 'the control: nothing placeable declares this path')
+    assert.match(alone, /UNPROVEN[\s\S]*ADR-007-frozen\.md/)
+
+    const script = join(realpathSync.native(join(import.meta.dirname, '..')), 'plugin', 'scripts', 'adr-context.mjs')
+    const said = spawnSync(process.execPath, [script, 'src/app.js'], { cwd: root, encoding: 'utf8', timeout: 60_000, env })
+    assert.equal(said.status, 0, said.stderr)
+    assert.match(said.stdout, /could-not-look/)
+    assert.match(said.stdout, /UNPROVEN\s+docs[\\/]old[\\/]ADR-007-frozen\.md/)
+    assert.match(said.stdout, /GOVERNS\s+docs[\\/]adr[\\/]ADR-004-live\.md/, 'PARTIAL qualifies the answer; it does not replace it')
+    const json = JSON.parse(spawnSync(process.execPath, [script, '--json', 'src/app.js'], { cwd: root, encoding: 'utf8', timeout: 60_000, env }).stdout)
+    assert.equal(json.look, 'PARTIAL')
+    assert.deepEqual(json.unproven.map(entry => entry.title), ['ADR-007: frozen'])
+    assert.equal(json.governing.length, 1)
   } finally { rmSync(root, { recursive: true, force: true }) }
 })

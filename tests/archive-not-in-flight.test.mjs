@@ -95,3 +95,91 @@ test('a retired record governs only if the archive catalog says it still does', 
       'and the graveyard says WHAT replaced it, from the catalog')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
+
+// The catalog is the authority for a frozen record, so a catalog that cannot SAY
+// must not hand the authority back to the frozen file, which says `Accepted` for
+// ever. Each of these came back `governing`, `look: ok` — or, for the last two,
+// took authority away from a record the evidence was not about
+// (different-lineage review, 2026-09-19).
+test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, never governing', () => {
+  const HEADER = ['# ADR Archive', '', '**Lifecycle:** Frozen historical ADR records', '',
+    '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
+    '|-----|-------|-----------------|---------|--------|-------------|---------|']
+  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive' } = {}) => {
+    const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-strict-')))
+    const write = (relative, text) => {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), text)
+    }
+    write(`${where}/ADR-007-x.md`, '# ADR-007: seven\n\n**Status:** Accepted\n**Governs:** `src/app.js`\n')
+    write(`${where}/README.md`, [...HEADER, ...rows, ''].join('\n'))
+    write('src/app.js', '// x\n')
+    const tracked = [`${where}/ADR-007-x.md`, 'src/app.js', ...(listReadme ? [`${where}/README.md`] : [])]
+    const records = adrCorpus(root, { tracked })
+    const { governing, graveyard } = decisionsGoverning(['src/app.js'], root, records)
+    rmSync(root, { recursive: true, force: true })
+    return { governs: governing.length, buried: graveyard.length, look: records.look }
+  }
+  const row = (effect, { link = 'ADR-007-x.md', title = 'seven' } = {}) => `| [ADR-007](${link}) | ${title} | ${effect} | 2026-09-19 | r | none | x |`
+
+  // The controls: one well-formed row decides, in both directions.
+  assert.deepEqual(corpus([row('governing')]), { governs: 1, buried: 0, look: 'ok' })
+  assert.deepEqual(corpus([row('withdrawn')]), { governs: 0, buried: 1, look: 'ok' })
+  // An escaped pipe in a title is a title, not a column.
+  assert.deepEqual(corpus([row('withdrawn', { title: 'X \\| Y' })]), { governs: 0, buried: 1, look: 'ok' })
+
+  const unproven = { governs: 0, buried: 0, look: 'PARTIAL' }
+  assert.deepEqual(corpus([]), unproven, 'no row for the record')
+  assert.deepEqual(corpus([row('**withdrawn**')]), unproven, 'an effect adr-retire-check would refuse')
+  assert.deepEqual(corpus([row('withdrawn'), row('governing')]), unproven, 'two rows that disagree')
+  assert.deepEqual(corpus([row('withdrawn', { link: 'unrelated.md' })]), unproven, 'a row whose link names another file')
+
+  // A README git does not list governs nothing (CLAUDE.md §8): the record's own
+  // status stands, as it would on any other machine.
+  assert.deepEqual(corpus([row('withdrawn')], { listReadme: false }), { governs: 1, buried: 0, look: 'ok' })
+  assert.deepEqual(corpus([row('withdrawn')], { listReadme: false, where: 'docs/adr' }), { governs: 1, buried: 0, look: 'ok' })
+})
+
+test('a README git does not list cannot freeze a tracked task directory', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-unlisted-')))
+  try {
+    const write = (relative, text) => {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), text)
+    }
+    write('docs/adr/ADR-002-current/tasks/T1-live.md', '# x\n')
+    write('docs/adr/README.md', '# local notes\n\n**Lifecycle:** Frozen historical ADR records\n')
+    const lines = listing => readyTaskLines(root, true, listing).lines.join('\n')
+    // The control: once the README is LISTED, the marker freezes what is under it.
+    assert.doesNotMatch(lines(['docs/adr/ADR-002-current/tasks/T1-live.md', 'docs/adr/README.md']), /ADR-002-current/)
+    assert.match(lines(['docs/adr/ADR-002-current/tasks/T1-live.md']), /ADR-002-current/,
+      'an untracked README on this disk hides nothing')
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})
+
+// `tasks` is Ansible's word too: every role has a `roles/<name>/tasks/main.yml`.
+// A peer session ran SessionStart over an infrastructure repository on 2026-09-19
+// — 28 role directories, 3 real ADR task directories — and half of the six entries
+// a session reads at startup were
+//   roles/admins/tasks: UNPROVEN — adr-next could not run (exit 1): no task files
+// alphabetical, so `roles/admins` outranked a READY task, on every session start.
+// A task directory is one that holds a Markdown file; `adr-next` reads nothing else.
+test('a directory named tasks that holds no Markdown is not an ADR task directory', () => {
+  const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-ansible-tasks-')))
+  try {
+    const write = (relative, text) => {
+      mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
+      writeFileSync(join(root, ...relative.split('/')), text)
+    }
+    const roles = ['admins', 'app-secret-backup', 'app-secret-ingest', 'base', 'certs', 'db', 'firewall']
+    const listing = [
+      'docs/adr/ADR-002-current/tasks/T1-live.md',
+      ...roles.flatMap(role => [`roles/${role}/tasks/main.yml`, `roles/${role}/tasks/files/notes.md`]),
+    ]
+    for (const relative of listing) write(relative, '# x\n')
+    const lines = readyTaskLines(root, true, listing).lines.join('\n')
+    // The control: the real task directory is still found — after seven that sort before it.
+    assert.match(lines, /ADR-002-current/, lines)
+    assert.doesNotMatch(lines, /roles\//, `an Ansible role is not a record's task set:\n${lines}`)
+  } finally { rmSync(root, { recursive: true, force: true }) }
+})

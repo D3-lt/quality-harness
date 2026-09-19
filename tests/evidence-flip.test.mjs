@@ -58,6 +58,13 @@ const DEGRADED = {
   'a torn session log (complete === false)': entries => asRead(entries, false),
   'a torn checks.jsonl (check.source-unreadable)': entries =>
     asRead([...entries, { at: '2026-09-19T11:59:55.000Z', event: 'check.source-unreadable' }]),
+  // ⚠ THE FLAG IS A PROPERTY ON AN ARRAY, AND EVERY ORDINARY COPY DROPS IT. While
+  // the readers asked `complete === false`, a torn log that had been spread,
+  // filtered or round-tripped answered `undefined` and certified again through
+  // every exported reader (different-lineage review, 2026-09-19). Whole is now
+  // something a log must SAY; these two keep it that way.
+  'a torn log after a spread copy (the flag does not survive one)': entries => [...asRead(entries, false)],
+  'a torn log after a JSON round trip': entries => JSON.parse(JSON.stringify(asRead(entries, false))),
 }
 
 // ⚠ ONE VOCABULARY, APPLIED TO THE WHOLE OUTPUT OF EVERY SURFACE. The first

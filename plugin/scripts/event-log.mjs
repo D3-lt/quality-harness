@@ -180,22 +180,20 @@ export const CONTENT_ID_MAX_BYTES = 32 * 1024 * 1024
 export function contentId(file) {
   let descriptor = null
   try {
-    // ⚠ STAT BEFORE READ, AND ONLY A REGULAR FILE IS READ. `readFileSync` on a FIFO
-    // blocks until something writes to it — for ever, in a working tree — and
-    // `git status` lists an untracked FIFO, so the Stop hook hung until the host
-    // killed it and discarded its whole output (measured: exit 124; audit D1).
-    // `statSync` follows a symlink, so a link TO a pipe or a device is caught too,
-    // and answers without opening anything. A directory — a submodule gitlink —
-    // and an oversized file are UNKNOWN, never hashed and never guessed.
-    const stat = statSync(file)
-    if (!stat.isFile() || stat.size > CONTENT_ID_MAX_BYTES) return null
-    // ⚠ AND THE FILE THAT IS READ IS THE FILE THAT WAS JUDGED. This went on to
-    // `readFileSync(file)` — a second lookup of the NAME — so a path swapped for a
-    // FIFO, or a file grown past the bound, between the two calls was read with
-    // neither guard (different-lineage review, 2026-09-19). One descriptor, opened
-    // without blocking, judged again by what it actually is, and read to a bound.
+    // ⚠ ONE DESCRIPTOR, OPENED WITHOUT BLOCKING, JUDGED BY WHAT IT IS, READ TO A BOUND.
+    // `readFileSync` on a FIFO blocks until something writes to it — for ever, in a
+    // working tree — and `git status` lists an untracked FIFO, so the Stop hook hung
+    // until the host killed it and discarded its whole output (measured: exit 124;
+    // audit D1). A directory — a submodule gitlink — and an oversized file are
+    // UNKNOWN, never hashed and never guessed.
+    // The first repair judged the NAME with `statSync` and then read the name again,
+    // so a path swapped between the two calls was read with no guard at all. The
+    // second kept that `statSync` beside the `fstat` below, and a mutant deleting it
+    // survived in CI: two guards for one property, one of them unkillable. There is
+    // one now, and it is on the thing actually read.
     descriptor = openSync(file, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0))
-    if (!fstatSync(descriptor).isFile()) return null
+    const opened = fstatSync(descriptor)
+    if (!opened.isFile() || opened.size > CONTENT_ID_MAX_BYTES) return null
     const hash = createHash('sha256')
     const chunk = Buffer.allocUnsafe(1024 * 1024)
     let total = 0

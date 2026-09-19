@@ -115,8 +115,11 @@ function observedReading(log, observed, check) {
   // note for the same log said `unverified` (different-lineage review,
   // 2026-09-19). A `file.written` carries no observation of its own, so until
   // another boundary looks, the tree it left is not the tree that was checked.
-  const uncovered = writes.filter(entry => entry.observable === false
-    || typeof entry.at !== 'string' || typeof observed.at !== 'string' || entry.at > observed.at)
+  // By POSITION in the log, which is append-ordered — not by timestamp, which can
+  // tie: a write appended after the observation in the same millisecond compared
+  // equal and was read as covered.
+  const observedIndex = log.lastIndexOf(observed)
+  const uncovered = log.filter((entry, index) => writes.includes(entry) && (entry.observable === false || index > observedIndex))
   // A log that could not be read whole says nothing positive: not `checked`, and
   // not `nothing edited` either — the lost line may be the write (audit B3).
   const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'

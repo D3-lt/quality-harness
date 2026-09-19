@@ -19,7 +19,7 @@ import { tmpdir } from 'node:os'
 import { dirname, join, resolve } from 'node:path'
 import test from 'node:test'
 import { fileURLToPath } from 'node:url'
-import { observedFacts, readSessionNote, replaceSessionNote, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
+import { checkEventName, observedFacts, readSessionNote, replaceSessionNote, sessionStateNote } from '../plugin/scripts/lifecycle.mjs'
 import { reading, render } from '../plugin/scripts/statusline.mjs'
 
 const lifecycleScript = join(resolve(dirname(fileURLToPath(import.meta.url)), '..'), 'plugin', 'scripts', 'lifecycle.mjs')
@@ -173,6 +173,13 @@ test('a review whose start or end could not be observed says so, instead of sayi
     assert.match(hook({ hook_event_name: 'SubagentStop', agent_type: REVIEWER, agent_id: 'never-began' }), /never recorded/)
     // Once per agent, not at every boundary.
     assert.equal(hook({ hook_event_name: 'SubagentStop', agent_type: REVIEWER, agent_id: 'blind' }), '')
+    // A start that WAS recorded and then torn: the reason names the log, because
+    // "never recorded" would be a second thing nobody observed.
+    hook({ hook_event_name: 'SubagentStart', agent_type: REVIEWER, agent_id: 'torn' })
+    const lines = readFileSync(logFile, 'utf8').trimEnd().split('\n')
+    assert.match(lines.at(-1), /"agentId":"torn"/, 'the control: the last line is the bracket about to be torn')
+    writeFileSync(logFile, `${lines.slice(0, -1).join('\n')}\n${lines.at(-1).slice(0, 40)}`)
+    assert.match(hook({ hook_event_name: 'SubagentStop', agent_type: REVIEWER, agent_id: 'torn' }), /could not be read whole/)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
 
@@ -206,10 +213,19 @@ test('a state note older than the compaction it follows is not served as that co
     hook({ hook_event_name: 'PreCompact' })
     // The control: the note PreCompact just kept is handed back.
     assert.match(hook({ hook_event_name: 'SessionStart', source: 'compact' }), /What this session was doing before compaction/)
-    // The note a failed replace would leave behind: an earlier compaction's.
     const file = join(top, `quality-harness-note-${createHash('sha256').update(session).digest('hex').slice(0, 32)}`)
     assert.ok(existsSync(file), 'the note is where this test expects it')
-    writeFileSync(file, JSON.stringify({ at: '2020-01-01T00:00:00.000Z', status: 'verified', text: 'OLD NOTE' }))
+    const kept = JSON.parse(readFileSync(file, 'utf8'))
+    assert.equal(kept.compaction, 1, 'the note says which compaction it belongs to')
+    // ⚠ NOT BY WALL CLOCK. The first version compared `note.at` with the event's
+    // `at`, and a clock that stepped backwards between the two rejected the note
+    // PreCompact had just written (second review). The same note, dated years
+    // before its event, is still this compaction's.
+    writeFileSync(file, JSON.stringify({ ...kept, at: '2020-01-01T00:00:00.000Z' }))
+    assert.match(hook({ hook_event_name: 'SessionStart', source: 'compact' }), /What this session was doing before compaction/)
+    // The note a failed replace would leave behind: an EARLIER compaction's.
+    hook({ hook_event_name: 'PreCompact' })
+    writeFileSync(file, JSON.stringify({ ...kept, text: 'OLD NOTE' }))
     const after = hook({ hook_event_name: 'SessionStart', source: 'compact' })
     assert.doesNotMatch(after, /OLD NOTE/)
     assert.match(after, /older than this compaction/)
@@ -243,5 +259,109 @@ test('the next session is not told of edits nobody observed', () => {
     const late = next('row-late', (repo, hook) => { hook({ hook_event_name: 'Stop' }) })
     assert.doesNotMatch(late, /edits? after which no recognised check passed/, late.slice(0, 500))
     assert.match(late, /UNKNOWN to this plugin/, late.slice(0, 500))
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// ---- The second review, of the fixes above (52ee1db...ad8652a). Holes left IN them.
+
+test('a write appended after the observation in the same millisecond is still uncovered', () => {
+  const dir = mkdtempSync(join(tmpdir(), 'qh-review-tie-'))
+  try {
+    writeFileSync(join(dir, '.quality-harness.json'), JSON.stringify({ check: 'sh check.sh' }))
+    const at = '2026-09-19T12:00:00.000Z'
+    const write = { at, event: 'file.written', path: join(dir, 'a.py'), observable: true }
+    // The control: the same write, same timestamp, BEFORE the observation, is covered by it.
+    assert.match(shown(dir, [started, pass, write, ended('T1', at)]).line, /^QH ✓ checked/)
+    assert.equal(shown(dir, [started, pass, ended('T1', at), write]).value.kind, 'unverified',
+      'the log is append-ordered; a timestamp can tie and a position cannot')
+  } finally { rmSync(dir, { recursive: true, force: true }) }
+})
+
+test('a recorded signal outranks a verdict read from a phrase', () => {
+  assert.equal(checkEventName({ verdict: 'unproven', exit: 1, signal: null, git: false }), 'check.unproven', 'the control')
+  assert.equal(checkEventName({ verdict: 'unproven', exit: null, signal: 'SIGTERM', git: false }), 'check.timeout')
+})
+
+test('an order that cannot be established is said so, not reported as "the failure ran last"', () => {
+  const tree = 'T1'
+  const legacyFail = { event: 'check.failed', record: 'r1', startedAt: '2026-09-19T11:51:00.000Z', after: { tree }, command: 'sh check.sh' }
+  const stampedPass = { event: 'check.passed', record: 'r2', seq: 2, after: { tree }, command: 'sh check.sh' }
+  const facts = observedFacts(whole([started, legacyFail, stampedPass]), null, observation(tree))
+  // Still no certificate: for the VERDICT an unresolved order resolves against the pass.
+  assert.equal(facts.checked, false)
+  assert.equal(facts.lastCheck.verdict, 'unresolved')
+  const note = sessionStateNote(facts, '/x', '/x', false, new Date(NOW), { tasks: false })
+  assert.match(note.text, /could not be established/)
+  assert.doesNotMatch(note.text, /Last check: .* failed/)
+  // The control: two records that CAN be ordered still name the one that ran last.
+  const ordered = observedFacts(whole([started, { ...legacyFail, seq: 1 }, stampedPass]), null, observation(tree))
+  assert.equal(ordered.lastCheck.verdict, 'passed')
+})
+
+test('a compact SessionStart does not hand a fresh baseline to a session with outstanding work', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-review-compact-')))
+  try {
+    // The control: an EMPTY log does get its baseline from SessionStart.
+    const fresh = fixture(top, 'compact-fresh')
+    fresh.hook({ hook_event_name: 'SessionStart', source: 'startup' })
+    assert.equal(fresh.log().filter(entry => entry.event === 'session.started').length, 1)
+
+    const { repo, git, hook, log } = fixture(top, 'compact-late')
+    writeFileSync(join(repo, 'a.md'), 'edited\n')
+    hook({ hook_event_name: 'PostToolUse', tool_name: 'Edit', tool_input: { file_path: join(repo, 'a.md') } })
+    git('commit', '-q', '-am', 'unchecked work')
+    hook({ hook_event_name: 'Stop' })
+    hook({ hook_event_name: 'PreCompact' })
+    hook({ hook_event_name: 'SessionStart', source: 'compact' })
+    assert.equal(log().filter(entry => entry.event === 'session.started').length, 0,
+      'a SessionStart in the middle of a session is not the beginning of one')
+    hook({ hook_event_name: 'SessionEnd', reason: 'other' })
+    const row = JSON.parse(readFileSync(join(top, 'compact-late-data', 'sessions.jsonl'), 'utf8').trim().split('\n').at(-1))
+    assert.notEqual(row.status, 'neutral', JSON.stringify(row))
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+test('a write OUTSIDE the repository does not stop a clean repository getting its late baseline', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-review-outside-')))
+  try {
+    const { hook, log } = fixture(top, 'outside')
+    const elsewhere = join(top, 'elsewhere.txt')
+    writeFileSync(elsewhere, 'x\n')
+    hook({ hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: elsewhere } })
+    const written = log().filter(entry => entry.event === 'file.written')
+    assert.equal(written.length, 1)
+    assert.equal(written[0].observable, false, 'the control: this write is one git cannot see')
+    hook({ hook_event_name: 'Stop' })
+    const began = log().filter(entry => entry.event === 'session.started')
+    assert.equal(began.length, 1, 'the repository itself is clean and nothing on record touched it')
+    assert.equal(began[0].late, true)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+test('an UNKNOWN previous session still says what was independently known to be outstanding', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-review-unknown-')))
+  try {
+    // Not a repository at all: no tree can be observed, and the write is still on record.
+    const place = join(top, 'plain')
+    mkdirSync(place, { recursive: true })
+    writeFileSync(join(place, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+    const env = { ...process.env, CLAUDE_PLUGIN_DATA: join(top, 'data'), TMPDIR: top, TMP: top, TEMP: top }
+    const hook = (session, payload) => {
+      const out = spawnSync(process.execPath, [lifecycleScript], { cwd: top, encoding: 'utf8', timeout: 120_000, env,
+        input: JSON.stringify({ ...payload, session_id: session, cwd: place }) })
+      assert.equal(out.status, 0, out.stderr)
+      return `${out.stdout}${out.stderr}`
+    }
+    const first = `unknown-a-${process.pid}`
+    hook(first, { hook_event_name: 'SessionStart', source: 'startup' })
+    writeFileSync(join(place, 'notes.txt'), 'x\n')
+    hook(first, { hook_event_name: 'PostToolUse', tool_name: 'Write', tool_input: { file_path: join(place, 'notes.txt') } })
+    hook(first, { hook_event_name: 'SessionEnd', reason: 'other' })
+    const row = JSON.parse(readFileSync(join(top, 'data', 'sessions.jsonl'), 'utf8').trim().split('\n').at(-1))
+    assert.equal(typeof row.unknown, 'string', `the control: this row is an UNKNOWN one — ${JSON.stringify(row)}`)
+    assert.equal(row.other, 1)
+    const next = hook(`unknown-b-${process.pid}`, { hook_event_name: 'SessionStart', source: 'startup' })
+    assert.match(next, /UNKNOWN to this plugin/)
+    assert.match(next, /1 write\(s\) git cannot see/, next.slice(0, 600))
   } finally { rmSync(top, { recursive: true, force: true }) }
 })

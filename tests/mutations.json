@@ -8590,7 +8590,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "            const target = path.resolve(directory, ...href.split(/[\\\\/]/))",
+      "from": "            const target = path.resolve(directory, ...href.split('/'))",
       "to": "            const target = file"
     },
     {
@@ -8671,8 +8671,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return variant && sameEntry(exact, path.join(directory, variant)) ? path.join(directory, variant) : null",
-      "to": "  return null"
+      "from": "  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN",
+      "to": "  return same === false ? null : README_UNKNOWN"
     },
     {
       "label": "catalog: a README listed in another case is a different file where the filesystem does not fold",
@@ -8680,8 +8680,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return variant && sameEntry(exact, path.join(directory, variant)) ? path.join(directory, variant) : null",
-      "to": "  return variant ? path.join(directory, variant) : null"
+      "from": "  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN",
+      "to": "  return same === null ? README_UNKNOWN : path.join(directory, variant)"
     },
     {
       "label": "baseline: a SessionStart in the middle of a session is not its beginning",
@@ -8747,12 +8747,12 @@
       "to": "  if (false && new Set("
     },
     {
-      "label": "catalog: a rooted or schemed link is refused before it is resolved",
+      "label": "catalog: a link is a plain relative path, or the row says nothing",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "            if (!href || /^(?:[a-z][a-z0-9+.-]*:|[\\\\/])/i.test(href)) continue",
+      "from": "            if (!/^(?:\\.\\.?\\/)*[A-Za-z0-9._-]+(?:\\/[A-Za-z0-9._-]+)*$/.test(href)) continue",
       "to": "            if (!href) continue"
     },
     {
@@ -8761,8 +8761,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    return a.dev === b.dev && a.ino === b.ino",
-      "to": "    return true"
+      "from": "  return a.dev === b.dev && a.ino === b.ino",
+      "to": "  return true"
     },
     {
       "label": "note: a log that could not be read whole cannot say which compaction was last",
@@ -8774,13 +8774,49 @@
       "to": "      const tied = typeof owner === 'string'"
     },
     {
-      "label": "R3: a session already told under the old key is not told again",
+      "label": "R3: told-already is read from the action detail, not from the shape of a key",
       "file": "plugin/scripts/lifecycle.mjs",
       "tests": [
         "tests/review-2026-09-19.test.mjs"
       ],
-      "from": "    const told = new Set([unobservedKey, `${input.agent_id}:unknown`])",
-      "to": "    const told = new Set([unobservedKey])"
+      "from": "    const told = entry => entry.detail?.kind === 'unobserved' && entry.detail.agent === input.agent_id",
+      "to": "    const told = entry => entry.key === unobservedKey || entry.key === `${input.agent_id}:unknown`"
+    },
+    {
+      "label": "catalog: an identity that could not be established is UNPROVEN, not \"a different file\"",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN",
+      "to": "  return same === true ? path.join(directory, variant) : null"
+    },
+    {
+      "label": "identity: inode 0 identifies nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (a.ino === 0n || b.ino === 0n) return null",
+      "to": "  void 0"
+    },
+    {
+      "label": "identity: a stat that failed for any reason but absence proves nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "return failure?.code === 'ENOENT' || failure?.code === 'ENOTDIR' ? false : null }",
+      "to": "return false }"
+    },
+    {
+      "label": "note: a note is served once",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "        && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)",
+      "to": "        && true"
     }
   ]
 }

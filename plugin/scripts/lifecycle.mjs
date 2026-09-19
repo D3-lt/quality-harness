@@ -903,18 +903,31 @@ const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
 // `readme.md` switched the listed one on: an ignored scratch file retired a tracked
 // record (third review; CLAUDE.md §8). `sameEntry` is the seam (§7): a test on
 // either kind of filesystem must be able to reach both arms.
+// ⚠ THREE ANSWERS, NOT TWO. `true`, `false`, and `null` for "could not tell": a
+// `stat` that failed for any reason but absence, or a filesystem that reports
+// inode 0 for everything (some network and FUSE mounts), establishes neither.
+// Both were verdicts at first — EIO made a frozen record govern, and two distinct
+// files at inode 0 retired one — each with `look: ok` (fourth review, ADR-005).
 export function sameFilesystemEntry(one, other, stat = statSync) {
-  try {
-    const [a, b] = [stat(one, { bigint: true }), stat(other, { bigint: true })]
-    return a.dev === b.dev && a.ino === b.ino
-  } catch { return false }
+  let a
+  try { a = stat(one, { bigint: true }) } catch (failure) { return failure?.code === 'ENOENT' || failure?.code === 'ENOTDIR' ? false : null }
+  let b
+  try { b = stat(other, { bigint: true }) } catch { return null }
+  if (a.ino === 0n || b.ino === 0n) return null
+  return a.dev === b.dev && a.ino === b.ino
 }
+
+// What `listedReadme` answers when a variant is listed and whether it IS the README
+// could not be established.
+const README_UNKNOWN = Symbol('whether the listed README variant is this directory\'s README.md is unknown')
 
 function listedReadme(directory, isListed, variants, sameEntry = sameFilesystemEntry) {
   const exact = path.join(directory, 'README.md')
   if (isListed(exact)) return exact
   const variant = variants(directory).find(name => name.toLowerCase() === 'readme.md')
-  return variant && sameEntry(exact, path.join(directory, variant)) ? path.join(directory, variant) : null
+  if (!variant) return null
+  const same = sameEntry(exact, path.join(directory, variant))
+  return same === true ? path.join(directory, variant) : same === false ? null : README_UNKNOWN
 }
 
 function underFrozenArchive(root, dirParts, cache, listed) {
@@ -927,7 +940,9 @@ function underFrozenArchive(root, dirParts, cache, listed) {
         const readme = listedReadme(directory,
           () => listed.has(`${key}/README.md`),
           () => [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)))
-        frozen = readme !== null && readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
+        // Unknown identity freezes nothing: hiding a task set is silence, and showing
+        // one is a statement `adr-next` then checks for itself.
+        frozen = typeof readme === 'string' && readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
       } catch {}
       cache.set(key, frozen)
     }
@@ -1224,7 +1239,8 @@ function archiveDecisionEffect(file, reader, cache, listed, sameEntry) {
     let rows = null
     const readme = listedReadme(directory, candidate => listed.has(candidate),
       () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)), sameEntry)
-    if (readme !== null) {
+    if (readme === README_UNKNOWN) rows = 'unknown-readme'
+    else if (readme !== null) {
       try {
         const lines = reader.text(readme).split(/\r?\n/)
         if (lines.includes(ARCHIVE_LIFECYCLE_LINE)) {
@@ -1239,14 +1255,19 @@ function archiveDecisionEffect(file, reader, cache, listed, sameEntry) {
             // URL ending in the name both retired the local record, while the local
             // `ADR-001-x.md#decision` was refused. A fragment is dropped, as
             // `adr-retire-check` drops it.
-            // ⚠ A CATALOG LINK IS RELATIVE, AND ANYTHING ELSE IS REFUSED BEFORE IT IS
-            // RESOLVED. This check was removed once as "redundant — a URL resolves to no
-            // local path". It does: `https://host/../../ADR-007-x.md` normalises onto
-            // the record, and splitting `/ADR-007-x.md` drops its root so it lands
-            // beside the catalog. Both retired the local record (third review).
+            // ⚠ AN ALLOWLIST, NOT A BLOCKLIST — this is a classifier over open input,
+            // and "not recognised as remote" is not "known to be local" (CLAUDE.md
+            // §16). It was a blocklist three times: no check at all, then a scheme
+            // test removed as "redundant", then a scheme-and-root test that a
+            // LEADING SPACE and an angle-wrapped `<https://…>` both walked past —
+            // `https://host/../../ADR-007-x.md` normalises onto the record, and each
+            // retired it with `look: ok`. So a link is a plain relative path in the
+            // characters a record's filename is made of, or the row says nothing.
+            // A legal but unusual name (a colon, a space) costs an UNPROVEN, which is
+            // the direction a wrong guess here is allowed to fail in.
             const href = link[1].split('#')[0]
-            if (!href || /^(?:[a-z][a-z0-9+.-]*:|[\\/])/i.test(href)) continue
-            const target = path.resolve(directory, ...href.split(/[\\/]/))
+            if (!/^(?:\.\.?\/)*[A-Za-z0-9._-]+(?:\/[A-Za-z0-9._-]+)*$/.test(href)) continue
+            const target = path.resolve(directory, ...href.split('/'))
             rows.set(target, [...(rows.get(target) ?? []), cells[2] ?? ''])
           }
         }
@@ -1257,6 +1278,7 @@ function archiveDecisionEffect(file, reader, cache, listed, sameEntry) {
   const rows = cache.get(directory)
   if (rows === null) return null
   if (rows === 'unread') return { unproven: 'the README beside it is listed and could not be read, so whether this is an archive is unknown' }
+  if (rows === 'unknown-readme') return { unproven: 'a README is listed beside it under another spelling, and whether that is this directory\'s README.md could not be established' }
   const effects = rows.get(file) ?? []
   if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }
   if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }
@@ -2981,17 +3003,20 @@ function reviewChangedState(input, ended) {
     // survived in CI — this one answered for it. The torn line never repairs, so
     // each is said once per agent.
     const unobservedKey = `${input.agent_id}:unobserved`
-    // `:unknown` is the key the torn-bracket arm used before it was folded into this
-    // one; a session upgraded mid-way has already been told under that name.
-    const told = new Set([unobservedKey, `${input.agent_id}:unknown`])
-    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && told.has(entry.key))) {
+    // Told-already is read from the action's DETAIL, not from the shape of its key.
+    // A key is `<agent>:<word>` and an agent id is free text: honouring the old
+    // arm's `<agent>:unknown` key silenced agent `a` because agent `a:unknown` had
+    // a state-change finding on record (fourth review). A session upgraded mid-way
+    // may therefore hear this once more — said twice is the direction to fail in.
+    const told = entry => entry.detail?.kind === 'unobserved' && entry.detail.agent === input.agent_id
+    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && told(entry))) {
       const why = !started
         ? (logIncomplete(log)
           ? 'this session\'s event log could not be read whole, and the record of where that run began may be among what was lost'
           : 'where that run began was never recorded')
         : before?.ok !== true ? `the repository could not be observed when it began (${before?.reason ?? 'no reason was recorded'})`
           : `the repository could not be observed when it ended (${after?.reason ?? 'no reason was recorded'})`
-      queueAction({ rule: 'R3', key: unobservedKey, text: `quality-harness: whether the repository changed during the ${role} `
+      queueAction({ rule: 'R3', key: unobservedKey, detail: { kind: 'unobserved', agent: input.agent_id }, text: `quality-harness: whether the repository changed during the ${role} `
         + `run (agent ${input.agent_id}) is unknown — ${why}. That is a statement about what could be looked at, not about `
         + 'the review (ADR-005).' })
     }
@@ -2999,7 +3024,7 @@ function reviewChangedState(input, ended) {
   }
   if (sameObservation(before, after)) return
   const key = input.agent_id
-  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === key)) return
+  if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === key && entry.detail?.kind !== 'unobserved')) return
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
   const root = directory ? gitRepositoryRoot(directory) : null
   if (!root) return
@@ -3458,9 +3483,16 @@ export async function handleHook(input) {
       // and two overlapping PreCompacts each defeated (third review). It is now the
       // id PreCompact put on its own event, and it has to be the LAST compacting
       // event in a log that was read whole. Anything else is unknown, not "older".
+      // ⚠ AND IT IS SERVED ONCE. The last recorded compaction stays the last one until
+      // another PreCompact runs — and when one does not (a disabled hook, a host
+      // crash), the NEXT compact SessionStart matched the same id and handed back a
+      // note about work long since moved on (fourth review). Serving is recorded in
+      // the log, and a serve that cannot be recorded is not made.
       const events = readEvents(input.cwd, input.session_id)
       const owner = events.filter(entry => entry.event === 'context.compacting').at(-1)?.compactionId
       const tied = !logIncomplete(events) && typeof owner === 'string' && note?.compaction === owner
+        && !events.some(entry => entry.event === 'note.served' && entry.compactionId === owner)
+        && appendEvent(input.cwd, input.session_id, { event: 'note.served', compactionId: owner }) !== false
       if (note && !tied) sections.push('quality-harness: the state note kept for this session could not be tied to this compaction, '
         + 'so what was unverified before it is unknown here (ADR-005).')
       else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)

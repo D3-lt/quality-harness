@@ -8394,6 +8394,33 @@
       ],
       "from": "inferred: checked && latest?.origin === 'inferred',",
       "to": "inferred: false,"
+    },
+    {
+      "label": "identity: only a regular file of bounded size is read, so a FIFO cannot hang the hook",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "    if (!stat.isFile() || stat.size > CONTENT_ID_MAX_BYTES) return null",
+      "to": "    if (false) return null"
+    },
+    {
+      "label": "dispatch: could-not-look is written to stderr, where the commit boundary reads",
+      "file": "plugin/scripts/facts-gate-dispatch.sh",
+      "tests": [
+        "tests/dispatch-streams.test.mjs"
+      ],
+      "from": "  printf '%s\\n' \"$1\" >&2",
+      "to": "  printf '%s\\n' \"$1\""
+    },
+    {
+      "label": "archive: the bulk lookup takes the first base with a CATALOG, as the dispatcher does",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/archive-history-parity.test.mjs"
+      ],
+      "from": "      for (const blobs of perBase) {",
+      "to": "      for (const blobs of perBase.slice(0, 1)) {"
     }
   ]
 }

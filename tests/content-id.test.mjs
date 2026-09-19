@@ -19,7 +19,8 @@ import { mkdirSync, mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSyn
 import { tmpdir } from 'node:os'
 import { join } from 'node:path'
 import test from 'node:test'
-import { ABSENT, contentId, CONTENT_ID_MAX_BYTES } from '../plugin/scripts/event-log.mjs'
+import { createHash } from 'node:crypto'
+import { ABSENT, contentId, CONTENT_ID_MAX_BYTES, nearestExistingDirectory } from '../plugin/scripts/event-log.mjs'
 
 test('contentId answers for a regular file, and says unknown for anything it must not read', () => {
   const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-content-id-')))
@@ -36,6 +37,37 @@ test('contentId answers for a regular file, and says unknown for anything it mus
     mkdirSync(join(top, 'dir'))
     assert.equal(contentId(join(top, 'dir')), null, 'a directory — a submodule, say — has no content identity')
     assert.ok(Number.isSafeInteger(CONTENT_ID_MAX_BYTES) && CONTENT_ID_MAX_BYTES > 0)
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+// The read goes through ONE descriptor now, in chunks, so the file that was judged
+// is the file that is hashed. What that must not change is the ANSWER: the same
+// digest a whole-file read gives, across a chunk boundary and for an empty file.
+// ⚠ NOT TESTED: the race itself — a path swapped between `stat` and `open`. There
+// is no seam that makes it happen on demand, and a test that sleeps and hopes is
+// not one. The guard is the second `fstat`, on the descriptor.
+test('a chunked read gives the digest a whole read would', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-content-chunks-')))
+  try {
+    const sha = bytes => createHash('sha256').update(bytes).digest('hex')
+    const big = Buffer.alloc(2 * 1024 * 1024 + 4099, 0)
+    for (let index = 0; index < big.length; index += 1) big[index] = (index * 31 + 7) % 251
+    writeFileSync(join(top, 'big.bin'), big)
+    assert.equal(contentId(join(top, 'big.bin')), sha(big), 'two full chunks and a partial one')
+    writeFileSync(join(top, 'empty.md'), '')
+    assert.equal(contentId(join(top, 'empty.md')), sha(Buffer.alloc(0)))
+  } finally { rmSync(top, { recursive: true, force: true }) }
+})
+
+test('the nearest existing directory is a DIRECTORY, even when a file is in the way', () => {
+  const top = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-nearest-dir-')))
+  try {
+    writeFileSync(join(top, 'NOTES.md'), 'x\n')
+    // The control: an ordinary missing descendant resolves to the directory above it.
+    assert.equal(nearestExistingDirectory(join(top, 'missing', 'deeper')), top)
+    // A path THROUGH a regular file: the walk stopped at the file and called it a directory.
+    assert.equal(nearestExistingDirectory(join(top, 'NOTES.md', 'child', 'grandchild')), top)
+    assert.equal(nearestExistingDirectory(join(top, 'NOTES.md')), top)
   } finally { rmSync(top, { recursive: true, force: true }) }
 })
 

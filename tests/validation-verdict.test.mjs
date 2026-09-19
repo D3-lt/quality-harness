@@ -23,7 +23,7 @@
 // next reader, and an accusation is the expensive way to be wrong (CLAUDE.md §16).
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { validationVerdict } from '../plugin/scripts/lifecycle.mjs'
+import { checkEventName, validationVerdict } from '../plugin/scripts/lifecycle.mjs'
 
 const verdict = (exit_code, stdout, command = 'sh check.sh') =>
   validationVerdict({ exit_code, stdout }, command, { anyCommand: true })
@@ -32,26 +32,35 @@ const ran = count => Array.from({ length: count }, (_, index) => `--- PASS: Test
 test('a suite that ran and failed is `failed`, whatever its assertions happen to say', () => {
   const output = `${ran(40)}\n--- FAIL: TestOpenMissing (0.00s)\n    store_test.go:41: open /x/y: no such file or directory\nFAIL`
   // The control: the phrase IS one this function acts on, or the case proves nothing.
-  assert.equal(verdict(1, 'sh: 1: nosuchtool: no such file or directory'), 'unstarted')
+  assert.equal(verdict(1, 'sh: 1: nosuchtool: no such file or directory'), 'unproven')
   assert.equal(verdict(1, output), 'failed', 'forty tests ran; that is not a command that never started')
   for (const phrase of ['permission denied', 'ENOENT: no such file', 'command not found', 'EACCES']) {
     assert.equal(verdict(1, `${ran(40)}\n--- FAIL: TestIt (0.00s)\n    x_test.go:9: got "${phrase}"\nFAIL`), 'failed', phrase)
   }
 })
 
-test('a check that could not start is `unstarted`, by its exit code or by the little it said', () => {
+test('a check that could not start is `unstarted` by its EXIT CODE; by words alone it is `unproven`', () => {
   // The exit code alone: every POSIX shell uses 127 and 126, cmd.exe 9009.
   for (const code of [126, 127, 9009]) assert.equal(verdict(code, ''), 'unstarted', String(code))
   assert.equal(verdict(127, '> app@1.0.0 test\n> vitest run\n\nsh: vitest: command not found'), 'unstarted')
+  // ⚠ A PHRASE IS NOT AN OBSERVATION THAT NOTHING RAN. These all returned
+  // `unstarted`, and so did a real one-line assertion failure at exit 1 — a red
+  // check filed as an environment problem (different-lineage review, 2026-09-19).
+  // The words still keep a run that may never have started from being called a
+  // FAILURE of the change; they no longer claim to know it did not start.
+  assert.equal(verdict(1, 'FAIL testOpenFile: permission denied'), 'unproven', 'the case that was misfiled')
   // Exit 1 and one line: measured twice on 2026-09-19, by two Laravel sessions, in
   // clones that had no vendor/ directory.
-  assert.equal(verdict(1, 'Could not open input file: vendor/bin/phpunit', 'php vendor/bin/phpunit'), 'unstarted')
+  assert.equal(verdict(1, 'Could not open input file: vendor/bin/phpunit', 'php vendor/bin/phpunit'), 'unproven')
   // Windows shells exit 1 and say it in words; that is why the text is read at all.
-  assert.equal(verdict(1, "'vitest' is not recognized as an internal or external command,\noperable program or batch file."), 'unstarted')
+  assert.equal(verdict(1, "'vitest' is not recognized as an internal or external command,\noperable program or batch file."), 'unproven')
   // Win32 error text, which is what most Windows tooling surfaces — Docker Desktop
   // included, when its pipe is not there.
-  assert.equal(verdict(1, 'The system cannot find the file specified.'), 'unstarted')
-  assert.equal(verdict(1, 'The system cannot find the path specified.'), 'unstarted')
+  assert.equal(verdict(1, 'The system cannot find the file specified.'), 'unproven')
+  assert.equal(verdict(1, 'The system cannot find the path specified.'), 'unproven')
+  assert.equal(verdict(1, 'the run timed out'), 'unproven', 'and the same for a kill reported only in words')
+  // Neither word certifies anything: only `check.passed` does.
+  for (const word of ['unstarted', 'unproven']) assert.notEqual(checkEventName({ verdict: word, exit: 0, git: false }), 'check.passed')
 })
 
 test('an explicit zero is a pass even when the output quotes an error', () => {

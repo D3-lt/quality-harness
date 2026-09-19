@@ -85,3 +85,44 @@ test('the bulk lookup and the per-file lookup name the same archive catalog', ()
     }
   } finally { rmSync(repo, { recursive: true, force: true }) }
 })
+
+test('a base that could not be read leaves the bulk answer UNKNOWN, not "no catalog"', () => {
+  const repo = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-archive-failed-base-')))
+  try {
+    const git = (...args) => {
+      const out = spawnSync('git', ['-C', repo, ...args], { encoding: 'utf8', timeout: 30_000, env: { ...process.env, ...IDENTITY } })
+      assert.equal(out.status, 0, `git ${args.join(' ')}: ${out.stderr}`)
+      return out.stdout.trim()
+    }
+    mkdirSync(join(repo, 'docs', 'arch'), { recursive: true })
+    git('init', '-q')
+    writeFileSync(join(repo, 'docs', 'arch', 'README.md'), `# ADR Archive\n\n${MARKER}\n`)
+    writeFileSync(join(repo, 'docs', 'arch', 'ADR-001-old.md'), '# ADR-001: old\n')
+    writeFileSync(join(repo, 'docs', 'arch', 'ADR-002-other.md'), '# ADR-002: other\n')
+    git('add', '-A')
+    git('commit', '-q', '-m', 'an archive')
+    const older = git('rev-parse', 'HEAD')
+    writeFileSync(join(repo, 'docs', 'arch', 'README.md'), '# Just notes now\n')
+    git('add', '-A')
+    git('commit', '-q', '-m', 'the marker goes')
+    const nearer = git('rev-parse', 'HEAD')
+    const records = ['ADR-001-old.md', 'ADR-002-other.md'].map(name => join(repo, 'docs', 'arch', name))
+
+    const lookup = run => {
+      const previous = process.env.QUALITY_HARNESS_HISTORY_BASES
+      process.env.QUALITY_HARNESS_HISTORY_BASES = `${nearer} ${older}`
+      try { return archiveHistory(records, Date.now() + 30_000, run) } finally {
+        if (previous === undefined) delete process.env.QUALITY_HARNESS_HISTORY_BASES
+        else process.env.QUALITY_HARNESS_HISTORY_BASES = previous
+      }
+    }
+    // The control: with every base readable, both records get an answer.
+    assert.equal(lookup(spawnSync).size, 2)
+    // The base that HOLDS the catalog cannot be read. Cached `''` here would tell
+    // the dispatcher "observed: no catalog" and suppress the lookup that finds it.
+    const failing = (command, args, options) => args.includes('ls-tree') && args.includes(older)
+      ? { status: 128, stdout: Buffer.alloc(0), stderr: Buffer.from('fatal') }
+      : spawnSync(command, args, options)
+    assert.equal(lookup(failing).size, 0, 'absent means "look yourself"; an empty string means "I looked and there is none"')
+  } finally { rmSync(repo, { recursive: true, force: true }) }
+})

@@ -8421,6 +8421,24 @@
       ],
       "from": "      for (const blobs of perBase) {",
       "to": "      for (const blobs of perBase.slice(0, 1)) {"
+    },
+    {
+      "label": "checks: the DECLARED arm of the run-the-check sentence says whose word the command is",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (origin === 'declared') {",
+      "to": "  if (origin === 'never') {"
+    },
+    {
+      "label": "checks: a composer `test` script is not offered as the project's own check",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/lifecycle.test.mjs"
+      ],
+      "from": "  if (declared) return { command: declared, origin: 'declared' }",
+      "to": "  if (declared) return { command: declared, origin: 'declared' }\n  if (existsSync(path.join(root, 'composer.json')) && readFileSync(path.join(root, 'composer.json'), 'utf8').includes('\"test\"')) return { command: 'composer test', origin: 'declared' }"
     }
   ]
 }

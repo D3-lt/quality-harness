@@ -8232,6 +8232,51 @@
       ],
       "from": "    appendFileSync(file, `${JSON.stringify({ at: new Date().toISOString(), ...entry })}\\n`, 'utf8')",
       "to": "    void file"
+    },
+    {
+      "label": "evidence-flip: a pass that survived a torn log certifies nothing, for any caller",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  return latest?.event === 'check.passed' && logIncomplete(log) ? LOG_INCOMPLETE : latest",
+      "to": "  return latest"
+    },
+    {
+      "label": "evidence-flip: a torn log is not a session where nothing happened",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "      : logIncomplete(log) ? 'the session log could not be read whole'",
+      "to": "      : false ? 'the session log could not be read whole'"
+    },
+    {
+      "label": "evidence-flip: a git status that failed is not an empty working tree",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    : status.ok === false ? 'git could not list the working tree'",
+      "to": "    : false ? 'git could not list the working tree'"
+    },
+    {
+      "label": "evidence-flip: a committed turn with an unchecked tree is not neutral",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    : files.length === 0 && other === 0 && !pending ? 'neutral'",
+      "to": "    : files.length === 0 && other === 0 ? 'neutral'"
+    },
+    {
+      "label": "evidence-flip: the status line says nothing positive from a torn log",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'",
+      "to": "  const kind = observation?.ok !== true ? 'could-not-look'"
     }
   ]
 }

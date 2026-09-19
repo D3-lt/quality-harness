@@ -806,8 +806,19 @@ test('nothing tracked in this repository names a personal filesystem path', () =
   // treated as somebody's real home directory, which is the safe direction here
   // (a false alarm costs one rename; a miss ships to every user).
   const SYNTHETIC = new Set(['dev', 'someone', 'example', 'user', 'test', 'you', 'me', 'alice', 'bob'])
-  const personal = /\/(?:Users|home)\/([A-Za-z][A-Za-z0-9._-]*)\//g
-  const named = text => [...text.matchAll(personal)]
+  // ⚠ SEPARATORS ARE A PLATFORM PARAMETER HERE TOO (CLAUDE.md §7), and this
+  // check did not treat them as one until 2026-09-18. It matched the POSIX
+  // spelling only, so a real Windows username shipped in v2.100.0 — inside the
+  // comment of a test DESCRIBING how MSYS eats a Windows path's backslashes.
+  // A gate for a leak, blind to the platform the leak came from.
+  //
+  // Two shapes now. The second is the mangled one: `Users` run straight into a
+  // name run straight into a profile folder, with nothing between them for a
+  // separator-based pattern to find. It is deliberately anchored on the folder
+  // name, because without that suffix `Users<anything>` is too common to block.
+  const personal = /[/\\](?:Users|home)[/\\]([A-Za-z][A-Za-z0-9._-]*)[/\\]/g
+  const mangled = /Users([A-Za-z][A-Za-z0-9._-]*?)(?=AppData|Desktop|Documents|Downloads|OneDrive)/g
+  const named = text => [...text.matchAll(personal), ...text.matchAll(mangled)]
     .map(hit => hit[1]).filter(name => !SYNTHETIC.has(name.toLowerCase()))
   const offenders = []
   for (const file of tracked()) {
@@ -823,9 +834,16 @@ test('nothing tracked in this repository names a personal filesystem path', () =
   // on a broken pattern — the vacuity ADR-003 forbids; without the second it
   // would fail forever on the repository's own fixtures.
   const home = name => `const p = "/${'Users'}/${name}/x"`
+  const windows = name => `const p = "C:\\${'Users'}\\${name}\\x"`
+  const eaten = name => `const p = "C:${'Users'}${name}AppData\\Local\\Temp"`
   assert.deepEqual(named(home('zaphod')), ['zaphod'],
     'the check must be able to name a real home path, or it asserts nothing')
+  assert.deepEqual(named(windows('zaphod')), ['zaphod'],
+    'and the same path spelled with backslashes, or Windows is unguarded')
+  assert.deepEqual(named(eaten('zaphod')), ['zaphod'],
+    'and with its separators eaten, which is how the one that shipped was spelled')
   assert.deepEqual(named(home('dev')), [], 'a synthetic fixture path is not a leak')
+  assert.deepEqual(named(eaten('<user>')), [], 'and a redacted placeholder is not one either')
   assert.deepEqual(offenders, [], `a personal path ships to every user:\n  ${offenders.join('\n  ')}`)
 })
 

@@ -890,15 +890,34 @@ const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
 // ⚠ ONLY A README THE LISTING HOLDS. This read whatever was on disk, so an
 // ignored or untracked README carrying the marker hid a tracked record's tasks
 // from every session on that machine and no other (CLAUDE.md §8).
+// The README a directory's archive marker is read from, as the LISTING spells it.
+// `README.md` exactly, or — where this filesystem folds case, so that the exact
+// name opens the listed file — a listed `readme.md`. A review listed the README in
+// lower case on a case-insensitive filesystem and the exact-case lookup missed it:
+// the frozen record came back `governing` and its tasks READY. On a filesystem
+// that does NOT fold case the variant is a different file and is left alone, which
+// is also what the bash dispatcher's `[ -f "$dir/README.md" ]` concludes.
+// `foldsCase` is the seam (CLAUDE.md §7): whether the exact name opens anything is
+// a fact about the filesystem, and a test on a case-sensitive one must still be
+// able to reach the folding arm.
+function listedReadme(directory, isListed, variants, foldsCase = existsSync) {
+  const exact = path.join(directory, 'README.md')
+  if (isListed(exact)) return exact
+  const variant = variants(directory).find(name => name.toLowerCase() === 'readme.md')
+  return variant && foldsCase(exact) ? path.join(directory, variant) : null
+}
+
 function underFrozenArchive(root, dirParts, cache, listed) {
   for (let depth = 1; depth < dirParts.length; depth++) {
     const key = dirParts.slice(0, depth).join('/')
     if (!cache.has(key)) {
       let frozen = false
       try {
-        frozen = listed.has(`${key}/README.md`)
-          && readFileSync(path.join(root, ...dirParts.slice(0, depth), 'README.md'), 'utf8')
-            .split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
+        const directory = path.join(root, ...dirParts.slice(0, depth))
+        const readme = listedReadme(directory,
+          () => listed.has(`${key}/README.md`),
+          () => [...listed].filter(rel => rel.startsWith(`${key}/`) && !rel.slice(key.length + 1).includes('/')).map(rel => rel.slice(key.length + 1)))
+        frozen = readme !== null && readFileSync(readme, 'utf8').split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
       } catch {}
       cache.set(key, frozen)
     }
@@ -1189,12 +1208,13 @@ function catalogCells(line) {
   return cells.slice(1, -1)
 }
 
-function archiveDecisionEffect(file, reader, cache, listed) {
+function archiveDecisionEffect(file, reader, cache, listed, foldsCase) {
   const directory = path.dirname(file)
   if (!cache.has(directory)) {
     let rows = null
-    const readme = path.join(directory, 'README.md')
-    if (listed.has(readme)) {
+    const readme = listedReadme(directory, candidate => listed.has(candidate),
+      () => [...listed].filter(candidate => path.dirname(candidate) === directory).map(candidate => path.basename(candidate)), foldsCase)
+    if (readme !== null) {
       try {
         const lines = reader.text(readme).split(/\r?\n/)
         if (lines.includes(ARCHIVE_LIFECYCLE_LINE)) {
@@ -1204,7 +1224,14 @@ function archiveDecisionEffect(file, reader, cache, listed) {
             const cells = catalogCells(line)
             const link = /^\[ADR-0*\d+\]\(([^)]*)\)$/.exec(cells[0] ?? '')
             if (!link) continue
-            const target = link[1].split(/[\\/]/).at(-1)
+            // ⚠ A ROW SPEAKS FOR THE FILE ITS LINK RESOLVES TO, not for any file that
+            // shares a basename. Keyed by basename, `../b/ADR-001-x.md` and a remote
+            // URL ending in the name both retired the local record, while the local
+            // `ADR-001-x.md#decision` was refused. A fragment is dropped, as
+            // `adr-retire-check` drops it; a URL resolves to no local path and matches nothing.
+            const href = link[1].split('#')[0]
+            if (!href) continue
+            const target = path.resolve(directory, ...href.split(/[\\/]/))
             rows.set(target, [...(rows.get(target) ?? []), cells[2] ?? ''])
           }
         }
@@ -1215,7 +1242,7 @@ function archiveDecisionEffect(file, reader, cache, listed) {
   const rows = cache.get(directory)
   if (rows === null) return null
   if (rows === 'unread') return { unproven: 'the README beside it is listed and could not be read, so whether this is an archive is unknown' }
-  const effects = rows.get(path.basename(file)) ?? []
+  const effects = rows.get(file) ?? []
   if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }
   if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }
   if (!ARCHIVE_EFFECT.test(effects[0])) return { unproven: `its archive catalog gives an effect this reader does not know: ${effects[0].slice(0, 60)}` }
@@ -1518,7 +1545,7 @@ export function trackedPaths(root) {
  * resolution (ADR-005). An empty array means the tree was listed and held
  * no files. Nothing here writes, and nothing here runs a check.
  */
-export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
+export function adrCorpus(root, { tracked = trackedPaths(root), foldsCase } = {}) {
   const archiveEffects = new Map()
   const records = []
   const unreadable = []
@@ -1556,7 +1583,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
     // A frozen record's effect comes from its archive's catalog; `governing` there
     // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
     // and the record then governs nothing here rather than whatever it last said.
-    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles)
+    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles, foldsCase)
     if (archived?.unproven) records.look = 'PARTIAL'
     const effect = archived?.effect
     const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)
@@ -1800,7 +1827,7 @@ export function observedFacts(log, root, observation) {
   // stopped trusting append order, so a stale re-imported pass landing last made
   // the note print — and SessionEnd persist — "Last check: … passed" beside
   // `checked: false` (different-lineage review, 2026-09-19).
-  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')))
+  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')), { unresolved: 'say-so' })
   const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   // ⚠ ONE REASON NOTHING HERE MAY BE READ AS A VERDICT, OR NONE. The tree that
@@ -1903,9 +1930,10 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
       : 'nothing has changed in the working tree.')
   }
   parts.push(facts?.whole === false ? 'Which check ran last is unknown.'
-    : facts?.lastCheck
-      ? `Last check: \`${facts.lastCheck.command ?? 'qh-check'}\` ${facts.lastCheck.verdict}.`
-      : 'No check has run this session.')
+    : facts?.lastCheck?.verdict === 'unresolved' ? 'Which check ran last could not be established: the records disagree and cannot be ordered.'
+      : facts?.lastCheck
+        ? `Last check: \`${facts.lastCheck.command ?? 'qh-check'}\` ${facts.lastCheck.verdict}.`
+        : 'No check has run this session.')
   if (tasks) {
     const listing = insideRepository ? trackedPaths(root) : null
     const ready = readyTaskLines(root, insideRepository, listing)
@@ -2005,7 +2033,10 @@ function previousSessionNotice(cwd, platform = process.platform) {
   // an observation nobody made, about work that may not exist (ADR-005).
   if (typeof row.unknown === 'string' && row.unknown) {
     return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with its state `
-      + `UNKNOWN to this plugin — ${row.unknown}.${files.length ? ` Git listed: ${files.join(', ')}.` : ''} `
+      + `UNKNOWN to this plugin — ${row.unknown}.${files.length ? ` Git listed: ${files.join(', ')}.` : ''}`
+      // What IS known stays said: a write recorded with no passing check after it
+      // does not stop being outstanding because the tree could not be seen.
+      + `${other ? ` ${other} write(s) git cannot see were recorded, and no check passed after them.` : ''} `
       + (check ? `\`${check}\` is this project's check.` : 'No check is declared here.')
   }
   return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
@@ -2490,11 +2521,13 @@ export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
 // not unproven: it clears only unobservable writes recorded before it started.
 export function checkEventName(record) {
   if (record?.verdict === 'unstarted') return 'check.unstarted'
-  if (record?.verdict === 'unproven') return 'check.unproven'
   // Inside git the evidence is about the TREE: a check that stages or commits has
   // not changed what it checked, and a not-ok side never matches (ADR-005).
   const treeOnly = observation => observation?.ok === true ? { ok: true, tree: observation.tree, index: null, head: null } : observation
   if (record?.verdict === 'timeout' || record?.signal) return 'check.timeout'
+  // AFTER the signal: `unproven` is read from a phrase, and a recorded SIGTERM is
+  // an observation. "deadline exceeded" at exit 1 with a signal is a timeout.
+  if (record?.verdict === 'unproven') return 'check.unproven'
   if (record?.exit !== 0) return 'check.failed'
   if (record.git === true && !sameObservation(treeOnly(record.before), treeOnly(record.after))) return 'check.unproven'
   if (record.verdict === 'no-work') return 'check.no-work'
@@ -2617,7 +2650,16 @@ export function recordHookEvent(input) {
     name = 'publish.requested'
   }
   if (hook === 'SessionStart') {
-    if (readEvents(input.cwd, session).some(entry => entry.event === 'session.started')) return null
+    // ⚠ ONLY AN EMPTY LOG GETS A BASELINE HERE. A `compact` or `resume` SessionStart
+    // arrives in the middle of a session: with no `session.started` on record it
+    // was taken as the beginning, and a session whose committed, unchecked write
+    // had just been refused a late baseline was handed a fresh, un-`late` one —
+    // `neutral`, "nothing has changed", no check ever run (different-lineage
+    // review, 2026-09-19). A log with history and no baseline is the late case,
+    // and the late rules below decide it.
+    // ...nor does a log that could not be read whole: its real baseline may be the line that was lost.
+    const existing = readEvents(input.cwd, session)
+    if (existing.length > 0 || existing.complete !== true) return null
     name = 'session.started'
   } else if (hook === 'Stop') {
     if (input.stop_hook_active === true || hasBackgroundWork(input)) return null
@@ -2651,8 +2693,10 @@ export function recordHookEvent(input) {
     // AND NOT OVER A WRITE ALREADY ON RECORD. PostToolUse can log a `file.written`
     // before any observing hook runs; commit it, and the first Stop sees a clean
     // tree. Adopting that as the baseline would call a session with a known,
-    // unchecked write `neutral`.
-    if (!logIncomplete(log) && !log.some(event => event.event === 'session.started' || event.event === 'file.written')
+    // unchecked write `neutral`. Only a write GIT CAN SEE counts: one outside the
+    // repository says nothing about this tree, stays outstanding on its own, and
+    // refusing the baseline over it accused a repository nothing had touched.
+    if (!logIncomplete(log) && !log.some(event => event.event === 'session.started' || (event.event === 'file.written' && event.observable !== false))
       && observedClean(input.cwd, entry.observation)) {
       lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false
     }
@@ -2769,7 +2813,9 @@ function latestRecordedCheck(log, tree) {
 
 // The newest of some check events by when they RAN. One ordering, for the
 // verdict about a tree and for the descriptive "Last check:" alike.
-function latestOf(events) {
+const ORDER_UNRESOLVED = Object.freeze({ event: 'check.unresolved', command: null })
+
+function latestOf(events, { unresolved = 'not-a-pass' } = {}) {
   if (!events.length) return null
 
   // 1. A RE-IMPORT IS NOT A NEW CHECK. Two hooks reading the same `checks.jsonl`
@@ -2808,6 +2854,10 @@ function latestOf(events) {
   // newest, so if they disagree the one that is NOT a pass is the answer. Taking
   // the last-appended instead is what let a stale re-import beat a real failure
   // (ADR-005 — an unresolved order is could-not-look, not a verdict).
+  // That is the right answer for a VERDICT. For the descriptive "Last check:" it
+  // is a second unobserved claim — "the failure ran last" — so that caller asks
+  // to be told the order could not be established instead.
+  if (unresolved === 'say-so' && new Set(candidates.map(entry => entry.event)).size > 1) return ORDER_UNRESOLVED
   return candidates.find(entry => entry.event !== 'check.passed') ?? candidates[0]
 }
 
@@ -2901,30 +2951,22 @@ function reviewChangedState(input, ended) {
   const started = log.filter(entry => entry.event === 'subagent.started' && entry.agentId === input.agent_id).at(-1)
   const before = started?.observation
   const after = ended.observation
-  if (!started && logIncomplete(log)) {
-    // ⚠ A LOST BRACKET IS NOT A RUN WHERE NOTHING CHANGED (audit B5, confirmed by
-    // execution 2026-09-19). Tear the `subagent.started` line and `before` is
-    // undefined, so this returned — and a read-only role's end skips the
-    // completion rules, so R4 never spoke either. A state change during a review
-    // was reported NOWHERE. The torn line never repairs, so say it once per agent.
-    const unknownKey = `${input.agent_id}:unknown`
-    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === unknownKey)) {
-      queueAction({ rule: 'R3', key: unknownKey, text: `quality-harness: whether the repository changed during the ${role} `
-        + `run (agent ${input.agent_id}) is unknown — this session's event log could not be read whole, and the record of `
-        + 'where that run began may be among what was lost. That is a statement about what could be looked at, not about '
-        + 'the review (ADR-005).' })
-    }
-    return
-  }
   if (before?.ok !== true || after?.ok !== true) {
     // ⚠ A BRACKET THAT COULD NOT BE OBSERVED IS NOT A RUN WHERE NOTHING CHANGED.
     // This returned, under a comment elsewhere saying "an observation that could
     // not be made is R4's to report" — and a read-only role's end SKIPS the
     // completion rules, so R4 never runs here. A failed `git` at either end of a
-    // review was reported nowhere (different-lineage review, 2026-09-19).
+    // review, or a torn `subagent.started` line (audit B5), was reported nowhere.
+    // ONE arm for every way a bracket goes missing: the torn-log case had an arm of
+    // its own above this one, and once this existed a mutant deleting that arm
+    // survived in CI — this one answered for it. The torn line never repairs, so
+    // each is said once per agent.
     const unobservedKey = `${input.agent_id}:unobserved`
     if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === unobservedKey)) {
-      const why = !started ? 'where that run began was never recorded'
+      const why = !started
+        ? (logIncomplete(log)
+          ? 'this session\'s event log could not be read whole, and the record of where that run began may be among what was lost'
+          : 'where that run began was never recorded')
         : before?.ok !== true ? `the repository could not be observed when it began (${before?.reason ?? 'no reason was recorded'})`
           : `the repository could not be observed when it ended (${after?.reason ?? 'no reason was recorded'})`
       queueAction({ rule: 'R3', key: unobservedKey, text: `quality-harness: whether the repository changed during the ${role} `
@@ -3387,11 +3429,13 @@ export async function handleHook(input) {
       // PreCompact measured, so the next context knows what is unverified and
       // what task was in flight without re-deriving either.
       const note = readSessionNote(input.session_id)
-      // A note OLDER than the compaction it is served after is not that
-      // compaction's note: a replace that failed twice can leave one behind, and
-      // it would be handed back as what was measured just now.
-      const compacting = readEvents(input.cwd, input.session_id).filter(entry => entry.event === 'context.compacting').at(-1)
-      const stale = typeof compacting?.at === 'string' && typeof note?.at === 'string' && note.at < compacting.at
+      // A note that belongs to an EARLIER compaction is not this one's: a replace
+      // that failed twice can leave one behind. Ownership is the COUNT of
+      // compactions on record when the note was written — not a comparison of wall
+      // clocks, which rejected a correct note when the clock stepped backwards
+      // between the event and the note. A note with no count predates this check.
+      const compactions = readEvents(input.cwd, input.session_id).filter(entry => entry.event === 'context.compacting').length
+      const stale = Number.isInteger(note?.compaction) && note.compaction !== compactions
       if (stale) sections.push('quality-harness: the state note kept for this session is older than this compaction, so what was '
         + 'unverified before it is unknown here (ADR-005).')
       else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
@@ -3422,7 +3466,8 @@ export async function handleHook(input) {
     const facts = observedFacts(readEvents(cwd, input.session_id), repositoryRoot, recorded?.observation)
     if (event === 'PreCompact') {
       if (typeof input.session_id === 'string' && input.session_id) {
-        replaceSessionNote(input.session_id, sessionStateNote(facts, cwd, root, repositoryRoot !== null))
+        const compaction = readEvents(cwd, input.session_id).filter(entry => entry.event === 'context.compacting').length
+        replaceSessionNote(input.session_id, { ...sessionStateNote(facts, cwd, root, repositoryRoot !== null), compaction })
       }
       artifactRule(input, recorded)
       return

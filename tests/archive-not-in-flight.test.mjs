@@ -105,17 +105,17 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   const HEADER = ['# ADR Archive', '', '**Lifecycle:** Frozen historical ADR records', '',
     '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
     '|-----|-------|-----------------|---------|--------|-------------|---------|']
-  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive' } = {}) => {
+  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive', readme = 'README.md', foldsCase } = {}) => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-strict-')))
     const write = (relative, text) => {
       mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
       writeFileSync(join(root, ...relative.split('/')), text)
     }
     write(`${where}/ADR-007-x.md`, '# ADR-007: seven\n\n**Status:** Accepted\n**Governs:** `src/app.js`\n')
-    write(`${where}/README.md`, [...HEADER, ...rows, ''].join('\n'))
+    write(`${where}/${readme}`, [...HEADER, ...rows, ''].join('\n'))
     write('src/app.js', '// x\n')
-    const tracked = [`${where}/ADR-007-x.md`, 'src/app.js', ...(listReadme ? [`${where}/README.md`] : [])]
-    const records = adrCorpus(root, { tracked })
+    const tracked = [`${where}/ADR-007-x.md`, 'src/app.js', ...(listReadme ? [`${where}/${readme}`] : [])]
+    const records = adrCorpus(root, { tracked, foldsCase })
     const { governing, graveyard } = decisionsGoverning(['src/app.js'], root, records)
     rmSync(root, { recursive: true, force: true })
     return { governs: governing.length, buried: graveyard.length, look: records.look }
@@ -133,6 +133,20 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   assert.deepEqual(corpus([row('**withdrawn**')]), unproven, 'an effect adr-retire-check would refuse')
   assert.deepEqual(corpus([row('withdrawn'), row('governing')]), unproven, 'two rows that disagree')
   assert.deepEqual(corpus([row('withdrawn', { link: 'unrelated.md' })]), unproven, 'a row whose link names another file')
+  // ⚠ NOR ANOTHER FILE OF THE SAME NAME. The first repair keyed rows by BASENAME, so
+  // a sibling archive's record and a remote URL ending in the name both retired
+  // this one — and a local link with a `#fragment` was refused (second review).
+  assert.deepEqual(corpus([row('withdrawn', { link: '../other-archive/ADR-007-x.md' })]), unproven, 'the same basename in another directory')
+  assert.deepEqual(corpus([row('withdrawn', { link: 'https://example.invalid/docs/ADR-007-x.md' })]), unproven, 'a remote link ending in the name')
+  assert.deepEqual(corpus([row('withdrawn', { link: 'ADR-007-x.md#decision' })]), { governs: 0, buried: 1, look: 'ok' }, 'a fragment is not part of the file')
+  assert.deepEqual(corpus([row('withdrawn', { link: './ADR-007-x.md' })]), { governs: 0, buried: 1, look: 'ok' })
+
+  // A README the listing spells `readme.md`. Where the filesystem folds case the
+  // exact name opens that file, and it is the catalog; where it does not, it is a
+  // different file and freezes nothing. Folding is a parameter, so both arms run
+  // on every platform rather than one arm per CI runner (CLAUDE.md §7).
+  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', foldsCase: () => true }), { governs: 0, buried: 1, look: 'ok' })
+  assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md', foldsCase: () => false }), { governs: 1, buried: 0, look: 'ok' })
 
   // A README git does not list governs nothing (CLAUDE.md §8): the record's own
   // status stands, as it would on any other machine.

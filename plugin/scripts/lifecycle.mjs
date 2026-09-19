@@ -967,7 +967,13 @@ export function flushOutput(startedAt, input, env = process.env, now = Date.now(
 // to know a finding was made and where it went, not to read the instruction.
 function advisoryHeadline(reason) {
   const first = String(reason).split('\n').find(line => line.trim()) ?? String(reason)
-  const sentence = first.trim().split(/(?<=[.:])\s/)[0]
+  // ⚠ EVERY ADVISORY BEGINS `quality-harness: `, so "the first sentence", split
+  // after a `.` or a `:`, was always that prefix and nothing else: the person read
+  // "quality-harness advised the agent: quality-harness: (full text…)" — told a
+  // finding was made and nothing about it. Two peer sessions flagged the line on
+  // 2026-09-19. The caller already says who is speaking, so the prefix goes; and
+  // only a FULL STOP ends the sentence, since these messages use `:` and `—` mid-clause.
+  const sentence = first.trim().replace(/^quality-harness:\s*/i, '').split(/(?<=\.)\s/)[0]
   return sentence.length > 140 ? `${sentence.slice(0, 137)}…` : sentence
 }
 
@@ -1038,12 +1044,42 @@ function listedAbsolute(root, rel) {
   return parts.length ? path.join(root, ...parts) : root
 }
 
+// The exact line `adr-retire-check`, `facts-gate-dispatch.sh`, `run-shell-hook.mjs`
+// and `adr-lint` recognise an archive by. Whole-line, so prose ABOUT archives in a
+// sibling directory's README does not freeze that directory.
+const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
+
+// Whether a listed directory sits under a frozen archive. Asked only of candidate
+// `tasks/` directories and cached per ancestor, so the orientation does not open a
+// README for every directory git lists.
+function underFrozenArchive(root, dirParts, cache) {
+  for (let depth = 1; depth < dirParts.length; depth++) {
+    const key = dirParts.slice(0, depth).join('/')
+    if (!cache.has(key)) {
+      let frozen = false
+      try {
+        frozen = readFileSync(path.join(root, ...dirParts.slice(0, depth), 'README.md'), 'utf8')
+          .split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
+      } catch {}
+      cache.set(key, frozen)
+    }
+    if (cache.get(key)) return true
+  }
+  return false
+}
+
 // ADR task directories from the git listing, not a disk walk. A gitignored
 // tasks/ dir is not in flight; git-fail is UNPROVEN at the caller.
+// ⚠ AND NEITHER IS A RETIRED ONE. A frozen archive is "historical evidence, never
+// an executable plan" (adr-execute), and this walked it anyway: the day this
+// repository retired its first records, every session was offered their tasks as
+// READY with the command to run. Skipped BEFORE the cap below, or three frozen
+// task sets would also crowd three live ones out of the orientation.
 function taskDirectories(root, listing) {
   if (listing == null) return []
   const found = []
   const seen = new Set()
+  const frozen = new Map()
   for (const rel of listing) {
     if (found.length >= 6) break
     const norm = posixListed(rel)
@@ -1052,6 +1088,7 @@ function taskDirectories(root, listing) {
     if (index < 0) continue
     const dirParts = parts.slice(0, index + 1)
     if (dirParts.some((part, i) => i < dirParts.length - 1 && UNINTERESTING_DIRECTORY.test(part))) continue
+    if (underFrozenArchive(root, dirParts, frozen)) continue
     const key = dirParts.join('/')
     if (seen.has(key)) continue
     seen.add(key)
@@ -1268,6 +1305,35 @@ function statusKind(status) {
   if (/^accepted\b/i.test(status)) return 'governing'
   if (/^(?:superseded|withdrawn|rejected|deprecated)\b/i.test(status)) return 'graveyard'
   return null
+}
+
+// What the archive catalog beside a frozen record says its decision's effect is
+// NOW: `governing`, `withdrawn`, or `superseded by ADR-NNN` — or null when the
+// directory is not an archive, or lists no row for this record.
+//
+// ⚠ THE CATALOG, NOT THE FILE, IS THE AUTHORITY FOR A FROZEN RECORD. A retired file
+// is never edited — that is what frozen means — so one withdrawn in 2026 says
+// `Status: Accepted` for ever. This reader took the file's word, and on a session's
+// first edit of a governed file `adr-context` answered, unprompted, that three
+// withdrawn and superseded records GOVERN lifecycle.mjs, each "caught by" a test
+// that had been deleted with them. Found 2026-09-19, the day after this repository
+// first retired anything; the comment above quoted half the rule and not this half.
+function archiveDecisionEffect(file, reader, cache) {
+  const directory = path.dirname(file)
+  if (!cache.has(directory)) {
+    let effects = null
+    try {
+      const catalog = reader.text(path.join(directory, 'README.md'))
+      if (catalog.split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)) {
+        effects = new Map()
+        for (const row of catalog.matchAll(/^\|\s*\[ADR-0*(\d+)\]\([^)]*\)\s*\|[^|\n]*\|\s*([^|\n]+?)\s*\|/gm)) {
+          effects.set(Number(row[1]), row[2])
+        }
+      }
+    } catch {}
+    cache.set(directory, effects)
+  }
+  return cache.get(directory)
 }
 
 // One glob component at a time, so `**` can cross separators and `*` cannot.
@@ -1567,6 +1633,7 @@ export function trackedPaths(root) {
  * no files. Nothing here writes, and nothing here runs a check.
  */
 export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
+  const archiveEffects = new Map()
   const records = []
   const unreadable = []
   Object.defineProperty(records, 'unreadable', { value: unreadable, enumerable: false })
@@ -1599,7 +1666,11 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       records.look = 'PARTIAL'
       continue
     }
-    const status = recordStatus(text)
+    // A frozen record's effect comes from its archive's catalog, when that catalog
+    // has a row for it; `governing` there leaves the file's own status standing.
+    const effect = archiveDecisionEffect(file, reader, archiveEffects)?.get(Number(adrNumber(file, text)))
+    const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)
+    const status = retired ? effect : recordStatus(text)
     const kind = statusKind(status)
     if (!kind) {
       // A file that looks like a record and carries no status this reader knows

@@ -8412,6 +8412,24 @@
       ],
       "from": "      && observedClean(input.cwd, entry.observation)) {",
       "to": "      && true) {"
+    },
+    {
+      "label": "inferred: a pass of a guessed check says so in the session note",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": "    checkOrigin: latestCheckFor(log, observation?.tree)?.origin ?? null,",
+      "to": "    checkOrigin: null,"
+    },
+    {
+      "label": "inferred: the status line marks a tick a guessed check earned",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/inferred-pass.test.mjs"
+      ],
+      "from": "inferred: checked && latest?.origin === 'inferred',",
+      "to": "inferred: false,"
     }
   ]
 }

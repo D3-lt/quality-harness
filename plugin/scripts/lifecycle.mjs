@@ -2811,12 +2811,19 @@ function mark(lines, ok, why = '') {
   return out
 }
 
-function gitLines(root, args) {
+// ⚠ A PATH GIT PRINTS IS QUOTED UNLESS IT IS ASKED NOT TO BE. Every call here that
+// returns paths passes `nul` and a `-z`, which has no quoting at all; the class was
+// enumerated by command on 2026-09-19 and four of seven sites were still quoted
+// after the first was fixed (CLAUDE.md §5). `nul` splits on NUL and trims nothing —
+// a name may end in a space.
+function gitLines(root, args, { nul = false } = {}) {
   const run = spawnSync('git', ['-C', root, ...args], { encoding: 'utf8', timeout: 5_000 })
   if (run.error || run.status !== 0) {
-    const why = run.error ? run.error.message : `git ${args[0]} exited ${run.status}`
+    const verb = args.find(arg => /^[a-z][a-z-]*$/.test(arg)) ?? args[0]
+    const why = run.error ? run.error.message : `git ${verb} exited ${run.status}`
     return mark([], false, why)
   }
+  if (nul) return mark(run.stdout.split('\0').filter(Boolean), true)
   return mark(run.stdout.split('\n').map(line => line.trimEnd()).filter(Boolean), true)
 }
 
@@ -2848,8 +2855,8 @@ function reviewChangedState(input, ended) {
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
   const root = directory ? gitRepositoryRoot(directory) : null
   if (!root) return
-  const status = gitLines(root, ['status', '--porcelain'])
-  const staged = gitLines(root, ['diff', '--cached', '--name-only'])
+  const status = gitLines(root, ['-c', 'core.quotePath=false', 'status', '--porcelain'])
+  const staged = gitLines(root, ['-c', 'core.quotePath=false', 'diff', '--cached', '--name-only'])
   const commits = before.head && after.head && before.head !== after.head
     ? gitLines(root, ['rev-list', '--oneline', `${before.head}..${after.head}`]) : []
   const lines = [`quality-harness: the repository's state changed during the ${role} run (agent ${key}). `
@@ -2919,12 +2926,28 @@ function harnessPathspecs(root) {
 // boundary for ever (same peer test).
 function statusPaths(root) {
   if (!root) return mark([], true)
-  const lines = gitLines(root, ['status', '--porcelain', '-uall', ...harnessPathspecs(root)])
-  return mark(lines.map(line => {
-    const rest = line.slice(3)
-    const arrow = rest.indexOf(' -> ')
-    return (arrow === -1 ? rest : rest.slice(arrow + 4)).replace(/^"|"$/g, '')
-  }).filter(Boolean), lines.ok, lines.why)
+  // ⚠ `-z`, NOT A QUOTE STRIP. Porcelain v1 quotes an unusual name and escapes its
+  // bytes as octal; stripping the quotes left `na\303\257ve.md`, a path that is
+  // not on disk — shown to the user, persisted to `sessions.jsonl`, and gated by
+  // rule A at every boundary for ever, since a missing file never gets an
+  // identity (audit C2, reproduced in the field 2026-09-19). `core.quotePath=false`
+  // fixes the octal and leaves an embedded quote, backslash or newline wrong.
+  // `-z` quotes nothing: NUL-terminated, and a rename's ORIGINAL path follows as
+  // its own field, which is skipped — the new name is the path that exists.
+  const run = spawnSync('git', ['-C', root, 'status', '--porcelain', '-z', '-uall', ...harnessPathspecs(root)],
+    { encoding: 'utf8', timeout: 5_000 })
+  if (run.error || run.status !== 0) {
+    return mark([], false, run.error ? run.error.message : `git status exited ${run.status}`)
+  }
+  const fields = run.stdout.split('\0')
+  const paths = []
+  for (let index = 0; index < fields.length; index++) {
+    const entry = fields[index]
+    if (entry.length < 4) continue
+    paths.push(entry.slice(3))
+    if (entry[0] === 'R' || entry[0] === 'C' || entry[1] === 'R' || entry[1] === 'C') index++
+  }
+  return mark(paths, true)
 }
 
 // Commits reachable now that were not reachable when the session started. NOT
@@ -3099,11 +3122,11 @@ function artifactRule(input, recorded) {
   const root = directory ? gitRepositoryRoot(directory) : null
   const paths = new Set()
   if (root && typeof first === 'string') {
-    for (const relative of gitLines(root, ['diff', '--name-only', first])) paths.add(path.join(root, relative))
+    for (const relative of gitLines(root, ['diff', '--name-only', '-z', first], { nul: true })) paths.add(path.join(root, relative))
   } else if (root && baseline?.ok === true && first === null) {
     // The session began with an unborn HEAD, so every tracked path at HEAD arrived
     // during it and every one of them is a candidate. `diff` has no base to take.
-    for (const relative of gitLines(root, ['ls-tree', '-r', '--name-only', 'HEAD'])) {
+    for (const relative of gitLines(root, ['ls-tree', '-r', '--name-only', '-z', 'HEAD'], { nul: true })) {
       paths.add(path.join(root, relative))
     }
   }

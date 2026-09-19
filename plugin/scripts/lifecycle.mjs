@@ -1950,6 +1950,12 @@ export function observedFacts(log, root, observation) {
     // The LAST check about this tree by when it RAN, for the same reason
     // `treeChecked` no longer trusts log position.
     checked: latestCheckFor(log, observation?.tree)?.event === 'check.passed',
+    // Whose word the pass is. A check this tool GUESSED from a manifest may be
+    // green while the project is red — `pnpm test` over a monorepo whose PHP half
+    // holds the invariants — and the caveat that leads every message BEFORE the
+    // check was gone AFTER it, which is when the guess starts certifying things.
+    checkOrigin: latestCheckFor(log, observation?.tree)?.origin ?? null,
+    checkCommand: latestCheckFor(log, observation?.tree)?.command ?? null,
     observed: why === null,
     // Whether the LOG was whole, apart from whether the tree was seen: "Last
     // check" is read from the log alone, and a torn one may have lost the newer
@@ -1993,7 +1999,9 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   const parts = []
   if (files.length && observed) {
     const verdict = pending ? 'no `qh-check` has passed on them'
-      : passed ? 'a `qh-check` passed on them'
+      : passed ? `a \`qh-check\` passed on them${facts?.checkOrigin === 'inferred'
+        ? ` — using an INFERRED check (\`${facts.checkCommand ?? 'unknown'}\`), guessed from a manifest and not declared, so it may not be this project's whole gate; declare the real command as \`check\` in .quality-harness.json`
+        : ''}`
         : 'nothing here changed them since the session began, and no `qh-check` has passed on them'
     parts.push(`${files.length} changed path(s)${other ? ` and ${other} write(s) git cannot see` : ''}; `
       + `${verdict}${shown.length ? `: ${shown.join(', ')}` : ''}.`)

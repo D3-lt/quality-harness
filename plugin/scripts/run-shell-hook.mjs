@@ -512,11 +512,15 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
     // authoritative (audit 2026-09-18, B7; tests/archive-history-parity.test.mjs).
     const perBase = []
     let valid = true
-    let answered = false
     for (const base of historyBases()) {
       const tree = git(root, ['ls-tree', '-r', '-z', '--full-tree', base, '--', ...candidates])
-      if (tree === null || (tree.length && tree.at(-1) !== 0)) continue
-      answered = true
+      // ⚠ A BASE THAT COULD NOT BE READ IS NOT A BASE WITH NO CATALOG. This said
+      // `continue`, so a failed or truncated `ls-tree` on the base that HELD the
+      // catalog fell through to one that did not, and `''` — "observed: none" —
+      // was cached for every file, suppressing the dispatcher's own lookup, which
+      // may well have succeeded (different-lineage review, 2026-09-19). Any base
+      // unread leaves the whole group unanswered; absent means "look yourself".
+      if (tree === null || (tree.length && tree.at(-1) !== 0)) { valid = false; break }
       const blobs = new Map()
       for (const row of tree.toString('utf8').split('\0').filter(Boolean)) {
         const entry = /^(\d{6}) (\w+) ([a-f0-9]+)\t([\s\S]+)$/.exec(row)
@@ -526,7 +530,7 @@ export function archiveHistory(paths, deadline, run = spawnSync) {
       if (!valid) break
       perBase.push(blobs)
     }
-    if (!valid || !answered) continue
+    if (!valid) continue
     const ids = [...new Set(perBase.flatMap(blobs => [...blobs.values()]))]
     const catalogs = new Set()
     if (ids.length) {

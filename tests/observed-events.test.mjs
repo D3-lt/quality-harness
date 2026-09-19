@@ -1500,7 +1500,8 @@ test('which check is latest is decided by when it RAN, not by where it landed in
 
   // ...and a genuinely newer pass still wins, or the assertions above are
   // satisfied by a reader that has stopped crediting passes at all.
-  const repaired = [...raced, { event: 'check.passed', record: 'r3', startedAt: '2026-09-18T10:09:00.000Z', after: { tree } }]
+  // Marked whole, as `readEvents` marks it — only a log that says so can certify.
+  const repaired = Object.assign([...raced, { event: 'check.passed', record: 'r3', startedAt: '2026-09-18T10:09:00.000Z', after: { tree } }], { complete: true })
   assert.equal(lifecycle.observedFacts(repaired, null, observation).checked, true,
     'a check that really is the newest still counts')
 })

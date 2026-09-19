@@ -940,7 +940,7 @@
       "tests": [
         "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'",
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'",
       "to": "  if (false) return 'unstarted'"
     },
     {
@@ -949,7 +949,7 @@
       "tests": [
         "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'",
+      "from": "  if (exitCode === 124) return 'timeout'",
       "to": "  if (false) return 'timeout'"
     },
     {
@@ -958,8 +958,8 @@
       "tests": [
         "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'\n  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
-      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'\n  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'"
+      "from": "  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'\n  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'",
+      "to": "  if (result.is_error === true || result.interrupted === true) return 'failed'\n  if (exitCode !== null && exitCode !== 0) return 'failed'\n  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'\n  if (exitCode === 124) return 'timeout'\n  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'"
     },
     {
       "label": "verdict: Windows says none of what POSIX says",
@@ -4676,8 +4676,8 @@
       "tests": [
         "tests/lifecycle.test.mjs"
       ],
-      "from": "      if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
-      "to": "      void note"
+      "from": "      else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)",
+      "to": "      else void note"
     },
     {
       "label": "lifecycle: SessionEnd writes the sessions ledger row",
@@ -4712,8 +4712,8 @@
       "tests": [
         "tests/said-once.test.mjs"
       ],
-      "from": "  try { unlinkSync(sessionNotePath(sessionId)) } catch {}\n  if (note === null) return true",
-      "to": "  if (note === null) { try { unlinkSync(sessionNotePath(sessionId)) } catch {} return true }"
+      "from": "  try { unlinkSync(sessionNotePath(sessionId)) } catch (failure) { cleared = failure?.code === 'ENOENT' }",
+      "to": "  if (note === null) { try { unlinkSync(sessionNotePath(sessionId)) } catch {} }"
     },
     {
       "label": "reviewer-guard: a publish is refused inside a read-only role",
@@ -8140,8 +8140,8 @@
       "tests": [
         "tests/observed-events.test.mjs"
       ],
-      "from": "  if (before?.ok !== true || after?.ok !== true || sameObservation(before, after)) return",
-      "to": "  if (before?.ok !== true || after?.ok !== true || before.tree === after.tree) return"
+      "from": "  if (sameObservation(before, after)) return",
+      "to": "  if (before.tree === after.tree) return"
     },
     {
       "label": "advisory: R1 speaks only about an unchecked tree or an unseen write",
@@ -8230,8 +8230,8 @@
       "tests": [
         "tests/evidence-flip.test.mjs"
       ],
-      "from": "    : files.length === 0 && other === 0 && !pending ? 'neutral'",
-      "to": "    : files.length === 0 && other === 0 ? 'neutral'"
+      "from": "    : files.length === 0 && other === 0 && !pending ? (late ? 'unverified' : 'neutral')",
+      "to": "    : files.length === 0 && other === 0 ? (late ? 'unverified' : 'neutral')"
     },
     {
       "label": "evidence-flip: the status line says nothing positive from a torn log",
@@ -8311,7 +8311,7 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    if (underFrozenArchive(root, dirParts, frozen)) continue",
+      "from": "    if (underFrozenArchive(root, dirParts, frozen, listed)) continue",
       "to": "    if (false) continue"
     },
     {
@@ -8320,8 +8320,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "    const status = retired ? effect : recordStatus(text)",
-      "to": "    const status = recordStatus(text)"
+      "from": "    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : retired ? effect : recordStatus(text)",
+      "to": "    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : recordStatus(text)"
     },
     {
       "label": "advisory: the headline a person sees names the finding, not the prefix",
@@ -8347,8 +8347,8 @@
       "tests": [
         "tests/validation-verdict.test.mjs"
       ],
-      "from": "  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'",
-      "to": "  if (NEVER_STARTED_EXITS.has(exitCode) || NEVER_STARTED.test(text)) return 'unstarted'"
+      "from": "  if (saidLittle(text) && (NEVER_STARTED.test(text)",
+      "to": "  if ((NEVER_STARTED.test(text)"
     },
     {
       "label": "verdict: an interpreter that could not open its script did not run the tests",
@@ -8439,6 +8439,222 @@
       ],
       "from": "  if (declared) return { command: declared, origin: 'declared' }",
       "to": "  if (declared) return { command: declared, origin: 'declared' }\n  if (existsSync(path.join(root, 'composer.json')) && readFileSync(path.join(root, 'composer.json'), 'utf8').includes('\"test\"')) return { command: 'composer test', origin: 'declared' }"
+    },
+    {
+      "label": "evidence-flip: whole is something a log must SAY, so a copy that lost the flag cannot certify",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  return log?.complete !== true",
+      "to": "  return log?.complete === false"
+    },
+    {
+      "label": "statusline: a write the last observation does not cover outranks a pass",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "    : uncovered.length ? 'unverified'",
+      "to": "    : false ? 'unverified'"
+    },
+    {
+      "label": "note: a late baseline is never neutral",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  const late = facts?.late === true",
+      "to": "  const late = false"
+    },
+    {
+      "label": "statusline: a late baseline says since when nothing was edited",
+      "file": "plugin/scripts/statusline.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "late: kind === 'nothing' && began?.late === true",
+      "to": "late: false"
+    },
+    {
+      "label": "late baseline: not adopted over a write already on record",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "event.event === 'session.started' || event.event === 'file.written')",
+      "to": "event.event === 'session.started')"
+    },
+    {
+      "label": "note: Last check is ordered by when it ran",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')))",
+      "to": "  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)"
+    },
+    {
+      "label": "note: an unlink that failed is not a note removed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "catch (failure) { cleared = failure?.code === 'ENOENT' }",
+      "to": "catch (failure) { cleared = true }"
+    },
+    {
+      "label": "R3: a bracket that could not be observed is said, not dropped",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (before?.ok !== true || after?.ok !== true) {",
+      "to": "  if (before?.ok !== true || after?.ok !== true) { return }\n  if (false) {"
+    },
+    {
+      "label": "R2: over a torn log a commit is not known to be checked",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log) }),",
+      "to": "      text: uncheckedCommitsReason(input.cwd, unchecked),"
+    },
+    {
+      "label": "note: one older than its compaction is not served",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "      if (stale) sections.push(",
+      "to": "      if (false) sections.push("
+    },
+    {
+      "label": "ledger: an unverified row with no edits is read back as unknown, not as edits",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/review-2026-09-19.test.mjs"
+      ],
+      "from": "  if (typeof row.unknown === 'string' && row.unknown) {",
+      "to": "  if (false) {"
+    },
+    {
+      "label": "archive: a base that could not be read leaves the bulk answer unknown",
+      "file": "plugin/scripts/run-shell-hook.mjs",
+      "tests": [
+        "tests/archive-history-parity.test.mjs"
+      ],
+      "from": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) { valid = false; break }",
+      "to": "      if (tree === null || (tree.length && tree.at(-1) !== 0)) continue"
+    },
+    {
+      "label": "catalog: a record with no row is UNPROVEN, not governing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }",
+      "to": "  if (effects.length === 0) return null"
+    },
+    {
+      "label": "catalog: two rows for one record are UNPROVEN",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "  if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }",
+      "to": "  if (false) return { unproven: '' }"
+    },
+    {
+      "label": "catalog: only the three effects adr-retire-check accepts are read",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by ADR-\\d+)$/i",
+      "to": "const ARCHIVE_EFFECT = /./"
+    },
+    {
+      "label": "catalog: a README git does not list governs nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (listed.has(readme)) {",
+      "to": "    if (true) {"
+    },
+    {
+      "label": "catalog: a row speaks for the file its link names",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "            const target = link[1].split(/[\\\\/]/).at(-1)",
+      "to": "            const target = path.basename(file)"
+    },
+    {
+      "label": "catalog: an escaped pipe in a title is not a column",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (line[index] === '\\\\' && line[index + 1] === '|') { cell += '|'; index += 1 }",
+      "to": "    if (false) { cell += '|'; index += 1 }"
+    },
+    {
+      "label": "orientation: a README git does not list freezes nothing",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "        frozen = listed.has(`${key}/README.md`)\n          && readFileSync(",
+      "to": "        frozen = readFileSync("
+    },
+    {
+      "label": "orientation: a tasks directory with no Markdown is not an ADR task set",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "    if (parts.length !== index + 2 || !/\\.md$/i.test(parts[index + 1])) continue",
+      "to": "    if (false) continue"
+    },
+    {
+      "label": "verdict: a phrase alone is unproven, not unstarted",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "KILLED_ON_TIME.test(text))) return 'unproven'",
+      "to": "KILLED_ON_TIME.test(text))) return 'unstarted'"
+    },
+    {
+      "label": "verdict: an unproven verdict never becomes check.passed",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/validation-verdict.test.mjs"
+      ],
+      "from": "  if (record?.verdict === 'unproven') return 'check.unproven'",
+      "to": "  void 0"
+    },
+    {
+      "label": "event-log: the nearest existing directory is a directory",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "  const isDirectory = target => { try { return statSync(target).isDirectory() } catch { return false } }",
+      "to": "  const isDirectory = target => { try { return statSync(target) !== null } catch { return false } }"
+    },
+    {
+      "label": "event-log: a chunked identity hashes only the bytes read",
+      "file": "plugin/scripts/event-log.mjs",
+      "tests": [
+        "tests/content-id.test.mjs"
+      ],
+      "from": "      hash.update(chunk.subarray(0, read))",
+      "to": "      hash.update(chunk)"
     }
   ]
 }

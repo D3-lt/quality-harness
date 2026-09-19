@@ -188,9 +188,17 @@ export function validationVerdict(result, command, { anyCommand = false } = {}) 
   if (exitCode === 0) {
     return (anyCommand || testCommand(command)) && reportsZeroTestWork(text, command) ? 'no-work' : 'passed'
   }
-  const terse = saidLittle(text)
-  if (NEVER_STARTED_EXITS.has(exitCode) || (terse && NEVER_STARTED.test(text))) return 'unstarted'
-  if (exitCode === 124 || (terse && KILLED_ON_TIME.test(text))) return 'timeout'
+  // ⚠ AN EXIT CODE IS EVIDENCE THAT A COMMAND NEVER STARTED; A PHRASE IS NOT. The
+  // phrases used to return `unstarted` — a statement that the check never ran —
+  // and a real one-line assertion failure, `FAIL testOpenFile: permission denied`
+  // at exit 1, was recorded that way: a red check filed as an environment problem
+  // (different-lineage review, 2026-09-19). The line count cannot settle it
+  // either: the same missing script read `unstarted` or `failed` as its preamble
+  // crossed eight lines. So a phrase from a process that said little is UNPROVEN
+  // — it did not pass, and whether it ran is not known (ADR-005).
+  if (NEVER_STARTED_EXITS.has(exitCode)) return 'unstarted'
+  if (exitCode === 124) return 'timeout'
+  if (saidLittle(text) && (NEVER_STARTED.test(text) || KILLED_ON_TIME.test(text))) return 'unproven'
   if (result.is_error === true || result.interrupted === true) return 'failed'
   if (exitCode !== null && exitCode !== 0) return 'failed'
   if (/["\']exit_code["\']\s*:\s*[1-9]\d*/i.test(serialized)
@@ -879,14 +887,18 @@ const ARCHIVE_LIFECYCLE_LINE = '**Lifecycle:** Frozen historical ADR records'
 // Whether a listed directory sits under a frozen archive. Asked only of candidate
 // `tasks/` directories and cached per ancestor, so the orientation does not open a
 // README for every directory git lists.
-function underFrozenArchive(root, dirParts, cache) {
+// ⚠ ONLY A README THE LISTING HOLDS. This read whatever was on disk, so an
+// ignored or untracked README carrying the marker hid a tracked record's tasks
+// from every session on that machine and no other (CLAUDE.md §8).
+function underFrozenArchive(root, dirParts, cache, listed) {
   for (let depth = 1; depth < dirParts.length; depth++) {
     const key = dirParts.slice(0, depth).join('/')
     if (!cache.has(key)) {
       let frozen = false
       try {
-        frozen = readFileSync(path.join(root, ...dirParts.slice(0, depth), 'README.md'), 'utf8')
-          .split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
+        frozen = listed.has(`${key}/README.md`)
+          && readFileSync(path.join(root, ...dirParts.slice(0, depth), 'README.md'), 'utf8')
+            .split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)
       } catch {}
       cache.set(key, frozen)
     }
@@ -907,15 +919,23 @@ function taskDirectories(root, listing) {
   const found = []
   const seen = new Set()
   const frozen = new Map()
+  const listed = new Set(listing.map(rel => posixListed(rel)))
   for (const rel of listing) {
     if (found.length >= 6) break
     const norm = posixListed(rel)
     const parts = norm.split('/').filter(Boolean)
     const index = parts.indexOf('tasks')
     if (index < 0) continue
+    // ⚠ `tasks` IS ANSIBLE'S WORD TOO. Every role has a `roles/<name>/tasks/main.yml`,
+    // and any listed path with a `tasks` component qualified — so an infrastructure
+    // repository spent half its six orientation entries on `roles/admins/tasks:
+    // UNPROVEN — no task files`, alphabetically ahead of a READY task, at every
+    // session start (peer-measured 2026-09-19). `adr-next` reads the `*.md` directly
+    // under the directory and nothing else, so that is what makes one a candidate.
+    if (parts.length !== index + 2 || !/\.md$/i.test(parts[index + 1])) continue
     const dirParts = parts.slice(0, index + 1)
     if (dirParts.some((part, i) => i < dirParts.length - 1 && UNINTERESTING_DIRECTORY.test(part))) continue
-    if (underFrozenArchive(root, dirParts, frozen)) continue
+    if (underFrozenArchive(root, dirParts, frozen, listed)) continue
     const key = dirParts.join('/')
     if (seen.has(key)) continue
     seen.add(key)
@@ -1145,22 +1165,61 @@ function statusKind(status) {
 // withdrawn and superseded records GOVERN lifecycle.mjs, each "caught by" a test
 // that had been deleted with them. Found 2026-09-19, the day after this repository
 // first retired anything; the comment above quoted half the rule and not this half.
-function archiveDecisionEffect(file, reader, cache) {
+//
+// ⚠ AND A CATALOG THAT DOES NOT ESTABLISH THE EFFECT LEAVES IT UNPROVEN — it does
+// not hand authority back to the frozen file. A missing row, a duplicate row, an
+// effect spelled `**withdrawn**`, or a title holding `\|` that shifted the columns
+// each fell through to `Status: Accepted` and came back `governing`, `look: ok`;
+// a row whose LINK named another file retired a record it was not about
+// (different-lineage review, 2026-09-19). One row, targeting this file, carrying
+// one of the three effects `adr-retire-check` accepts — or `{ unproven }`.
+// Returns null when the directory is not a LISTED archive: the file's own status
+// stands there, and an unlisted README on this disk governs nothing (CLAUDE.md §8).
+const ARCHIVE_EFFECT = /^(?:governing|withdrawn|superseded by ADR-\d+)$/i
+
+function catalogCells(line) {
+  const cells = []
+  let cell = ''
+  for (let index = 0; index < line.length; index += 1) {
+    if (line[index] === '\\' && line[index + 1] === '|') { cell += '|'; index += 1 }
+    else if (line[index] === '|') { cells.push(cell.trim()); cell = '' }
+    else cell += line[index]
+  }
+  cells.push(cell.trim())
+  return cells.slice(1, -1)
+}
+
+function archiveDecisionEffect(file, reader, cache, listed) {
   const directory = path.dirname(file)
   if (!cache.has(directory)) {
-    let effects = null
-    try {
-      const catalog = reader.text(path.join(directory, 'README.md'))
-      if (catalog.split(/\r?\n/).includes(ARCHIVE_LIFECYCLE_LINE)) {
-        effects = new Map()
-        for (const row of catalog.matchAll(/^\|\s*\[ADR-0*(\d+)\]\([^)]*\)\s*\|[^|\n]*\|\s*([^|\n]+?)\s*\|/gm)) {
-          effects.set(Number(row[1]), row[2])
+    let rows = null
+    const readme = path.join(directory, 'README.md')
+    if (listed.has(readme)) {
+      try {
+        const lines = reader.text(readme).split(/\r?\n/)
+        if (lines.includes(ARCHIVE_LIFECYCLE_LINE)) {
+          rows = new Map()
+          for (const line of lines) {
+            if (!line.startsWith('|')) continue
+            const cells = catalogCells(line)
+            const link = /^\[ADR-0*\d+\]\(([^)]*)\)$/.exec(cells[0] ?? '')
+            if (!link) continue
+            const target = link[1].split(/[\\/]/).at(-1)
+            rows.set(target, [...(rows.get(target) ?? []), cells[2] ?? ''])
+          }
         }
-      }
-    } catch {}
-    cache.set(directory, effects)
+      } catch { rows = 'unread' }
+    }
+    cache.set(directory, rows)
   }
-  return cache.get(directory)
+  const rows = cache.get(directory)
+  if (rows === null) return null
+  if (rows === 'unread') return { unproven: 'the README beside it is listed and could not be read, so whether this is an archive is unknown' }
+  const effects = rows.get(path.basename(file)) ?? []
+  if (effects.length === 0) return { unproven: 'its archive catalog has no row that links to it' }
+  if (effects.length > 1) return { unproven: 'its archive catalog lists it more than once' }
+  if (!ARCHIVE_EFFECT.test(effects[0])) return { unproven: `its archive catalog gives an effect this reader does not know: ${effects[0].slice(0, 60)}` }
+  return { effect: effects[0] }
 }
 
 // One glob component at a time, so `**` can cross separators and `*` cannot.
@@ -1469,6 +1528,7 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
   })
   if (tracked == null) return records
   const reader = corpusReader()
+  const listedFiles = new Set(tracked.map(rel => listedAbsolute(root, rel)))
   const files = recordFilesFromListing(root, tracked, reader)
   const recordsPerDirectory = new Map()
   for (const file of files) {
@@ -1493,11 +1553,14 @@ export function adrCorpus(root, { tracked = trackedPaths(root) } = {}) {
       records.look = 'PARTIAL'
       continue
     }
-    // A frozen record's effect comes from its archive's catalog, when that catalog
-    // has a row for it; `governing` there leaves the file's own status standing.
-    const effect = archiveDecisionEffect(file, reader, archiveEffects)?.get(Number(adrNumber(file, text)))
+    // A frozen record's effect comes from its archive's catalog; `governing` there
+    // leaves the file's own status standing. A catalog that cannot say is PARTIAL,
+    // and the record then governs nothing here rather than whatever it last said.
+    const archived = archiveDecisionEffect(file, reader, archiveEffects, listedFiles)
+    if (archived?.unproven) records.look = 'PARTIAL'
+    const effect = archived?.effect
     const retired = typeof effect === 'string' && /^(?:withdrawn|superseded\b)/i.test(effect)
-    const status = retired ? effect : recordStatus(text)
+    const status = archived?.unproven ? `frozen, effect UNPROVEN — ${archived.unproven}` : retired ? effect : recordStatus(text)
     const kind = statusKind(status)
     if (!kind) {
       // A file that looks like a record and carries no status this reader knows
@@ -1733,7 +1796,11 @@ export function observedFacts(log, root, observation) {
   const writes = unobservableWrites(log)
   const baseline = log.find(entry => entry.event === 'session.started')?.observation
   const status = observation?.ok === true ? statusPaths(root) : []
-  const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)
+  // By when it RAN, like the verdict: this kept `.at(-1)` after `latestCheckFor`
+  // stopped trusting append order, so a stale re-imported pass landing last made
+  // the note print — and SessionEnd persist — "Last check: … passed" beside
+  // `checked: false` (different-lineage review, 2026-09-19).
+  const check = latestOf(log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')))
   const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
   // ⚠ ONE REASON NOTHING HERE MAY BE READ AS A VERDICT, OR NONE. The tree that
@@ -1771,6 +1838,11 @@ export function observedFacts(log, root, observation) {
     // check — so neither "passed" nor "no check has run" may be said from it.
     whole: !logIncomplete(log),
     why,
+    // Whether the baseline was adopted partway through the session. "Nothing has
+    // changed" then means "since watching began", and says nothing about a commit
+    // made before it — the note and the status line have to carry that, or the
+    // once-only R4 line is the only place it was ever said.
+    late: log.find(entry => entry.event === 'session.started')?.late === true,
     // Null from a torn log, not merely unprinted: SessionEnd persists this as
     // `lastVerdict`, and a row is read by a session that never saw the log.
     lastCheck: check && !logIncomplete(log)
@@ -1784,6 +1856,7 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   const shown = files.slice(0, 5).map(file => path.relative(cwd, file) || file)
   if (files.length > shown.length) shown.push(`+${files.length - shown.length} more`)
   const pending = facts?.pending === true
+  const late = facts?.late === true
   // Three states, not two: 'neutral' is a session that changed nothing, which
   // says nothing about what an EARLIER session left — a reader walking back must
   // not stop on it (Codex review, 2026-09-05).
@@ -1803,7 +1876,9 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   // it took this arm, persisted `neutral`, and the next session was told nothing
   // — while R1, same session, same tree, named the commit by sha (audit B1).
   const status = !observed ? 'unverified'
-    : files.length === 0 && other === 0 && !pending ? 'neutral'
+    // ...and a LATE baseline cannot make that claim for the session: it covers
+    // only what followed it (different-lineage review, 2026-09-19).
+    : files.length === 0 && other === 0 && !pending ? (late ? 'unverified' : 'neutral')
       : pending || !passed ? 'unverified' : 'verified'
   const parts = []
   if (files.length && observed) {
@@ -1822,7 +1897,10 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   } else if (pending) {
     parts.push('nothing is uncommitted, and the tree at HEAD is one no `qh-check` has passed on.')
   } else {
-    parts.push('nothing has changed in the working tree.')
+    parts.push(late
+      ? 'nothing has changed in the working tree since this plugin began watching — which was partway through this '
+        + 'session, so what happened before that, a commit included, is unknown here (ADR-005).'
+      : 'nothing has changed in the working tree.')
   }
   parts.push(facts?.whole === false ? 'Which check ran last is unknown.'
     : facts?.lastCheck
@@ -1863,10 +1941,19 @@ export function readSessionNote(sessionId) {
  */
 export function replaceSessionNote(sessionId, note, write = writeFileSync) {
   if (typeof sessionId !== 'string' || !sessionId) return false
-  try { unlinkSync(sessionNotePath(sessionId)) } catch {}
-  if (note === null) return true
+  // ⚠ "OR LEAVE NONE" HAS TO BE TRUE WHEN THE UNLINK FAILS TOO. This swallowed
+  // every unlink error, so EACCES followed by a failed write left the OLD note in
+  // place and readable, and with `note === null` it even returned true over it.
+  // A missing file is the only failure that means "there is none".
+  let cleared = true
+  try { unlinkSync(sessionNotePath(sessionId)) } catch (failure) { cleared = failure?.code === 'ENOENT' }
+  if (note === null) {
+    if (!cleared) process.stderr.write('[quality-harness] PreCompact: an earlier state note could not be removed; it is older than this compaction.\n')
+    return cleared
+  }
   try { write(sessionNotePath(sessionId), JSON.stringify(note)); return true } catch (failure) {
-    process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message}).\n`)
+    process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message})`
+      + `${cleared ? '' : ', and an earlier one could not be removed; it is older than this compaction'}.\n`)
     return false
   }
 }
@@ -1911,6 +1998,16 @@ function previousSessionNotice(cwd, platform = process.platform) {
   const other = Number(row.other) || 0
   const what = [row.files?.length ? `${row.files.length} edit(s)` : '', other ? `${other} shell mutation(s)` : ''].filter(Boolean).join(' and ') || 'edits'
   const check = projectCheckCommand(cwd)
+  // ⚠ AN `unverified` ROW IS NOT ALWAYS A ROW ABOUT EDITS. A session whose tree
+  // could not be observed, or that was watched only from partway through, is
+  // persisted `unverified` with NO files — and `|| 'edits'` above then told the
+  // next session it "ended with edits after which no recognised check passed":
+  // an observation nobody made, about work that may not exist (ADR-005).
+  if (typeof row.unknown === 'string' && row.unknown) {
+    return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with its state `
+      + `UNKNOWN to this plugin — ${row.unknown}.${files.length ? ` Git listed: ${files.join(', ')}.` : ''} `
+      + (check ? `\`${check}\` is this project's check.` : 'No check is declared here.')
+  }
   return `The previous session in this directory ended (${row.reason ?? 'unknown reason'}, ${row.at}) with `
     + `${what} after which no recognised check passed${files.length ? `: ${files.join(', ')}` : ''}. `
     + (check ? `Run \`${check}\` before building on them.` : 'Nothing has checked them since.')
@@ -2393,6 +2490,7 @@ export function observe(cwd, budgetMs = OBSERVE_BUDGET_MS) {
 // not unproven: it clears only unobservable writes recorded before it started.
 export function checkEventName(record) {
   if (record?.verdict === 'unstarted') return 'check.unstarted'
+  if (record?.verdict === 'unproven') return 'check.unproven'
   // Inside git the evidence is about the TREE: a check that stages or commits has
   // not changed what it checked, and a not-ok side never matches (ADR-005).
   const treeOnly = observation => observation?.ok === true ? { ok: true, tree: observation.tree, index: null, head: null } : observation
@@ -2550,7 +2648,11 @@ export function recordHookEvent(input) {
   let lateBaseline = false
   if (name !== 'session.started') {
     const log = readEvents(input.cwd, session)
-    if (!logIncomplete(log) && !log.some(event => event.event === 'session.started')
+    // AND NOT OVER A WRITE ALREADY ON RECORD. PostToolUse can log a `file.written`
+    // before any observing hook runs; commit it, and the first Stop sees a clean
+    // tree. Adopting that as the baseline would call a session with a known,
+    // unchecked write `neutral`.
+    if (!logIncomplete(log) && !log.some(event => event.event === 'session.started' || event.event === 'file.written')
       && observedClean(input.cwd, entry.observation)) {
       lateBaseline = appendEvent(input.cwd, session, { event: 'session.started', late: true, observation: entry.observation }) !== false
     }
@@ -2662,7 +2764,12 @@ export function latestCheckFor(log, tree) {
 const LOG_INCOMPLETE = Object.freeze({ event: 'check.unproven', why: 'the log could not be read whole' })
 
 function latestRecordedCheck(log, tree) {
-  const events = checkEventsFor(log, tree)
+  return latestOf(checkEventsFor(log, tree))
+}
+
+// The newest of some check events by when they RAN. One ordering, for the
+// verdict about a tree and for the descriptive "Last check:" alike.
+function latestOf(events) {
   if (!events.length) return null
 
   // 1. A RE-IMPORT IS NOT A NEW CHECK. Two hooks reading the same `checks.jsonl`
@@ -2809,7 +2916,24 @@ function reviewChangedState(input, ended) {
     }
     return
   }
-  if (before?.ok !== true || after?.ok !== true || sameObservation(before, after)) return
+  if (before?.ok !== true || after?.ok !== true) {
+    // ⚠ A BRACKET THAT COULD NOT BE OBSERVED IS NOT A RUN WHERE NOTHING CHANGED.
+    // This returned, under a comment elsewhere saying "an observation that could
+    // not be made is R4's to report" — and a read-only role's end SKIPS the
+    // completion rules, so R4 never runs here. A failed `git` at either end of a
+    // review was reported nowhere (different-lineage review, 2026-09-19).
+    const unobservedKey = `${input.agent_id}:unobserved`
+    if (!log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === unobservedKey)) {
+      const why = !started ? 'where that run began was never recorded'
+        : before?.ok !== true ? `the repository could not be observed when it began (${before?.reason ?? 'no reason was recorded'})`
+          : `the repository could not be observed when it ended (${after?.reason ?? 'no reason was recorded'})`
+      queueAction({ rule: 'R3', key: unobservedKey, text: `quality-harness: whether the repository changed during the ${role} `
+        + `run (agent ${input.agent_id}) is unknown — ${why}. That is a statement about what could be looked at, not about `
+        + 'the review (ADR-005).' })
+    }
+    return
+  }
+  if (sameObservation(before, after)) return
   const key = input.agent_id
   if (log.some(entry => entry.event === 'action.emitted' && entry.rule === 'R3' && entry.key === key)) return
   const directory = nearestExistingDirectory(path.resolve(input.cwd))
@@ -2977,15 +3101,21 @@ function uncheckedWorkReason(cwd, paths, outside, commits = [], { logTorn = fals
 // git for the check command again. Dedupe stays per commit and evidence revision
 // (ADR-060's key), carried in the action's detail.
 const NAMED_COMMIT_LIMIT = 5
-function uncheckedCommitsReason(cwd, commits) {
+function uncheckedCommitsReason(cwd, commits, { logTorn = false } = {}) {
   const shown = commits.slice(0, NAMED_COMMIT_LIMIT)
   const listed = shown.map(commit => `  ${commit.sha.slice(0, 8)} ${commit.subject}`).join('\n')
   const rest = commits.length > shown.length ? `\n  … and ${commits.length - shown.length} more.` : ''
-  const head = commits.length === 1
-    ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
-    : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
+  // The same correction P and R1 already carry: over a log that could not be
+  // read whole, "no `qh-check` has passed" is a verdict nobody observed — the
+  // lost line may be the pass. R2 kept saying it beside R4's could-not-look.
+  const head = logTorn
+    ? `whether a \`qh-check\` passed on ${commits.length === 1 ? 'a newly reachable commit' : `${commits.length} newly reachable commits`} `
+      + 'is UNKNOWN — this session\'s log could not be read whole, and the record of a pass may be among what was lost:'
+    : commits.length === 1
+      ? 'a newly reachable commit is unchecked — no `qh-check` has passed on its tree:'
+      : `${commits.length} newly reachable commits are unchecked — no \`qh-check\` has passed on their trees:`
   return `quality-harness: ${head}\n${listed}${rest}\nThis says they are reachable from HEAD and `
-    + `unchecked, not that this session authored them. ${runTheCheckSentence(cwd)}`
+    + `${logTorn ? 'not known to be checked' : 'unchecked'}, not that this session authored them. ${runTheCheckSentence(cwd)}`
 }
 
 function couldNotLookReason(cwd, reason) {
@@ -3007,7 +3137,13 @@ function couldNotLookReason(cwd, reason) {
  * same precondition instead of a comment claiming it does.
  */
 export function logIncomplete(log) {
-  return log?.complete === false
+  // ⚠ WHOLE IS SOMETHING A LOG HAS TO SAY, NOT SOMETHING ITS SILENCE IMPLIES.
+  // This read `complete === false`, and `complete` is a property hung on an ARRAY:
+  // `[...log]`, `.filter`, `.map`, `.slice` and a JSON round trip all drop it, and
+  // the copy of a torn log then certified — `verified`, `QH ✓ checked` — through
+  // every exported reader (different-lineage review, 2026-09-19). No production
+  // site makes such a copy today; the next one would have been invisible.
+  return log?.complete !== true
     || (Array.isArray(log) && log.some(event => event?.event === 'check.source-unreadable'))
 }
 
@@ -3186,7 +3322,7 @@ function completionRules(input, ended) {
     const keys = unchecked.map(commit => `${commit.sha}:${checkRevision(log, commit.tree)}`)
     queueAction({
       rule: 'R2', key: keys.join(' '), detail: { commits: keys },
-      text: uncheckedCommitsReason(input.cwd, unchecked),
+      text: uncheckedCommitsReason(input.cwd, unchecked, { logTorn: logIncomplete(log) }),
     })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false
@@ -3200,7 +3336,7 @@ function completionRules(input, ended) {
       // and "no reason was recorded" would report the wrong could-not-look.
       const why = observation?.ok !== true
         ? (observation?.reason ?? 'no reason was recorded')
-        : log?.complete === false
+        : logIncomplete(log)
           ? 'this session’s event log could not be read whole — at least one record is torn or unreadable'
           : (status?.why || commits?.why || 'a git query failed without saying why')
       queueAction({ rule: 'R4', key, text: couldNotLookReason(input.cwd, why) })
@@ -3251,7 +3387,14 @@ export async function handleHook(input) {
       // PreCompact measured, so the next context knows what is unverified and
       // what task was in flight without re-deriving either.
       const note = readSessionNote(input.session_id)
-      if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
+      // A note OLDER than the compaction it is served after is not that
+      // compaction's note: a replace that failed twice can leave one behind, and
+      // it would be handed back as what was measured just now.
+      const compacting = readEvents(input.cwd, input.session_id).filter(entry => entry.event === 'context.compacting').at(-1)
+      const stale = typeof compacting?.at === 'string' && typeof note?.at === 'string' && note.at < compacting.at
+      if (stale) sections.push('quality-harness: the state note kept for this session is older than this compaction, so what was '
+        + 'unverified before it is unknown here (ADR-005).')
+      else if (note?.text) sections.push(`What this session was doing before compaction (${note.at}): ${note.text}`)
     } else if (input.source === 'startup' || input.source === undefined) {
       const previous = previousSessionNotice(input.cwd)
       if (previous) sections.push(previous)
@@ -3292,6 +3435,12 @@ export async function handleHook(input) {
       return
     }
     const note = sessionStateNote(facts, cwd, root, false, new Date(), { tasks: false })
+    // Why the row says `unverified` when it is not about unchecked edits: the next
+    // session reads this field INSTEAD of the sentence about edits.
+    const unknown = facts.observed === false ? (facts.why ?? 'the working tree could not be observed')
+      : facts.late === true && note.files.length === 0 && !note.other && facts.pending !== true
+        ? 'it was watched only from partway through, and nothing changed after that; what happened before is not known'
+        : null
     try {
       mkdirSync(home, { recursive: true })
       appendFileSync(path.join(home, 'sessions.jsonl'), `${JSON.stringify({
@@ -3301,6 +3450,7 @@ export async function handleHook(input) {
         location: locationKey(root),
         reason: input.reason ?? null,
         status: note.status,
+        unknown,
         files: note.files,
         other: note.other,
         lastVerdict: facts.lastCheck?.verdict ?? null,

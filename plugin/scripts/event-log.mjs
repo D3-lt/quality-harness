@@ -9,22 +9,24 @@
 // another's findings — and `<tmp>/quality-harness/<sha256 of the canonical
 // cwd>/` outside one. Both are outside the working tree, so observing a tree
 // never observes this log.
-import { appendFileSync, existsSync, mkdirSync, readFileSync, realpathSync, statSync } from 'node:fs'
+import { appendFileSync, closeSync, constants, fstatSync, mkdirSync, openSync, readFileSync, readSync, realpathSync, statSync } from 'node:fs'
 import { spawnSync } from 'node:child_process'
 import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { findGitDir } from './git-directory.mjs'
 
-/** The nearest existing directory at or above a path, or null when none exists. */
+/**
+ * The nearest existing DIRECTORY at or above a path, or null when none exists.
+ *
+ * ⚠ The walk asked `existsSync`, so for `<repo>/CLAUDE.md/child/grandchild` it
+ * stopped at `CLAUDE.md` — a regular file — and handed that to callers as a
+ * directory to run git in (different-lineage review, 2026-09-19).
+ */
 export function nearestExistingDirectory(candidate) {
+  const isDirectory = target => { try { return statSync(target).isDirectory() } catch { return false } }
   let current = candidate
-  try {
-    if (!statSync(current).isDirectory()) current = path.dirname(current)
-  } catch {
-    current = path.dirname(current)
-  }
-  while (!existsSync(current)) {
+  while (!isDirectory(current)) {
     const parent = path.dirname(current)
     if (parent === current) return null
     current = parent
@@ -63,6 +65,10 @@ export function canonical(candidate) {
  * the `file.written` path were merely resolved, so through a symlinked checkout or
  * a Windows 8.3 short name the verdict was stored under one spelling and looked up
  * under another, and the dedupe never fired (audit 2026-09-18, C1).
+ *
+ * A symlinked LEAF keeps its own name, on purpose: git lists the link, not what it
+ * points at, so rule A's candidate is the link's path — resolving the leaf here
+ * would make this the spelling that disagrees.
  */
 export function canonicalFile(absolute) {
   const parent = nearestExistingDirectory(absolute)
@@ -172,6 +178,7 @@ export const ABSENT = 'absent'
 export const CONTENT_ID_MAX_BYTES = 32 * 1024 * 1024
 
 export function contentId(file) {
+  let descriptor = null
   try {
     // ⚠ STAT BEFORE READ, AND ONLY A REGULAR FILE IS READ. `readFileSync` on a FIFO
     // blocks until something writes to it — for ever, in a working tree — and
@@ -182,8 +189,27 @@ export function contentId(file) {
     // and an oversized file are UNKNOWN, never hashed and never guessed.
     const stat = statSync(file)
     if (!stat.isFile() || stat.size > CONTENT_ID_MAX_BYTES) return null
-    return createHash('sha256').update(readFileSync(file)).digest('hex')
+    // ⚠ AND THE FILE THAT IS READ IS THE FILE THAT WAS JUDGED. This went on to
+    // `readFileSync(file)` — a second lookup of the NAME — so a path swapped for a
+    // FIFO, or a file grown past the bound, between the two calls was read with
+    // neither guard (different-lineage review, 2026-09-19). One descriptor, opened
+    // without blocking, judged again by what it actually is, and read to a bound.
+    descriptor = openSync(file, constants.O_RDONLY | (constants.O_NONBLOCK ?? 0))
+    if (!fstatSync(descriptor).isFile()) return null
+    const hash = createHash('sha256')
+    const chunk = Buffer.allocUnsafe(1024 * 1024)
+    let total = 0
+    for (;;) {
+      const read = readSync(descriptor, chunk, 0, chunk.length, null)
+      if (read === 0) break
+      total += read
+      if (total > CONTENT_ID_MAX_BYTES) return null
+      hash.update(chunk.subarray(0, read))
+    }
+    return hash.digest('hex')
   } catch (error) {
     return error?.code === 'ENOENT' || error?.code === 'ENOTDIR' ? ABSENT : null
+  } finally {
+    if (descriptor !== null) { try { closeSync(descriptor) } catch { /* nothing to report: the answer is already decided */ } }
   }
 }

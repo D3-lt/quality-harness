@@ -92,7 +92,8 @@ export function reading(input, { read = readEvents, now = Date.now() } = {}) {
 function observedReading(log, observed, check) {
   const observation = observed.observation
   const observedAt = Date.parse(observed.at ?? '')
-  const baseline = log.find(entry => entry.event === 'session.started')?.observation
+  const began = log.find(entry => entry.event === 'session.started')
+  const baseline = began?.observation
   const checks = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.'))
   const lastPass = checks.filter(entry => entry.event === 'check.passed').at(-1)
   const since = lastPass?.startedAt ?? null
@@ -107,15 +108,27 @@ function observedReading(log, observed, check) {
   // exactly what CLAUDE.md §5 is about, and the comment is what made it invisible.
   const latest = observation?.ok === true ? latestCheckFor(log, observation.tree) : null
   const checked = latest?.event === 'check.passed'
+  // ⚠ A WRITE THE LAST OBSERVATION DOES NOT COVER OUTRANKS A PASS ON THAT TREE.
+  // `checked` came first, so a pass on T followed by a write git cannot see — or
+  // by any write made AFTER the observation that named T — still rendered
+  // `QH ✓ checked`, with `count: 1` sitting unread beside it, while the session
+  // note for the same log said `unverified` (different-lineage review,
+  // 2026-09-19). A `file.written` carries no observation of its own, so until
+  // another boundary looks, the tree it left is not the tree that was checked.
+  const uncovered = writes.filter(entry => entry.observable === false
+    || typeof entry.at !== 'string' || typeof observed.at !== 'string' || entry.at > observed.at)
   // A log that could not be read whole says nothing positive: not `checked`, and
   // not `nothing edited` either — the lost line may be the write (audit B3).
   const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'
+    : uncovered.length ? 'unverified'
     : checked ? 'checked'
     : writes.length === 0 && baseline?.ok === true && observation.tree === baseline.tree ? 'nothing'
     : 'unverified'
   // `inferred` rides with the verdict, because a tick earned by a command this
   // tool GUESSED is worth less than one earned by the project's declared gate.
-  return { kind, count: writes.length, check, inferred: checked && latest?.origin === 'inferred', observedAtMs: Number.isFinite(observedAt) ? observedAt : null }
+  return { kind, count: writes.length, check, inferred: checked && latest?.origin === 'inferred',
+    // A baseline adopted partway through speaks only for what followed it.
+    late: kind === 'nothing' && began?.late === true, observedAtMs: Number.isFinite(observedAt) ? observedAt : null }
 }
 
 // The CI verdict, read from the cache the branch-state hook writes into `.git/`
@@ -161,7 +174,7 @@ export function render(value, ci = null) {
       : value.kind === 'could-not-look' ? 'QH ? could not look'
       : value.kind === 'unverified' ? `QH ✗ ${value.count > 0 ? `${value.count} unverified` : 'unverified'}`
       : value.kind === 'checked' ? (value.inferred ? 'QH ✓ checked (inferred check)' : 'QH ✓ checked')
-      : value.check ? 'QH · nothing edited'
+      : value.check ? (value.late ? 'QH · nothing edited since watching began' : 'QH · nothing edited')
       : null
     if (token) parts.push(!stale && age && value.kind !== 'unknown' ? `${token} · ${age}` : token)
   }

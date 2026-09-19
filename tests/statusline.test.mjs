@@ -123,7 +123,9 @@ test('an unchanged log is not read twice; a changed one is', () => {
     let calls = 0
     const read = () => {
       calls += 1
-      return readFileSync(file, 'utf8').split('\n').filter(Boolean).map(entry => JSON.parse(entry))
+      // Marked whole, as `readEvents` marks it: a log that does not SAY it was
+      // read whole is could-not-look, and this test is about the cache.
+      return Object.assign(readFileSync(file, 'utf8').split('\n').filter(Boolean).map(entry => JSON.parse(entry)), { complete: true })
     }
     assert.equal(reading(input, { read, now: NOW }).kind, 'unverified')
     assert.equal(reading(input, { read, now: NOW }).kind, 'unverified')

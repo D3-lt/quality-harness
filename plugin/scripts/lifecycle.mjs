@@ -1846,9 +1846,29 @@ function sessionNotePath(sessionId) {
   return path.join(os.tmpdir(), `quality-harness-note-${stamp}`)
 }
 
-function readSessionNote(sessionId) {
+export function readSessionNote(sessionId) {
   if (typeof sessionId !== 'string' || !sessionId) return null
   try { return JSON.parse(readFileSync(sessionNotePath(sessionId), 'utf8')) } catch { return null }
+}
+
+/**
+ * Replace this session's state note, or leave NONE. Null removes it.
+ *
+ * The old note goes first, so a replace that fails cannot leave a stale one behind
+ * to be handed back as current (Codex review, 2026-09-05): a note from an EARLIER
+ * compaction read as this one's is worse than no note. `write` is a parameter
+ * because nothing outside can make a real write fail on demand, and a branch with
+ * no injectable seam has no test (CLAUDE.md §7) — this one lost its only test when
+ * PreCompact stopped reading transcripts, and its mutant survived until 2026-09-19.
+ */
+export function replaceSessionNote(sessionId, note, write = writeFileSync) {
+  if (typeof sessionId !== 'string' || !sessionId) return false
+  try { unlinkSync(sessionNotePath(sessionId)) } catch {}
+  if (note === null) return true
+  try { write(sessionNotePath(sessionId), JSON.stringify(note)); return true } catch (failure) {
+    process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message}).\n`)
+    return false
+  }
 }
 
 // "Here" is the repository (or the directory, outside one), realpath'd so
@@ -3259,13 +3279,7 @@ export async function handleHook(input) {
     const facts = observedFacts(readEvents(cwd, input.session_id), repositoryRoot, recorded?.observation)
     if (event === 'PreCompact') {
       if (typeof input.session_id === 'string' && input.session_id) {
-        // The old note goes first, so a PreCompact that fails below cannot leave
-        // a stale one behind to be handed back (Codex review, 2026-09-05).
-        try { unlinkSync(sessionNotePath(input.session_id)) } catch {}
-        const note = sessionStateNote(facts, cwd, root, repositoryRoot !== null)
-        try { writeFileSync(sessionNotePath(input.session_id), JSON.stringify(note)) } catch (failure) {
-          process.stderr.write(`[quality-harness] PreCompact: could not keep the state note (${failure.code ?? failure.message}).\n`)
-        }
+        replaceSessionNote(input.session_id, sessionStateNote(facts, cwd, root, repositoryRoot !== null))
       }
       artifactRule(input, recorded)
       return

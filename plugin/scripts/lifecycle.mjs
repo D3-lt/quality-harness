@@ -1838,6 +1838,16 @@ export function observedFacts(log, root, observation) {
   const check = log.filter(entry => typeof entry.event === 'string' && entry.event.startsWith('check.')).at(-1)
   const treeUnchecked = observation?.ok === true && !treeChecked(log, observation.tree)
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
+  // ⚠ ONE REASON NOTHING HERE MAY BE READ AS A VERDICT, OR NONE. The tree that
+  // could not be observed had its arm; a `git status` that FAILED and a log that
+  // could not be read whole did not, and both arrived below as an empty list and
+  // a surviving pass — "nothing has changed" and `verified`, persisted to
+  // `sessions.jsonl` for the next session to believe (audit 2026-09-18, B2 and
+  // B4). `tests/evidence-flip.test.mjs` holds this for every reader at once.
+  const why = observation?.ok !== true ? 'the working tree could not be observed'
+    : status.ok === false ? 'git could not list the working tree'
+      : logIncomplete(log) ? 'the session log could not be read whole'
+        : null
   return {
     files: root ? status.map(relative => path.join(root, relative)) : [],
     other: writes.length,
@@ -1851,7 +1861,8 @@ export function observedFacts(log, root, observation) {
     // The LAST check about this tree by when it RAN, for the same reason
     // `treeChecked` no longer trusts log position.
     checked: latestCheckFor(log, observation?.tree)?.event === 'check.passed',
-    observed: observation?.ok === true,
+    observed: why === null,
+    why,
     lastCheck: check ? { command: check.command ?? null, verdict: check.event.slice('check.'.length) } : null,
   }
 }
@@ -1876,11 +1887,15 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   // pass for an UNRELATED tree certify these paths. It stays descriptive — the
   // note prints it as "Last check:" — and certifies nothing.
   const passed = facts?.checked === true
+  // ⚠ `neutral` IS A CLAIM THAT NOTHING IS OUTSTANDING, so `pending` gates it too.
+  // A turn that COMMITS its work has no uncommitted file and an unchecked tree:
+  // it took this arm, persisted `neutral`, and the next session was told nothing
+  // — while R1, same session, same tree, named the commit by sha (audit B1).
   const status = !observed ? 'unverified'
-    : files.length === 0 && other === 0 ? 'neutral'
+    : files.length === 0 && other === 0 && !pending ? 'neutral'
       : pending || !passed ? 'unverified' : 'verified'
   const parts = []
-  if (files.length) {
+  if (files.length && observed) {
     const verdict = pending ? 'no `qh-check` has passed on them'
       : passed ? 'a `qh-check` passed on them'
         : 'nothing here changed them since the session began, and no `qh-check` has passed on them'
@@ -1889,7 +1904,10 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   } else if (other) {
     parts.push(`${other} write(s) git cannot see since the last passing check.`)
   } else if (!observed) {
-    parts.push('the working tree could not be observed, so what changed here is unknown.')
+    parts.push(`${facts?.why ?? 'the working tree could not be observed'}, so what changed here is unknown.`
+      + (files.length ? ` Git lists ${files.length} changed path(s): ${shown.join(', ')}.` : ''))
+  } else if (pending) {
+    parts.push('nothing is uncommitted, and the tree at HEAD is one no `qh-check` has passed on.')
   } else {
     parts.push('nothing has changed in the working tree.')
   }
@@ -2664,6 +2682,18 @@ function checkEventsFor(log, tree) {
  * Found by a different-lineage review of this branch, 2026-09-18.
  */
 export function latestCheckFor(log, tree) {
+  // ⚠ THE ONE PLACE A PASS BECOMES A VERDICT, SO THE ONE PLACE A TORN LOG IS
+  // REFUSED. `ledgerEvidence` guarded this for itself and two other readers did
+  // not, which is how `verified` and `QH ✓ checked` were produced from a log with
+  // a line missing. A pass that survived may be older than a failure that did not
+  // (ADR-005), so an incomplete log cannot certify — for ANY caller.
+  const latest = latestRecordedCheck(log, tree)
+  return latest?.event === 'check.passed' && logIncomplete(log) ? LOG_INCOMPLETE : latest
+}
+
+const LOG_INCOMPLETE = Object.freeze({ event: 'check.unproven', why: 'the log could not be read whole' })
+
+function latestRecordedCheck(log, tree) {
   const events = checkEventsFor(log, tree)
   if (!events.length) return null
 
@@ -2947,22 +2977,25 @@ function couldNotLookReason(cwd, reason) {
     + `records what it observed. ${runTheCheckSentence(cwd)}`
 }
 
+/**
+ * Whether what this session recorded could not be read whole.
+ *
+ * Two ways, one answer. `complete === false` is a session log with a torn line.
+ * `check.source-unreadable` is `checks.jsonl` found unreadable in part — recorded
+ * as an EVENT rather than returned, because the condition is durable: a torn
+ * append leaves no trailing newline, so the next record lands on the same line
+ * and the file never repairs itself. Either way a history missing records cannot
+ * support a positive answer (ADR-005). Exported so the status line applies the
+ * same precondition instead of a comment claiming it does.
+ */
+export function logIncomplete(log) {
+  return log?.complete === false
+    || (Array.isArray(log) && log.some(event => event?.event === 'check.source-unreadable'))
+}
+
 // The ledger's evidence, computed from the tree, the commits and the writes
 // THEMSELVES — never from whether a rule spoke. A P warning, a dedupe or a
 // suppression must not be able to turn an unchecked state into `verified`
-/**
- * Whether this session ever found `checks.jsonl` unreadable in part.
- *
- * Recorded as an event rather than returned, because every reader consults the
- * session log and the condition is DURABLE: a torn append leaves no trailing
- * newline, so the next record lands on the same line and the file never repairs
- * itself. A check history missing records cannot support a positive verdict, for
- * the same reason a torn session log cannot (ADR-005).
- */
-function checkSourceTorn(log) {
-  return Array.isArray(log) && log.some(event => event?.event === 'check.source-unreadable')
-}
-
 // (ADR-035, ADR-060 revision 4 review).
 function ledgerEvidence(log, observation, baseline, commits, writes, check, status) {
   if (observation?.ok !== true) return 'could-not-look'
@@ -2977,7 +3010,7 @@ function ledgerEvidence(log, observation, baseline, commits, writes, check, stat
   // log with a torn line it can only answer from what survived, so an older pass
   // outliving a newer failure reads as `verified`. `complete === false` is set
   // only by a read that really happened and really lost something.
-  if (log?.complete === false || checkSourceTorn(log)) return 'could-not-look'
+  if (logIncomplete(log)) return 'could-not-look'
   if (!check) return 'no-check'
   const treeUnchecked = !treeChecked(log, observation.tree)
     && (baseline?.ok !== true || observation.tree !== baseline.tree)
@@ -3139,7 +3172,7 @@ function completionRules(input, ended) {
     })
   }
   if (observation?.ok !== true || status?.ok === false || commits?.ok === false
-    || log?.complete === false || checkSourceTorn(log)) {
+    || logIncomplete(log)) {
     // Once per session and cwd, read from the log rather than from a marker file
     // under os.tmpdir() (ADR-060 replaces sessionGenerationPath here).
     const key = canonical(root ?? path.resolve(input.cwd ?? process.cwd()))

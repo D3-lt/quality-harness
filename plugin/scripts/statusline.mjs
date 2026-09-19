@@ -33,7 +33,7 @@ import { createHash } from 'node:crypto'
 import os from 'node:os'
 import path from 'node:path'
 import { pathToFileURL } from 'node:url'
-import { latestCheckFor, projectCheckCommand, readEvents, sessionLogFile } from './lifecycle.mjs'
+import { latestCheckFor, logIncomplete, projectCheckCommand, readEvents, sessionLogFile } from './lifecycle.mjs'
 import { usableCache } from './branch-state.mjs'
 import { findGitDir } from './git-directory.mjs'
 export { findGitDir } from './git-directory.mjs'
@@ -98,7 +98,7 @@ function observedReading(log, observed, check) {
   const since = lastPass?.startedAt ?? null
   const writes = log.filter(entry => entry.event === 'file.written'
     && (typeof since !== 'string' || typeof entry.at !== 'string' || entry.at > since))
-  // ⚠ THE SAME RULE THE ADVISORIES USE — AND NOW LITERALLY THE SAME FUNCTION.
+  // ⚠ THE SAME RULE THE ADVISORIES USE — THE SAME FUNCTION, AND THE SAME PRECONDITION.
   // This was a second copy of the rule, `…filter(…).at(-1)`, under a comment that
   // already claimed they agreed. They did not: when `treeChecked` learned to
   // dedupe re-imports and refuse an unresolved order, this kept certifying from
@@ -107,7 +107,9 @@ function observedReading(log, observed, check) {
   // exactly what CLAUDE.md §5 is about, and the comment is what made it invisible.
   const checked = observation?.ok === true
     && latestCheckFor(log, observation.tree)?.event === 'check.passed'
-  const kind = observation?.ok !== true ? 'could-not-look'
+  // A log that could not be read whole says nothing positive: not `checked`, and
+  // not `nothing edited` either — the lost line may be the write (audit B3).
+  const kind = observation?.ok !== true || logIncomplete(log) ? 'could-not-look'
     : checked ? 'checked'
     : writes.length === 0 && baseline?.ok === true && observation.tree === baseline.tree ? 'nothing'
     : 'unverified'

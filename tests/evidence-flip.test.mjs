@@ -25,7 +25,7 @@
 // enumerates every `readEvents(` call site in the shipped scripts and fails on a
 // function that is neither driven here nor explained here.
 import assert from 'node:assert/strict'
-import { mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
+import { appendFileSync, existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { spawnSync } from 'node:child_process'
 import { dirname, join, resolve } from 'node:path'
@@ -60,12 +60,25 @@ const DEGRADED = {
     asRead([...entries, { at: '2026-09-19T11:59:55.000Z', event: 'check.source-unreadable' }]),
 }
 
+// ⚠ ONE VOCABULARY, APPLIED TO THE WHOLE OUTPUT OF EVERY SURFACE. The first
+// version gave each surface its own predicate, and the note's was
+// `/passed on them/` — so "Last check: `sh check.sh` passed." sailed through in
+// the same sentence as "could not be read whole", and the object beside it still
+// carried `verdict: "passed"` for SessionEnd to persist. A guard whose vocabulary
+// is narrower than the class it holds is a guard with a hole shaped like the
+// next synonym, so the words live here once and the serialized output is searched
+// whole. The two phrases removed first CONTAIN a positive word and mean its
+// opposite.
+const NEGATIONS = /no `qh-check` has passed|unverified/g
+const POSITIVE = /passed|verified|✓|nothing has changed|nothing edited|"checked":true|"status":"neutral"/
+const flatters = out => POSITIVE.test(JSON.stringify(out ?? null).replace(NEGATIONS, ''))
+
 let sessions = 0
 const SURFACES = {
   latestCheckFor: {
     logs: ['a check passed'],
     run: (log, { tree }) => latestCheckFor(log, tree),
-    positive: out => out?.event === 'check.passed',
+    positive: flatters,
   },
   'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)': {
     logs: ['a check passed', 'nothing happened'],
@@ -76,15 +89,14 @@ const SURFACES = {
       const files = name === 'a check passed' ? ['/x/a.md', '/x/b.md'] : facts.files
       return { facts, note: sessionStateNote({ ...facts, files }, '/x', '/x', true, new Date(NOW), { tasks: false }) }
     },
-    positive: ({ facts, note }) => facts.checked === true || note.status === 'verified' || note.status === 'neutral'
-      || /nothing has changed|passed on them/.test(note.text),
+    positive: flatters,
   },
   'statusline reading -> render': {
     logs: ['a check passed', 'nothing happened'],
     run: (log, _, __, dir) => render(reading(
       { session_id: `flip-${process.pid}-${sessions++}`, workspace: { current_dir: dir } },
       { read: () => log, now: NOW })),
-    positive: out => /✓|nothing edited/.test(out),
+    positive: flatters,
   },
 }
 
@@ -181,4 +193,89 @@ test('every reader of the session log is driven above, or says why a lost line c
   for (const [name, entry] of Object.entries(READERS)) {
     if (entry.driven) assert.ok(entry.driven in SURFACES, `${name} claims a surface that does not exist`)
   }
+
+  // ⚠ AND THE TWO WAYS A READER ESCAPES A SWEEP FOR `readEvents(`. The first
+  // version of this test found eight call sites, all in lifecycle.mjs — and so
+  // never saw statusline.mjs, THE READER AUDIT B3 WAS ABOUT, because it takes the
+  // function through a `read = readEvents` seam and never writes the call. It was
+  // driven only because its author remembered it. So: every shipped file that so
+  // much as NAMES the reader, and every export that takes a `log`.
+  const FILES = {
+    'event-log.mjs': 'defines it',
+    'lifecycle.mjs': 'by function, above',
+    'statusline.mjs': { driven: 'statusline reading -> render' },
+  }
+  const LOG_TAKERS = {
+    observedFacts: { driven: 'observedFacts -> sessionStateNote (what PreCompact and SessionEnd persist)' },
+    latestCheckFor: { driven: 'latestCheckFor' },
+    logIncomplete: 'is the qualifier itself',
+  }
+  const naming = []
+  const taking = []
+  for (const file of readdirSync(scripts).filter(name => name.endsWith('.mjs'))) {
+    const text = readFileSync(join(scripts, file), 'utf8')
+    if (/\breadEvents\b/.test(text)) naming.push(file)
+    for (const found of text.matchAll(/^export (?:async )?function (\w+)\(log\b/gm)) taking.push(found[1])
+  }
+  assert.deepEqual(naming.filter(file => !(file in FILES)), [], 'a shipped script names the log reader and is not registered')
+  assert.deepEqual(Object.keys(FILES).filter(file => !naming.includes(file)), [], 'a registered file no longer names it')
+  assert.deepEqual(taking.filter(name => !(name in LOG_TAKERS)), [], 'an exported function takes a `log` and is not registered')
+  assert.deepEqual(Object.keys(LOG_TAKERS).filter(name => !taking.includes(name)), [], 'a registered export no longer takes one')
+  for (const entry of [...Object.values(FILES), ...Object.values(LOG_TAKERS)]) {
+    if (entry?.driven) assert.ok(entry.driven in SURFACES, `${entry.driven} is not a surface`)
+  }
+})
+
+// ---- The same property, with nothing constructed by hand.
+//
+// Everything above SETS the qualifier. This tears a real file and lets the real
+// hooks read it, because a guard on a flag proves nothing if production never
+// raises the flag on the path that persists.
+const lifecycleScript = join(repoRoot, 'plugin', 'scripts', 'lifecycle.mjs')
+const qhCheck = join(repoRoot, 'plugin', 'bin', 'qh-check')
+const IDENTITY = { GIT_AUTHOR_NAME: 'qh', GIT_AUTHOR_EMAIL: 'qh@example.invalid',
+  GIT_COMMITTER_NAME: 'qh', GIT_COMMITTER_EMAIL: 'qh@example.invalid' }
+
+test('a really torn log, read by the real hooks, does not persist a verified row', () => {
+  const top = mkdtempSync(join(process.platform === 'darwin' ? '/private/tmp' : tmpdir(), 'qh-flip-e2e-'))
+  try {
+    const persisted = torn => {
+      const label = torn ? 'torn' : 'whole'
+      const dir = join(top, label)
+      const data = join(top, `${label}-data`)
+      const env = { ...process.env, ...IDENTITY, CLAUDE_PLUGIN_DATA: data, TMPDIR: top, TMP: top, TEMP: top }
+      const run = (command, args, options = {}) => {
+        const out = spawnSync(command, args, { encoding: 'utf8', timeout: 120_000, env, ...options })
+        assert.equal(out.status, 0, `${command} ${args.join(' ')}: ${out.stderr}`)
+        return out
+      }
+      const git = (...args) => run('git', ['-C', dir, ...args])
+      const hook = payload => run(process.execPath, [lifecycleScript], { cwd: top, input: JSON.stringify(payload) })
+      run('mkdir', ['-p', dir])
+      git('init', '-q')
+      writeFileSync(join(dir, 'a.md'), 'a\n')
+      writeFileSync(join(dir, '.quality-harness.json'), JSON.stringify({ check: 'true' }))
+      git('add', '-A')
+      git('commit', '-q', '-m', 'base')
+      const session = `flip-e2e-${label}-${process.pid}`
+      hook({ hook_event_name: 'SessionStart', source: 'startup', session_id: session, cwd: dir })
+      writeFileSync(join(dir, 'a.md'), 'changed\n')
+      run('python3', [qhCheck], { cwd: dir })
+      hook({ hook_event_name: 'Stop', session_id: session, cwd: dir })
+      if (torn) {
+        const log = join(dir, '.git', 'quality-harness', 'sessions', `${session}.jsonl`)
+        assert.ok(existsSync(log), 'the session log is where this test expects it')
+        appendFileSync(log, '{"event":"check.failed","record":"r2","se')
+      }
+      hook({ hook_event_name: 'SessionEnd', session_id: session, cwd: dir })
+      const rows = readFileSync(join(data, 'sessions.jsonl'), 'utf8').split('\n').filter(Boolean).map(line => JSON.parse(line))
+      return rows.at(-1)
+    }
+    // The control, through the identical path: a whole log over a checked change IS verified.
+    const whole = persisted(false)
+    assert.equal(whole.status, 'verified', `the control must persist a positive row, or the next assertion proves nothing: ${JSON.stringify(whole)}`)
+    const torn = persisted(true)
+    assert.notEqual(torn.status, 'verified', JSON.stringify(torn))
+    assert.equal(flatters(torn), false, `nothing positive may be persisted from a torn log: ${JSON.stringify(torn)}`)
+  } finally { rmSync(top, { recursive: true, force: true }) }
 })

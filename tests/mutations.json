@@ -8295,6 +8295,24 @@
       ],
       "from": "        if not ARCHIVE_LIFECYCLE_RE.search(catalog):",
       "to": "        if False:"
+    },
+    {
+      "label": "evidence-flip: a torn log does not say which check ran last",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "  parts.push(facts?.whole === false ? 'Which check ran last is unknown.'",
+      "to": "  parts.push(false ? 'Which check ran last is unknown.'"
+    },
+    {
+      "label": "evidence-flip: a torn log persists no last verdict",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/evidence-flip.test.mjs"
+      ],
+      "from": "    lastCheck: check && !logIncomplete(log)",
+      "to": "    lastCheck: check"
     }
   ]
 }

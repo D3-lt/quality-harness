@@ -1862,8 +1862,15 @@ export function observedFacts(log, root, observation) {
     // `treeChecked` no longer trusts log position.
     checked: latestCheckFor(log, observation?.tree)?.event === 'check.passed',
     observed: why === null,
+    // Whether the LOG was whole, apart from whether the tree was seen: "Last
+    // check" is read from the log alone, and a torn one may have lost the newer
+    // check — so neither "passed" nor "no check has run" may be said from it.
+    whole: !logIncomplete(log),
     why,
-    lastCheck: check ? { command: check.command ?? null, verdict: check.event.slice('check.'.length) } : null,
+    // Null from a torn log, not merely unprinted: SessionEnd persists this as
+    // `lastVerdict`, and a row is read by a session that never saw the log.
+    lastCheck: check && !logIncomplete(log)
+      ? { command: check.command ?? null, verdict: check.event.slice('check.'.length) } : null,
   }
 }
 
@@ -1911,9 +1918,10 @@ export function sessionStateNote(facts, cwd, root, insideRepository, now = new D
   } else {
     parts.push('nothing has changed in the working tree.')
   }
-  parts.push(facts?.lastCheck
-    ? `Last check: \`${facts.lastCheck.command ?? 'qh-check'}\` ${facts.lastCheck.verdict}.`
-    : 'No check has run this session.')
+  parts.push(facts?.whole === false ? 'Which check ran last is unknown.'
+    : facts?.lastCheck
+      ? `Last check: \`${facts.lastCheck.command ?? 'qh-check'}\` ${facts.lastCheck.verdict}.`
+      : 'No check has run this session.')
   if (tasks) {
     const listing = insideRepository ? trackedPaths(root) : null
     const ready = readyTaskLines(root, insideRepository, listing)

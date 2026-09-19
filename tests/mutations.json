@@ -8671,8 +8671,8 @@
       "tests": [
         "tests/archive-not-in-flight.test.mjs"
       ],
-      "from": "  return variants(directory).some(name => name.toLowerCase() === 'readme.md') ? README_UNKNOWN : null",
-      "to": "  return null"
+      "from": ".includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN : null }",
+      "to": ".includes(ARCHIVE_LIFECYCLE_LINE) ? null : null }"
     },
     {
       "label": "baseline: a SessionStart in the middle of a session is not its beginning",
@@ -8790,6 +8790,15 @@
       ],
       "from": "catch { frozen = 'unknown' }",
       "to": "catch { frozen = false }"
+    },
+    {
+      "label": "catalog: an ordinary readme.md, with no marker, is not an archive question",
+      "file": "plugin/scripts/lifecycle.mjs",
+      "tests": [
+        "tests/archive-not-in-flight.test.mjs"
+      ],
+      "from": "read(path.join(directory, variant)).split(/\\r?\\n/).includes(ARCHIVE_LIFECYCLE_LINE) ? README_UNKNOWN",
+      "to": "read(path.join(directory, variant)).length >= 0 ? README_UNKNOWN"
     }
   ]
 }

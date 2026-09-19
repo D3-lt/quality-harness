@@ -105,14 +105,14 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   const HEADER = ['# ADR Archive', '', '**Lifecycle:** Frozen historical ADR records', '',
     '| ADR | Title | Decision effect | Retired | Reason | Obligations | SHA-256 |',
     '|-----|-------|-----------------|---------|--------|-------------|---------|']
-  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive', readme = 'README.md' } = {}) => {
+  const corpus = (rows, { listReadme = true, where = 'docs/adr-archive', readme = 'README.md', body } = {}) => {
     const root = realpathSync.native(mkdtempSync(join(tmpdir(), 'qh-arc-strict-')))
     const write = (relative, text) => {
       mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
       writeFileSync(join(root, ...relative.split('/')), text)
     }
     write(`${where}/ADR-007-x.md`, '# ADR-007: seven\n\n**Status:** Accepted\n**Governs:** `src/app.js`\n')
-    write(`${where}/${readme}`, [...HEADER, ...rows, ''].join('\n'))
+    write(`${where}/${readme}`, body ?? [...HEADER, ...rows, ''].join('\n'))
     write('src/app.js', '// x\n')
     const tracked = [`${where}/ADR-007-x.md`, 'src/app.js', ...(listReadme ? [`${where}/${readme}`] : [])]
     const records = adrCorpus(root, { tracked })
@@ -163,6 +163,12 @@ test('a catalog that does not establish a record\'s effect leaves it UNPROVEN, n
   assert.deepEqual(corpus([row('withdrawn')], { readme: 'readme.md' }), unproven)
   assert.deepEqual(corpus([row('governing')], { readme: 'readme.md' }), unproven)
   assert.deepEqual(corpus([row('withdrawn')], { readme: 'ReadMe.MD' }), unproven)
+  // ⚠ THE CONTROL THAT WAS MISSING, and whose absence shipped a regression for one
+  // commit: an ORDINARY `readme.md` — notes, no marker — is not an archive question
+  // at all. Treating every case-variant as unknown made the records beside a plain
+  // `docs/adr/readme.md` govern nothing, in every normal repository that has one.
+  assert.deepEqual(corpus([], { readme: 'readme.md', body: '# Decision records\n\nNotes about how we write these.\n' }),
+    { governs: 1, buried: 0, look: 'ok' })
 
   // A README git does not list governs nothing (CLAUDE.md §8): the record's own
   // status stands, as it would on any other machine.
@@ -198,23 +204,30 @@ test('a task directory that MAY be under a frozen archive gets an UNPROVEN line,
       mkdirSync(join(root, ...relative.split('/').slice(0, -1)), { recursive: true })
       writeFileSync(join(root, ...relative.split('/')), text)
     }
-    const task = 'docs/old/ADR-002-x/tasks/T1-live.md'
-    write(task, '# x\n')
+    const MARKED = '# Archive\n\n**Lifecycle:** Frozen historical ADR records\n'
+    const task = where => `docs/${where}/ADR-002-x/tasks/T1-live.md`
+    for (const where of ['bare', 'plain', 'marked', 'gone']) write(task(where), '# x\n')
+    write('docs/plain/readme.md', '# Notes\n\nNothing about archives.\n')
+    write('docs/marked/readme.md', MARKED)
     let asked = 0
-    const ready = () => { asked += 1; return { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: join(root, ...task.split('/')) }] }), stderr: '' } }
+    const ready = () => { asked += 1; return { status: 0, stdout: JSON.stringify({ ready: [{ id: 'T1', goal: 'g', path: join(root, 'docs', 'T1.md') }] }), stderr: '' } }
     const lines = listing => readyTaskLines(root, true, listing, ready).lines.join('\n')
-    // The control: with no README above it, the directory IS asked about and IS offered.
-    assert.match(lines([task]), /T1 is ready/)
-    assert.equal(asked, 1)
-    // A case-variant README above it.
-    const variant = lines([task, 'docs/old/readme.md'])
-    assert.match(variant, /docs\/old\/ADR-002-x\/tasks: UNPROVEN/)
+    // The controls: no README above it, and an ORDINARY lowercase one above it — the
+    // directory IS asked about and IS offered. The second is the case a blanket
+    // "every variant is unknown" rule got wrong in every normal repository.
+    assert.match(lines([task('bare')]), /T1 is ready/)
+    assert.match(lines([task('plain'), 'docs/plain/readme.md']), /T1 is ready/)
+    assert.equal(asked, 2)
+    // A case-variant that CARRIES THE MARKER: whether it is the catalog is the one
+    // thing that depends on the filesystem, and it is not guessed.
+    const variant = lines([task('marked'), 'docs/marked/readme.md'])
+    assert.match(variant, /docs\/marked\/ADR-002-x\/tasks: UNPROVEN/)
     assert.doesNotMatch(variant, /is ready/)
     // A listed README.md that cannot be read — it may well carry the marker.
-    const unreadable = lines([task, 'docs/old/README.md'])
-    assert.match(unreadable, /UNPROVEN/)
+    const unreadable = lines([task('gone'), 'docs/gone/README.md'])
+    assert.match(unreadable, /docs\/gone\/ADR-002-x\/tasks: UNPROVEN/)
     assert.doesNotMatch(unreadable, /is ready/)
-    assert.equal(asked, 1, 'adr-next is not asked about a directory whose standing is unknown')
+    assert.equal(asked, 2, 'adr-next is not asked about a directory whose standing is unknown')
   } finally { rmSync(root, { recursive: true, force: true }) }
 })
 
